@@ -197,17 +197,13 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
 - P (paths): `frame()` pivots and sorts in pandas, no value computed (P6); a date-time range start cut to its day and
   a Decimal read as a double for the legend, statistics and CSV (P7); split lines ordered on the client while the
   database cuts them at 20 by its own order (P8); the tab's snapped-copy branch of a combination run by no test (its shared copy path is: `join-open.ts`).
-- A (one API, suspected): a cube the screen keeps already is not replaced when a later `setTimeseries` carries its
-  `kept` document or copy; another editor's undo bringing back a cube this tab never held is refused ("maker is
-  gone"); a detached chart shares both. Python's `frame()` defaults to the first series by a rule of its own; a
-  source told as `{'grid': g}` is read with no alias.
+- A (one API, suspected): Python's `frame()` defaults to the first series by a rule of its own; a source told as
+  `{'grid': g}` is read with no alias.
 - A cube alone (not a page) saves no grid it added, so neither their charts nor a timeseries of them (a limitation of
   the cube alone's save, said in the A-B1 commit).
 - G9's rest: a dangling doc comment in `chart-render.ts`; a tile on a sheet not shown is left out of the page's
   picture. The cube-page-shell G4 test reads a date of no date type, so its tile never draws (the drawing is the
   chart-tiles A-B1 test's).
-- The screen refuses to freeze a tile one of whose grids it could not open (a page reopened without that source: no
-  filter of it to keep, said), where Python freezes it from the page's own cube document.
 - Not run in this container: `//datacube:verify_app_test` (its embedded Postgres refuses root; CI runs it).
 
 ## 10. Follow-ups fixed (2026-10-26)
@@ -229,3 +225,16 @@ of its grids still on the board; the editor's selects sized as the toolbar's; th
   `timeseries-view-dom` P9 (two series and their statistics, one opening; asked again, one more).
 - The statistics asked with Stats and the legend both off: none asked while nothing shows them, asked when one does.
   Pinned: `timeseries-view-dom` (none asked; Stats on, each line's once).
+- A, a cube kept for a tile not reaching a screen already holding it: reproduced (another editor's `setTimeseries`
+  replacing the `kept` document left the kept grid, and the page written here, as they were) -- the converge worked
+  over the board's grids alone. It now holds, puts at their cubes there, follows the copies of, and waits on every grid
+  of the page, one kept off the board for a tile too (`app/live-converge.ts`, `cubeThere`). Pinned: `page-app`
+  ("another editor's setTimeseries replacing a cube kept here").
+- A, another editor's change bringing a cube this tab never held: reproduced ("timeseries ... cannot be drawn again:
+  grid ...'s maker is gone") -- the converge opened another editor's grids alone. It now opens every cube a view there
+  reads that no grid shows and this tab does not know (a timeseries', a detached chart's: `cubesHeld`). Pinned:
+  `page-app` ("another editor's timeseries over a cube this tab never held").
+- A, the screen refusing to freeze a tile over a grid it could not open: reproduced ("its filter cannot be kept"),
+  where Python froze it from the page's cube. One rule now: each source's filter as the page holds its cube -- its
+  grid's, else as the page saved it (`TimeseriesHost.heldFilter`, `CubePageOptions.unopenedCube`). Pinned:
+  `one-api-gestures` P9 (the screen's spec is Python's).

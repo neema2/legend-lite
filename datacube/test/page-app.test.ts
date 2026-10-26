@@ -23,6 +23,7 @@ import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
+import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
 import { theirs } from './theirs.ts';
 import { convergeOn, type ConvergeGrid } from '../src/app/live-converge.ts';
@@ -1123,6 +1124,53 @@ describe('a page of its own', () => {
     const before = page.views();
     await assert.rejects(theirs(page, [{ kind: 'removeTile', tile: 'grid-9' }], new Map()), CubeRefusal);
     assert.deepEqual(page.views(), before);
+  });
+
+  // the review's follow-up (A, suspected; docs/TIMESERIES_REVIEW_2026_10_25.md §9): another editor's change bringing a
+  // cube this tab never held, read by a timeseries tile alone (its grid removed there) -- refused here, "maker is gone":
+  // the converge opened another editor's GRIDS only
+  it("another editor's timeseries over a cube this tab never held, its grid removed there: the cube opened from the page there", async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    const sheet = page.sheets[0]!;
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: 'grid-7', date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    const commands: PageCommand[] = [
+      { kind: 'addGrid', id: 'grid-7', document: page.document('Q3')!.cubes[0]!.cube, sheet, near: a, title: 'Orders', columns: null },
+      { kind: 'addTimeseries', sheet, near: 'grid-7', spec, title: 'Orders over time', columns: null },
+      { kind: 'removeTile', tile: 'grid-7' },
+    ];
+    const expected = applyPageCommands(page.state, commands).draft.page;
+    assert.ok(expected.cubes.some((c) => c.id === 'grid-7') && !expected.views.some((v) => v.id === 'grid-7'), 'there: kept for the tile, no grid');
+    await theirs(page, commands, new Map([['grid-7', over('orders.csv')]]));
+    await settle();
+    assert.deepEqual(page.views(), { views: expected.views, sheets: expected.sheets });
+    assert.ok(page.cubes.includes('grid-7'), 'kept off the board here too, to run the tile\'s queries');
+    assert.deepEqual(page.document('Q3')!.cubes.map((c) => c.id), expected.cubes.map((c) => c.id), 'the page holds what the page there holds');
+  });
+
+  // the review's follow-up (A, suspected): a cube kept for a timeseries here, its document replaced by another editor's
+  // setTimeseries (its `kept`) -- the converge put the board's grids at their cubes there, never one kept off it
+  it("another editor's setTimeseries replacing a cube kept here for the tile: the kept grid put at its cube there", async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    const sheet = page.sheets[0]!;
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: a, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    await theirs(page, [{ kind: 'addTimeseries', sheet, near: a, spec, title: 'Trades over time', columns: null }]);
+    await settle();
+    const ts = page.views().views.find((v) => v.kind === 'timeseries')!.id;
+    // removed here while the tile reads it: kept off the board for it
+    tile(a).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
+    await settle();
+    assert.ok(page.cubes.includes(a) && !page.grids.includes(a), 'kept off the board');
+    const was = page.document('Q3')!.cubes.find((c) => c.id === a)!.cube;
+    const EMEA = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+    const document: CubeDocument = { ...was, query: { ...was.query, filter: EMEA } };
+    await theirs(page, [{ kind: 'setTimeseries', tile: ts, spec, kept: [{ cube: a, document, copy: null }] }]);
+    await settle();
+    assert.deepEqual(page.document('Q3')!.cubes.find((c) => c.id === a)!.cube.query.filter, EMEA, 'the page holds the cube there');
+    assert.deepEqual(page.grid(a)?.snapshot.filter, EMEA, 'and the grid kept for the tile reads it');
   });
 
   it("snapped or live is the page's (§18.8): another editor's snap and live commands followed by its grid, the screen's own Snap in the page's document, nothing of the other editor's let go", async () => {

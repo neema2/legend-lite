@@ -278,6 +278,9 @@ export interface CubePageOptions {
    * database. Absent, such a series is refused in words.
    */
   readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
+  /** A cube the page holds as it saved it, its source not opened (page-app.ts: P9), by its id: what a timeseries tile
+   *  freezing keeps of it (its filter), as Python's freeze reads the page's cube. Absent: none such. */
+  readonly unopenedCube?: (cube: string) => CubeDocument | undefined;
 }
 
 /** An edit of the page's structure: its page commands, and what it is called (the page's Undo names it). */
@@ -2386,6 +2389,14 @@ export class CubePage {
       if (!tile || tile.view || this.#disposed || this.#sheetOf(id) !== this.#shown) return;
       tile.view = new TimeseriesView(tile.body, {
         grid: (cube) => this.#tsGrid(cube),
+        // each source's filter as the page holds its cube: its grid's (on the board or kept off it), else as the page
+        // saved it, its source not opened -- the rule Python's freeze reads the page's cubes by (headless timeseriesEdit)
+        heldFilter: (cube) => {
+          const grid = this.#tsGrid(cube);
+          if (grid) return { filter: grid.filter };
+          const saved = this.#options.unopenedCube?.(cube);
+          return saved ? { filter: saved.query.filter } : undefined;
+        },
         grids: () => tiles(this.#layoutOf(this.#sheetOf(id) ?? this.#shown)).filter((t) => this.#grids.has(t))
           .concat([...this.#grids.keys()].filter((t) => this.#sheetOf(t) !== this.#sheetOf(id)))
           .flatMap((t) => this.#tsGrid(this.#cubeOf(t)) ?? []),

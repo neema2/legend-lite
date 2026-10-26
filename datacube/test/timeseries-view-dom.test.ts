@@ -94,6 +94,7 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
   });
   const view = new TimeseriesView(root, {
     grid: (cube) => (cube === 'prices' ? g : undefined),
+    heldFilter: (cube) => (cube === 'prices' ? { filter: g.filter } : undefined),
     grids: () => [g],
     together: () => Promise.reject(new Error('one grid here')),
     setSpec: (s) => { told.push(s); },
@@ -345,6 +346,7 @@ describe('asking the database what is shown, once', () => {
     const root = dom.window.document.getElementById('t') as unknown as HTMLElement;
     const view = new TimeseriesView(root, {
       grid: (cube) => grids.get(cube),
+      heldFilter: (cube) => { const g = grids.get(cube); return g ? { filter: g.filter } : undefined; },
       grids: () => [...grids.values()],
       together: async (cubes): Promise<TsTogether> => {
         opens += 1;

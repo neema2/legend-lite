@@ -476,8 +476,12 @@ const BUDGET = 376_000;
  *  353,500 -> 363,000 (2026-10-26, main merged into the timeseries branch, its own steps there 344,000 -> 352,000 ->
  *  353,500: the timeseries tile and the review's G4 -- the grid-only page's note of the same date). Measured 362,623.
  *  363,000 -> 364,000 (2026-10-26, the one rule of the cubes a page holds and a timeseries' states -- the grid-only
- *  page's note of the same date). Measured 363,399. */
-const ENGINE_BUDGET = 364_000;
+ *  page's note of the same date). Measured 363,399.
+ *  364,000 -> 364,800 (2026-10-26, the timeseries review's one-API follow-ups, docs/TIMESERIES_REVIEW_2026_10_25.md §10:
+ *  the converge puts a cube kept off the board for a tile at its cube there, and opens one this tab never held
+ *  (app/live-converge.ts cubeThere); a timeseries frozen from the page's cubes, an unopened one's as saved (cube-page.ts
+ *  heldFilter, page-app.ts unopenedCube)). Measured 364,147. */
+const ENGINE_BUDGET = 364_800;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the

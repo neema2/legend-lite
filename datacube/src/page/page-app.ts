@@ -979,6 +979,7 @@ export class PageApp {
       // a chart's click decided on its grid's source and the page's filters (page-filters.ts chartPicked)
       pickOn: (grid) => ({ source: this.grid(grid)?.cubeSource, filters: this.#filters }),
       ...(this.#options.together ? { together: this.#options.together } : {}),
+      unopenedCube: (cube) => this.#unopened.get(cube),
     });
   }
 

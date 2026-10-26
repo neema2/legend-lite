@@ -95,6 +95,9 @@ export interface TimeseriesHost {
   grid(cube: string): TsGrid | undefined;
   /** The page's grids, in its order: what a source may read. */
   grids(): readonly TsGrid[];
+  /** A source's filter as the page holds its cube -- its grid's now, or as the page saved it when its grid could not be
+   *  opened -- what freezing keeps; undefined when the page holds no cube of it. */
+  heldFilter(cube: string): { readonly filter: FilterNode | undefined } | undefined;
   /** The grids of `cubes` opened together over one model of their tables (D2, D5), or a refusal in words. */
   together(cubes: readonly string[]): Promise<TsTogether>;
   /** The tile's spec as the person changed it: the page's (setTimeseries). */
@@ -296,8 +299,8 @@ export class TimeseriesView {
    */
   setState(state: TsState): void {
     const filters = new Map(this.#spec.sources.flatMap((s) => {
-      const g = this.#host.grid(s.cube);
-      return g ? [[s.cube, g.filter] as const] : [];
+      const held = this.#host.heldFilter(s.cube);
+      return held ? [[s.cube, held.filter] as const] : [];
     }));
     this.#edit({ kind: 'state', state, filters });
   }

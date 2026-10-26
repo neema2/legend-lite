@@ -28,11 +28,13 @@ import { applyGridCommands, GRID_COMMAND_KINDS } from '../src/grid-commands.ts';
 import { LiveChannel, type LiveScreen } from '../src/app/live-channel.ts';
 import { pageHash } from '../src/page-hash.ts';
 import type { LivePage, LiveWrite } from '../src/app/services.ts';
-import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS } from '../src/page-commands.ts';
+import { applyPageCommand, idsOf, PAGE_COMMAND_KINDS, type PageCommand } from '../src/page-commands.ts';
 import { pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { rebaseEdits, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
 import { chartPick, readEdits } from '../src/headless/page.ts';
+import { timeseriesEdit } from '../src/headless/timeseries.ts';
+import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
 import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
@@ -1407,6 +1409,34 @@ describe('P9: a saved page opened keeps what it cannot open', () => {
     const now = onScreen();
     assert.deepEqual([now.views, now.cubes, now.sheets], [saved.views, saved.cubes, saved.sheets],
       'the page written is the page saved: nothing it could not open dropped');
+  });
+
+  // the review's follow-up (A, suspected; docs/TIMESERIES_REVIEW_2026_10_25.md §9): the screen refused to freeze a
+  // timeseries one of whose grids it could not open (no filter of it to keep), where Python froze it from the page's
+  // own cube -- one rule: each source's filter as the page holds its cube
+  it("a timeseries over a grid it could not open, frozen from its header: as Python freezes it, from the page's cube", async () => {
+    const { a, b, series } = await withTimeseries();
+    const saved = readPage(pageToJson(onScreen()));
+    page!.dispose();
+    const commands: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => commands.push(c) });
+    // opened again with the orders' source alone: the prices grid kept as saved, saying why
+    const orders = saved.views.find((v) => v.id === b) as { readonly cube: string };
+    pg().restore(saved, new Map([[orders.cube, over('orders.csv')]]));
+    await settle();
+    assert.match(tile(a).querySelector('.dc-tile-unavailable')?.textContent ?? '', /could not be opened/);
+    await shown(host, `[data-tile="${series}"] .dc-ts-bar`);
+    const python = JSON.parse(timeseriesEdit(pageToJson(saved), series, JSON.stringify({ kind: 'state', state: 'frozen' }))) as { spec?: TimeseriesSpec; problems?: string[] };
+    assert.equal(python.problems, undefined, "Python freezes it");
+    tile(series).querySelector<HTMLButtonElement>('.dc-tile-state')!.click();
+    const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+      .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === 'Frozen');
+    if (!item) throw new Error('its state button offers no Frozen');
+    item.click();
+    await settle();
+    const set = commands.find((c) => c.kind === 'setTimeseries');
+    assert.ok(set !== undefined && set.kind === 'setTimeseries', `the screen froze it too: ${tile(series).querySelector('.dc-ts-banner')?.textContent ?? ''}`);
+    assert.deepEqual(set.spec, python.spec, "its spec is Python's");
   });
 
   it("a kept grid's snap is written back with it, as saved (the S1 audit's 11)", async () => {
