@@ -222,15 +222,18 @@
 # 3,437, reject REJECTED 1,065 -> 1,066 (a condition as an operand, (1 = 1) & (2 = 2), IQ's -131).
 # The IQ scale program, 2026-10-26: x [NOT] REGEXP p reads (was refused by name): accept PARSED 3,437 -> 3,523
 # (REFUSED 1,512 -> 1,426); SIMILAR TO stays refused, so its three reject cases stay unparsed.
-accept	parsed	3523
-accept	refused	1426
+# The IQ scale program, 2026-10-26: SOUNDEX(s) and DIFFERENCE(a, b) read (were refused by name), IQ's packed number
+# as each engine codes it: accept PARSED 3,523 -> 3,525 (REFUSED 1,426 -> 1,424); a DIFFERENCE of the wrong number of
+# arguments is now IQ's -154: reject REJECTED 1,066 -> 1,067 (REFUSED 654 -> 653).
+accept	parsed	3525
+accept	refused	1424
 accept-with-option	refused	90
 accept-with-option	rejected	1
 flag	parsed	86
 flag	refused	48
 reject	parsed	89
-reject	refused	654
-reject	rejected	1066
+reject	refused	653
+reject	rejected	1067
 reject-parsed	a1_sa_lang-1597
 reject-parsed	a1_sa_lang-1598
 reject-parsed	a1_sa_lang-1609

@@ -977,3 +977,22 @@ says so.
     quotient at fewer places than IQ's scale is typed at those places (no padding to IQ's scale first). Reports parts S
     (finance, 8) and T (customer hygiene and service, 12) on claude/iq-reports 9755a670, snapped by the Mac at
     b20d792a: 18 answered, 2 IQ's -1001030 (a subquery predicate, and a scalar subquery, inside a CASE: two wordings).
+  - **SOUNDEX and DIFFERENCE as IQ computes them** (decoded by the Mac on IQ 17.1 from 51 strings and 18 separator
+    probes): SOUNDEX is a number, not a four-character code -- the first ASCII letter's code, lowercased, plus 128
+    times the three Soundex digits packed three bits each (d1 + 8 d2 + 64 d3: Smith, S530, is 3827) -- every character
+    but an ASCII letter skipped, transparent (a space, a hyphen, a digit, an apostrophe, an accented letter: 'ÉLan' is
+    L500, 'Bb b' codes its b's as one run), 0 where no letter is left. The two engines code it differently: IQ's
+    engine codes the letters after the first, the first's own code apart, passing over A E I O U H W Y (Pfister P123,
+    Ashcraft A261, Honeyman H500), an UNSIGNED INT, and answers SOUNDEX('') with the row before's value (the
+    buffer-reuse family of LEAD's default: refused at run time); SQL Anywhere's front end counts the first letter's
+    code among the repeats and lets A E I O U Y H W part them (Pfister P236, Ashcraft A226, Honeyman H555), a SMALLINT
+    wrapping past 32767 (Hilbert, 50792 under the engine, -14744 there). DIFFERENCE counts the four parts equal in
+    their places ('apple', A140, against 'hello', H400, is 1; the census's seven rows and the Mac's three pairs).
+    Lite computes both by anchored and global regexpReplace, toLower over the letters left and ascii. Moves: part T's
+    duplicate_customer_candidates REFUSED -> PASS (IQ's two rows), census_string's soundex_difference REFUSED -> PASS;
+    the syntax pins accept PARSED 3,523 -> 3,525, DIFFERENCE('a') IQ's -154. Reports parts S to V judged (41 cases on
+    claude/iq-reports, snapped by the Mac through 73ee8ba3): 37 PASS on DuckDB and Postgres, 3 IQ's -1001030 as lite
+    claims (a subquery predicate or a scalar subquery inside a CASE; ALL/ANY inside one), 1 refused
+    (inventory_turnover_by_category: a quotient by an AVG of 23 places, a divisor of 38 digits that leaves no step
+    within lite's 38). Part T's open balances and part U's two inventory windows rewritten for the parity lints
+    (D-E2; a window's tie-break by id) and re-snapped, their rows unchanged.

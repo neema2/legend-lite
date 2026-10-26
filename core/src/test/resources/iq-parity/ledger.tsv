@@ -900,7 +900,7 @@ lite/census_string/stuff@iq17-default	PASS	PASS
 lite/census_string/insertstr@iq17-default	PASS	PASS	
 lite/census_string/lpad_rpad@iq17-default	PASS	PASS	
 lite/census_string/reverse@iq17-default	PASS	PASS	
-lite/census_string/soundex_difference@iq17-default	REFUSED	REFUSED	
+lite/census_string/soundex_difference@iq17-default	PASS	PASS	
 lite/census_string/similar@iq17-default	REFUSED	REFUSED	
 lite/census_string/str_of_double@iq17-default	REFUSED	REFUSED	
 lite/census_string/string_concat_fn@iq17-default	PASS	PASS	

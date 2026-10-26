@@ -110,7 +110,9 @@ final class IqFunctions {
         // WIDTH_BUCKET, OCTET_LENGTH, BIT_LENGTH, STR_REPLACE
         SIN(1, 1), COS(1, 1), TAN(1, 1), COT(1, 1), ASIN(1, 1), ACOS(1, 1), ATAN(1, 1), ATAN2(2, 2), DEGREES(1, 1),
         RADIANS(1, 1), WIDTH_BUCKET(4, 4), OCTET_LENGTH(1, 1), BIT_LENGTH(1, 1), STR_REPLACE(3, 3), HASH(1, 2),
-        DATEFLOOR(2, 3), DATECEILING(2, 3), DATEROUND(2, 3);
+        DATEFLOOR(2, 3), DATECEILING(2, 3), DATEROUND(2, 3),
+        // the IQ scale program, 2026-10-26 (the realistic reports' duplicate customers)
+        SOUNDEX(1, 1), DIFFERENCE(2, 2);
 
         final int min;
         final int max;
@@ -418,6 +420,8 @@ final class IqFunctions {
             case GREATER, LESSER -> greaterLesser(fn == Fn.GREATER, f, at);
             case ARGN -> argn(f, at);
             case REVERSE -> reverse(name, f, args);
+            case SOUNDEX -> soundex(name, f, args);
+            case DIFFERENCE -> difference(name, f, args);
             case TO_CHAR -> toChar(name, f, args);
             case INSERTSTR -> insertstr(name, f, args);
             case BYTE_LENGTH, OCTET_LENGTH -> byteLength(name, f, args);
@@ -3274,6 +3278,123 @@ final class IqFunctions {
         }
         return strict(Kind.STRING, s.detail() instanceof IqType t && t.family().equals("VARCHAR") ? t : varchar(),
                 List.of(s), v -> SqlToPure.call("reverseString", v.get(0)));
+    }
+
+    /**
+     * {@code SOUNDEX(s)} (the IQ scale program, 2026-10-26; measured by the Mac on IQ 17.1 over 51 strings): a number,
+     * not a four-character code -- its first ASCII letter's code, lowercased, plus 128 times its three Soundex digits
+     * packed three bits each (d1 + 8 d2 + 64 d3: Smith, S530, is 115 + 128 * 29 = 3827), every character but an ASCII
+     * letter skipped (a digit, a space, an apostrophe, an accented letter: 'ÉLan' is L500), 0 where none is left. The
+     * two engines code it differently. IQ's engine codes the letters after the first, the first one's own code apart,
+     * passing over A, E, I, O, U, H, W and Y (Pfister P123, Ashcraft A261, Honeyman H500), an UNSIGNED INT; it answers
+     * '' with the row before's value (a defect, refused at run time). SQL Anywhere's front end counts the first
+     * letter's code among the repeats and lets every uncoded letter part them (Pfister P236, Ashcraft A226, Honeyman
+     * H555), a SMALLINT that wraps past 32767 (Hilbert, H416, is 50792 under IQ's engine, -14744 there).
+     */
+    private Tx soundex(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx s = text(args.get(0), f.args().get(0), name);
+        boolean iq = engine == IqDialect.Engine.IQ;
+        IqType type = iq ? IqType.integer("UNSIGNED INT", BigInteger.ZERO, BigInteger.valueOf(SOUNDEX_MOST), false)
+                : IqType.integer("SMALLINT", IqType.SMALLINT_MIN, IqType.SMALLINT_MAX, false);
+        return strict(Kind.INTEGER, type, List.of(s), v -> {
+            ValueSpecification value = soundexValue(v.get(0), iq);
+            if (iq) {
+                return emptyRefused(v.get(0), "SOUNDEX", value);
+            }
+            return ifThen(SqlToPure.call("greaterThan", value, integer(32767)),
+                    AppliedFunction.infixRun("minus", List.of(value, integer(65536))), value);
+        });
+    }
+
+    /**
+     * {@code DIFFERENCE(a, b)} (the IQ scale program, 2026-10-26; measured on IQ 17.1): how many of the four parts of
+     * the two strings' SOUNDEX -- the first letter and the three digits -- are equal, each in its place (Smith and
+     * Smyth 4, Lee and Washington 0; 'apple', A140, against 'hello', H400, 1: only the last 0), the SOUNDEX each engine
+     * codes ({@link #soundex}); an UNSIGNED INT under IQ's engine, a SMALLINT in SQL Anywhere's front end.
+     */
+    private Tx difference(String name, SqlAst.FunctionCall f, List<Tx> args) {
+        Tx a = text(args.get(0), f.args().get(0), name);
+        Tx b = text(args.get(1), f.args().get(1), name);
+        boolean iq = engine == IqDialect.Engine.IQ;
+        IqType type = iq ? IqType.integer("UNSIGNED INT", BigInteger.ZERO, BigInteger.valueOf(4), false)
+                : IqType.integer("SMALLINT", BigInteger.ZERO, BigInteger.valueOf(4), false);
+        return strict(Kind.INTEGER, type, List.of(a, b), v -> {
+            ValueSpecification x = soundexValue(v.get(0), iq);
+            ValueSpecification y = soundexValue(v.get(1), iq);
+            List<ValueSpecification> same = new ArrayList<>();
+            long unit = 1;
+            for (long size : new long[] {128, 8, 8, 8}) {
+                same.add(ifThen(SqlToPure.call("equal", part(x, unit, size), part(y, unit, size)), integer(1),
+                        integer(0)));
+                unit *= size;
+            }
+            ValueSpecification count = AppliedFunction.infixRun("plus", same);
+            return iq ? emptyRefused(v.get(1), "DIFFERENCE", emptyRefused(v.get(0), "DIFFERENCE", count)) : count;
+        });
+    }
+
+    /** The part of a packed number {@code v} at {@code unit}, of {@code size} values: (v / unit) mod size. */
+    private static ValueSpecification part(ValueSpecification v, long unit, long size) {
+        ValueSpecification shifted = unit == 1 ? v : SqlToPure.call("floor", SqlToPure.call("divide", v,
+                integer(unit)));
+        return SqlToPure.call("mod", shifted, integer(size));
+    }
+
+    /** {@code value}, refused at run time where {@code s} is '': IQ's engine answers a SOUNDEX of it with the row
+     *  before's value (measured on IQ 17.1). */
+    private static ValueSpecification emptyRefused(ValueSpecification s, String function, ValueSpecification value) {
+        return refusedPast(SqlToPure.call("equal", SqlToPure.call("length", s), integer(0)),
+                IqDialect.REFUSED_AT_RUN_TIME + function + " of '' is not supported: IQ's engine answers it with the"
+                + " row before's value (measured on IQ 17.1)", value, raise("Integer"));
+    }
+
+    /** IQ's SOUNDEX of {@code s} as an unsigned number, coded as IQ's engine ({@code iq}) or SQL Anywhere's front end
+     *  codes it ({@link #soundex}). */
+    private static ValueSpecification soundexValue(ValueSpecification s, boolean iq) {
+        ValueSpecification letters = SqlToPure.call("toLower", everywhere(s, "[^A-Za-z]", ""));
+        ValueSpecification coded = iq ? everywhere(SqlToPure.call("regexpReplace", letters, new CString("^."),
+                new CString(""), new com.legend.protocol.spec.CBoolean(false)), "[aeiouhwy]", "") : letters;
+        for (String[] group : SOUNDEX_DIGITS) {
+            coded = everywhere(coded, group[0], group[1]);
+        }
+        if (!iq) {
+            coded = everywhere(coded, "[aeiouhwy]", "0");
+        }
+        for (int d = iq ? 1 : 0; d <= 6; d++) {
+            coded = everywhere(coded, d + "+", String.valueOf(d));
+        }
+        if (!iq) {
+            // the first letter's code read, then dropped; the letters that only parted repeats too
+            coded = everywhere(SqlToPure.call("regexpReplace", coded, new CString("^."), new CString(""),
+                    new com.legend.protocol.spec.CBoolean(false)), "0", "");
+        }
+        ValueSpecification padded = AppliedFunction.infixRun("plus", List.of(coded, new CString("000")));
+        ValueSpecification packed = AppliedFunction.infixRun("plus", List.of(digit(padded, 0),
+                AppliedFunction.infixRun("times", List.of(integer(8), digit(padded, 1))),
+                AppliedFunction.infixRun("times", List.of(integer(64), digit(padded, 2)))));
+        return ifThen(SqlToPure.call("equal", SqlToPure.call("length", letters), integer(0)), integer(0),
+                AppliedFunction.infixRun("plus", List.of(SqlToPure.call("ascii", letters),
+                        AppliedFunction.infixRun("times", List.of(integer(128), packed)))));
+    }
+
+    /** The most a SOUNDEX is: 'z' and three 6s. */
+    private static final long SOUNDEX_MOST = 'z' + 128L * (6 + 8 * 6 + 64 * 6);
+
+    /** The Soundex digit of each coded letter, lowercase. */
+    private static final String[][] SOUNDEX_DIGITS = {{"[bfpv]", "1"}, {"[cgjkqsxz]", "2"}, {"[dt]", "3"}, {"l", "4"},
+        {"[mn]", "5"}, {"r", "6"}};
+
+    /** {@code s} with every match of {@code pattern} replaced by {@code with}. */
+    private static ValueSpecification everywhere(ValueSpecification s, String pattern, String with) {
+        return SqlToPure.call("regexpReplace", s, new CString(pattern), new CString(with),
+                new com.legend.protocol.spec.CBoolean(true));
+    }
+
+    /** The value of the digit at 0-based {@code at} of a string of digits. */
+    private static ValueSpecification digit(ValueSpecification digits, int at) {
+        ValueSpecification rest = at == 0 ? digits : SqlToPure.call("regexpReplace", digits, new CString("^.{" + at
+                + "}"), new CString(""), new com.legend.protocol.spec.CBoolean(false));
+        return AppliedFunction.infixRun("minus", List.of(SqlToPure.call("ascii", rest), integer(48)));
     }
 
     /**

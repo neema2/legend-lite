@@ -287,6 +287,23 @@ class IqFunctionsTest {
     }
 
     @Test
+    void soundexIsIqsPackedNumberCodedAsEachEngineCodesIt() {
+        // the IQ scale program, 2026-10-26 (measured on IQ 17.1): the first letter's code plus 128 times the three
+        // digits, three bits each; IQ's engine passes over A E I O U H W Y and leaves the first letter's code out, an
+        // UNSIGNED INT, '' refused at run time (its value the row before's); the front end parts repeats by them and
+        // counts the first letter's, a SMALLINT that wraps
+        String engine = pure("SELECT SOUNDEX(vc) AS s FROM " + T, IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(engine.contains("'[aeiouhwy]', ''") && engine.contains("the row before")
+                && !engine.contains("65536"), engine);
+        String front = pure("SELECT SOUNDEX(vc) AS s FROM " + T, IqProfile.SQLA17_DEFAULT.settings());
+        assertTrue(front.contains("'[aeiouhwy]', '0'") && front.contains("65536") && !front.contains("the row before"),
+                front);
+        // DIFFERENCE: the parts equal in their places, of the SOUNDEX each engine codes
+        String difference = pure("SELECT DIFFERENCE(vc, 'hello') AS d FROM " + T, IqProfile.IQ17_DEFAULT.settings());
+        assertTrue(difference.contains("'[aeiouhwy]', ''") && difference.contains("DIFFERENCE of"), difference);
+    }
+
+    @Test
     void aSearchOf255CharactersIsNull() {
         String p = pure("SELECT REPLACE(vc, vc, 'x') AS r FROM " + T);
         assertTrue(p.contains("length() > 254"), p);
