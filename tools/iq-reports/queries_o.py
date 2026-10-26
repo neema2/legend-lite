@@ -216,4 +216,4 @@ COMBINATIONS = [
          GROUP BY w.device ORDER BY w.device"""),
 ]
 
-CASES = [("depth", DEPTH), ("combinations", COMBINATIONS)]
+CASES = [("depth", DEPTH), ("depth_combinations", COMBINATIONS)]

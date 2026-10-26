@@ -10,9 +10,12 @@ os.makedirs(os.path.join(root, "lite"), exist_ok=True)
 os.makedirs(suite, exist_ok=True)
 shutil.copy("schema.yaml", os.path.join(root, "schema.yaml"))
 shutil.copy("schema.yaml", os.path.join(suite, "schema.yaml"))
-seen = set(); n = 0
+seen = set(); n = 0; groups = set()
 with open(os.path.join(suite, "queries.jsonl"), "w") as qj:
     for group, cases in queries_a.CASES + queries_b.CASES + queries_c.CASES + queries_d.CASES + queries_e.CASES + queries_f.CASES + queries_g.CASES + queries_h.CASES + queries_i.CASES + queries_j.CASES + queries_k.CASES + queries_l.CASES + queries_m.CASES + queries_n.CASES + queries_o.CASES:
+        # one file a group: a group named twice would overwrite the first one's cases
+        assert group not in groups, group
+        groups.add(group)
         with open(os.path.join(root, "lite", f"reports_{group}.yaml"), "w") as f:
             f.write(f"# The IQ scale program's realistic reports (2026-10-25): {group}, as analysts write them, over the retail\n"
                     "# schema (iq-reports/schema.yaml), judged by the live IQ (iq17-default). tools/iq-oracle's README.md has the keys.\n"
