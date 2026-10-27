@@ -488,6 +488,19 @@ class AssociationIntegrationTest {
         }
 
         @Test
+        @DisplayName("An instance compared as a value is refused as that, never as an unmapped property")
+        void testInstanceComparedIsRefusedByName() {
+            // $a.person.firm is a Firm: comparing it whole needs instance
+            // identity, which no target has yet -- 2026-10-27 this said
+            // "property 'firm' ... is not mapped", sending the reader to a
+            // mapping that is fine
+            var e = assertThrows(Exception.class, () -> exec(fullModel(),
+                "test::Address.all()->filter(a|$a.person.firm == test::Firm.all()->filter(f|$f.legalName == 'Acme')->toOne())->project(~[city:a|$a.city])"));
+            assertTrue(e.getMessage().contains("instance"), e.getMessage());
+            assertFalse(e.getMessage().contains("is not mapped"), e.getMessage());
+        }
+
+        @Test
         @DisplayName("Slice before a to-many project counts people, not their addresses")
         void testSliceThenToManyProject() throws SQLException {
             // by name: Alice (2 addresses), Bob (1), Charlie (0), Diana (0) --

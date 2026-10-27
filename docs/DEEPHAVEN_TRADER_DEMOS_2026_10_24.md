@@ -871,9 +871,10 @@ through a to-many navigation folds the projection's joins -- those no filter or 
 the outermost sort again above them; the SQL is now `FROM (SELECT * FROM EQUITY ORDER BY MARKET_CAP DESC LIMIT 5) LEFT
 JOIN (the instrument and its news)`, Deephaven's batch `sort`, `head` 5, then the join. Pinned by four cases in
 `AssociationIntegrationTest` (take, descending sort, a to-one hop then a to-many, slice); every core lane and the corpus
-differential pass. Still open: `sortBy(...)->reverse()` there throws an internal error (the comparator form above does
-not); and `$s.instrument.equity->in(...)` is refused as "property 'equity' ... is not mapped", where the gap is
-comparing instances, not the mapping. Not done either: a story's `tickers` (every name it
+differential pass. With it, the same day: `sortBy(...)->reverse()` is the descending sort (it threw an internal error:
+`reverse` was no step of a class chain); and `$s.instrument.equity->in(...)`, refused as "property 'equity' ... is not
+mapped", is now refused as what it is -- an instance read as a value (compared or projected), which needs instance
+identity no target has yet. That identity is still open. Not done either: a story's `tickers` (every name it
 mentions, for the cards' chips) is a text list; a many-to-many "mentions" association is the honest form, a change to the
 stress corpus (shared, its answers generated).
 

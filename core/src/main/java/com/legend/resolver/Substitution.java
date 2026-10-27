@@ -2518,11 +2518,19 @@ final class Substitution {
                     + inner.getClass().getSimpleName() + "; leaf="
                     + leaf + "]");
         }
-        return assocLeaf(head, leaf);
+        return assocLeaf(head, leaf,
+                Type.asClassType(original.info().type()) instanceof Type.ClassType);
     }
 
     /** The leaf of a demanded association / navigate-slot head. */
     private TypedSpec assocLeaf(String head, String leaf) {
+        return assocLeaf(head, leaf, false);
+    }
+
+    /** The leaf of a demanded association / navigate-slot head; {@code
+     *  objectLeaf}: the leaf read is an instance (a class-typed property read
+     *  as a value, not navigated further). */
+    private TypedSpec assocLeaf(String head, String leaf, boolean objectLeaf) {
         AssocSub a = target.assocs().get(head);
         if (a == null) {
             if (target.nested()) {
@@ -2583,6 +2591,15 @@ final class Substitution {
                         + "." + leaf + "' inside an exists/isEmpty predicate is"
                         + " not supported yet [target=" + a.targetClassFqn()
                         + "; bindings=" + a.targetBindings().keySet() + "]");
+            }
+            if (objectLeaf) {
+                // the leaf IS an instance: an ==, an in() or a projected
+                // column of it needs instance identity, which no target has
+                // yet -- the mapping is not what is missing (2026-10-27)
+                throw new NotImplementedException("'" + SyntheticHeads.realHead(head)
+                        + "." + SyntheticHeads.realHead(leaf) + "' is an instance of a class: reading an"
+                        + " instance as a value (comparing it with == or in(), or projecting it) is not"
+                        + " supported yet -- compare or project one of its properties instead");
             }
             throw new MappingResolutionException("property '"
                     + SyntheticHeads.realHead(leaf)
