@@ -330,34 +330,47 @@ try {
       ? null : `the chain by underlying: ${JSON.stringify(chain)}`;
   });
 
-  await check('the chain priced live by the model\'s Black and Scholes (K11): put-call parity on every option, deltas in range',
-    async () => {
-      const started = performance.now();
-      const [counted] = await rows('products::Option.all()->project(~[u:x|$x.underlying.instrumentId, k:x|$x.strikePrice,'
-        + ' e:x|$x.expirationDate, v:x|$x.impliedVolatility])'
-        + `->join(${QUOTE}->project(~[q:x|$x.instrument.instrumentId, s:x|$x.mid, at:x|$x.quoteTime]),`
-        + ' meta::pure::functions::relation::JoinKind.INNER, {o, q|$o.u == $q.q})'
-        + '->extend(~[t:x|dateDiff($x.at, $x.e, DurationUnit.DAYS) / 365.0, vol:x|$x.v->toOne()])'
-        + '->extend(~[rootT:x|sqrt($x.t), disc:x|exp(0.0 - (0.05 * $x.t))])'
-        + '->extend(~[d1:x|market::options::d1($x.s, $x.k, $x.t, $x.vol, 0.05, $x.rootT)])'
-        + '->extend(~[d2:x|market::options::d2($x.d1, $x.vol, $x.rootT), nd1:x|market::options::pdf($x.d1),'
-        + ' k1:x|market::options::k($x.d1)])'
-        + '->extend(~[nd2:x|market::options::pdf($x.d2), k2:x|market::options::k($x.d2),'
-        + ' tail1:x|market::options::tail($x.nd1, $x.k1)])'
-        + '->extend(~[tail2:x|market::options::tail($x.nd2, $x.k2), cd1:x|market::options::cdf($x.d1, $x.tail1),'
-        + ' cmd1:x|market::options::cdf(0.0 - $x.d1, $x.tail1)])'
-        + '->extend(~[cd2:x|market::options::cdf($x.d2, $x.tail2), cmd2:x|market::options::cdf(0.0 - $x.d2, $x.tail2)])'
-        + '->extend(~[c:x|market::options::price(true, $x.s, $x.k, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),'
-        + ' p:x|market::options::price(false, $x.s, $x.k, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),'
-        + ' dc:x|market::options::delta(true, $x.cd1)])'
-        + '->extend(~[parity:x|abs(($x.c - $x.p) - ($x.s - ($x.k * exp(0.0 - (0.05 * $x.t))))) / $x.s,'
-        + ' bad:x|($x.dc < 0.0) || ($x.dc > 1.0) || ($x.c < 0.0) || ($x.p < 0.0)])'
-        + '->groupBy(~[], ~[n:x|$x.k:y|$y->count(), worst:x|$x.parity:y|$y->max(), bad:x|if($x.bad, |1, |[]):y|$y->count()])');
-      const [n, worst, bad] = [Number(counted?.[0]), Number(counted?.[1]), Number(counted?.[2])];
-      // parity is exact in Black and Scholes; the normal distribution's approximation leaves a few millionths
-      return n > 0 && worst < 1e-5 && bad === 0 ? null
-        : `${n} options: parity off by ${worst} of the spot at worst, ${bad} out of range (${(performance.now() - started).toFixed(0)} ms)`;
-    });
+  await check('the chain priced live by the model\'s Black and Scholes (K11): every price and greek the textbook\'s, computed'
+    + ' here on the same inputs', async () => {
+    const started = performance.now();
+    // the desk's own chain (market.pure), as the options screen reads it: what the server computed for each option
+    const chain = await rows('market::screens::optionChain(0.05)->select(~[call, spot, strike, t, vol, price, delta, gamma,'
+      + ' vega, theta])');
+    // the textbook's, independently: the normal distribution integrated (Simpson's rule, error far below the model's
+    // Abramowitz and Stegun's 7.5e-8), a put by its own formula, not by parity
+    const pdf = (x: number): number => Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI);
+    const cdf = (x: number): number => {
+      const steps = 2000;
+      const h = Math.abs(x) / steps;
+      let sum = pdf(0) + pdf(Math.abs(x));
+      for (let i = 1; i < steps; i++) sum += (i % 2 === 1 ? 4 : 2) * pdf(i * h);
+      const half = (sum * h) / 3;
+      return x >= 0 ? 0.5 + half : 0.5 - half;
+    };
+    const r = 0.05;
+    const wrong: string[] = [];
+    for (const row of chain) {
+      const call = row[0] === true || row[0] === 'true';
+      const [S, K, T, V, price, delta, gamma, vega, theta] = row.slice(1).map(Number) as
+        [number, number, number, number, number, number, number, number, number];
+      const d1 = (Math.log(S / K) + (r + V * V / 2) * T) / (V * Math.sqrt(T));
+      const d2 = d1 - V * Math.sqrt(T);
+      const disc = K * Math.exp(-r * T);
+      const want = call
+        ? { price: S * cdf(d1) - disc * cdf(d2), delta: cdf(d1), theta: (-(S * pdf(d1) * V) / (2 * Math.sqrt(T)) - r * disc * cdf(d2)) / 365 }
+        : { price: disc * cdf(-d2) - S * cdf(-d1), delta: cdf(d1) - 1, theta: (-(S * pdf(d1) * V) / (2 * Math.sqrt(T)) + r * disc * cdf(-d2)) / 365 };
+      const greeks = { gamma: pdf(d1) / (S * V * Math.sqrt(T)), vega: (S * pdf(d1) * Math.sqrt(T)) / 100 };
+      // to a millionth of the spot for a price, a millionth for a delta: the model's distribution's error, scaled
+      const off = (got: unknown, expected: number, scale: number): boolean => !(Math.abs((got as number) - expected) <= 1e-6 * scale);
+      if (off(price, want.price, S) || off(delta, want.delta, 1) || off(gamma, greeks.gamma, Math.abs(greeks.gamma) + 1e-9)
+        || off(vega, greeks.vega, Math.abs(greeks.vega) + 1e-9) || off(theta, want.theta, Math.abs(want.theta) + S * 1e-4)) {
+        wrong.push(`${call ? 'call' : 'put'} ${K} at ${S}, ${T.toFixed(3)} y, vol ${V}: price ${String(price)} (${want.price}),`
+          + ` delta ${String(delta)} (${want.delta}), theta ${String(theta)} (${want.theta})`);
+      }
+    }
+    return chain.length > 0 && wrong.length === 0 ? null
+      : `${chain.length} options, ${wrong.length} not the textbook's: ${wrong.slice(0, 3).join('; ')} (${(performance.now() - started).toFixed(0)} ms)`;
+  });
 
   const NEWS = 'marketdata::NewsStory.all()';
   // a share offering's is Capital Markets (2026-10-25, the trading desk: a brief moves its name as often down as up)

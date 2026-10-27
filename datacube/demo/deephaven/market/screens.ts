@@ -567,8 +567,6 @@ export const OPTION_BOOK = `market::screens::optionBook(${OPTION_RATE})`;
 /** The columns a chain's or a book's grid leaves out: its keys, its inputs. */
 const OPTION_INPUTS: Readonly<Record<string, ColumnConfiguration>> = {
   uinst: HIDDEN, inst: HIDDEN, qinst: HIDDEN, option: HIDDEN, at: HIDDEN, t: HIDDEN, call: HIDDEN, vol: HIDDEN, size: HIDDEN,
-  d1: HIDDEN, d2: HIDDEN, rootT: HIDDEN, disc: HIDDEN, nd1: HIDDEN, nd2: HIDDEN, k1: HIDDEN, k2: HIDDEN, tail1: HIDDEN,
-  tail2: HIDDEN, cd1: HIDDEN, cd2: HIDDEN, cmd1: HIDDEN, cmd2: HIDDEN,
   moneyness: HIDDEN, settle: HIDDEN, pinst: HIDDEN,
 };
 
@@ -576,15 +574,11 @@ async function optionsParts(types: SourceTypes): Promise<Parts> {
   const average = { aggregate: 'average' } as const;
   const chain = await columnsOf(types, OPTION_CHAIN, {
     strike: { kind: 'dimension' }, size: { kind: 'dimension' }, iv: average, settle: average, spot: average, t: average,
-    vol: average, d1: average, d2: average, rootT: average, disc: average, nd1: average, nd2: average, k1: average,
-    k2: average, tail1: average, tail2: average, cd1: average, cd2: average,
-    cmd1: average, cmd2: average, price: average, delta: average, gamma: average, vega: average, theta: average, chg: average, moneyness: average,
+    vol: average, price: average, delta: average, gamma: average, vega: average, theta: average, chg: average, moneyness: average,
   });
   const book = await columnsOf(types, OPTION_BOOK, {
     strike: { kind: 'dimension' }, size: { kind: 'dimension' }, iv: average, settle: average, spot: average, t: average,
-    vol: average, d1: average, d2: average, rootT: average, disc: average, nd1: average, nd2: average, k1: average,
-    k2: average, tail1: average, tail2: average, cd1: average, cd2: average,
-    cmd1: average, cmd2: average, price: average, delta: average, gamma: average, vega: average, theta: average, chg: average, moneyness: average,
+    vol: average, price: average, delta: average, gamma: average, vega: average, theta: average, chg: average, moneyness: average,
     contracts: { aggregate: 'sum' }, units: { aggregate: 'sum' }, posDelta: { aggregate: 'sum' }, posGamma: { aggregate: 'sum' },
     posVega: { aggregate: 'sum' }, posTheta: { aggregate: 'sum' }, mv: { aggregate: 'sum' }, dayPnl: { aggregate: 'sum' },
     dollarDelta: { aggregate: 'sum' },

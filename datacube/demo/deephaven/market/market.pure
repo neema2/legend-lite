@@ -14,66 +14,81 @@ Database market::World
 )
 
 ###Pure
-// BLACK AND SCHOLES (K11): a European option's price and greeks from its underlying's price s, its strike k, its
-// volatility v, the rate r -- and what a query computes once each, as columns, and hands on: the square root of its time
-// to expiry (rootT), its discount (disc), d1, the normal density at d1 and d2 (nd1, nd2), the polynomial's variable at
-// each (k1, k2), the normal's tail beyond each (tail1, tail2), and the normal distribution at d1, d2 and their negations
-// (cd1, cd2, cmd1, cmd2). Each function is inlined where it is called, so a value written into a function would be
-// written into each formula as often as the function reads it: the distribution as one function, its variable read five
-// times in its polynomial and its tail in both its branches, was ten copies of it in each formula, 1,500 characters, and
-// the server's parse of a formula grows faster than its length (2026-10-26: seconds of the options desk's first show).
-// The tail is the same at x and at -x, so a negation's distribution reads its value's tail. The normal distribution by
-// Abramowitz and Stegun 26.2.17 (|error| < 7.5e-8).
+// BLACK AND SCHOLES (K11), as a textbook writes it: a European option's price and its greeks from its underlying's
+// price s, its strike k, its time to expiry t in years, its volatility v and the rate r. A put is priced by put-call
+// parity, from the call: the call's price less the underlying, plus the strike discounted -- so a put and a call read
+// the same distribution at d1 and d2. Each function is inlined where it is called, so d1 is written wherever a formula
+// reads it; the Deephaven target computes a subtree its columns write more than once a single time (DeephavenBatch
+// withShared). The normal distribution by Abramowitz and Stegun 26.2.17 (|error| < 7.5e-8).
+
+// The normal density at x.
 function market::options::pdf(x: Float[1]): Float[1]
 {
   0.3989422804014327 * exp(0.0 - (($x * $x) / 2.0))
 }
-function market::options::poly(t: Float[1]): Float[1]
+
+// The normal distribution at x: the chance a standard normal value is at most x.
+function market::options::cdf(x: Float[1]): Float[1]
 {
-  $t * (0.319381530 + ($t * ((0.0 - 0.356563782) + ($t * (1.781477937 + ($t * ((0.0 - 1.821255978) + ($t * 1.330274429))))))))
+  let k = 1.0 / (1.0 + (0.2316419 * abs($x)));
+  let tail = market::options::pdf($x) * ($k * (0.319381530 + ($k * ((0.0 - 0.356563782) + ($k * (1.781477937
+    + ($k * ((0.0 - 1.821255978) + ($k * 1.330274429)))))))));
+  if($x >= 0.0, |1.0 - $tail, |$tail);
 }
-function market::options::k(x: Float[1]): Float[1]
+
+function market::options::d1(s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1]): Float[1]
 {
-  1.0 / (1.0 + (0.2316419 * abs($x)))
+  (log($s / $k) + (($r + (($v * $v) / 2.0)) * $t)) / ($v * sqrt($t))
 }
-function market::options::tail(nx: Float[1], k: Float[1]): Float[1]
+
+function market::options::d2(s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1]): Float[1]
 {
-  $nx * market::options::poly($k)
+  market::options::d1($s, $k, $t, $v, $r) - ($v * sqrt($t))
 }
-function market::options::cdf(x: Float[1], tail: Float[1]): Float[1]
+
+// The strike, discounted to now.
+function market::options::discounted(k: Float[1], t: Float[1], r: Float[1]): Float[1]
 {
-  if($x >= 0.0, |1.0 - $tail, |$tail)
+  $k * exp(0.0 - ($r * $t))
 }
-function market::options::d1(s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1], rootT: Float[1]): Float[1]
+
+// A call's price.
+function market::options::callPrice(s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1]): Float[1]
 {
-  (log($s / $k) + (($r + (($v * $v) / 2.0)) * $t)) / ($v * $rootT)
+  ($s * market::options::cdf(market::options::d1($s, $k, $t, $v, $r)))
+    - (market::options::discounted($k, $t, $r) * market::options::cdf(market::options::d2($s, $k, $t, $v, $r)))
 }
-function market::options::d2(d1: Float[1], v: Float[1], rootT: Float[1]): Float[1]
+
+// An option's price: a call's, or a put's by put-call parity.
+function market::options::price(call: Boolean[1], s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1]): Float[1]
 {
-  $d1 - ($v * $rootT)
+  if($call, |market::options::callPrice($s, $k, $t, $v, $r),
+    |(market::options::callPrice($s, $k, $t, $v, $r) - $s) + market::options::discounted($k, $t, $r))
 }
-function market::options::price(call: Boolean[1], s: Float[1], k: Float[1], disc: Float[1], cd1: Float[1], cd2: Float[1],
-  cmd1: Float[1], cmd2: Float[1]): Float[1]
+
+function market::options::delta(call: Boolean[1], s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1]): Float[1]
 {
-  if($call, |($s * $cd1) - (($k * $disc) * $cd2), |(($k * $disc) * $cmd2) - ($s * $cmd1))
+  if($call, |market::options::cdf(market::options::d1($s, $k, $t, $v, $r)),
+    |market::options::cdf(market::options::d1($s, $k, $t, $v, $r)) - 1.0)
 }
-function market::options::delta(call: Boolean[1], cd1: Float[1]): Float[1]
+
+function market::options::gamma(s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1]): Float[1]
 {
-  if($call, |$cd1, |$cd1 - 1.0)
+  market::options::pdf(market::options::d1($s, $k, $t, $v, $r)) / (($s * $v) * sqrt($t))
 }
-function market::options::gamma(s: Float[1], v: Float[1], rootT: Float[1], nd1: Float[1]): Float[1]
+
+// A vega per volatility point.
+function market::options::vega(s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1]): Float[1]
 {
-  $nd1 / (($s * $v) * $rootT)
+  (($s * market::options::pdf(market::options::d1($s, $k, $t, $v, $r))) * sqrt($t)) / 100.0
 }
-// a vega per volatility point, a theta per day
-function market::options::vega(s: Float[1], rootT: Float[1], nd1: Float[1]): Float[1]
+
+// A theta per day: a put's carry term is the call's less the rate on the strike discounted.
+function market::options::theta(call: Boolean[1], s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1]): Float[1]
 {
-  (($s * $nd1) * $rootT) / 100.0
-}
-function market::options::theta(call: Boolean[1], s: Float[1], k: Float[1], v: Float[1], r: Float[1], rootT: Float[1],
-  disc: Float[1], nd1: Float[1], cd2: Float[1], cmd2: Float[1]): Float[1]
-{
-  ((0.0 - ((($s * $nd1) * $v) / (2.0 * $rootT))) - if($call, |(($r * $k) * $disc) * $cd2, |0.0 - ((($r * $k) * $disc) * $cmd2))) / 365.0
+  ((0.0 - ((($s * market::options::pdf(market::options::d1($s, $k, $t, $v, $r))) * $v) / (2.0 * sqrt($t))))
+    - (($r * market::options::discounted($k, $t, $r)) * if($call, |market::options::cdf(market::options::d2($s, $k, $t, $v, $r)),
+      |market::options::cdf(market::options::d2($s, $k, $t, $v, $r)) - 1.0))) / 365.0
 }
 
 // ---------------------------------------------------------------- the market (K4, K8, K14, K15)
@@ -306,9 +321,8 @@ function market::screens::orders(): Relation<(order:String[1], created:DateTime[
 function market::screens::optionChain(rate: Float[1]): Relation<(underlying:String[1], uinst:String[1],
   inst:String[1], option:String[1], type:String[1], strike:Float[1], expiry:StrictDate[1], iv:Float[0..1],
   settle:Float[1], size:Integer[1], qinst:String[1], spot:Float[1], at:DateTime[1], t:Float[1], call:Boolean[1],
-  vol:Float[1], rootT:Float[1], disc:Float[1], d1:Float[1], d2:Float[1], nd1:Float[1], k1:Float[1], nd2:Float[1],
-  k2:Float[1], tail1:Float[1], tail2:Float[1], cd1:Float[1], cmd1:Float[1], cd2:Float[1], cmd2:Float[1],
-  price:Float[1], delta:Float[1], gamma:Float[1], vega:Float[1], theta:Float[1], chg:Float[1], moneyness:Float[1])>[1]
+  vol:Float[1], price:Float[1], delta:Float[1], gamma:Float[1], vega:Float[1], theta:Float[1], chg:Float[1],
+  moneyness:Float[1])>[1]
 {
   products::Option.all()
     ->project(~[underlying:x|$x.underlying.ticker, uinst:x|$x.underlying.instrumentId, inst:x|$x.instrument.instrumentId,
@@ -317,19 +331,11 @@ function market::screens::optionChain(rate: Float[1]): Relation<(underlying:Stri
     ->join(marketdata::MarketQuote.all()->project(~[qinst:x|$x.instrument.instrumentId, spot:x|$x.mid, at:x|$x.quoteTime]),
       meta::pure::functions::relation::JoinKind.INNER, {o, q|$o.uinst == $q.qinst})
     ->extend(~[t:x|dateDiff($x.at, $x.expiry, DurationUnit.DAYS) / 365.0, call:x|$x.type == 'CALL', vol:x|$x.iv->toOne()])
-    ->extend(~[rootT:x|sqrt($x.t), disc:x|exp(0.0 - ($rate * $x.t))])
-    ->extend(~[d1:x|market::options::d1($x.spot, $x.strike, $x.t, $x.vol, $rate, $x.rootT)])
-    ->extend(~[d2:x|market::options::d2($x.d1, $x.vol, $x.rootT), nd1:x|market::options::pdf($x.d1),
-      k1:x|market::options::k($x.d1)])
-    ->extend(~[nd2:x|market::options::pdf($x.d2), k2:x|market::options::k($x.d2),
-      tail1:x|market::options::tail($x.nd1, $x.k1)])
-    ->extend(~[tail2:x|market::options::tail($x.nd2, $x.k2), cd1:x|market::options::cdf($x.d1, $x.tail1),
-      cmd1:x|market::options::cdf(0.0 - $x.d1, $x.tail1)])
-    ->extend(~[cd2:x|market::options::cdf($x.d2, $x.tail2), cmd2:x|market::options::cdf(0.0 - $x.d2, $x.tail2)])
-    ->extend(~[price:x|market::options::price($x.call, $x.spot, $x.strike, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),
-      delta:x|market::options::delta($x.call, $x.cd1), gamma:x|market::options::gamma($x.spot, $x.vol, $x.rootT, $x.nd1),
-      vega:x|market::options::vega($x.spot, $x.rootT, $x.nd1),
-      theta:x|market::options::theta($x.call, $x.spot, $x.strike, $x.vol, $rate, $x.rootT, $x.disc, $x.nd1, $x.cd2, $x.cmd2)])
+    ->extend(~[price:x|market::options::price($x.call, $x.spot, $x.strike, $x.t, $x.vol, $rate),
+      delta:x|market::options::delta($x.call, $x.spot, $x.strike, $x.t, $x.vol, $rate),
+      gamma:x|market::options::gamma($x.spot, $x.strike, $x.t, $x.vol, $rate),
+      vega:x|market::options::vega($x.spot, $x.strike, $x.t, $x.vol, $rate),
+      theta:x|market::options::theta($x.call, $x.spot, $x.strike, $x.t, $x.vol, $rate)])
     ->extend(~[chg:x|$x.price - $x.settle, moneyness:x|$x.strike / $x.spot])
 }
 
@@ -338,11 +344,9 @@ function market::screens::optionChain(rate: Float[1]): Relation<(underlying:Stri
 function market::screens::optionBook(rate: Float[1]): Relation<(book:String[1], pinst:String[1], contracts:Float[1],
   underlying:String[1], uinst:String[1], inst:String[1], option:String[1], type:String[1], strike:Float[1],
   expiry:StrictDate[1], iv:Float[0..1], settle:Float[1], size:Integer[1], qinst:String[1], spot:Float[1],
-  at:DateTime[1], t:Float[1], call:Boolean[1], vol:Float[1], rootT:Float[1], disc:Float[1], d1:Float[1], d2:Float[1],
-  nd1:Float[1], k1:Float[1], nd2:Float[1], k2:Float[1], tail1:Float[1], tail2:Float[1], cd1:Float[1], cmd1:Float[1],
-  cd2:Float[1], cmd2:Float[1], price:Float[1], delta:Float[1], gamma:Float[1], vega:Float[1], theta:Float[1],
-  chg:Float[1], moneyness:Float[1], units:Float[1], posDelta:Float[1], posGamma:Float[1], posVega:Float[1],
-  posTheta:Float[1], mv:Float[1], dayPnl:Float[1], dollarDelta:Float[1])>[1]
+  at:DateTime[1], t:Float[1], call:Boolean[1], vol:Float[1], price:Float[1], delta:Float[1], gamma:Float[1],
+  vega:Float[1], theta:Float[1], chg:Float[1], moneyness:Float[1], units:Float[1], posDelta:Float[1],
+  posGamma:Float[1], posVega:Float[1], posTheta:Float[1], mv:Float[1], dayPnl:Float[1], dollarDelta:Float[1])>[1]
 {
   positions::Position.all()
     ->filter(x|$x.instrument.assetClass == 'OPTION')

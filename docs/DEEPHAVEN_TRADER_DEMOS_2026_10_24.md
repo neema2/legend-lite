@@ -509,12 +509,12 @@ basis points, from its fills grouped by order and joined to it -- and its fills 
 slippage by algorithm, notional by venue, and the fills by algorithm and venue.
 
 **K11, the options desk (2026-10-25).** *Chain*: every listed option priced live by Black and Scholes -- functions of the
-market's model (`market::options`, `datacube/demo/deephaven/market/model.ts`), programs the compiler inlines, so the
-database computes every price and greek from the underlying's live mid -- with its change against its settlement, and
-the smile (implied volatility by strike over spot, each expiry a line). *Risk*: the derivatives books' dollar delta,
-vega, theta and day P&L (KPIs), vega by expiry and underlying (a heatmap), and the books' greeks by underlying and expiry.
-Checked on the server (`//datacube:deephaven_market_test`): put-call parity on every option within a millionth of the
-spot (the normal distribution's approximation), every delta in range.
+market's model (`market::options`, `datacube/demo/deephaven/market/market.pure` since 2026-10-27, §8), programs the
+compiler inlines, so the database computes every price and greek from the underlying's live mid -- with its change
+against its settlement, and the smile (implied volatility by strike over spot, each expiry a line). *Risk*: the
+derivatives books' dollar delta, vega, theta and day P&L (KPIs), vega by expiry and underlying (a heatmap), and the
+books' greeks by underlying and expiry. Checked on the server (`//datacube:deephaven_market_test`): since 2026-10-27
+every option's price and greeks against the textbook's, computed in the test on the same inputs (put-call parity before).
 
 **What the options desk found in the platform, fixed (2026-10-25):**
 - *Deephaven: a chain of calculated columns grew in each formula as it went.* SQL wants each extend's column written
@@ -803,7 +803,8 @@ measures said:
   lexical-preserving printer (Deephaven's parser self-checks each formula with it; its cost grows faster than the
   formula's length), javac 15%. The chain's normal distribution as one function read its variable five times in its
   polynomial and its tail in both branches -- ten copies, 1,500 characters a formula; now its variable and its tail are
-  columns of their own (`market::options::k`, `tail`, `cdf(x, tail)`: the tail at -x is the one at x, exactly). And a
+  columns of their own (`market::options::k`, `tail`, `cdf(x, tail)`: the tail at -x is the one at x, exactly;
+  superseded 2026-10-27, §8: the target computes a shared subtree once, and the model is written as a textbook). And a
   double cast to a double is the value (the Deephaven dialect's `cast`): the square root's guard had written it ten
   times, 1,700 characters. The options desk's first open on a server just started: 7.7-11.1 s to 4.6-7.0.
 - *The model held sooner and faster*: the first query left the page 5.8 s after it was asked for, 3.2 s of it the tab's
@@ -826,3 +827,49 @@ same code that passed it the other three (and on the pushed commit): the saved b
 landed with a window of 0 rows (`{"offset":0,"total":0}`), the next tick filling it. The board's path is the risk demo's
 (ServerBases over its own host), untouched here; a base let go by the page's old grids and held again by its new ones
 (same key) is the likely race. The check reads the first view; a person would see the book empty for a tick.
+
+## 8. The desk on the platform (the user, 2026-10-27)
+
+"Screens as model yes; five largest as a join yes, but that should be a real News class with a real Association to
+Equity; shared subexpression on Deephaven yes." The audit before it (the user's question: what is on platform and what
+is not) found every value on the desk computed by the server from a plan legend-lite's compiler wrote from Pure -- but
+what each screen MEANT written in TypeScript: the screens' Pure as string constants composed by interpolation and by
+small functions printing Pure, thresholds spliced into the text; the News monitor's five largest names found by five
+queries whose tickers TypeScript wrote into a pane's filter, frozen into the saved page; and Black and Scholes written as
+twelve layers of columns, not as a textbook writes it, because the compiler wrote a value a function reads twice twice.
+
+**The screens are the model's** (`datacube/demo/deephaven/market/market.pure`, the desk's project's own file beside the
+one trading model; the connections, the environment's, a third). Each screen's source is a function returning a typed
+relation -- `market::screens::watchlist()`, `positionsLive()`, `deskLimits(warnAt)`, `flow(blockShares,
+blockNotional)`, `optionChain(rate)`, `markouts()`, `fxCrosses()` and the rest, 23 -- composing each other (`day` over
+`tape`, `deskLimits` over `positionsLive` and the limits, `blocks` over `flow`, `optionBook` over `optionChain`), each
+column's type and multiplicity declared. A saved query names a function and its arguments; DataCube adds a person's
+groups, filters and sorts after it; the compiler inlines the call, so a screen's plan is its body's -- measured: every
+screen's Deephaven batch byte for byte the same as the TypeScript-written query's. `screens.ts` writes no query
+(`//datacube:desk_model_test`: no exported text reads a class or applies a relation function).
+
+**The news of the largest names by the associations** (`market::screens::newsAboutLargest(n)`): the instrument a story is
+about (`cross::NewsStory_Instrument`, mapped by the store's join) matched by its identity to the instruments of the `n`
+equities with the largest capitalisation (`products::Equity_Instrument`), sorted and kept to `n` on the server. One query,
+its names the market's at each run. Not done: a story's `tickers` (every name it mentions, for the cards' chips) is a
+text list; a many-to-many "mentions" association is the honest form, a change to the stress corpus (shared, its answers
+generated).
+
+**Shared subexpressions on Deephaven** (`DeephavenBatch.withShared`): the compiler inlines a function by writing its
+argument wherever its body reads it, so the Deephaven target now computes, as a helper column (`__e<i>`), each subtree a
+view's columns write more than once, before the first column that reads it, and drops it after. Only a subtree some
+column computes on every row is one (a helper is computed on every row: what only a CASE's branch, an AND's right side
+or a COALESCE's fallback reads stays where it was), only one the same on every evaluation (no random number, time or
+user), five nodes or more. Black and Scholes is then written as a textbook writes it (`market::options::price`,
+`delta`, `gamma`, `vega`, `theta` of the spot, strike, time, volatility and rate; a put by put-call parity): d1, d2, the
+distribution at each, the discount and the square root of time each computed once, every greek a formula of a line --
+the chain's batch 11,508 characters where the twelve hand-written layers were 12,933, and no formula over 1,000
+(`//datacube:desk_model_test`). The market lane's check is now independent of the model: every option's price and greeks
+on the server against the textbook's computed in the test (the normal distribution integrated, a put by its own formula).
+Other screens' batches changed only by helpers (`deskLimits`' breach and warning tests, a pip size, a markout's sign).
+
+Not done (the user's call, 2026-10-27): **4A**, the options' settlements and implied volatilities said to be data (the
+exchange's settlement, the vol desk's marks -- `market.groovy` makes them up and prices the settlement with a Black and
+Scholes of its own), with a check of that settlement against the model's price; and **5**, the tables and their meaning
+the platform's (DH16's check of a table another program publishes; the reference data written by the platform from the
+model, L5; the market data itself staying a program, as a feed).

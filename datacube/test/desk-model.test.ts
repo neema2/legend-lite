@@ -46,6 +46,19 @@ describe('the trading desk\'s model', () => {
     });
   }
 
+  it('Black and Scholes, written as a textbook writes it, reaches the server as short formulas: each shared piece once', async () => {
+    // the model's functions inlined write d1 wherever they read it -- each greek a thousand characters and more, which
+    // the server parses in time growing faster than their length; the Deephaven target computes a subtree its columns
+    // share once, as a helper column (DeephavenBatch.withShared), so no formula is long
+    for (const text of [screens.OPTION_CHAIN, screens.OPTION_BOOK]) {
+      const { ops } = await opsOf(text);
+      const formulas = ops.flatMap((o) => (Object.values(o)[0]?.['columnSpecs'] as string[] | undefined) ?? []);
+      const longest = formulas.reduce((a, b) => (b.length > a.length ? b : a), '');
+      assert.ok(longest.length < 1_000, `${text}: its longest formula ${longest.length} characters: ${longest.slice(0, 200)}`);
+      assert.ok(formulas.some((f) => /^price = .*__e\d+/.test(f)), `${text}: the price reads its shared pieces by name`);
+    }
+  });
+
   it('the news of the five largest names matches a story to an equity by the instrument they share, the five the market\'s', async () => {
     const { ops } = await opsOf(screens.NEWS_OF_LARGEST);
     const kinds = ops.map((o) => Object.keys(o)[0]);

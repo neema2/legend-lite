@@ -153,6 +153,36 @@ class DeephavenDialectTest {
     }
 
     @Test
+    void aSubtreeTheColumnsWriteMoreThanOnceIsComputedOnceAndReadByItsName() {
+        // 2026-10-27 (the user: "shared subexpression on deephaven"): a function inlined writes its argument wherever its
+        // body reads it -- Black and Scholes, written as a textbook writes it, reads d1 in five places. A subtree written
+        // twice is a helper column of its own, computed once before the first column that reads it, dropped after.
+        String b = batch("#>{risk::Ref.trades}#->extend(~[a:x|(($x.notional->toOne() * 2.0) + 1.0) * (($x.notional->toOne() * 2.0) + 1.0),"
+                + " b:x|(($x.notional->toOne() * 2.0) + 1.0) - 3.0])");
+        assertTrue(b.contains("\"__e0 = ((notional * 2.0) + 1.0)\""), b);
+        assertTrue(b.contains("\"a = (__e0 * __e0)\""), b);
+        assertTrue(b.contains("\"b = (__e0 - 3.0)\""), b);
+        assertTrue(b.contains("\"dropColumns\"") && b.substring(b.lastIndexOf("dropColumns")).contains("\"__e0\""), b);
+        // in both of a CASE's branches it is computed on every row: a helper too
+        String both = batch("#>{risk::Ref.trades}#->extend(~[c:x|if($x.pnl->toOne() > 0.0, |(($x.notional->toOne() * 2.0) + 1.0) + 1.0,"
+                + " |(($x.notional->toOne() * 2.0) + 1.0) - 1.0)])");
+        assertTrue(both.contains("\"__e0 = ((notional * 2.0) + 1.0)\""), both);
+    }
+
+    @Test
+    void aSubtreeOnlyABranchComputesStaysInItsBranch() {
+        // a helper is computed on every row: what only one branch of a CASE reads, a row not taking the branch never
+        // computes -- and may not be able to -- so it is written where it was, however often
+        String b = batch("#>{risk::Ref.trades}#->extend(~[c:x|if($x.pnl->toOne() > 0.0, |(($x.notional->toOne() * 2.0) + 1.0)"
+                + " * (($x.notional->toOne() * 2.0) + 1.0), |0.0)])");
+        assertFalse(b.contains("__e0"), b);
+        // nor what only the right side of an AND reads
+        String and = batch("#>{risk::Ref.trades}#->extend(~[d:x|($x.pnl->toOne() > 0.0) && ((($x.notional->toOne() * 2.0) + 1.0)"
+                + " > (($x.notional->toOne() * 2.0) + 1.0) - 1.0)])");
+        assertFalse(and.contains("__e0"), and);
+    }
+
+    @Test
     void aFormulaIsWrittenTheSameWhereverItsQuerySitsInTheBatch() {
         // the trading desk's options book (2026-10-26): the chain's Black and Scholes, joined after the positions, sat
         // under other aliases than in the chain's own plan, so its formulas' text differed and the server compiled them
