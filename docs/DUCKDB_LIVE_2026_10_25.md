@@ -184,6 +184,18 @@ and folded -- quadratic in time and in memory (Stock's chart 273 ms at 25k, 4.4 
 the live layer's: a DuckDB grid of the STOCK source over a long tape pays it once, the live one every refresh.
 Deephaven computes the same `ema` incrementally (updateBy), which is why the desk on Deephaven was fine.
 
+**The EMA made linear where its values are never null (2026-10-27).** A value `k` rows back weighs `(1 - alpha)^k` of
+it, so the fold need read only the rows whose weight a double holds: `ceil(64 ln 2 / -ln(1 - alpha))` of them (421 for
+an alpha of 0.1), a count the database computes in the frame (`ROWS BETWEEN CAST(ceil(...) AS BIGINT) PRECEDING`,
+DuckDB 1.4.4 takes it). Measured on JDBC over 100,000 rows in three partitions: the whole-history fold 24.2 s, the cut
+0.31 s, every row the same to the last place but 16 of them, those within one unit (alpha 0.02: 21.9 s against 1.6 s).
+It holds only where no value is null -- a null skipped makes those rows fewer values than that -- so `DuckDb.windowCall`
+cuts only a value the SQL tree proves never null (`TypeFact`), with an alpha spelled in (0, 1); `EmaTest` pins the cut
+against the whole history over 3,000 rows. **The desk does not get it yet**: the trading model declares no column `NOT
+NULL` (`MARKET_TRADE.PRICE DOUBLE`, though `MarketTrade.price` is `Float[1]`), so its prices are "may be null" to the
+SQL tree and the Stock and News tabs keep the whole-history fold. The model's tables declaring `NOT NULL` where their
+property is `[1]` is a change to the stress corpus (`scripts/corpus/trading_model.py`), the user's call.
+
 ## 3. Incremental views, when measured
 
 ClickHouse's lesson (its insert-triggered materialized views, aggregate states that merge): an append-only table's

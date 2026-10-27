@@ -783,16 +783,25 @@ public final class DuckDb extends AnsiSqlRenderer {
      *  window's values as a list, folded in its order -- {@code list_reduce} starts at the first, then
      *  {@code alpha * v + (1 - alpha) * acc}, a null skipped (the fold so far kept), a NaN carried as arithmetic
      *  carries it; a frame of no rows, or of nulls only, is null. The values as doubles: a fold's accumulator is
-     *  its list's element type (measured 1.4.4). Every other window call as the base writes it. */
+     *  its list's element type (measured 1.4.4). Every other window call as the base writes it.
+     *
+     *  <p>A frame from the partition's start folds each row's whole history -- quadratic: 24 s for 100,000 prints
+     *  (2026-10-27, DuckDB 1.4.4; the live desk's Stock and News tabs, docs/DUCKDB_LIVE_2026_10_25.md stage A). A
+     *  value {@code k} rows back weighs {@code (1 - alpha)^k} of it, so where the values are proven never null the fold
+     *  reads only the rows whose weight is at least 2^-64, a double's precision beneath it: {@code ceil(64 ln 2 / -ln(1
+     *  - alpha))} rows (421 for an alpha of 0.1), a count the database computes. Measured: 0.3 s for the 100,000, every
+     *  row the full fold's to the last place but 16, those within one unit of it. A null among the values would make
+     *  those rows fewer values than that, so a column that may be null keeps the whole history; so does an alpha not
+     *  spelled, or outside (0, 1). */
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         if (!(w.fn() instanceof com.legend.sql.SqlAgg.Reducer r) || r.fn() != com.legend.sql.SqlAgg.Fn.EMA) {
             return super.windowCall(writer, w);
         }
         SqlExpr alpha = r.args().get(1);
-        SqlExpr values = new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.LIST,
-                List.of(new SqlExpr.Cast(r.args().get(0), com.legend.sql.SqlType.Scalar.DOUBLE)), false, List.of()),
-                w.partitionBy(), w.orderBy(), w.frame());
+        com.legend.sql.SqlAgg.Reducer list = new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.LIST,
+                List.of(new SqlExpr.Cast(r.args().get(0), com.legend.sql.SqlType.Scalar.DOUBLE)), false, List.of());
+        SqlExpr values = new SqlExpr.WindowCall(list, w.partitionBy(), w.orderBy(), w.frame());
         SqlExpr acc = SqlExpr.Column.param("acc", values);
         SqlExpr v = SqlExpr.Column.param("v", values);
         SqlExpr step = new SqlExpr.Case(List.of(
@@ -800,7 +809,38 @@ public final class DuckDb extends AnsiSqlRenderer {
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, acc), v)),
                 SqlExpr.Call.of(SqlFn.PLUS, SqlExpr.Call.of(SqlFn.TIMES, alpha, v),
                         SqlExpr.Call.of(SqlFn.TIMES, SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.FloatLit(1.0), alpha), acc)));
-        return writer.expr(SqlExpr.Call.of(SqlFn.LIST_REDUCE, values, new SqlExpr.Lambda(List.of("acc", "v"), step)), 0);
+        SqlExpr.Lambda fold = new SqlExpr.Lambda(List.of("acc", "v"), step);
+        SqlExpr rows = emaRows(r, w.frame());
+        if (rows == null) {
+            return writer.expr(SqlExpr.Call.of(SqlFn.LIST_REDUCE, values, fold), 0);
+        }
+        writer.append("list_reduce(");
+        reducer(writer, list).append(" OVER (");
+        if (!w.partitionBy().isEmpty()) {
+            writer.append("PARTITION BY ").list(w.partitionBy()).append(" ");
+        }
+        writer.append("ORDER BY ").join(w.orderBy(), ", ", this::sortKey).append(" ROWS BETWEEN ").expr(rows, 0)
+                .append(" PRECEDING AND ").append(bound(java.util.Objects.requireNonNull(w.frame()).to())).append(")");
+        return writer.append(", ").expr(fold, 0).append(")");
+    }
+
+    /** The rows an EMA's fold reads back from the current one, where its frame starts at the partition's start and
+     *  older rows weigh less than a double holds ({@link #windowCall}): {@code ceil(64 ln 2 / -ln(1 - alpha))}, for
+     *  the database to compute; null to read the whole history. */
+    private static @com.legend.base.Nullable SqlExpr emaRows(com.legend.sql.SqlAgg.Reducer r,
+            SqlExpr.WindowCall.@com.legend.base.Nullable Frame frame) {
+        boolean fromStart = frame != null && frame.kind() == SqlExpr.WindowCall.Frame.Kind.ROWS
+                && frame.from() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding;
+        boolean neverNull = r.args().get(0).type() instanceof com.legend.sql.TypeFact.Typed t && !t.nullable();
+        boolean spelled = r.args().get(1) instanceof SqlExpr.FloatLit a && a.value() > 0 && a.value() < 1;
+        if (!fromStart || !neverNull || !spelled) {
+            return null;
+        }
+        SqlExpr bits = SqlExpr.Call.of(SqlFn.TIMES, new SqlExpr.IntLit(64), SqlExpr.Call.of(SqlFn.LN, new SqlExpr.IntLit(2)));
+        SqlExpr perRow = SqlExpr.Call.of(SqlFn.NEGATE,
+                SqlExpr.Call.of(SqlFn.LN, SqlExpr.Call.of(SqlFn.MINUS, new SqlExpr.FloatLit(1.0), r.args().get(1))));
+        return new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.CEILING, SqlExpr.Call.of(SqlFn.DIVIDE, bits, perRow)),
+                com.legend.sql.SqlType.Scalar.BIGINT);
     }
 
     @Override
