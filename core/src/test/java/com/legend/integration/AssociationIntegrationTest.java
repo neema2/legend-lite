@@ -477,6 +477,17 @@ class AssociationIntegrationTest {
         }
 
         @Test
+        @DisplayName("A class sort reversed is the descending sort, its take the last people's")
+        void testSortByReversedThenTake() throws SQLException {
+            // sortBy(name)->reverse(): Diana, Charlie, Bob, Alice; the first
+            // three, and Bob's one address (2026-10-27: an internal error)
+            var r = exec(fullModel(),
+                "test::Person.all()->sortBy(p|$p.name)->reverse()->take(3)->project(~[name:x|$x.name, city:x|$x.addresses.city])");
+            assertEquals(List.of("Diana", "Charlie", "Bob"), colStr(r, 0));
+            assertEquals("Chicago", colStr(r, 1).get(2));
+        }
+
+        @Test
         @DisplayName("Slice before a to-many project counts people, not their addresses")
         void testSliceThenToManyProject() throws SQLException {
             // by name: Alice (2 addresses), Bob (1), Charlie (0), Diana (0) --

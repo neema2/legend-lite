@@ -22,6 +22,7 @@ final class ClassSorts {
     private static final String SORT_BY_FQN = "meta::pure::functions::collection::sortBy";
     private static final String SORT_BY_REV_FQN = "meta::pure::functions::collection::sortByReversed";
     private static final String COMPARE_FQN = "meta::pure::functions::lang::compare";
+    private static final String REVERSE_FQN = "meta::pure::functions::collection::reverse";
 
     /** first()/head() over an object-space chain — LIMIT 1 in disguise. */
     static boolean isFirstLike(TypedNativeCall c) {
@@ -37,6 +38,18 @@ final class ClassSorts {
      * descending). Anything richer has no relation sort shape.
      */
     static @com.legend.base.Nullable TypedSortBy classSortOf(TypedSpec n) {
+        // reverse() over a class-space sort IS that sort the other way
+        // (2026-10-27: sortBy(..)->reverse() fell to the value lowering, an
+        // internal error); reverse over an unsorted extent has no order to
+        // turn, and stays unrecognized
+        if (n instanceof TypedNativeCall rv && rv.args().size() == 1
+                && REVERSE_FQN.equals(rv.callee().qualifiedName())) {
+            // the typer writes a class-space sortBy as the relation sort
+            TypedSortBy inner = rv.args().get(0) instanceof TypedSortBy sb ? sb
+                    : classSortOf(rv.args().get(0));
+            return inner == null ? null : new TypedSortBy(inner.source(),
+                    inner.key(), !inner.ascending(), inner.keyAlias(), rv.info());
+        }
         // class-space sortBy(coll, key)/sortByReversed — the 2-arg native
         // spelling of the relation sort (computed keys substitute like any)
         if (n instanceof TypedNativeCall sb && sb.args().size() == 2
