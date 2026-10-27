@@ -168,26 +168,17 @@ final class DeephavenBatch {
     // Shared subtrees: computed once
     // ==================================================================
 
-    /** The fewest nodes a shared subtree has for a column of its own: a smaller one costs less written twice. */
-    private static final int SHARED_NODES = 5;
+    /** A formula's shared subtrees worth a helper: of 5 nodes or more -- the server compiles every formula, its time
+     *  growing faster than its length, so even a small subtree written twice costs more than a column. */
+    private static final SharedSubtrees FORMULA_SUBTREES = new SharedSubtrees(5);
 
     /**
-     * THE SUBTREES A SELECT'S COLUMNS SHARE, EACH COMPUTED ONCE (the user, 2026-10-27: "shared subexpression on
-     * deephaven"). The compiler inlines a function where it is called, its arguments written wherever its body reads
-     * them (UserCallInliner), so a value a function reads twice is written twice: the trading desk's Black and Scholes,
-     * written as a textbook writes it, reads d1 in its distribution's variable, its density, its tail and its sign, and
-     * d2 reads d1 again -- each formula a thousand characters and more, which the server parses in time that grows
-     * faster than their length (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K11: seconds of the options desk's first show).
-     * A view already reads a column it has computed by its name (#view); this computes, as a helper column of its own
+     * THE SUBTREES A VIEW'S COLUMNS SHARE, EACH COMPUTED ONCE ({@link SharedSubtrees}: which ones, and why). A view
+     * already reads a column it has computed by its name (#view); this computes, as a helper column of its own
      * ({@code __e<i>}), each subtree written more than once among the view's columns, before the first column that
-     * reads it, so that column and every later one read it by its name.
-     *
-     * <p>A helper is computed on every row, so only a subtree some column computes on every row is one: never one that
-     * only a branch reads (a CASE's, the right side of an AND or an OR, a COALESCE's fallback), which a row not taking the
-     * branch never computes -- and may not be able to. No subtree that is not the same on every evaluation is one (a
-     * random number, the time, the user), nor one holding what a view does not compute (an aggregate, a window, a
-     * subquery: those are read by their own columns). Largest first: a shared subtree's copies become one, so what is
-     * inside it is written that many fewer times, and is a helper of its own only where it is still written twice.
+     * reads it, so that column and every later one read it by its name -- the options desk's formulas a thousand
+     * characters and more each without it, which the server parses in time that grows faster than their length
+     * (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K11: seconds of the options desk's first show).
      *
      * @param specs   a view's columns, in order
      * @param helpers the helpers' names, which the caller drops after the view
@@ -200,39 +191,17 @@ final class DeephavenBatch {
                 exprs.add(spec.expr());
             }
         }
-        Map<SqlExpr, Integer> count = new java.util.HashMap<>();
-        java.util.Set<SqlExpr> always = new java.util.HashSet<>();
-        for (SqlExpr e : exprs) {
-            countIn(e, count);
-            always(e, always);
-        }
-        List<SqlExpr> candidates = new ArrayList<>(count.keySet());
-        candidates.sort(java.util.Comparator.comparingInt(DeephavenBatch::nodes).reversed());
-        List<SqlExpr> shared = new ArrayList<>();
-        for (SqlExpr c : candidates) {
-            int n = count.getOrDefault(c, 0);
-            if (n < 2 || !always.contains(c)) {
-                continue;
-            }
-            shared.add(c);
-            Map<SqlExpr, Integer> inside = new java.util.HashMap<>();
-            for (SqlExpr child : children(c)) {
-                countIn(child, inside);
-            }
-            inside.forEach((d, k) -> count.merge(d, -(n - 1) * k, Integer::sum));
-        }
+        // smallest first, so a helper reads the helpers inside it by their names
+        List<SqlExpr> shared = FORMULA_SUBTREES.shared(exprs);
         if (shared.isEmpty()) {
             return specs;
         }
-        // smallest first, so a helper reads the helpers inside it by their names
-        shared.sort(java.util.Comparator.comparingInt(DeephavenBatch::nodes));
         List<Spec> out = new ArrayList<>();
         java.util.Set<SqlExpr> named = new java.util.HashSet<>();
         for (Spec spec : specs) {
             if (spec.expr() != null) {
-                SqlExpr whole = bare(spec.expr());
-                java.util.Set<SqlExpr> within = new java.util.HashSet<>();
-                countIn(spec.expr(), within);
+                SqlExpr whole = SharedSubtrees.bare(spec.expr());
+                java.util.Set<SqlExpr> within = FORMULA_SUBTREES.within(spec.expr());
                 for (SqlExpr h : shared) {
                     // a column before this one computes it, or this column is it: read by that column's name
                     if (within.contains(h) && !named.contains(h) && !h.equals(whole)) {
@@ -247,146 +216,6 @@ final class DeephavenBatch {
             out.add(spec);
         }
         return out;
-    }
-
-    /** Every candidate subtree of {@code e} ({@link #candidate}), each time it is written. */
-    private static void countIn(SqlExpr e, Map<SqlExpr, Integer> count) {
-        SqlExpr x = bare(e);
-        if (!composite(x)) {
-            return;
-        }
-        if (candidate(x)) {
-            count.merge(x, 1, Integer::sum);
-        }
-        for (SqlExpr child : children(x)) {
-            countIn(child, count);
-        }
-    }
-
-    /** Every candidate subtree of {@code e}, once. */
-    private static void countIn(SqlExpr e, java.util.Set<SqlExpr> within) {
-        SqlExpr x = bare(e);
-        if (!composite(x)) {
-            return;
-        }
-        if (candidate(x)) {
-            within.add(x);
-        }
-        for (SqlExpr child : children(x)) {
-            countIn(child, within);
-        }
-    }
-
-    /** The candidate subtrees {@code e} computes whenever it is computed: not those only a branch of it reads. */
-    private static void always(SqlExpr e, java.util.Set<SqlExpr> out) {
-        SqlExpr x = bare(e);
-        if (!composite(x)) {
-            return;
-        }
-        if (candidate(x)) {
-            out.add(x);
-        }
-        switch (x) {
-            // the right side read only when the left does not decide it; a COALESCE's fallback only for a null
-            case SqlExpr.Call c when c.fn() == SqlFn.AND || c.fn() == SqlFn.OR || c.fn() == SqlFn.COALESCE -> {
-                if (!c.args().isEmpty()) {
-                    always(c.args().get(0), out);
-                }
-            }
-            case SqlExpr.Case c -> out.addAll(always(c.whens(), c.otherwise(), 0));
-            default -> children(x).forEach(child -> always(child, out));
-        }
-    }
-
-    /** What a CASE from its {@code i}th branch computes whenever it is computed: its condition, and what every way on
-     *  from it computes. */
-    private static java.util.Set<SqlExpr> always(List<SqlExpr.Case.When> whens, @com.legend.base.Nullable SqlExpr otherwise, int i) {
-        java.util.Set<SqlExpr> out = new java.util.HashSet<>();
-        if (i == whens.size()) {
-            if (otherwise != null) {
-                always(otherwise, out);
-            }
-            return out;
-        }
-        always(whens.get(i).condition(), out);
-        java.util.Set<SqlExpr> taken = new java.util.HashSet<>();
-        always(whens.get(i).then(), taken);
-        taken.retainAll(always(whens, otherwise, i + 1));
-        out.addAll(taken);
-        return out;
-    }
-
-    /** A subtree worth a column of its own: one that computes, of {@link #SHARED_NODES} nodes or more, made only of what
-     *  a view computes, and the same on every evaluation. */
-    private static boolean candidate(SqlExpr e) {
-        return (e instanceof SqlExpr.Call || e instanceof SqlExpr.Case || e instanceof SqlExpr.Cast)
-                && nodes(e) >= SHARED_NODES && pure(e);
-    }
-
-    /** A call, a CASE or a cast, whose parts this reads. */
-    private static boolean composite(SqlExpr e) {
-        return e instanceof SqlExpr.Call || e instanceof SqlExpr.Case || e instanceof SqlExpr.Cast;
-    }
-
-    /** Whether {@code e} is made only of columns, values, parameters and the calls, CASEs and casts over them, and is the
-     *  same on every evaluation. */
-    private static boolean pure(SqlExpr e) {
-        return switch (bare(e)) {
-            case SqlExpr.Column c -> true;
-            case SqlExpr.StringLit l -> true;
-            case SqlExpr.IntLit l -> true;
-            case SqlExpr.FloatLit l -> true;
-            case SqlExpr.DecimalLit l -> true;
-            case SqlExpr.BoolLit l -> true;
-            case SqlExpr.NullLit l -> true;
-            case SqlExpr.DateLit l -> true;
-            case SqlExpr.TimestampLit l -> true;
-            case SqlExpr.TimeLit l -> true;
-            case SqlExpr.PlanParam p -> true;
-            // a guard's error is the same for the same row (a square root's of a negative number, written in its CASE): a
-            // subtree holding one is computed only where a column computes it on every row anyway (#always)
-            case SqlExpr.Call c -> switch (c.fn()) {
-                case RANDOM, NOW, TODAY, GUID, CURRENT_USER_FN -> false;
-                default -> c.args().stream().allMatch(DeephavenBatch::pure);
-            };
-            case SqlExpr.Case c -> children(c).stream().allMatch(DeephavenBatch::pure);
-            case SqlExpr.Cast c -> pure(c.value());
-            default -> false;
-        };
-    }
-
-    /** {@code e}'s parts: a call's arguments, a CASE's conditions, results and fallback, a cast's value. */
-    private static List<SqlExpr> children(SqlExpr e) {
-        return switch (bare(e)) {
-            case SqlExpr.Call c -> c.args();
-            case SqlExpr.Case c -> {
-                List<SqlExpr> parts = new ArrayList<>();
-                for (SqlExpr.Case.When when : c.whens()) {
-                    parts.add(when.condition());
-                    parts.add(when.then());
-                }
-                if (c.otherwise() != null) {
-                    parts.add(c.otherwise());
-                }
-                yield parts;
-            }
-            case SqlExpr.Cast c -> List.of(c.value());
-            default -> List.of();
-        };
-    }
-
-    /** The nodes of {@code e}, its parentheses not counted. */
-    private static int nodes(SqlExpr e) {
-        int n = 1;
-        for (SqlExpr child : children(e)) {
-            n += nodes(child);
-        }
-        return n;
-    }
-
-    /** {@code e} without its parentheses. */
-    private static SqlExpr bare(SqlExpr e) {
-        return e instanceof SqlExpr.Group g ? bare(g.inner()) : e;
     }
 
     /** The rows where {@code condition} is TRUE: its filter list ({@link Deephaven#filters}, what the server can read

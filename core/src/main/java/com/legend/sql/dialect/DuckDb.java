@@ -777,6 +777,101 @@ public final class DuckDb extends AnsiSqlRenderer {
         return writer.append(") AS ").append(ident(p.alias()));
     }
 
+    // ---- shared subtrees: computed once ----
+
+    /**
+     * A SELECT'S SHARED SUBTREES, EACH COMPUTED ONCE ({@link SharedSubtrees}: which ones, and why -- the desk's option
+     * chain 364,053 characters of SQL without it, its tab 9 s to draw in the browser, 2026-10-27). Each is a helper column
+     * ({@code __e<i>}) of a select of its own beneath this one: a level for each depth of helpers inside helpers, each
+     * level the source's columns and its helpers under the source's own alias, so this select's columns read the source
+     * as they did and each shared subtree by its helper's name, its filter on the first level, its star without the
+     * helpers ({@code EXCLUDE}). Not DuckDB's lateral aliases (a column read by the name an earlier column of the same
+     * select gives it): DuckDB writes the earlier column's expression in where its name is read, so a helper read by
+     * helpers costs what the whole tree did, doubling a level -- measured 1.4.4, fourteen levels of a value read twice
+     * 2.5 s over 1,000 rows; selects stacked, thirty levels 10 ms over 100,000. Only a select over one source (a table or
+     * a subselect: its columns read by its alias), with no grouping, QUALIFY or aggregate outside a window.
+     */
+    @Override
+    protected SqlWriter select(SqlWriter writer, SqlSelect s, int depth) {
+        return super.select(writer, sharedOnce(s), depth);
+    }
+
+    /** A select's shared subtrees worth a helper: of 50 nodes or more. DuckDB computes a small one twice for less than a
+     *  select of its own costs, and a select's text stays as it was but where the compiler wrote a function's body
+     *  wherever it is called (the option chain's subtrees, each hundreds of nodes). */
+    private static final SharedSubtrees SELECT_SUBTREES = new SharedSubtrees(50);
+
+    /** {@code s} with its shared subtrees each computed once, on the levels beneath it (#select); {@code s} itself where it
+     *  has none, or is not a select they can go beneath. */
+    private static SqlSelect sharedOnce(SqlSelect s) {
+        if (s.projections().isEmpty() || !s.groupBy().isEmpty() || s.having() != null || s.qualify() != null
+                || !(s.from() instanceof SqlSource.Table || s.from() instanceof SqlSource.Subselect)
+                || s.projections().stream().anyMatch(p -> p.expr() instanceof SqlExpr.StarExcept || aggregates(p.expr()))) {
+            return s;
+        }
+        List<SqlExpr> shared = SELECT_SUBTREES.shared(s.projections().stream().map(SqlSelect.Projection::expr)
+                .filter(e -> !(e instanceof SqlExpr.Star)).toList());
+        if (shared.isEmpty()) {
+            return s;
+        }
+        String alias = s.from().alias();
+        // each helper's level: one above the deepest helper inside it (smallest first: those are named before it)
+        java.util.Map<SqlExpr, String> names = new java.util.LinkedHashMap<>();
+        java.util.Map<SqlExpr, Integer> levels = new java.util.HashMap<>();
+        int deepest = 0;
+        for (SqlExpr h : shared) {
+            java.util.Set<SqlExpr> inside = SELECT_SUBTREES.within(h);
+            int level = 0;
+            for (SqlExpr named : names.keySet()) {
+                if (inside.contains(named)) {
+                    level = Math.max(level, java.util.Objects.requireNonNull(levels.get(named)) + 1);
+                }
+            }
+            names.put(h, "__e" + names.size());
+            levels.put(h, level);
+            deepest = Math.max(deepest, level);
+        }
+        // the levels, innermost first: the source's columns and the level's helpers, under the source's alias
+        SqlSource from = s.from();
+        for (int level = 0; level <= deepest; level++) {
+            List<SqlSelect.Projection> ps = new java.util.ArrayList<>();
+            ps.add(new SqlSelect.Projection(new SqlExpr.Star(alias), null, null));
+            for (var h : names.entrySet()) {
+                if (java.util.Objects.requireNonNull(levels.get(h.getKey())) == level) {
+                    ps.add(new SqlSelect.Projection(h.getKey().mapChildren(c -> named(c, names, alias)), h.getValue(), null));
+                }
+            }
+            from = new SqlSource.Subselect(new SqlSelect(ps, false, from, level == 0 ? s.where() : null, List.of(), null, null,
+                    List.of(), null, null, List.of()), alias, null);
+        }
+        List<String> helpers = List.copyOf(names.values());
+        List<SqlSelect.Projection> top = s.projections().stream().map(p -> p.expr() instanceof SqlExpr.Star star
+                ? new SqlSelect.Projection(new SqlExpr.StarExcept(star.table(), helpers), null, null)
+                : new SqlSelect.Projection(named(p.expr(), names, alias), p.alias(), p.out())).toList();
+        return new SqlSelect(top, s.distinct(), from, null, s.groupBy(), s.having(), s.qualify(), s.orderBy(), s.limit(),
+                s.offset(), s.outputs());
+    }
+
+    /** Whether {@code e} aggregates rows outside a window: its select's one row is no row a helper is computed on. */
+    private static boolean aggregates(SqlExpr e) {
+        return switch (e) {
+            case com.legend.sql.SqlAgg.Reducer r -> true;
+            case SqlExpr.WindowCall w -> false;
+            default -> e.children().stream().anyMatch(DuckDb::aggregates);
+        };
+    }
+
+    /** {@code e} with each subtree a helper computes read by its name, on the source's alias: through the calls, CASEs and
+     *  casts a helper may be among, never into a window, an aggregate or a subquery, which read their own rows. */
+    private static SqlExpr named(SqlExpr e, java.util.Map<SqlExpr, String> names, String alias) {
+        String name = names.get(SharedSubtrees.bare(e));
+        if (name != null) {
+            return new SqlExpr.Column(alias, name);
+        }
+        return e instanceof SqlExpr.Call || e instanceof SqlExpr.Case || e instanceof SqlExpr.Cast || e instanceof SqlExpr.Group
+                ? e.mapChildren(c -> named(c, names, alias)) : e;
+    }
+
     // ---- list idioms: DuckDB is the lambda backend ----
 
     /** An ordered window's exponential moving average (lite's {@code ema(values, alpha)}): DuckDB has none, so the
