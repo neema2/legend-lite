@@ -35,6 +35,7 @@ const extra = new URLSearchParams(process.env.MEASURE_PARAMS ?? '');
 const bundle = readFileSync(runfileFromEnv('MEASURE_BUNDLE'));
 const html = readFileSync(runfileFromEnv('MEASURE_PAGE'));
 const model = readFileSync(runfileFromEnv('TRADING_MODEL'));
+const deskModel = readFileSync(runfileFromEnv('MARKET_PURE'));
 const site = await serve(siteRoot(), {
   headers: { 'Cache-Control': 'no-cache' },
   route: (req, res, url) => {
@@ -46,6 +47,7 @@ const site = await serve(siteRoot(), {
     if (url.pathname === '/demo/market-measure.html') return answer('text/html; charset=utf-8', html); // portable: an HTTP route, never a file's path
     if (url.pathname === '/demo/market-measure.js') return answer('text/javascript', bundle); // portable: an HTTP route, never a file's path
     if (url.pathname === '/demo/trading-model.pure') return answer('text/plain; charset=utf-8', model); // portable: an HTTP route, never a file's path
+    if (url.pathname === '/demo/market.pure') return answer('text/plain; charset=utf-8', deskModel); // portable: an HTTP route, never a file's path
     return false;
   },
 });

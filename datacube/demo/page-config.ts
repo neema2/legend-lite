@@ -53,6 +53,8 @@ export interface MarketConfig {
   readonly psk: string;
   /** The one trading model's text (//scripts/corpus:trading_model), by URL relative to config.json. */
   readonly model: string;
+  /** The desk's own model (demo/deephaven/market/market.pure: the screens' functions and the runtime), likewise. */
+  readonly deskModel: string;
 }
 
 export interface DepotConfig {
@@ -95,13 +97,14 @@ function projects(v: unknown, base: string): ProjectConfig[] {
 }
 
 
-/** `market`, when it names a server, its key and the trading model; a malformed one is left out, not guessed at. */
+/** `market`, when it names a server, its key, the trading model and the desk's own; a malformed one is left out, not
+ *  guessed at. */
 function market(v: unknown, base: string): MarketConfig | undefined {
   if (typeof v !== 'object' || v === null) return undefined;
   const o = v as Record<string, unknown>;
-  const [url, psk, model] = [text(o['url']), text(o['psk']), text(o['model'])];
-  if (!url || !psk || !model) return undefined;
-  return { url, psk, model: new URL(model, base).href };
+  const [url, psk, model, deskModel] = [text(o['url']), text(o['psk']), text(o['model']), text(o['deskModel'])];
+  if (!url || !psk || !model || !deskModel) return undefined;
+  return { url, psk, model: new URL(model, base).href, deskModel: new URL(deskModel, base).href };
 }
 
 /** `depot`, when it names an SDLC (`"page"` or a URL). */

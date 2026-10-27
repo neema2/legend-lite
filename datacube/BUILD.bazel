@@ -199,6 +199,10 @@ _NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
 
 _EXTRA_ENV = {
     "warehouse-session-http": {"SQLAPI_PAGE": "$(rlocationpath //warehouse:sqlapi_page_dir)"},
+    "desk-model": {
+        "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
+        "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+    },
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
         "ENGINE_BUNDLE": "$(rlocationpath :demo/bundle-engine.js)",
@@ -271,6 +275,16 @@ _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
+    # the trading desk's three model files' sources -- the corpus, the desk's own, the connections' writer -- and the
+    # screens that name its functions, with the page's writers they import (:src: the generated list follows a test's
+    # imports under src/ only, not through demo/)
+    "desk-model": [
+        "demo/deephaven/market/market.pure",
+        "demo/deephaven/market/model.ts",
+        "demo/deephaven/market/screens.ts",
+        ":src",
+        "//scripts/corpus:trading_model",
+    ],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [
         ":bundle_bundle",
@@ -389,6 +403,8 @@ _WASM_TESTS = [
     "parity-screen",
     # the start's trades read in as the sample file a saved start page rebuilds, by the tab's own ingest (2026-10-23)
     "sample-trades",
+    # the trading desk's model: every screen's source a function of it, each planned on Deephaven, no server (2026-10-27)
+    "desk-model",
 ]
 
 # The jsdom tests that drive a whole page through many gestures, each opening grids: past `small`'s 60 s on CI's
@@ -2234,6 +2250,7 @@ browser_test(
     size = "medium",
     tags = ["manual"],
     data = [
+        "demo/deephaven/market/market.pure",
         "demo/deephaven/site.mjs",
         "test/deephaven/market.mjs",
         ":deephaven_market_fixture",
@@ -2247,6 +2264,7 @@ browser_test(
     env = {
         "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
         "MARKET_PAGE": "$(rlocationpath :deephaven_market_page)",
+        "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
         "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
         "PLANNER": "$(rlocationpaths //wasm:planner)",
     },
@@ -2332,6 +2350,8 @@ browser_test(
 # named.
 _DEEPHAVEN_DESK_DATA = _HARNESS_HELPERS + [
     "demo/deephaven/market/desk-site.mjs",
+    # the desk's own model, served beside the page: the screens' functions, the options' and the runtime
+    "demo/deephaven/market/market.pure",
     "demo/deephaven/site.mjs",
     # named itself: SITE is its runfiles path
     "demo/index.html",
@@ -2344,6 +2364,7 @@ _DEEPHAVEN_DESK_DATA = _HARNESS_HELPERS + [
 
 _DEEPHAVEN_DESK_ENV = _SITE_ENV | {
     "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
+    "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
     "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
 }
 
@@ -2414,6 +2435,7 @@ browser_test(
     size = "enormous",
     tags = ["manual"],
     data = _HARNESS_HELPERS + [
+        "demo/deephaven/market/market.pure",
         "demo/index.html",
         "demo/market-sim/measure/measure.html",
         "demo/market-sim/measure/measure.mjs",
@@ -2424,6 +2446,7 @@ browser_test(
     ],
     entry_point = "demo/market-sim/measure/measure.mjs",
     env = _SITE_ENV | {
+        "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
         "MEASURE_BUNDLE": "$(rlocationpath :market_measure_bundle)",
         "MEASURE_PAGE": "$(rlocationpath demo/market-sim/measure/measure.html)",
         "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",

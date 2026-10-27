@@ -215,7 +215,15 @@ try {
   try {
     await showTab('News');
     await sleep(800);
-    const largest = (await viewOf('nw-namesFeed')).title.split(': ')[1].split(', ');
+    // the five largest names are the model's query's (market::screens::newsAboutLargest: a story's instrument matched to
+    // the largest equities'), never a list in the page: the names its pane's stories are about, at most five, the market's
+    // largest -- the name the pane's chart opens on -- among them
+    const largestRows = await rowsOf('nw-namesTable');
+    const largest = [...new Set(largestRows.rows.map((r) => r[largestRows.columns.indexOf('ticker')]))];
+    const opensOn = (await rowsOf('nw-prints')).rows[0]?.[(await rowsOf('nw-prints')).columns.indexOf('ticker')];
+    if (largest.length >= 1 && largest.length <= 5 && largest.includes(opensOn)) {
+      ok(`News: the five largest names' stories, by the model's query: about ${largest.join(', ')}, the largest (${opensOn}) among them`);
+    } else fail(`News: the five largest names' pane is about ${JSON.stringify(largest)}, its chart opening on ${opensOn}`);
     const topOf = () => page.evaluate(() => document.querySelector('[data-tile="nw-allFeed"] .dc-feed-card')?.getAttribute('data-key') ?? null);
     const a = await counts();
     const top0 = await topOf();
@@ -264,7 +272,7 @@ try {
       ok(`News: a keyword typed into a pane: "dividend", ${typed.rows.length} stories, each card with it, kept with the page`);
     } else fail(`News: the keyword "dividend": cards ${JSON.stringify(headlines.slice(0, 3))}, kept ${kept}`);
 
-    const chip = page.locator('[data-tile="nw-namesFeed"] .dc-feed-ticker').filter({ hasNotText: largest[0] }).first();
+    const chip = page.locator('[data-tile="nw-namesFeed"] .dc-feed-ticker').filter({ hasNotText: opensOn }).first();
     const sym = await chip.textContent();
     await chip.click();
     await until(async () => every(await rowsOf('nw-prints'), 'ticker', (t) => t === sym), `the chart beside the panes at ${sym}`);

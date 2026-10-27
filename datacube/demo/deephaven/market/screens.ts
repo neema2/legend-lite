@@ -39,51 +39,37 @@ export interface TraderPage {
   build(types: SourceTypes, first: FirstValue): Promise<PageDocument>;
 }
 
-// ---------------------------------------------------------------- the sources: queries over the corpus's classes
+// ---------------------------------------------------------------- the sources: the desk's model's functions
 
-const QUOTE = 'marketdata::MarketQuote.all()';
-const TRADE = 'marketdata::MarketTrade.all()';
+// WHAT EACH SCREEN SHOWS IS THE MODEL'S (market.pure, the desk's project's own file; the user, 2026-10-27: "screens as
+// model"): every source below names one of its functions, which the compiler inlines where it is called -- a screen's
+// plan is its body's. What a figure MEANS (a desk's day P&L, a limit used, a markout, a block) is there, in Pure, typed
+// by its declared columns; here is only which function each grid reads, and its arguments.
 
 /** Every name's quote now: its top of book and its day so far, against its prior close. */
-export const WATCHLIST = `${QUOTE}->project(~[ticker:x|$x.instrument.ticker, name:x|$x.instrument.name,`
-  + ' kind:x|$x.instrument.assetClass, sector:x|$x.instrument.sector.name, last:x|$x.last, bid:x|$x.bid,'
-  + ' ask:x|$x.ask, bidSize:x|$x.bidSize, askSize:x|$x.askSize, open:x|$x.openPrice, high:x|$x.highPrice,'
-  + ' low:x|$x.lowPrice, prevClose:x|$x.closePrice, volume:x|$x.volume, at:x|$x.quoteTime])'
-  + '->extend(~[chg:x|$x.last->toOne() - $x.prevClose->toOne(),'
-  + ' chgPct:x|($x.last->toOne() / $x.prevClose->toOne()) - 1.0, spreadBps:x|(($x.ask - $x.bid) / $x.bid) * 10000.0])';
+export const WATCHLIST = 'market::screens::watchlist()';
 
 /** The public tape: every print, its name, time, price and size, and who crossed the spread. */
-export const TAPE = `${TRADE}->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.instrument.ticker,`
-  + ' kind:x|$x.instrument.assetClass, at:x|$x.printTime, price:x|$x.price, size:x|$x.quantity,'
-  + ' side:x|$x.aggressorSide, venue:x|$x.venue, condition:x|$x.tradeCondition])';
+export const TAPE = 'market::screens::tape()';
 
-/** A name's day from its prints: the price again under each figure the grid takes of it (its VWAP, high, low and last),
- *  and each print's notional. */
-export const DAY = `${TAPE}->extend(~[vwap:x|$x.price, high:x|$x.price, low:x|$x.price, close:x|$x.price,`
-  + ' notional:x|$x.price * $x.size])';
+/** A name's day from its prints: the price again under each figure a grid takes of it, and each print's notional. */
+export const DAY = 'market::screens::day()';
 
-/** THE STOCK (K14): every print with its name's prior close (its listing's, an equity's -- the static reference, so a
- *  quote's tick never touches the tape; a coin's day has none) and the name's exponential moving average of its prices,
- *  print by print (lite's ema, K6): one grid, filtered to the name picked, whose views are the stock's every tile. */
-export const STOCK = `${TRADE}->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.instrument.ticker, at:x|$x.printTime,`
-  + ' price:x|$x.price, size:x|$x.quantity, side:x|$x.aggressorSide, venue:x|$x.venue,'
-  + ' prevClose:x|$x.instrument.equity.lastPrice])'
-  + '->extend(over(~ticker, ~seq->ascending(), rows(unbounded(), 0)), ~[ema:{p,w,r|$r.price}:y|$y->ema(0.1)])';
+/** The weight an exponential moving average gives each new print's price, as the stock's chart says it. */
+const EMA_ALPHA = '0.1';
 
-/** The market's largest name (by its capitalisation at the prior close): the stock a screen first shows. */
-export const LARGEST = 'products::Equity.all()->project(~[t:x|$x.ticker, cap:x|$x.marketCap])->sort(~cap->descending())'
-  + '->limit(1)->select(~[t])';
+/** THE STOCK (K14): every print with its name's prior close and its moving average: one grid, filtered to the name
+ *  picked, whose views are the stock's every tile. */
+export const STOCK = `market::screens::stock(${EMA_ALPHA})`;
 
-/** The market's `n`th largest name: the smallest of its `n` largest. */
-export const nthLargest = (n: number): string => 'products::Equity.all()->project(~[t:x|$x.ticker, cap:x|$x.marketCap])'
-  + `->sort(~cap->descending())->limit(${n})->sort(~cap->ascending())->limit(1)->select(~[t])`;
+/** The market's largest name: the stock a screen first shows. */
+export const LARGEST = 'market::screens::largestNames(1)';
 
-/** THE NEWSWIRE (K15): every story -- its time, headline, body, source, category, weight (FLASH, STORY, BRIEF), tone
- *  (the wire's sentiment) and the tickers it names -- with the name it is about (none: a sector's story or the
- *  market's) and its sector (its name's, else its own). */
-export const NEWS = 'marketdata::NewsStory.all()->project(~[id:x|$x.storyId, at:x|$x.publishTime, headline:x|$x.headline,'
-  + ' body:x|$x.body, source:x|$x.source, category:x|$x.category, weight:x|$x.urgency, tone:x|$x.sentiment,'
-  + ' tickers:x|$x.tickers, region:x|$x.region, ticker:x|$x.instrument.ticker, sector:x|$x.sector.name])';
+/** THE NEWSWIRE (K15): every story, with the name it is about and its sector. */
+export const NEWS = 'market::screens::news()';
+
+/** The stories about the market's five largest names: a story's instrument matched to theirs (K15's monitor). */
+export const NEWS_OF_LARGEST = 'market::screens::newsAboutLargest(5)';
 
 // ---------------------------------------------------------------- writing a page
 
@@ -371,14 +357,8 @@ async function tickerParts(types: SourceTypes, first: FirstValue): Promise<Parts
 
 // ---------------------------------------------------------------- K8: the market map
 
-/** Every equity's quote as a market map reads it: its sector, its value at the last price (shares out by the last), the
- *  day's change against the prior close, its turnover, and whether it is up or down on the day. */
-export const MARKET_MAP = `${QUOTE}->filter(x|$x.instrument.assetClass == 'EQUITY')->project(~[sector:x|$x.instrument.sector.name,`
-  + ' ticker:x|$x.instrument.ticker, name:x|$x.instrument.name, shares:x|$x.instrument.equity.sharesOutstanding,'
-  + ' last:x|$x.last, prevClose:x|$x.closePrice, volume:x|$x.volume])'
-  + '->extend(~[cap:x|$x.shares->toOne() * $x.last->toOne(), chgPct:x|($x.last->toOne() / $x.prevClose->toOne()) - 1.0,'
-  + ' turnover:x|$x.volume->toOne() * $x.last->toOne()])'
-  + '->extend(~[up:x|if($x.chgPct > 0.0, |1, |0), down:x|if($x.chgPct < 0.0, |1, |0)])';
+/** Every equity's quote as a market map reads it: its value now, its change on the day, its turnover, up or down. */
+export const MARKET_MAP = 'market::screens::marketMap()';
 
 async function marketMapParts(types: SourceTypes): Promise<Parts> {
   const columns = await columnsOf(types, MARKET_MAP, {
@@ -431,31 +411,11 @@ async function marketMapParts(types: SourceTypes): Promise<Parts> {
 
 // ---------------------------------------------------------------- K9: real-time P&L with limits
 
-const JOIN_INNER = 'meta::pure::functions::relation::JoinKind.INNER';
+/** Every cash position marked to its live mid: its day's P&L, its value, its gross and its P&L against its cost. */
+export const POSITIONS_LIVE = 'market::screens::positionsLive()';
 
-/** Every cash position (a stock's, a coin's) marked to its live mid: its day's P&L against the prior close, its value,
- *  its gross and its P&L against its cost. */
-export const POSITIONS_LIVE = 'positions::Position.all()->filter(x|$x.instrument.assetClass != \'OPTION\')->project(~['
-  + 'desk:x|$x.book.desk.name, book:x|$x.book.name, ticker:x|$x.instrument.ticker, sector:x|$x.instrument.sector.name,'
-  + ' inst:x|$x.instrument.instrumentId, qty:x|$x.quantity, cost:x|$x.averageCost])'
-  + `->join(${QUOTE}->project(~[qinst:x|$x.instrument.instrumentId, mid:x|$x.mid, close:x|$x.closePrice]), ${JOIN_INNER},`
-  + ' {p, q|$p.inst == $q.qinst})'
-  + '->extend(~[mv:x|$x.qty * $x.mid, dayPnl:x|$x.qty * ($x.mid - $x.close->toOne()), gross:x|abs($x.qty * $x.mid),'
-  + ' sinceCost:x|$x.qty * ($x.mid - $x.cost)])';
-
-/** A desk's limit of `type`, by its desk's name, as `name`. */
-const limitOf = (type: string, as: string, desk: string): string => 'risk::RiskLimit.all()'
-  + `->filter(x|$x.limitType == '${type}')->project(~[${desk}:x|$x.desk.name, ${as}:x|$x.limitAmount])`;
-
-/** Each desk's day against its limits: its P&L against its day's loss limit, its gross against its gross limit -- each
- *  used as a share, and a status (a breach at the limit, a warning at four fifths of it). */
-export const DESK_LIMITS = `${POSITIONS_LIVE}->groupBy(~[desk], ~[pnl:x|$x.dayPnl:y|$y->sum(), gross:x|$x.gross:y|$y->sum()])`
-  + `->join(${limitOf('DAY_LOSS', 'lossLimit', 'ldesk')}, ${JOIN_INNER}, {a, b|$a.desk == $b.ldesk})`
-  + `->join(${limitOf('GROSS_NOTIONAL', 'grossLimit', 'gdesk')}, ${JOIN_INNER}, {a, b|$a.desk == $b.gdesk})`
-  + '->extend(~[lossUsed:x|if($x.pnl < 0.0, |(0.0 - $x.pnl) / $x.lossLimit, |0.0), grossUsed:x|$x.gross / $x.grossLimit])'
-  + '->extend(~[headroom:x|1.0 - $x.lossUsed, status:x|if($x.lossUsed >= 1.0, |\'BREACH\','
-  + ' |if($x.lossUsed >= 0.8, |\'WARNING\', |\'OK\')), breach:x|if($x.lossUsed >= 1.0, |1, |0),'
-  + ' warning:x|if(($x.lossUsed >= 0.8) && ($x.lossUsed < 1.0), |1, |0)])';
+/** Each desk's day against its limits, a warning from four fifths of its loss limit. */
+export const DESK_LIMITS = 'market::screens::deskLimits(0.8)';
 
 const MONEY: ColumnConfiguration = { format: { kind: 'number', decimals: 0, negativeParens: true }, appearance: { negativeForeground: '#d64545' } };
 const SHARE: ColumnConfiguration = { format: { kind: 'percent', decimals: 1 } };
@@ -520,28 +480,11 @@ async function pnlParts(types: SourceTypes): Promise<Parts> {
 
 // ---------------------------------------------------------------- K10: the execution blotter
 
-const JOIN_LEFT = 'meta::pure::functions::relation::JoinKind.LEFT';
+/** Every fill against its order's arrival price: its slippage in basis points, positive a cost. */
+export const FILLS = 'market::screens::fills()';
 
-/** Every fill: its order's name and side, its algorithm, venue and broker, its size and price against the order's
- *  arrival price -- its slippage in basis points, positive a cost (paid above it to buy, sold below it). */
-export const FILLS = 'trading::Execution.all()->project(~[exec:x|$x.executionId, at:x|$x.executionTime, order:x|$x.order.orderId,'
-  + ' ticker:x|$x.order.instrument.ticker, side:x|$x.order.side, strategy:x|$x.executionAlgo, venue:x|$x.venue,'
-  + ' broker:x|$x.broker, qty:x|$x.filledQuantity, px:x|$x.fillPrice, arrival:x|$x.arrivalPrice, commission:x|$x.commission,'
-  + ' seq:x|$x.sequenceNumber])'
-  + '->extend(~[notional:x|$x.qty * $x.px, slipBps:x|if($x.side == \'BUY\', |1.0, |-1.0) * ($x.px - $x.arrival->toOne())'
-  + ' / $x.arrival->toOne() * 10000.0])';
-
-/** Every parent order: its trader, desk and book, name, side, algorithm, size and how much is done; its fills' average
- *  price and its slippage against its arrival, from its fills grouped by order and joined to it. */
-export const ORDERS = 'trading::Order.all()->project(~[order:x|$x.orderId, created:x|$x.createdTime, trader:x|$x.trader.lastName,'
-  + ' desk:x|$x.book.desk.name, book:x|$x.book.name, ticker:x|$x.instrument.ticker, side:x|$x.side, strategy:x|$x.algoStrategy,'
-  + ' qty:x|$x.quantity, filled:x|$x.filledQuantity, status:x|$x.status, limit:x|$x.limitPrice, tif:x|$x.timeInForce])'
-  + '->join(trading::Execution.all()->project(~[eo:x|$x.order.orderId, eq:x|$x.filledQuantity, epx:x|$x.fillPrice,'
-  + ' earrival:x|$x.arrivalPrice])->extend(~[en:x|$x.eq * $x.epx])->groupBy(~[eo], ~[fills:x|$x.eq:y|$y->count(),'
-  + ` fillNotional:x|$x.en:y|$y->sum(), arrival:x|$x.earrival:y|$y->max()]), ${JOIN_LEFT}, {o, e|$o.order == $e.eo})`
-  + '->extend(~[pctFilled:x|$x.filled->toOne() / $x.qty, avgPx:x|$x.fillNotional->toOne() / $x.filled->toOne(),'
-  + ' open:x|if($x.status->in([\'NEW\', \'WORKING\', \'PARTIALLY_FILLED\']), |1, |0)])'
-  + '->extend(~[slipBps:x|if($x.side == \'BUY\', |1.0, |-1.0) * ($x.avgPx - $x.arrival->toOne()) / $x.arrival->toOne() * 10000.0])';
+/** Every parent order with its fills so far: how much is done, its average price and its slippage. */
+export const ORDERS = 'market::screens::orders()';
 
 const BPS: ColumnConfiguration = { format: { kind: 'number', decimals: 1 }, appearance: { negativeForeground: '#1f9d55' } };
 
@@ -612,40 +555,14 @@ async function blotterParts(types: SourceTypes): Promise<Parts> {
 
 // ---------------------------------------------------------------- K11: the options desk
 
-/** The listed chain, live: each option priced, and its greeks, by Black and Scholes (the model's own functions,
- *  market::options) from its underlying's live mid, its implied volatility and its time to expiry from the quote's time;
- *  its change against its settlement at the prior close. */
-export const OPTION_CHAIN = 'products::Option.all()->project(~[underlying:x|$x.underlying.ticker, uinst:x|$x.underlying.instrumentId,'
-  + ' inst:x|$x.instrument.instrumentId, option:x|$x.optionId, type:x|$x.optionType, strike:x|$x.strikePrice,'
-  + ' expiry:x|$x.expirationDate, iv:x|$x.impliedVolatility, settle:x|$x.premium, size:x|$x.contractSize])'
-  + `->join(${QUOTE}->project(~[qinst:x|$x.instrument.instrumentId, spot:x|$x.mid, at:x|$x.quoteTime]), ${JOIN_INNER},`
-  + ' {o, q|$o.uinst == $q.qinst})'
-  + '->extend(~[t:x|dateDiff($x.at, $x.expiry, DurationUnit.DAYS) / 365.0, call:x|$x.type == \'CALL\','
-  + ' vol:x|$x.iv->toOne()])'
-  + '->extend(~[rootT:x|sqrt($x.t), disc:x|exp(0.0 - (0.05 * $x.t))])'
-  + '->extend(~[d1:x|market::options::d1($x.spot, $x.strike, $x.t, $x.vol, 0.05, $x.rootT)])'
-  + '->extend(~[d2:x|market::options::d2($x.d1, $x.vol, $x.rootT), nd1:x|market::options::pdf($x.d1),'
-  + ' k1:x|market::options::k($x.d1)])'
-  + '->extend(~[nd2:x|market::options::pdf($x.d2), k2:x|market::options::k($x.d2),'
-  + ' tail1:x|market::options::tail($x.nd1, $x.k1)])'
-  + '->extend(~[tail2:x|market::options::tail($x.nd2, $x.k2), cd1:x|market::options::cdf($x.d1, $x.tail1),'
-  + ' cmd1:x|market::options::cdf(0.0 - $x.d1, $x.tail1)])'
-  + '->extend(~[cd2:x|market::options::cdf($x.d2, $x.tail2), cmd2:x|market::options::cdf(0.0 - $x.d2, $x.tail2)])'
-  + '->extend(~[price:x|market::options::price($x.call, $x.spot, $x.strike, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),'
-  + ' delta:x|market::options::delta($x.call, $x.cd1), gamma:x|market::options::gamma($x.spot, $x.vol, $x.rootT, $x.nd1),'
-  + ' vega:x|market::options::vega($x.spot, $x.rootT, $x.nd1),'
-  + ' theta:x|market::options::theta($x.call, $x.spot, $x.strike, $x.vol, 0.05, $x.rootT, $x.disc, $x.nd1, $x.cd2, $x.cmd2)])'
-  + '->extend(~[chg:x|$x.price - $x.settle, moneyness:x|$x.strike / $x.spot])';
+/** The rate the options are priced at. */
+const OPTION_RATE = '0.05';
 
-/** The derivatives books' option positions with the chain's live price and greeks: each position's delta (in shares
- *  and dollars), gamma, vega, theta, value and day's P&L. */
-export const OPTION_BOOK = 'positions::Position.all()->filter(x|$x.instrument.assetClass == \'OPTION\')->project(~['
-  + 'book:x|$x.book.name, pinst:x|$x.instrument.instrumentId, contracts:x|$x.quantity])'
-  + `->join(${OPTION_CHAIN}, ${JOIN_INNER}, {p, o|$p.pinst == $o.inst})`
-  + '->extend(~[units:x|$x.contracts * $x.size->toFloat()])'
-  + '->extend(~[posDelta:x|$x.units * $x.delta, posGamma:x|$x.units * $x.gamma, posVega:x|$x.units * $x.vega,'
-  + ' posTheta:x|$x.units * $x.theta, mv:x|$x.units * $x.price, dayPnl:x|$x.units * $x.chg])'
-  + '->extend(~[dollarDelta:x|$x.posDelta * $x.spot])';
+/** The listed chain, live: each option priced, and its greeks, by Black and Scholes from its underlying's live mid. */
+export const OPTION_CHAIN = `market::screens::optionChain(${OPTION_RATE})`;
+
+/** The derivatives books' option positions with the chain's live price and greeks. */
+export const OPTION_BOOK = `market::screens::optionBook(${OPTION_RATE})`;
 
 /** The columns a chain's or a book's grid leaves out: its keys, its inputs. */
 const OPTION_INPUTS: Readonly<Record<string, ColumnConfiguration>> = {
@@ -723,41 +640,17 @@ async function optionsParts(types: SourceTypes): Promise<Parts> {
 
 // ---------------------------------------------------------------- K12: FX e-trading
 
-const FX = 'marketdata::FxRate.all()';
-const JPY = "['USD/JPY', 'EUR/JPY', 'GBP/JPY']";
+/** The desk's FX prices: each pair's bid and ask, its spread and its change on the day in pips. */
+export const FX_RATES = 'market::screens::fxRates()';
 
-/** The desk's FX prices: each pair's bid and ask, its spread and its change on the day in pips (a hundredth of a yen
- *  pair's, a ten-thousandth of the rest). */
-export const FX_RATES = `${FX}->project(~[pair:x|$x.currencyPair, bid:x|$x.bidRate, ask:x|$x.askRate, mid:x|$x.midRate,`
-  + ' chg:x|$x.dailyChange, chgPct:x|$x.dailyChangePct, at:x|$x.rateDate])'
-  + `->extend(~[pip:x|if($x.pair->in(${JPY}), |0.01, |0.0001)])`
-  + '->extend(~[spreadPips:x|($x.ask->toOne() - $x.bid->toOne()) / $x.pip, chgPips:x|$x.chg->toOne() / $x.pip])';
+/** Each cross's quoted mid against the mid its legs imply, and the difference in pips. */
+export const FX_CROSSES = 'market::screens::fxCrosses()';
 
-/** One pair's mid as `name`, beside a key every row shares (`key`): what a cross is joined to its legs by. */
-const leg = (pair: string, name: string, key: string): string =>
-  `${FX}->filter(x|$x.currencyPair == '${pair}')->project(~[${name}:x|$x.midRate, ${key}:x|1])`;
-
-/** THE CROSSES BY LIVE JOINS: each cross's quoted mid against the mid its legs imply (EUR/JPY as EUR/USD by USD/JPY,
- *  GBP/JPY likewise, EUR/GBP as EUR/USD over GBP/USD), and the difference in pips. */
-export const FX_CROSSES = `${FX}->filter(x|$x.currencyPair->in(['EUR/JPY', 'GBP/JPY', 'EUR/GBP']))`
-  + '->project(~[pair:x|$x.currencyPair, quoted:x|$x.midRate, k:x|1])'
-  + `->join(${leg('EUR/USD', 'eurusd', 'k1')}, ${JOIN_INNER}, {a, b|$a.k == $b.k1})`
-  + `->join(${leg('GBP/USD', 'gbpusd', 'k2')}, ${JOIN_INNER}, {a, b|$a.k == $b.k2})`
-  + `->join(${leg('USD/JPY', 'usdjpy', 'k3')}, ${JOIN_INNER}, {a, b|$a.k == $b.k3})`
-  + '->extend(~[implied:x|if($x.pair == \'EUR/JPY\', |$x.eurusd * $x.usdjpy, |if($x.pair == \'GBP/JPY\','
-  + ' |$x.gbpusd * $x.usdjpy, |$x.eurusd / $x.gbpusd)), pip:x|if($x.pair == \'EUR/GBP\', |0.0001, |0.01)])'
-  + '->extend(~[basisPips:x|($x.quoted - $x.implied) / $x.pip])';
-
-/** Every client's request for a quote: its client and tier, its dealer, pair, side, size and tenor, the desk's rate and
- *  spread, its state and the desk's response time; whether it was hit, and the notional done. */
-export const RFQS = 'trading::Rfq.all()->project(~[rfq:x|$x.rfqId, at:x|$x.requestTime, client:x|$x.client.shortName,'
-  + ' tier:x|$x.client.tier, dealer:x|$x.dealer.lastName, pair:x|$x.currencyPair, side:x|$x.side, notional:x|$x.notional,'
-  + ' tenor:x|$x.tenor, rate:x|$x.quotedRate, spreadBps:x|$x.spreadBps, status:x|$x.status, responseMs:x|$x.responseTimeMs,'
-  + ' hitFlag:x|$x.isHit])'
-  + '->extend(~[hit:x|if($x.hitFlag, |1.0, |0.0), done:x|if($x.hitFlag, |$x.notional, |0.0)])';
+/** Every client's request for a quote: whether it was hit, and the notional done. */
+export const RFQS = 'market::screens::rfqs()';
 
 /** The requests the client answered (done, missed or let expire): a hit ratio is their hits' average. */
-export const RFQS_ANSWERED = `${RFQS}->filter(x|$x.status->in(['DONE', 'MISSED', 'EXPIRED']))`;
+export const RFQS_ANSWERED = 'market::screens::rfqsAnswered()';
 
 async function fxParts(types: SourceTypes): Promise<Parts> {
   const rates = await columnsOf(types, FX_RATES, {
@@ -839,27 +732,8 @@ async function fxParts(types: SourceTypes): Promise<Parts> {
 
 // ---------------------------------------------------------------- K13: TCA and markouts
 
-/** The tape's prints of a name as of a time: `p` its price, `pi` its name, `pt` its time. */
-const printsAs = (p: string, pi: string, pt: string): string =>
-  `${TRADE}->project(~[${pi}:x|$x.instrument.instrumentId, ${pt}:x|$x.printTime, ${p}:x|$x.price])`;
-
-/** EVERY FILL'S COST AND ITS MARKOUTS: its slippage against its order's arrival, and the market's price 1, 5 and 30
- *  seconds after it -- the latest print of its name at or before then, by as-of joins to the tape (K7) -- each in basis
- *  points from the fill's price, positive when the market moved the fill's way (a buy that the market rose after). A
- *  fill younger than a horizon reads the latest print so far. */
-export const MARKOUTS = 'trading::Execution.all()->project(~[exec:x|$x.executionId, at:x|$x.executionTime,'
-  + ' inst:x|$x.order.instrument.instrumentId, ticker:x|$x.order.instrument.ticker, side:x|$x.order.side,'
-  + ' strategy:x|$x.executionAlgo, venue:x|$x.venue, broker:x|$x.broker, qty:x|$x.filledQuantity, px:x|$x.fillPrice,'
-  + ' arrival:x|$x.arrivalPrice, commission:x|$x.commission])'
-  + '->extend(~[t1:x|$x.at->adjust(1, DurationUnit.SECONDS), t5:x|$x.at->adjust(5, DurationUnit.SECONDS),'
-  + ' t30:x|$x.at->adjust(30, DurationUnit.SECONDS)])'
-  + `->asOfJoin(${printsAs('p1', 'i1', 'pt1')}, {a, b|$a.t1 >= $b.pt1}, {a, b|$a.inst == $b.i1})`
-  + `->asOfJoin(${printsAs('p5', 'i5', 'pt5')}, {a, b|$a.t5 >= $b.pt5}, {a, b|$a.inst == $b.i5})`
-  + `->asOfJoin(${printsAs('p30', 'i30', 'pt30')}, {a, b|$a.t30 >= $b.pt30}, {a, b|$a.inst == $b.i30})`
-  + '->extend(~[sign:x|if($x.side == \'BUY\', |1.0, |-1.0), notional:x|$x.qty * $x.px])'
-  + '->extend(~[slipBps:x|$x.sign * (($x.px - $x.arrival->toOne()) / $x.arrival->toOne()) * 10000.0,'
-  + ' m1:x|$x.sign * (($x.p1->toOne() - $x.px) / $x.px) * 10000.0, m5:x|$x.sign * (($x.p5->toOne() - $x.px) / $x.px) * 10000.0,'
-  + ' m30:x|$x.sign * (($x.p30->toOne() - $x.px) / $x.px) * 10000.0, commissionBps:x|($x.commission->toOne() / $x.notional) * 10000.0])';
+/** Every fill's cost and its markouts 1, 5 and 30 seconds after it, by as-of joins to the tape (K7). */
+export const MARKOUTS = 'market::screens::markouts()';
 
 async function tcaParts(types: SourceTypes): Promise<Parts> {
   const weighted = { aggregate: 'wavg', aggregateWeight: 'notional' } as const;
@@ -925,9 +799,11 @@ async function newsParts(types: SourceTypes, first: FirstValue): Promise<Parts> 
   const newsColumns = await columnsOf(types, NEWS);
   const mixColumns = await columnsOf(types, NEWS, { id: { aggregate: 'count' }, tone: { aggregate: 'average' } });
   const stockColumns = await columnsOf(types, STOCK, { seq: { kind: 'dimension' } });
-  // the market's five largest names (a desk's watchlist), the largest the chart's first
-  const largest = await Promise.all([1, 2, 3, 4, 5].map((n) => first(nthLargest(n))));
-  const symbol = largest[0]!;
+  // the stories about the market's five largest names (a desk's watchlist): the model's query, which matches a story's
+  // instrument to theirs -- the names are the market's at each run, never a list written into the page
+  const largestColumns = await columnsOf(types, NEWS_OF_LARGEST);
+  // the chart's first name: the market's largest, as the market says now
+  const symbol = await first(LARGEST);
   const wire = marketSource('The newswire', NEWS, newsColumns);
   // THE MONITOR: a news terminal's panes, each a feed of the newswire customised by its grid's filter -- the whole
   // market's, macro and sector stories, the five largest names', a sector's, a keyword's (its own box) -- and the name
@@ -935,10 +811,13 @@ async function newsParts(types: SourceTypes, first: FirstValue): Promise<Parts> 
   const hasWord = (column: string): FilterNode => ({ kind: 'condition', column, operator: 'containsCaseInsensitive', value: 'buyback' });
   const keyword: FilterNode = { kind: 'or', children: [hasWord('headline'), hasWord('body')] };
   const among = (column: string, values: readonly string[]): FilterNode => ({ kind: 'condition', column, operator: 'in', value: [...values] });
+  const names = cubeOf('The five largest names', marketSource('The news of the largest names', NEWS_OF_LARGEST, largestColumns),
+    cubeOver(largestColumns, { sorts: [{ column: 'at', direction: 'desc' }, { column: 'id', direction: 'desc' }] }),
+    configured('The five largest names', { ...WIRE_COLUMNS, inst: HIDDEN, einst: HIDDEN, eticker: HIDDEN, cap: HIDDEN }));
   const cubes = [
     { id: 'all', cube: wireOf('All news', 'All news', wire, newsColumns) },
     { id: 'macro', cube: wireOf('Macro and sectors', 'Macro and sectors', wire, newsColumns, among('category', ['Macro', 'Industry'])) },
-    { id: 'names', cube: wireOf('The five largest names', 'The five largest names', wire, newsColumns, among('ticker', largest)) },
+    { id: 'names', cube: names },
     { id: 'tech', cube: wireOf('Technology', 'Technology', wire, newsColumns, equal('sector', 'Technology')) },
     { id: 'word', cube: wireOf('Keyword', 'Keyword', wire, newsColumns, keyword) },
     { id: 'stock', cube: cubeOf('The name picked', marketSource('The stock', STOCK, stockColumns),
@@ -962,7 +841,7 @@ async function newsParts(types: SourceTypes, first: FirstValue): Promise<Parts> 
     { id: 'allTable', kind: 'grid', cube: 'all', title: 'All news, as a grid' },
     feedOf('macroFeed', 'macro', 'Macro and sectors', to),
     { id: 'macroTable', kind: 'grid', cube: 'macro', title: 'Macro and sectors, as a grid' },
-    feedOf('namesFeed', 'names', `The five largest names: ${largest.join(', ')}`, to),
+    feedOf('namesFeed', 'names', 'The five largest names', to),
     { id: 'namesTable', kind: 'grid', cube: 'names', title: 'The five largest names, as a grid' },
     feedOf('techFeed', 'tech', 'Technology', to),
     { id: 'techTable', kind: 'grid', cube: 'tech', title: 'Technology, as a grid' },
@@ -1005,20 +884,12 @@ const BLOCK_SHARES = 10_000;
 const BLOCK_NOTIONAL = 1_000_000;
 const BLOCK_WORDS = `${BLOCK_SHARES.toLocaleString('en-US')} shares or $${BLOCK_NOTIONAL.toLocaleString('en-US')} in one print`;
 
-/** THE ORDER FLOW: every print, its name, sector, venue and time, its notional, and who crossed the spread -- bought
- *  (the buyer took the offer), sold (the seller hit the bid), neither (off the exchange) -- and the net of the two; and
- *  whether it was a block. A bunched print (condition B: the tape's aggregate of several trades) is never a block. */
-export const FLOW = `${TRADE}->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.instrument.ticker,`
-  + ' sector:x|$x.instrument.sector.name, kind:x|$x.instrument.assetClass, at:x|$x.printTime, price:x|$x.price,'
-  + ' size:x|$x.quantity, side:x|$x.aggressorSide, venue:x|$x.venue, condition:x|$x.tradeCondition])'
-  + '->extend(~[notional:x|$x.price * $x.size])'
-  + `->extend(~[bought:x|if($x.side == 'B', |$x.notional, |0.0), sold:x|if($x.side == 'S', |$x.notional, |0.0),`
-  + ` block:x|if(((($x.kind == 'EQUITY') && ($x.size >= ${BLOCK_SHARES}.0)) || ($x.notional >= ${BLOCK_NOTIONAL}.0))`
-  + ` && !($x.condition == 'B'), |1, |0)])`
-  + '->extend(~[net:x|$x.bought - $x.sold])';
+/** THE ORDER FLOW: every print, who crossed the spread and the net of the two, and whether it was a block (the street's
+ *  count of one, the function's arguments). */
+export const FLOW = `market::screens::flow(${BLOCK_SHARES}.0, ${BLOCK_NOTIONAL}.0)`;
 
 /** The blocks. */
-export const BLOCKS = `${FLOW}->filter(x|$x.block == 1)`;
+export const BLOCKS = `market::screens::blocks(${BLOCK_SHARES}.0, ${BLOCK_NOTIONAL}.0)`;
 
 async function flowParts(types: SourceTypes): Promise<Parts> {
   const sum = { aggregate: 'sum' } as const;

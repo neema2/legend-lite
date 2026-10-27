@@ -41,11 +41,14 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
   const at = new URL(config.url);
   const host = at.hostname;
   const port = Number(at.port);
-  const answered = await fetch(config.model);
-  if (!answered.ok) throw new Error(`the trading model (${config.model}) answered ${answered.status}`);
-  const corpus = await answered.text();
-  const model = MARKET_MODEL(corpus, host, port);
-  // the model's market part, a file of the project's own: the page's text, served by the browser from memory
+  const fetched = async (what: string, url: string): Promise<string> => {
+    const answered = await fetch(url);
+    if (!answered.ok) throw new Error(`${what} (${url}) answered ${answered.status}`);
+    return answered.text();
+  };
+  const [corpus, desk] = await Promise.all([fetched('the trading model', config.model), fetched("the desk's model", config.deskModel)]);
+  const model = MARKET_MODEL(corpus, desk, host, port);
+  // the model's connections, a file of the project's own: the page's text, served by the browser from memory
   const live = URL.createObjectURL(new Blob([MARKET_LIVE(host, port)], { type: 'text/plain' }));
   const market = planner.withModel(model, MARKET_RUNTIME);
   // the server signed in to while the module holds the model: neither waits for the other
@@ -188,9 +191,9 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
   /**
    * THE MODEL'S ELEMENTS, read once: every saved query of the project reads them (saved-queries.ts savedQueryOpened) --
    * for its data spaces and its enumerations, which are the trading corpus's alone. They are read through the drop-in
-   * surface (pure/v1's grammarToJson/model), which refuses lite's own Pure by design, and the market's part is lite's own
-   * (a Deephaven connection: ConnectionSectionGrammar's LITE_DATABASE_TYPES); it declares no data space and no
-   * enumeration, so the elements read are the corpus's.
+   * surface (pure/v1's grammarToJson/model), which refuses lite's own Pure by design, and the desk's own model and its
+   * connections are lite's own (a Deephaven connection: ConnectionSectionGrammar's LITE_DATABASE_TYPES); they declare no
+   * data space and no enumeration, so the elements read are the corpus's.
    */
   let elements: Promise<unknown[]> | undefined;
   return {
@@ -218,7 +221,8 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
         },
         queries: {
           ...queries,
-          projects: [...queries.projects, { ...MARKET_PROJECT, title: 'The trader screens (the market world)', models: [config.model, live] }],
+          // its files in the order MARKET_MODEL joins them: the corpus, the desk's own, the connections
+          projects: [...queries.projects, { ...MARKET_PROJECT, title: 'The trader screens (the market world)', models: [config.model, config.deskModel, live] }],
         },
       };
     },

@@ -1,0 +1,454 @@
+// THE TRADING DESK'S OWN MODEL (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trading desk): the second file of the desk's
+// project, after the one trading model (the stress corpus's classes, store and mappings, //scripts/corpus:trading_model).
+// What every screen of the desk shows is a function here, over the corpus's classes through stress::AllMapping: the
+// desk's saved queries name them (market/screens.ts), and DataCube adds a person's groups, filters and sorts after them.
+// Each call is inlined where it is made, so a screen's plan is the plan its body would have written by hand. The
+// connections are the environment's, the third file (market/model.ts: a Deephaven server's address and key, or the
+// tab's own DuckDB). PROGRAMS, not the platform's: the database computes every value they define, live.
+
+###Relational
+// the world's own status table, outside the corpus: what each part of the market world is (simulated, live, connecting)
+Database market::World
+(
+  Table world (item VARCHAR(16) PRIMARY KEY, state VARCHAR(16) NOT NULL, detail VARCHAR(256) NOT NULL)
+)
+
+###Pure
+// BLACK AND SCHOLES (K11): a European option's price and greeks from its underlying's price s, its strike k, its
+// volatility v, the rate r -- and what a query computes once each, as columns, and hands on: the square root of its time
+// to expiry (rootT), its discount (disc), d1, the normal density at d1 and d2 (nd1, nd2), the polynomial's variable at
+// each (k1, k2), the normal's tail beyond each (tail1, tail2), and the normal distribution at d1, d2 and their negations
+// (cd1, cd2, cmd1, cmd2). Each function is inlined where it is called, so a value written into a function would be
+// written into each formula as often as the function reads it: the distribution as one function, its variable read five
+// times in its polynomial and its tail in both its branches, was ten copies of it in each formula, 1,500 characters, and
+// the server's parse of a formula grows faster than its length (2026-10-26: seconds of the options desk's first show).
+// The tail is the same at x and at -x, so a negation's distribution reads its value's tail. The normal distribution by
+// Abramowitz and Stegun 26.2.17 (|error| < 7.5e-8).
+function market::options::pdf(x: Float[1]): Float[1]
+{
+  0.3989422804014327 * exp(0.0 - (($x * $x) / 2.0))
+}
+function market::options::poly(t: Float[1]): Float[1]
+{
+  $t * (0.319381530 + ($t * ((0.0 - 0.356563782) + ($t * (1.781477937 + ($t * ((0.0 - 1.821255978) + ($t * 1.330274429))))))))
+}
+function market::options::k(x: Float[1]): Float[1]
+{
+  1.0 / (1.0 + (0.2316419 * abs($x)))
+}
+function market::options::tail(nx: Float[1], k: Float[1]): Float[1]
+{
+  $nx * market::options::poly($k)
+}
+function market::options::cdf(x: Float[1], tail: Float[1]): Float[1]
+{
+  if($x >= 0.0, |1.0 - $tail, |$tail)
+}
+function market::options::d1(s: Float[1], k: Float[1], t: Float[1], v: Float[1], r: Float[1], rootT: Float[1]): Float[1]
+{
+  (log($s / $k) + (($r + (($v * $v) / 2.0)) * $t)) / ($v * $rootT)
+}
+function market::options::d2(d1: Float[1], v: Float[1], rootT: Float[1]): Float[1]
+{
+  $d1 - ($v * $rootT)
+}
+function market::options::price(call: Boolean[1], s: Float[1], k: Float[1], disc: Float[1], cd1: Float[1], cd2: Float[1],
+  cmd1: Float[1], cmd2: Float[1]): Float[1]
+{
+  if($call, |($s * $cd1) - (($k * $disc) * $cd2), |(($k * $disc) * $cmd2) - ($s * $cmd1))
+}
+function market::options::delta(call: Boolean[1], cd1: Float[1]): Float[1]
+{
+  if($call, |$cd1, |$cd1 - 1.0)
+}
+function market::options::gamma(s: Float[1], v: Float[1], rootT: Float[1], nd1: Float[1]): Float[1]
+{
+  $nd1 / (($s * $v) * $rootT)
+}
+// a vega per volatility point, a theta per day
+function market::options::vega(s: Float[1], rootT: Float[1], nd1: Float[1]): Float[1]
+{
+  (($s * $nd1) * $rootT) / 100.0
+}
+function market::options::theta(call: Boolean[1], s: Float[1], k: Float[1], v: Float[1], r: Float[1], rootT: Float[1],
+  disc: Float[1], nd1: Float[1], cd2: Float[1], cmd2: Float[1]): Float[1]
+{
+  ((0.0 - ((($s * $nd1) * $v) / (2.0 * $rootT))) - if($call, |(($r * $k) * $disc) * $cd2, |0.0 - ((($r * $k) * $disc) * $cmd2))) / 365.0
+}
+
+// ---------------------------------------------------------------- the market (K4, K8, K14, K15)
+
+// Every name's quote now: its top of book and its day so far, against its prior close.
+function market::screens::watchlist(): Relation<(ticker:String[1], name:String[1], kind:String[1], sector:String[1],
+  last:Float[0..1], bid:Float[1], ask:Float[1], bidSize:Float[0..1], askSize:Float[0..1], open:Float[0..1],
+  high:Float[0..1], low:Float[0..1], prevClose:Float[0..1], volume:Float[0..1], at:DateTime[1], chg:Float[1],
+  chgPct:Float[1], spreadBps:Float[1])>[1]
+{
+  marketdata::MarketQuote.all()
+    ->project(~[ticker:x|$x.instrument.ticker, name:x|$x.instrument.name, kind:x|$x.instrument.assetClass,
+      sector:x|$x.instrument.sector.name, last:x|$x.last, bid:x|$x.bid, ask:x|$x.ask, bidSize:x|$x.bidSize,
+      askSize:x|$x.askSize, open:x|$x.openPrice, high:x|$x.highPrice, low:x|$x.lowPrice, prevClose:x|$x.closePrice,
+      volume:x|$x.volume, at:x|$x.quoteTime])
+    ->extend(~[chg:x|$x.last->toOne() - $x.prevClose->toOne(), chgPct:x|($x.last->toOne() / $x.prevClose->toOne()) - 1.0,
+      spreadBps:x|(($x.ask - $x.bid) / $x.bid) * 10000.0])
+}
+
+// The public tape: every print, its name, time, price and size, and who crossed the spread.
+function market::screens::tape(): Relation<(seq:Integer[1], ticker:String[1], kind:String[1], at:DateTime[1],
+  price:Float[1], size:Float[1], side:String[0..1], venue:String[1], condition:String[0..1])>[1]
+{
+  marketdata::MarketTrade.all()
+    ->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.instrument.ticker, kind:x|$x.instrument.assetClass,
+      at:x|$x.printTime, price:x|$x.price, size:x|$x.quantity, side:x|$x.aggressorSide, venue:x|$x.venue,
+      condition:x|$x.tradeCondition])
+}
+
+// A name's day from its prints: the price again under each figure a grid takes of it (its VWAP, high, low and last),
+// and each print's notional.
+function market::screens::day(): Relation<(seq:Integer[1], ticker:String[1], kind:String[1], at:DateTime[1],
+  price:Float[1], size:Float[1], side:String[0..1], venue:String[1], condition:String[0..1], vwap:Float[1],
+  high:Float[1], low:Float[1], close:Float[1], notional:Float[1])>[1]
+{
+  market::screens::tape()
+    ->extend(~[vwap:x|$x.price, high:x|$x.price, low:x|$x.price, close:x|$x.price, notional:x|$x.price * $x.size])
+}
+
+// THE STOCK (K14): every print with its name's prior close (its listing's, an equity's -- the static reference, so a
+// quote's tick never touches the tape; a coin's day has none) and the name's exponential moving average of its prices,
+// print by print, weighting each new price by `alpha` (lite's ema, K6).
+function market::screens::stock(alpha: Float[1]): Relation<(seq:Integer[1], ticker:String[1], at:DateTime[1],
+  price:Float[1], size:Float[1], side:String[0..1], venue:String[1], prevClose:Float[0..1], ema:Float[0..1])>[1]
+{
+  marketdata::MarketTrade.all()
+    ->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.instrument.ticker, at:x|$x.printTime, price:x|$x.price,
+      size:x|$x.quantity, side:x|$x.aggressorSide, venue:x|$x.venue, prevClose:x|$x.instrument.equity.lastPrice])
+    ->extend(over(~ticker, ~seq->ascending(), rows(unbounded(), 0)), ~[ema:{p,w,r|$r.price}:y|$y->ema($alpha)])
+}
+
+// The market's `n` largest names, by their capitalisation at the prior close, the largest first.
+function market::screens::largestNames(n: Integer[1]): Relation<(t:String[1])>[1]
+{
+  products::Equity.all()->project(~[t:x|$x.ticker, cap:x|$x.marketCap])->sort(~cap->descending())->limit($n)->select(~[t])
+}
+
+// The market map (K8): each equity's capitalisation now, its change on the day and its turnover, by sector.
+function market::screens::marketMap(): Relation<(sector:String[1], ticker:String[1], name:String[1],
+  shares:Float[0..1], last:Float[0..1], prevClose:Float[0..1], volume:Float[0..1], cap:Float[1], chgPct:Float[1],
+  turnover:Float[1], up:Integer[1], down:Integer[1])>[1]
+{
+  marketdata::MarketQuote.all()
+    ->filter(x|$x.instrument.assetClass == 'EQUITY')
+    ->project(~[sector:x|$x.instrument.sector.name, ticker:x|$x.instrument.ticker, name:x|$x.instrument.name,
+      shares:x|$x.instrument.equity.sharesOutstanding, last:x|$x.last, prevClose:x|$x.closePrice, volume:x|$x.volume])
+    ->extend(~[cap:x|$x.shares->toOne() * $x.last->toOne(), chgPct:x|($x.last->toOne() / $x.prevClose->toOne()) - 1.0,
+      turnover:x|$x.volume->toOne() * $x.last->toOne()])
+    ->extend(~[up:x|if($x.chgPct > 0.0, |1, |0), down:x|if($x.chgPct < 0.0, |1, |0)])
+}
+
+// THE NEWSWIRE (K15): every story -- its time, headline, body, source, category, weight (FLASH, STORY, BRIEF), tone (the
+// wire's sentiment) and the tickers it names -- with the name it is about (none: a sector's story or the market's) and
+// its sector (its name's, else its own).
+function market::screens::news(): Relation<(id:String[1], at:DateTime[1], headline:String[1], body:String[0..1],
+  source:String[1], category:String[1], weight:String[1], tone:Float[0..1], tickers:String[0..1],
+  region:String[0..1], ticker:String[0..1], sector:String[0..1])>[1]
+{
+  marketdata::NewsStory.all()
+    ->project(~[id:x|$x.storyId, at:x|$x.publishTime, headline:x|$x.headline, body:x|$x.body, source:x|$x.source,
+      category:x|$x.category, weight:x|$x.urgency, tone:x|$x.sentiment, tickers:x|$x.tickers, region:x|$x.region,
+      ticker:x|$x.instrument.ticker, sector:x|$x.sector.name])
+}
+
+// The market's `n` largest equities, by their capitalisation at the prior close: each one's instrument, its ticker and
+// its capitalisation.
+function market::screens::largestEquities(n: Integer[1]): Relation<(einst:String[1], eticker:String[1], cap:Float[0..1])>[1]
+{
+  products::Equity.all()
+    ->project(~[einst:x|$x.instrument.instrumentId, eticker:x|$x.ticker, cap:x|$x.marketCap])
+    ->sort(~cap->descending())
+    ->limit($n)
+}
+
+// THE NEWS ABOUT THE LARGEST NAMES (K15): every story about one of the market's `n` largest equities -- the instrument
+// the story is about (cross::NewsStory_Instrument) matched by its identity to the instrument of one of those equities
+// (products::Equity_Instrument) -- with the newswire's columns, and the equity's capitalisation.
+function market::screens::newsAboutLargest(n: Integer[1]): Relation<(id:String[1], at:DateTime[1], headline:String[1],
+  body:String[0..1], source:String[1], category:String[1], weight:String[1], tone:Float[0..1], tickers:String[0..1],
+  region:String[0..1], ticker:String[0..1], sector:String[0..1], inst:String[0..1], einst:String[1], eticker:String[1],
+  cap:Float[0..1])>[1]
+{
+  marketdata::NewsStory.all()
+    ->project(~[id:x|$x.storyId, at:x|$x.publishTime, headline:x|$x.headline, body:x|$x.body, source:x|$x.source,
+      category:x|$x.category, weight:x|$x.urgency, tone:x|$x.sentiment, tickers:x|$x.tickers, region:x|$x.region,
+      ticker:x|$x.instrument.ticker, sector:x|$x.sector.name, inst:x|$x.instrument.instrumentId])
+    ->join(market::screens::largestEquities($n), meta::pure::functions::relation::JoinKind.INNER,
+      {s, e|$s.inst == $e.einst})
+}
+
+// THE ORDER FLOW: every print, its name, sector, venue and time, its notional, and who crossed the spread -- bought (the
+// buyer took the offer), sold (the seller hit the bid), neither (off the exchange) -- and the net of the two; and whether
+// it was a block: an equity's print of `blockShares` or more, or any print of `blockNotional` or more. A bunched print
+// (condition B: the tape's aggregate of several trades) is never a block.
+function market::screens::flow(blockShares: Float[1], blockNotional: Float[1]): Relation<(seq:Integer[1],
+  ticker:String[1], sector:String[1], kind:String[1], at:DateTime[1], price:Float[1], size:Float[1],
+  side:String[0..1], venue:String[1], condition:String[0..1], notional:Float[1], bought:Float[1], sold:Float[1],
+  block:Integer[1], net:Float[1])>[1]
+{
+  marketdata::MarketTrade.all()
+    ->project(~[seq:x|$x.sequenceNumber, ticker:x|$x.instrument.ticker, sector:x|$x.instrument.sector.name,
+      kind:x|$x.instrument.assetClass, at:x|$x.printTime, price:x|$x.price, size:x|$x.quantity, side:x|$x.aggressorSide,
+      venue:x|$x.venue, condition:x|$x.tradeCondition])
+    ->extend(~[notional:x|$x.price * $x.size])
+    ->extend(~[bought:x|if($x.side == 'B', |$x.notional, |0.0), sold:x|if($x.side == 'S', |$x.notional, |0.0),
+      block:x|if(((($x.kind == 'EQUITY') && ($x.size >= $blockShares)) || ($x.notional >= $blockNotional))
+        && !($x.condition == 'B'), |1, |0)])
+    ->extend(~[net:x|$x.bought - $x.sold])
+}
+
+// The blocks of the order flow.
+function market::screens::blocks(blockShares: Float[1], blockNotional: Float[1]): Relation<(seq:Integer[1],
+  ticker:String[1], sector:String[1], kind:String[1], at:DateTime[1], price:Float[1], size:Float[1],
+  side:String[0..1], venue:String[1], condition:String[0..1], notional:Float[1], bought:Float[1], sold:Float[1],
+  block:Integer[1], net:Float[1])>[1]
+{
+  market::screens::flow($blockShares, $blockNotional)->filter(x|$x.block == 1)
+}
+
+// ---------------------------------------------------------------- K9: P&L and limits
+
+// Every cash position (a stock's, a coin's) marked to its live mid: its day's P&L against the prior close, its value,
+// its gross and its P&L against its cost.
+function market::screens::positionsLive(): Relation<(desk:String[1], book:String[1], ticker:String[1],
+  sector:String[1], inst:String[1], qty:Float[1], cost:Float[1], qinst:String[1], mid:Float[1], close:Float[0..1],
+  mv:Float[1], dayPnl:Float[1], gross:Float[1], sinceCost:Float[1])>[1]
+{
+  positions::Position.all()
+    ->filter(x|$x.instrument.assetClass != 'OPTION')
+    ->project(~[desk:x|$x.book.desk.name, book:x|$x.book.name, ticker:x|$x.instrument.ticker,
+      sector:x|$x.instrument.sector.name, inst:x|$x.instrument.instrumentId, qty:x|$x.quantity, cost:x|$x.averageCost])
+    ->join(marketdata::MarketQuote.all()->project(~[qinst:x|$x.instrument.instrumentId, mid:x|$x.mid, close:x|$x.closePrice]),
+      meta::pure::functions::relation::JoinKind.INNER, {p, q|$p.inst == $q.qinst})
+    ->extend(~[mv:x|$x.qty * $x.mid, dayPnl:x|$x.qty * ($x.mid - $x.close->toOne()), gross:x|abs($x.qty * $x.mid),
+      sinceCost:x|$x.qty * ($x.mid - $x.cost)])
+}
+
+// Each desk's day loss limit, by its desk's name.
+function market::screens::dayLossLimits(): Relation<(ldesk:String[1], lossLimit:Float[1])>[1]
+{
+  risk::RiskLimit.all()->filter(x|$x.limitType == 'DAY_LOSS')->project(~[ldesk:x|$x.desk.name, lossLimit:x|$x.limitAmount])
+}
+
+// Each desk's gross notional limit, by its desk's name.
+function market::screens::grossLimits(): Relation<(gdesk:String[1], grossLimit:Float[1])>[1]
+{
+  risk::RiskLimit.all()->filter(x|$x.limitType == 'GROSS_NOTIONAL')->project(~[gdesk:x|$x.desk.name, grossLimit:x|$x.limitAmount])
+}
+
+// Each desk's day against its limits: its P&L against its day's loss limit, its gross against its gross limit -- each
+// used as a share, and a status: a breach at the limit, a warning from `warnAt` of it.
+function market::screens::deskLimits(warnAt: Float[1]): Relation<(desk:String[1], pnl:Float[1], gross:Float[1],
+  ldesk:String[1], lossLimit:Float[1], gdesk:String[1], grossLimit:Float[1], lossUsed:Float[1], grossUsed:Float[1],
+  headroom:Float[1], status:String[1], breach:Integer[1], warning:Integer[1])>[1]
+{
+  market::screens::positionsLive()
+    ->groupBy(~[desk], ~[pnl:x|$x.dayPnl:y|$y->sum(), gross:x|$x.gross:y|$y->sum()])
+    ->join(market::screens::dayLossLimits(), meta::pure::functions::relation::JoinKind.INNER, {a, b|$a.desk == $b.ldesk})
+    ->join(market::screens::grossLimits(), meta::pure::functions::relation::JoinKind.INNER, {a, b|$a.desk == $b.gdesk})
+    ->extend(~[lossUsed:x|if($x.pnl < 0.0, |(0.0 - $x.pnl) / $x.lossLimit, |0.0), grossUsed:x|$x.gross / $x.grossLimit])
+    ->extend(~[headroom:x|1.0 - $x.lossUsed, status:x|if($x.lossUsed >= 1.0, |'BREACH', |if($x.lossUsed >= $warnAt,
+      |'WARNING', |'OK')), breach:x|if($x.lossUsed >= 1.0, |1, |0), warning:x|if(($x.lossUsed >= $warnAt)
+      && ($x.lossUsed < 1.0), |1, |0)])
+}
+
+// ---------------------------------------------------------------- K10: the execution blotter
+
+// Every fill: its order, name, side, algorithm, venue and broker, its quantity and price, its notional, and its
+// slippage against its order's arrival price in basis points (positive: worse for the order).
+function market::screens::fills(): Relation<(exec:String[1], at:DateTime[1], order:String[1], ticker:String[1],
+  side:String[1], strategy:String[0..1], venue:String[1], broker:String[0..1], qty:Float[1], px:Float[1],
+  arrival:Float[0..1], commission:Float[0..1], seq:Integer[1], notional:Float[1], slipBps:Float[1])>[1]
+{
+  trading::Execution.all()
+    ->project(~[exec:x|$x.executionId, at:x|$x.executionTime, order:x|$x.order.orderId,
+      ticker:x|$x.order.instrument.ticker, side:x|$x.order.side, strategy:x|$x.executionAlgo, venue:x|$x.venue,
+      broker:x|$x.broker, qty:x|$x.filledQuantity, px:x|$x.fillPrice, arrival:x|$x.arrivalPrice,
+      commission:x|$x.commission, seq:x|$x.sequenceNumber])
+    ->extend(~[notional:x|$x.qty * $x.px, slipBps:x|if($x.side == 'BUY', |1.0, |-1.0) * ($x.px - $x.arrival->toOne())
+      / $x.arrival->toOne() * 10000.0])
+}
+
+// Every parent order with its fills so far: how much is filled, at what average price, its slippage against its arrival
+// price, and whether it is still working.
+function market::screens::orders(): Relation<(order:String[1], created:DateTime[1], trader:String[0..1],
+  desk:String[0..1], book:String[0..1], ticker:String[1], side:String[1], strategy:String[0..1], qty:Float[1],
+  filled:Float[0..1], status:String[1], limit:Float[0..1], tif:String[1], eo:String[1], fills:Integer[1],
+  fillNotional:Float[1], arrival:Float[0..1], pctFilled:Float[1], avgPx:Float[1], open:Integer[1],
+  slipBps:Float[1])>[1]
+{
+  trading::Order.all()
+    ->project(~[order:x|$x.orderId, created:x|$x.createdTime, trader:x|$x.trader.lastName, desk:x|$x.book.desk.name,
+      book:x|$x.book.name, ticker:x|$x.instrument.ticker, side:x|$x.side, strategy:x|$x.algoStrategy, qty:x|$x.quantity,
+      filled:x|$x.filledQuantity, status:x|$x.status, limit:x|$x.limitPrice, tif:x|$x.timeInForce])
+    ->join(trading::Execution.all()
+        ->project(~[eo:x|$x.order.orderId, eq:x|$x.filledQuantity, epx:x|$x.fillPrice, earrival:x|$x.arrivalPrice])
+        ->extend(~[en:x|$x.eq * $x.epx])
+        ->groupBy(~[eo], ~[fills:x|$x.eq:y|$y->count(), fillNotional:x|$x.en:y|$y->sum(), arrival:x|$x.earrival:y|$y->max()]),
+      meta::pure::functions::relation::JoinKind.LEFT, {o, e|$o.order == $e.eo})
+    ->extend(~[pctFilled:x|$x.filled->toOne() / $x.qty, avgPx:x|$x.fillNotional->toOne() / $x.filled->toOne(),
+      open:x|if($x.status->in(['NEW', 'WORKING', 'PARTIALLY_FILLED']), |1, |0)])
+    ->extend(~[slipBps:x|if($x.side == 'BUY', |1.0, |-1.0) * ($x.avgPx - $x.arrival->toOne()) / $x.arrival->toOne() * 10000.0])
+}
+
+// ---------------------------------------------------------------- K11: the options desk
+
+// The listed chain, live: each option priced, and its greeks, by Black and Scholes (market::options) from its
+// underlying's live mid, its implied volatility, the rate `rate` and its time to expiry from the quote's time; its change
+// against its settlement at the prior close.
+function market::screens::optionChain(rate: Float[1]): Relation<(underlying:String[1], uinst:String[1],
+  inst:String[1], option:String[1], type:String[1], strike:Float[1], expiry:StrictDate[1], iv:Float[0..1],
+  settle:Float[1], size:Integer[1], qinst:String[1], spot:Float[1], at:DateTime[1], t:Float[1], call:Boolean[1],
+  vol:Float[1], rootT:Float[1], disc:Float[1], d1:Float[1], d2:Float[1], nd1:Float[1], k1:Float[1], nd2:Float[1],
+  k2:Float[1], tail1:Float[1], tail2:Float[1], cd1:Float[1], cmd1:Float[1], cd2:Float[1], cmd2:Float[1],
+  price:Float[1], delta:Float[1], gamma:Float[1], vega:Float[1], theta:Float[1], chg:Float[1], moneyness:Float[1])>[1]
+{
+  products::Option.all()
+    ->project(~[underlying:x|$x.underlying.ticker, uinst:x|$x.underlying.instrumentId, inst:x|$x.instrument.instrumentId,
+      option:x|$x.optionId, type:x|$x.optionType, strike:x|$x.strikePrice, expiry:x|$x.expirationDate,
+      iv:x|$x.impliedVolatility, settle:x|$x.premium, size:x|$x.contractSize])
+    ->join(marketdata::MarketQuote.all()->project(~[qinst:x|$x.instrument.instrumentId, spot:x|$x.mid, at:x|$x.quoteTime]),
+      meta::pure::functions::relation::JoinKind.INNER, {o, q|$o.uinst == $q.qinst})
+    ->extend(~[t:x|dateDiff($x.at, $x.expiry, DurationUnit.DAYS) / 365.0, call:x|$x.type == 'CALL', vol:x|$x.iv->toOne()])
+    ->extend(~[rootT:x|sqrt($x.t), disc:x|exp(0.0 - ($rate * $x.t))])
+    ->extend(~[d1:x|market::options::d1($x.spot, $x.strike, $x.t, $x.vol, $rate, $x.rootT)])
+    ->extend(~[d2:x|market::options::d2($x.d1, $x.vol, $x.rootT), nd1:x|market::options::pdf($x.d1),
+      k1:x|market::options::k($x.d1)])
+    ->extend(~[nd2:x|market::options::pdf($x.d2), k2:x|market::options::k($x.d2),
+      tail1:x|market::options::tail($x.nd1, $x.k1)])
+    ->extend(~[tail2:x|market::options::tail($x.nd2, $x.k2), cd1:x|market::options::cdf($x.d1, $x.tail1),
+      cmd1:x|market::options::cdf(0.0 - $x.d1, $x.tail1)])
+    ->extend(~[cd2:x|market::options::cdf($x.d2, $x.tail2), cmd2:x|market::options::cdf(0.0 - $x.d2, $x.tail2)])
+    ->extend(~[price:x|market::options::price($x.call, $x.spot, $x.strike, $x.disc, $x.cd1, $x.cd2, $x.cmd1, $x.cmd2),
+      delta:x|market::options::delta($x.call, $x.cd1), gamma:x|market::options::gamma($x.spot, $x.vol, $x.rootT, $x.nd1),
+      vega:x|market::options::vega($x.spot, $x.rootT, $x.nd1),
+      theta:x|market::options::theta($x.call, $x.spot, $x.strike, $x.vol, $rate, $x.rootT, $x.disc, $x.nd1, $x.cd2, $x.cmd2)])
+    ->extend(~[chg:x|$x.price - $x.settle, moneyness:x|$x.strike / $x.spot])
+}
+
+// The derivatives books' option positions with the chain's live price and greeks: each position's delta (in shares and
+// dollars), gamma, vega, theta, value and day's P&L.
+function market::screens::optionBook(rate: Float[1]): Relation<(book:String[1], pinst:String[1], contracts:Float[1],
+  underlying:String[1], uinst:String[1], inst:String[1], option:String[1], type:String[1], strike:Float[1],
+  expiry:StrictDate[1], iv:Float[0..1], settle:Float[1], size:Integer[1], qinst:String[1], spot:Float[1],
+  at:DateTime[1], t:Float[1], call:Boolean[1], vol:Float[1], rootT:Float[1], disc:Float[1], d1:Float[1], d2:Float[1],
+  nd1:Float[1], k1:Float[1], nd2:Float[1], k2:Float[1], tail1:Float[1], tail2:Float[1], cd1:Float[1], cmd1:Float[1],
+  cd2:Float[1], cmd2:Float[1], price:Float[1], delta:Float[1], gamma:Float[1], vega:Float[1], theta:Float[1],
+  chg:Float[1], moneyness:Float[1], units:Float[1], posDelta:Float[1], posGamma:Float[1], posVega:Float[1],
+  posTheta:Float[1], mv:Float[1], dayPnl:Float[1], dollarDelta:Float[1])>[1]
+{
+  positions::Position.all()
+    ->filter(x|$x.instrument.assetClass == 'OPTION')
+    ->project(~[book:x|$x.book.name, pinst:x|$x.instrument.instrumentId, contracts:x|$x.quantity])
+    ->join(market::screens::optionChain($rate), meta::pure::functions::relation::JoinKind.INNER, {p, o|$p.pinst == $o.inst})
+    ->extend(~[units:x|$x.contracts * $x.size->toFloat()])
+    ->extend(~[posDelta:x|$x.units * $x.delta, posGamma:x|$x.units * $x.gamma, posVega:x|$x.units * $x.vega,
+      posTheta:x|$x.units * $x.theta, mv:x|$x.units * $x.price, dayPnl:x|$x.units * $x.chg])
+    ->extend(~[dollarDelta:x|$x.posDelta * $x.spot])
+}
+
+// ---------------------------------------------------------------- K12: the FX desk
+
+// The desk's FX prices: each pair's bid and ask, its spread and its change on the day in pips (a hundredth of a yen
+// pair's, a ten-thousandth of the rest).
+function market::screens::fxRates(): Relation<(pair:String[1], bid:Float[0..1], ask:Float[0..1], mid:Float[1],
+  chg:Float[0..1], chgPct:Float[0..1], at:DateTime[1], pip:Float[1], spreadPips:Float[1], chgPips:Float[1])>[1]
+{
+  marketdata::FxRate.all()
+    ->project(~[pair:x|$x.currencyPair, bid:x|$x.bidRate, ask:x|$x.askRate, mid:x|$x.midRate, chg:x|$x.dailyChange,
+      chgPct:x|$x.dailyChangePct, at:x|$x.rateDate])
+    ->extend(~[pip:x|if($x.pair->in(['USD/JPY', 'EUR/JPY', 'GBP/JPY']), |0.01, |0.0001)])
+    ->extend(~[spreadPips:x|($x.ask->toOne() - $x.bid->toOne()) / $x.pip, chgPips:x|$x.chg->toOne() / $x.pip])
+}
+
+// THE CROSSES BY THEIR LEGS: each cross's quoted mid against the mid its legs imply (EUR/JPY as EUR/USD by USD/JPY,
+// GBP/JPY likewise, EUR/GBP as EUR/USD over GBP/USD), and the difference in pips. Each leg is one pair's mid beside a key
+// every row shares, which the cross is joined to it by.
+function market::screens::fxCrosses(): Relation<(pair:String[1], quoted:Float[1], k:Integer[1], eurusd:Float[1],
+  k1:Integer[1], gbpusd:Float[1], k2:Integer[1], usdjpy:Float[1], k3:Integer[1], implied:Float[1], pip:Float[1],
+  basisPips:Float[1])>[1]
+{
+  marketdata::FxRate.all()
+    ->filter(x|$x.currencyPair->in(['EUR/JPY', 'GBP/JPY', 'EUR/GBP']))
+    ->project(~[pair:x|$x.currencyPair, quoted:x|$x.midRate, k:x|1])
+    ->join(marketdata::FxRate.all()->filter(x|$x.currencyPair == 'EUR/USD')->project(~[eurusd:x|$x.midRate, k1:x|1]),
+      meta::pure::functions::relation::JoinKind.INNER, {a, b|$a.k == $b.k1})
+    ->join(marketdata::FxRate.all()->filter(x|$x.currencyPair == 'GBP/USD')->project(~[gbpusd:x|$x.midRate, k2:x|1]),
+      meta::pure::functions::relation::JoinKind.INNER, {a, b|$a.k == $b.k2})
+    ->join(marketdata::FxRate.all()->filter(x|$x.currencyPair == 'USD/JPY')->project(~[usdjpy:x|$x.midRate, k3:x|1]),
+      meta::pure::functions::relation::JoinKind.INNER, {a, b|$a.k == $b.k3})
+    ->extend(~[implied:x|if($x.pair == 'EUR/JPY', |$x.eurusd * $x.usdjpy, |if($x.pair == 'GBP/JPY',
+      |$x.gbpusd * $x.usdjpy, |$x.eurusd / $x.gbpusd)), pip:x|if($x.pair == 'EUR/GBP', |0.0001, |0.01)])
+    ->extend(~[basisPips:x|($x.quoted - $x.implied) / $x.pip])
+}
+
+// Every client's request for a quote: its client and tier, its dealer, pair, side, size and tenor, the desk's rate and
+// spread, its state and the desk's response time; whether it was hit, and the notional done.
+function market::screens::rfqs(): Relation<(rfq:String[1], at:DateTime[1], client:String[0..1], tier:String[0..1],
+  dealer:String[0..1], pair:String[1], side:String[1], notional:Float[1], tenor:String[1], rate:Float[0..1],
+  spreadBps:Float[0..1], status:String[1], responseMs:Integer[0..1], hitFlag:Boolean[1], hit:Float[1],
+  done:Float[1])>[1]
+{
+  trading::Rfq.all()
+    ->project(~[rfq:x|$x.rfqId, at:x|$x.requestTime, client:x|$x.client.shortName, tier:x|$x.client.tier,
+      dealer:x|$x.dealer.lastName, pair:x|$x.currencyPair, side:x|$x.side, notional:x|$x.notional, tenor:x|$x.tenor,
+      rate:x|$x.quotedRate, spreadBps:x|$x.spreadBps, status:x|$x.status, responseMs:x|$x.responseTimeMs,
+      hitFlag:x|$x.isHit])
+    ->extend(~[hit:x|if($x.hitFlag, |1.0, |0.0), done:x|if($x.hitFlag, |$x.notional, |0.0)])
+}
+
+// The requests the client answered (done, missed or let expire): a hit ratio is their hits' average.
+function market::screens::rfqsAnswered(): Relation<(rfq:String[1], at:DateTime[1], client:String[0..1],
+  tier:String[0..1], dealer:String[0..1], pair:String[1], side:String[1], notional:Float[1], tenor:String[1],
+  rate:Float[0..1], spreadBps:Float[0..1], status:String[1], responseMs:Integer[0..1], hitFlag:Boolean[1],
+  hit:Float[1], done:Float[1])>[1]
+{
+  market::screens::rfqs()->filter(x|$x.status->in(['DONE', 'MISSED', 'EXPIRED']))
+}
+
+// ---------------------------------------------------------------- K13: TCA and markouts
+
+// EVERY FILL'S COST AND ITS MARKOUTS: its slippage against its order's arrival, and the market's price 1, 5 and 30
+// seconds after it -- the latest print of its name at or before then, by as-of joins to the tape (K7) -- each in basis
+// points from the fill's price, positive when the market moved the fill's way (a buy that the market rose after). A fill
+// younger than a horizon reads the latest print so far.
+function market::screens::markouts(): Relation<(exec:String[1], at:DateTime[1], inst:String[1], ticker:String[1],
+  side:String[1], strategy:String[0..1], venue:String[1], broker:String[0..1], qty:Float[1], px:Float[1],
+  arrival:Float[0..1], commission:Float[0..1], t1:Date[1], t5:Date[1], t30:Date[1], i1:String[1], pt1:DateTime[1],
+  p1:Float[1], i5:String[1], pt5:DateTime[1], p5:Float[1], i30:String[1], pt30:DateTime[1], p30:Float[1],
+  sign:Float[1], notional:Float[1], slipBps:Float[1], m1:Float[1], m5:Float[1], m30:Float[1],
+  commissionBps:Float[1])>[1]
+{
+  trading::Execution.all()
+    ->project(~[exec:x|$x.executionId, at:x|$x.executionTime, inst:x|$x.order.instrument.instrumentId,
+      ticker:x|$x.order.instrument.ticker, side:x|$x.order.side, strategy:x|$x.executionAlgo, venue:x|$x.venue,
+      broker:x|$x.broker, qty:x|$x.filledQuantity, px:x|$x.fillPrice, arrival:x|$x.arrivalPrice,
+      commission:x|$x.commission])
+    ->extend(~[t1:x|$x.at->adjust(1, DurationUnit.SECONDS), t5:x|$x.at->adjust(5, DurationUnit.SECONDS),
+      t30:x|$x.at->adjust(30, DurationUnit.SECONDS)])
+    ->asOfJoin(marketdata::MarketTrade.all()->project(~[i1:x|$x.instrument.instrumentId, pt1:x|$x.printTime, p1:x|$x.price]),
+      {a, b|$a.t1 >= $b.pt1}, {a, b|$a.inst == $b.i1})
+    ->asOfJoin(marketdata::MarketTrade.all()->project(~[i5:x|$x.instrument.instrumentId, pt5:x|$x.printTime, p5:x|$x.price]),
+      {a, b|$a.t5 >= $b.pt5}, {a, b|$a.inst == $b.i5})
+    ->asOfJoin(marketdata::MarketTrade.all()->project(~[i30:x|$x.instrument.instrumentId, pt30:x|$x.printTime, p30:x|$x.price]),
+      {a, b|$a.t30 >= $b.pt30}, {a, b|$a.inst == $b.i30})
+    ->extend(~[sign:x|if($x.side == 'BUY', |1.0, |-1.0), notional:x|$x.qty * $x.px])
+    ->extend(~[slipBps:x|$x.sign * (($x.px - $x.arrival->toOne()) / $x.arrival->toOne()) * 10000.0,
+      m1:x|$x.sign * (($x.p1->toOne() - $x.px) / $x.px) * 10000.0, m5:x|$x.sign * (($x.p5->toOne() - $x.px) / $x.px) * 10000.0,
+      m30:x|$x.sign * (($x.p30->toOne() - $x.px) / $x.px) * 10000.0,
+      commissionBps:x|($x.commission->toOne() / $x.notional) * 10000.0])
+}
+
+###Runtime
+Runtime market::LiveRuntime
+{
+  mappings: [ stress::AllMapping ];
+  connections: [ store::DB: [ live: market::Live ], market::World: [ status: market::Status ] ];
+}

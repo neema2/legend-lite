@@ -41,6 +41,8 @@ const files = {
   '/classes.wasm': ['application/wasm', readFileSync(runfileNamed('PLANNER', 'classes.wasm'))],
   // the one trading model (//scripts/corpus:trading_model), which the page holds
   '/trading-model.pure': ['text/plain; charset=utf-8', readFileSync(runfileFromEnv('TRADING_MODEL'))],
+  // the desk's own model: its runtime, the options' functions and the screens'
+  '/market.pure': ['text/plain; charset=utf-8', readFileSync(runfileFromEnv('MARKET_PURE'))],
   '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk, names: NAMES, trades: TRADES, morning: MORNING, news: 12 })],
 };
 // the page's own origin, not the server's, served for real on the loopback (test/deephaven/deephaven.mjs says why)

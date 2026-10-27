@@ -118,8 +118,8 @@ function tasksIn(from: number, to: number): Record<string, { n: number; meanMs: 
 
 async function main(): Promise<void> {
   const t0 = performance.now();
-  const corpus = await (await fetch('./trading-model.pure')).text();
-  const model = MARKET_TAB_MODEL(corpus);
+  const [corpus, desk] = await Promise.all(['./trading-model.pure', './market.pure'].map(async (f) => (await fetch(f)).text()));
+  const model = MARKET_TAB_MODEL(corpus!, desk!);
   const planner = new LitePlanner({
     assetBaseUrl: new URL('./vendor/', location.href).href, model, runtime: MARKET_RUNTIME,
     workerUrl: new URL('./planner-worker.js', location.href).href,

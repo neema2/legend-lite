@@ -52,8 +52,8 @@ try {
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
   };
   const at = new URL(config.url);
-  const corpus = await (await fetch('trading-model.pure')).text();
-  const model = MARKET_MODEL(corpus, at.hostname, Number(at.port));
+  const [corpus, desk] = await Promise.all(['trading-model.pure', 'market.pure'].map(async (f) => (await fetch(f)).text()));
+  const model = MARKET_MODEL(corpus!, desk!, at.hostname, Number(at.port));
   const teavm = await load('classes.wasm', { stackDeobfuscator: { enabled: false } });
   const exports = teavm.exports as {
     holdModelOrError(model: string): string;
