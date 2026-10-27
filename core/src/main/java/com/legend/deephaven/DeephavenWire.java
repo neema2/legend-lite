@@ -175,12 +175,25 @@ public final class DeephavenWire {
      * {@code plan} with its result STORED (B1): its last operation, a {@code view} (or an {@code updateView}), written
      * as a {@code select} (an {@code update}) of the same columns, so the server computes each column once a change and
      * keeps it, where a view computes it again for each reader -- a grid's base, read by every query the grid sends
-     * and every result it follows. A plan whose last operation is not one of those is refused by name.
+     * and every result it follows. A plan whose last operation is not one of those is refused by name -- but for a
+     * {@code dropColumns} of the view just before it (2026-10-27: the helper columns a view computes its columns'
+     * shared subtrees in, DeephavenBatch.withShared): the view is stored, its helpers with it, and dropped after.
      */
     public static Stored stored(String plan) {
         Parsed p = parse(plan);
-        Json.Obj last = p.ops().get(p.ops().size() - 1);
+        int at = p.ops().size() - 1;
+        Json.Obj last = p.ops().get(at);
         String name = last.fields().keySet().iterator().next();
+        List<String> dropped = List.of();
+        if (name.equals("dropColumns") && at > 0 && readsOffset(last.getObj(name), at - 1)) {
+            dropped = new ArrayList<>();
+            for (Json.Node column : last.getObj(name).getArr("columnNames").items()) {
+                dropped.add(((Json.Str) column).value());
+            }
+            at--;
+            last = p.ops().get(at);
+            name = last.fields().keySet().iterator().next();
+        }
         String as = switch (name) {
             case "view" -> "select";
             case "updateView" -> "update";
@@ -191,12 +204,15 @@ public final class DeephavenWire {
         for (Json.Node spec : last.getObj(name).getArr("columnSpecs").items()) {
             String text = ((Json.Str) spec).value();
             int eq = text.indexOf('=');
-            columns.add((eq < 0 ? text : text.substring(0, eq)).trim());
+            String column = (eq < 0 ? text : text.substring(0, eq)).trim();
+            if (!dropped.contains(column)) {
+                columns.add(column);
+            }
         }
         LinkedHashMap<String, Json.Node> op = new LinkedHashMap<>();
         op.put(as, last.getObj(name));
         List<Json.Node> ops = new ArrayList<>(p.ops());
-        ops.set(ops.size() - 1, new Json.Obj(op));
+        ops.set(at, new Json.Obj(op));
         LinkedHashMap<String, Json.Node> request = new LinkedHashMap<>();
         request.put("ops", new Json.Arr(ops));
         return new Stored(Json.toCompact(new Json.Obj(request)), List.copyOf(columns));
@@ -246,6 +262,12 @@ public final class DeephavenWire {
             keys.add(com.legend.cache.Hash.ofUtf8(Json.toCompact(named)).hex());
         }
         return new Parsed(List.copyOf(ops), List.copyOf(keys));
+    }
+
+    /** Whether the operation body {@code op} reads the operation at {@code at} by its place in the batch. */
+    private static boolean readsOffset(Json.Obj op, int at) {
+        return op.has("sourceId") && op.getObj("sourceId").get("batchOffset") instanceof Json.Num n && n.isInteger()
+                && n.longValue() == at;
     }
 
     /** The place a reference of the operation at {@code at} reads: an earlier operation of the batch. */

@@ -40,9 +40,13 @@ describe('the trading desk\'s model', () => {
   });
 
   for (const [name, text] of sources) {
-    it(`${name}, ${text}, plans on the market's Deephaven runtime`, async () => {
+    it(`${name}, ${text}, plans on the market's Deephaven runtime, and is a grid's base the server can store`, async () => {
       const { ops, columns } = await opsOf(text);
       assert.ok(ops.length > 0 && columns > 0, `${text}: ${ops.length} operations, ${columns} columns`);
+      // a grid over it keeps its base stored on the server (src/server-base.ts B1): its plan has a stored form
+      // (2026-10-27: a view's shared subtrees' helpers, dropped after it, had none -- three of the desk's tabs empty)
+      const stored = await planner.deephaven('stored', { plan: (await planner.planText(`|${text}`)).sql });
+      assert.ok(stored.startsWith('OK\n'), `${text}: its base has no stored form: ${stored.replace(/\n/g, ' | ')}`);
     });
   }
 

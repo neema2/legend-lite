@@ -300,6 +300,18 @@ class DeephavenWireTest {
     }
 
     @Test
+    void aBaseWhoseColumnsShareASubtreeIsStoredWithItsHelperAndReadWithout() {
+        // 2026-10-27 (the desk's TCA, limits and FX tabs refused, "its dropColumns has no stored form"): a view whose
+        // columns share a subtree computes it in a helper column, dropped after it (DeephavenBatch.withShared); the view
+        // is stored, its helper with it, and the drop reads the stored table
+        DeephavenWire.Stored base = DeephavenWire.stored(plan(SOURCE
+                + "->extend(~[a:x|(($x.qty->toOne() * 2) + 1) * (($x.qty->toOne() * 2) + 1), b:x|(($x.qty->toOne() * 2) + 1) - 3])"));
+        List<String> ops = sent(DeephavenWire.send(base.plan(), Map.of(), Map.of(), 1).request());
+        assertTrue(ops.get(ops.size() - 1).startsWith("dropColumns ") && ops.get(ops.size() - 2).startsWith("select "), ops.toString());
+        assertEquals(List.of("id", "desk", "qty", "pnl", "instrument", "iid", "sector", "ccy", "a", "b"), base.columns());
+    }
+
+    @Test
     void theRowsTicket() {
         assertEquals("0a056507000000", HEX.formatHex(DeephavenWire.doGet(7)));
     }
