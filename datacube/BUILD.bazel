@@ -2294,8 +2294,29 @@ browser_test(
 
 # THE STRESS CORPUS ON DEEPHAVEN, AGAINST THE ORACLE (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, task 15): the pinned
 # Deephaven holding the corpus's tables (test/deephaven/corpus/, test only: lite writes no rows into Deephaven yet), every
-# corpus test's plan on a Deephaven runtime sent to it from the page (//core:stress_deephaven_cases), and the answers
-# judged by the stress suites' own judge (//core:stress_deephaven judge), the passes held to their floor.
+# corpus test's plan on a Deephaven runtime sent to it from the page (:deephaven_corpus_cases), and the answers
+# judged by the stress suites' own judge (//core:stress_deephaven judge), the passes held to their floor. Beside them
+# (2026-10-27) the trading desk's screens over the same tables, each expecting what DuckDB answers to the same call: every
+# one held to passing.
+genrule(
+    name = "deephaven_corpus_cases",
+    testonly = True,
+    srcs = [
+        "demo/deephaven/market/market.pure",
+        "test/deephaven/desk-rows.csv",
+    ],
+    outs = [
+        "test/deephaven/cases/cases.json",
+        "test/deephaven/cases/desk-cases.json",
+        "test/deephaven/cases/desk-tables.json",
+        "test/deephaven/cases/tables.json",
+    ],
+    cmd = "$(location //core:stress_deephaven) cases $(RULEDIR)/test/deephaven/cases" +
+          " $(location demo/deephaven/market/market.pure) $(location test/deephaven/desk-rows.csv) > /dev/null",
+    tags = ["manual"],
+    tools = ["//core:stress_deephaven"],
+)
+
 legend_java_binary(
     name = "deephaven_corpus_fixture",
     testonly = True,
@@ -2350,8 +2371,8 @@ browser_test(
         ":deephaven_corpus_fixture_executable",
         ":deephaven_corpus_page",
         ":node_modules/playwright",
+        ":deephaven_corpus_cases",
         "//core:stress_deephaven",
-        "//core:stress_deephaven_cases",
         "//wasm:planner",
     ],
     entry_point = "test/deephaven/corpus.mjs",
@@ -2359,7 +2380,7 @@ browser_test(
         "CORPUS_FIXTURE": "$(rlocationpath :deephaven_corpus_fixture_executable)",
         "CORPUS_PAGE": "$(rlocationpath :deephaven_corpus_page)",
         # cases.json and tables.json
-        "CASES": "$(rlocationpaths //core:stress_deephaven_cases)",
+        "CASES": "$(rlocationpaths :deephaven_corpus_cases)",
         "JUDGE": "$(rlocationpath //core:stress_deephaven)",
         "PLANNER": "$(rlocationpaths //wasm:planner)",
     },

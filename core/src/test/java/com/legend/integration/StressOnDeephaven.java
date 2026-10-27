@@ -64,19 +64,27 @@ final class StressOnDeephaven {
 
     public static void main(String[] args) throws Exception {
         if (args.length == 2 && args[0].equals("cases")) {
-            cases(Path.of(args[1]));
+            cases(Path.of(args[1]), null, null);
+        } else if (args.length == 4 && args[0].equals("cases")) {
+            cases(Path.of(args[1]), Files.readString(Path.of(args[2])), Files.readString(Path.of(args[3])));
         } else if (args.length == 4 && args[0].equals("judge")) {
             System.exit(judge(Path.of(args[1]), Path.of(args[2]), Path.of(args[3])));
         } else {
-            throw new IllegalArgumentException("usage: cases OUT | judge CASES RESULTS OUT");
+            throw new IllegalArgumentException("usage: cases OUT [DESK_MODEL DESK_ROWS] | judge CASES RESULTS OUT");
         }
     }
 
     // ---- CASES ------------------------------------------------------------------------------------------------------
 
-    static void cases(Path out) throws Exception {
+    static void cases(Path out, @com.legend.base.Nullable String desk, @com.legend.base.Nullable String deskRows)
+            throws Exception {
         Files.createDirectories(out);
-        var module = Compiler.parseSources(StressCorpus.sources(List.of()));
+        List<Compiler.ModelSource> sources = new ArrayList<>(StressCorpus.sources(List.of()));
+        if (desk != null) {
+            sources.add(new Compiler.ModelSource("market.pure", desk));
+            sources.add(new Compiler.ModelSource("connections.pure", DESK_CONNECTIONS));
+        }
+        var module = Compiler.parseSources(sources);
         ModelContext ctx = Compiler.buildModel(module.model());
         List<ServiceDefinition> services = module.model().elements().stream()
                 .filter(el -> el instanceof ServiceDefinition svc && svc.qualifiedName().startsWith("stress::")
@@ -150,10 +158,173 @@ final class StressOnDeephaven {
             }
         }
         Files.writeString(out.resolve("cases.json"), Json.toCompact(cases), StandardCharsets.UTF_8);
-        Files.writeString(out.resolve("tables.json"), Json.toCompact(tables(ctx)), StandardCharsets.UTF_8);
+        Files.writeString(out.resolve("tables.json"), Json.toCompact(tables(ctx, seed(ctx))), StandardCharsets.UTF_8);
+        if (desk != null && deskRows != null) {
+            List<Protocol.PRelationalCsvTable> rows = withRows(seed(ctx), deskRows);
+            Files.writeString(out.resolve("desk-cases.json"), Json.toCompact(deskCases(ctx, rows)), StandardCharsets.UTF_8);
+            Files.writeString(out.resolve("desk-tables.json"), Json.toCompact(tables(ctx, rows)), StandardCharsets.UTF_8);
+        }
         System.out.printf("[deephaven] %d tests, %d planned on Deephaven; without a plan:%n", cases.size(), planned);
         without.entrySet().stream().sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
                 .forEach(e -> System.out.printf("[deephaven]   %5d  %s%n", e.getValue(), e.getKey()));
+    }
+
+    // ---- THE DESK'S SCREENS ------------------------------------------------------------------------------------------
+
+    /**
+     * THE TRADING DESK'S SCREENS ON BOTH TARGETS (2026-10-27; the user: "no code difference between duckdb vs DeepHaven?
+     * Is it all abstracted by legend query?"): each screen as the desk calls it (datacube/demo/deephaven/market/
+     * screens.ts, its arguments the desk's: EMA_ALPHA, OPTION_RATE, BLOCK_SHARES and BLOCK_NOTIONAL, the watchlist's
+     * five and the stock's one), over the corpus's tables -- planned on a Deephaven runtime as every corpus test is,
+     * its expectation the rows the same call answers on DuckDB through the same runtime's mappings, serialized as the
+     * stress suites serialize a DuckDB answer. The same model, the same query; only the target differs.
+     *
+     * <p>Over the corpus's tables with a few rows of the desk's added (datacube/test/deephaven/desk-rows.csv: its limits,
+     * option positions, FX crosses and answered quotes, which the corpus's seed does not hold, so six screens answered
+     * no rows), held by a server of their own: the corpus's expectations are over its seed alone. The trading model's
+     * rule (DH34) puts what the screens need into the corpus through its generators and its oracle; these rows are this
+     * check's input, beside it until they are.
+     */
+    static final List<String> SCREENS = List.of("watchlist()", "tape()", "day()", "stock(0.1)", "largestNames(1)",
+            "largestNames(5)", "marketMap()", "news()", "flow(10000.0, 1000000.0)", "blocks(10000.0, 1000000.0)",
+            "positionsLive()", "dayLossLimits()", "grossLimits()", "deskLimits(0.8)", "fills()", "orders()",
+            "optionChain(0.05)", "optionBook(0.05)", "fxRates()", "fxCrosses()", "rfqs()", "rfqsAnswered()",
+            "markouts()");
+
+    /** The runtime the desk's model declares (market.pure), and its connections: the environment's, here the tab's
+     *  (datacube/demo/deephaven/market/model.ts MARKET_TAB) -- each target's twin binds the corpus's store itself. */
+    static final String DESK_RUNTIME = "market::LiveRuntime";
+    static final String DESK_CONNECTIONS = """
+            ###Connection
+            RelationalDatabaseConnection market::Live
+            {
+              store: store::DB;
+              type: DuckDB;
+              specification: DuckDB { };
+              auth: Test;
+            }
+            RelationalDatabaseConnection market::Status
+            {
+              store: market::World;
+              type: DuckDB;
+              specification: DuckDB { };
+              auth: Test;
+            }
+            """;
+
+    /** Each screen's case (above): its plan on Deephaven and DuckDB's rows over `rows` as its expectation. */
+    private static List<Object> deskCases(ModelContext ctx, List<Protocol.PRelationalCsvTable> rows) throws Exception {
+        ModelContext on = onDeephaven(ctx, DESK_RUNTIME);
+        ModelContext duck = onDuckDb(ctx, DESK_RUNTIME, rows);
+        List<Object> cases = new ArrayList<>();
+        try (java.sql.Connection session = com.legend.testbackend.TestBackends.platform().open()) {
+            for (String screen : SCREENS) {
+                String query = "|market::screens::" + screen;
+                Map<String, Object> c = new LinkedHashMap<>();
+                c.put("id", DESK + query);
+                ValueSpecification parsed = Compiler.parseQuery(query);
+                com.legend.plan.QueryPlan plan = Compiler.queryResolved(on,
+                        Compiler.resolveQuery(body(parsed), new ImportScope(List.of()), on)).plan(DESK_RUNTIME + DEEPHAVEN);
+                var answer = com.legend.Execution.executeResolved(
+                        Compiler.resolveQuery(body(parsed), new ImportScope(List.of()), duck), duck,
+                        DESK_RUNTIME + DUCKDB, session);
+                if (!(answer instanceof com.legend.exec.ExecutionResult.Tabular answered)) {
+                    throw new IllegalStateException(query + " answered no rows on DuckDB: " + answer);
+                }
+                c.put("sql", plan.sql());
+                c.put("type", com.legend.plan.UpstreamRelationType.of(plan.rootType()));
+                c.put("enumerations", List.of());
+                c.put("expected", List.of(com.legend.sql.Json.canonical(
+                        com.legend.test.ServiceTestRunner.serialize(answered, "PURE_TDSOBJECT"))));
+                System.out.printf("[deephaven] %s: %d rows on DuckDB%n", query, answered.rows().size());
+                cases.add(c);
+            }
+        }
+        return cases;
+    }
+
+    /** The corpus's test data: its tables' CSV. */
+    private static List<Protocol.PRelationalCsvTable> seed(ModelContext ctx) {
+        DataDefinition data = ctx.findData(DATA).orElseThrow();
+        if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv)) {
+            throw new IllegalStateException(DATA + " is not relational CSV data");
+        }
+        return csv.tables();
+    }
+
+    /**
+     * `tables` with `rows` added: the corpus's CSV form, a block a table ({@code schema}, {@code table}, a header, its
+     * rows; blocks between lines of {@code -}), its header naming the columns its rows give -- each written in the
+     * table's own order, a column it does not name empty (null). A table or a column the corpus does not have is refused.
+     */
+    static List<Protocol.PRelationalCsvTable> withRows(List<Protocol.PRelationalCsvTable> tables, String rows) {
+        Map<String, List<String[]>> added = new LinkedHashMap<>();
+        Map<String, String[]> headers = new LinkedHashMap<>();
+        for (String block : rows.strip().split("\n-\n")) {
+            String[] lines = block.strip().split("\n");
+            String key = lines[0].strip() + "." + lines[1].strip();
+            headers.put(key, lines[2].split(",", -1));
+            List<String[]> values = added.computeIfAbsent(key, k -> new ArrayList<>());
+            for (int i = 3; i < lines.length; i++) {
+                values.add(lines[i].split(",", -1));
+            }
+        }
+        List<Protocol.PRelationalCsvTable> out = new ArrayList<>();
+        for (Protocol.PRelationalCsvTable t : tables) {
+            String key = t.schema() + "." + t.table();
+            String[] header = headers.remove(key);
+            if (header == null) {
+                out.add(t);
+                continue;
+            }
+            String values = java.util.Objects.requireNonNull(t.values());
+            List<String> columns = List.of(values.split("\n", 2)[0].split(","));
+            StringBuilder csv = new StringBuilder(values.endsWith("\n") ? values : values + "\n");
+            for (String[] row : added.get(key)) {
+                String[] line = new String[columns.size()];
+                java.util.Arrays.fill(line, "");
+                for (int i = 0; i < header.length; i++) {
+                    int at = columns.indexOf(header[i]);
+                    if (at < 0) {
+                        throw new IllegalArgumentException(key + " has no column " + header[i]);
+                    }
+                    line[at] = row[i];
+                }
+                csv.append(String.join(",", line)).append('\n');
+            }
+            out.add(new Protocol.PRelationalCsvTable(t.schema(), t.table(), csv.toString(), t.sourceInformation()));
+        }
+        if (!headers.isEmpty()) {
+            throw new IllegalArgumentException("the corpus has no table " + headers.keySet());
+        }
+        return out;
+    }
+
+    /** A desk case's id begins so: the lane holds every one of them to passing, beside the corpus's floor. */
+    static final String DESK = "desk / ";
+
+    /** What a runtime's DuckDB twin is named: the runtime's, suffixed. */
+    static final String DUCKDB = "$duckdb";
+
+    /** The model with `runtime`'s DuckDB twin beside it: its mappings, the corpus's store bound to a DuckDB session
+     *  seeded with `tables` as the stress suites seed one (ServiceTestRunner's test runtime). */
+    private static ModelContext onDuckDb(ModelContext ctx, String runtime, List<Protocol.PRelationalCsvTable> tables) {
+        RuntimeDefinition r = ctx.findRuntime(runtime).orElseThrow();
+        StringBuilder seed = new StringBuilder();
+        for (Protocol.PRelationalCsvTable t : tables) {
+            if (seed.length() > 0) {
+                seed.append("\n-\n");
+            }
+            seed.append(t.schema()).append('\n').append(t.table()).append('\n')
+                    .append(java.util.Objects.requireNonNull(t.values()));
+        }
+        String name = runtime + DUCKDB;
+        ConnectionDefinition conn = new ConnectionDefinition(name + "$conn", STORE,
+                com.legend.testbackend.TestBackends.platform().type(),
+                ConnectionSpecification.carryingTestData(seed.toString()), new AuthenticationSpec.TestAuth());
+        RuntimeDefinition twin = new RuntimeDefinition(name, r.mappings(), Map.of(STORE, List.of(conn.qualifiedName())),
+                List.of(), List.of(), new LinkedHashMap<>(r.connectionIds()));
+        return ((com.legend.compiler.element.PureModelContext) ctx).withExecutionOverlay(twin, conn);
     }
 
     /** What a runtime's Deephaven twin is named: the runtime's, suffixed. */
@@ -199,15 +370,11 @@ final class StressOnDeephaven {
         return fb instanceof LambdaFunction lf && lf.parameters().isEmpty() ? lf.body() : List.of(fb);
     }
 
-    /** The corpus's test data as the server's tables: each its declared columns' Deephaven kinds (a column the store
+    /** Test data (`tables`) as the server's tables: each its declared columns' Deephaven kinds (a column the store
      *  does not declare is text) and its rows, each cell its text or null, read as the stress suites read them. */
-    private static List<Object> tables(ModelContext ctx) {
-        DataDefinition data = ctx.findData(DATA).orElseThrow();
-        if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv)) {
-            throw new IllegalStateException(DATA + " is not relational CSV data");
-        }
+    private static List<Object> tables(ModelContext ctx, List<Protocol.PRelationalCsvTable> tables) {
         List<Object> out = new ArrayList<>();
-        for (Protocol.PRelationalCsvTable t : csv.tables()) {
+        for (Protocol.PRelationalCsvTable t : tables) {
             String block = t.schema() + "\n" + t.table() + "\n" + java.util.Objects.requireNonNull(t.values());
             var def = ctx.findTableDefinition(STORE, "default".equals(t.schema()) ? t.table() : t.schema() + "." + t.table());
             Map<String, String> kinds = new LinkedHashMap<>();

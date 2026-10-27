@@ -897,6 +897,16 @@ asks for every screen's stored form, the check that needs no server. Measured on
 4,191 of 4,195 planned, as before; the desk's ten tabs drawn and ticking (the options desk drawn in 7.0 s, 6.8 before);
 the market, cube, board, flat, query and walkthrough lanes passed.
 
+**One query, two targets, the same rows (2026-10-27; the user: "no code difference between duckdb vs DeepHaven? Is it
+all abstracted by legend query?").** `//datacube:deephaven_corpus_test` now has a second pass: every screen as the desk
+calls it (23 calls, the desk's own arguments), planned on a Deephaven runtime and sent to a server of its own, its
+expectation the rows the same call answers on DuckDB through the same runtime's mappings (`StressOnDeephaven`'s desk
+cases), judged by the stress suites' judge -- every one held to passing. Over the corpus's tables with a few rows of the
+desk's added (`datacube/test/deephaven/desk-rows.csv`): the corpus's seed holds none of the limits, option positions, FX
+crosses and answered quotes the market world writes, so six screens answered no rows over it alone. DH34 puts what the
+screens need into the corpus through its generators and its oracle; these rows are this check's input until they are.
+Measured: 23 of 23 pass (the corpus's own pass unchanged, 4,191); the desk's pass 10 s.
+
 Not done (the user's call, 2026-10-27): **4A**, the options' settlements and implied volatilities said to be data (the
 exchange's settlement, the vol desk's marks -- `market.groovy` makes them up and prices the settlement with a Black and
 Scholes of its own), with a check of that settlement against the model's price; and **5**, the tables and their meaning

@@ -438,8 +438,9 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     // ---- SERIALIZE + JUDGE ----------------------------------------------------
 
-    /** The result as the JSON tree its serialization format produces. */
-    static @com.legend.base.Nullable Object serialize(ExecutionResult result,
+    /** The result as the JSON tree its serialization format produces (public for the stress corpus on Deephaven, whose
+     *  desk cases expect DuckDB's answer so serialized: StressOnDeephaven, 2026-10-27). */
+    public static @com.legend.base.Nullable Object serialize(ExecutionResult result,
             @com.legend.base.Nullable String format) {
         String fmt = format == null ? "DEFAULT" : format;
         return switch (result) {
