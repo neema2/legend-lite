@@ -173,32 +173,6 @@ function market::screens::news(): Relation<(id:String[1], at:DateTime[1], headli
       ticker:x|$x.instrument.ticker, sector:x|$x.sector.name])
 }
 
-// The market's `n` largest equities, by their capitalisation at the prior close: each one's instrument, its ticker and
-// its capitalisation.
-function market::screens::largestEquities(n: Integer[1]): Relation<(einst:String[1], eticker:String[1], cap:Float[0..1])>[1]
-{
-  products::Equity.all()
-    ->project(~[einst:x|$x.instrument.instrumentId, eticker:x|$x.ticker, cap:x|$x.marketCap])
-    ->sort(~cap->descending())
-    ->limit($n)
-}
-
-// THE NEWS ABOUT THE LARGEST NAMES (K15): every story about one of the market's `n` largest equities -- the instrument
-// the story is about (cross::NewsStory_Instrument) matched by its identity to the instrument of one of those equities
-// (products::Equity_Instrument) -- with the newswire's columns, and the equity's capitalisation.
-function market::screens::newsAboutLargest(n: Integer[1]): Relation<(id:String[1], at:DateTime[1], headline:String[1],
-  body:String[0..1], source:String[1], category:String[1], weight:String[1], tone:Float[0..1], tickers:String[0..1],
-  region:String[0..1], ticker:String[0..1], sector:String[0..1], inst:String[0..1], einst:String[1], eticker:String[1],
-  cap:Float[0..1])>[1]
-{
-  marketdata::NewsStory.all()
-    ->project(~[id:x|$x.storyId, at:x|$x.publishTime, headline:x|$x.headline, body:x|$x.body, source:x|$x.source,
-      category:x|$x.category, weight:x|$x.urgency, tone:x|$x.sentiment, tickers:x|$x.tickers, region:x|$x.region,
-      ticker:x|$x.instrument.ticker, sector:x|$x.sector.name, inst:x|$x.instrument.instrumentId])
-    ->join(market::screens::largestEquities($n), meta::pure::functions::relation::JoinKind.INNER,
-      {s, e|$s.inst == $e.einst})
-}
-
 // THE ORDER FLOW: every print, its name, sector, venue and time, its notional, and who crossed the spread -- bought (the
 // buyer took the offer), sold (the seller hit the bid), neither (off the exchange) -- and the net of the two; and whether
 // it was a block: an equity's print of `blockShares` or more, or any print of `blockNotional` or more. A bunched print

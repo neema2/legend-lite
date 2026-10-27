@@ -215,15 +215,16 @@ try {
   try {
     await showTab('News');
     await sleep(800);
-    // the five largest names are the model's query's (market::screens::newsAboutLargest: a story's instrument matched to
-    // the largest equities'), never a list in the page: the names its pane's stories are about, at most five, the market's
-    // largest -- the name the pane's chart opens on -- among them
+    // the watchlist (the user, 2026-10-27): the person's names, its pane's filter, starting on the market's five largest
+    // (market::screens::largestNames(5), read when the page is written) -- the names its pane's stories are about, at
+    // most five, the market's largest -- the name the pane's chart opens on -- among them
     const largestRows = await rowsOf('nw-namesTable');
     const largest = [...new Set(largestRows.rows.map((r) => r[largestRows.columns.indexOf('ticker')]))];
     const opensOn = (await rowsOf('nw-prints')).rows[0]?.[(await rowsOf('nw-prints')).columns.indexOf('ticker')];
-    if (largest.length >= 1 && largest.length <= 5 && largest.includes(opensOn)) {
-      ok(`News: the five largest names' stories, by the model's query: about ${largest.join(', ')}, the largest (${opensOn}) among them`);
-    } else fail(`News: the five largest names' pane is about ${JSON.stringify(largest)}, its chart opening on ${opensOn}`);
+    const watchTitle = (await viewOf('nw-namesFeed'))?.title;
+    if (largest.length >= 1 && largest.length <= 5 && largest.includes(opensOn) && watchTitle === 'My watchlist') {
+      ok(`News: ${watchTitle}'s stories: about ${largest.join(', ')}, the largest (${opensOn}) among them`);
+    } else fail(`News: the watchlist pane (${watchTitle}) is about ${JSON.stringify(largest)}, its chart opening on ${opensOn}`);
     const topOf = () => page.evaluate(() => document.querySelector('[data-tile="nw-allFeed"] .dc-feed-card')?.getAttribute('data-key') ?? null);
     const a = await counts();
     const top0 = await topOf();
@@ -241,7 +242,7 @@ try {
     // each pane's rows, by what its filter keeps (`c`: a column's place in a row)
     const panes = [
       ['Macro and sectors', 'nw-macroTable', 'nw-macroFeed', (r, c) => ['Macro', 'Industry'].includes(r[c('category')])],
-      ['The five largest names', 'nw-namesTable', 'nw-namesFeed', (r, c) => largest.includes(r[c('ticker')])],
+      ['My watchlist', 'nw-namesTable', 'nw-namesFeed', (r, c) => largest.includes(r[c('ticker')])],
       ['Technology', 'nw-techTable', 'nw-techFeed', (r, c) => r[c('sector')] === 'Technology'],
       ['Keyword', 'nw-wordTable', 'nw-wordFeed', (r, c) => /buyback/i.test(`${r[c('headline')]} ${r[c('body')] ?? ''}`)],
     ];
@@ -255,7 +256,7 @@ try {
         wrong.push(`${name}: ${g?.rows.length ?? 'no'} rows, ${cardsIn} cards`);
       } else said.push(`${name} ${g.rows.length}`);
     }
-    if (wrong.length === 0) ok(`News: each pane its own stories: ${said.join(', ')} (the five largest: ${largest.join(', ')})`);
+    if (wrong.length === 0) ok(`News: each pane its own stories: ${said.join(', ')} (the watchlist: ${largest.join(', ')})`);
     else fail(`News: a pane shows another's stories -- ${wrong.join('; ')}`);
 
     const box = page.locator('[data-tile="nw-wordFeed"] .dc-chartpanel-search');

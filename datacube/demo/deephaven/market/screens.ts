@@ -26,8 +26,9 @@ export const MARKET_MAPPING = 'stress::AllMapping';
 /** A source's columns as the compiler types them: the host's planner, asked. */
 export type SourceTypes = (text: string) => Promise<readonly ColumnSpec[]>;
 
-/** The one value a query answers, as the market has it now (a screen's first symbol: the market's largest name). */
-export type FirstValue = (text: string) => Promise<string>;
+/** The values of a query's first column, as the market has them now: what a page starts on -- a screen's first symbol,
+ *  a watchlist's names -- each a default a person changes on the page. */
+export type MarketValues = (text: string) => Promise<readonly string[]>;
 
 export interface TraderPage {
   readonly id: string;
@@ -35,8 +36,15 @@ export interface TraderPage {
   readonly label: string;
   /** What it shows. */
   readonly about: string;
-  /** The page, written: its sources typed by `types`, what it starts on asked of the market by `first`. */
-  build(types: SourceTypes, first: FirstValue): Promise<PageDocument>;
+  /** The page, written: its sources typed by `types`, what it starts on asked of the market by `values`. */
+  build(types: SourceTypes, values: MarketValues): Promise<PageDocument>;
+}
+
+/** The first of a query's values: a page's starting name. */
+async function firstOf(values: MarketValues, text: string): Promise<string> {
+  const [v] = await values(text);
+  if (v === undefined) throw new Error(`the market answers nothing for ${text}`);
+  return v;
 }
 
 // ---------------------------------------------------------------- the sources: the desk's model's functions
@@ -68,8 +76,9 @@ export const LARGEST = 'market::screens::largestNames(1)';
 /** THE NEWSWIRE (K15): every story, with the name it is about and its sector. */
 export const NEWS = 'market::screens::news()';
 
-/** The stories about the market's five largest names: a story's instrument matched to theirs (K15's monitor). */
-export const NEWS_OF_LARGEST = 'market::screens::newsAboutLargest(5)';
+/** A watchlist's names to start with: the market's five largest. The watchlist is the person's -- its pane's filter,
+ *  saved with the page and changed there -- so these are a default, read when the page is written. */
+export const WATCHLIST_START = 'market::screens::largestNames(5)';
 
 // ---------------------------------------------------------------- writing a page
 
@@ -236,7 +245,7 @@ const feedOf = (id: string, cube: string, title: string, to: readonly string[], 
 
 // ---------------------------------------------------------------- K4, K14: the ticker
 
-async function tickerParts(types: SourceTypes, first: FirstValue): Promise<Parts> {
+async function tickerParts(types: SourceTypes, values: MarketValues): Promise<Parts> {
   const quoteFigures = { aggregate: 'average' } as const;
   const watchColumns = await columnsOf(types, WATCHLIST, {
     last: quoteFigures, bid: quoteFigures, ask: quoteFigures, open: quoteFigures, high: { aggregate: 'max' },
@@ -250,7 +259,7 @@ async function tickerParts(types: SourceTypes, first: FirstValue): Promise<Parts
   const stockColumns = await columnsOf(types, STOCK, { seq: { kind: 'dimension' } });
   const newsColumns = await columnsOf(types, NEWS);
   // the stock it opens on: the market's largest, as the market says now
-  const symbol = await first(LARGEST);
+  const symbol = await firstOf(values, LARGEST);
 
   // THE STOCK SHEET: the watchlist down the left; picked in it, a name's tiles beside it -- its figures, its chart (a
   // line or candles), its prints and its quote -- every one a view of two grids the list links to (K14)
@@ -789,29 +798,26 @@ async function tcaParts(types: SourceTypes): Promise<Parts> {
 
 // ---------------------------------------------------------------- K15: the news
 
-async function newsParts(types: SourceTypes, first: FirstValue): Promise<Parts> {
+async function newsParts(types: SourceTypes, values: MarketValues): Promise<Parts> {
   const newsColumns = await columnsOf(types, NEWS);
   const mixColumns = await columnsOf(types, NEWS, { id: { aggregate: 'count' }, tone: { aggregate: 'average' } });
   const stockColumns = await columnsOf(types, STOCK, { seq: { kind: 'dimension' } });
-  // the stories about the market's five largest names (a desk's watchlist): the model's query, which matches a story's
-  // instrument to theirs -- the names are the market's at each run, never a list written into the page
-  const largestColumns = await columnsOf(types, NEWS_OF_LARGEST);
-  // the chart's first name: the market's largest, as the market says now
-  const symbol = await first(LARGEST);
+  // THE WATCHLIST (the user, 2026-10-27: a pane of a news monitor is the names a trader follows): the person's names,
+  // its pane's filter, saved with the page and changed there; it starts on the market's five largest, the chart beside
+  // the panes on the largest
+  const watchlist = await values(WATCHLIST_START);
+  const symbol = await firstOf(values, LARGEST);
   const wire = marketSource('The newswire', NEWS, newsColumns);
   // THE MONITOR: a news terminal's panes, each a feed of the newswire customised by its grid's filter -- the whole
-  // market's, macro and sector stories, the five largest names', a sector's, a keyword's (its own box) -- and the name
-  // a card picks, its price today
+  // market's, macro and sector stories, the watchlist's names', a sector's, a keyword's (its own box) -- and the name a
+  // card picks, its price today
   const hasWord = (column: string): FilterNode => ({ kind: 'condition', column, operator: 'containsCaseInsensitive', value: 'buyback' });
   const keyword: FilterNode = { kind: 'or', children: [hasWord('headline'), hasWord('body')] };
-  const among = (column: string, values: readonly string[]): FilterNode => ({ kind: 'condition', column, operator: 'in', value: [...values] });
-  const names = cubeOf('The five largest names', marketSource('The news of the largest names', NEWS_OF_LARGEST, largestColumns),
-    cubeOver(largestColumns, { sorts: [{ column: 'at', direction: 'desc' }, { column: 'id', direction: 'desc' }] }),
-    configured('The five largest names', { ...WIRE_COLUMNS, inst: HIDDEN, einst: HIDDEN, eticker: HIDDEN, cap: HIDDEN }));
+  const among = (column: string, names: readonly string[]): FilterNode => ({ kind: 'condition', column, operator: 'in', value: [...names] });
   const cubes = [
     { id: 'all', cube: wireOf('All news', 'All news', wire, newsColumns) },
     { id: 'macro', cube: wireOf('Macro and sectors', 'Macro and sectors', wire, newsColumns, among('category', ['Macro', 'Industry'])) },
-    { id: 'names', cube: names },
+    { id: 'names', cube: wireOf('My watchlist', 'My watchlist', wire, newsColumns, among('ticker', watchlist)) },
     { id: 'tech', cube: wireOf('Technology', 'Technology', wire, newsColumns, equal('sector', 'Technology')) },
     { id: 'word', cube: wireOf('Keyword', 'Keyword', wire, newsColumns, keyword) },
     { id: 'stock', cube: cubeOf('The name picked', marketSource('The stock', STOCK, stockColumns),
@@ -835,8 +841,8 @@ async function newsParts(types: SourceTypes, first: FirstValue): Promise<Parts> 
     { id: 'allTable', kind: 'grid', cube: 'all', title: 'All news, as a grid' },
     feedOf('macroFeed', 'macro', 'Macro and sectors', to),
     { id: 'macroTable', kind: 'grid', cube: 'macro', title: 'Macro and sectors, as a grid' },
-    feedOf('namesFeed', 'names', 'The five largest names', to),
-    { id: 'namesTable', kind: 'grid', cube: 'names', title: 'The five largest names, as a grid' },
+    feedOf('namesFeed', 'names', 'My watchlist', to),
+    { id: 'namesTable', kind: 'grid', cube: 'names', title: 'My watchlist, as a grid' },
     feedOf('techFeed', 'tech', 'Technology', to),
     { id: 'techTable', kind: 'grid', cube: 'tech', title: 'Technology, as a grid' },
     { ...feedOf('wordFeed', 'word', 'Keyword', to), selection: [keyword] },
@@ -1046,9 +1052,9 @@ async function cryptoParts(types: SourceTypes): Promise<Parts> {
  * market, a stock, the news, the order flow, crypto, the execution blotter, TCA, P&L and risk, options, FX -- every grid
  * a saved query over the one trading model, run on the market's Deephaven, ticking.
  */
-async function deskParts(types: SourceTypes, first: FirstValue): Promise<Parts> {
+async function deskParts(types: SourceTypes, values: MarketValues): Promise<Parts> {
   const [map, ticker, news, flow, crypto, blotter, tca, pnl, options, fx] = await Promise.all([
-    marketMapParts(types), tickerParts(types, first), newsParts(types, first), flowParts(types), cryptoParts(types),
+    marketMapParts(types), tickerParts(types, values), newsParts(types, values), flowParts(types), cryptoParts(types),
     blotterParts(types), tcaParts(types), pnlParts(types), optionsParts(types), fxParts(types),
   ]);
   const bandsOf = (parts: Parts): readonly (readonly [number, Node])[] => boardOf(parts.sheets[0]!.layout).bands.map((b) => [b.height, b.node] as const);

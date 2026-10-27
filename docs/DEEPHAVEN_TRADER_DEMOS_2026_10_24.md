@@ -848,12 +848,29 @@ groups, filters and sorts after it; the compiler inlines the call, so a screen's
 screen's Deephaven batch byte for byte the same as the TypeScript-written query's. `screens.ts` writes no query
 (`//datacube:desk_model_test`: no exported text reads a class or applies a relation function).
 
-**The news of the largest names by the associations** (`market::screens::newsAboutLargest(n)`): the instrument a story is
-about (`cross::NewsStory_Instrument`, mapped by the store's join) matched by its identity to the instruments of the `n`
-equities with the largest capitalisation (`products::Equity_Instrument`), sorted and kept to `n` on the server. One query,
-its names the market's at each run. Not done: a story's `tickers` (every name it mentions, for the cards' chips) is a
-text list; a many-to-many "mentions" association is the honest form, a change to the stress corpus (shared, its answers
-generated).
+**A watchlist, not "the five largest"** (the user, 2026-10-27: "what is the real query we want for the screen?"). The
+monitor's pane is what a trader's news terminal has: the names the trader follows. It is the newswire (`news()`) with a
+`ticker in [...]` filter -- the person's, saved with the page and changed there -- titled *My watchlist*, starting on the
+market's five largest (`market::screens::largestNames(5)`, read when the page is written, as the stock's first name is).
+The day's first version (`newsAboutLargest`: a relational join of the stories to a ranked relation of equities) was the
+wrong shape -- a join where a filter was meant, written so because the targets could not run the forms that say it -- and
+went the same day. Done right, "the news of the n largest names" is navigation from the ranked equities to their news
+through the association, one live query with no join written:
+
+```
+products::Equity.all()
+  ->sort(e | $e.marketCap->toOne(), {a, b | $b->compare($a)})->take($n)
+  ->project(~[ticker: e | $e.ticker, id: e | $e.instrument.news.storyId, at: e | $e.instrument.news.publishTime, ...])
+  ->filter(x | $x.id->isNotEmpty())
+```
+
+It plans today on DuckDB and Deephaven and answers WRONGLY: the compiler applies the `take` after the to-many join to the
+news (the SQL's `LIMIT 5` counts stories, not equities) -- a correctness bug of the core compiler, untested, about a day
+to fix (the root's sort and limit a subquery the navigation joins from); `sortBy(...)->reverse()` there throws an internal
+error (the comparator form above does not); and `$s.instrument.equity->in(...)` is refused as "property 'equity' ... is
+not mapped", where the gap is comparing instances, not the mapping. Not done either: a story's `tickers` (every name it
+mentions, for the cards' chips) is a text list; a many-to-many "mentions" association is the honest form, a change to the
+stress corpus (shared, its answers generated).
 
 **Shared subexpressions on Deephaven** (`DeephavenBatch.withShared`): the compiler inlines a function by writing its
 argument wherever its body reads it, so the Deephaven target now computes, as a helper column (`__e<i>`), each subtree a

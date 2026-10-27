@@ -23,7 +23,7 @@ import { PlanAndRun, PlanThenRun, localHost, type PlanAndRunHost, type QueryRunn
 import { ServerBases, type ServerBaseRunner } from '../../../src/server-base.ts';
 import type { MarketConfig } from '../../page-config.ts';
 import { MARKET_CONNECTION, MARKET_LIVE, MARKET_MODEL, MARKET_RUNTIME } from './model.ts';
-import { DESK, MARKET_PROJECT, type FirstValue, type SourceTypes } from './screens.ts';
+import { DESK, MARKET_PROJECT, type MarketValues, type SourceTypes } from './screens.ts';
 
 /** The market, opened: what it adds to the tab's services, and its example pages. */
 export interface Market {
@@ -175,14 +175,13 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
 
   /** A source's columns as the compiler types them, by its text: over the model the module holds. */
   const types: SourceTypes = async (text) => (await market.relationTypeText(text)).map((c) => ({ name: c.name, type: c.type }));
-  /** The one value a query answers now, read once from the server. */
-  const first: FirstValue = async (text) => {
+  /** The values of a query's first column now, read once from the server: what a page starts on. */
+  const values: MarketValues = async (text) => {
     const plan = await market.planText(text);
     const reader = engine.reader();
     try {
-      const v = (await reader.execute(plan, 1)).columns[0]?.values[0];
-      if (v === undefined || v === null) throw new Error(`the market answers nothing for ${text}`);
-      return String(v);
+      const column = (await reader.execute(plan, 1)).columns[0];
+      return column === undefined ? [] : [...column.values].filter((v) => v !== null && v !== undefined).map(String);
     } finally {
       void reader.close();
     }
@@ -226,7 +225,7 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
         },
       };
     },
-    examples: [{ ...DESK, build: () => DESK.build(types, first) }],
+    examples: [{ ...DESK, build: () => DESK.build(types, values) }],
   };
 }
 

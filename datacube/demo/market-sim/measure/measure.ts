@@ -145,9 +145,8 @@ async function main(): Promise<void> {
   const page: PageDocument = readPage(pageToJson(await DESK.build(
     async (text) => (await planner.relationTypeText(text)).map((c) => ({ name: c.name, type: c.type })),
     async (text) => {
-      const v = (await scratch.execute(await planner.planText(text), 1)).columns[0]?.values[0];
-      if (v === undefined || v === null) throw new Error(`the market answers nothing for ${text}`);
-      return String(v);
+      const column = (await scratch.execute(await planner.planText(text), 1)).columns[0];
+      return column === undefined ? [] : [...column.values].filter((v) => v !== null && v !== undefined).map(String);
     })));
   const buildMs = performance.now() - tBuild;
 

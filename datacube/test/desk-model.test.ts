@@ -63,15 +63,11 @@ describe('the trading desk\'s model', () => {
     }
   });
 
-  it('the news of the five largest names matches a story to an equity by the instrument they share, the five the market\'s', async () => {
-    const { ops } = await opsOf(screens.NEWS_OF_LARGEST);
+  it('a watchlist starts on the market\'s five largest names, ranked on the server', async () => {
+    // the watchlist itself is the person's (its pane's filter, saved with the page); its default is the model's ranking
+    const { ops } = await opsOf(screens.WATCHLIST_START);
     const kinds = ops.map((o) => Object.keys(o)[0]);
-    // the equities ranked by their capitalisation and kept to five, before the stories are matched to them
     const head = ops.findIndex((o) => o['head']?.['numRows'] === '5');
     assert.ok(head > 0 && kinds[head - 1] === 'sort', `the five largest: ${kinds.join(' ')}`);
-    // a story's instrument (cross::NewsStory_Instrument) to the equity's (products::Equity_Instrument): never a ticker's
-    // text written into the page
-    const matched = ops.flatMap((o) => (Object.values(o)[0]?.['columnsToMatch'] as string[] | undefined) ?? []);
-    assert.ok(matched.some((m) => /__inst=\w+__einst$/.test(m)), `the joins match ${JSON.stringify(matched)}`);
   });
 });
