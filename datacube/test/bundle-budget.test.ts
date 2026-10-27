@@ -429,8 +429,16 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  the page: lazily, it was a chunk that split the startup files), a Cross Tab's values read once (query.ts
  *  pivotValuesOf), the page gestures Python shares (flow.place, flow.duplicate), a stopping box never judged
  *  (flow-board.ts runStoppers); the checks' readers kept out (setStops reads a Test's shape alone); no startup file
- *  added -- 33 as before, measured by esbuild's record). Measured 408,032. */
-const BUDGET = 408_500;
+ *  added -- 33 as before, measured by esbuild's record). Measured 408,032.
+ *  408,500 -> 418,500 (2026-10-27, main (PRs #73-#78) merged into the Deephaven line: the line's own steps there,
+ *  355,500 -> 358,500 -> 359,000 -> 359,500 -> 361,000 -> 363,000 -> 364,500 -> 365,500 -- ticking grids and charts
+ *  (V1-V3, A1), K3's candlestick, the trader screens, K14's stock chart, K15's news feed, the trading desk and lazy tabs,
+ *  each in that line's history with its own measure and sign-off -- now on top of main's. Audited before the raise, by
+ *  module from esbuild's record: the two lines add up (their base, PR #72, 355,151; main +53,071; the line +10,243);
+ *  3 startup files more than main's 33, the line's own. Not done here: the export writers (export-xlsx.ts,
+ *  export-doc.ts, export-rich.ts) fetched with a first export, measured -9,589 -- main's code, for main. Signed off by
+ *  the user 2026-10-27, D9). Measured 418,329. */
+const BUDGET = 418_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -599,8 +607,11 @@ const BUDGET = 408_500;
  *  383,500 -> 394,000 (2026-10-26, the timeseries branch, PR #74, merged into the flow branch: its own steps there,
  *  353,500 -> 363,000 -> 364,000 -- the grid-only page's note of the same date). Measured 393,657.
  *  394,000 -> 396,500 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
- *  396,140. */
-const ENGINE_BUDGET = 396_500;
+ *  396,140.
+ *  396,500 -> 405,000 (2026-10-27, main (PRs #73-#78) merged into the Deephaven line: the line's own steps there,
+ *  344,000 -> 347,000 -> 347,500 -> 349,500 -> 351,500 -> 352,500 -- the grid-only page's note of the same date; main
+ *  +52,934 and the line +8,559 from their base, measured; signed off by the user 2026-10-27, D9). Measured 404,641. */
+const ENGINE_BUDGET = 405_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -713,8 +724,12 @@ const MAPS_BUDGET = 78_000;
  *  its first measure, 4,872, with room for batch 3's fields.
  *  8,000 -> 6,000 (2026-10-15, the bundles minified, their names kept: datacube/BUILD.bazel _BUNDLES; the user's "does
  *  minify buy anything if already zipped?" -- it does, about a third). Measured 4,858 (a chunk that small gains
- *  little); unminified, the same tree 5,793. */
-const FORM_BUDGET = 6_000;
+ *  little); unminified, the same tree 5,793.
+ *  6,000 -> 7,000 (2026-10-27, main (PRs #73-#78) merged into the Deephaven line: each line within 6,000 alone -- main's
+ *  options in the Properties window's design, two columns (5,775), the line's candlestick, market map, stock chart and
+ *  news feed options (5,500) -- the two together over it, from 4,802 at their base; signed off by the user 2026-10-27,
+ *  D9). Measured 6,544. */
+const FORM_BUDGET = 7_000;
 
 /** An example page's builder (src/examples/charts-dashboard.ts), fetched when it is picked: set 2026-10-14 at its first
  *  measure, 3,264.
@@ -886,8 +901,12 @@ const EXAMPLE_BUDGET = 4_000;
  *  374,500 -> 385,000 -> 386,000 -- the grid-only page's note of the same date, and the timeseries tile's styles).
  *  Measured 421,003.
  *  421,500 -> 424,000 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
- *  423,483. */
-const WIDGET_BUDGET = 424_000;
+ *  423,483.
+ *  424,000 -> 433,000 (2026-10-27, main (PRs #73-#78) merged into the Deephaven line: the line's own steps there,
+ *  363,000 -> 366,000 -> 366,500 -> 367,000 -> 369,000 -> 371,000 -> 371,500 -> 372,500 -- the grid-only page's note of
+ *  the same date; the module is the engine page's code and 28,189 of styles; signed off by the user 2026-10-27, D9).
+ *  Measured 432,678. */
+const WIDGET_BUDGET = 433_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
