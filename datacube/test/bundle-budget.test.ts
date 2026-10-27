@@ -437,8 +437,14 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  module from esbuild's record: the two lines add up (their base, PR #72, 355,151; main +53,071; the line +10,243);
  *  3 startup files more than main's 33, the line's own. Not done here: the export writers (export-xlsx.ts,
  *  export-doc.ts, export-rich.ts) fetched with a first export, measured -9,589 -- main's code, for main. Signed off by
- *  the user 2026-10-27, D9). Measured 418,329. */
-const BUDGET = 418_500;
+ *  the user 2026-10-27, D9). Measured 418,329.
+ *  418,500 -> 419,000 (2026-10-27, the trading desk live in the tab on DataCube's static site,
+ *  docs/DUCKDB_LIVE_2026_10_25.md L3: demo/market-sim/local-host.ts, a chunk of its own fetched where no market server is
+ *  named, its world and engine fetched only when the desk is opened. One startup file more and no module added: the
+ *  market's lazy chunk reaches engine-client's arrow-ipc.ts, so esbuild split it from the sample's startup chunk, its
+ *  bytes in a file of their own -- measured +410. Signed off by the user 2026-10-27 ("I think raise it"), D9). Measured
+ *  418,739. */
+const BUDGET = 419_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

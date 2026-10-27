@@ -1693,6 +1693,20 @@ copy_to_directory(
     root_paths = ["query/demo/models"],
 )
 
+# THE TRADING DESK LIVE IN THE TAB (demo/market-sim/local-host.ts, docs/DUCKDB_LIVE_2026_10_25.md L3): its two models
+# served beside the page -- the one trading model and the desk's own -- fetched only when the desk is opened.
+copy_file(
+    name = "site_trading_model",
+    src = "//scripts/corpus:trading_model",
+    out = "demo/trading-model.pure",
+)
+
+copy_file(
+    name = "site_market_model",
+    src = "demo/deephaven/market/market.pure",
+    out = "demo/market.pure",
+)
+
 # Everything a browser fetches: pages, styles, models, bundles, runtimes.
 filegroup(
     name = "site",
@@ -1707,6 +1721,8 @@ filegroup(
     ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [
         ":planner_worker",
         ":projects",
+        ":site_market_model",
+        ":site_trading_model",
         ":vendor",
         ":widget",
         ":widget_loader",
@@ -1822,6 +1838,8 @@ js_run_binary(
 # (the same scripts; as tests they drive the Chromium Bazel fetches, by hand Playwright's own, installed once with
 # :install_browser). Several need a live engine as well (the script says which) and are tools only.
 _HARNESS_HELPERS = [
+    # the trading desk's tabs' checks, the Deephaven desk's and the desk in the tab's (verify-live-desk)
+    "demo/desk-tabs.mjs",
     "demo/engine-cases.mjs",
     # the one module every harness shares: its server, the site root, outputs and temp paths, checks (P4-01)
     "demo/harness.mjs",
@@ -1854,6 +1872,7 @@ _HARNESSES = [
     "verify-flow",
     "verify-join",
     "verify-layout",
+    "verify-live-desk",
     "verify-page",
     "verify-picker",
     "verify-real-data",
@@ -1883,6 +1902,9 @@ _BROWSER_TESTS = {
     # Join… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5): two files joined, what it will do said first, saved and reopened
     "verify-join": "large",
     "verify-layout": "large",
+    # the trading desk on DataCube's static site, the market run in the tab's own DuckDB (docs/DUCKDB_LIVE_2026_10_25.md
+    # L3-L4): its ten tabs drawn and ticking, nothing asked of the network
+    "verify-live-desk": "large",
     "verify-page": "large",
     "verify-upload": "large",
     "verify-wasm-browser": "large",

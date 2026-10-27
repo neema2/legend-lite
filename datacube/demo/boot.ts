@@ -302,6 +302,9 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   const marketOpened = Promise.all([configured, engineReady]).then(([config, chosen]) =>
     config.market ? openMarket(config.market, chosen.planner, config.vendor) : undefined);
   marketOpened.catch(() => {});
+  // ...and where it names none, the market in this tab's code (market-sim/local-host.ts), fetched beside DuckDB's start
+  const localMarketCode = configured.then((config) => (config.market ? undefined : import('./market-sim/local-host.ts')));
+  localMarketCode.catch(() => {});
   status.textContent = 'starting DuckDB and the planner…';
 
   // the one start of a tab's DuckDB (engine-client's startDuckDbInTab): its files and extensions from ./vendor/, its
@@ -366,7 +369,11 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   const { planner, source, label } = chosen;
   status.textContent = label;
   const config = await configured;
-  const market = await marketOpened;
+  // the market world's server where the deployment names one; else the desk over a market run in this tab, started only
+  // when the desk is opened (demo/market-sim/local-host.ts: DataCube's static site, no config at all)
+  const localCode = await localMarketCode;
+  const market = localCode === undefined ? await marketOpened
+    : planner instanceof LitePlanner ? localCode.openLocalMarketHere(planner, duck) : undefined;
   // THE TAB'S SERVICES (src/services/browser.ts): everything below reads its planner, its database, its stores and its
   // browser through them -- the market's added to them
   const tab: Services = await browserServices({

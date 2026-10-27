@@ -196,6 +196,37 @@ NULL` (`MARKET_TRADE.PRICE DOUBLE`, though `MarketTrade.price` is `Float[1]`), s
 SQL tree and the Stock and News tabs keep the whole-history fold. The model's tables declaring `NOT NULL` where their
 property is `[1]` is a change to the stress corpus (`scripts/corpus/trading_model.py`), the user's call.
 
+### L3 and L4, landed (2026-10-27)
+
+**L3, the desk in the tab** (`datacube/demo/market-sim/local-host.ts`): where the page names no market server -- DataCube's
+static site, no config -- Open…'s Examples list *Trading desk: ten screens, live in this tab*, first. Nothing starts with
+the page: opening it fetches the trading model and the desk's own (the site's `trading-model.pure` and `market.pure`),
+holds them in a module of the tab's planner, makes the market's tables by the planner's statements in the tab's own
+DuckDB, and starts the world. The same saved page, model and screens as the Deephaven desk; only the connections differ
+(`model.ts` MARKET_TAB). Each grid is a live reader of its own (L1), as each is on Deephaven.
+
+**L4, its lane** (`//datacube:verify_live_desk_test`, in the datacube CI lane): the site served on the loopback, the desk
+opened as Open… opens it with a small world (40 names, a 5,000-print tape, the crypto feed off): every tab's grids and
+charts drawn and the tab ticking -- `demo/desk-tabs.mjs`, the Deephaven desk's own checks, shared -- nothing asked of the
+network. About 95 s.
+
+What the lane found, fixed the same day:
+
+- **Hidden tabs ran at every emit.** A reader followed its grid's last view whether or not its sheet was shown, so every
+  tab visited ran at every emit on the tab's one DuckDB: an emit 7.1 s by the last tab, its ticks on screen 7.2 s after
+  their rows. A grid not shown now rests (`DuckDbLiveReader.rest`, when the app says its tick has no sheet to land on)
+  and follows again at its next view: the emit 19 ms, re-runs 7,144 to 2,235, every tab's ticks on screen 56-176 ms.
+- **The options chain's SQL was 364,053 characters**: Black and Scholes written as a textbook writes it, each function's
+  body written wherever it is called -- 9 s to draw, 6.3 s a tick. DuckDB now computes a shared subtree of 50 nodes or
+  more once, as a helper column of a select of its own beneath the one that reads it (`DuckDb#select`,
+  `SharedSubtrees`, the Deephaven target's rule): 5,243 characters, its ticks on screen in 197 ms. Not DuckDB's lateral
+  aliases: DuckDB writes an aliased expression in where its name is read, so helpers read by helpers cost what the
+  whole tree did, doubling a level (fourteen levels 2.5 s over 1,000 rows); stacked selects stay linear (thirty levels
+  10 ms over 100,000).
+
+Still slow: the options tab's first draw, 6.5 s (on Deephaven 4-7 s): its planning, not its SQL. The bundle: the grid
+page's startup script +410 bytes (one startup file split by esbuild, `arrow-ipc.ts`), signed off.
+
 ## 3. Incremental views, when measured
 
 ClickHouse's lesson (its insert-triggered materialized views, aggregate states that merge): an append-only table's
