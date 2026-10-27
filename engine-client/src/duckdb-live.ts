@@ -404,6 +404,15 @@ export class DuckDbLiveReader implements LiveReader {
     return () => { this.#listeners.delete(listener); };
   }
 
+  /**
+   * Its grid not shown (a sheet hidden): nothing followed until its next view (`follow`), so an emit runs none of its
+   * results -- on the tab's one DuckDB a hidden sheet's grids would otherwise run at every emit (measured 2026-10-27, the
+   * desk in the tab: every tab visited, an emit 7.1 s). Its kept results stay; a run of one gone stale runs it again.
+   */
+  rest(): void {
+    this.#floor = null;
+  }
+
   /** How many results it follows now. */
   get following(): number {
     const floor = this.#floor;

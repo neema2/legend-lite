@@ -130,6 +130,27 @@ describe('the live DuckDB', () => {
     await live.close();
   });
 
+  it('a reader whose grid is not shown rests: an emit runs none of its results, until its grid runs and follows again', async () => {
+    // 2026-10-27, the desk in the tab: every tab visited, every hidden grid ran at each emit (an emit 7.1 s)
+    live = await opened();
+    const { reader, told } = await following(live, COUNT);
+    const readerSent = sent[1]!;
+    reader.rest();
+    const before = readerSent.length;
+    await live.append('PRINTS', ...prints(0, 3));
+    await live.emit();
+    assert.equal(told.length, 0, 'a resting reader is told nothing');
+    assert.equal(readerSent.slice(before).filter((s) => s.startsWith('SELECT')).length, 0, 'nothing of it ran at the emit');
+    // its sheet shown again: the grid runs (its kept result stale, so run), then its view followed
+    assert.equal(value(await reader.execute(COUNT, 2)), 3);
+    await reader.follow(2);
+    await live.append('PRINTS', ...prints(3, 2));
+    await live.emit();
+    assert.equal(told.length, 1, 'following again, told');
+    assert.equal(value(await reader.execute(COUNT, 3)), 5);
+    await live.close();
+  });
+
   it('an emit with no change runs nothing and tells nothing; a change that leaves a result as it was runs it, untold', async () => {
     live = await opened();
     const msft = plan("SELECT max(PRICE) AS top FROM PRINTS WHERE SYMBOL = 'MSFT'", ['top', 'Float']);
