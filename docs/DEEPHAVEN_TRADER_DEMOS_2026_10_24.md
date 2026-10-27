@@ -864,11 +864,16 @@ products::Equity.all()
   ->filter(x | $x.id->isNotEmpty())
 ```
 
-It plans today on DuckDB and Deephaven and answers WRONGLY: the compiler applies the `take` after the to-many join to the
-news (the SQL's `LIMIT 5` counts stories, not equities) -- a correctness bug of the core compiler, untested, about a day
-to fix (the root's sort and limit a subquery the navigation joins from); `sortBy(...)->reverse()` there throws an internal
-error (the comparator form above does not); and `$s.instrument.equity->in(...)` is refused as "property 'equity' ... is
-not mapped", where the gap is comparing instances, not the mapping. Not done either: a story's `tickers` (every name it
+It answered WRONGLY until 2026-10-27: the compiler applied the `take` after the to-many join to the news (the SQL's
+`LIMIT 5` counted stories, not equities) -- a correctness bug of the core compiler, on every target, untested. Fixed the
+same day (`resolver/CutBeforeFanOut`): a class chain cut by position (`take`, `drop`, `slice`, `first`) and projected
+through a to-many navigation folds the projection's joins -- those no filter or sort of the chain reads -- above the cut,
+the outermost sort again above them; the SQL is now `FROM (SELECT * FROM EQUITY ORDER BY MARKET_CAP DESC LIMIT 5) LEFT
+JOIN (the instrument and its news)`, Deephaven's batch `sort`, `head` 5, then the join. Pinned by four cases in
+`AssociationIntegrationTest` (take, descending sort, a to-one hop then a to-many, slice); every core lane and the corpus
+differential pass. Still open: `sortBy(...)->reverse()` there throws an internal error (the comparator form above does
+not); and `$s.instrument.equity->in(...)` is refused as "property 'equity' ... is not mapped", where the gap is
+comparing instances, not the mapping. Not done either: a story's `tickers` (every name it
 mentions, for the cards' chips) is a text list; a many-to-many "mentions" association is the honest form, a change to the
 stress corpus (shared, its answers generated).
 

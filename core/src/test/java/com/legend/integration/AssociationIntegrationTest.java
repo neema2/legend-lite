@@ -441,6 +441,53 @@ class AssociationIntegrationTest {
         }
 
         @Test
+        @DisplayName("Take before a to-many project counts people, not their addresses")
+        void testTakeThenToManyProject() throws SQLException {
+            // the class's sort and take cut its OBJECTS: the first person by
+            // name is Alice, and projecting her addresses gives both of them.
+            // 2026-10-27: the LIMIT came after the LEFT JOIN to T_ADDRESS, so
+            // it counted address rows -- one row, Alice's NYC or LA
+            var r = exec(fullModel(),
+                "test::Person.all()->sortBy(p|$p.name)->take(1)->project([x|$x.name, x|$x.addresses.city], ['name', 'city'])");
+            assertEquals(List.of("Alice", "Alice"), colStr(r, 0));
+            assertEquals(Set.of("NYC", "LA"), new HashSet<>(colStr(r, 1)));
+        }
+
+        @Test
+        @DisplayName("Sort descending and take before a to-many project: the people's rows, all of each one's")
+        void testSortDescendingTakeThenToManyProject() throws SQLException {
+            // by name descending: Diana (0 addresses), Charlie (0), Bob (1),
+            // Alice (2) -- the four people, five rows; a LIMIT 4 on the
+            // address rows drops one of Alice's
+            var r = exec(fullModel(),
+                "test::Person.all()->sort(p|$p.name, {a, b|$b->compare($a)})->take(4)->project(~[name:x|$x.name, city:x|$x.addresses.city])");
+            assertEquals(5, r.rowCount());
+            assertEquals(2, Collections.frequency(colStr(r, 0), "Alice"));
+        }
+
+        @Test
+        @DisplayName("Take before a to-one hop then a to-many hop: the person's rows, all of them")
+        void testTakeThenToOneThenToManyProject() throws SQLException {
+            // Alice's department's organisation has two departments
+            // (Engineering, Sales): the first person, two rows
+            var r = exec(fullModel(),
+                "test::Person.all()->sortBy(p|$p.name)->take(1)->project(~[name:x|$x.name, dept:x|$x.dept.org.departments.name])");
+            assertEquals(List.of("Alice", "Alice"), colStr(r, 0));
+            assertEquals(Set.of("Engineering", "Sales"), new HashSet<>(colStr(r, 1)));
+        }
+
+        @Test
+        @DisplayName("Slice before a to-many project counts people, not their addresses")
+        void testSliceThenToManyProject() throws SQLException {
+            // by name: Alice (2 addresses), Bob (1), Charlie (0), Diana (0) --
+            // the slice [0, 2) keeps Alice and Bob, three address rows
+            var r = exec(fullModel(),
+                "test::Person.all()->sortBy(p|$p.name)->slice(0, 2)->project(~[name:x|$x.name, city:x|$x.addresses.city])");
+            assertEquals(3, r.rowCount());
+            assertEquals(Set.of("NYC", "LA", "Chicago"), new HashSet<>(colStr(r, 1)));
+        }
+
+        @Test
         @DisplayName("Filter to-many: multiple matches still returns person once")
         void testFilterToManyMultipleMatchesOnePerson() throws SQLException {
             // ROW SEMANTICS (engine testInNegated golden — a bare LEFT JOIN

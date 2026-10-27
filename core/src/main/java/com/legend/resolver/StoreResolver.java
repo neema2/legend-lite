@@ -2155,58 +2155,75 @@ public final class StoreResolver {
         //     first-demand order) onto the pipeline.
         TypedSpec withJoins = keyWidenedPipe;
         for (AssociationJoins.AssocJoin aj : assocJoins) {
-            TypedSpec joinTarget = aj.targetPipeline();
-            Type.RelationType joinTargetRow = aj.targetRow();
-            TypedLambda joinCond = aj.condition();
-            // ENGINE ON-FORM opt-in (the plain nav-join emitter): the
-            // temporal window spells in the join condition, pipe raw
-            // (memory milestoning-onclause-seam; exploding subs rebuild
-            // their own cond and keep the stamped form)
-            if (aj.corrSubPred() == null && aj.onForm() != null) {
-                joinTarget = aj.onForm().pipeline();
-                joinCond = aj.onForm().condition();
-            }
-            if (aj.corrSubPred() != null
-                    || aj.targetSubNavs().keySet().stream().anyMatch(k ->
-                            synthetics.correlatedPred(k) != null)) {
-                CorrelatedSubselects.ExplodingSub ex =
-                        corrSubs.explodingSubselect(cs, aj,
-                                Type.requireRelationSchema(withJoins.info().type()));
-                joinTarget = ex.target();
-                joinTargetRow = ex.row();
-                joinCond = ex.cond();
-            }
-            // the ON-form and exploding shapes rebuild the target after
-            // the association join widened it: the condition's routed keys
-            // are MEMBER columns the union arms project on demand (B3.1)
-            {
-                TypedSpec widened = StackBuilder.demandForCondition(joinTarget, joinCond, 1);
-                if (widened != joinTarget) {
-                    joinTarget = widened;
-                    joinTargetRow = Type.requireRelationSchema(widened.info().type());
-                }
-            }
-            Type.RelationType leftRow =
-                    Type.requireRelationSchema(withJoins.info().type());
-            List<Type.Column> cols =
-                    new ArrayList<>(leftRow.columns());
-            for (Type.Column c
-                    : joinTargetRow.columns()) {
-                cols.add(new Type.Column(
-                        aj.prefix() + c.name(), c.type(), c.multiplicity()));
-            }
-            withJoins = new TypedJoin(withJoins,
-                    joinTarget,
-                    // §4AD P1 placement bit (INNER = row-dropping)
-                    aj.rowDropping() ? AssociationJoins.innerKind() : AssociationJoins.leftKind(),
-                    java.util.Objects.requireNonNull(joinCond, "joinCond"),
-                    Optional.of(aj.prefix()),
-                    ViewFrames.frameNameOf(ctx, aj.target()),
-                    new ExprType(
-                            Type.relation(new Type.RelationType(cols)),
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
-                false /* resolver-synth */);
+            withJoins = foldAssociationJoin(cs, withJoins, aj);
         }
+        return foldAggregatedNavigations(cs, m, withJoins, aggMaterials,
+                aggDemands, chainMids);
+    }
+
+    /** One association join folded onto the pipeline: its LEFT (or
+     * row-dropping INNER) join, the target prefixed. */
+    private TypedSpec foldAssociationJoin(ClassSource cs, TypedSpec withJoins,
+            AssociationJoins.AssocJoin aj) {
+        TypedSpec joinTarget = aj.targetPipeline();
+        Type.RelationType joinTargetRow = aj.targetRow();
+        TypedLambda joinCond = aj.condition();
+        // ENGINE ON-FORM opt-in (the plain nav-join emitter): the
+        // temporal window spells in the join condition, pipe raw
+        // (memory milestoning-onclause-seam; exploding subs rebuild
+        // their own cond and keep the stamped form)
+        if (aj.corrSubPred() == null && aj.onForm() != null) {
+            joinTarget = aj.onForm().pipeline();
+            joinCond = aj.onForm().condition();
+        }
+        if (aj.corrSubPred() != null
+                || aj.targetSubNavs().keySet().stream().anyMatch(k ->
+                        synthetics.correlatedPred(k) != null)) {
+            CorrelatedSubselects.ExplodingSub ex =
+                    corrSubs.explodingSubselect(cs, aj,
+                            Type.requireRelationSchema(withJoins.info().type()));
+            joinTarget = ex.target();
+            joinTargetRow = ex.row();
+            joinCond = ex.cond();
+        }
+        // the ON-form and exploding shapes rebuild the target after
+        // the association join widened it: the condition's routed keys
+        // are MEMBER columns the union arms project on demand (B3.1)
+        TypedSpec widened = StackBuilder.demandForCondition(joinTarget, joinCond, 1);
+        if (widened != joinTarget) {
+            joinTarget = widened;
+            joinTargetRow = Type.requireRelationSchema(widened.info().type());
+        }
+        Type.RelationType leftRow =
+                Type.requireRelationSchema(withJoins.info().type());
+        List<Type.Column> cols =
+                new ArrayList<>(leftRow.columns());
+        for (Type.Column c
+                : joinTargetRow.columns()) {
+            cols.add(new Type.Column(
+                    aj.prefix() + c.name(), c.type(), c.multiplicity()));
+        }
+        return new TypedJoin(withJoins,
+                joinTarget,
+                // §4AD P1 placement bit (INNER = row-dropping)
+                aj.rowDropping() ? AssociationJoins.innerKind() : AssociationJoins.leftKind(),
+                java.util.Objects.requireNonNull(joinCond, "joinCond"),
+                Optional.of(aj.prefix()),
+                ViewFrames.frameNameOf(ctx, aj.target()),
+                new ExprType(
+                        Type.relation(new Type.RelationType(cols)),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE),
+            false /* resolver-synth */);
+    }
+
+    /** PHASE 2c — the aggregated navigations' grouped subselects folded
+     * onto the joined pipeline (the rest of {@link #foldAssociationJoins}). */
+    private JoinedPipe foldAggregatedNavigations(ClassSource cs,
+            Pipelines.Materialized m, TypedSpec joinedPipe,
+            Map<String, AssociationJoins.AssocJoin> aggMaterials,
+            Map<String, List<AggDemand>> aggDemands,
+            Map<String, AssociationJoins.AssocJoin> chainMids) {
+        TypedSpec withJoins = joinedPipe;
         // 2c. AGGREGATED navigations (the engine's subAggregation shape):
         // per to-many head, ONE grouped subselect — the target pipeline
         // grouped by the association's target-side equi-key columns (names
@@ -3080,6 +3097,10 @@ public final class StoreResolver {
         collectOpDemand(ops, cs0, filterPaths, projectionPaths, aggDemands);
         CorrelatedSubselects.aggScanFilters(ops, cs0, aggDemands,
                 this::isToManyAssocHead, this::isAssocOrNavHead);
+        // the paths the OPS read, before the terminal's join them: a
+        // positional cut's other navigations join above it (CutBeforeFanOut)
+        Set<List<String>> opPaths = new LinkedHashSet<>(filterPaths);
+        opPaths.addAll(projectionPaths);
         if (tree == null && implicitSerialize) {
             tree = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++).synthesizeScalarTree(cs0);
         }
@@ -3174,6 +3195,17 @@ public final class StoreResolver {
                 navPlan.compositeConds().keySet());
         List<AssociationJoins.AssocJoin> assocJoins = assocPlan.assocJoins();
         Map<String, AssociationJoins.AssocJoin> joinsByChain = assocPlan.joinsByChain();
+        // a positional cut counts OBJECTS: the projection's to-many joins
+        // no op reads fold above the ops (CutBeforeFanOut, 2026-10-27)
+        List<AssociationJoins.AssocJoin> aboveCut = tree != null
+                || !chainSpecs.isEmpty() ? List.of()
+                : CutBeforeFanOut.joinsAbove(ctx, cs, ops, top, opPaths,
+                        joinsByChain, assocJoins);
+        Set<AssociationJoins.AssocJoin> movedJoins =
+                java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        movedJoins.addAll(aboveCut);
+        List<AssociationJoins.AssocJoin> belowCut = assocJoins.stream()
+                .filter(aj -> !movedJoins.contains(aj)).toList();
 
         // subType(@Sub) casts dispatch through the SUBTYPE's binding
         // table (same-source inheritance) — registered after
@@ -3207,10 +3239,20 @@ public final class StoreResolver {
                 assocs, existsSubs, this::nestedScope);
 
         JoinedPipe joined = foldAssociationJoins(cs, m, keyWidenedPipe,
-                assocJoins, aggMaterials, aggDemands, chainMids);
+                belowCut, aggMaterials, aggDemands, chainMids);
         m = joined.m();
         // form-2 outer-nav dates: windows over the JOINED frame (Leg 2)
         m = temporal.applyOuterNavDateFilters(cs, m, joinsByChain);
+        // the rows the ops cut: every join but those above the cut, which
+        // the whole row (the substitutions' schema) carries after them
+        final TypedSpec cutRows = m.pipeline();
+        if (!aboveCut.isEmpty()) {
+            TypedSpec whole = cutRows;
+            for (AssociationJoins.AssocJoin aj : aboveCut) {
+                whole = foldAssociationJoin(cs, whole, aj);
+            }
+            m = new Pipelines.Materialized(whole, m.slotPrefixes(), m.stripped());
+        }
         List<AssociationJoins.AssocJoin> aggAssocJoins = joined.aggAssocJoins();
         Map<TypedSpec, Substitution.AggRead> aggReads = joined.aggReads();
 
@@ -3229,7 +3271,7 @@ public final class StoreResolver {
         String fresh = CorrelatedSubselects.freshRowVar(cs, ops, top,
                 assocJoins, aggAssocJoins, existsSubs,
                 () -> freshVarCounter++);
-        TypedSpec pipeline = m.pipeline();
+        TypedSpec pipeline = cutRows;
         final Context closedCtx = context;   // a self-contained from() in a predicate resolves first (72b)
         for (int i = ops.size() - 1; i >= 0; i--) {
             pipeline = switch (ops.get(i)) {
@@ -3254,6 +3296,18 @@ public final class StoreResolver {
                 case TypedDistinct d -> instanceDistinct(cs, m, pipeline);
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
             };
+        }
+        if (!aboveCut.isEmpty()) {
+            // the projection's joins over the cut rows, in the order asked
+            pipeline = CutBeforeFanOut.rebase(m.pipeline(), aboveCut.size(),
+                    cutRows, pipeline);
+            TypedSortBy order = CutBeforeFanOut.outermostSort(ops);
+            if (order != null) {
+                pipeline = new TypedSortBy(pipeline,
+                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fresh,
+                                order.key(), context).rewriteLambda(order.key()),
+                        order.ascending(), order.keyAlias(), pipeline.info());
+            }
         }
 
         if (tree != null) {   // 4a. GRAPH terminal (H4a snapshot envelope)
