@@ -1,9 +1,9 @@
 // THE TRADING DESK LIVE IN THE TAB (docs/DUCKDB_LIVE_2026_10_25.md L3): where the page names no market world's server
-// (page-config.ts `market` absent -- DataCube's static site, no config at all), the same desk opens over the market world
-// run in this tab: the market's tables in the tab's own DuckDB, the world (L2) writing them, every grid of the desk its
-// own live reader (L1), following what its views read and ticking when those rows change -- the Deephaven host's shape
-// (deephaven/market/host.ts), the server's place taken by the tab. The same saved page, the same model and screens: only
-// the connections differ (model.ts MARKET_TAB: the runtime's two connections on DuckDB).
+// (page-config.ts `market` absent -- DataCube's static site, no config at all), the same desk (deephaven/market/desk.ts)
+// opens over the market world run in this tab: the market's tables in the tab's own DuckDB, the world (L2) writing them,
+// every grid of the desk its own live reader (L1), following what its views read and ticking when those rows change --
+// the desk's engine the tab where the Deephaven host's is the server (deephaven/market/host.ts). The same saved page,
+// the same model and screens: only the connections differ (model.ts MARKET_TAB: the runtime's two connections on DuckDB).
 //
 // LAZY: nothing is fetched or started with the page. The market starts when the desk is opened from Open…'s Examples, or
 // when a saved page of it first asks for its rows: the trading model fetched and held by a module of its own, its tables
@@ -15,14 +15,12 @@ import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts
 import type { ResultTable } from '../../../engine-client/src/result.ts';
 import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import { measured } from '../../../engine-client/src/timeline.ts';
-import type { GridRows, LiveGrid, LiveRows, Services } from '../../src/app/services.ts';
+import type { GridRows, LiveGrid, LiveRows } from '../../src/app/services.ts';
 import type { Planner } from '../../src/cube.ts';
-import type { ExamplePage } from '../../src/examples/catalog.ts';
 import type { LitePlanner } from '../../src/lite-planner.ts';
 import { PlanThenRun } from '../../src/runner.ts';
-import type { Market } from '../deephaven/market/host.ts';
+import { fetched, openDesk, type Market, type Started } from '../deephaven/market/desk.ts';
 import { MARKET_RUNTIME, MARKET_TAB, MARKET_TAB_MODEL } from '../deephaven/market/model.ts';
-import { DESK, MARKET_PROJECT, type MarketValues, type SourceTypes } from '../deephaven/market/screens.ts';
 import type { LiveMarket } from './live-market.ts';
 import type { MarketSettings } from './market.ts';
 
@@ -44,12 +42,8 @@ export interface LocalMarketOptions {
   readonly tape?: number;
 }
 
-/** The market once started: the trading model's text and the whole model's, the module holding it, the live engine and
- *  the world. */
-interface Started {
-  readonly corpus: string;
-  readonly model: string;
-  readonly planner: LitePlanner;
+/** The market once started (desk.ts Started): with the live engine and the world. */
+interface Running extends Started {
   readonly market: LiveMarket;
 }
 
@@ -65,13 +59,8 @@ const ABOUT = 'A trading floor on one page, a tab a screen, every figure compute
  * is opened or a saved page of it reads its rows (above).
  */
 export function openLocalMarket(o: LocalMarketOptions): Market {
-  let started: Promise<Started> | undefined;
-  const start = (): Promise<Started> => (started ??= (async () => {
-    const fetched = async (what: string, url: string): Promise<string> => {
-      const answered = await fetch(url);
-      if (!answered.ok) throw new Error(`${what} (${url}) answered ${answered.status}`);
-      return answered.text();
-    };
+  let started: Promise<Running> | undefined;
+  const start = (): Promise<Running> => (started ??= (async () => {
     const [corpus, desk] = await Promise.all([fetched('the trading model', o.model), fetched("the desk's model", o.deskModel)]);
     const model = MARKET_TAB_MODEL(corpus, desk);
     const planner = o.planner.withModel(model, MARKET_RUNTIME);
@@ -147,49 +136,24 @@ export function openLocalMarket(o: LocalMarketOptions): Market {
     return { runner: new PlanThenRun(later(() => held(text)), new Reading(own)), rows };
   };
 
-  /** What the desk's page is written from: its sources' columns, as the module types them, and its starting values. */
-  const types = (s: Started): SourceTypes => async (text) => (await s.planner.relationTypeText(text)).map((c) => ({ name: c.name, type: c.type }));
-  const values = (s: Started): MarketValues => async (text) => {
-    const plan = await s.planner.planText(text);
-    const reader = await s.market.live.reader();
-    try {
-      const column = (await reader.execute(plan, 1)).columns[0];
-      return column === undefined ? [] : [...column.values].filter((v) => v !== null && v !== undefined).map(String);
-    } finally {
-      void reader.close();
-    }
-  };
-
-  // the project's connections, a file of its own: the page's text, served by the browser from memory
-  const connections = URL.createObjectURL(new Blob([MARKET_TAB()], { type: 'text/plain' }));
-  return {
-    over: (services) => {
-      const { engine: tab, queries } = services;
-      if (queries === undefined) throw new Error('the market\'s screens are saved queries: this page reads none');
-      /** The model's elements, read once: the trading corpus's (deephaven/market/host.ts says why not the desk's own). */
-      let elements: Promise<unknown[]> | undefined;
-      const corpusElements = async (): Promise<unknown[]> => tab.reading.elements((await start()).corpus);
-      return {
-        ...services,
-        engine: {
-          ...tab,
-          reading: {
-            parse: (text) => tab.reading.parse(text),
-            // the market's project's model ends in its connections, this host's own file: any other is the tab's
-            elements: (text) => (text.endsWith(MARKET_TAB()) ? (elements ??= corpusElements()) : tab.reading.elements(text)),
-          },
-          // THE ONE BRANCH: the market's runtime runs on the market in this tab
-          rows: (text, runtime, how) => (runtime === MARKET_RUNTIME ? rowsInTab(text) : tab.rows(text, runtime, how)),
-        },
-        queries: {
-          ...queries,
-          // its files in the order MARKET_TAB_MODEL joins them: the corpus, the desk's own, the connections
-          projects: [...queries.projects, { ...MARKET_PROJECT, title: 'The trader screens (the market in this tab)', models: [o.model, o.deskModel, connections] }],
-        },
-      } satisfies Services;
+  return openDesk({
+    modelUrl: o.model,
+    deskModelUrl: o.deskModel,
+    connections: MARKET_TAB(),
+    where: 'the market in this tab',
+    example: { label: LABEL, about: ABOUT },
+    start,
+    ready: false,
+    rows: rowsInTab,
+    once: async (plan) => {
+      const reader = await (await start()).market.live.reader();
+      try {
+        return await reader.execute(plan, 1);
+      } finally {
+        void reader.close();
+      }
     },
-    examples: [{ ...DESK, label: LABEL, about: ABOUT, build: async () => { const s = await start(); return DESK.build(types(s), values(s)); } }] satisfies ExamplePage[],
-  };
+  });
 }
 
 /**

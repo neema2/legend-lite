@@ -22,7 +22,7 @@ import type { TableModels } from '../src/infer.ts';
 import { pageConfig, type MarketConfig } from './page-config.ts';
 // the tab's planner's class, which the tab loads at its start (planners.ts): the market's planner is one of its own
 import { LitePlanner } from '../src/lite-planner.ts';
-import type { Market } from './deephaven/market/host.ts';
+import type { Market } from './deephaven/market/desk.ts';
 import { browserServices } from '../src/services/browser.ts';
 import { openDataCube } from '../src/app/datacube-app.ts';
 import type { PlaneService, PlaneWord, Sample, Services } from '../src/app/services.ts';
