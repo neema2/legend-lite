@@ -3,16 +3,20 @@
 // page with no join loads no more of one (join.ts, what it becomes, is fetched with the first join: bundle-budget). What
 // is wrong with a column's name or type is the compiler's to say, as it types what join.ts writes.
 
-import { ProtocolError, readLambda, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { ExactNumber, ProtocolError, readLambda, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { CubeRefusal } from './snapshot.ts';
 
 /** A join's kind: matching rows only, all of mine, all of theirs, everything. */
 export type JoinKindWord = 'inner' | 'left' | 'right' | 'full';
 export const JOIN_KINDS: readonly JoinKindWord[] = ['inner', 'left', 'right', 'full'];
 
-/** A row's comparison. */
-export type JoinOp = '==' | '!=' | '<' | '<=' | '>' | '>=';
-export const JOIN_OPS: readonly JoinOp[] = ['==', '!=', '<', '<=', '>', '>='];
+/** A row's comparison: `~` similar text, at most `within` edits apart (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a flow's
+ *  Fuzzy Match, Alteryx's: `levenshteinDistance`). */
+export type JoinOp = '==' | '!=' | '<' | '<=' | '>' | '>=' | '~';
+export const JOIN_OPS: readonly JoinOp[] = ['==', '!=', '<', '<=', '>', '>=', '~'];
+
+/** How many edits apart two similar texts may be, when a row does not say. */
+export const SIMILAR_WITHIN = 2;
 
 /** Which way an as-of join's nearest row is: at or before mine (`>=`), strictly before (`>`), at or after, after. */
 export type AsOfOp = '>=' | '<=' | '>' | '<';
@@ -23,6 +27,8 @@ export interface JoinRow {
   readonly left: string;
   readonly op: JoinOp;
   readonly right: string;
+  /** A `~` row's edits apart at most (SIMILAR_WITHIN when not said); no other row's. */
+  readonly within?: number;
 }
 
 /**
@@ -47,6 +53,15 @@ export type JoinHow =
   | { readonly form: 'semi' | 'anti'; readonly on: JoinCondition }
   /** The rows of both, columns matched by name: a column one side lacks is empty on its rows. */
   | { readonly form: 'append' };
+
+/** A join of every row of mine with every row of theirs: matching rows only, on no condition (Alteryx's Append Fields;
+ *  docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- the Join window's Every pair, a flow's Append Fields box. */
+export const isEveryPair = (how: JoinHow): boolean =>
+  how.form === 'join' && how.kind === 'inner' && 'rows' in how.on && how.on.rows.length === 0;
+
+/** A join pairing rows by similar text: a row of its condition `~` (a flow's Fuzzy Match box). */
+export const isFuzzy = (how: JoinHow): boolean =>
+  how.form === 'join' && 'rows' in how.on && how.on.rows.some((r) => r.op === '~');
 
 export type JoinForm = JoinHow['form'];
 export const JOIN_FORMS: readonly JoinForm[] = ['join', 'asOf', 'semi', 'anti', 'append'];
@@ -76,15 +91,26 @@ function name(raw: unknown, what: string): string {
   return raw;
 }
 
-function readRow<Op extends string>(raw: unknown, what: string, ops: readonly Op[]): { left: string; op: Op; right: string } {
-  const o = object(raw, what, ['left', 'op', 'right']);
+function readRow<Op extends string>(raw: unknown, what: string, ops: readonly Op[]): { left: string; op: Op; right: string; within?: number } {
+  const o = object(raw, what, ['left', 'op', 'right', 'within']);
   if (typeof o['op'] !== 'string' || !(ops as readonly string[]).includes(o['op'])) {
     throw new CubeRefusal(`${what}'s comparison is one of ${ops.join(' ')}, not ${JSON.stringify(o['op'])}`);
   }
-  return { left: name(o['left'], `${what}'s left`), op: o['op'] as Op, right: name(o['right'], `${what}'s right`) };
+  // a similar row's edits apart: a whole number from 0, and no other row's -- read as a page's document holds a number
+  // (an ExactNumber, written as Python's JSON is read) or as one
+  const given = o['within'];
+  const within = given instanceof ExactNumber ? Number(given.text) : given;
+  if (within !== undefined && o['op'] !== '~') throw new CubeRefusal(`${what} compares by ${o['op']}: only a ~ row is within some edits`);
+  if (within !== undefined && (typeof within !== 'number' || !Number.isInteger(within) || within < 0)) {
+    throw new CubeRefusal(`${what}'s edits apart are a whole number from 0, not ${given instanceof ExactNumber ? given.text : JSON.stringify(given)}`);
+  }
+  return { left: name(o['left'], `${what}'s left`), op: o['op'] as Op, right: name(o['right'], `${what}'s right`),
+    ...(within !== undefined ? { within: within as number } : {}) };
 }
 
-function readCondition(raw: unknown, what: string): JoinCondition {
+/** A condition read field by field as a join source keeps it (its `on`), or why not (CubeRefusal): a Join's L and R
+ *  keep one too (cube-document.ts JoinInput.unmatched). */
+export function readJoinCondition(raw: unknown, what: string): JoinCondition {
   const o = object(raw, what, ['rows', 'lambda']);
   if ('rows' in o === 'lambda' in o) throw new CubeRefusal(`${what} is rows or a lambda, one of them`);
   if ('rows' in o) {
@@ -126,21 +152,21 @@ export function readJoinHow(raw: unknown): JoinHow {
         throw new CubeRefusal(`a join's kind is one of ${JOIN_KINDS.join(', ')}, not ${JSON.stringify(o['kind'])}`);
       }
       return {
-        form, kind: o['kind'] as JoinKindWord, on: readCondition(o['on'], "a join's condition"), prefix: readPrefix(o['prefix']),
+        form, kind: o['kind'] as JoinKindWord, on: readJoinCondition(o['on'], "a join's condition"), prefix: readPrefix(o['prefix']),
         keep: readKeep(o['keep']),
       };
     }
     case 'asOf': {
       const o = object(raw, 'an as-of join', ['form', 'match', 'on', 'prefix', 'keep']);
       return {
-        form, match: readRow(o['match'], "an as-of join's match", AS_OF_OPS), on: readCondition(o['on'], "an as-of join's condition"),
+        form, match: readRow(o['match'], "an as-of join's match", AS_OF_OPS), on: readJoinCondition(o['on'], "an as-of join's condition"),
         prefix: readPrefix(o['prefix']), keep: readKeep(o['keep']),
       };
     }
     case 'semi':
     case 'anti': {
       const o = object(raw, `a ${form}-join`, ['form', 'on']);
-      return { form, on: readCondition(o['on'], `a ${form}-join's condition`) };
+      return { form, on: readJoinCondition(o['on'], `a ${form}-join's condition`) };
     }
     case 'append':
       object(raw, 'an append', ['form']);
@@ -148,6 +174,30 @@ export function readJoinHow(raw: unknown): JoinHow {
     default:
       throw new CubeRefusal(`a join's form is one of ${JOIN_FORMS.join(', ')}, not ${JSON.stringify(form)}`);
   }
+}
+
+/** A row's comparison turned round: mine `<` theirs is theirs `>` mine. */
+const MIRRORED: Readonly<Record<JoinOp, JoinOp>> = { '==': '==', '!=': '!=', '<': '>', '<=': '>=', '>': '<', '>=': '<=', '~': '~' };
+
+/**
+ * WHAT PAIRS A SIDE'S ROW WITH NONE (a Join's L and R: docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.3): the condition an
+ * anti-join of that side against the other is on -- the join's own for its Left; for its Right, turned round (each row's
+ * columns swapped and its comparison mirrored, a Pure condition's two rows named the other way). Refused in words: a
+ * Union (it keeps every row of both), an as-of join (each row of mine has its nearest or none: a join's left kind says
+ * it), a join's Pure condition (it names their columns as the join brings them out, prefixed; an anti-join, by their own).
+ */
+export function unmatchedOn(how: JoinHow, side: 'left' | 'right'): JoinCondition {
+  if (how.form === 'append') throw new CubeRefusal('a Union keeps every row of both: none is left unmatched');
+  if (how.form === 'asOf') throw new CubeRefusal("an as-of join's rows of mine with no nearest row are its left kind's: it has no Left and Right unmatched");
+  const on = how.on;
+  if ('rows' in on) {
+    return side === 'left' ? on : { rows: on.rows.map((r) => ({ left: r.right, op: MIRRORED[r.op], right: r.left, ...(r.within !== undefined ? { within: r.within } : {}) })) };
+  }
+  if (how.form === 'join') {
+    throw new CubeRefusal('its condition is Pure, naming their columns as the join brings them out: set it by rows to read its Left and Right unmatched');
+  }
+  const [mine, theirs] = on.lambda.parameters;
+  return side === 'left' ? on : { lambda: { ...on.lambda, parameters: [theirs!, mine!] } };
 }
 
 /** An input as a key is suggested over it: what it is called and its columns -- no relation needed (a menu's). */

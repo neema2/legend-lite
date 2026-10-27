@@ -27,28 +27,31 @@
 // the board put at the page it makes (CubePage.sync); what the grids change of themselves (a view, a chart following
 // it) is kept as they leave it. Undo and Redo put the board at a step the same way.
 
-import { CubePage, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
+import { CubePage, type FlowStep, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
+import type { FileHandle, HandleRead } from '../file-handles.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
-import { tiles } from '../layout/bands.ts';
 import {
-  filtersFor, keptFor, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument, type PageView,
+  boxCubes, cubesHeld, filtersFor, keptFor, layoutTiles, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument,
+  type PageView,
   type PageViews,
 } from '../page-document.ts';
 import { conditionWords, filterWords, gridLens, type PageFilter } from '../page-filters.ts';
 import type { BarClass, BarFilter, PageFilterBar } from '../ui/page-filter-bar.ts';
+import type { TsTogether } from '../ui/timeseries-view.ts';
 import type { QueryLens } from '../runner.ts';
 import { CubeRefusal, sameValue, type FilterNode } from '../snapshot.ts';
 import {
   applyToState, idsOf, selectionRefilters, takenIds, type PageCommand, type PageDraft,
 } from '../page-commands.ts';
 import { applyPlanned, namedUnder } from '../page-between.ts';
-import { pageCommand } from '../page-gestures.ts';
+import { pageCommand, tidyCommands } from '../page-gestures.ts';
 import { PageState } from '../page-state.ts';
 import { givenName } from '../page-names.ts';
 import type { PageModelRef } from '../page-model.ts';
-import { configurationOf, openCube, type CubeDocument, type CubeSource } from '../cube-document.ts';
+import { configurationOf, openCube, type CubeDocument, type CubeSource, type InputPort } from '../cube-document.ts';
 import type { GridCopy } from '../page-document.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { CubeConfiguration } from '../config.ts';
@@ -57,6 +60,8 @@ import type { TreeState } from '../tree.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import { lazily } from '../lazily.ts';
 import { longPressMenus } from '../ui/long-press.ts';
+import type { FlowTool, StepEditor } from '../flow-boxes.ts';
+import type { FlowPoint, LineEnd } from '../layout/flow-board.ts';
 
 /** What the page needs of a grid on it (a CubeApp in a tile). */
 export interface PageGrid extends SpawnedGrid {
@@ -66,6 +71,8 @@ export interface PageGrid extends SpawnedGrid {
   saveRefusal(): string | undefined;
   /** Its Settings window; and settings saved elsewhere, in effect here too. */
   openSettings(): void;
+  /** The keyboard's shortcuts, in their window (the page's View ▸ Keyboard Shortcuts…). */
+  showShortcuts(): void;
   useSettings(values: SettingValues): void;
   /** Its configuration: a lone grid's report title names the page, and its title bar setting folds the page's bar. */
   readonly configuration: CubeConfiguration;
@@ -109,6 +116,10 @@ export type GridMaker = (host: HTMLElement, options: SpawnOptions, start?: GridS
 export interface PageAppOptions {
   /** Where the page goes: it fills it. */
   readonly host: HTMLElement;
+  /** A text box's file read again by its fingerprint, from what the host kept for this page (cube-page.ts textFile). */
+  readonly textFile?: (sha256: string, click: boolean) => Promise<HandleRead | undefined>;
+  /** A text box's file picked again with its handle: kept for the saved page it is (cube-page.ts keepTextFile). */
+  readonly keepTextFile?: (sha256: string, handle: FileHandle) => void;
   /** The page's name, in its bar's name box, until `setTitle`. */
   readonly title?: string;
   /**
@@ -127,8 +138,10 @@ export interface PageAppOptions {
   readonly empty: (slot: HTMLElement) => void;
   /** New ▸ Data Source…: the host's picker, its grid's maker; undefined when nothing was chosen. */
   readonly openSource?: () => Promise<GridMaker | undefined>;
-  /** New ▸ Blank Page: the host clears the page (asking first about unsaved changes). */
+  /** New Page: the host clears the page (asking first about unsaved changes). */
   readonly onBlankPage?: () => void;
+  /** Why New Page and Data Source… cannot act yet (the host's start under way), or undefined: greyed, saying so. */
+  readonly starting?: () => string | undefined;
   /** Something on the page changed: a grid's state, a chart, the layout, a title. */
   /** The sheets changed, or another is shown (its tab clicked, a page opened on it): a host's live grids that waited
    *  while no sheet shown showed them run now (`showsGrid`). */
@@ -145,11 +158,29 @@ export interface PageAppOptions {
   readonly pageNow?: (name: string) => PageDocument | undefined;
   /** Say a refusal to the person (the host's way: a page of its own alerts). */
   readonly refuse?: (text: string) => void;
+  /** The grids of `cubes` opened together for a timeseries series that combines them (page/cube-page.ts
+   *  CubePageOptions.together): where the page plans and runs its own SQL. */
+  readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
   /**
    * The host's readout (where the planner runs, what went wrong), at the right of the page's FIRST grid's status bar
    * -- it moves when another grid becomes the first -- on each of that bar's renders.
    */
   readonly hostStatus?: (slot: HTMLElement) => void;
+  /**
+   * A FLOW'S BOX SHOWN (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): its grid's maker, its source opened by the
+   * host over `document`, its cube as `page` (the page as it is now) has it -- its live inputs read there; undefined when
+   * the person gave up. Absent, a box's rows are not shown.
+   */
+  readonly openBox?: (box: string, document: CubeDocument, page: PageDocument) => Promise<GridMaker | undefined>;
+  /** A tool of a flow's palette picked: a box of it on flow `sheet`, after box `after` (none: on its own), made by the
+   *  host over the page as it is now -- its settings (`editor`) opened on its grid once it is made (PageGrid.openStep). */
+  readonly onFlowTool?: (tool: FlowTool, after: string | undefined, sheet: string, page: PageDocument, editor: StepEditor | undefined,
+    into?: LineEnd, port?: InputPort, at?: FlowPoint, step?: FlowStep) => void;
+  /** A file dropped onto a flow's canvas: an Input box over it, opened by the host as its picker opens a file. */
+  readonly onFlowFile?: (file: File) => void;
+  /** A flow's Join or Union box's settings asked for: the Join window over its inputs, opened by the host over the page
+   *  as it is now (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
+  readonly onFlowJoin?: (box: string, sheet: string, page: PageDocument) => void;
 }
 
 export class PageApp {
@@ -226,7 +257,7 @@ export class PageApp {
     this.#burger = doc.createElement('button');
     this.#burger.type = 'button';
     this.#burger.className = 'dc-titlebar-menu';
-    this.#burger.textContent = '≡';
+    this.#burger.append(chromeIcon(doc, 'menu'));
     this.#burger.title = 'The page\'s menu';
     this.#burger.setAttribute('aria-label', 'Page menu');
     this.#burger.setAttribute('aria-haspopup', 'menu');
@@ -248,6 +279,7 @@ export class PageApp {
     this.#sheetTabs = new SheetTabs(doc, {
       onShow: (id) => this.#page.showSheet(id),
       onAdd: () => this.#page.addSheet(),
+      onAddFlow: () => this.addFlow(),
       onRename: (id, name) => this.#page.renameSheet(id, name),
       onMove: (id, to) => this.#page.moveSheet(id, to),
       onRemove: (id) => this.#removeSheet(id),
@@ -646,7 +678,12 @@ export class PageApp {
    * A GRID ON THE PAGE, made by `make` in a tile like any other: beside `near` while its band has room, else below;
    * a saved page's under its saved `id` and `title`. Returns its id.
    */
-  addGrid(make: GridMaker, how: { readonly id?: string; readonly title?: string; readonly near?: string } = {}): string {
+  addGrid(make: GridMaker, how: {
+    readonly id?: string; readonly title?: string; readonly near?: string;
+    /** The step it is part of: its name, and the commands told after its addGrid (a box put on a line: the box the line
+     *  went into reading it). */
+    readonly label?: string; readonly after?: (id: string) => readonly PageCommand[];
+  } = {}): string {
     const id = this.#page.addGridOver(this.#maker(make), how);
     this.#paintEmpty();
     return id;
@@ -657,6 +694,24 @@ export class PageApp {
     await this.#page.opened();
   }
 
+  /** A box added from a flow's palette as `tool`: drawn as that tool, not set yet, until its grid does something (the
+   *  screen's: a page saved with it says what its grid does). */
+  boxAddedAs(id: string, tool: FlowTool): void {
+    this.#page.boxAddedAs(id, tool);
+  }
+
+  /** Create ▸ Flow: a flow sheet after the last, shown -- an empty canvas, its palette beside it
+   *  (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4). Its id. */
+  addFlow(): string {
+    return this.#page.addFlow();
+  }
+
+  /** Each file on the page's text boxes, with its handle where this session has one: the host keeps them when the page
+   *  is saved (CubePage.textFilesNow). */
+  textFilesNow(): { readonly sha256: string; readonly handle?: FileHandle }[] {
+    return this.#page.textFilesNow();
+  }
+
   /** New ▸ Data Source…: the host's picker, and the grid it makes beside the others. */
   async addSource(near?: string): Promise<string | undefined> {
     const make = await this.#options.openSource?.();
@@ -664,7 +719,7 @@ export class PageApp {
     return this.addGrid(make, near !== undefined ? { near } : {});
   }
 
-  /** Every tile gone -- grids, charts, kept grids -- and the new page shown, unnamed (Blank Page; opening in place). */
+  /** Every tile gone -- grids, charts, kept grids -- and the new page shown, unnamed (New Page; opening in place). */
   clear(): void {
     // a new page, as DataCube starts one (page-document.ts newPage, the one skeleton: D11, B9)
     const fresh = newPage();
@@ -770,13 +825,14 @@ export class PageApp {
   }, empty = false): PageDocument | undefined {
     const ids = this.cubes;
     // a page of no grid is no page saved; written live, it is one (`empty`: docs/DATACUBE_PAGE_KEEPER_2026_10_20.md)
-    if (ids.length === 0 && !empty) return undefined;
+    if (ids.length === 0 && this.#page.boxes.size === 0 && !empty) return undefined;
     const cubes: { id: string; cube: CubeDocument }[] = [];
     for (const id of ids) {
       const cube = this.grid(id)?.cubeDocument(name, unknown?.cubes?.get(id));
       if (!cube) return undefined;
       cubes.push({ id, cube });
     }
+    cubes.push(...this.#boxCubes());
     const views = this.views();
     const written = this.#withUnopened(cubes, views);
     return writePageOf({
@@ -806,7 +862,7 @@ export class PageApp {
    *  its grid's reading place (as page-commands.ts writes a page), the rest as they came. */
   #withUnopened(cubes: readonly { id: string; cube: CubeDocument }[], views: PageViews): { id: string; cube: CubeDocument }[] {
     if (this.#unopened.size === 0) return [...cubes];
-    const read = new Set(views.views.map((v) => v.cube));
+    const read = cubesHeld(views.views);
     const all = [...cubes, ...[...this.#unopened].filter(([id]) => read.has(id)).map(([id, cube]) => ({ id, cube }))];
     const grids = views.views.filter((v) => v.kind === 'grid').map((v) => v.cube);
     const place = (id: string): number => (grids.includes(id) ? grids.indexOf(id) : grids.length);
@@ -826,10 +882,20 @@ export class PageApp {
     }), ...kept]);
   }
 
+  /** A flow's boxes not shown, each its cube as the page has it: written as the grids' are, no grid saying it. */
+  #boxCubes(): { id: string; cube: CubeDocument }[] {
+    return [...this.#page.boxes].map(([id, cube]) => ({ id, cube }));
+  }
+
+  /** The flow's boxes not shown, by their ids: on the page, no grid made for them (a host keeps what they read). */
+  get boxes(): readonly string[] {
+    return [...this.#page.boxes.keys()];
+  }
+
   /** Why the page cannot be saved now, if it cannot: nothing on it, or a grid's own reason, named. */
   saveRefusal(): string | undefined {
     const ids = this.cubes;
-    if (ids.length === 0) return NOTHING_TO_SAVE;
+    if (ids.length === 0 && this.#page.boxes.size === 0) return NOTHING_TO_SAVE;
     for (const id of ids) {
       const grid = this.grid(id);
       const refused = grid ? grid.saveRefusal() : 'a grid on it does not know its source.';
@@ -862,20 +928,22 @@ export class PageApp {
     // its sheets first: each grid then goes on the sheet it was saved on
     this.#page.setSheets(page.sheets);
     // in the sheets' reading order; a grid no sheet has a place for, last
-    const order = page.sheets.flatMap((sheet) => tiles(sheet.layout));
+    const order = page.sheets.flatMap((sheet) => layoutTiles(sheet.layout));
     const at = (id: string): number => (order.includes(id) ? order.indexOf(id) : order.length);
     const grids = page.views.filter((v) => v.kind === 'grid').sort((a, b) => at(a.id) - at(b.id));
     const tileOf = new Map<string, string>();
+    // a flow's boxes are documents until one is shown: the board draws them from the page's cubes (CubePage.restore)
+    const boxes = boxCubes(page);
     // a cube whose source was not opened is kept as the page saved it, its views in their places (P9)
     for (const { id, cube } of page.cubes) {
-      if (makers.has(id)) continue;
+      if (makers.has(id) || boxes.has(id)) continue;
       this.#unopened.set(id, cube);
       const copy = page.copies?.[id];
       if (copy) this.#unopenedCopies.set(id, copy);
     }
     for (const view of grids) {
       const make = makers.get(view.cube);
-      if (tileOf.has(view.cube)) continue;
+      if (tileOf.has(view.cube) || boxes.has(view.cube)) continue;
       if (!make) {
         this.#page.placeUnavailable(view, this.#unopenedWhy(view.cube)!);
         continue;
@@ -884,7 +952,7 @@ export class PageApp {
     }
     for (const { id } of page.cubes) {
       const make = makers.get(id);
-      if (tileOf.has(id) || !make) continue;
+      if (tileOf.has(id) || !make || boxes.has(id)) continue;
       this.#page.keepGrid(id, this.#maker(make));
     }
     this.#page.restore(page, (cube) => tileOf.get(cube) ?? (this.#page.kept.has(cube) ? cube : undefined),
@@ -918,6 +986,8 @@ export class PageApp {
   #newBoard(): CubePage {
     return new CubePage({
       host: this.#boardHost,
+      // a chart's options float where the grids' windows do (datacube-app.ts windowHost: page.root)
+      windowHost: this.#root,
       onChange: () => {
         // a chart removed takes its click's filter with it (page-document.ts filtersFor); a chart or a grid come or
         // gone changes what each grid's lens is -- not while a page is restored, its charts not yet on the board
@@ -938,6 +1008,12 @@ export class PageApp {
       },
       onEmpty: () => this.#paintEmpty(),
       onTiles: () => this.#onTiles(),
+      // a chart's or a text box's Create ▸ Data Source…: the host's picker, as the page's ≡ has it, beside that tile
+      ...(this.#options.openSource ? { addSource: (near: string) => { void this.addSource(near); } } : {}),
+      ...(this.#options.textFile ? { textFile: this.#options.textFile } : {}),
+      ...(this.#options.keepTextFile ? { keepTextFile: this.#options.keepTextFile } : {}),
+      // what the board refuses before a command, said as a refused command is (`#refused`)
+      refuse: (words) => this.#refused(new CubeRefusal(words)),
       onSettingsChanged: (values) => {
         for (const grid of this.#live()) grid.useSettings(values);
         this.#options.onSettingsChanged?.(values);
@@ -960,8 +1036,30 @@ export class PageApp {
       // any grid it made: one the board waits to place too
       documentOf: (grid) => this.#grids.get(grid)?.grid.cubeDocument(this.#name),
       onUndo: (redo) => (redo ? this.redo() : this.undo()),
+      history: () => ({ undo: this.undoLabel, redo: this.redoLabel }),
       // a chart's click decided on its grid's source and the page's filters (page-filters.ts chartPicked)
       pickOn: (grid) => ({ source: this.grid(grid)?.cubeSource, filters: this.#filters }),
+      // a flow's box shown: its grid made by the host over the page as it is now
+      ...(this.#options.openBox ? {
+        openBox: async (box: string, document: CubeDocument) => {
+          const make = await this.#options.openBox?.(box, document, this.#state.draft.page);
+          return make === undefined || this.#disposed ? undefined : this.#maker(make);
+        },
+      } : {}),
+      ...(this.#options.onFlowFile ? { onFile: (file: File) => this.#options.onFlowFile?.(file) } : {}),
+      ...(this.#options.onFlowJoin ? {
+        onJoinBox: (box: string, sheet: string) => this.#options.onFlowJoin?.(box, sheet, this.#state.draft.page),
+      } : {}),
+      // TIDY UP: the flow's boxes placed by its own rule, one step -- or, placed so already, nothing
+      onTidy: (sheet: string) => {
+        const commands = tidyCommands(this.#state.draft.page, sheet);
+        if (commands.length > 0 && this.#edit({ label: 'Tidy Up', commands })) this.#options.onChange?.();
+      },
+      ...(this.#options.onFlowTool ? {
+        onTool: (tool: FlowTool, after: string | undefined, sheet: string, editor: StepEditor | undefined, into?: LineEnd, port?: InputPort,
+          at?: FlowPoint, step?: FlowStep) => this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into, port, at, step),
+      } : {}),
+      ...(this.#options.together ? { together: this.#options.together } : {}),
     });
   }
 
@@ -973,6 +1071,7 @@ export class PageApp {
       const cube = this.grid(id)?.cubeDocument(this.#name);
       if (cube) cubes.push({ id, cube });
     }
+    cubes.push(...this.#boxCubes());
     const views = this.views();
     const written = this.#withUnopened(cubes, views);
     const page = writePageOf({
@@ -1175,6 +1274,15 @@ export class PageApp {
     return true;
   }
 
+  /** A page edit told as its commands, one step named `label` (a flow's Join box set again by its window: its join, its
+   *  Right), applied by the one function and told as a gesture's are. Refused in their words: false, nothing changed. */
+  editPage(label: string, commands: readonly PageCommand[]): boolean {
+    if (this.#disposed || commands.length === 0) return false;
+    const done = this.#edit({ label, commands });
+    if (done) this.#options.onChange?.();
+    return done;
+  }
+
   /** Whether a grid is known here by `id` -- on the board, or let go and kept to be made again by its maker. */
   knows(id: string): boolean {
     return this.#grids.has(id) || this.#gone.has(id);
@@ -1212,14 +1320,18 @@ export class PageApp {
   /** The empty page (no tile on any sheet: the host's choices), or an empty sheet's card, or the sheet shown. */
   #paintEmpty(): void {
     this.#rehomeStatus();
-    const empty = this.empty;
-    const bare = !empty && (this.#page.sheets.find((s) => s.id === this.#page.shownSheet)?.tiles.length ?? 0) === 0;
+    const shown = this.#page.sheets.find((s) => s.id === this.#page.shownSheet);
+    // a flow shown is its canvas, empty or not: its palette is how its first box comes
+    const flow = shown?.flow === true;
+    const empty = this.empty && !flow;
+    const bare = !this.empty && !flow && (shown?.tiles.length ?? 0) === 0;
     // an empty sheet's card in the board's place (its board, with nothing on it, has nothing to draw)
     this.#boardHost.hidden = empty || bare;
     this.#empty.hidden = !empty;
     this.#emptySheet.hidden = !bare;
     this.#root.classList.toggle('dc-page-is-empty', empty);
-    this.#page.showAlone(empty ? null : this.#alone);
+    // a lone grid: no header -- its buttons at the bar's right, its state in its sheet's tab (the user, 2026-10-25)
+    this.#page.showAlone(empty ? null : this.#alone, empty ? null : this.#sheetTabs.stateSlot(this.#page.shownSheet) ?? null);
     this.#paintFilters();
   }
 
@@ -1379,39 +1491,56 @@ export class PageApp {
   }
 
   /**
-   * THE PAGE'S MENU: the page's things only -- Create (a data source, a sheet, the host's model entries, a blank page),
-   * the host's data entries, the page's layout, the host's file entries (Save, Open, Share) and Export of the page, the
-   * host's View entries, Settings.
+   * THE PAGE'S MENU, the page's things only -- never a column's or a grid's -- in the menus' one skeleton
+   * (docs/DATACUBE_UI_REVIEW_2026_10_24.md §3, "The menus"; the user, 2026-10-25): what leaves the app (a new page, the
+   * host's Open…, Save, Save As…, Share…, the page as a file); the page's history; the host's data entries; the layout;
+   * Create ▸; View ▸, the app's Settings… in it. An entry that cannot apply now is greyed, saying why.
    */
   #menuGroups(): MenuGroup[] {
     const page = this.#page;
-    const arranged = !this.empty && page.editing;
+    const noGrid = this.grids.length === 0 ? 'Open a data source first' : undefined;
+    const off = (why: string | undefined): { readonly disabled?: true; readonly hint?: string } =>
+      (why === undefined ? {} : { disabled: true, hint: why });
     const submenu = (label: string, items: MenuItem[]): MenuItem[] => (items.length > 0 ? [{ label, submenu: items }] : []);
     const groups: MenuGroup[] = [
-      // CREATE, the word of every menu (the user, 2026-10-23; menu.ts createItems): what the page makes beside what it
-      // has, the host's model entries a line apart, and a blank page, apart, which replaces everything
-      { label: '', items: submenu('Create', [
-        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…' }] : []),
-        { id: 'sheet.new' as const, label: 'Sheet', ...(page.editing ? {} : { disabled: true }) },
-        ...this.#hostItems('create').map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
-        ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'Blank Page', separated: true }] : []),
-      ]) },
-      { label: '', items: this.#hostItems('data') },
+      // OUT: a new page first (it replaces this one, the host asking first), the host's file entries, the page as a file
+      // -- one entry until a second format comes
       { label: '', items: [
-        { id: 'page.arrange', label: 'Arrange…', ...(arranged ? {} : { disabled: true }) },
-        // the page's history: each step by its name, as a grid's own Undo names its
+        ...(this.#options.onBlankPage ? [{ id: 'page.blank' as const, label: 'New Page', ...off(this.#options.starting?.()) }] : []),
+        ...this.#hostItems('file'),
+        ...(this.#options.download ? [{ id: 'page.export' as const, label: 'Export Page File…', ...off(this.saveRefusal()) }] : []),
+      ] },
+      // THE PAGE'S HISTORY: each step by its name, as a grid's own Undo names its
+      { label: '', items: [
         { id: 'page.undo', label: this.undoLabel !== undefined ? `Undo ${this.undoLabel}` : 'Undo', ...(this.undoLabel !== undefined ? {} : { disabled: true }) },
         { id: 'page.redo', label: this.redoLabel !== undefined ? `Redo ${this.redoLabel}` : 'Redo', ...(this.redoLabel !== undefined ? {} : { disabled: true }) },
-        { id: 'page.editLayout', label: 'Edit Layout', checked: page.editing },
       ] },
+      { label: '', items: this.#hostItems('data') },
+      // THE LAYOUT: a toggle that says what it will do, and flips; its layouts while it is on
       { label: '', items: [
-        ...this.#hostItems('file'),
-        ...submenu('Export', this.#options.download
-          ? [{ id: 'page.export' as const, label: 'Page File (JSON)', ...(this.saveRefusal() === undefined ? {} : { disabled: true }) }]
-          : []),
+        { id: 'page.editLayout', label: page.editing ? 'Done Editing Layout' : 'Edit Layout' },
+        { id: 'page.arrange', label: 'Arrange…',
+          ...off(this.empty ? 'Nothing on this page to arrange' : page.editing ? undefined : 'Edit Layout first') },
       ] },
-      { label: '', items: submenu('View', this.#hostItems('view')) },
-      { label: '', items: [{ id: 'view.settings', label: 'Settings...', ...(this.grids.length > 0 ? {} : { disabled: true }) }] },
+      // CREATE ▸, the word of every menu (menu.ts createItems): what the page makes beside what it has, the host's model
+      // entries a line apart
+      { label: '', items: submenu('Create', [
+        ...(this.#options.openSource ? [{ id: 'source.new' as const, label: 'Data Source…', ...off(this.#options.starting?.()) }] : []),
+        { id: 'sheet.new' as const, label: 'Sheet', ...off(page.editing ? undefined : 'Edit Layout first') },
+        // a flow (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): its boxes on a canvas, each a step
+        { id: 'sheet.newFlow' as const, label: 'Flow', ...off(page.editing ? undefined : 'Edit Layout first') },
+        { id: 'text.new' as const, label: 'Text Box' },
+        ...this.#hostItems('create').map((h, i) => (i === 0 ? { ...h, separated: true } : h)),
+      ]) },
+      // HOW THE PAGE IS SHOWN, and the app's Settings… with its Keyboard Shortcuts… -- this browser's, how every grid is
+      // drawn, not one grid's Properties (the user, 2026-10-25: under View, not a top-level entry)
+      { label: '', items: submenu('View', [
+        // only ever Hide: folded, the ≡ folds away with the bar, and its lip shows it again (the 2026-10-25 audit)
+        { id: 'page.bar', label: 'Hide the Bar' },
+        ...this.#hostItems('view'),
+        { id: 'view.shortcuts', label: 'Keyboard Shortcuts…', ...off(noGrid) },
+        { id: 'view.settings', label: 'Settings…', ...off(noGrid) },
+      ]) },
     ];
     return groups.filter((g) => g.items.length > 0);
   }
@@ -1427,6 +1556,12 @@ export class PageApp {
       case 'sheet.new':
         this.#page.addSheet();
         return;
+      case 'sheet.newFlow':
+        this.addFlow();
+        return;
+      case 'text.new':
+        this.#page.addText();
+        return;
       case 'page.arrange':
         this.#page.showLayouts(this.#burger.isConnected ? this.#burger : this.#root);
         return;
@@ -1438,6 +1573,11 @@ export class PageApp {
         return;
       case 'page.editLayout':
         this.#page.setEditing(!this.#page.editing);
+        return;
+      case 'page.bar':
+        // folded, the menu's button goes with the bar: the lip, where it was, brings it back
+        this.setBarFolded(!this.barFolded);
+        if (this.barFolded) this.#lip.focus();
         return;
       case 'page.export': {
         // the page as its host keeps it, when it keeps more than the board (a newer writer's fields, its model), as a
@@ -1456,6 +1596,11 @@ export class PageApp {
       case 'view.settings': {
         const first = this.grids[0];
         if (first !== undefined) this.grid(first)?.openSettings();
+        return;
+      }
+      case 'view.shortcuts': {
+        const first = this.grids[0];
+        if (first !== undefined) this.grid(first)?.showShortcuts();
         return;
       }
       default:

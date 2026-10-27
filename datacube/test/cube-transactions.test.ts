@@ -32,6 +32,17 @@ describe('a refused change is not a change (B1b)', () => {
     assert.deepEqual(app.snapshot.sorts, [], 'undo returns to what was on screen, never to the refused sort');
   });
 
+  it("a group's caret is drawn in the chrome's one set, and turns as it opens (found 4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md)", async () => {
+    const mark = (): string | null => chevron('EMEA').querySelector('svg')?.getAttribute('data-icon') ?? null;
+    assert.equal(mark(), 'chevronRight');
+    assert.equal(chevron('EMEA').textContent, '', 'no glyph typed');
+    chevron('EMEA').dispatchEvent(new dom.window.MouseEvent('mousedown', { bubbles: true }));
+    chevron('EMEA').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    await settle();
+    assert.equal(app.tree.isOpen(['EMEA']), true);
+    assert.equal(mark(), 'chevronDown');
+  });
+
   it('a refused expand leaves the group closed (P2-101)', async () => {
     engine.gate.fail = 'the engine said no';
     chevron('EMEA').dispatchEvent(new dom.window.MouseEvent('mousedown', { bubbles: true }));

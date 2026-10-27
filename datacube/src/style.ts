@@ -217,6 +217,16 @@ export function cellStyle(
   return style;
 }
 
+/**
+ * A COLUMN'S ALIGNMENT WHEN NONE IS SET (the user, 2026-10-25: DataCube's rule): a measure's figures right, so they line
+ * up by place value and a larger one is seen before it is read -- a pivot's value column and a total are measures;
+ * everything else left: a dimension (a year or an id grouped by too: a label), a text, a date, a text measure (a
+ * `unique`), the tree. A header is centred whatever its column (grid.css .dc-th); an alignment set wins.
+ */
+export function autoTextAlign(measure: boolean, type: string | undefined): TextAlign {
+  return measure && isNumeric(type) ? 'right' : 'left';
+}
+
 function justify(align: TextAlign): string {
   return align === 'left'
     ? 'flex-start'

@@ -53,6 +53,9 @@
 # 2026-10-21, the protocol program's leg 8, last step (docs/PROTOCOL_PROGRAM_2026_10_05.md): `door` (door/ModelFromText:
 # a text's records made the compiler's model); `parser` no longer reaches `model` (it builds records only); builtin,
 # planner and ide reach `door` (their texts' parses).
+# 2026-10-20 (the writes design's leg 7, docs/WRITES_DESIGN_2026_10_18.md §8; the plan program's step 4, the callers
+# switching to plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): driver reaches `execution_plan` -- Execution runs
+# a program that writes from its plan (executeUpstream: the plan made, run by PlanRunner, its answer's SQL reported).
 # 2026-10-23 (docs/DEEPHAVEN_PLAN_2026_10_22.md DH11, DH22): `deephaven_wire`, the messages lite writes to a Deephaven
 # server and reads back (base and json only: the WebAssembly planner carries it to the browser tab, DH21).
 # 2026-10-23 (DH23, the JS lane's base reuse): `deephaven_wire` reaches `cache` -- its SHA-256, which TeaVM carries

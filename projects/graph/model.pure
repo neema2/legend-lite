@@ -6,7 +6,7 @@
 // A property graph's relationship with properties has no element of its own in Pure: an Association is two
 // properties and nothing else. The element that CAN hold a relationship's properties, identity, mapping and
 // constraints is a class, and this profile is how a class says it is one (docs/CYPHER_STUDY_2026_10_15.md §5.6).
-// Eight stereotypes and no tags: nothing in the declaration is a string. The engine and Studio compile the profile
+// Fifteen stereotypes and no tags: nothing in the declaration is a string. The engine and Studio compile the profile
 // and its applications as they compile any; legend-lite reads them in phase F (compiler/element/GraphEdges) and
 // the Cypher island walks a pattern over an edge class as a navigation through its two ends.
 //
@@ -33,7 +33,19 @@
 //         on the epoch day (1970-01-01), the island's own carriage of a time of day finer than a TIME column holds;
 //         the island reads it as a time of day (`localtime`) of nanosecond precision. A time of day to the
 //         microsecond is a TIME column and a StrictTime property, needing no mark.
+//   Native  on a DataSpace (2026-10-19, docs/WRITES_DESIGN_2026_10_18.md §3 B): the graph is held by a NATIVE graph
+//         store, the database its elements list, whose tables nodes, node_props, rels and rel_props hold any graph (a
+//         node and its label set, a property per row, a relationship and its type and ends); the model's tables are
+//         views over them. A Cypher statement that updates the graph writes those tables.
+//   listOfDate, listOfLocalTime, listOfZonedTime, listOfLocalDateTime, listOfZonedDateTime, listOfDuration  on a
+//         Variant property (2026-10-20, docs/WRITES_DESIGN_2026_10_18.md §5): the property holds a list of values of
+//         that temporal kind, each element its text (a date as Date('1984-10-12'), a local time as Time('12:00'), a
+//         zoned date-time as DateTime('1913-01-01T00:00:00.000000000+00:00'), a duration as Duration('PT12S')).
+//         JSON has no temporal value, so the text says what an element is and the mark says what the list holds:
+//         the Cypher island reads an element of a list of dates, local times or local date-times back as that
+//         value, and returns a list of the other kinds whole (an element of one read alone is refused by name).
 Profile graph::graph
 {
-   stereotypes: [Anonymous, Edge, Open, from, to, type, nanoseconds, timeOfDay];
+   stereotypes: [Anonymous, Edge, Open, Native, from, to, type, nanoseconds, timeOfDay, listOfDate, listOfLocalTime,
+      listOfZonedTime, listOfLocalDateTime, listOfZonedDateTime, listOfDuration];
 }

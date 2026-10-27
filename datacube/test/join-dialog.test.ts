@@ -123,7 +123,7 @@ describe('the Join window', () => {
     open();
     await settle();
     const tiles = [...doc.querySelectorAll<HTMLButtonElement>('.dc-join-kind')];
-    assert.deepEqual(tiles.map((t) => t.dataset['kind']), ['left', 'inner', 'right', 'full', 'asOf', 'semi', 'anti', 'append']);
+    assert.deepEqual(tiles.map((t) => t.dataset['kind']), ['left', 'inner', 'right', 'full', 'asOf', 'semi', 'anti', 'append', 'cross']);
     const checked = (): string[] => tiles.filter((t) => t.getAttribute('aria-checked') === 'true').map((t) => t.dataset['kind']!);
     assert.deepEqual(checked(), ['left'], 'all of mine, to start');
     assert.match($('.dc-join-kind-says').textContent ?? '', /Every row of mine/);
@@ -135,6 +135,32 @@ describe('the Join window', () => {
     // each grid said with its columns, mine and theirs
     assert.deepEqual([...doc.querySelectorAll('.dc-join-count')].map((c) => c.textContent), ['3 columns', '2 columns']);
     assert.equal($('.dc-join-column-count').textContent, '2 of 2');
+  });
+
+  // a flow's Append Fields (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): every pair, no condition asked
+  it('every pair: no condition asked, their columns kept and prefixed, each of mine beside each of theirs', async () => {
+    const { asked } = open();
+    await settle();
+    form('cross');
+    await debounce();
+    assert.equal($<HTMLElement>('.dc-join-condition').hidden, true, 'no condition');
+    assert.deepEqual(asked.at(-1), { form: 'join', kind: 'inner', on: { rows: [] }, prefix: 'their_', keep: null });
+  });
+
+  // a flow's Fuzzy Match: the comparison similar, its edits apart beside it, read into the row
+  it('similar text: its edits apart shown beside it alone, and read into its row', async () => {
+    const { asked } = open();
+    await settle();
+    const op = $<HTMLSelectElement>('.dc-join-op');
+    const within = $<HTMLInputElement>('.dc-join-within');
+    assert.equal(within.hidden, true, 'an equal key has no edits apart');
+    op.value = '~';
+    op.dispatchEvent(new doc.defaultView!.Event('change', { bubbles: true }));
+    assert.equal(within.hidden, false);
+    within.value = '1';
+    within.dispatchEvent(new doc.defaultView!.Event('input', { bubbles: true }));
+    await debounce();
+    assert.deepEqual(asked.at(-1), { form: 'join', kind: 'left', on: { rows: [{ left: 'customer_id', op: '~', right: 'id', within: 1 }] }, prefix: 'their_', keep: null });
   });
 
   it('asks nothing while a condition lacks a column, and says what it needs', async () => {

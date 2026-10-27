@@ -712,6 +712,31 @@ class JavaEvalLedgerTest {
             // and passed to the dialect (SqlDialect.raw); nothing evaluated
             // 2296 -> 2297 (2026-10-16, the dialect program's Phase 3: the test-data generator's plan takes its engine-text dialect and connection from the caller, two arguments on a second line, where it hard-coded H2's; nothing evaluated); 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the cross-store plan's four engine-text renderers are one, which also writes each node's select list; nothing evaluated); 2314 -> 2281 (2026-10-08, execution plan boundary step 2: the legacy plan's two parameter readers — its text form and its walkable form, each spelling optionality, types and template parameters itself, one with a dead `many` flag — replaced by QueryParameters, the one parameter list; nothing evaluated); 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four StatementExecutor execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
             // 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the test-data specification's class is the model's, ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS, one line where PlatformTypes' took two; nothing evaluated)
+            // 2296 -> 2298 (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its PR): the
+            // datatype-to-store-type table gains the relational grammar's TIME and TIMESTAMP_NS column types (one entry
+            // each); a type mapped, nothing evaluated
+            // 2298 -> 2329 (2026-10-18, the writes design's leg 2, docs/WRITES_DESIGN_2026_10_18.md §4, L1): a store
+            // write at the statement's root is lowered to its DML statement, rendered by the dialect and handed to the
+            // database (storeWrite; its value the database's update count), the Lowerer's construction shared with
+            // lowerAndPrepare (lowererFor), and a program that writes a store runs inside one transaction
+            // (Executor.inTransaction); dispatch and sequencing, nothing evaluated in Java
+            // 2329 -> 2393 (2026-10-20, the writes design's leg 6, §8): a staged let (Pure.Lite.STAGE) is run at its
+            // turn into a temporary table of the session (stageRows: the let's rows lowered and rendered as the
+            // dialect's CREATE TEMPORARY TABLE ... AS, handed to the database), the store its table is read under
+            // (storeOf), the tables dropped once the program has run (dropStaged), and stage refused by name as a
+            // statement's value; the database computes the rows, Java sequences them
+            // 2393 -> 2394 (2026-10-20, the writes design's leg 4, §8: #SQL{...}# RETURNING): a staged let's temporary
+            // table names its columns as the staged relation does (StagedRows.columns), Postgres folding a stored
+            // column's name otherwise; one wrapped argument, a name passed, nothing evaluated
+            // 2394 -> 2380 (2026-10-20, the writes design's leg 7, §8: write plans): the staged table's name and the
+            // store it is read under moved to StagedRows (table, storeOf), which a write plan's staging names too;
+            // the executor delegates; nothing evaluated
+            // 2380 -> 2391 (2026-10-22, PR #67's review, docs/PR67_REVIEW_2026_10_22.md fixes 2, 4 and 5): a program
+            // that stages rows runs in one transaction, as one that writes does; a staged table is not dropped where
+            // the database drops it as the transaction ends (H2, SqlDialect.dropsStagedTablesWithTheirTransaction);
+            // the staged query names its columns (lowerAndPrepare's named overload, Lowerer.namedColumns); the lets
+            // around the writes are checked before the transaction opens (StagedRows.refuseLetsTheWritesChange);
+            // sequencing and one delegated check, nothing evaluated
             // 2296 -> 2297 (2026-10-18, the plan path program's step 3, the text carrier: the legacy executor hands the classes' canonical layouts to the TDS text it wraps, one more argument on its own line, so a class instance's cell is spelled over them; nothing evaluated; the executor is deleted by the program's step 10)
             // 2297 -> 2323 (2026-10-18, the plan path program's step 7: the legacy executor PLANS a side for the
             // judges, planHostSide -- the let prefix, the inliner's splice, the natives' staging, the store
@@ -721,7 +746,11 @@ class JavaEvalLedgerTest {
             // PR): the datatype-to-store-type table gains the relational grammar's TIME and TIMESTAMP_NS column types
             // (one entry each); a type mapped, nothing evaluated. -> 2326 at main's merge into the plan path branch
             // (2026-10-22, measured): both sides' lines, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2326),
+            // 2391 (main, the writes line) and 2326 (the plan path branch) -> 2419 at main's second merge into the plan
+            // path branch (2026-10-26, measured by the ledger's own run at d408e1b8: stripped code lines): main's
+            // lowererFor and the named lowerAndPrepare carry the branch's object layouts and declared egress; both
+            // sides' lines, nothing evaluated
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2419),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

@@ -486,7 +486,15 @@ public final class PureV1Api {
     public static Answer jsonAnswer(String plan, String wire) {
         return answer(500, "COMPILATION", () -> {
             // jsonPlan's own answer, handed back: read by kind, never cast (the tab's WebAssembly has no ClassCastException)
-            Json.Obj planned = Json.parseObject(plan);
+            Json.Obj planned;
+            try {
+                planned = Json.parseObject(plan);
+            } catch (IllegalArgumentException e) {
+                // the refusal names what it was reading and shows its head: a host's answer text that does not parse
+                // is otherwise a line and a column with no text to look at (2026-10-26, the arm and Windows lanes)
+                throw new IllegalArgumentException("the plan half's answer does not parse (" + e.getMessage()
+                        + "); it begins: " + head(plan), e);
+            }
             if (!(planned.has("builder") && planned.get("builder") instanceof Json.Obj builder)) {
                 throw new IllegalArgumentException("the plan answers no builder: it is not jsonPlan's");
             }
@@ -616,13 +624,24 @@ public final class PureV1Api {
     }
 
     /** {@link #tdsResult}'s writer, over the builder's and the activities' JSON and the columns' names. */
+    /** The first 200 characters of {@code text}, for a refusal that shows what it read. */
+    private static String head(String text) {
+        return text.length() <= 200 ? text : text.substring(0, 200) + "...";
+    }
+
     private static String tdsText(String builder, String activities, List<String> names, String wireRows) {
         StringBuilder out = new StringBuilder();
         out.append("{\"builder\": ").append(builder)
                 .append(", \"activities\": ").append(activities)
                 .append(", \"result\" : {\"columns\" : ").append(Json.toCompact(names))
                 .append(", \"rows\" : [");
-        Json.Node wire = wireRows.isEmpty() ? new Json.Arr(List.of()) : Json.parse(wireRows);
+        Json.Node wire;
+        try {
+            wire = wireRows.isEmpty() ? new Json.Arr(List.of()) : Json.parse(wireRows);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("the database's JSON wire does not parse (" + e.getMessage()
+                    + "); it begins: " + head(wireRows), e);
+        }
         // the database's rows, read by kind (a host's database answering otherwise is refused, never cast)
         if (!(wire instanceof Json.Arr rows)) {
             throw new IllegalArgumentException("the database's rows are not the JSON wire's array");

@@ -8,6 +8,7 @@ import contextlib
 import gc
 import io
 import json
+import re
 import os
 import sys
 import threading
@@ -100,7 +101,9 @@ class Calls(Widget):
             self.assertGreater(len(body), 50_000, name)
         # and its lazy chunks, as the loader fetches one the first time the cube needs it (a chart's code)
         chunks = Path(os.environ['LEGEND_LITE_SITE']) / 'widget-chunks'
-        render = next(f.name for f in chunks.iterdir() if f.name.startswith('chart-render-'))
+        # the chart's own drawing chunk by its name -- chart-render-<hash>.js, not the rarer kinds' or the maps' that share
+        # its prefix (2026-10-26: picked by the directory's order, the maps' 39 KB chunk came first on CI)
+        render = next(f.name for f in chunks.iterdir() if re.fullmatch(r'chart-render-[A-Z0-9]+\.js', f.name))
         status, given, _, body = self.call(cube, 'GET', '/widget-chunks/' + render)
         self.assertEqual((status, given), (200, 'text/javascript; charset=utf-8'), render)
         # the chart's drawing, ECharts' charts among it (ECharts' core is a chunk it shares with the rarer kinds')

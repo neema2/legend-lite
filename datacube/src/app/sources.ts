@@ -38,8 +38,13 @@ import {
   type JoinSource,
   type QuerySource,
   type RemoteSource,
+  type RowsSource,
   type WarehouseSource,
+  type JoinInput,
 } from '../cube-document.ts';
+import type { OpenedInputs } from '../join-open.ts';
+import { liveGrids, resolvedSource } from '../live-inputs.ts';
+import { pageToJson, type PageDocument } from '../page-document.ts';
 import { canKeepHandles, handleKey, pickDataFile, readHandle, type FileHandle } from '../file-handles.ts';
 import type { InferredModel } from '../infer.ts';
 import type { GridMaker } from '../page/page-app.ts';
@@ -53,7 +58,7 @@ import { sourceColumns } from '../source-columns.ts';
 import type { TreeState } from '../tree.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
 import { formatOf, modelLanded, tableNameOf } from '../upload.ts';
-import type { JoinRead } from './join-sources.ts';
+import type { GridStartOpened, JoinRead, JoinSourcesHost } from './join-sources.ts';
 import type { ConfiguredProject, GridRows, LiveGrid, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
 import { lazily } from '../lazily.ts';
 
@@ -77,6 +82,9 @@ export type GridPlace = {
   readonly signInAgain?: (password: string) => Promise<void>;
   /** A grid can be saved: its source, by identity (never its data). */
   readonly cubeSource?: CubeSource;
+  /** What it reads, its links resolved against its page as it opened (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): a grid
+   *  over another grid's rows, whose `cubeSource` keeps its link. A source with no link reads itself (readsOf). */
+  readonly reads?: CubeSource;
   /** A grid over a class: its class and the model's class tree, what its related columns may name (class-tree.ts). */
   readonly classTree?: ClassOf;
   /** The groups a saved cube had open. */
@@ -114,6 +122,13 @@ export type GridPlace = {
  * A SOURCE OPENED FOR A GRID: what makes the grid -- its own planner over its own model, its source written down so
  * the page can be saved -- and, a saved cube rebuilt over it, what opening it left out.
  */
+/** The page a grid is opened on and its cube's id there: what a grid over another grid's rows reads
+ *  (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1). */
+export interface GridOn {
+  readonly page: PageDocument;
+  readonly cube: string;
+}
+
 export type Opened = {
   readonly make: GridMaker;
   readonly label: string;
@@ -177,6 +192,9 @@ export interface SourcesOf {
    */
   readonly page: {
     readonly cubes: readonly string[]; readonly recoverable?: readonly string[];
+    /** A flow's boxes not shown (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): on the page, no grid made for
+     *  them -- what each read when it was last shown stays, so showing it again reads no file again. */
+    readonly boxes?: readonly string[];
     /** Its name ('' before it has one) and its model, where it has one: what a class it names is read by (K16, K17). */
     readonly title: string; readonly model: PageModelRef | undefined;
   };
@@ -197,6 +215,8 @@ export interface PageSources {
   dropUnread(): void;
   /** A grid's place, by its id. */
   place(id: string): GridPlace | undefined;
+  /** What a grid reads, by its id (readsOf: its links resolved as it opened); undefined, a grid with no source. */
+  reads(id: string): CubeSource | undefined;
   /** The files on the page now: each grid's, one per table it reads from a file (a join's leaves' among them). */
   filesNow(): GridFile[];
   /** Where a grid whose rows are not in the tab already snaps: copies of its own in the tab's database (§18.3); none
@@ -216,7 +236,13 @@ export interface PageSources {
    * the page its other editor (Python) serves, whose every source the host holds where it reads it.
    */
   reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[],
-    served?: boolean): Promise<Opened | undefined>;
+    served?: boolean, on?: GridOn): Promise<Opened | undefined>;
+  /**
+   * A NEW BOX AFTER ANOTHER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL5): a grid over `source`, another grid's rows as
+   * `page` has them, in this tab -- over `tables`, those of the grid it reads, when that grid is open (none read
+   * again) -- `capped` beside the page's others; undefined when the person gave up.
+   */
+  openedBox(source: RowsSource, page: PageDocument, how: { readonly capped: boolean; readonly tables?: readonly string[] }): Promise<Opened | undefined>;
   /** A saved query's record -- from a store, or as a share link carries it -- as a cube's source. */
   openedRecord(q: SavedQueryRecord): Promise<OpenedQuery>;
   /** A frame of the host's (Python's dataframe) for a grid: fresh, or a saved cube rebuilt over it. */
@@ -231,7 +257,12 @@ export interface PageSources {
    * Refused where the page has no database of its own (§17.3).
    */
   openedJoin(source: JoinSource, how?: { readonly saved?: CubeDocument; readonly capped?: boolean; readonly tables?: readonly string[];
-    readonly page?: string; readonly kept?: readonly string[] }): Promise<Opened | undefined>;
+    readonly page?: string; readonly kept?: readonly string[]; readonly on?: GridOn }): Promise<Opened | undefined>;
+  /** Two inputs of the Join window over this tab's tables, each resolved against its page, their leaves' tables found or
+   *  read in as a saved join's are -- a flow's boxes, whose grids are not open (app/join-sources.ts openedInputsOf). */
+  openedInputs(left: JoinInput, right: JoinInput, name: string): Promise<{
+    readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void>;
+  } | undefined>;
   /** The frames a grid reads, by its id -- its leaves' (cube-document.ts leavesOf): what following the host's frames
    *  refreshes. */
   framesOf(id: string): string[];
@@ -328,9 +359,22 @@ export function picksSources(services: Services): boolean {
     || (local !== undefined && (services.queries !== undefined || services.warehouse !== undefined));
 }
 
+/** What a grid of `place` reads (GridPlace.reads): its links resolved as it opened, else its source, which has none. */
+function readsOf(place: GridPlace): CubeSource | undefined {
+  return place.reads ?? place.cubeSource;
+}
+
 /** The page's sources, over the host's services. */
 export function pageSources(d: SourcesOf): PageSources {
-  const { services, page, gridMaker } = d;
+  const { services, page } = d;
+  /** Each maker's grid's start, by the maker: what a box after a grid over it is opened over, that grid never made
+   *  (app/join-sources.ts openedRows). */
+  const starts = new WeakMap<GridMaker, { readonly snapshot: CubeSnapshot; readonly place: GridPlace }>();
+  const gridMaker: SourcesOf['gridMaker'] = (snapshot, configuration, dimensions, place) => {
+    const make = d.gridMaker(snapshot, configuration, dimensions, place);
+    starts.set(make, { snapshot, place });
+    return make;
+  };
   const { database } = services.engine;
   /** The page's own planner and database, where it has them (the tab): what only that shape opens needs it. */
   const local = services.engine.local;
@@ -392,10 +436,19 @@ export function pageSources(d: SourcesOf): PageSources {
   const readForGrids = new Map<string, { readonly table: string; readonly file: File; readonly handle?: FileHandle }>();
   /** When each table a file was read into was read, by the table: what a grid of copies held here says of them. */
   const readAt = new Map<string, Date>();
+  /**
+   * Tables a join opening reads that a grid holds, by how many such joins: kept -- even once that grid goes, with the page
+   * it was on -- until the join's grid is made (then its own) or the join is let go (JoinSourcesHost.borrow).
+   */
+  const borrowed = new Map<string, number>();
 
   const madeGrid = (id: string, place: GridPlace): void => {
-    // its own planner: let go with the last grid planning through it (a snap's copy lets its own go with it)
+    // its own planner: let go with the last grid planning through it (a snap's copy lets its own go with it) -- and the
+    // one a grid made before under its id planned through, made anew (a flow's box shown again), once none plans by it
+    const was = gridPlanners.get(id) ?? [];
     gridPlanners.set(id, place.planner ? [place.planner] : []);
+    const still = new Set([...gridPlanners.values()].flat());
+    for (const p of was) if (!still.has(p)) p.dispose?.();
     gridPlaces.set(id, place);
     if (place.tables) gridTables.set(id, place.tables);
     for (const t of place.tables ?? []) {
@@ -421,11 +474,11 @@ export function pageSources(d: SourcesOf): PageSources {
    */
   const dropUnread = (): void => {
     // the grids on the page, and those an undo can bring back: what they read stays
-    const live = new Set([...page.cubes, ...(page.recoverable ?? [])]);
+    const live = new Set([...page.cubes, ...(page.recoverable ?? []), ...(page.boxes ?? [])]);
     const read = new Set([...live].flatMap((grid) => gridTables.get(grid) ?? []));
     for (const grid of [...gridTables.keys()]) if (!live.has(grid)) gridTables.delete(grid);
     for (const [table, fileName] of [...held]) {
-      if (read.has(table)) continue;
+      if (read.has(table) || borrowed.has(table)) continue;
       held.delete(table);
       tableFiles.delete(table);
       readAt.delete(table);
@@ -848,20 +901,93 @@ export function pageSources(d: SourcesOf): PageSources {
   // -- a join of two grids' results (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): app/join-sources.ts, fetched with it
 
   async function openedJoin(source: JoinSource, how: { readonly saved?: CubeDocument; readonly capped?: boolean;
-    readonly tables?: readonly string[]; readonly page?: string; readonly kept?: readonly string[] } = {}): Promise<Opened | undefined> {
+    readonly tables?: readonly string[]; readonly page?: string; readonly kept?: readonly string[]; readonly on?: GridOn } = {}):
+    Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} is a join, read in this tab's own database: this page has none`);
+    // a flow's Join box reads its inputs live (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): resolved against its page, as
+    // another grid's rows are -- a join of copies is as it is
+    const { on, ...rest } = how;
+    const resolved = on === undefined ? source : resolvedSource(on.page, source, gridOf(on));
+    if (resolved._type !== 'join') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
     const { openedJoin: opened } = await joinSources();
-    return opened({
+    return opened(tablesHost(local), source, resolved, rest);
+  }
+
+  async function openedInputs(left: JoinInput, right: JoinInput, name: string): Promise<{
+    readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void>;
+  } | undefined> {
+    if (!local) throw new Error(`${name} is a join, read in this tab's own database: this page has none`);
+    const { openedInputsOf } = await joinSources();
+    return openedInputsOf(tablesHost(local), left, right, name);
+  }
+
+  /** The grid of `on`'s cube on its page, when it is one of the page's (a new one is none yet). */
+  function gridOf(on: GridOn): string | undefined {
+    return on.page.views.find((v) => v.kind === 'grid' && v.cube === on.cube)?.id;
+  }
+
+  /** Another grid's rows opened where its page reads: on a host's page by the host, over what it reads -- this page has
+   *  no database or compiler of its own there -- else here (openedRows). */
+  function rowsWhere(src: RowsSource, doc: CubeDocument, several: boolean, on: GridOn,
+    how: { readonly saved?: CubeDocument; readonly capped?: boolean; readonly page?: string; readonly kept?: readonly string[] }):
+    Promise<Opened | undefined> {
+    if (!local && database.opened) return openedOnHost(src, doc, several, on);
+    return openedRows(src, on.page, on.cube, how);
+  }
+
+  /**
+   * ANOTHER GRID'S ROWS FOR A GRID (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1; app/join-sources.ts, fetched with it):
+   * `source` as its page keeps it, its link resolved against `page` -- the grid of `cube` there, when it is one of the
+   * page's (a new one is none yet), refused should it read itself back -- over the tables of this tab its chain reads,
+   * as a join's are, or over its first source as a grid over that opens (a warehouse table, a class, a saved query).
+   */
+  async function openedRows(source: RowsSource, page: PageDocument, cube: string | undefined, how: { readonly saved?: CubeDocument;
+    readonly capped?: boolean; readonly page?: string; readonly kept?: readonly string[]; readonly tables?: readonly string[] } = {}):
+    Promise<Opened | undefined> {
+    if (!local) throw new Error(`${source.name} reads another grid's rows, opened in this tab's own database: this page has none`);
+    const resolved = resolvedSource(page, source, cube === undefined ? undefined : gridOf({ page, cube }));
+    if (resolved._type !== 'rows') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
+    const { openedRows: opened } = await joinSources();
+    return opened(tablesHost(local), source, resolved, how);
+  }
+
+  /** What opening a grid over this tab's tables needs of the page's sources (app/join-sources.ts JoinSourcesHost). */
+  function tablesHost(local: LocalEngine): JoinSourcesHost {
+    return {
       local, database, services, fileFor, freshTable, joinRead, readAt, typer, letGo, gridMaker, rowsPlace,
       snapTarget: () => snapInto(local),
       readFile: (sha) => {
+        // the page opening's own copy first: the page it replaces may hold a table of the same file, which goes with it --
+        // a join that took that one read a table dropped under it (Chart gallery, then Joining tables: "sample_sales does
+        // not exist"; docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 1)
+        const mine = readForGrids.get(sha);
+        if (mine !== undefined) return mine;
         const open = [...tableFiles].find(([, f]) => f.sha256 === sha) ?? [...joinRead].find(([, r]) => r.sha256 === sha);
-        return open ? { table: open[0], file: open[1].file, ...(open[1].handle ? { handle: open[1].handle } : {}) } : readForGrids.get(sha);
+        return open ? { table: open[0], file: open[1].file, ...(open[1].handle ? { handle: open[1].handle } : {}) } : undefined;
+      },
+      borrow: (t) => {
+        borrowed.set(t, (borrowed.get(t) ?? 0) + 1);
+        let back = false;
+        return () => {
+          if (back) return;
+          back = true;
+          const n = (borrowed.get(t) ?? 1) - 1;
+          if (n > 0) borrowed.set(t, n);
+          else borrowed.delete(t);
+        };
       },
       take: (t) => { taken.add(t); },
       untake: (t) => { taken.delete(t); },
       isTaken: (t) => taken.has(t),
-    }, source, how);
+      // a box's first source, opened as a grid over it opens, that grid never made: its start (the maker's, `starts`)
+      openedStart: async (doc, several): Promise<GridStartOpened | undefined> => {
+        const opened = await reopened(doc, undefined, several);
+        if (!opened) return undefined;
+        const start = starts.get(opened.make);
+        if (!start) throw new Error(`${doc.source.name} opened with no grid to start from`);
+        return { opened, ...start };
+      },
+    };
   }
 
   // -- a frame (Python's dataframe) --------------------------------------------------------------------------------
@@ -903,8 +1029,12 @@ export function pageSources(d: SourcesOf): PageSources {
    * frame's grid's are, what opening it changed said as Python says it (`taken`: the page's `rebuilt`), and each frame it
    * reads followed as that frame's own grid follows it (the S7 audit's H-2, H-3).
    */
-  async function openedOnHost(src: CubeSource, doc: CubeDocument, capped: boolean): Promise<Opened> {
-    const opened = await database.opened!(cubeToJson(doc), doc.name, capped ? 2 : 1);
+  async function openedOnHost(src: CubeSource, doc: CubeDocument, capped: boolean, on?: GridOn): Promise<Opened> {
+    // a grid over another grid's rows reads what that grid reads: resolved on the page it opens on
+    const reads = on && liveGrids(src).length > 0 ? resolvedSource(on.page, src, gridOf(on)) : undefined;
+    // its page given: a grid over another grid's rows is opened over that grid as the page has it (§3.1)
+    const opened = await database.opened!(cubeToJson(doc), doc.name, capped ? 2 : 1,
+      on ? { page: pageToJson(on.page), id: on.cube } : undefined);
     const was = readCube(fromJson(opened.cube));
     if (was.source._type !== src._type) throw new Error(`the host opened ${src.name} as another kind of source (${was.source._type})`);
     const rows = services.engine.rows(opened.model, opened.runtime, opened.how);
@@ -920,7 +1050,8 @@ export function pageSources(d: SourcesOf): PageSources {
         notes: [...new Set([...opened.notes, ...r.notes])],
         taken: opened.taken,
         make: gridMaker(r.snapshot, r.configuration, [], {
-          ...rowsPlace(rows), cubeSource: was.source, label: src.name, ...(r.tree ? { tree: r.tree } : {}), foldPanel: capped,
+          ...rowsPlace(rows), cubeSource: was.source, ...(reads ? { reads } : {}), label: src.name, ...(r.tree ? { tree: r.tree } : {}),
+          foldPanel: capped,
           // its rows read afresh where the host reads them by every query: it snaps into a copy of its own, the host's --
           // but a class's or a saved query's, planned through a mapping or its project's own, which the host's copy is not
           ...(rows.runner && opened.how.mapping === undefined && !opened.how.project ? hostSnapPlace(opened) : {}),
@@ -1177,14 +1308,21 @@ export function pageSources(d: SourcesOf): PageSources {
    * warehouse signed in to, a remote file's keys asked for): its grid's maker, or undefined when the person gave up.
    */
   async function reopened(doc: CubeDocument, page: string | undefined, several: boolean, tables?: readonly string[],
-    served = false): Promise<Opened | undefined> {
+    served = false, on?: GridOn): Promise<Opened | undefined> {
     const src = doc.source;
+    // another grid's rows (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): over that grid as its page has it -- a page with
+    // no page given cannot say what it reads
+    if (liveGrids(src).length > 0 && on === undefined) throw new Error(`${src.name} reads another grid of its page: it is opened with its page`);
     // a grid of the page its other editor serves: every kind but a frame's opened by the host, where it reads it (H-2,
     // H-3). A page of this tab's own on a host opens its sources the tab's way -- the host holds only what was read
     // there this session, and refuses a file it does not (the S7 confirmation audit's H2-1)
     if (served && src._type !== 'frame') {
       if (!database.opened) throw new Error(`${src.name} is the host's, and this page reaches no host`);
-      return openedOnHost(src, doc, several);
+      return openedOnHost(src, doc, several, on);
+    }
+    if (src._type === 'rows') {
+      return rowsWhere(src, doc, several, on!, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}),
+        ...(tables ? { kept: tables } : {}) });
     }
     // `several`: one of a page's grids, its columns panel folded as a grid added beside others is
     if (src._type === 'savedQuery') return reopenedSavedQuery(src, doc, several);
@@ -1198,8 +1336,9 @@ export function pageSources(d: SourcesOf): PageSources {
     // page's model keeps for it
     if (src._type === 'join') {
       // on a host's page, the host opens it over the tables it holds -- this page has no database or compiler of its own
-      if (!local && database.opened) return openedOnHost(src, doc, several);
-      return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}), ...(tables ? { kept: tables } : {}) });
+      if (!local && database.opened) return openedOnHost(src, doc, several, on);
+      return openedJoin(src, { saved: doc, capped: several, ...(page !== undefined ? { page } : {}), ...(tables ? { kept: tables } : {}),
+        ...(on !== undefined ? { on } : {}) });
     }
     if (!isFileCube(doc)) throw new Error(`"${doc.name}" reads a source this page cannot open`);
     const got = await fileFor(doc.source, doc.name, page);
@@ -1301,6 +1440,10 @@ export function pageSources(d: SourcesOf): PageSources {
     madeGrid,
     dropUnread,
     place: (id) => gridPlaces.get(id),
+    reads: (id) => {
+      const place = gridPlaces.get(id);
+      return place ? readsOf(place) : undefined;
+    },
     filesNow,
     snapTarget: () => (local ? snapInto(local) : undefined),
     reserve: (names) => { for (const t of names) reserved.add(t); },
@@ -1310,12 +1453,15 @@ export function pageSources(d: SourcesOf): PageSources {
     opened,
     named,
     reopened,
+    openedBox: (source, page, how) => openedRows(source, page, undefined, how),
     openedRecord,
     openedFrame,
     openedClass,
     openedJoin,
+    openedInputs,
     framesOf: (id) => {
-      const src = gridPlaces.get(id)?.cubeSource;
+      const place = gridPlaces.get(id);
+      const src = place ? readsOf(place) : undefined;
       return src ? leavesOf(src).flatMap((l) => (l._type === 'frame' ? [l.name] : [])) : [];
     },
     frameVersion: (name) => framesRead.get(name)?.version,

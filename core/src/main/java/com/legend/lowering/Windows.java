@@ -198,6 +198,7 @@ final class Windows {
             case SqlExpr.CheckedChildValue cv -> cv;
             case SqlExpr.CheckedOne co -> co;
             case SqlExpr.CompactList cl -> cl;
+            case SqlExpr.Tagged tg -> tg;   // no reducer inside: a selection over literal candidates
             case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             case SqlExpr.Lambda l -> l;

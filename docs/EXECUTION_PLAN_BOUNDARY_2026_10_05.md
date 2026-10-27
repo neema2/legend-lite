@@ -195,6 +195,14 @@ connection.
 subset, temp-table and allocation nodes); (3) the runner for Pure test bodies (W6.2: `StatementExecutor`, typed-row
 decoding, the judges out of `exec`, the guard at zero); (4) the compatibility mode.
 
+**Write plans (the writes line, 2026-10-20; docs/WRITES_DESIGN_2026_10_18.md §8, leg 7, under its D10).** Ahead of
+phase 2, a lite plan holds the steps of a program that writes. Two nodes are new: `Update`, a statement run for its
+change, whose count a later slot may bind; and `Check`, a query run for what it raises. `PlanJson` is version 5. The
+runner runs a `Sequence` on one session, in one transaction when a step changes the database, its answer held until
+the commit. Decision A's second rule is kept by `PlanSessions.Source.openToChange`: a write never changes a database
+the runner shares. `SqlDialect.renderStatement(SqlDml)` binds a write's values. The server's `execute` answers a
+program that writes from its plan; every other query still runs the wire path until step 4.
+
 ## 9. Phase 1 — the query path
 
 **Scope.** The paths whose result is TEXT THE DATABASE BUILDS: the server's `pure/v1/execution/execute` (with

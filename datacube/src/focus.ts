@@ -9,3 +9,24 @@ export function focusedElement(doc: Document): Element | null {
   while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
   return active;
 }
+
+/**
+ * Whether a key pressed on `target` belongs to a field typing or choosing in place -- an input, a text area, a select, or
+ * contenteditable -- rather than to whatever holds it: Escape, Ctrl+Z, a shortcut, each the field's own there. One rule
+ * for every window and the cube (app.ts, ui/chart-panel.ts): a check that only looked at tag names would hand the cube's
+ * undo to someone mid-word in a contenteditable.
+ */
+export function isTextEntry(target: EventTarget | null): boolean {
+  if (!target || typeof (target as Element).closest !== 'function') {
+    return false;
+  }
+  const el = target as HTMLElement;
+  const tag = el.tagName;
+  return (
+    tag === 'INPUT'
+    || tag === 'TEXTAREA'
+    || tag === 'SELECT'
+    || el.isContentEditable === true
+    || el.closest('[contenteditable="true"]') !== null
+  );
+}

@@ -1,5 +1,5 @@
 // THE KEYBOARD SHORTCUTS, as the grid and the cube take them (grid/grid.ts #onKeyDown, app.ts's document keys): the list
-// Edit ▸ Keyboard Shortcuts... and the ? key show. Written beside the keys' own code's words, so a shortcut added there is
+// View ▸ Keyboard Shortcuts… and the ? key show. Written beside the keys' own code's words, so a shortcut added there is
 // added here; Ctrl is Cmd on a Mac wherever it is named.
 
 /** One shortcut: the keys, and what they do. */

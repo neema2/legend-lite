@@ -318,10 +318,44 @@ class PostgresParserTest {
 
     @Test
     void onlyOneQueryStatement() {
-        assertTrue(assertThrows(SqlSyntaxException.class, () -> SqlParser.parse("insert into t values (1)"))
-                .getMessage().startsWith("only queries are supported"));
+        assertTrue(assertThrows(SqlSyntaxException.class, () -> SqlParser.parse("create table t (a int)"))
+                .getMessage().startsWith("only queries and INSERT, UPDATE and DELETE are supported"));
         assertEquals("only one statement is supported",
                 assertThrows(SqlSyntaxException.class, () -> SqlParser.parse("select 1; select 2")).getMessage());
+    }
+
+    /** The writes design's leg 4 (2026-10-20): INSERT, UPDATE and DELETE as the statement itself, never inside one
+     *  (Postgres's syntax error), and refused by name as a WITH query. */
+    @Test
+    void statementsThatWriteATable() {
+        SqlAst.Insert insert = assertInstanceOf(SqlAst.Insert.class, SqlParser.parse("insert into t as x (a, b)"
+                + " values (1, 'p'), (2, null) on conflict (a) do update set b = excluded.b returning *"));
+        assertEquals(List.of("a", "b"), insert.columns().stream().map(SqlAst.Ident::text).toList());
+        assertTrue(insert.values());
+        assertEquals("x", ((SqlAst.TableName) insert.target()).alias().text());
+        assertEquals(List.of("a"), insert.onConflict().keys().stream().map(SqlAst.Ident::text).toList());
+        assertEquals(1, insert.onConflict().update().size());
+        assertEquals(1, insert.returning().size());
+        SqlAst.Insert nothing = assertInstanceOf(SqlAst.Insert.class, SqlParser.parse("insert into t select * from u"
+                + " on conflict do nothing"));
+        assertFalse(nothing.values());
+        assertNull(nothing.onConflict().update());
+        SqlAst.Update update = assertInstanceOf(SqlAst.Update.class, SqlParser.parse("update t set a = a + 1,"
+                + " b = null from u where u.k = t.k"));
+        assertNull(((SqlAst.TableName) update.target()).alias());
+        assertEquals(2, update.sets().size());
+        assertEquals(1, update.from().size());
+        SqlAst.Delete delete = assertInstanceOf(SqlAst.Delete.class, SqlParser.parse("delete from t x using u"
+                + " where x.k = u.k returning x.k"));
+        assertEquals("x", ((SqlAst.TableName) delete.target()).alias().text());
+        assertEquals(1, delete.using().size());
+        // (as Postgres reads it: INSERT is no reserved word, so the parenthesis's first word is a table's name)
+        assertEquals("syntax error at or near \"into\"", assertThrows(SqlSyntaxException.class,
+                () -> SqlParser.parse("select * from (insert into t values (1)) s")).getMessage());
+        assertTrue(assertThrows(SqlSyntaxException.class, () -> SqlParser.parse("with w as (delete from t returning"
+                + " *) select * from w")).unsupported());
+        assertTrue(assertThrows(SqlSyntaxException.class, () -> SqlParser.parse("insert into t default values"))
+                .unsupported());
     }
 
     @Test

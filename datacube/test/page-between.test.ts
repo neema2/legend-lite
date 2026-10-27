@@ -8,14 +8,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { tiles } from '../src/layout/bands.ts';
 import { applyPlanned, namedUnder, pageBetween } from '../src/page-between.ts';
 import { applyPageCommands, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from '../src/page-commands.ts';
-import { gridCopyOf, pageToJson, readPage, type ChartView, type PageDocument } from '../src/page-document.ts';
+import { gridCopyOf, pageToJson, readPage, type ChartView, type PageDocument, type TimeseriesView } from '../src/page-document.ts';
 import { textTitle } from '../src/page-ids.ts';
+import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { canonical, differing, renamedPage } from './page-same.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 const pages = await corpus();
 const trades = pages['trades.page.json']!;
@@ -42,6 +43,12 @@ function random(seed: number): () => number {
   };
 }
 
+/** A timeseries spec over `cubes` (each once), one series of the first. */
+const seriesOver = (cubes: readonly string[]): TimeseriesSpec => ({
+  sources: [...new Set(cubes)].map((cube, i) => ({ alias: `s${i}`, cube, date: 'tradeDate' })),
+  series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+});
+
 /** One edit of a page a person or Python could make, picked at random, and its name. */
 function randomEdit(rand: () => number, d: PageDraft, n: number): [string, PageCommand] {
   const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
@@ -51,6 +58,11 @@ function randomEdit(rand: () => number, d: PageDraft, n: number): [string, PageC
   const sheets = page.sheets;
   // a page with no grid (every one taken off): a sheet added, the one edit every page takes
   if (grids.length === 0) return [`add sheet ${n}`, { kind: 'addSheet', name: `Tab ${n}` }];
+  const series = page.views.filter((v): v is TimeseriesView => v.kind === 'timeseries');
+  const addSeries = (): [string, PageCommand] => [`add timeseries ${n}`, {
+    kind: 'addTimeseries', sheet: pick(sheets).id, near: null, spec: seriesOver([pick(grids).cube, pick(grids).cube]),
+    title: rand() < 0.5 ? `Series ${n}` : null, columns: null,
+  }];
   const choices: [string, () => [string, PageCommand]][] = [
     ['addSheet', () => [`add sheet ${n}`, { kind: 'addSheet', name: rand() < 0.5 ? `Tab ${n}` : null }]],
     ['renameSheet', () => [`rename sheet ${n}`, { kind: 'renameSheet', sheet: pick(sheets).id, name: rand() < 0.3 ? null : `Tab ${n} renamed` }]],
@@ -89,7 +101,7 @@ function randomEdit(rand: () => number, d: PageDraft, n: number): [string, PageC
       : [`select ${n}`, { kind: 'select', chart: pick(charts).id, conditions: rand() < 0.3 ? [] : [EMEA] }])],
     ['moveTile', () => [`move tile ${n}`, { kind: 'moveTile', tile: pick(page.views).id, sheet: pick(sheets).id, columns: null }]],
     ['stack', () => {
-      const on = tiles(pick(sheets).layout);
+      const on = layoutTiles(pick(sheets).layout);
       return [`stack ${n}`, { kind: 'stack', tiles: on.length >= 2 ? on.slice(0, 2) : on }];
     }],
     ['removeTile', () => [`remove tile ${n}`, { kind: 'removeTile', tile: pick(page.views).id }]],
@@ -99,6 +111,32 @@ function randomEdit(rand: () => number, d: PageDraft, n: number): [string, PageC
       const texts = page.views.filter((v) => v.kind === 'text');
       if (texts.length === 0) return [`add text ${n}`, { kind: 'addText', sheet: pick(sheets).id, text: `Words ${n}`, title: null, columns: null }];
       return [`set text ${n}`, { kind: 'setText', tile: pick(texts).id, text: `Words **${n}**` }];
+    }],
+    // timeseries tiles (the review's G4): made over a grid's cube or two, re-pointed at another, or at a cube kept for
+    // them alone (at times snapped), their frequency set; renamed, moved and removed as any tile above -- a grid they
+    // read removed keeps its cube for them
+    ['addTimeseries', addSeries],
+    ['setTimeseries', () => {
+      if (series.length === 0) return addSeries();
+      const tile = pick(series);
+      if (rand() < 0.5) return [`set timeseries ${n}`, { kind: 'setTimeseries', tile: tile.id, spec: seriesOver([pick(grids).cube, ...tile.spec.sources.map((x) => x.cube)].slice(0, 2)) }];
+      return [`set timeseries ${n}`, { kind: 'setTimeseries', tile: tile.id, spec: { ...tile.spec, grain: pick(['week', 'month'] as const) } }];
+    }],
+    // a cube kept for a tile alone, at times snapped -- its own choice, as detach is a chart's: a branch of another, the
+    // walks never reached it (2026-10-25)
+    ['keepForTimeseries', () => {
+      if (series.length === 0) return addSeries();
+      const tile = pick(series);
+      const cube = nextPageId(takenIds(d), 'grid');
+      const copy = rand() < 0.4 ? { ...SNAP, table: `snap_t${n}` } : null;
+      return [`keep for timeseries ${n}`, { kind: 'setTimeseries', tile: tile.id, spec: seriesOver([cube, tile.spec.sources[0]!.cube]), kept: [{ cube, document: pick(page.cubes).cube, copy }] }];
+    }],
+    // its files (§8): none, or one or two pointed to by fingerprint
+    ['setTextFiles', () => {
+      const texts = page.views.filter((v) => v.kind === 'text');
+      if (texts.length === 0) return [`add text ${n}`, { kind: 'addText', sheet: pick(sheets).id, text: `Words ${n}`, title: null, columns: null }];
+      const files = Array.from({ length: Math.floor(rand() * 3) }, (_, i) => ({ name: `f${n}-${i}.md`, size: n + i, sha256: (n * 10 + i).toString(16).padStart(64, '0') }));
+      return [`set text files ${n}`, { kind: 'setTextFiles', tile: pick(texts).id, files }];
     }],
     ['arrange', () => [`arrange ${n}`, { kind: 'arrange', sheet: pick(sheets).id, preset: pick(['side-by-side', 'stacked', 'focus-left', 'focus-top']), order: null }]],
     ['snap', () => [`snap ${n}`, { kind: 'snap', grid: pick(grids).id, copy: { ...SNAP, table: `snap_${n}` } }]],
@@ -140,6 +178,7 @@ describe('the commands between two pages take one to the other', () => {
       let pairs = 0;
       let refusals = 0;
       let honoured = 0;
+      let kept = 0;
       for (let seed = 1; seed <= SEEDS; seed += 1) {
         const { states, names } = randomWalk(start, seed, STEPS);
         const why = (i: number, j: number, scope: string): string => `seed ${seed} ${scope}, ${i} -> ${j}: ${names.slice(Math.min(i, j), Math.max(i, j)).join(' -> ')}`;
@@ -158,6 +197,7 @@ describe('the commands between two pages take one to the other', () => {
                   continue;
                 }
                 pairs += 1;
+                if (plan.some((c) => (c.kind === 'addTimeseries' || c.kind === 'setTimeseries') && c.kept !== undefined)) kept += 1;
                 // fresh ids where `b`'s are held (an undo): the page up to those ids
                 const planned = (fresh: boolean): ReturnType<typeof applyPlanned> => {
                   try {
@@ -172,9 +212,9 @@ describe('the commands between two pages take one to the other', () => {
                 // `b`'s ids honoured where none the plan gives out is held here (a page converging on its keeper's): the
                 // page exactly -- ids a keeper gives (`grid-N`: a corpus page's own names, `orders`, are never given out again)
                 const taken = new Set(takenIds(draft(a)));
-                const given = plan.flatMap((c) => (['addSheet', 'addGrid', 'addChart', 'setPageFilter'].includes(c.kind) ? [(c as { id?: string }).id] : []))
+                const given = plan.flatMap((c) => (['addSheet', 'addGrid', 'addChart', 'addTimeseries', 'setPageFilter'].includes(c.kind) ? [(c as { id?: string }).id] : []))
                   .filter((id): id is string => id !== undefined);
-                if (given.every((id) => !taken.has(id) && /^(?:grid|chart|sheet|filter)-\d+$/.test(id))) {
+                if (given.every((id) => !taken.has(id) && /^(?:grid|chart|timeseries|sheet|filter)-\d+$/.test(id))) {
                   honoured += 1;
                   const exact = planned(false);
                   assert.deepEqual(exact.renamed, {}, `${why(i, j, scope)}: no id given out afresh`);
@@ -188,6 +228,8 @@ describe('the commands between two pages take one to the other', () => {
       assert.ok(pairs > SEEDS * STEPS, `${pairs} pairs`);
       assert.ok(honoured > pairs / 2, `${honoured} of ${pairs} pairs with the ids honoured`);
       assert.ok(refusals < pairs / 10, `${refusals} refusals over ${pairs} pairs`);
+      // a timeseries tile made again, or set, with the cube it kept (G4): the walks reach it
+      assert.ok(kept > 0, `${kept} plans carrying a kept cube`);
     });
   }
 
@@ -257,6 +299,52 @@ describe('the commands between two pages take one to the other', () => {
     const put = applyPlanned(draft(shown), undone, true);
     assert.deepEqual(put.renamed, {}, 'no tile made again: the chart kept its id');
     assert.deepEqual(canonical(put.draft.page, 'history'), canonical(detached, 'history'));
+  });
+
+  // the review's G4 (docs/TIMESERIES_REVIEW_2026_10_25.md): a grid removed while a timeseries reads it keeps its cube for
+  // the tile, as a frozen chart's is kept; the tile then removed, an undo brings it back on that very cube -- its command
+  // carries the cube, as detach carries a chart's
+  it('a timeseries tile comes back on the very cube it kept (G4), its copy too; its grid brought back, it reads the grid', () => {
+    const base = applyPageCommands(draft(trades), [
+      { kind: 'removeTile', tile: 'chart-2' },
+      { kind: 'snap', grid: 'grid-2', copy: SNAP },
+      { kind: 'addTimeseries', id: 'timeseries-1', sheet: 'sheet-1', near: null, spec: seriesOver(['grid', 'grid-2']), title: null, columns: null },
+    ]).draft;
+    // each step on the page as the history has it: every id it held still held (an undo gives none of them out again)
+    const keptDraft = applyPageCommands(base, [{ kind: 'removeTile', tile: 'grid-2' }]).draft;
+    const kept = keptDraft.page;
+    const document = kept.cubes.find((c) => c.id === 'grid-2')?.cube;
+    assert.ok(document !== undefined && kept.copies?.['grid-2'] !== undefined, 'the grid gone, its cube and its copy kept for the tile');
+    const goneDraft = applyPageCommands(keptDraft, [{ kind: 'removeTile', tile: 'timeseries-1' }]).draft;
+    const gone = goneDraft.page;
+    assert.ok(!gone.cubes.some((c) => c.id === 'grid-2'), 'let go with the tile');
+    // the tile's removal undone: made again carrying the cube as the page held it, reading its copy
+    const back = pageBetween(gone, kept, 'history');
+    const add = back.find((c): c is Extract<PageCommand, { kind: 'addTimeseries' }> => c.kind === 'addTimeseries');
+    assert.deepEqual(add?.kept, [{ cube: 'grid-2', document, copy: kept.copies!['grid-2'] }]);
+    const made = applyPlanned(goneDraft, back, true);
+    assert.deepEqual(canonical(made.draft.page, 'history'), canonical(renamedPage(kept, made.renamed), 'history'));
+    assert.deepEqual(Object.keys(made.renamed), ['timeseries-1'], 'the tile is a new tile (B12); its cube is the one it read');
+    assert.ok(made.draft.page.cubes.some((c) => c.id === 'grid-2'), 'under the id it had');
+    // the grid's removal undone: the grid back as a new tile, the tile reading it, the cube kept for it let go
+    const relinked = applyPlanned(draft(kept), pageBetween(kept, base.page, 'history'), true);
+    assert.deepEqual(canonical(relinked.draft.page, 'history'), canonical(renamedPage(base.page, relinked.renamed), 'history'));
+    assert.ok(!relinked.draft.page.cubes.some((c) => c.id === 'grid-2'), "the kept cube let go: the tile reads the grid's");
+    // re-pointed off its kept cube (let go), and back: the set carries it
+    const moved = applyPageCommands(draft(kept), [{ kind: 'setTimeseries', tile: 'timeseries-1', spec: seriesOver(['grid']) }]).draft.page;
+    assert.ok(!moved.cubes.some((c) => c.id === 'grid-2'));
+    const unmoved = pageBetween(moved, kept, 'history');
+    assert.deepEqual(unmoved.map((c) => c.kind), ['setTimeseries']);
+    const put = applyPlanned(draft(moved), unmoved, true);
+    assert.deepEqual(put.renamed, {});
+    assert.deepEqual(canonical(put.draft.page, 'history'), canonical(kept, 'history'));
+    // a page converging on its keeper's, whose kept cube reads its live rows: the set carries the cube as the keeper has it
+    const tile = kept.views.find((v): v is TimeseriesView => v.id === 'timeseries-1')!;
+    const unsnapped = applyPageCommands(draft(kept), [{ kind: 'setTimeseries', tile: tile.id, spec: tile.spec, kept: [{ cube: 'grid-2', document, copy: null }] }]).draft.page;
+    assert.equal(unsnapped.copies?.['grid-2'], undefined);
+    const converged = pageBetween(kept, unsnapped, 'whole');
+    assert.deepEqual(converged, [{ kind: 'setTimeseries', tile: 'timeseries-1', spec: tile.spec, kept: [{ cube: 'grid-2', document, copy: null }] }]);
+    assert.deepEqual(canonical(applyPlanned(draft(kept), converged, false).draft.page, 'whole'), canonical(unsnapped, 'whole'));
   });
 
   it('what no command makes is refused in words', () => {

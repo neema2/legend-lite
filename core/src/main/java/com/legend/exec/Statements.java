@@ -34,6 +34,15 @@ public interface Statements {
             throws IOException;
 
     /** Where a query's rows go. */
+    /** {@code statement} run for the change it makes, {@code slots} bound to {@code values}: the count of rows the
+     *  database reports (a write plan's step, docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged 2026-10-26). */
+    long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
+            throws IOException;
+
+    /** {@code work} inside one transaction of this session (a caller's open one joined, {@code Executor.inTransaction}):
+     *  committed when it returns, rolled back when it throws. */
+    <T> T inTransaction(java.util.function.Supplier<T> work);
+
     @FunctionalInterface
     interface Rows {
         void row(@com.legend.base.Nullable String text) throws IOException;

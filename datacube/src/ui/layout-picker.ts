@@ -24,6 +24,7 @@ import {
   layoutsFor,
 } from '../layout/bands.ts';
 import { focusedElement } from '../focus.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** A thumbnail's size, in pixels. */
 const THUMB_W = 64;
@@ -271,7 +272,7 @@ export class LayoutPicker {
           button('\u2212', `One fewer tile in row ${i + 1}`, () => set(counts.map((x, j) => (j === i ? x - 1 : x))), c <= 1),
           value,
           button('+', `One more tile in row ${i + 1}`, () => set(counts.map((x, j) => (j === i ? x + 1 : x))), placed >= count),
-          button('\u00d7', `Take row ${i + 1} away`, () => set(counts.filter((_, j) => j !== i)), counts.length <= 1),
+          closeMark(button('\u00d7', `Take row ${i + 1} away`, () => set(counts.filter((_, j) => j !== i)), counts.length <= 1)),
         );
         return row;
       }));

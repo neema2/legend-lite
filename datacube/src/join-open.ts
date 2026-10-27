@@ -1,20 +1,22 @@
 // OPENING A JOIN (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.3, §17.4): a join source made one relation over one
 // model. Its leaves -- the inputs that read a table straight, depth first -- are tables of the host's database; one model
 // declares them all (the writer's several tables, infer.ts tablesModel); each input is its cube's rows at their finest
-// level over its source (query.ts classLambda), a join inside an input opened the same way; then the two are joined
+// level over its source (query.ts handedOnLambda), a join inside an input opened the same way; then the two are joined
 // (join.ts joinRelation), and the compiler types what comes out. What drifted since it was saved is said. No DOM: the
 // tab's sources (app/sources.ts) and a test on Node's DuckDB (test/join-open.test.ts) call it alike.
 
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
-  CUBE_KIND, CUBE_VERSION, leavesOf, openCube, type CubeDocument, type CubeSource, type JoinInput, type JoinSource, type LeafSource,
+  frozenInput, inputCube, inputLeaves, joinInputs, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
 } from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
-import { TOTAL_ROWS_COLUMN, classLambda } from './query.ts';
+import { TOTAL_ROWS_COLUMN, handedOnLambda, isMachinery } from './query.ts';
+import { handedOnRows } from './box-columns.ts';
 import type { RawTable } from '../../engine-client/src/engine.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sourceColumns, type RelationTyper } from './source-columns.ts';
+import { boxRows } from './pure-box.ts';
 import { CubeRefusal, type ColumnSpec } from './snapshot.ts';
 
 /** The kinds of source that are tables of a host's database: the tab's files and remote files; Python's frames too. */
@@ -24,7 +26,7 @@ export const TAB_TABLES: readonly TableKind[] = ['file', 'remoteFile'];
 /** A host's (Python's): its frames, and the files and remote files it read in (headless host-tables.ts leafTables). */
 export const HOST_TABLES: readonly TableKind[] = ['frame', 'file', 'remoteFile'];
 
-const WHAT: Readonly<Record<Exclude<CubeSource['_type'], 'join'>, string>> = {
+const WHAT: Readonly<Record<LeafSource['_type'], string>> = {
   file: 'a file, read in another database',
   remoteFile: 'a remote file, read in another database',
   frame: "a dataframe, read on Python's database",
@@ -67,6 +69,8 @@ export interface OpenedInputs {
   readonly typer: RelationTyper;
   readonly left: JoinSide;
   readonly right: JoinSide;
+  /** A Union's inputs after its right (JoinSource.more), in order; absent, two. */
+  readonly more?: readonly JoinSide[];
   /** What drifted in an input since it was joined, in words, each with the input's name. */
   readonly notes: readonly string[];
 }
@@ -79,13 +83,37 @@ export interface OpenedJoin extends OpenedInputs {
   readonly how: JoinHow;
 }
 
-/** An input as a cube document, for openCube: its configuration the product's, nothing open. */
-function asCube(input: JoinInput): CubeDocument {
-  return {
-    kind: CUBE_KIND, version: CUBE_VERSION, name: input.name, source: input.source, query: input.query,
-    configuration: {}, tree: { open: [], showTotals: false },
-  };
+/**
+ * AN INPUT'S ROWS, the one rule (a join's input; another grid's rows' input, docs/DATACUBE_FLOW_MODE_2026_10_24.md
+ * §3.1): its cube opened over `over` -- what its source is now, as `typer` types it -- at its finest level (query.ts
+ * handedOnLambda: a flat cube's rows in its sorts' order, a grouped cube's groups, a Cross Tab's groups by its pinned
+ * values), what drifted since said in `notes` under its name. Refused in words when it is pivoted on values its rows
+ * decide: its columns are its values, so its rows have no fixed columns. Its rows matched against another input's (JoinInput.unmatched: a Join's L or R) are not these: they are read over one model of both, its side
+ * (oneModel) or openRows.
+ */
+export async function inputRows(input: JoinInput, over: ValueSpecification, typer: RelationTyper, notes: string[]): Promise<JoinSide> {
+  const opened = openCube(inputCube(input), { query: over }, await sourceColumns(typer, over));
+  for (const n of opened.notes) notes.push(`${input.name}: ${n}`);
+  // a Cross Tab's columns fixed by its values pinned (FL2: query.ts crossTabRows); its rows deciding them, none fixed
+  if (opened.snapshot.pivotOn.length > 0 && (opened.snapshot.pivotValues ?? []).length === 0) {
+    throw new CubeRefusal(`${input.name} is pivoted: its columns are its values, so its rows have no fixed columns; Load its values to fix them, or take its pivot off first`);
+  }
+  const all = handedOnLambda(opened.snapshot).body[0]!;
+  const typed = (await sourceColumns(typer, all)).map((c) => ({ name: c.name, type: c.type }));
+  // the columns its box leaves out (JoinInput.omit): selected away, the rest in the order its box hands them on
+  // (JoinInput.order: a Select's, those it does not list after them); then those it renames (JoinInput.rename), what
+  // reads it reading them by their new names
+  const omit = new Set(input.omit ?? []);
+  const rank = new Map((input.order ?? []).map((c, i) => [c, i] as const));
+  const at = (name: string): number => rank.get(name) ?? rank.size;
+  // the product's own columns (grid/columns.ts isMachinery: a Top N's rank) are none of its rows'
+  const kept = typed.filter((c) => !omit.has(c.name) && !isMachinery(c.name)).sort((a, b) => at(a.name) - at(b.name));
+  const to = new Map((input.rename ?? []).map((r) => [r.from, r.to] as const));
+  const on = kept.map((c) => ({ name: c.name, as: to.get(c.name) ?? c.name }));
+  const columns = kept.map((c) => ({ name: to.get(c.name) ?? c.name, type: c.type }));
+  return { name: input.name, relation: handedOnRows(all, typed.map((c) => c.name), on), columns };
 }
+
 
 /** A join's how with their kept columns that are gone left out, each said; the rest is joinRelation's to judge. */
 function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
@@ -98,13 +126,45 @@ function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
 }
 
 /**
- * THE TWO INPUTS OF A JOIN over one model: each leaf's table of the host's database declared once (a table read twice is
- * one table), each input its cube's rows at their finest level over its source -- refused in words when a leaf is read
- * elsewhere (leafRefusal) or an input is pivoted (its columns are its values).
+ * A SNAPPED GRID'S COPY, as a combination reads it (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2; the owner,
+ * 2026-10-25: "can be snapped into duckdb wasm as a grid snap too if from different sources"): a table of this database
+ * the snap copied the grid's base into -- one leaf, read as its table is, in its grid's place (the review's P3: a
+ * combination read the grid live).
  */
-export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening): Promise<OpenedInputs> {
-  const leaves = [...leavesOf(left.source), ...leavesOf(right.source)];
+export interface CopyTable {
+  readonly _type: 'copy';
+  readonly table: string;
+}
+
+/** What a combination opens over one model: a grid's source, or its snapped copy's table. */
+export type OpenedSource = CubeSource | CopyTable;
+
+/** A source's leaves in order: a copy is its table's one. */
+const leavesOfOpened = (s: OpenedSource): readonly (LeafSource | CopyTable)[] => (s._type === 'copy' ? [s] : leavesOf(s));
+
+/** Sources over one model as they are opened: the model, how a relation over it is typed, and each source's relation. */
+interface OneModel {
+  readonly model: string;
+  readonly runtime: string;
+  readonly typer: RelationTyper;
+  readonly notes: string[];
+  /** A source's relation over the model: a table's (a copy's too), a join of its inputs, another grid's rows (its
+   *  input's, each opened as `side`). Asked in order. */
+  relation(s: OpenedSource): Promise<ValueSpecification>;
+  /** An input as a join's side: its cube's rows at their finest level over its source. Asked in order. */
+  side(input: JoinInput): Promise<JoinSide>;
+}
+
+/**
+ * WHAT IS READ OVER ONE MODEL OF THE HOST'S TABLES (a join's inputs; another grid's rows; a timeseries' grids): `leaves`,
+ * every leaf what is read reads, each a table of the host's database (`o.tables`, in their order) declared once -- a
+ * table read twice is one table -- refused in words when a leaf is read elsewhere (leafRefusal); and each source and
+ * input, asked IN ORDER (the leaves' order), its relation over the model.
+ */
+async function oneModel(leaves: readonly (LeafSource | CopyTable)[], o: JoinOpening): Promise<OneModel> {
   for (const leaf of leaves) {
+    // a copy is a table of this database by what made it: nothing elsewhere to refuse
+    if (leaf._type === 'copy') continue;
     const why = leafRefusal(leaf, o.here);
     if (why !== undefined) throw new CubeRefusal(why);
   }
@@ -114,7 +174,8 @@ export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpeni
   const distinct = [...new Set(o.tables)];
   const written = await o.models.tablesModel(await Promise.all(distinct.map(async (table) => ({
     table,
-    // as each one's own model reads it: an upload rewritten at ingest and a frame convert, a remote file's view cannot
+    // as each one's own model reads it: an upload rewritten at ingest, a frame and a snap's copy convert, a remote file's
+    // view cannot
     convertible: leaves[o.tables.indexOf(table)]!._type !== 'remoteFile',
     columns: await o.catalog(table),
   }))), o.databaseType);
@@ -123,35 +184,102 @@ export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpeni
   const notes: string[] = [];
   let next = 0;
 
-  const relation = async (s: CubeSource): Promise<ValueSpecification> => {
+  const relation = async (s: OpenedSource): Promise<ValueSpecification> => {
+    // another grid's rows, a join's inputs, resolved against their page (live-inputs.ts resolvedSource): those grids'
+    // rows as they are -- a Pure box's, its function of them (pure-box.ts)
+    if (s._type === 'rows') return boxRows(s, (await side(frozenInput(s.input, s.name))).relation);
     if (s._type !== 'join') return relationOf.get(o.tables[next++]!)!;
-    const l = await side(s.left);
-    const r = await side(s.right);
-    return joinRelation(l, r, reconciled(s.how, r, notes));
+    // its inputs in order, a Union's more after its right (each opened in the leaves' order)
+    const sides: JoinSide[] = [];
+    for (const i of joinInputs(s)) sides.push(await side(frozenInput(i, s.name)));
+    const [l, r, ...more] = sides;
+    return joinRelation(l!, r!, reconciled(s.how, r!, notes), more);
   };
   const side = async (input: JoinInput): Promise<JoinSide> => {
-    const over = await relation(input.source);
-    const opened = openCube(asCube(input), { query: over }, await sourceColumns(typer, over));
-    for (const n of opened.notes) notes.push(`${input.name}: ${n}`);
-    if (opened.snapshot.pivotOn.length > 0) {
-      throw new CubeRefusal(`${input.name} is pivoted: its columns are its values, so it joins as no fixed columns; take its pivot off first`);
-    }
-    const rows = classLambda(opened.snapshot).body[0]!;
-    const columns = (await sourceColumns(typer, rows)).map((c) => ({ name: c.name, type: c.type }));
-    return { name: input.name, relation: rows, columns };
+    let rows = await inputRows(input, await relation(input.source), typer, notes);
+    // a Join's L or R (cube-document.ts JoinInput.unmatched): its rows no row of the other's pairs with, in turn
+    for (const u of input.unmatched ?? []) rows = { ...rows, relation: joinRelation(rows, await side(u.by), { form: 'anti', on: u.on }) };
+    return rows;
   };
+  return { model: written.model, runtime: written.runtime, typer, notes, relation, side };
+}
 
-  const l = await side(left);
-  const r = await side(right);
-  return { model: written.model, runtime: written.runtime, typer, left: l, right: r, notes };
+/**
+ * THE INPUTS OF A JOIN over one model (oneModel): its two -- a Union's `more` after them -- each its cube's rows at
+ * their finest level over its source, the leaves of each in turn (cube-document.ts inputLeaves: a Join's L or R reads
+ * the other input's too) -- refused in words when a leaf is read elsewhere (leafRefusal) or an input is pivoted on
+ * values its rows decide (its columns are its values).
+ */
+export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening, more: readonly JoinInput[] = []): Promise<OpenedInputs> {
+  const all = [left, right, ...more];
+  const m = await oneModel(all.flatMap(inputLeaves), o);
+  const sides: JoinSide[] = [];
+  for (const i of all) sides.push(await m.side(i));
+  const [l, r, ...after] = sides;
+  return { model: m.model, runtime: m.runtime, typer: m.typer, left: l!, right: r!, ...(after.length > 0 ? { more: after } : {}), notes: m.notes };
+}
+
+/** Several grids' sources opened over one model: the model, its typer, and each source's relation over it, in order. */
+export interface OpenedSources {
+  readonly model: string;
+  readonly runtime: string;
+  readonly typer: RelationTyper;
+  readonly relations: readonly ValueSpecification[];
+  readonly notes: readonly string[];
+}
+
+/** Each of `items` with its source's relation, in the order the sources were opened: one each -- checked, never assumed
+ *  (the timeseries review's G7). */
+export function eachRelation<T>(opened: { readonly relations: readonly ValueSpecification[] }, items: readonly T[]): (readonly [T, ValueSpecification])[] {
+  if (opened.relations.length !== items.length) {
+    throw new Error(`the model opened ${opened.relations.length} relations for ${items.length} sources`);
+  }
+  return items.map((item, i) => [item, opened.relations[i] as ValueSpecification] as const);
+}
+
+/**
+ * GRIDS' SOURCES OVER ONE MODEL (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): what a timeseries series that
+ * combines grids is planned over, as a join's two inputs are (openInputs' rule, for any number of sources) -- each
+ * source the relation of its tables over the model, which its grid's calculated columns and filter are then written
+ * over. Refused in words when a leaf is read elsewhere (leafRefusal).
+ */
+export async function openSources(sources: readonly OpenedSource[], o: JoinOpening): Promise<OpenedSources> {
+  const m = await oneModel(sources.flatMap(leavesOfOpened), o);
+  const relations: ValueSpecification[] = [];
+  for (const s of sources) relations.push(await m.relation(s));
+  return { model: m.model, runtime: m.runtime, typer: m.typer, relations, notes: m.notes };
+}
+
+/** Another grid's rows opened over the host's tables (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): its model, its
+ *  relation and columns as the compiler types them, what drifted on the way. */
+export interface OpenedRows {
+  readonly model: string;
+  readonly runtime: string;
+  readonly typer: RelationTyper;
+  readonly relation: ValueSpecification;
+  readonly columns: ColumnSpec[];
+  readonly notes: readonly string[];
+}
+
+/**
+ * ANOTHER GRID'S ROWS OPENED OVER THE HOST'S TABLES, as a join is (oneModel): `source` resolved against its page
+ * (live-inputs.ts resolvedSource), every leaf of its chain a table of the host's database -- its input's rows at their
+ * finest level over that input's own source in turn, typed over one model of them.
+ */
+export async function openRows(source: RowsSource, o: JoinOpening): Promise<OpenedRows> {
+  const m = await oneModel(leavesOf(source), o);
+  const relation = await m.relation(source);
+  const columns = await sourceColumns(m.typer, relation);
+  return { model: m.model, runtime: m.runtime, typer: m.typer, relation, columns, notes: m.notes };
 }
 
 /** A JOIN SOURCE OPENED (§17.4): its inputs over one model (openInputs), joined, typed. */
 export async function openJoin(source: JoinSource, o: JoinOpening): Promise<OpenedJoin> {
-  const inputs = await openInputs(source.left, source.right, o);
+  const inputs = await openInputs(frozenInput(source.left, source.name), frozenInput(source.right, source.name), o,
+    (source.more ?? []).map((i) => frozenInput(i, source.name)));
   const notes = [...inputs.notes];
   const how = reconciled(source.how, inputs.right, notes);
-  const relation = joinRelation(inputs.left, inputs.right, how);
+  const relation = joinRelation(inputs.left, inputs.right, how, inputs.more);
   const columns = await sourceColumns(inputs.typer, relation);
   return { ...inputs, notes, how, relation, columns };
 }

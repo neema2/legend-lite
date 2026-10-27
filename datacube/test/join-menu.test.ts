@@ -53,5 +53,8 @@ describe("a grid's right-click Join ▸, as its Filter ▸", () => {
     assert.deepEqual(labels(joinMenu({ column: 'country', mine: MINE, others: [], source: false }).items),
       ['No other grid on the page to join (off)', '| Join… (off)']);
     assert.deepEqual(labels(joinMenu({ column: undefined, mine: MINE, others: [], source: false }).items), ['Join… (off)']);
+    // saying why, as the status bar's Join says it greyed
+    assert.equal(joinMenu({ column: undefined, mine: MINE, others: [], source: false }).items[0]?.hint,
+      'There is no other grid on this page to join');
   });
 });

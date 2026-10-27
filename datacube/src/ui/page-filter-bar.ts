@@ -6,6 +6,7 @@
 
 import { OPERATORS, newCondition, operandKind, operatorsFor, toFilterNode } from '../filter-operators.ts';
 import type { FilterNode, FilterOperator } from '../snapshot.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 /** A filter as the bar shows it. */
 export interface BarFilter {
@@ -93,7 +94,7 @@ export class PageFilterBar {
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-page-filter-remove';
-    remove.textContent = '×';
+    remove.append(chromeIcon(doc, 'close'));
     remove.setAttribute('aria-label', `Take off the filter ${f.words}`);
     remove.addEventListener('click', () => this.#options.remove(f.id));
     chip.append(words, reach, remove);

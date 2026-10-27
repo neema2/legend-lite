@@ -19,6 +19,7 @@ import {
   type Field,
   type Sample,
 } from '../json-shape.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 /** A JSON column's cells, read through the cube's own queries (so every plane). */
 export interface JsonColumnReader {
@@ -232,12 +233,12 @@ export function buildJsonFields(host: HTMLElement, options: JsonFieldsOptions): 
       // open two levels to start; deeper ones a click away
       const open = depth < 1;
       kids.hidden = !open;
-      caret.textContent = open ? '▾' : '▸';
+      caret.replaceChildren(chromeIcon(doc, open ? 'chevronDown' : 'chevronRight'));
       node.setAttribute('aria-expanded', String(open));
       caret.addEventListener('click', (e) => {
         e.stopPropagation();
         kids!.hidden = !kids!.hidden;
-        caret.textContent = kids!.hidden ? '▸' : '▾';
+        caret.replaceChildren(chromeIcon(doc, kids!.hidden ? 'chevronRight' : 'chevronDown'));
         node.setAttribute('aria-expanded', String(!kids!.hidden));
       });
     }

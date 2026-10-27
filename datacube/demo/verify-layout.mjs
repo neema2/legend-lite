@@ -296,8 +296,8 @@ try {
     if (!same(await boxes(), before)) throw new Error('the page\'s Undo did not put it back');
   });
 
-  await check('Edit Layout unticked locks the page: no handles, and a drag moves nothing', async () => {
-    await titleMenu('Edit Layout');
+  await check('Done Editing Layout locks the page: no handles, and a drag moves nothing', async () => {
+    await titleMenu('Done Editing Layout');
     const before = await boxes();
     if (await page.locator('.dc-band-divider, .dc-band-edge').count()) throw new Error('handles still shown');
     const from = await head(ids.copy);
@@ -317,6 +317,15 @@ try {
     const lefts = new Set(Object.values(narrow).map((t) => t.x));
     if (lefts.size !== 1 || Object.values(narrow).some((t) => !near(t.w, b.w, 2))) throw new Error(`not stacked: ${JSON.stringify(narrow)}`);
     if (await page.locator('.dc-band-divider, .dc-band-edge').count()) throw new Error('handles on a narrow page');
+    // narrower still: each grid's status bar gives way, nothing pushed out of it (the 2026-10-25 audit)
+    await page.setViewportSize({ width: 320, height: 900 });
+    await frames(page, 4);
+    await settle();
+    const spilt = await page.evaluate(() => [...document.querySelectorAll('.dc-app-stats')]
+      .filter((bar) => bar.getBoundingClientRect().width > 0)
+      .map((bar) => [...bar.children].filter((c) => c.getBoundingClientRect().right > bar.getBoundingClientRect().right + 1).length)
+      .reduce((a, b) => a + b, 0));
+    if (spilt > 0) throw new Error(`${spilt} part(s) of a status bar pushed out at 320px`);
     await page.setViewportSize({ width: 1400, height: 900 });
     await frames(page, 4);
     await settle();
@@ -358,6 +367,8 @@ try {
   // SHEETS (the design's §7): a tile moved to another sheet by dragging it onto that sheet's tab
   await check('a tile dragged onto another sheet\'s tab moves there; the tab is marked while it is over it', async () => {
     await page.locator('.dc-sheet-add').click();
+    // the + offers a Sheet and a Flow (2026-10-26)
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Sheet")') }).click();
     await settle();
     const sheets = await page.evaluate(() => window.__dataPage.sheets);
     if (sheets.length !== 2) throw new Error(`the + made ${sheets.length} sheets`);

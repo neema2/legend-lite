@@ -246,7 +246,7 @@ public final class Render {
      *  escape rule stays spelled once. */
     static SqlSelect csvWire(SqlSelect inner, List<Type.Column> relCols,
             String rowAlias) {
-        List<OutputCol> cols = inner.outputs();
+        List<OutputCol> cols = presented(inner.outputs());
         inner = withSortOutputs(inner);
         if (cols.size() != relCols.size()) {
             throw new IllegalStateException("csv wire: " + cols.size()
@@ -343,14 +343,17 @@ public final class Render {
     }
 
     /** A cell's JSON token by its Pure type: a Float's text (Pure's, or Java's on the engine's wire), its own scale
-     *  for a Decimal (on both: the value is Pure's, register S97), a date kind's text as a JSON string (a StrictDate's
+     *  for a Decimal (on both: the value is Pure's, register S104), a date kind's text as a JSON string (a StrictDate's
      *  day, a DateTime's {@link #dateTimeText} or the engine's nine digits, a text-carried value's own text; the one
      *  owner, 2026-10-18), the database's token otherwise; null as {@code null}. */
     static SqlExpr jsonCell(SqlExpr c, @com.legend.base.Nullable Type t, SqlType slot,
             WireRender.Spelling spelling) {
         boolean engine = spelling == WireRender.Spelling.ENGINE;
         SqlExpr token;
-        if (t == Type.Primitive.FLOAT) {
+        if (slot instanceof SqlType.Tagged tg) {
+            // a mixed selection's winner: the slot the tag names, its token by its own kind
+            token = perSlot(c, tg, (ref, kind, st) -> jsonCell(ref, kind, st, spelling));
+        } else if (t == Type.Primitive.FLOAT) {
             token = engine ? LiteralSpelling.floatPrintJava(c) : Scalars.pureToString(t, c);
         } else if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
             token = new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
@@ -380,7 +383,7 @@ public final class Render {
 
     static SqlSelect jsonWireRows(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias,
             WireRender.Spelling spelling) {
-        List<OutputCol> cols = inner.outputs();
+        List<OutputCol> cols = presented(inner.outputs());
         SqlExpr obj = jsonRow(rowAlias, cols, relCols, spelling);
         Lifted l = liftOrder(inner, rowAlias, "json wire");
         if (l == null) {
@@ -469,7 +472,7 @@ public final class Render {
      *  pinned {@code []} wire). */
     static SqlSelect jsonWire(SqlSelect inner, List<Type.@com.legend.base.Nullable Column> relCols, String rowAlias,
             WireRender.Spelling spelling) {
-        List<OutputCol> cols = inner.outputs();
+        List<OutputCol> cols = presented(inner.outputs());
         inner = withSortOutputs(inner);
         String aggAlias = rowAlias + "_a";
         SqlExpr obj = jsonRow(rowAlias, cols, relCols, spelling);
@@ -780,6 +783,44 @@ public final class Render {
                 new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
     }
 
+    /** A cell's text over a tagged column ({@link SqlType.Tagged}, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a):
+     *  {@code CASE WHEN tag = i THEN arm(slot column i, kind i, slot type i) ... END}, the slot columns read beside
+     *  the tag's ({@link SqlType.Tagged#slotColumn}). */
+    private static SqlExpr perSlot(SqlExpr tag, SqlType.Tagged tg, SlotArm arm) {
+        if (!(tag instanceof SqlExpr.Column tc)) {
+            throw new IllegalStateException("a tagged cell is read through its column, whose slot columns stand"
+                    + " beside it; not through " + tag);
+        }
+        List<SqlExpr.Case.When> whens = new ArrayList<>();
+        for (int i = 0; i < tg.slots().size(); i++) {
+            SqlType.Tagged.Slot slot = tg.slots().get(i);
+            SqlExpr ref = SqlExpr.Column.of(tc.table(), SqlType.Tagged.slotColumn(tc.name(), i), slot.type(), true,
+                    com.legend.sql.OutputCol.Origin.DERIVED);
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
+                    arm.apply(ref, MixedEncoding.kindType(slot.kind()), slot.type())));
+        }
+        return new SqlExpr.Case(whens, null);
+    }
+
+    @FunctionalInterface
+    private interface SlotArm {
+        SqlExpr apply(SqlExpr ref, Type kind, SqlType slot);
+    }
+
+    /** {@code cols} less the slot columns of its tagged columns: the columns a text wire presents (a tagged column's
+     *  slots are read through it, {@link #perSlot}). */
+    static List<OutputCol> presented(List<OutputCol> cols) {
+        java.util.Set<String> slots = new java.util.HashSet<>();
+        for (OutputCol c : cols) {
+            if (c.type() instanceof SqlType.Tagged tg) {
+                for (int i = 0; i < tg.slots().size(); i++) {
+                    slots.add(SqlType.Tagged.slotColumn(c.name(), i));
+                }
+            }
+        }
+        return slots.isEmpty() ? cols : cols.stream().filter(c -> !slots.contains(c.name())).toList();
+    }
+
     /** The DATE family: StrictDate, Date, DateTime, LatestDate. */
     private static boolean dateKind(Type t) {
         return t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE || t == Type.Primitive.DATE_TIME
@@ -970,6 +1011,11 @@ public final class Render {
             SqlType slot, boolean renderTdsNull) {
         Type t = col.type();
         SqlExpr rendered;
+        if (slot instanceof SqlType.Tagged tg) {
+            // a mixed selection's winner: the slot the tag names, its cell by its own kind
+            return perSlot(c, tg, (ref, kind, st) -> cell(ref,
+                    new Type.Column(col.name(), kind, col.multiplicity()), st, renderTdsNull));
+        }
         if (dateKind(t) && textSlot(slot)) {
             // a date carried as its own text (a value root spelled at the precision it has): the text is the cell,
             // a timed one with Pure's '+0000' (the one owner's rule, 2026-10-18)
@@ -1042,7 +1088,7 @@ public final class Render {
         // hidden _pct_ord sort carriers ride the outputs for the
         // aggregate's ORDER BY (hoistOrder sees them) but never print
         List<OutputCol> hoistCols = cols;
-        cols = cols.stream()
+        cols = presented(cols).stream()
                 .filter(oc -> !oc.name().startsWith("_pct_ord")).toList();
         List<Type.Column> relCols = cols.stream().map(oc -> {
             Type.Column t = byName.get(oc.name());
@@ -1161,7 +1207,14 @@ public final class Render {
             LiteralSpelling.Layouts layouts) {
         Type t = col.type();
         SqlExpr rendered;
-        if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
+        if (slot instanceof SqlType.Tagged tg) {
+            // a mixed selection's winner: the slot the tag names, printed as its own kind -- a Decimal under the
+            // root's declared Number keeps that type, so it spells its D (the Number-over-a-Decimal rule below: the
+            // header says Number, and only the D tells the reader the kind)
+            rendered = perSlot(c, tg, (ref, kind, st) -> tdsTextCell(ref,
+                    new Type.Column(col.name(), kind == Type.Primitive.DECIMAL ? t : kind, col.multiplicity()), st,
+                    quoteStrings, layouts));
+        } else if (com.legend.compiler.element.type.PlatformTypes.isVariant(t)) {
             // pure prints VARIANT cells ALWAYS quoted
             rendered = pureQuoted(new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
         } else if (t instanceof Type.GenericType

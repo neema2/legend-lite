@@ -25,6 +25,7 @@
 // transfer is still populated, for drags that leave the document.
 
 import { cubeScopeOf } from './scope.ts';
+import { chromeIcon, closeMark } from './tile-icons.ts';
 
 export interface SelectorColumn {
   readonly name: string;
@@ -246,8 +247,8 @@ export class ColumnsSelector {
     const clear = doc.createElement('button');
     clear.type = 'button';
     clear.className = 'dc-selector-search-clear';
-    clear.textContent = '×';
     clear.title = 'Clear search [Esc]';
+    closeMark(clear, 'Clear search');
     clear.addEventListener('click', () => {
       search.value = '';
       search.focus();
@@ -301,15 +302,18 @@ export class ColumnsSelector {
     const add = doc.createElement('button');
     add.type = 'button';
     add.className = 'dc-selector-move';
-    add.textContent = '›';
+    // drawn in the chrome's set (ui/tile-icons.ts; the 2026-10-25 audit: typed, from whatever font the browser found)
+    add.append(chromeIcon(doc, 'chevronRight'));
     add.title = 'Add selected column(s)';
+    add.setAttribute('aria-label', add.title);
     add.addEventListener('click', () => this.#movePicked('available'));
 
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-selector-move';
-    remove.textContent = '‹';
+    remove.append(chromeIcon(doc, 'chevronLeft'));
     remove.title = 'Remove selected column(s)';
+    remove.setAttribute('aria-label', remove.title);
     remove.addEventListener('click', () => this.#movePicked('selected'));
 
     this.#addButton = add;

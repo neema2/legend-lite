@@ -127,6 +127,14 @@ describe('the export LOOKS like the grid: each cell styled as the grid styles it
     assert.equal(t.rows[0]?.styles[0]?.background, undefined);
     assert.deepEqual([t.rows[0]?.styles[0]?.bold, t.rows[0]?.styles[0]?.align], [true, 'center']);
   });
+  it('aligns as the grid does: a measure\'s figures right, the rest left, a set alignment wins', () => {
+    const plain = exportTable({ ...base, rows: money, model });
+    assert.deepEqual(plain.rows[0]?.styles.map((x) => x.align), ['left', 'right']);
+    const dimension = exportTable({ ...base, rows: money, model, isMeasure: (leaf) => leaf.name !== 'pnl' });
+    assert.equal(dimension.rows[0]?.styles[1]?.align, 'left', 'a number of kind dimension is a label');
+    const set = exportTable({ ...base, rows: money, model, columnAppearance: { pnl: { textAlign: 'center' } } });
+    assert.equal(set.rows[0]?.styles[1]?.align, 'center');
+  });
   it('carries the grid\'s font and lines, and a plain gray header', () => {
     assert.deepEqual([t.look.fontFamily, t.look.fontSize, t.look.verticalLines, t.look.horizontalLines, t.look.headerBackground],
       ['Roboto', 11, true, false, '#f5f5f5']);

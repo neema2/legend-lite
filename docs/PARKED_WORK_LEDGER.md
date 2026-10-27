@@ -902,3 +902,25 @@ store's references) or refused at compile by name ("a merge Operation mapping is
 
 **Anchor.** The skip: `return null;    // parse-and-skip, as above` in `MappingFromProtocol.java`.
 
+
+## PARK-40 — the WebAssembly modules are patched after TeaVM writes them
+
+**Parked** 2026-10-26 by the plan path branch, at its merge of main, when the planner module stopped loading.
+**What happens today.** TeaVM 0.15.0's binary renderer writes an active data segment's offset as an UNSIGNED LEB128
+integer (`WasmBinaryRenderer.renderInitializer`, `writeLEB`); the specification reads `i32.const`'s operand as SIGNED.
+The two encodings agree while the last byte's bit 6 is clear, so no module was wrong until the planner's string pool
+crossed 1 MiB at the merge (segment 1 at 1,056,011 bytes: `8b ba 40`, which a reader takes as -1,041,141) and every
+host refused the module ("data segment 1 is out of bounds": 77 targets of `//gates:local`, DataCube's 60 among them).
+`tools/teavm`'s `WasmDataOffsets` re-encodes every data segment offset after TeaVM writes the module (idempotent;
+everything but the data section copied unchanged; an offset expression that is not one `i32.const` refused by opcode),
+and `TeaVmCompile` runs it over every module. **What TeaVM does:** 0.16.0 writes the offset signed (`writeSignedLEB`).
+**The cost while parked:** a post-pass over every module TeaVM writes, and a reason the compiler's output is not
+TeaVM's alone. **Acceptance:** `MODULE.bazel`'s `maven_teavm` at 0.16.0 (its lock file re-pinned;
+`third_party/teavm_classlib`'s copied classes re-based on that release, or dropped where it carries their fixes),
+`WasmDataOffsets`, its test and its call deleted, and `//wasm:zone_test`, `//wasm:round_trip_test`,
+`//wasm:differential_test` and `//wasm:conformance_test` green. **Who / When:** the follow-up "bump TeaVM to 0.16.0",
+next after the merge lands.
+
+**Anchor.** `tools/teavm`'s `WasmDataOffsetsTest.teaVmIsStillTheReleaseWhoseOffsetsAreUnsigned_park40` holds
+`MODULE.bazel` at `org.teavm:teavm-core:0.15.0`: the bump turns it red, and the fixer, the test and this row leave
+together (`//tools/teavm:data_offsets_test`).

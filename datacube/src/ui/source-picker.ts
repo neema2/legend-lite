@@ -8,6 +8,7 @@
 
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { focusedElement } from '../focus.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** The sections, in the order the window lists them. */
 export type SectionId = 'files' | 'examples' | 'saved' | 'database' | 'remote' | 'classes';
@@ -222,7 +223,7 @@ export function pickSource<T>(doc: Document, options: PickSourceOptions<T>): Pro
     el(doc, 'p', 'dc-picker-subtitle', titles, options.reason ?? (options.purpose === 'add'
       ? 'A new grid over it joins the page, beside what is there.'
       : 'The cube opens over it, in place of what it shows now.'));
-    const close = el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement;
+    const close = closeMark(el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => { if (!busy) finish(undefined); });

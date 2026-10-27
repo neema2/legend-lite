@@ -37,7 +37,17 @@ alias(
 
 js_library(
     name = "pinned_chromium",
-    srcs = ["pinned-chromium.mjs"],
+    srcs = [
+        "pinned-chromium.mjs",
+        "proxy-args.mjs",
+    ],
+)
+
+# the proxy a test's environment names, as Chromium's flags (proxy-args.mjs: the timeseries review's G6), without a browser
+node_test(
+    name = "proxy_args_test",
+    data = ["proxy-args.mjs"],
+    entry_point = "proxy_args_test.mjs",
 )
 
 # Every locked Playwright expects the pinned revision and version: a Playwright bump that moves either fails

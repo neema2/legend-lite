@@ -24,7 +24,12 @@ legend_java_library(
         "@mongodb_driver_core//jar",
         "@mongodb_driver_sync//jar",
     ],
-    runtime_deps = ["@bson_record_codec//jar"],
+    runtime_deps = [
+        "@bson_record_codec//jar",
+        # EmbeddedPostgres creates pgcrypto through a client connection once the server is up (2026-10-26): the
+        # driver is the client, on every JVM that starts the server (the warehouse's live tests have no other)
+        "@postgresql//jar",
+    ],
 )
 
 guards_package()

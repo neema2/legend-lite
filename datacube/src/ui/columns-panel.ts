@@ -24,6 +24,7 @@ import {
   makeHeaderDraggable,
   setHeaderDrag,
 } from './pivot-panel.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 export interface ColumnsPanelColumn {
   readonly name: string;
@@ -100,15 +101,6 @@ const BADGES: Readonly<Record<'rows' | 'columns', string>> = {
   columns: 'Col',
 };
 
-/**
- * How many pivot columns a measure may list before arriving folded.
- *
- * One pivot key over five years is a list worth reading; two keys
- * over five years and four quarters is twenty rows of `Q3 \u203a
- * 2024` between one measure and the next.
- */
-const FOLD_CHILDREN_OVER = 8;
-
 export class ColumnsToolPanel {
   readonly #root: HTMLElement;
   readonly #doc: Document;
@@ -126,12 +118,12 @@ export class ColumnsToolPanel {
   /**
    * Measures whose pivot columns are folded away.
    *
-   * A pivot on one key makes five of a measure; a pivot on two makes
-   * twenty, and the list became a wall of `Q3 \u203a 2024`. So a
-   * block past `FOLD_CHILDREN_OVER` arrives folded -- by its CURRENT
-   * size, not by whether the measure has been seen before: pivoting
-   * on a second key takes five columns to twenty, and a measure
-   * remembered from when it was small stayed unfolded at twenty.
+   * Every measure a pivot spread arrives folded under its own row
+   * (docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 3): the start page
+   * listed 25 tick boxes for 3 measures, `2021 … 2025, Total` again
+   * under each, and a pivot on two keys made it a wall of `Q3 \u203a
+   * 2024`. The measure's own box hides or shows the whole block, and
+   * says when only part of it is shown.
    *
    * A person's own toggle wins over that and is remembered.
    */
@@ -155,9 +147,7 @@ export class ColumnsToolPanel {
     this.#columns = columns;
     for (const column of columns) {
       const children = column.children ?? [];
-      if (children.length === 0 || this.#chosen.has(column.name)) continue;
-      if (children.length > FOLD_CHILDREN_OVER) this.#folded.add(column.name);
-      else this.#folded.delete(column.name);
+      if (children.length > 0 && !this.#chosen.has(column.name)) this.#folded.add(column.name);
     }
     this.render();
   }
@@ -287,7 +277,7 @@ export class ColumnsToolPanel {
     } else {
       // A chevron pointing the way the panel will go, which is the
       // convention every collapsible sidebar uses.
-      button.textContent = '\u203a';
+      button.append(chromeIcon(this.#doc, 'chevronRight'));
       button.title = 'Hide the columns panel';
       button.setAttribute('aria-label', 'Hide the columns panel');
     }
@@ -325,7 +315,7 @@ export class ColumnsToolPanel {
       twist.type = 'button';
       twist.className = 'dc-tool-panel-twist';
       const folded = this.#folded.has(column.name);
-      twist.textContent = folded ? '\u203a' : '\u2304';
+      twist.append(chromeIcon(doc, folded ? 'chevronRight' : 'chevronDown'));
       twist.title = folded
         ? `Show the ${children.length} columns of ${column.name}`
         : `Fold the ${children.length} columns of ${column.name}`;
@@ -355,9 +345,15 @@ export class ColumnsToolPanel {
       box.type = 'checkbox';
       box.className = 'dc-tool-panel-show';
       box.checked = visible;
-      box.title = visible
-        ? `Hide ${column.name} from the grid`
-        : `Show ${column.name} in the grid`;
+      // Part of a folded block hidden is said by the box itself, so a
+      // person need not unfold it to know.
+      const shown = children.filter((c) => c.visible).length;
+      box.indeterminate = shown > 0 && shown < children.length;
+      box.title = box.indeterminate
+        ? `${shown} of the ${children.length} columns of ${column.name} are shown; hide them all`
+        : visible
+          ? `Hide ${column.name} from the grid`
+          : `Show ${column.name} in the grid`;
       box.setAttribute('aria-label', box.title);
       // The row is draggable, and a press on the box must tick it
       // rather than start a drag of the row underneath.

@@ -64,6 +64,10 @@ tests:
     cypher: "RETURN duration('nope') AS d"
   - id: duration_order_refused_by_name
     cypher: "RETURN duration({days: 1}) < duration({days: 2}) AS lt"
+  - id: durations_compared_by_each_operator
+    cypher: "WITH duration({days: 1}) AS x, duration({days: 1}) AS y, duration({days: 2}) AS z RETURN x < y AS lt, x <= y AS le, x >= y AS ge, x > y AS gt, x <= z AS lez, x >= z AS gez"
+  - id: lists_of_durations_compared
+    cypher: "WITH duration({days: 1}) AS x RETURN [x] < [x] AS a, [x] <= [x] AS b, [x, 1] < [x, 2] AS c, [x] <= [duration({days: 2})] AS d"
   - id: duration_to_string
     cypher: "RETURN toString(duration({days: 1})) AS s"
   - id: duration_date_time_text_form
@@ -184,6 +188,8 @@ tests:
     cypher: "RETURN datetime('2015-07-21T21:40:32.142[Europe/Stockholm]').offset AS o"
   - id: date_signed_year_refused_by_name
     cypher: "RETURN date('+2015-07-21') AS a"
+  - id: signed_four_digit_years_in_date_time_texts
+    cypher: "RETURN localdatetime('+2015-07-21T21:40:32') AS a, datetime('+2015-07-21T21:40:32Z') AS b, date('+2015-W30-2') AS c"
   - id: datetime_text_offset_disagreeing_with_its_zone
     cypher: "RETURN datetime('2015-07-21T21:40:32.142Z[Europe/Stockholm]') AS d"
   - id: datetime_bad_text_is_neo4js_error

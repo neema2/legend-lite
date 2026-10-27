@@ -1792,6 +1792,8 @@ public final class Snowflake extends AnsiSqlRenderer {
             case SqlType.Array arr -> w -> w.append("TO_ARRAY(").piece(number).append(")");
             case SqlType.Map m -> w -> w.append("OBJECT_CONSTRUCT('error', ").piece(number).append(")");
             case SqlType.Struct st -> w -> w.append("OBJECT_CONSTRUCT('error', ").piece(number).append(")");
+            case SqlType.Tagged tg -> throw new IllegalStateException("a tagged value is never raised as: its tag"
+                    + " and slots are its query's columns");
         };
     }
 
@@ -1799,12 +1801,17 @@ public final class Snowflake extends AnsiSqlRenderer {
      * A Float's text as DuckDB's cast writes it: the shortest digits that read back as the same double (Java's rule),
      * plain where the exponent is from -4 to 15 with an integral value's {@code .0}, else with its exponent. Snowflake's
      * own cast writes ten significant digits ({@code EXP(1)} '2.718281828'; 22 PCT tests passing at the merge-base
-     * failed on the plan route, which has the database print a Float). Measured on the lane, 2026-10-21: the formatter
-     * caps a double at sixteen digits and is not correctly rounded at seventeen even from an exact decimal
-     * (1948878528.8944077 as ...078, a tie half up; 29 of 1,837 doubles wrong); its {@code =} and TO_DOUBLE are exact.
-     * So the digits come from the double's exact decimal ({@link #shortestDigits}), and the text is those digits placed
-     * by their exponent. NaN and the infinities are Snowflake's own. A subnormal double's digits are its 15-digit
-     * rounding where Java's are fewer (4.94065645841247e-324 for 4.9E-324): the same value, spelled longer.
+     * failed on the plan route, which has the database print a Float). Measured on the lane, 2026-10-21 and 2026-10-24
+     * (1,946 doubles): every format model over a FLOAT caps the double at SIXTEEN significant digits whatever the
+     * picture asks -- {@code TM9}, {@code TME}, {@code TO_JSON} and pictures of 15 to 20 positions all print the same
+     * sixteen digits, a wider picture padding blanks or a literal 0 (185.46332835263038 as 185.4633283526304,
+     * 0.30000000000000004 as 0.3), correctly rounded at sixteen for a normal double, so 566 of the 1,946 do not read
+     * back from it; a seventeenth digit comes only through a DECFLOAT cast, which pre-rounds to eighteen digits at run
+     * time and so double-rounds 80 of them (1948878528.8944077 as ...078, 1/3 as ...332) and throws on NaN and the
+     * infinities; an EEEE picture's exponent has two digits ({@code E+##} from 1e100). Its {@code =} and TO_DOUBLE are
+     * exact. So the digits come from the double's exact decimal ({@link #shortestDigits}), and the text is those
+     * digits placed by their exponent. NaN and the infinities are Snowflake's own. A subnormal double's digits are its
+     * 15-digit rounding where Java's are fewer (4.94065645841247e-324 for 4.9E-324): the same value, spelled longer.
      */
     private SqlWriter floatText(SqlWriter writer, SqlExpr v) {
         return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN CAST(" + d.value()

@@ -77,8 +77,22 @@ describe("the grid's rows, as a class's", () => {
     assert.doesNotMatch(json, /"sort"|"limit"|"slice"/, json);
   });
 
-  it('refused in words: a pivot', () => {
-    assert.throws(() => classLambda(snapshot({ pivotOn: ['region'] })), /take the pivot off first/);
+  it('refused in words: a pivot whose values its rows decide', () => {
+    assert.throws(() => classLambda(snapshot({ pivotOn: ['region'] })), /Load its values to fix them, or take its pivot off/);
+  });
+
+  it("a Cross Tab's (a pivot's values pinned, FL2): its groups, a column each value's, named by it", () => {
+    const columns = [{ name: 'desk', type: 'String' }, { name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }];
+    const pinned = snapshot({ columns, rows: ['desk'], pivotOn: ['region'], pivotValues: ['EMEA', 'APAC'] } as never);
+    const json = toJson(classLambda(pinned));
+    assert.doesNotMatch(json, /"sort"|"limit"|"slice"/, json);
+    assert.match(json, /"rename"/);
+    // its keys, then its cells by their values' names: its last step selects them so
+    const last = JSON.parse(json).body[0] as { function: string; parameters: { value?: { names?: string[] }; _type?: string }[] };
+    assert.equal(last.function, 'select');
+    assert.match(JSON.stringify(last.parameters[1]), /"desk".*"EMEA".*"APAC"/);
+    assert.throws(() => classLambda(snapshot({ columns, rows: ['desk'], pivotOn: ['region'], pivotValues: ['desk'] } as never)),
+      /its value 'desk' names a column it has already/);
   });
 
   it('a grid grouped by nothing: its rows', () => {

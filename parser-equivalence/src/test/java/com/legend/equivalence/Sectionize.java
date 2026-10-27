@@ -101,6 +101,12 @@ final class Sectionize {
                 nextHeader++;
             }
             String want = sectionOf(e);
+            // a MongoDB store is lite's DatabaseDefinition (its collections as tables) under the engine's own
+            // ###MongoDB section (docs/MONGODB_PLAN_2026_10_16.md): the header it sits under is its section, never
+            // a move to ###Relational (2026-10-26, MongoDbDialectTest's store)
+            if (want.equals("Relational") && current.equals("MongoDB")) {
+                continue;
+            }
             if (!want.equals(current)) {
                 inserts.add(new Insertion(off, want));
                 current = want;

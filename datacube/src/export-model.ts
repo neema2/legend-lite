@@ -16,7 +16,7 @@ import type { CellDecoration } from './conditional.ts';
 import type { ColumnModel, HeaderCell, LeafColumn } from './grid/columns.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import {
-  coloursFor, highlightBand, isAlternateRow, mergeAppearance, valueState,
+  autoTextAlign, coloursFor, highlightBand, isAlternateRow, mergeAppearance, valueState,
   type CellAppearance, type GridAppearance, type TextAlign, type UnderlineVariant,
 } from './style.ts';
 import { codeColour, type ColumnFormat, type FontCase } from './format.ts';
@@ -134,6 +134,9 @@ export interface ExportSource {
   readonly formats?: Readonly<Record<string, ColumnFormat>>;
   /** A cell's conditional formats, as the grid asks for them (conditional.ts). */
   readonly cellDecoration?: (leaf: LeafColumn, row: number, value: Scalar) => CellDecoration | null;
+  /** Whether a leaf holds a measure's figures, as the grid asks (grid-edits.ts isMeasureLeaf). Absent: every leaf that
+   *  is no row dimension. */
+  readonly isMeasure?: (leaf: LeafColumn) => boolean;
 }
 
 /** The label the grid shows over one leaf, per header level (from the header cells that cover it). */
@@ -213,8 +216,8 @@ export function exportTable(source: ExportSource): ExportTable {
         ...(a.italic && !c.redacted ? { italic: true } : {}),
         ...(a.underline ? { underline: a.underline } : {}),
         ...(a.strikethrough ? { strike: true } : {}),
-        // the grid's own default is left for every column, figures included
-        align: c.tree ? 'left' : a.textAlign ?? 'left',
+        // as the grid aligns it: what is set, else a measure's figures right and the rest left
+        align: c.tree ? 'left' : a.textAlign ?? autoTextAlign(source.isMeasure?.(leaf) ?? !leaf.isDimension, c.type),
         ...(a.fontCase ? { fontCase: a.fontCase } : {}),
       };
     });

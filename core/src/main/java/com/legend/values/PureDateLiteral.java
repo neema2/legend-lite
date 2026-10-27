@@ -273,6 +273,30 @@ public sealed interface PureDateLiteral
      * lane, whose database canon trims a timestamp's digits the same way, where a grid's cell keeps the nine
      * ({@link #fromDatabaseTimestamp}). A value with no subsecond is itself.
      */
+    /**
+     * This instant presented at a WRITTEN precision, the plan's fact for a tagged DateTime slot
+     * (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a; the slot's kind {@code DateTime} or {@code DateTime(n)}): no
+     * TIMESTAMP keeps the digits a literal was written with, so the reader restores them -- {@code n} subsecond
+     * digits as written ({@code .00} stays {@code .00}), or the whole second where none were. A value with no time
+     * of day is itself.
+     */
+    default PureDateLiteral presentedAt(int subsecondDigits) {
+        return switch (this) {
+            case DateWithSubsecond s -> subsecondDigits == 0
+                    ? new DateWithSecond(s.year(), s.month(), s.day(), s.hour(), s.minute(), s.second())
+                    : new DateWithSubsecond(s.year(), s.month(), s.day(), s.hour(), s.minute(), s.second(),
+                            (s.subsecond() + "000000000").substring(0, subsecondDigits));
+            case DateWithSecond s -> subsecondDigits == 0 ? s
+                    : new DateWithSubsecond(s.year(), s.month(), s.day(), s.hour(), s.minute(), s.second(),
+                            "000000000".substring(0, subsecondDigits));
+            case DateWithMinute m -> new DateWithSecond(m.year(), m.month(), m.day(), m.hour(), m.minute(), 0)
+                    .presentedAt(subsecondDigits);
+            case DateWithHour h -> new DateWithSecond(h.year(), h.month(), h.day(), h.hour(), 0, 0)
+                    .presentedAt(subsecondDigits);
+            default -> this;
+        };
+    }
+
     default PureDateLiteral trimmed() {
         if (!(this instanceof DateWithSubsecond s)) {
             return this;

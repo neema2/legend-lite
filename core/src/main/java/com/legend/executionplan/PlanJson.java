@@ -48,15 +48,18 @@ public final class PlanJson {
      *  fixed and per-key outputs, its snapshot), a statement's per-key regions, a key's cell as a slot's binding and a
      *  MIR leaf, a per-key name as an output origin; the row-as-JSON leaf gone; 9 since 2026-10-20: the keyed result's
      *  cells named as its statements write them (the probe's {@code keyFields}, each output's {@code field}: a session
-     *  reading a cell by name, MongoDB's, reads it so). */
-    public static final int VERSION = 9;
+     *  reading a cell by name, MongoDB's, reads it so); 10 since 2026-10-23: the tagged type (a mixed selection's
+     *  winner as a tag and typed slots, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a); 11 since 2026-10-26: main's write plans
+     *  merged in (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7: the {@code update} and {@code check} nodes, main's own
+     *  format 5). */
+    public static final int VERSION = 11;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, textResult, keyed }
+    enum NodeTag { sequence, tdsResult, textResult, keyed, update, check }
 
     enum OutputTag { fixed, perKey }
 
@@ -156,6 +159,17 @@ public final class PlanJson {
                 o.put("body", sql(k.body()));
                 o.put("snapshot", k.snapshot().name());
                 o.put("maxColumns", k.maxColumns());
+            }
+            case ExecutionPlan.Update u -> {
+                o.put("_type", NodeTag.update.name());
+                o.put("sql", sql(u.sql()));
+                if (u.count() != null) {
+                    o.put("count", u.count());
+                }
+            }
+            case ExecutionPlan.Check k -> {
+                o.put("_type", NodeTag.check.name());
+                o.put("sql", sql(k.sql()));
             }
         }
         return o;
@@ -392,6 +406,9 @@ public final class PlanJson {
                         named(ExecutionPlan.Keyed.Snapshot.class, o.getString("snapshot"), "keyed snapshot"),
                         o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"));
             }
+            case update -> new ExecutionPlan.Update(readSql(o.getObj("sql")), o.has("count") ? o.getString("count")
+                    : null);
+            case check -> new ExecutionPlan.Check(readSql(o.getObj("sql")));
         };
     }
 

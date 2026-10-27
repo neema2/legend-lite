@@ -28,6 +28,11 @@ interface PickerWindow {
   }): Promise<FileHandle[]>;
 }
 
+/** Whether `x` is a file's handle, as a drop gives one (DataTransferItem.getAsFileSystemHandle: Chrome, Edge). */
+export function isFileHandle(x: unknown): x is FileHandle {
+  return typeof x === 'object' && x !== null && (x as FileHandle).kind === 'file' && typeof (x as FileHandle).getFile === 'function';
+}
+
 /** Whether this browser can pick a file with a handle to keep. */
 export function canKeepHandles(win: unknown = globalThis): boolean {
   return typeof (win as PickerWindow).showOpenFilePicker === 'function';
@@ -60,6 +65,45 @@ export async function pickDataFile(win: unknown = globalThis): Promise<{ file: F
   }
 }
 
+/** What reading a kept handle gave (`readHandle`). */
+export type HandleRead = { state: 'file'; file: File } | { state: 'needs-click' } | { state: 'unavailable'; why: string };
+
+/**
+ * Files for a text box (text-files.ts; docs/DATACUBE_UI_REVIEW_2026_10_24.md §8), each with the handle to keep where the
+ * browser gives one (Chrome, Edge), else picked through a file input: the person's choice, none when they cancel.
+ */
+export async function pickTextFiles(doc: Document, extensions: readonly string[], multiple = true):
+  Promise<{ file: File; handle?: FileHandle }[]> {
+  const win = doc.defaultView;
+  const picker = (win as PickerWindow | null)?.showOpenFilePicker;
+  if (picker) {
+    try {
+      const handles = await picker.call(win, { types: [{ description: 'Text files', accept: { 'text/plain': [...extensions] } }], multiple });
+      return Promise.all(handles.map(async (handle) => ({ file: await handle.getFile(), handle })));
+    } catch (e) {
+      if (e instanceof Error && e.name === 'AbortError') return [];
+      throw e;
+    }
+  }
+  // no handles to give: a file input, in the page while it asks (where a test, too, finds it)
+  const input = doc.createElement('input');
+  input.type = 'file';
+  input.className = 'dc-file-input';
+  input.accept = extensions.join(',');
+  input.multiple = multiple;
+  input.hidden = true;
+  doc.body.append(input);
+  return new Promise((resolve) => {
+    const done = (): void => {
+      input.remove();
+      resolve([...(input.files ?? [])].map((file) => ({ file })));
+    };
+    input.addEventListener('change', done, { once: true });
+    input.addEventListener('cancel', done, { once: true });
+    input.click();
+  });
+}
+
 /**
  * The file behind a kept handle. `click` says whether this call runs inside a user's click,
  * the only place the browser lets a page ASK for permission.
@@ -67,10 +111,7 @@ export async function pickDataFile(win: unknown = globalThis): Promise<{ file: F
  *   needs-click   permission must be asked, and this call was not a click
  *   unavailable   refused, moved or deleted: ask for the file instead
  */
-export async function readHandle(
-  handle: FileHandle,
-  click: boolean,
-): Promise<{ state: 'file'; file: File } | { state: 'needs-click' } | { state: 'unavailable'; why: string }> {
+export async function readHandle(handle: FileHandle, click: boolean): Promise<HandleRead> {
   try {
     let permission = (await handle.queryPermission?.({ mode: 'read' })) ?? 'granted';
     if (permission === 'prompt') {

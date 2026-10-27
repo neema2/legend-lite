@@ -10,14 +10,14 @@ const numberOf = (id: string): number => Number(/-(\d+)$/.exec(id)?.[1] ?? 0);
  *  making editor's own (`chart-tk3f9-4`), so two editors of one page never make the same id, and nothing is ever given
  *  out afresh (docs/DATACUBE_LIVE_EDITING_REDESIGN_2026_10_24.md, the middle version) -- its number still after every
  *  held one, so a tag a past session had never meets an id it made. */
-export function nextPageId(held: readonly string[], kind: 'grid' | 'chart' | 'text' | 'sheet' | 'filter', tag?: string): string {
+export function nextPageId(held: readonly string[], kind: 'grid' | 'chart' | 'text' | 'timeseries' | 'sheet' | 'filter', tag?: string): string {
   const n = Math.max(0, ...held.filter((h) => h.startsWith(`${kind}-`)).map(numberOf)) + 1;
   return tag === undefined ? `${kind}-${n}` : `${kind}-${tag}-${n}`;
 }
 
 /** The shape of every id of `kind` a page holds: `kind-N`, or `kind-<tag>-N` under an editor's tag (idTag) -- what a
  *  command may make (page-commands.ts freshId) and what a page is read with (page-filters.ts FILTER_ID). */
-export const idShape = (kind: 'grid' | 'chart' | 'text' | 'sheet' | 'filter'): RegExp => new RegExp(`^${kind}-(?:[a-z][a-z0-9]*-)?\\d+$`);
+export const idShape = (kind: 'grid' | 'chart' | 'text' | 'timeseries' | 'sheet' | 'filter'): RegExp => new RegExp(`^${kind}-(?:[a-z][a-z0-9]*-)?\\d+$`);
 
 /** An editor's tag for the ids it makes: a letter and five letters or digits, at random. */
 export function idTag(): string {
@@ -32,6 +32,9 @@ export const chartTitle = (id: string): string => `Chart ${numberOf(id)}`;
 
 /** A text tile's title, unless given one: its number (`text-2`: "Text 2"), not written, as a grid's made title is not. */
 export const textTitle = (id: string): string => `Text ${numberOf(id)}`;
+
+/** A timeseries tile's title, unless given one: its number (`timeseries-2`: "Timeseries 2"), not written. */
+export const timeseriesTitle = (id: string): string => `Timeseries ${numberOf(id)}`;
 
 /** A page of its own's new grid's title, unless given one: its number. A grid's made title is not written. */
 export const gridTitle = (id: string): string => `Grid ${numberOf(id)}`;

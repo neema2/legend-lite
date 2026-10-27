@@ -15,16 +15,22 @@ import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
 import { fn } from '../../../pure-protocol/src/index.ts';
 import { CubeApp, type CubeAppQuerySource } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
-import { gridCapped } from '../cube-document.ts';
-import { handleKey } from '../file-handles.ts';
+import { gridCapped, type CubeDocument, type InputPort, type RowsSource } from '../cube-document.ts';
+import type { FlowTool, StepEditor } from '../flow-boxes.ts';
+import type { FlowPoint, LineEnd } from '../layout/flow-board.ts';
+import { isEveryPair, isFuzzy } from '../join-how.ts';
+import { gridInput } from '../live-inputs.ts';
+import { handleKey, readHandle } from '../file-handles.ts';
 import { Latest, TabWork, mayLeave } from '../host.ts';
 import { PlanThenRun, type PlanAndRun } from '../runner.ts';
 import { PageApp, type GridMaker } from '../page/page-app.ts';
+import type { FlowStep } from '../page/cube-page.ts';
 import {
   NOTHING_TO_SAVE,
   modelPageName,
   openedLive,
   openingOrder,
+  boxCubes,
   pageContent,
   pageDefinitionText,
   pageToJson,
@@ -49,14 +55,16 @@ import { EXAMPLE_PAGES, type ExamplePage } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
+import type { TsTogether } from '../ui/timeseries-view.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
-import type { Sample, Services, Versions } from './services.ts';
+import type { OpenedTogether, Sample, Services, Versions } from './services.ts';
 import { followBy } from './live-follow.ts';
 import { LiveChannel, type Converge, type Converged } from './live-channel.ts';
 import { convergeOn } from './live-converge.ts';
 import { pageHash } from '../page-hash.ts';
 import { pageSources, picksSources, type Chosen, type GridPlace, type Opened, type SignedIn } from './sources.ts';
 import { lazily } from '../lazily.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 
 // the query store's code, fetched the first time it is needed -- a query link -- as charts are: a grid-only page never
 // downloads it (test/bundle-budget.test.ts)
@@ -147,7 +155,45 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (status.classList.contains('bad')) return;
     status.textContent = resting.text;
     status.classList.toggle('warn-text', resting.warn);
+    status.removeAttribute('role');
+    status.removeAttribute('tabindex');
+    status.removeAttribute('title');
   };
+  /**
+   * AN ERROR, AS A CHIP IN THE STATUS BAR (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §5): a mark and
+   * its first words, the whole of it on hover and in a window a click opens -- it ran into the bar as red text cut short.
+   * Its words stay the element's text: what reads the status line for an error reads it all.
+   */
+  const sayError = (text: string): void => {
+    const mark = document.createElement('span');
+    mark.className = 'dc-app-status-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = '\u26a0';
+    const words = document.createElement('span');
+    words.className = 'dc-app-status-words';
+    words.textContent = text;
+    status.replaceChildren(mark, words);
+    status.classList.add('bad');
+    status.classList.remove('warn-text');
+    status.setAttribute('role', 'button');
+    status.tabIndex = 0;
+    status.title = `${text}\n\nClick for the whole of it`;
+  };
+  /** The error said, whole, in its window -- the query beside it a click away. A click on no error is the bar's. */
+  const openError = (event: Event): void => {
+    if (!status.classList.contains('bad')) return;
+    event.stopPropagation();
+    windows.errorText.textContent = status.querySelector('.dc-app-status-words')?.textContent ?? status.textContent ?? '';
+    windows.show(windows.error, { width: 640, height: 320 });
+  };
+  status.addEventListener('click', openError);
+  status.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openError(event);
+    }
+  });
+  windows.errorQuery.addEventListener('click', () => windows.show(windows.query));
   /** What taking the app down undoes, besides the page: the windows, a watch, a timer, a listener. */
   const undo: (() => void)[] = [windows.remove];
   let disposed = false;
@@ -316,9 +362,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           // saying what the cube cannot -- a planner that failed.
           if (kind !== 'error') return;
           harnessSignal.changes += 1;
-          status.textContent = text;
-          status.classList.add('bad');
-          status.classList.remove('warn-text');
+          sayError(text);
         },
         onView: (view) => {
           // rows that change under it (a live server's): what this view read is followed from now (services.ts LiveRows)
@@ -399,7 +443,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
 
   /** The host's own entries, from the page's menu or a grid's status bar. */
   function onHostItem(item: MenuItem): void {
-    if (item.id === 'host.open') showCubes?.();
+    if (item.id === 'host.open') openCubes();
     if (item.id === 'host.save') saveCube?.(false);
     if (item.id === 'host.saveAs') saveCube?.(true);
     if (item.id === 'host.share') void copyShareLink?.();
@@ -421,6 +465,21 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
 
   /** Opens the saved cubes' window; set once the page can open files. */
   let showCubes: (() => void) | undefined;
+  /** THE START OVER: its page opened, or told it could not be. Until then the menu is drawn -- seconds before the start's
+   *  grid lands on a first visit -- so what it offers is said, never dropped (2026-10-26, found clicking the published
+   *  site: each entry below did nothing): Open… is kept for when the start is over (were it opened before, a start's own
+   *  page, opening cleanly, would close it), and an entry that acts on the page is greyed until it can (`whileStarting`). */
+  let startOver = false;
+  /** Open… asked for before the start was over: opened then. */
+  let cubesAsked = false;
+  /** Open…, from the menu or the blank page's card: now, or once the start is over. */
+  function openCubes(): void {
+    if (showCubes && startOver) showCubes();
+    else cubesAsked = true;
+  }
+  /** An entry whose action is not set yet, greyed and saying why: the start sets each before it is over. */
+  const whileStarting = (set: unknown): { readonly disabled?: true; readonly hint?: string } =>
+    (set === undefined ? { disabled: true, hint: 'The page is still starting' } : {});
   /** Close the Open… window, when it is open. */
   let closeCubes: (() => void) | undefined;
   /** Save the page (over the one it was opened from), or Save As a new one. */
@@ -440,6 +499,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let createDataSpace: (() => void) | undefined;
   /** ADD A GRID OVER <CLASS> (§16.1): the class grid `cube` was made, read beside it at the page's pin. */
   let classGrid: ((cube: string | undefined) => void) | undefined;
+  /** A FLOW'S BOX SHOWN, and a tool of its palette added (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1), once the page can
+   *  open sources. */
+  let openBox: ((box: string, document: CubeDocument, now: PageDocument) => Promise<GridMaker | undefined>) | undefined;
+  let flowTool: ((tool: FlowTool, after: string | undefined, sheet: string, now: PageDocument, editor: StepEditor | undefined,
+    into?: LineEnd, port?: InputPort, at?: FlowPoint, step?: FlowStep) => void) | undefined;
+  let flowFile: ((file: File) => void) | undefined;
+  let flowJoinBox: ((box: string, sheet: string, now: PageDocument) => void) | undefined;
   /** JOIN… (§17.5): grid `cube` joined to another of the page -- in the tab, where a grid reads tables of its database; by
    *  the host, on a host's page (B11). Offered on a grid's menu where `offered` says. */
   let joinGrid: { readonly offered: (place: GridPlace) => boolean; readonly open: (cube: string | undefined, ask?: JoinAsk) => void } | undefined;
@@ -447,6 +513,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let joinMenuOf: ((cube: string, column: string | undefined) => { readonly items: MenuItem[]; readonly asks: Map<string, JoinAsk> }) | undefined;
   /** Join ▸ ▸ Join a Data Source…: a grid over a source picked now, then the window joining grid `cube` to it. */
   let joinSource: ((cube: string | undefined) => void) | undefined;
+  /** A timeseries series of several grids, opened together over one model of their tables (set with the page's
+   *  sources, below). */
+  let togetherOf: ((cubes: readonly string[]) => Promise<TsTogether>) | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
   /** The page as this tab keeps it -- a newer writer's fields and its model with the board's -- once its sources are set
@@ -460,7 +529,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   let dropUnread: (() => void) | undefined;
   /** The source picker, once the page can open sources: New ▸ Data Source… adds a grid over one; a blank page opens one. */
   let picker: ((purpose: 'add' | 'open', start?: SectionId) => Promise<GridMaker | undefined>) | undefined;
-  /** A blank page, everything gone, for a first data source: as asked (New ▸ Blank Page: `asked`, leaving a page another
+  /** A blank page, everything gone, for a first data source: as asked (New Page: `asked`, leaving a page another
    *  editor serves, D1), or where a start opened nothing (`reason`: why). */
   let blankPage: ((o: { readonly reason: string | undefined } | { readonly asked: true }) => void) | undefined;
   /** Why the page's start opened nothing (a link that failed, a key refused): the empty page says it. */
@@ -495,15 +564,27 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       for (const open of waitingOpens.values()) open();
       for (const resume of waitingTicks.values()) resume();
     },
+    // a text box's file read again from where it was picked: the handle this browser kept for the saved page, as a
+    // grid's file is (file-handles.ts); a page not saved, or nothing kept, has the text box ask for it
+    textFile: async (sha, click) => {
+      const id = page.record;
+      const kept = id === undefined ? undefined : await (await services.pages)?.handles?.get(handleKey(id, sha));
+      return kept ? readHandle(kept, click) : undefined;
+    },
+    // a missing one picked again: kept now, for the saved page it is -- the page is unchanged, no save would keep it
+    keepTextFile: (sha, handle) => {
+      const id = page.record;
+      if (id !== undefined) void (async () => (await services.pages)?.handles?.put(handleKey(id, sha), handle))();
+    },
     hostMenu: () => [
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
       ...(services.pages ? [
-        { id: 'host.save' as const, label: 'Save', section: 'file' as const },
-        { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const },
         { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
+        { id: 'host.save' as const, label: 'Save', section: 'file' as const, ...whileStarting(saveCube) },
+        { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const, ...whileStarting(saveCube) },
       ] : []),
       // the page's settings in a link: never a row of data (src/share/link.ts)
-      ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const }] : []),
+      ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const, ...whileStarting(copyShareLink) }] : []),
       { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
       // THE PAGE'S MODEL, under its Create ▸: its associations and its data space, once the page has a model home
       ...(createDataSpace ? [CREATE_ASSOCIATION, CREATE_DATA_SPACE] : []),
@@ -518,6 +599,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // its classes are in a project (§15.3; a file carrying its model comes with the Studio line's export, S23)
     pageNow: (name) => pageKept!(name),
     refuse: (text) => window.alert(text),
+    // A TIMESERIES SERIES OF SEVERAL GRIDS (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2): one query over one model
+    // of their tables -- the tab's or the host's (togetherOf, set with the page's sources below)
+    together: (cubes: readonly string[]) => {
+      if (!togetherOf) return Promise.reject(new Error('this page\'s host reads no grids together: a series reads one grid here'));
+      return togetherOf(cubes);
+    },
     // THE HOST'S TEXT, IN THE STATUS BAR (planner progress, errors, the planner's word): the page's first grid's, at the
     // right of its status bar -- a readout belongs there, not in the bar that says what is on screen. MOVED rather than
     // copied, on each render of that bar: `status` is the same node the planner writes to.
@@ -527,7 +614,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // each edit of the page's structure, written to its keeper, on a page another editor serves; an undo or a redo, the
     // page whole (a restore, N2)
     onPageCommand: (command) => channel?.edit({ page: command }),
-    // THE EMPTY PAGE (New ▸ Blank Page, the last grid removed, a start that opened nothing): what to do first -- a
+    // THE EMPTY PAGE (New Page, the last grid removed, a start that opened nothing): what to do first -- a
     // data source (the picker, opening in place) or a saved page
     empty: (slot) => {
       const doc = document;
@@ -563,7 +650,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         saved.type = 'button';
         saved.className = `dc-picker-button ${picks ? 'dc-quiet' : 'dc-primary'}`;
         saved.textContent = 'Open a saved cube';
-        saved.addEventListener('click', () => showCubes?.());
+        saved.addEventListener('click', () => openCubes());
         actions.append(saved);
       }
       if (actions.childElementCount > 0) card.append(actions);
@@ -576,6 +663,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     ...(picks ? { openSource: () => picker?.('add') ?? Promise.resolve(undefined) } : {}),
     // where the page can start again from a blank one: a data source, or a saved page
     ...(picks || services.pages ? { onBlankPage: () => blankPage?.({ asked: true }) } : {}),
+    // New Page and Data Source…, greyed until the start has set what they do (set together, with the picker)
+    starting: () => whileStarting(blankPage).hint,
+    // a flow's box shown, over the page as it is now; a tool of its palette added
+    openBox: (box, document, now) => openBox?.(box, document, now) ?? Promise.resolve(undefined),
+    onFlowTool: (tool, after, sheet, now, editor, into, port, at, step) => flowTool?.(tool, after, sheet, now, editor, into, port, at, step),
+    onFlowFile: (file) => flowFile?.(file),
+    onFlowJoin: (box, sheet, now) => flowJoinBox?.(box, sheet, now),
     onChange: () => {
       harnessSignal.changes += 1;
       // a grid gone from the page is followed no more
@@ -613,6 +707,31 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
+    // the grids of a timeseries series of several, over one model of the tables they read: the tab's own (its database's),
+    // or -- a page Python serves -- the host's, by the same rule (join.json together); its query then planned and run
+    // where the grids' rows are, as every grid's is (rowsOf). Fetched with the join's code (join-app.ts)
+    const tabEngine = services.engine.local;
+    const hostTables = services.engine.database.join;
+    let opensTogether: ((cubes: readonly string[]) => Promise<OpenedTogether>) | undefined;
+    if (tabEngine) {
+      opensTogether = (cubes) => lazily(() => import('./join-app.ts'))
+        .then(({ tabSources }) => tabSources(cubes, { page, sources, services, local: tabEngine }));
+    } else if (hostTables) {
+      opensTogether = (cubes) => {
+        const now = page.document(page.title);
+        if (!now) return Promise.reject(new Error('the page cannot say what its grids read'));
+        return hostTables.together(pageToJson(now), cubes);
+      };
+    }
+    if (opensTogether) {
+      togetherOf = (cubes) => lazily(() => import('./join-app.ts')).then(({ openTogether }) => openTogether(cubes, {
+        open: opensTogether,
+        rows: (model, runtime) => {
+          const rows = services.engine.rows(model, runtime);
+          return { run: rowsOf(rows.runner ? { runner: rows.runner } : { planner: rows.planner, engine: rows.engine })!, letGo: () => rows.planner?.dispose?.() };
+        },
+      }));
+    }
     // each grid's place told to the sources as it is made -- the start's grid, below, included: its tables are then
     // what a join of it reads
     madeGrid = (id, place) => sources.madeGrid(id, place);
@@ -768,10 +887,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page,
         grid: (id) => madeCubes.get(id),
         pageNow: () => pageNow(page.title, true),
-        // left while a grid of the keeper's page was opened (New ▸ Blank Page, Open…): nothing of it lands on the page
+        // left while a grid of the keeper's page was opened (New Page, Open…): nothing of it lands on the page
         // of this tab's own (the S4 audit's 4)
-        open: async (document, grid, several) => {
-          const opened = await sources.reopened(document, undefined, several, page.model?.tables[grid], true);
+        open: async (document, grid, several, on) => {
+          const opened = await sources.reopened(document, undefined, several, page.model?.tables[grid], true, on);
           if (left) throw new Error("the page Python serves was left: nothing of it lands on this tab's own");
           return opened;
         },
@@ -785,7 +904,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     }
     /**
      * A NEW PAGE ON A PAGE ANOTHER EDITOR SERVES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D1, P10): Open..., open in place
-     * and Blank Page put a page of this tab's own on screen and leave the served one as it is -- nothing of the new page
+     * and New Page put a page of this tab's own on screen and leave the served one as it is -- nothing of the new page
      * written to it, none of its moves followed here -- said once, in the status line; what is said, for a page that has
      * no grid to show that line (a blank page says it on its card), or undefined: no page served is left.
      */
@@ -819,6 +938,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     let placed = 0;
     const place = (): (() => boolean) => {
       const mine = (placed += 1);
+      // what the status line said at rest was the page's before: a new page starts with none of it
+      if (resting.warn) sayResting({ text: label, warn: false });
       return () => placed === mine;
     };
 
@@ -888,12 +1009,17 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const notes: string[] = [...opened.notes];
       sources.reserve(Object.values(doc.model?.tables ?? {}).flat());
       try {
-        // a class's grid after the grids whose tables it reads (page-document.ts openingOrder)
-        for (const { id: cubeId, cube } of openingOrder(doc.cubes)) {
+        // a class's grid after the grids whose tables it reads, a grid after the grids it reads (page-document.ts openingOrder);
+        // a flow's box is a document until it is shown, opened then (boxCubes)
+        const boxes = boxCubes(doc);
+        for (const { id: cubeId, cube } of openingOrder(doc.cubes, doc.views)) {
+          if (boxes.has(cubeId)) continue;
           let o: Opened | undefined;
           let why = 'not opened';
           try {
-            o = await sources.reopened(cube, id, gridCapped(doc.cubes.length), doc.model?.tables[cubeId], replacing);
+            // its page given: a grid over another grid's rows opens over that grid as the page has it
+            o = await sources.reopened(cube, id, gridCapped(doc.cubes.length), doc.model?.tables[cubeId], replacing,
+              { page: doc, cube: cubeId });
           } catch (e) {
             // a class whose rows are not here (its table read by no grid of the tab), or a join that no longer joins (an
             // input's file changed under it, a remote file that asks for keys) is left out and said, as a file not
@@ -923,7 +1049,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       // a page its other editor serves opens as its keeper has it, a page of no grid (or none opened) too: its name, its
       // sheets and the ids it holds are the page's (the S7 audit's H-1)
-      const unopened = replacing ? undefined : noneOpened(doc.name, makers.size);
+      const unopened = replacing ? undefined : noneOpened(doc.name, makers.size + boxCubes(doc).size);
       if (unopened !== undefined) {
         library?.say(unopened, 'warn');
         return [];
@@ -987,8 +1113,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * detached chart included): kept by the page and the file's contents (file-handles.ts handleKey), so opening the
      * page again reads it from there.
      */
-    async function keepHandles(pageId: string): Promise<void> {
+    async function keepHandles(pageId: string, from?: string): Promise<void> {
       for (const f of sources.filesNow()) if (f.handle) await pages?.handles?.put(handleKey(pageId, f.sha256), f.handle);
+      // and each text box's file, as a grid's is (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): its handle picked this
+      // session, else -- saved as another page (`from`, Save As) -- the one that page kept: a file never shown this
+      // session is read from nowhere else (the 2026-10-25 audit)
+      for (const f of page.textFilesNow()) {
+        const handle = f.handle ?? (from !== undefined && from !== pageId ? await pages?.handles?.get(handleKey(from, f.sha256)) : undefined);
+        if (handle) await pages?.handles?.put(handleKey(pageId, f.sha256), handle);
+      }
     }
 
     /** The grid a saved page's cube is shown in (its grid view's id), or the cube's own id (a detached chart's). */
@@ -1011,9 +1144,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if ('refused' in saving) throw new Error(saving.refused);
       const { record } = saving;
       const id = record.id;
+      // the saved page it was: Save As takes the handles it kept (keepHandles)
+      const was = page.record;
       if (saving.over) await store.update(id, record);
       else await store.create(record);
-      await keepHandles(id);
+      await keepHandles(id, was);
       current = { ...current, savedName: record.name, baseline: pageDefinitionText(doc), lost: [] };
       // the saved page it is, applied to the page's state by its command and told: its other editor saves over the same
       // record (B13)
@@ -1069,7 +1204,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         close.type = 'button';
         close.className = 'dc-picker-close';
         close.setAttribute('aria-label', 'Close');
-        close.textContent = '\u00d7';
+        close.append(chromeIcon(document, 'close'));
         head.append(titles, close);
         const body = document.createElement('div');
         body.className = 'dc-open-body';
@@ -1149,6 +1284,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
                 : src._type === 'frame' ? `it reads the dataframe ${src.name}: it opens where Python serves it`
                 : src._type === 'class' ? `opening it reads the class ${src.name} from ${src.project} again, at the revision it was read at, its rows where its table is open`
                 : src._type === 'join' ? `opening it reads the files ${src.name} joins again, and joins them`
+                : src._type === 'rows' ? `it reads the rows of ${src.name}, another grid of the page, as that grid is when it opens`
                 : src.sample ? `the example (${src.sample.rows.toLocaleString(UI_LOCALE)} rows) is generated again when it opens`
                   : `opening it reads ${src.name} again, from your computer`
           : src._type === 'savedQuery' ? `it reads the saved query “${src.name}” again, where its project (${src.query.groupId}:${src.query.artifactId}) is known`
@@ -1157,6 +1293,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
                 : src._type === 'frame' ? `it reads the dataframe ${src.name}, which only the Python that serves it has`
                 : src._type === 'class' ? `it reads the class ${src.name} from ${src.project}, which only this browser's model home has`
                 : src._type === 'join' ? `whoever opens it needs the files ${src.name} joins`
+                : src._type === 'rows' ? `it reads the rows of ${src.name}, another grid of the page`
                 : src.sample ? 'it rebuilds its sample on its own'
                   : `whoever opens it needs ${src.name}`);
       }
@@ -1373,6 +1510,145 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         page.addGrid(opened.make, { near: cube });
       })().catch((e: unknown) => window.alert(`Create ▸ Grid over a class: ${e instanceof Error ? e.message : String(e)}`));
     };
+    // A FLOW'S BOX SHOWN (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): opened as a saved page's grid is, over
+    // the page as it is now -- its live inputs read there -- by its host on a page Python serves; what it said, said on
+    // its grid
+    openBox = async (box, document, now) => {
+      const shown = placed;
+      const cube = now.views.find((v) => v.id === box && v.kind === 'grid')?.cube ?? box;
+      const opened = await sources.reopened(document, undefined, true, now.model?.tables[cube], channel !== undefined, { page: now, cube });
+      if (opened === undefined) return undefined;
+      if (placed !== shown) {
+        await opened.discard?.();
+        return undefined;
+      }
+      // what opening it left out, said on its own status bar -- the box's, put away with it, never the page's line,
+      // where it outlived the box (the next box shown said it)
+      if (opened.notes.length === 0) return opened.make;
+      const said = opened.notes.join('; ');
+      return (host, options, start) => {
+        const grid = opened.make(host, options, start);
+        grid.note(said);
+        return grid;
+      };
+    };
+    // A FILE DROPPED ONTO A FLOW'S CANVAS: an Input over it, opened as the picker opens a file it is given
+    flowFile = (file) => {
+      void (async () => {
+        const shown = placed;
+        const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
+        if (placed !== shown) {
+          await opened.discard?.();
+          return;
+        }
+        page.addGrid(opened.make);
+      })().catch((e: unknown) => window.alert(`${file.name}: ${e instanceof Error ? e.message : String(e)}`));
+    };
+    // A TOOL OF THE PALETTE: an Input, a grid over a source picked now, a box of its own; any other tool, a box after
+    // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown. Dropped
+    // on a line, the box that line went into reads the new one, told in the same step (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+    // M2): one undo takes the box off and the line back
+    flowTool = (tool, after, sheet, now, editor, into, port, at, step) => {
+      void (async () => {
+        const shown = placed;
+        const { outputCommand, pageCommand } = await lazily(() => import('../page-gestures.ts'));
+        // let go at a point of the canvas: the box made there, in the same step
+        const placedAt = at === undefined ? {} : { after: (id: string) => [pageCommand('placeBox', { tile: id, x: at.x, y: at.y })] };
+        if (tool === 'input') {
+          const make = await picker?.('add');
+          if (make !== undefined && placed === shown) page.addGrid(make, placedAt);
+          return;
+        }
+        // a table typed in: a CSV file of its own, an Input over it as a file dropped on the canvas is
+        if (tool === 'textInput') {
+          const { tableCsv, textInputDialog } = await lazily(() => import('../ui/text-input-dialog.ts'));
+          await textInputDialog(document, {
+            apply: async (table) => {
+              const file = new File([tableCsv(table)], `${table.name}.csv`, { type: 'text/csv' });
+              try {
+                const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
+                if (placed !== shown) {
+                  await opened.discard?.();
+                  return null;
+                }
+                page.addGrid(opened.make, { ...placedAt, label: 'Add Text Input' });
+                return null;
+              } catch (e) {
+                return e instanceof Error ? e.message : String(e);
+              }
+            },
+          });
+          return;
+        }
+        if (after === undefined) {
+          throw new Error("this tool reads another box's rows: click a box first, or drop the tool on one");
+        }
+        // a Join or a Union: the Join window over this box (its Left) and another of the flow, each read live (M2)
+        if (tool === 'join' || tool === 'union' || tool === 'appendFields' || tool === 'fuzzyMatch' || tool === 'findReplace') {
+          await joinOnFlow({ cube: after, tool, sheet, now, ...(into !== undefined ? { into } : {}) });
+          return;
+        }
+        // over its rows, or (`port`) a Filter's False: the rows its condition leaves out (FL7)
+        const live: RowsSource = {
+          _type: 'rows', name: gridInput(now, after, [], port).name, input: { grid: after, ...(port !== undefined ? { port } : {}) }, columns: [],
+        };
+        const tables = sources.place(after)?.tables;
+        const opened = await sources.openedBox(live, now, { capped: gridCapped(now.cubes.length + 1), ...(tables ? { tables } : {}) });
+        if (opened === undefined) return;
+        if (placed !== shown || !page.sheets.includes(sheet)) {
+          await opened.discard?.();
+          return;
+        }
+        // an Output writes a CSV named after the box it reads, set in the same step (M6)
+        const writes = tool === 'output'
+          ? (id: string) => [outputCommand(id, live.name)] : undefined;
+        const box = page.addGrid(opened.make, {
+          near: after,
+          ...placedAt,
+          ...(into !== undefined ? {
+            label: 'Insert Box',
+            after: (id: string) => [
+              ...(placedAt.after?.(id) ?? []), pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } }), ...(writes?.(id) ?? []),
+            ],
+          } : writes !== undefined ? { label: 'Add Output', after: (id: string) => [...(placedAt.after?.(id) ?? []), ...writes(id)] } : {}),
+        });
+        // drawn as the tool it was added as, and its settings docked in the flow's settings pane: what the tool is for
+        page.boxAddedAs(box, tool);
+        // New Box After (FL9): the gesture made on it, its one step
+        if (step !== undefined) void page.grid(box)?.gesture?.(step.gesture.name, step.gesture.args, step.label);
+        else if (editor !== undefined) page.grid(box)?.openStep?.(editor);
+        // a tool with no settings does its step as it is made: Count Records counts
+        else if (tool === 'countRecords') page.grid(box)?.openStep?.({ window: 'countRecords' });
+      })().catch((e: unknown) => window.alert(`${tool[0]!.toUpperCase()}${tool.slice(1)}: ${e instanceof Error ? e.message : String(e)}`));
+    };
+    // A FLOW'S JOIN BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): made after a box, or set again -- the Join window over
+    // the flow's boxes, in this tab's own database (a page Python serves makes one by page.join: refused here, said)
+    const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace'; readonly sheet: string;
+      readonly now: PageDocument; readonly into?: LineEnd }): Promise<void> => {
+      const local = services.engine.local;
+      if (!local) throw new Error('a join on a flow is made where the page\'s tables are: on a page Python serves, by page.join(mine, theirs, how)');
+      const shown = placed;
+      const layout = o.now.sheets.find((s) => s.id === o.sheet)?.layout;
+      const boxes = layout?.kind === 'flow' ? layout.boxes.map((b) => b.tile) : [];
+      const { flowJoin } = await lazily(() => import('./join-app.ts'));
+      await flowJoin({
+        cube: o.cube, ...(o.box !== undefined ? { box: o.box } : {}), tool: o.tool, boxes, page, sources,
+        services: { ...services, engine: { ...services.engine, local } }, stillShown: () => placed === shown,
+        ...(o.into !== undefined ? { into: o.into } : {}),
+      });
+    };
+    flowJoinBox = (box, sheet, now) => {
+      const view = now.views.find((v) => v.id === box);
+      const source = now.cubes.find((c) => c.id === view?.cube)?.cube.source;
+      // the tool its join is (flow-boxes.ts joinTool, whose module is the canvas's chunk): Union, Append Fields, Fuzzy Match
+      // or Join
+      const how = source?._type === 'join' ? source.how : undefined;
+      const tool = how?.form === 'append' ? 'union' : how !== undefined && isEveryPair(how) ? 'appendFields'
+        : how !== undefined && isFuzzy(how) ? 'fuzzyMatch' : 'join';
+      const named = { join: 'Join', union: 'Union', appendFields: 'Append Fields', fuzzyMatch: 'Fuzzy Match' } as const;
+      void joinOnFlow({ cube: box, box, tool, sheet, now })
+        .catch((e: unknown) => window.alert(`${named[tool]}: ${e instanceof Error ? e.message : String(e)}`));
+    };
     // JOIN… (§17.5): where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); on a
     // host's page (Python's), which has none there, the host answers its window's asks over its tables (HostJoin: B11).
     // Its flow fetched with the first Join… (app/join-app.ts)
@@ -1439,7 +1715,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         return null;
       }, start);
 
-    // A BLANK PAGE (New ▸ Blank Page; the user, 2026-10-01): every grid and chart goes, and the page
+    // A BLANK PAGE (New Page; the user, 2026-10-01): every grid and chart goes, and the page
     // says what to do first -- a data source (the picker, opening in place) or a saved page (PageApp's empty page,
     // `empty` above). Asked first when there are unsaved changes; the page stays until the person agrees.
     blankPage = (how) => {
@@ -1528,7 +1804,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch (e) {
         return e instanceof Error ? e.message : String(e);
       }
-      // left while it was read (New ▸ Blank Page, Open…): the page on screen is this tab's own (D1, the S4 audit's 4)
+      // left while it was read (New Page, Open…): the page on screen is this tab's own (D1, the S4 audit's 4)
       if (left) return undefined;
       if (channel) channel.shown = undefined;
       const shown = page.shownSheet;
@@ -1581,7 +1857,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch {
         return openLive();
       }
-      // left while it was asked (New ▸ Blank Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
+      // left while it was asked (New Page, Open…): the page on screen is this tab's own (the S4 audit's 4)
       if (left) return undefined;
       const wasChanged = dirty();
       // the screen put at the keeper's page (live-channel.ts follow, live-converge.ts: an edit made here while the keeper
@@ -1616,6 +1892,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       } catch (e) {
         failedStart(e);
       }
+    }
+    // the start over: an Open… asked meanwhile opened now, once
+    startOver = true;
+    if (cubesAsked) {
+      cubesAsked = false;
+      showCubes?.();
     }
 
     // FOLLOWING THE OTHER EDITOR (services.live, §5): Python moves what the page shows -- the page itself (its version:
@@ -1702,8 +1984,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   function failedStart(e: unknown): void {
     harnessSignal.changes += 1;
     startProblem = e instanceof Error ? e.message : String(e);
-    status.textContent = startProblem;
-    status.classList.add('bad');
+    sayError(startProblem);
   }
 }
 
@@ -1723,6 +2004,10 @@ interface AppWindows {
   readonly query: HTMLElement;
   readonly pure: HTMLElement;
   readonly sql: HTMLElement;
+  /** What went wrong, whole: the status bar's error chip opens it. */
+  readonly error: HTMLElement;
+  readonly errorText: HTMLElement;
+  readonly errorQuery: HTMLButtonElement;
   /** A window shown (left where it is if already shown), at `size` the first time. */
   show(win: HTMLElement, size?: { width: number; height: number }): void;
   toggle(win: HTMLElement): void;
@@ -1747,7 +2032,7 @@ function appWindows(container: HTMLElement): AppWindows {
   /** Each window's header, which it is dragged by. */
   const heads = new Map<HTMLElement, HTMLElement>();
   const hostWindow = (id: string, title: string, ...body: Node[]): HTMLElement => {
-    const close = el('button', { type: 'button', className: 'hostwin-close', textContent: '\u00d7' });
+    const close = el('button', { type: 'button', className: 'hostwin-close' }, chromeIcon(document, 'close'));
     close.setAttribute('aria-label', 'Close');
     const head = el('div', { className: 'hostwin-head' }, el('span', { textContent: title }), close);
     const win = el('div', { id, className: 'hostwin', hidden: true }, head, el('div', { className: 'hostwin-body' }, ...body));
@@ -1768,6 +2053,9 @@ function appWindows(container: HTMLElement): AppWindows {
   const pure = el('pre', { id: 'pure' });
   const sql = el('pre', { id: 'sql' });
   const query = hostWindow('querywin', 'Generated Pure & SQL', el('h2', { textContent: 'Pure' }), pure, el('h2', { textContent: 'SQL' }), sql);
+  const errorText = el('pre', { id: 'errortext', className: 'errortext' });
+  const errorQuery = el('button', { type: 'button', textContent: 'Show the query' });
+  const error = hostWindow('errorwin', 'What went wrong', errorText, el('div', { className: 'sharerow' }, errorQuery));
   const show = (win: HTMLElement, size: { width: number; height: number } = { width: 720, height: 420 }): void => {
     if (!win.hidden) return;
     win.hidden = false;
@@ -1777,8 +2065,8 @@ function appWindows(container: HTMLElement): AppWindows {
     specs.set(win, makeWindow(win, head, container, { ...size, ...(spec ? { spec } : {}), onChange: (next) => specs.set(win, next) }));
   };
   return {
-    library, libraryHome, share, shareParts: { link, note, copy }, query, pure, sql, show,
-    remove: () => { for (const w of [libraryHome, share, query]) w.remove(); },
+    library, libraryHome, share, shareParts: { link, note, copy }, query, pure, sql, error, errorText, errorQuery, show,
+    remove: () => { for (const w of [libraryHome, share, query, error]) w.remove(); },
     toggle: (win) => {
       if (!win.hidden) {
         win.hidden = true;
@@ -1788,3 +2076,4 @@ function appWindows(container: HTMLElement): AppWindows {
     },
   };
 }
+

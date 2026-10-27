@@ -375,6 +375,141 @@ public final class Lowerer {
      * trace of the lets); the final statement is the query.
      */
     public SqlQuery lower(List<TypedSpec> body) {
+        // J-tail: demand-driven subselect column pruning (engine parity —
+        // isolated composites enumerate only consumed columns)
+        return SubselectPrune.prune(lower(withQueryLets(body)));
+    }
+
+    /**
+     * Lower a STORE WRITE's body (docs/WRITES_DESIGN_2026_10_18.md §4, L1): leading {@code let}s bound as
+     * {@link #lower(List)} binds them, the last statement a write into a store table, lowered to the DML statement that
+     * writes it: {@code rel->write(#>{db.t}#)} the relation's rows inserted into the table's columns of their names
+     * ({@link com.legend.sql.SqlDml.InsertSelect}); {@code delete(r | pred)} and {@code update(r | pred, ~[c: r | e])}
+     * the predicate and the values read over the table's own row ({@link com.legend.sql.SqlDml.DeleteWhere},
+     * {@link com.legend.sql.SqlDml.Update}); {@code rel->merge(#>{db.t}#, ~[keys])} the rows upserted by key
+     * ({@link com.legend.sql.SqlDml.Merge}). The statement's count is the database's (the executor's update count).
+     */
+    public com.legend.sql.SqlDml lowerStoreWrite(List<TypedSpec> body) {
+        TypedSpec root = withQueryLets(body);
+        return switch (root) {
+            case TypedWrite w when w.destination().isPresent()
+                    && w.destination().get() instanceof TypedTableReference t -> {
+                SqlQuery rows = writtenRows(w.source(), t, "write");
+                List<String> columns = rows.outputs().stream().map(OutputCol::name).toList();
+                yield new com.legend.sql.SqlDml.InsertSelect(schemaOf(t), tableOf(t), quotingOf(t), columns,
+                        quotedOf(t, columns), rows);
+            }
+            case com.legend.compiler.spec.typed.TypedMerge m -> {
+                SqlQuery rows = writtenRows(m.source(), m.table(), "merge");
+                List<String> columns = rows.outputs().stream().map(OutputCol::name).toList();
+                yield new com.legend.sql.SqlDml.Merge(schemaOf(m.table()), tableOf(m.table()), quotingOf(m.table()),
+                        columns, quotedOf(m.table(), columns), m.keys().names(), rows, nextAlias(), nextAlias());
+            }
+            case com.legend.compiler.spec.typed.TypedDelete d -> {
+                SqlSelect scan = relation(d.table());
+                yield new com.legend.sql.SqlDml.DeleteWhere(schemaOf(d.table()), tableOf(d.table()),
+                        quotingOf(d.table()), scanAlias(scan, "delete"), d.table().storedTypes(),
+                        overRow(scan, d.where(), "delete", "its predicate"));
+            }
+            case com.legend.compiler.spec.typed.TypedUpdate u -> {
+                SqlSelect scan = relation(u.table());
+                List<com.legend.sql.SqlDml.Update.Assignment> set = new ArrayList<>();
+                for (var c : u.set().cols()) {
+                    set.add(new com.legend.sql.SqlDml.Update.Assignment(c.name(),
+                            u.table().quotedColumns().contains(c.name()),
+                            overRow(scan, c.fn(), "update", "the value of '" + c.name() + "'")));
+                }
+                yield new com.legend.sql.SqlDml.Update(schemaOf(u.table()), tableOf(u.table()),
+                        quotingOf(u.table()), scanAlias(scan, "update"), u.table().storedTypes(), set,
+                        overRow(scan, u.where(), "update", "its predicate"));
+            }
+            default -> throw new IllegalStateException("not a store write: " + root.getClass().getSimpleName()
+                    + " (StatementExecutor dispatches only a write into a store table here)");
+        };
+    }
+
+    /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
+     *  types them so, by name: WriteChecker). */
+    private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
+        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source)));
+        java.util.Set<String> declared = new java.util.LinkedHashSet<>();
+        java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
+                .columns().forEach(c -> declared.add(c.name()));
+        for (OutputCol c : rows.outputs()) {
+            if (!declared.contains(c.name())) {
+                throw new IllegalStateException(op + ": the relation's column '" + c.name() + "' is not a column of "
+                        + t.store() + "." + t.table() + " " + declared + " (the checker types a write's relation by"
+                        + " its destination's columns)");
+            }
+        }
+        return rows;
+    }
+
+    /** {@code rows} with each of its columns NAMED in the select, in its relation's order: a statement that takes
+     *  rows by position (an INSERT into the columns it lists, a staged table whose columns it names) reads them in
+     *  that order, where a star is the database's order of its source's columns, which the model's declaration need
+     *  not be (PR #67's review, 2026-10-22: Postgres staged a table declared {@code (ID, NAME)} and made
+     *  {@code (NAME, ID)} with each value under the other's name). */
+    public SqlQuery namedColumns(SqlQuery rows) {
+        if (!(rows instanceof SqlSelect s) || !s.projections().isEmpty()) {
+            return rows;
+        }
+        SqlSelect over = s.from() instanceof SqlSource.Join ? isolate(s) : s;
+        List<SqlSelect.Projection> named = new ArrayList<>();
+        for (OutputCol o : over.outputs()) {
+            named.add(new SqlSelect.Projection(SqlExpr.Column.of(over.from().alias(), o), o.name(),
+                    new OutputCol(o.name(), o.type(), o.nullable(), OutputCol.Origin.DERIVED)));
+        }
+        return over.withProjections(named);
+    }
+
+    /** A lambda over the table's row ({@code scan}, the table read under one alias) as one expression over that alias:
+     *  a delete's or an update's predicate, an update's value. A read the row cannot resolve is the checker's miss. */
+    private SqlExpr overRow(SqlSelect scan, TypedLambda lambda, String op, String what) {
+        return switch (tryPredicate(scan, lambda)) {
+            case Resolution.Resolved r -> r.expr();
+            case Resolution.Unfoldable u -> throw new IllegalStateException(op + ": " + what + " reads '"
+                    + u.column() + "', which the table's row does not hold");
+        };
+    }
+
+    private static NotImplementedException storeWriteInAPlan(com.legend.compiler.spec.typed.TypedStoreWrite sw) {
+        return new NotImplementedException(sw.getClass().getSimpleName() + " into " + sw.table().table() + " is a store"
+                + " write, run at execution (lowerStoreWrite), not a value of a query's plan");
+    }
+
+    /** The alias of the one table {@code scan} reads (a store table's scan: {@link #relation} of the reference). */
+    private static String scanAlias(SqlSelect scan, String op) {
+        if (scan.from() instanceof SqlSource.Table table) {
+            return table.alias();
+        }
+        throw new IllegalStateException(op + ": the table's scan reads " + scan.from().getClass().getSimpleName()
+                + ", not the table");
+    }
+
+    private static @com.legend.base.Nullable String schemaOf(TypedTableReference t) {
+        int dot = t.table().indexOf('.');
+        return dot < 0 ? null : t.table().substring(0, dot);
+    }
+
+    private static String tableOf(TypedTableReference t) {
+        int dot = t.table().indexOf('.');
+        return dot < 0 ? t.table() : t.table().substring(dot + 1);
+    }
+
+    private static com.legend.sql.NameQuoting quotingOf(TypedTableReference t) {
+        return new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable());
+    }
+
+    private static java.util.Set<String> quotedOf(TypedTableReference t, List<String> columns) {
+        java.util.Set<String> quoted = new java.util.LinkedHashSet<>(t.quotedColumns());
+        quoted.retainAll(columns);
+        return quoted;
+    }
+
+    /** {@code body}'s leading lets bound into query scope, its last statement returned with every binder spelled
+     *  like a query-scope name renamed: the let prelude every body's lowering shares. */
+    private TypedSpec withQueryLets(List<TypedSpec> body) {
         // QUERY SCOPE is one flat map read ahead of every row scope
         // (letBindings: plan parameters, the lets below, lets met in
         // expression position). A binder inside the body spelled like one
@@ -403,10 +538,14 @@ public final class Lowerer {
                         "a query-level let has no row scope for $" + var);
             }));
         }
-        // J-tail: demand-driven subselect column pruning (engine parity —
-        // isolated composites enumerate only consumed columns)
-        return SubselectPrune.prune(lower(com.legend.compiler.spec.typed.TypedSubst
-                .renameBinders(body.get(body.size() - 1), reserved, queryScope)));
+        return com.legend.compiler.spec.typed.TypedSubst.renameBinders(body.get(body.size() - 1), reserved, queryScope);
+    }
+
+    /** The value of the plan parameter {@code name} (bound by {@link #bindPlanParam}), of {@code type}, as the query
+     *  whose value it is: a query that reads the parameter alone (a write plan's count, which the plan binds after
+     *  its write runs, docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). */
+    public SqlQuery lowerPlanParam(String name, ExprType type) {
+        return lower(List.of(new TypedVariable(name, type)));
     }
 
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
@@ -530,6 +669,15 @@ public final class Lowerer {
         if (mixedLits != null) {
             e = mixedLits;
         }
+        // a mixed selection's winner (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a, 2026-10-23): the root projects
+        // its tag and one column per slot; a collection of them is step B's
+        if (e instanceof SqlExpr.Tagged tg) {
+            if (Stamps.isMany(spec)) {
+                throw new com.legend.error.NotImplementedException("a collection of values whose kind the database"
+                        + " decides (a mixed max, min, greatest, least or mode, many-valued): not lowered");
+            }
+            return taggedRoot(tg, spec);
+        }
         // THE ONE LITERAL-LABEL ARM (§4.3, redundant half deleted
         // 2026-08-24): the TREE says whether the finished root carries
         // spellings — every producer marks at construction (the sort
@@ -583,6 +731,60 @@ public final class Lowerer {
                 false, new SqlSource.Dual(),
                 null, List.of(), null, null, List.of(), null, null,
                 List.of());
+    }
+
+    /**
+     * A tagged value's egress (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the tag and each candidate computed
+     * once in an inner select; the root projects {@code value}, the winner's SLOT INDEX (the tag column, typed
+     * {@link SqlType.Tagged}), and one column per slot ({@link SqlType.Tagged#slotColumn}) holding the winner in
+     * that slot's own type where the tag names it and NULL elsewhere, a candidate cast to the slot where its own
+     * type differs (an Integer literal to BIGINT, a Float literal written as a decimal to DOUBLE). The reader takes
+     * the tag, then that slot's column with its own type.
+     */
+    private SqlSelect taggedRoot(SqlExpr.Tagged tg, TypedSpec spec) {
+        String inner = nextAlias();
+        List<SqlSelect.Projection> computed = new ArrayList<>();
+        computed.add(new SqlSelect.Projection(tg.tag(), "__tag",
+                new OutputCol("__tag", SqlType.Scalar.INTEGER, true)));
+        List<SqlType> owns = new ArrayList<>();
+        for (int k = 0; k < tg.candidates().size(); k++) {
+            SqlExpr.Tagged.Candidate c = tg.candidates().get(k);
+            SqlType own = c.value().type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : c.slot();
+            owns.add(own);
+            computed.add(new SqlSelect.Projection(c.value(), "__c" + k, new OutputCol("__c" + k, own, true)));
+        }
+        SqlSelect once = new SqlSelect(computed, false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        SqlExpr tag = SqlExpr.Column.of(inner, "__tag", SqlType.Scalar.INTEGER, true, OutputCol.Origin.DERIVED);
+        List<SqlType.Tagged.Slot> slots = tg.slots();
+        List<SqlSelect.Projection> out = new ArrayList<>();
+        List<SqlExpr.Case.When> index = new ArrayList<>();
+        for (int k = 0; k < tg.candidates().size(); k++) {
+            index.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
+                    new SqlExpr.IntLit(tg.slotOf(k))));
+        }
+        // the tag column is TYPED as the tagged carrier by a cast every dialect writes as the identity (the slot is
+        // the wire, SqlTyping.reconcileSlot: a label rides on the expression's own type, as LITERAL's does)
+        SqlType.Tagged carrier = new SqlType.Tagged(slots);
+        out.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.Case(index, null), carrier), "value",
+                new OutputCol("value", carrier, PureSql.nullable(spec.info().multiplicity()))));
+        for (int i = 0; i < slots.size(); i++) {
+            List<SqlExpr.Case.When> whens = new ArrayList<>();
+            for (int k = 0; k < tg.candidates().size(); k++) {
+                if (tg.slotOf(k) != i) {
+                    continue;
+                }
+                SqlType own = owns.get(k);
+                SqlExpr read = SqlExpr.Column.of(inner, "__c" + k, own, true, OutputCol.Origin.DERIVED);
+                whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(k + 1)),
+                        own.equals(slots.get(i).type()) ? read : new SqlExpr.Cast(read, slots.get(i).type())));
+            }
+            String name = SqlType.Tagged.slotColumn("value", i);
+            out.add(new SqlSelect.Projection(new SqlExpr.Case(whens, null), name,
+                    new OutputCol(name, slots.get(i).type(), true)));
+        }
+        return new SqlSelect(out, false, new SqlSource.Subselect(once, inner, null), null, List.of(), null, null,
+                List.of(), null, null, List.of());
     }
 
     /**
@@ -3495,10 +3697,13 @@ public final class Lowerer {
                 if (!(w.destination().isEmpty()
                         || !containsStoreTable(w.destination().get()))) {
                     throw new NotImplementedException(
-                            "TypedWrite to a store destination is not yet implemented");
+                            "TypedWrite to a store destination is not yet implemented as a query's plan (a write"
+                            + " into a store table runs at execution: lowerStoreWrite)");
                 }
                 yield Render.writeCount(relation(w.source()), nextAlias());
             }
+            // lite's store writes run at execution (lowerStoreWrite), never as a value of a query's plan
+            case com.legend.compiler.spec.typed.TypedStoreWrite sw -> throw storeWriteInAPlan(sw);
             // A CLASS REFERENCE in scalar position carries its SIMPLE name
             // (PCT: STR_Person->toString() == 'STR_Person').
             case TypedPackageableRef ref -> {

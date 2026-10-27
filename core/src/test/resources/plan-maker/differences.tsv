@@ -44,7 +44,7 @@ sqlite	TDS_TEXT	|let ts = [%2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01
 sqlite	CSV	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	ID,p,x\r\n1,2.500000000000000000,2.500000000000000000\r\n2,2.500000000000000000,5.000000000000000000\r\n3,2.500000000000000000,7.500000000000000000\r\n
 # 2026-10-16 (Phase 6, as above): a Decimal parameter answers "2.50", a string, in JSON on SQLite, where today's path
 # answers 2.5, a number. A defect of SQLite's plan path (defect 11). 2026-10-22 (main's merge into the plan path
-# branch): the plan's JSON writes a Decimal as its text (register S97, the value's own scale), so SQLite's bound value
+# branch): the plan's JSON writes a Decimal as its text (register S104, the value's own scale), so SQLite's bound value
 # shows its eighteen places here as in CSV: the same defect.
 sqlite	JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	[{"ID":1,"p":2.500000000000000000,"x":2.500000000000000000},{"ID":2,"p":2.500000000000000000,"x":5.000000000000000000},{"ID":3,"p":2.500000000000000000,"x":7.500000000000000000}]
 sqlite	STREAMED_JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	[{"ID":1,"p":2.500000000000000000,"x":2.500000000000000000},{"ID":2,"p":2.500000000000000000,"x":5.000000000000000000},{"ID":3,"p":2.500000000000000000,"x":7.500000000000000000}]

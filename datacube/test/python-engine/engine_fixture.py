@@ -15,7 +15,9 @@ live again), `py-page-copies` (answered `done py-page-copies <each grid's snappe
 `py-page-desks-wider` (the page's desks frame, read Live, a column more in place, where Python does not look) and
 `py-page-desks-columns` (answered `done py-page-desks-columns <its desks grid's columns, as the page has them, as JSON>`),
 `py-page-version` (answered `done py-page-version <the version its keeper has, as JSON>`),
-`show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as JSON>`), `close-closing`
+`py-ts` (a page of two dated frames and a timeseries combining them, built with ll.Page and shown; answered `done py-ts
+<its link as JSON>`), `show-closing` (a frame of two rows shown, `closing`; answered `done show-closing <its link as
+JSON>`), `close-closing`
 (that frame's cube closed in Python), `py-page-read` (answered `done py-page-read <its sheets' names, as
 the page has them, as JSON>`), `py-documents` (answered `done py-documents <pages Python writes, each its JSON
 text, as JSON>`: for DataCube's reader to read) -- each answered `done <command>` -- and `widget <name> <message>`, a message from a widget's page, as
@@ -28,6 +30,7 @@ base64) and `trait <json>` (a property set). A second frame, `desks`, is served 
 import argparse
 import base64
 import contextlib
+import datetime
 import functools
 import http.server
 import tempfile
@@ -265,6 +268,21 @@ def main() -> None:
                 pypage.name = 'Renamed in Python'
             elif command == 'py-page-name-back':
                 pypage.name = 'Built in Python'
+            elif command == 'py-ts':
+                # A TIMESERIES OF TWO GRIDS ON A PAGE PYTHON SERVES (the timeseries review's A7,
+                # docs/TIMESERIES_REVIEW_2026_10_25.md): built with ll.Page as a person builds one -- two frames of dated
+                # rows, one tile reading both, its series combining them -- and shown: the open page reads its grids
+                # together through Python (join.json together: headless joinTogether), its query planned and run here
+                tspage = ll.Page('Spread')
+                days = pa.array([datetime.date(2024, 1, d) for d in (2, 3, 4, 5)], pa.date32())
+                tspx = tspage.grid(pa.table({'symbol': ['SPX'] * 4, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0]}),
+                                   name='tsprices')
+                tsrt = tspage.grid(pa.table({'tenor': ['10Y'] * 4, 'obs': days, 'yield': [4.0, 4.1, 3.9, 4.2]}),
+                                   name='tsrates')
+                tspage.timeseries({'px': tspx, 'rt': tsrt}, ['px:close[SPX] - rt:yield[10Y]'], title='SPX less the 10Y')
+                with contextlib.redirect_stdout(io.StringIO()):
+                    shown_ts = ll.show(tspage, browser=False)
+                command = f'py-ts {json.dumps(shown_ts.url)}'
             elif command == 'show-closing':
                 with contextlib.redirect_stdout(io.StringIO()):
                     closing = ll.show(frame.slice(0, 2), name='closing', browser=False)

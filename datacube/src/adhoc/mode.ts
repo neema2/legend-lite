@@ -246,7 +246,7 @@ export class AdHocMode {
       tools.append(b);
     };
     button('Refresh', 'Query the grid as it stands', () => void this.refresh());
-    button('Options...', 'Zoom, suppression and indentation', () => this.openOptions());
+    button('Options…', 'Zoom, suppression and indentation', () => this.openOptions());
     button('Exit', 'Back to the cube', () => this.#options.onExit());
   }
 
@@ -256,7 +256,7 @@ export class AdHocMode {
       {
         label: dimension,
         items: [
-          { id: 'adhoc.members', label: 'Member Selection...', adhoc: target },
+          { id: 'adhoc.members', label: 'Member Selection…', adhoc: target },
           { id: 'adhoc.povToRows', label: 'Move to Rows', adhoc: target },
           { id: 'adhoc.povToColumns', label: 'Move to Columns', adhoc: target },
         ],
@@ -385,7 +385,7 @@ export class AdHocMode {
         label: selected.length > 1 ? `Remove Only (${selected.length})` : 'Remove Only',
         adhoc: withTarget,
       },
-      { id: 'adhoc.members', label: 'Member Selection...', adhoc: withTarget },
+      { id: 'adhoc.members', label: 'Member Selection…', adhoc: withTarget },
       {
         id: 'adhoc.pivot',
         label: target.axis === 'rows' ? 'Pivot to Columns' : 'Pivot to Rows',
@@ -404,7 +404,7 @@ export class AdHocMode {
         { id: 'adhoc.refresh', label: 'Refresh' },
         { id: 'adhoc.undo', label: 'Undo', ...(this.session.canUndo ? {} : { disabled: true }) },
         { id: 'adhoc.redo', label: 'Redo', ...(this.session.canRedo ? {} : { disabled: true }) },
-        { id: 'adhoc.options', label: 'Options...' },
+        { id: 'adhoc.options', label: 'Options…' },
         { id: 'adhoc.exit', label: 'Exit Ad Hoc Analysis' },
       ],
     };

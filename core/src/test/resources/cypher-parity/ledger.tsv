@@ -53,18 +53,18 @@ tck/clauses/call/Call5/[8] Allow standalone call to procedure with YIELD *	PASS	
 tck/clauses/call/Call6/[1] Calling the same STRING procedure twice using the same outputs in each call	PASS	PASS
 tck/clauses/call/Call6/[2] Project procedure results between query scopes with WITH clause	PASS	PASS
 tck/clauses/call/Call6/[3] Project procedure results between query scopes with WITH clause and rename the projection	PASS	PASS
-tck/clauses/create/Create1/[1] Create a single node	REFUSED	REFUSED
-tck/clauses/create/Create1/[2] Create two nodes	REFUSED	REFUSED
-tck/clauses/create/Create1/[3] Create a single node with a label	REFUSED	REFUSED
-tck/clauses/create/Create1/[4] Create two nodes with same label	REFUSED	REFUSED
-tck/clauses/create/Create1/[5] Create a single node with multiple labels	REFUSED	REFUSED
-tck/clauses/create/Create1/[6] Create three nodes with multiple labels	REFUSED	REFUSED
-tck/clauses/create/Create1/[7] Create a single node with a property	REFUSED	REFUSED
-tck/clauses/create/Create1/[8] Create a single node with a property and return it	REFUSED	REFUSED
-tck/clauses/create/Create1/[9] Create a single node with two properties	REFUSED	REFUSED
-tck/clauses/create/Create1/[10] Create a single node with two properties and return them	REFUSED	REFUSED
-tck/clauses/create/Create1/[11] Create a single node with null properties should not return those properties	REFUSED	REFUSED
-tck/clauses/create/Create1/[12] CREATE does not lose precision on large integers	REFUSED	REFUSED
+tck/clauses/create/Create1/[1] Create a single node	PASS	PASS
+tck/clauses/create/Create1/[2] Create two nodes	PASS	PASS
+tck/clauses/create/Create1/[3] Create a single node with a label	PASS	PASS
+tck/clauses/create/Create1/[4] Create two nodes with same label	PASS	PASS
+tck/clauses/create/Create1/[5] Create a single node with multiple labels	PASS	PASS
+tck/clauses/create/Create1/[6] Create three nodes with multiple labels	PASS	PASS
+tck/clauses/create/Create1/[7] Create a single node with a property	PASS	PASS
+tck/clauses/create/Create1/[8] Create a single node with a property and return it	PASS	PASS
+tck/clauses/create/Create1/[9] Create a single node with two properties	PASS	PASS
+tck/clauses/create/Create1/[10] Create a single node with two properties and return them	PASS	PASS
+tck/clauses/create/Create1/[11] Create a single node with null properties should not return those properties	PASS	PASS
+tck/clauses/create/Create1/[12] CREATE does not lose precision on large integers	PASS	PASS
 tck/clauses/create/Create1/[13] Fail when creating a node that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/create/Create1/[14] Fail when creating a node with properties that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/create/Create1/[15] Fail when adding a new label predicate on a node that is already bound 1	BOTH_ERROR	BOTH_ERROR
@@ -73,23 +73,23 @@ tck/clauses/create/Create1/[17] Fail when adding new label predicate on a node t
 tck/clauses/create/Create1/[18] Fail when adding new label predicate on a node that is already bound 4	BOTH_ERROR	BOTH_ERROR
 tck/clauses/create/Create1/[19] Fail when adding new label predicate on a node that is already bound 5	BOTH_ERROR	BOTH_ERROR
 tck/clauses/create/Create1/[20] Fail when creating a node using undefined variable in pattern	BOTH_ERROR	BOTH_ERROR
-tck/clauses/create/Create2/[1] Create two nodes and a single relationship in a single pattern	REFUSED	REFUSED
-tck/clauses/create/Create2/[2] Create two nodes and a single relationship in separate patterns	REFUSED	REFUSED
-tck/clauses/create/Create2/[3] Create two nodes and a single relationship in separate clauses	REFUSED	REFUSED
-tck/clauses/create/Create2/[4] Create two nodes and a single relationship in the reverse direction	SKIP	SKIP
-tck/clauses/create/Create2/[5] Create a single relationship between two existing nodes	REFUSED	REFUSED
-tck/clauses/create/Create2/[6] Create a single relationship between two existing nodes in the reverse direction	SKIP	SKIP
-tck/clauses/create/Create2/[7] Create a single node and a single self loop in a single pattern	REFUSED	REFUSED
-tck/clauses/create/Create2/[8] Create a single node and a single self loop in separate patterns	REFUSED	REFUSED
-tck/clauses/create/Create2/[9] Create a single node and a single self loop in separate clauses	REFUSED	REFUSED
-tck/clauses/create/Create2/[10] Create a single self loop on an existing node	REFUSED	REFUSED
-tck/clauses/create/Create2/[11] Create a single relationship and an end node on an existing starting node	SKIP	SKIP
-tck/clauses/create/Create2/[12] Create a single relationship and a starting node on an existing end node	SKIP	SKIP
-tck/clauses/create/Create2/[13] Create a single relationship with a property	REFUSED	REFUSED
-tck/clauses/create/Create2/[14] Create a single relationship with a property and return it	REFUSED	REFUSED
-tck/clauses/create/Create2/[15] Create a single relationship with two properties	REFUSED	REFUSED
-tck/clauses/create/Create2/[16] Create a single relationship with two properties and return them	REFUSED	REFUSED
-tck/clauses/create/Create2/[17] Create a single relationship with null properties should not return those properties	REFUSED	REFUSED
+tck/clauses/create/Create2/[1] Create two nodes and a single relationship in a single pattern	PASS	PASS
+tck/clauses/create/Create2/[2] Create two nodes and a single relationship in separate patterns	PASS	PASS
+tck/clauses/create/Create2/[3] Create two nodes and a single relationship in separate clauses	PASS	PASS
+tck/clauses/create/Create2/[4] Create two nodes and a single relationship in the reverse direction	PASS	PASS
+tck/clauses/create/Create2/[5] Create a single relationship between two existing nodes	PASS	PASS
+tck/clauses/create/Create2/[6] Create a single relationship between two existing nodes in the reverse direction	PASS	PASS
+tck/clauses/create/Create2/[7] Create a single node and a single self loop in a single pattern	PASS	PASS
+tck/clauses/create/Create2/[8] Create a single node and a single self loop in separate patterns	PASS	PASS
+tck/clauses/create/Create2/[9] Create a single node and a single self loop in separate clauses	PASS	PASS
+tck/clauses/create/Create2/[10] Create a single self loop on an existing node	PASS	PASS
+tck/clauses/create/Create2/[11] Create a single relationship and an end node on an existing starting node	PASS	PASS
+tck/clauses/create/Create2/[12] Create a single relationship and a starting node on an existing end node	PASS	PASS
+tck/clauses/create/Create2/[13] Create a single relationship with a property	PASS	PASS
+tck/clauses/create/Create2/[14] Create a single relationship with a property and return it	PASS	PASS
+tck/clauses/create/Create2/[15] Create a single relationship with two properties	PASS	PASS
+tck/clauses/create/Create2/[16] Create a single relationship with two properties and return them	PASS	PASS
+tck/clauses/create/Create2/[17] Create a single relationship with null properties should not return those properties	PASS	PASS
 tck/clauses/create/Create2/[18] Fail when creating a relationship without a type	BOTH_ERROR	BOTH_ERROR
 tck/clauses/create/Create2/[19] Fail when creating a relationship without a direction	BOTH_ERROR	BOTH_ERROR
 tck/clauses/create/Create2/[20] Fail when creating a relationship with two directions	BOTH_ERROR	BOTH_ERROR
@@ -97,81 +97,81 @@ tck/clauses/create/Create2/[21] Fail when creating a relationship with more than
 tck/clauses/create/Create2/[22] Fail when creating a variable-length relationship	BOTH_ERROR	BOTH_ERROR
 tck/clauses/create/Create2/[23] Fail when creating a relationship that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/create/Create2/[24] Fail when creating a relationship using undefined variable in pattern	BOTH_ERROR	BOTH_ERROR
-tck/clauses/create/Create3/[1] MATCH-CREATE	REFUSED	REFUSED
-tck/clauses/create/Create3/[2] WITH-CREATE	REFUSED	REFUSED
-tck/clauses/create/Create3/[3] MATCH-CREATE-WITH-CREATE	REFUSED	REFUSED
-tck/clauses/create/Create3/[4] MATCH-CREATE: Newly-created nodes not visible to preceding MATCH	REFUSED	REFUSED
-tck/clauses/create/Create3/[5] WITH-CREATE: Nodes are not created when aliases are applied to variable names	REFUSED	REFUSED
-tck/clauses/create/Create3/[6] WITH-CREATE: Only a single node is created when an alias is applied to a variable name	REFUSED	REFUSED
-tck/clauses/create/Create3/[7] WITH-CREATE: Nodes are not created when aliases are applied to variable names multiple times	REFUSED	REFUSED
-tck/clauses/create/Create3/[8] WITH-CREATE: Only a single node is created when an alias is applied to a variable name multiple times	REFUSED	REFUSED
-tck/clauses/create/Create3/[9] WITH-CREATE: A bound node should be recognized after projection with WITH + WITH	REFUSED	REFUSED
-tck/clauses/create/Create3/[10] WITH-UNWIND-CREATE: A bound node should be recognized after projection with WITH + UNWIND	REFUSED	REFUSED
-tck/clauses/create/Create3/[11] WITH-MERGE-CREATE: A bound node should be recognized after projection with WITH + MERGE node	REFUSED	REFUSED
-tck/clauses/create/Create3/[12] WITH-MERGE-CREATE: A bound node should be recognized after projection with WITH + MERGE pattern	REFUSED	REFUSED
-tck/clauses/create/Create3/[13] Merge followed by multiple creates	REFUSED	REFUSED
-tck/clauses/create/Create4/[1] Generate the movie graph	REFUSED	REFUSED
-tck/clauses/create/Create4/[2] Many CREATE clauses	REFUSED	REFUSED
-tck/clauses/create/Create5/[1] Create a pattern with multiple hops	SKIP	SKIP
-tck/clauses/create/Create5/[2] Create a pattern with multiple hops in the reverse direction	SKIP	SKIP
-tck/clauses/create/Create5/[3] Create a pattern with multiple hops in varying directions	SKIP	SKIP
-tck/clauses/create/Create5/[4] Create a pattern with multiple hops with multiple types and varying directions	SKIP	SKIP
-tck/clauses/create/Create5/[5] Create a pattern with multiple hops and varying directions	SKIP	SKIP
-tck/clauses/create/Create6/[1] Limiting to zero results after creating nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[2] Skipping all results after creating nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[3] Skipping and limiting to a few results after creating nodes does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[4] Skipping zero result and limiting to all results after creating nodes does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[5] Filtering after creating nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[6] Aggregating in `RETURN` after creating nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[7] Aggregating in `WITH` after creating nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[8] Limiting to zero results after creating relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[9] Skipping all results after creating relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[10] Skipping and limiting to a few results after creating relationships does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[11] Skipping zero result and limiting to all results after creating relationships does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[12] Filtering after creating relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[13] Aggregating in `RETURN` after creating relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/create/Create6/[14] Aggregating in `WITH` after creating relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete1/[1] Delete nodes	REFUSED	REFUSED
-tck/clauses/delete/Delete1/[2] Detach delete node	REFUSED	REFUSED
-tck/clauses/delete/Delete1/[3] Detach deleting connected nodes and relationships	REFUSED	REFUSED
-tck/clauses/delete/Delete1/[4] Delete on null node	REFUSED	REFUSED
-tck/clauses/delete/Delete1/[5] Ignore null when deleting node	REFUSED	REFUSED
-tck/clauses/delete/Delete1/[6] Detach delete on null node	REFUSED	REFUSED
-tck/clauses/delete/Delete1/[7] Failing when deleting connected nodes	BOTH_ERROR	BOTH_ERROR
+tck/clauses/create/Create3/[1] MATCH-CREATE	PASS	PASS
+tck/clauses/create/Create3/[2] WITH-CREATE	PASS	PASS
+tck/clauses/create/Create3/[3] MATCH-CREATE-WITH-CREATE	PASS	PASS
+tck/clauses/create/Create3/[4] MATCH-CREATE: Newly-created nodes not visible to preceding MATCH	PASS	PASS
+tck/clauses/create/Create3/[5] WITH-CREATE: Nodes are not created when aliases are applied to variable names	PASS	PASS
+tck/clauses/create/Create3/[6] WITH-CREATE: Only a single node is created when an alias is applied to a variable name	PASS	PASS
+tck/clauses/create/Create3/[7] WITH-CREATE: Nodes are not created when aliases are applied to variable names multiple times	PASS	PASS
+tck/clauses/create/Create3/[8] WITH-CREATE: Only a single node is created when an alias is applied to a variable name multiple times	PASS	PASS
+tck/clauses/create/Create3/[9] WITH-CREATE: A bound node should be recognized after projection with WITH + WITH	PASS	PASS
+tck/clauses/create/Create3/[10] WITH-UNWIND-CREATE: A bound node should be recognized after projection with WITH + UNWIND	PASS	PASS
+tck/clauses/create/Create3/[11] WITH-MERGE-CREATE: A bound node should be recognized after projection with WITH + MERGE node	PASS	PASS
+tck/clauses/create/Create3/[12] WITH-MERGE-CREATE: A bound node should be recognized after projection with WITH + MERGE pattern	PASS	PASS
+tck/clauses/create/Create3/[13] Merge followed by multiple creates	PASS	PASS
+tck/clauses/create/Create4/[1] Generate the movie graph	PASS	PASS
+tck/clauses/create/Create4/[2] Many CREATE clauses	PASS	PASS
+tck/clauses/create/Create5/[1] Create a pattern with multiple hops	PASS	PASS
+tck/clauses/create/Create5/[2] Create a pattern with multiple hops in the reverse direction	PASS	PASS
+tck/clauses/create/Create5/[3] Create a pattern with multiple hops in varying directions	PASS	PASS
+tck/clauses/create/Create5/[4] Create a pattern with multiple hops with multiple types and varying directions	PASS	PASS
+tck/clauses/create/Create5/[5] Create a pattern with multiple hops and varying directions	PASS	PASS
+tck/clauses/create/Create6/[1] Limiting to zero results after creating nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[2] Skipping all results after creating nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[3] Skipping and limiting to a few results after creating nodes does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/create/Create6/[4] Skipping zero result and limiting to all results after creating nodes does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/create/Create6/[5] Filtering after creating nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[6] Aggregating in `RETURN` after creating nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[7] Aggregating in `WITH` after creating nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[8] Limiting to zero results after creating relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[9] Skipping all results after creating relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[10] Skipping and limiting to a few results after creating relationships does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/create/Create6/[11] Skipping zero result and limiting to all results after creating relationships does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/create/Create6/[12] Filtering after creating relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[13] Aggregating in `RETURN` after creating relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/create/Create6/[14] Aggregating in `WITH` after creating relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete1/[1] Delete nodes	PASS	PASS
+tck/clauses/delete/Delete1/[2] Detach delete node	PASS	PASS
+tck/clauses/delete/Delete1/[3] Detach deleting connected nodes and relationships	PASS	PASS
+tck/clauses/delete/Delete1/[4] Delete on null node	PASS	PASS
+tck/clauses/delete/Delete1/[5] Ignore null when deleting node	PASS	PASS
+tck/clauses/delete/Delete1/[6] Detach delete on null node	PASS	PASS
+tck/clauses/delete/Delete1/[7] Failing when deleting connected nodes	REFUSED	REFUSED
 tck/clauses/delete/Delete1/[8] Failing when deleting a label	BOTH_ERROR	BOTH_ERROR
-tck/clauses/delete/Delete2/[1] Delete relationships	REFUSED	REFUSED
-tck/clauses/delete/Delete2/[2] Delete optionally matched relationship	REFUSED	REFUSED
-tck/clauses/delete/Delete2/[3] Delete relationship with bidirectional matching	REFUSED	REFUSED
-tck/clauses/delete/Delete2/[4] Ignore null when deleting relationship	REFUSED	REFUSED
+tck/clauses/delete/Delete2/[1] Delete relationships	PASS	PASS
+tck/clauses/delete/Delete2/[2] Delete optionally matched relationship	PASS	PASS
+tck/clauses/delete/Delete2/[3] Delete relationship with bidirectional matching	PASS	PASS
+tck/clauses/delete/Delete2/[4] Ignore null when deleting relationship	PASS	PASS
 tck/clauses/delete/Delete2/[5] Failing when deleting a relationship type	BOTH_ERROR	BOTH_ERROR
-tck/clauses/delete/Delete3/[1] Detach deleting paths	REFUSED	REFUSED
-tck/clauses/delete/Delete3/[2] Delete on null path	REFUSED	REFUSED
-tck/clauses/delete/Delete4/[1] Undirected expand followed by delete and count	REFUSED	REFUSED
-tck/clauses/delete/Delete4/[2] Undirected variable length expand followed by delete and count	REFUSED	REFUSED
-tck/clauses/delete/Delete4/[3] Create and delete in same query	REFUSED	REFUSED
-tck/clauses/delete/Delete5/[1] Delete node from a list	REFUSED	REFUSED
-tck/clauses/delete/Delete5/[2] Delete relationship from a list	REFUSED	REFUSED
-tck/clauses/delete/Delete5/[3] Delete nodes from a map	REFUSED	REFUSED
-tck/clauses/delete/Delete5/[4] Delete relationships from a map	REFUSED	REFUSED
-tck/clauses/delete/Delete5/[5] Detach delete nodes from nested map/list	REFUSED	REFUSED
-tck/clauses/delete/Delete5/[6] Delete relationships from nested map/list	REFUSED	REFUSED
-tck/clauses/delete/Delete5/[7] Delete paths from nested map/list	REFUSED	REFUSED
+tck/clauses/delete/Delete3/[1] Detach deleting paths	PASS	PASS
+tck/clauses/delete/Delete3/[2] Delete on null path	PASS	PASS
+tck/clauses/delete/Delete4/[1] Undirected expand followed by delete and count	PASS	PASS
+tck/clauses/delete/Delete4/[2] Undirected variable length expand followed by delete and count	PASS	PASS
+tck/clauses/delete/Delete4/[3] Create and delete in same query	PASS	PASS
+tck/clauses/delete/Delete5/[1] Delete node from a list	PASS	PASS
+tck/clauses/delete/Delete5/[2] Delete relationship from a list	PASS	PASS
+tck/clauses/delete/Delete5/[3] Delete nodes from a map	PASS	PASS
+tck/clauses/delete/Delete5/[4] Delete relationships from a map	PASS	PASS
+tck/clauses/delete/Delete5/[5] Detach delete nodes from nested map/list	PASS	PASS
+tck/clauses/delete/Delete5/[6] Delete relationships from nested map/list	PASS	PASS
+tck/clauses/delete/Delete5/[7] Delete paths from nested map/list	PASS	PASS
 tck/clauses/delete/Delete5/[8] Failing when using undefined variable in DELETE	BOTH_ERROR	BOTH_ERROR
 tck/clauses/delete/Delete5/[9] Failing when deleting an integer expression	BOTH_ERROR	BOTH_ERROR
-tck/clauses/delete/Delete6/[1] Limiting to zero results after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[2] Skipping all results after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[3] Skipping and limiting to a few results after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[4] Skipping zero results and limiting to all results after deleting nodes does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[5] Filtering after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[6] Aggregating in `RETURN` after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[7] Aggregating in `WITH` after deleting nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[8] Limiting to zero results after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[9] Skipping all results after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[10] Skipping and limiting to a few results after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[11] Skipping zero result and limiting to all results after deleting relationships does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[12] Filtering after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[13] Aggregating in `RETURN` after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/delete/Delete6/[14] Aggregating in `WITH` after deleting relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/delete/Delete6/[1] Limiting to zero results after deleting nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[2] Skipping all results after deleting nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[3] Skipping and limiting to a few results after deleting nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[4] Skipping zero results and limiting to all results after deleting nodes does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[5] Filtering after deleting nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[6] Aggregating in `RETURN` after deleting nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[7] Aggregating in `WITH` after deleting nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[8] Limiting to zero results after deleting relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[9] Skipping all results after deleting relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[10] Skipping and limiting to a few results after deleting relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[11] Skipping zero result and limiting to all results after deleting relationships does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[12] Filtering after deleting relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[13] Aggregating in `RETURN` after deleting relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/delete/Delete6/[14] Aggregating in `WITH` after deleting relationships affects the result set but not the side effects	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[1] Filter node with node label predicate on multi variables with multiple bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[2] Filter node with node label predicate on multi variables without any bindings	PASS	PASS
 tck/clauses/match-where/MatchWhere1/[3] Filter node with property predicate on a single variable with multiple bindings	PASS	PASS
@@ -576,7 +576,7 @@ tck/clauses/match/Match7/[29] Satisfies the open world assumption, relationships
 tck/clauses/match/Match7/[30] Satisfies the open world assumption, single relationship	PASS	PASS
 tck/clauses/match/Match7/[31] Satisfies the open world assumption, relationships between different nodes	PASS	PASS
 tck/clauses/match/Match8/[1] Pattern independent of bound variables results in cross product	PASS	PASS
-tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	REFUSED	REFUSED
+tck/clauses/match/Match8/[2] Counting rows after MATCH, MERGE, OPTIONAL MATCH	PASS	PASS
 tck/clauses/match/Match8/[3] Matching and disregarding output, then matching again	PASS	PASS
 tck/clauses/match/Match9/[1] Variable length relationship variables are lists of relationships	PASS	PASS
 tck/clauses/match/Match9/[2] Return relationships by collecting them as a list - directed, one way	PASS	PASS
@@ -587,57 +587,57 @@ tck/clauses/match/Match9/[6] Matching relationships into a list and matching var
 tck/clauses/match/Match9/[7] Matching relationships into a list and matching variable length using the list, with bound nodes, wrong direction	PASS	PASS
 tck/clauses/match/Match9/[8] Variable length relationship in OPTIONAL MATCH	PASS	PASS
 tck/clauses/match/Match9/[9] Optionally matching named paths with variable length patterns	PASS	PASS
-tck/clauses/merge/Merge1/[1] Merge node when no nodes exist	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[2] Merge node with label	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[3] Merge node with label when it exists	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[4] Merge node should create when it doesn't match, properties	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[5] Merge node should create when it doesn't match, properties and label	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[6] Merge node with prop and label	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[7] Merge should work when finding multiple elements	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[8] Merge should handle argument properly	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[9] Merge should support updates while merging	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[10] Merge must properly handle multiple labels	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[11] Merge should be able to merge using property of bound node	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[12] Merge should be able to merge using property of freshly created node	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[13] Merge should bind a path	REFUSED	REFUSED
-tck/clauses/merge/Merge1/[14] Merges should not be able to match on deleted nodes	REFUSED	REFUSED
+tck/clauses/merge/Merge1/[1] Merge node when no nodes exist	PASS	PASS
+tck/clauses/merge/Merge1/[2] Merge node with label	PASS	PASS
+tck/clauses/merge/Merge1/[3] Merge node with label when it exists	PASS	PASS
+tck/clauses/merge/Merge1/[4] Merge node should create when it doesn't match, properties	PASS	PASS
+tck/clauses/merge/Merge1/[5] Merge node should create when it doesn't match, properties and label	PASS	PASS
+tck/clauses/merge/Merge1/[6] Merge node with prop and label	PASS	PASS
+tck/clauses/merge/Merge1/[7] Merge should work when finding multiple elements	PASS	PASS
+tck/clauses/merge/Merge1/[8] Merge should handle argument properly	PASS	PASS
+tck/clauses/merge/Merge1/[9] Merge should support updates while merging	PASS	PASS
+tck/clauses/merge/Merge1/[10] Merge must properly handle multiple labels	PASS	PASS
+tck/clauses/merge/Merge1/[11] Merge should be able to merge using property of bound node	PASS	PASS
+tck/clauses/merge/Merge1/[12] Merge should be able to merge using property of freshly created node	PASS	PASS
+tck/clauses/merge/Merge1/[13] Merge should bind a path	PASS	PASS
+tck/clauses/merge/Merge1/[14] Merges should not be able to match on deleted nodes	PASS	PASS
 tck/clauses/merge/Merge1/[15] Fail when merge a node that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge1/[16] Fail when using parameter as node predicate in MERGE	BOTH_ERROR	BOTH_ERROR
-tck/clauses/merge/Merge1/[17] Fail on merging node with null property	BOTH_ERROR	BOTH_ERROR
+tck/clauses/merge/Merge1/[17] Fail on merging node with null property	REFUSED	REFUSED
 tck/clauses/merge/Merge2/[1] Merge node with label add label on create	REFUSED	REFUSED
-tck/clauses/merge/Merge2/[2] ON CREATE on created nodes	REFUSED	REFUSED
-tck/clauses/merge/Merge2/[3] Merge node with label add property on create	REFUSED	REFUSED
-tck/clauses/merge/Merge2/[4] Merge node with label add property on update when it exists	REFUSED	REFUSED
-tck/clauses/merge/Merge2/[5] Merge should be able to use properties of bound node in ON CREATE	REFUSED	REFUSED
+tck/clauses/merge/Merge2/[2] ON CREATE on created nodes	PASS	PASS
+tck/clauses/merge/Merge2/[3] Merge node with label add property on create	PASS	PASS
+tck/clauses/merge/Merge2/[4] Merge node with label add property on update when it exists	PASS	PASS
+tck/clauses/merge/Merge2/[5] Merge should be able to use properties of bound node in ON CREATE	PASS	PASS
 tck/clauses/merge/Merge2/[6] Fail when using undefined variable in ON CREATE	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge3/[1] Merge should be able to set labels on match	REFUSED	REFUSED
 tck/clauses/merge/Merge3/[2] Merge node with label add label on match when it exists	REFUSED	REFUSED
-tck/clauses/merge/Merge3/[3] Merge node and set property on match	REFUSED	REFUSED
-tck/clauses/merge/Merge3/[4] Merge should be able to use properties of bound node in ON MATCH	REFUSED	REFUSED
+tck/clauses/merge/Merge3/[3] Merge node and set property on match	PASS	PASS
+tck/clauses/merge/Merge3/[4] Merge should be able to use properties of bound node in ON MATCH	PASS	PASS
 tck/clauses/merge/Merge3/[5] Fail when using undefined variable in ON MATCH	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge4/[1] Merge should be able to set labels on match and on create	REFUSED	REFUSED
-tck/clauses/merge/Merge4/[2] Merge should be able to use properties of bound node in ON MATCH and ON CREATE	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[1] Creating a relationship	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[2] Matching a relationship	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[3] Matching two relationships	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[4] Using bound variables from other updating clause	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[5] Filtering relationships	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[6] Creating relationship when all matches filtered out	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[7] Matching incoming relationship	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[8] Creating relationship with property	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[9] Creating relationship using merged nodes	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[10] Merge should bind a path	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[11] Use outgoing direction when unspecified	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[12] Match outgoing relationship when direction unspecified	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[13] Match both incoming and outgoing relationships when direction unspecified	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[14] Using list properties via variable	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[15] Matching using list property	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[16] Aliasing of existing nodes 1	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[17] Aliasing of existing nodes 2	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[18] Double aliasing of existing nodes 1	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[19] Double aliasing of existing nodes 2	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[20] Do not match on deleted entities	REFUSED	REFUSED
-tck/clauses/merge/Merge5/[21] Do not match on deleted relationships	REFUSED	REFUSED
+tck/clauses/merge/Merge4/[2] Merge should be able to use properties of bound node in ON MATCH and ON CREATE	PASS	PASS
+tck/clauses/merge/Merge5/[1] Creating a relationship	PASS	PASS
+tck/clauses/merge/Merge5/[2] Matching a relationship	PASS	PASS
+tck/clauses/merge/Merge5/[3] Matching two relationships	PASS	PASS
+tck/clauses/merge/Merge5/[4] Using bound variables from other updating clause	PASS	PASS
+tck/clauses/merge/Merge5/[5] Filtering relationships	PASS	PASS
+tck/clauses/merge/Merge5/[6] Creating relationship when all matches filtered out	PASS	PASS
+tck/clauses/merge/Merge5/[7] Matching incoming relationship	PASS	PASS
+tck/clauses/merge/Merge5/[8] Creating relationship with property	PASS	PASS
+tck/clauses/merge/Merge5/[9] Creating relationship using merged nodes	PASS	PASS
+tck/clauses/merge/Merge5/[10] Merge should bind a path	PASS	PASS
+tck/clauses/merge/Merge5/[11] Use outgoing direction when unspecified	PASS	PASS
+tck/clauses/merge/Merge5/[12] Match outgoing relationship when direction unspecified	PASS	PASS
+tck/clauses/merge/Merge5/[13] Match both incoming and outgoing relationships when direction unspecified	PASS	PASS
+tck/clauses/merge/Merge5/[14] Using list properties via variable	PASS	PASS
+tck/clauses/merge/Merge5/[15] Matching using list property	PASS	PASS
+tck/clauses/merge/Merge5/[16] Aliasing of existing nodes 1	PASS	PASS
+tck/clauses/merge/Merge5/[17] Aliasing of existing nodes 2	PASS	PASS
+tck/clauses/merge/Merge5/[18] Double aliasing of existing nodes 1	PASS	PASS
+tck/clauses/merge/Merge5/[19] Double aliasing of existing nodes 2	PASS	PASS
+tck/clauses/merge/Merge5/[20] Do not match on deleted entities	PASS	PASS
+tck/clauses/merge/Merge5/[21] Do not match on deleted relationships	PASS	PASS
 tck/clauses/merge/Merge5/[22] Fail when imposing new predicates on a variable that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge5/[23] Fail when merging relationship without type	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge5/[24] Fail when merging relationship without type, no colon	BOTH_ERROR	BOTH_ERROR
@@ -645,42 +645,42 @@ tck/clauses/merge/Merge5/[25] Fail when merging relationship with more than one 
 tck/clauses/merge/Merge5/[26] Fail when merging relationship that is already bound	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge5/[27] Fail when using parameter as relationship predicate in MERGE	BOTH_ERROR	BOTH_ERROR
 tck/clauses/merge/Merge5/[28] Fail when using variable length relationship in MERGE	BOTH_ERROR	BOTH_ERROR
-tck/clauses/merge/Merge5/[29] Fail on merging relationship with null property	BOTH_ERROR	BOTH_ERROR
-tck/clauses/merge/Merge6/[1] Using ON CREATE on a node	REFUSED	REFUSED
-tck/clauses/merge/Merge6/[2] Using ON CREATE on a relationship	REFUSED	REFUSED
-tck/clauses/merge/Merge6/[3] Updating one property with ON CREATE	SKIP	SKIP
-tck/clauses/merge/Merge6/[4] Null-setting one property with ON CREATE	SKIP	SKIP
-tck/clauses/merge/Merge6/[6] Copying properties from node with ON CREATE	SKIP	SKIP
-tck/clauses/merge/Merge6/[7] Copying properties from literal map with ON CREATE	SKIP	SKIP
-tck/clauses/merge/Merge7/[1] Using ON MATCH on created node	REFUSED	REFUSED
-tck/clauses/merge/Merge7/[2] Using ON MATCH on created relationship	REFUSED	REFUSED
-tck/clauses/merge/Merge7/[3] Using ON MATCH on a relationship	REFUSED	REFUSED
-tck/clauses/merge/Merge7/[4] Copying properties from node with ON MATCH	SKIP	SKIP
-tck/clauses/merge/Merge7/[5] Copying properties from literal map with ON MATCH	SKIP	SKIP
-tck/clauses/merge/Merge8/[1] Using ON CREATE and ON MATCH	REFUSED	REFUSED
-tck/clauses/merge/Merge9/[1] UNWIND with one MERGE	REFUSED	REFUSED
-tck/clauses/merge/Merge9/[2] UNWIND with multiple MERGE	REFUSED	REFUSED
-tck/clauses/merge/Merge9/[3] Mixing MERGE with CREATE	REFUSED	REFUSED
-tck/clauses/merge/Merge9/[4] MERGE after WITH with predicate and WITH with aggregation	REFUSED	REFUSED
-tck/clauses/remove/Remove1/[1] Remove a single node property	REFUSED	REFUSED
-tck/clauses/remove/Remove1/[2] Remove multiple node properties	REFUSED	REFUSED
-tck/clauses/remove/Remove1/[3] Remove a single relationship property	REFUSED	REFUSED
-tck/clauses/remove/Remove1/[4] Remove multiple relationship properties	REFUSED	REFUSED
-tck/clauses/remove/Remove1/[5] Ignore null when removing property from a node	REFUSED	REFUSED
-tck/clauses/remove/Remove1/[6] Ignore null when removing property from a relationship	REFUSED	REFUSED
-tck/clauses/remove/Remove1/[7] Remove a missing node property	REFUSED	REFUSED
+tck/clauses/merge/Merge5/[29] Fail on merging relationship with null property	REFUSED	REFUSED
+tck/clauses/merge/Merge6/[1] Using ON CREATE on a node	PASS	PASS
+tck/clauses/merge/Merge6/[2] Using ON CREATE on a relationship	PASS	PASS
+tck/clauses/merge/Merge6/[3] Updating one property with ON CREATE	PASS	PASS
+tck/clauses/merge/Merge6/[4] Null-setting one property with ON CREATE	PASS	PASS
+tck/clauses/merge/Merge6/[6] Copying properties from node with ON CREATE	REFUSED	REFUSED
+tck/clauses/merge/Merge6/[7] Copying properties from literal map with ON CREATE	PASS	PASS
+tck/clauses/merge/Merge7/[1] Using ON MATCH on created node	PASS	PASS
+tck/clauses/merge/Merge7/[2] Using ON MATCH on created relationship	PASS	PASS
+tck/clauses/merge/Merge7/[3] Using ON MATCH on a relationship	PASS	PASS
+tck/clauses/merge/Merge7/[4] Copying properties from node with ON MATCH	REFUSED	REFUSED
+tck/clauses/merge/Merge7/[5] Copying properties from literal map with ON MATCH	PASS	PASS
+tck/clauses/merge/Merge8/[1] Using ON CREATE and ON MATCH	PASS	PASS
+tck/clauses/merge/Merge9/[1] UNWIND with one MERGE	PASS	PASS
+tck/clauses/merge/Merge9/[2] UNWIND with multiple MERGE	PASS	PASS
+tck/clauses/merge/Merge9/[3] Mixing MERGE with CREATE	PASS	PASS
+tck/clauses/merge/Merge9/[4] MERGE after WITH with predicate and WITH with aggregation	PASS	PASS
+tck/clauses/remove/Remove1/[1] Remove a single node property	PASS	PASS
+tck/clauses/remove/Remove1/[2] Remove multiple node properties	PASS	PASS
+tck/clauses/remove/Remove1/[3] Remove a single relationship property	PASS	PASS
+tck/clauses/remove/Remove1/[4] Remove multiple relationship properties	PASS	PASS
+tck/clauses/remove/Remove1/[5] Ignore null when removing property from a node	PASS	PASS
+tck/clauses/remove/Remove1/[6] Ignore null when removing property from a relationship	PASS	PASS
+tck/clauses/remove/Remove1/[7] Remove a missing node property	PASS	PASS
 tck/clauses/remove/Remove2/[1] Remove a single label from a node with a single label	REFUSED	REFUSED
 tck/clauses/remove/Remove2/[2] Remove a single label from a node with two labels	REFUSED	REFUSED
 tck/clauses/remove/Remove2/[3] Remove two labels from a node with three labels	REFUSED	REFUSED
 tck/clauses/remove/Remove2/[4] Remove a non-existent node label	REFUSED	REFUSED
-tck/clauses/remove/Remove2/[5] Ignore null when removing a node label	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[1] Limiting to zero results after removing a property from nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[2] Skipping all results after removing a property from nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[3] Skipping and limiting to a few results after removing a property from nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[4] Skipping zero results and limiting to all results after removing a property from nodes does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[5] Filtering after removing a property from nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[6] Aggregating in `RETURN` after removing a property from nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[7] Aggregating in `WITH` after removing a property from nodes affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/remove/Remove2/[5] Ignore null when removing a node label	PASS	PASS
+tck/clauses/remove/Remove3/[1] Limiting to zero results after removing a property from nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[2] Skipping all results after removing a property from nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[3] Skipping and limiting to a few results after removing a property from nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[4] Skipping zero results and limiting to all results after removing a property from nodes does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[5] Filtering after removing a property from nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[6] Aggregating in `RETURN` after removing a property from nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[7] Aggregating in `WITH` after removing a property from nodes affects the result set but not the side effects	PASS	PASS
 tck/clauses/remove/Remove3/[8] Limiting to zero results after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/remove/Remove3/[9] Skipping all results after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/remove/Remove3/[10] Skipping and limiting to a few results after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
@@ -688,13 +688,13 @@ tck/clauses/remove/Remove3/[11] Skipping zero result and limiting to all results
 tck/clauses/remove/Remove3/[12] Filtering after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/remove/Remove3/[13] Aggregating in `RETURN` after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/remove/Remove3/[14] Aggregating in `WITH` after removing a label from nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[15] Limiting to zero results after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[16] Skipping all results after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[17] Skipping and limiting to a few results after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[18] Skipping zero result and limiting to all results after removing a property from relationships does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[19] Filtering after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[20] Aggregating in `RETURN` after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/remove/Remove3/[21] Aggregating in `WITH` after removing a property from relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/remove/Remove3/[15] Limiting to zero results after removing a property from relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[16] Skipping all results after removing a property from relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[17] Skipping and limiting to a few results after removing a property from relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[18] Skipping zero result and limiting to all results after removing a property from relationships does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[19] Filtering after removing a property from relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[20] Aggregating in `RETURN` after removing a property from relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/remove/Remove3/[21] Aggregating in `WITH` after removing a property from relationships affects the result set but not the side effects	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[1] ORDER BY should order booleans in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[2] ORDER BY DESC should order booleans in the expected order	PASS	PASS
 tck/clauses/return-orderby/ReturnOrderBy1/[3] ORDER BY should order strings in the expected order	PASS	PASS
@@ -776,7 +776,7 @@ tck/clauses/return/Return2/[10] Return count aggregation over an empty graph	PAS
 tck/clauses/return/Return2/[11] RETURN does not lose precision on large integers	PASS	PASS
 tck/clauses/return/Return2/[12] Projecting a list of nodes and relationships	PASS	PASS
 tck/clauses/return/Return2/[13] Projecting a map of nodes and relationships	PASS	PASS
-tck/clauses/return/Return2/[14] Do not fail when returning type of deleted relationships	REFUSED	REFUSED
+tck/clauses/return/Return2/[14] Do not fail when returning type of deleted relationships	PASS	PASS
 tck/clauses/return/Return2/[15] Fail when returning properties of deleted nodes	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[16] Fail when returning labels of deleted nodes	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return2/[17] Fail when returning properties of deleted relationships	BOTH_ERROR	BOTH_ERROR
@@ -824,20 +824,20 @@ tck/clauses/return/Return6/[21] Fail if more complex expressions, even if return
 tck/clauses/return/Return7/[1] Return all variables	PASS	PASS
 tck/clauses/return/Return7/[2] Fail when using RETURN * without variables in scope	BOTH_ERROR	BOTH_ERROR
 tck/clauses/return/Return8/[1] Return aggregation after With filtering	PASS	PASS
-tck/clauses/set/Set1/[1] Set a property	REFUSED	REFUSED
-tck/clauses/set/Set1/[2] Set a property to an expression	REFUSED	REFUSED
-tck/clauses/set/Set1/[3] Set a property by selecting the node using a simple expression	REFUSED	REFUSED
-tck/clauses/set/Set1/[4] Set a property by selecting the relationship using a simple expression	REFUSED	REFUSED
-tck/clauses/set/Set1/[5] Adding a list property	REFUSED	REFUSED
-tck/clauses/set/Set1/[6] Concatenate elements onto a list property	REFUSED	REFUSED
-tck/clauses/set/Set1/[7] Concatenate elements in reverse onto a list property	REFUSED	REFUSED
-tck/clauses/set/Set1/[8] Ignore null when setting property	REFUSED	REFUSED
+tck/clauses/set/Set1/[1] Set a property	PASS	PASS
+tck/clauses/set/Set1/[2] Set a property to an expression	PASS	PASS
+tck/clauses/set/Set1/[3] Set a property by selecting the node using a simple expression	PASS	PASS
+tck/clauses/set/Set1/[4] Set a property by selecting the relationship using a simple expression	PASS	PASS
+tck/clauses/set/Set1/[5] Adding a list property	PASS	PASS
+tck/clauses/set/Set1/[6] Concatenate elements onto a list property	PASS	PASS
+tck/clauses/set/Set1/[7] Concatenate elements in reverse onto a list property	PASS	PASS
+tck/clauses/set/Set1/[8] Ignore null when setting property	PASS	PASS
 tck/clauses/set/Set1/[9] Failing when using undefined variable in SET	BOTH_ERROR	BOTH_ERROR
-tck/clauses/set/Set1/[10] Failing when setting a list of maps as a property	BOTH_ERROR	BOTH_ERROR
-tck/clauses/set/Set1/[11] Set multiple node properties	REFUSED	REFUSED
-tck/clauses/set/Set2/[1] Setting a node property to null removes the existing property	REFUSED	REFUSED
-tck/clauses/set/Set2/[2] Setting a node property to null removes the existing property, but not before SET	REFUSED	REFUSED
-tck/clauses/set/Set2/[3] Setting a relationship property to null removes the existing property	REFUSED	REFUSED
+tck/clauses/set/Set1/[10] Failing when setting a list of maps as a property	REFUSED	REFUSED
+tck/clauses/set/Set1/[11] Set multiple node properties	PASS	PASS
+tck/clauses/set/Set2/[1] Setting a node property to null removes the existing property	PASS	PASS
+tck/clauses/set/Set2/[2] Setting a node property to null removes the existing property, but not before SET	PASS	PASS
+tck/clauses/set/Set2/[3] Setting a relationship property to null removes the existing property	PASS	PASS
 tck/clauses/set/Set3/[1] Add a single label to a node with no label	REFUSED	REFUSED
 tck/clauses/set/Set3/[2] Adding multiple labels to a node with no label	REFUSED	REFUSED
 tck/clauses/set/Set3/[3] Add a single label to a node with an existing label	REFUSED	REFUSED
@@ -845,24 +845,24 @@ tck/clauses/set/Set3/[4] Adding multiple labels to a node with an existing label
 tck/clauses/set/Set3/[5] Ignore whitespace before colon 1	REFUSED	REFUSED
 tck/clauses/set/Set3/[6] Ignore whitespace before colon 2	REFUSED	REFUSED
 tck/clauses/set/Set3/[7] Ignore whitespace before colon 3	REFUSED	REFUSED
-tck/clauses/set/Set3/[8] Ignore null when setting label	REFUSED	REFUSED
-tck/clauses/set/Set4/[1] Set multiple properties with a property map	REFUSED	REFUSED
-tck/clauses/set/Set4/[2] Non-existent values in a property map are removed with SET	REFUSED	REFUSED
-tck/clauses/set/Set4/[3] Null values in a property map are removed with SET	REFUSED	REFUSED
-tck/clauses/set/Set4/[4] All properties are removed if node is set to empty property map	REFUSED	REFUSED
-tck/clauses/set/Set4/[5] Ignore null when setting properties using an overriding map	REFUSED	REFUSED
-tck/clauses/set/Set5/[1] Ignore null when setting properties using an appending map	REFUSED	REFUSED
-tck/clauses/set/Set5/[2] Overwrite values when using +=	REFUSED	REFUSED
-tck/clauses/set/Set5/[3] Retain old values when using +=	REFUSED	REFUSED
-tck/clauses/set/Set5/[4] Explicit null values in a map remove old values	REFUSED	REFUSED
-tck/clauses/set/Set5/[5] Set an empty map when using += has no effect	REFUSED	REFUSED
-tck/clauses/set/Set6/[1] Limiting to zero results after setting a property on nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[2] Skipping all results after setting a property on nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[3] Skipping and limiting to a few results after setting a property on nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[4] Skipping zero results and limiting to all results after setting a property on nodes does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[5] Filtering after setting a property on nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[6] Aggregating in `RETURN` after setting a property on nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[7] Aggregating in `WITH` after setting a property on nodes affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/set/Set3/[8] Ignore null when setting label	PASS	PASS
+tck/clauses/set/Set4/[1] Set multiple properties with a property map	PASS	PASS
+tck/clauses/set/Set4/[2] Non-existent values in a property map are removed with SET	PASS	PASS
+tck/clauses/set/Set4/[3] Null values in a property map are removed with SET	PASS	PASS
+tck/clauses/set/Set4/[4] All properties are removed if node is set to empty property map	PASS	PASS
+tck/clauses/set/Set4/[5] Ignore null when setting properties using an overriding map	PASS	PASS
+tck/clauses/set/Set5/[1] Ignore null when setting properties using an appending map	PASS	PASS
+tck/clauses/set/Set5/[2] Overwrite values when using +=	PASS	PASS
+tck/clauses/set/Set5/[3] Retain old values when using +=	PASS	PASS
+tck/clauses/set/Set5/[4] Explicit null values in a map remove old values	PASS	PASS
+tck/clauses/set/Set5/[5] Set an empty map when using += has no effect	PASS	PASS
+tck/clauses/set/Set6/[1] Limiting to zero results after setting a property on nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[2] Skipping all results after setting a property on nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[3] Skipping and limiting to a few results after setting a property on nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[4] Skipping zero results and limiting to all results after setting a property on nodes does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/set/Set6/[5] Filtering after setting a property on nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[6] Aggregating in `RETURN` after setting a property on nodes affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[7] Aggregating in `WITH` after setting a property on nodes affects the result set but not the side effects	PASS	PASS
 tck/clauses/set/Set6/[8] Limiting to zero results after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/set/Set6/[9] Skipping all results after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/set/Set6/[10] Skipping and limiting to a few results after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
@@ -870,13 +870,13 @@ tck/clauses/set/Set6/[11] Skipping zero result and limiting to all results after
 tck/clauses/set/Set6/[12] Filtering after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/set/Set6/[13] Aggregating in `RETURN` after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
 tck/clauses/set/Set6/[14] Aggregating in `WITH` after adding a label on nodes affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[15] Limiting to zero results after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[16] Skipping all results after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[17] Skipping and limiting to a few results after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[18] Skipping zero result and limiting to all results after setting a property on relationships does not affect the result set nor the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[19] Filtering after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[20] Aggregating in `RETURN` after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
-tck/clauses/set/Set6/[21] Aggregating in `WITH` after setting a property on relationships affects the result set but not the side effects	REFUSED	REFUSED
+tck/clauses/set/Set6/[15] Limiting to zero results after setting a property on relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[16] Skipping all results after setting a property on relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[17] Skipping and limiting to a few results after setting a property on relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[18] Skipping zero result and limiting to all results after setting a property on relationships does not affect the result set nor the side effects	PASS	PASS
+tck/clauses/set/Set6/[19] Filtering after setting a property on relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[20] Aggregating in `RETURN` after setting a property on relationships affects the result set but not the side effects	PASS	PASS
+tck/clauses/set/Set6/[21] Aggregating in `WITH` after setting a property on relationships affects the result set but not the side effects	PASS	PASS
 tck/clauses/union/Union1/[1] Two elements, both unique, distinct	PASS	PASS
 tck/clauses/union/Union1/[2] Three elements, two unique, distinct	PASS	PASS
 tck/clauses/union/Union1/[3] Two single-column inputs, one with duplicates, distinct	PASS	PASS
@@ -894,7 +894,7 @@ tck/clauses/unwind/Unwind1/[2] Unwinding a range	PASS	PASS
 tck/clauses/unwind/Unwind1/[3] Unwinding a concatenation of lists	PASS	PASS
 tck/clauses/unwind/Unwind1/[4] Unwinding a collected unwound expression	PASS	PASS
 tck/clauses/unwind/Unwind1/[5] Unwinding a collected expression	PASS	PASS
-tck/clauses/unwind/Unwind1/[6] Creating nodes from an unwound parameter list	REFUSED	REFUSED
+tck/clauses/unwind/Unwind1/[6] Creating nodes from an unwound parameter list	PASS	PASS
 tck/clauses/unwind/Unwind1/[7] Double unwinding a list of lists	PASS	PASS
 tck/clauses/unwind/Unwind1/[8] Unwinding the empty list	PASS	PASS
 tck/clauses/unwind/Unwind1/[9] Unwinding null	PASS	PASS
@@ -902,7 +902,7 @@ tck/clauses/unwind/Unwind1/[10] Unwinding list with duplicates	PASS	PASS
 tck/clauses/unwind/Unwind1/[11] Unwind does not prune context	PASS	PASS
 tck/clauses/unwind/Unwind1/[12] Unwind does not remove variables from scope	PASS	PASS
 tck/clauses/unwind/Unwind1/[13] Multiple unwinds after each other	PASS	PASS
-tck/clauses/unwind/Unwind1/[14] Unwind with merge	REFUSED	REFUSED
+tck/clauses/unwind/Unwind1/[14] Unwind with merge	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[1] Sort booleans in ascending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[2] Sort booleans in descending order	PASS	PASS
 tck/clauses/with-orderBy/WithOrderBy1/[3] Sort integers in ascending order	PASS	PASS
@@ -1238,7 +1238,7 @@ tck/clauses/with/With4/[3] Aliasing expression to existing variable name	PASS	PA
 tck/clauses/with/With4/[4] Fail when forwarding multiple aliases with the same name	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With4/[5] Fail when not aliasing expressions in WITH	BOTH_ERROR	BOTH_ERROR
 tck/clauses/with/With4/[6] Reusing variable names in WITH	PASS	PASS
-tck/clauses/with/With4/[7] Multiple aliasing and backreferencing	REFUSED	REFUSED
+tck/clauses/with/With4/[7] Multiple aliasing and backreferencing	PASS	PASS
 tck/clauses/with/With5/[1] DISTINCT on an expression	PASS	PASS
 tck/clauses/with/With5/[2] Handling DISTINCT with lists in maps	PASS	PASS
 tck/clauses/with/With6/[1] Implicit grouping with single expression as grouping key and single aggregation	PASS	PASS
@@ -1282,7 +1282,7 @@ tck/expressions/aggregation/Aggregation6/[3] `percentileCont()` failing on bad a
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #1	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #2	BOTH_ERROR	BOTH_ERROR
 tck/expressions/aggregation/Aggregation6/[4] `percentileDisc()` failing on bad arguments #3	BOTH_ERROR	BOTH_ERROR
-tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	BOTH_ERROR	BOTH_ERROR
+tck/expressions/aggregation/Aggregation6/[5] `percentileDisc()` failing in more involved query	REFUSED	REFUSED
 tck/expressions/aggregation/Aggregation8/[1] Distinct on unbound node	PASS	PASS
 tck/expressions/aggregation/Aggregation8/[2] Distinct on null	PASS	PASS
 tck/expressions/aggregation/Aggregation8/[3] Collect distinct nulls	PASS	PASS
@@ -1532,10 +1532,10 @@ tck/expressions/existentialSubqueries/ExistentialSubquery2/[3] Full existential 
 tck/expressions/existentialSubqueries/ExistentialSubquery3/[1] Nested simple existential subquery	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery3/[2] Nested full existential subquery	PASS	PASS
 tck/expressions/existentialSubqueries/ExistentialSubquery3/[3] Nested full existential subquery with pattern predicate	PASS	PASS
-tck/expressions/graph/Graph3/[1] Creating node without label	REFUSED	REFUSED
-tck/expressions/graph/Graph3/[2] Creating node with two labels	REFUSED	REFUSED
-tck/expressions/graph/Graph3/[3] Ignore space when creating node with labels	REFUSED	REFUSED
-tck/expressions/graph/Graph3/[4] Create node with label in pattern	REFUSED	REFUSED
+tck/expressions/graph/Graph3/[1] Creating node without label	PASS	PASS
+tck/expressions/graph/Graph3/[2] Creating node with two labels	PASS	PASS
+tck/expressions/graph/Graph3/[3] Ignore space when creating node with labels	PASS	PASS
+tck/expressions/graph/Graph3/[4] Create node with label in pattern	PASS	PASS
 tck/expressions/graph/Graph3/[5] Using `labels()` in return clauses	PASS	PASS
 tck/expressions/graph/Graph3/[6] `labels()` should accept type Any	PASS	PASS
 tck/expressions/graph/Graph3/[7] `labels()` on null node	PASS	PASS
@@ -1576,8 +1576,8 @@ tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-g
 tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-graph element #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph6/[9] Fail when performing property access on a non-graph element #6	BOTH_ERROR	BOTH_ERROR
 tck/expressions/graph/Graph7/[1] Execute n['name'] in read queries	PASS	PASS
-tck/expressions/graph/Graph7/[2] Execute n['name'] in update queries	REFUSED	REFUSED
-tck/expressions/graph/Graph7/[3] Use dynamic property lookup based on parameters when there is lhs type information	REFUSED	REFUSED
+tck/expressions/graph/Graph7/[2] Execute n['name'] in update queries	PASS	PASS
+tck/expressions/graph/Graph7/[3] Use dynamic property lookup based on parameters when there is lhs type information	PASS	PASS
 tck/expressions/graph/Graph8/[1] Using `keys()` on a single node, non-empty result	PASS	PASS
 tck/expressions/graph/Graph8/[2] Using `keys()` on multiple nodes, non-empty result	PASS	PASS
 tck/expressions/graph/Graph8/[3] Using `keys()` on a single node, empty result	PASS	PASS
@@ -1683,8 +1683,8 @@ tck/expressions/list/List11/[5] Fail on invalid argument types for `range()` #19
 tck/expressions/list/List11/[5] Fail on invalid argument types for `range()` #20	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List11/[5] Fail on invalid argument types for `range()` #21	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List11/[5] Fail on invalid argument types for `range()` #22	BOTH_ERROR	BOTH_ERROR
-tck/expressions/list/List12/[1] Collect and extract using a list comprehension	REFUSED	REFUSED
-tck/expressions/list/List12/[2] Collect and filter using a list comprehension	REFUSED	REFUSED
+tck/expressions/list/List12/[1] Collect and extract using a list comprehension	PASS	PASS
+tck/expressions/list/List12/[2] Collect and filter using a list comprehension	PASS	PASS
 tck/expressions/list/List12/[3] Size of list comprehension	PASS	PASS
 tck/expressions/list/List12/[4] Returning a list comprehension	PASS	PASS
 tck/expressions/list/List12/[5] Using a list comprehension in a WITH	PASS	PASS
@@ -1761,7 +1761,7 @@ tck/expressions/list/List5/[42] Failing when using IN on a non-list literal #3	B
 tck/expressions/list/List5/[42] Failing when using IN on a non-list literal #4	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List5/[42] Failing when using IN on a non-list literal #5	BOTH_ERROR	BOTH_ERROR
 tck/expressions/list/List6/[1] Return list size	PASS	PASS
-tck/expressions/list/List6/[2] Setting and returning the size of a list property	REFUSED	REFUSED
+tck/expressions/list/List6/[2] Setting and returning the size of a list property	PASS	PASS
 tck/expressions/list/List6/[3] Concatenating and returning the size of literal lists	PASS	PASS
 tck/expressions/list/List6/[4] `size()` on null list	PASS	PASS
 tck/expressions/list/List6/[5] Fail for `size()` on paths	BOTH_ERROR	BOTH_ERROR
@@ -1777,7 +1777,7 @@ tck/expressions/list/List6/[7] Using size of pattern comprehension to test exist
 tck/expressions/list/List6/[8] Get node degree via size of pattern comprehension	PASS	PASS
 tck/expressions/list/List6/[9] Get node degree via size of pattern comprehension that specifies a relationship type	PASS	PASS
 tck/expressions/list/List6/[10] Get node degree via size of pattern comprehension that specifies multiple relationship types	PASS	PASS
-tck/expressions/list/List9/[1] Returning nested expressions based on list property	REFUSED	REFUSED
+tck/expressions/list/List9/[1] Returning nested expressions based on list property	PASS	PASS
 tck/expressions/literals/Literals1/[1] Return a boolean true lower case	PASS	PASS
 tck/expressions/literals/Literals1/[2] Return a boolean true upper case	PASS	PASS
 tck/expressions/literals/Literals1/[3] Return a boolean false lower case	PASS	PASS
@@ -3374,24 +3374,24 @@ tck/expressions/temporal/Temporal3/[11] Should datetime into date time #7	PASS	P
 tck/expressions/temporal/Temporal3/[11] Should datetime into date time #8	PASS	PASS
 tck/expressions/temporal/Temporal3/[11] Should datetime into date time #9	PASS	PASS
 tck/expressions/temporal/Temporal3/[11] Should datetime into date time #10	PASS	PASS
-tck/expressions/temporal/Temporal4/[1] Should store date #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[2] Should store date array #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[2] Should store date array #2	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[3] Should store local time #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[4] Should store local time array #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[4] Should store local time array #2	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[5] Should store time #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[6] Should store time array #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[6] Should store time array #2	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[7] Should store local date time #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[8] Should store local date time array #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[8] Should store local date time array #2	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[9] Should store date time #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[10] Should store date time array #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[10] Should store date time array #2	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[11] Should store duration #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[12] Should store duration array #1	SKIP	SKIP
-tck/expressions/temporal/Temporal4/[12] Should store duration array #2	SKIP	SKIP
+tck/expressions/temporal/Temporal4/[1] Should store date #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[2] Should store date array #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[2] Should store date array #2	PASS	PASS
+tck/expressions/temporal/Temporal4/[3] Should store local time #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[4] Should store local time array #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[4] Should store local time array #2	PASS	PASS
+tck/expressions/temporal/Temporal4/[5] Should store time #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[6] Should store time array #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[6] Should store time array #2	PASS	PASS
+tck/expressions/temporal/Temporal4/[7] Should store local date time #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[8] Should store local date time array #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[8] Should store local date time array #2	PASS	PASS
+tck/expressions/temporal/Temporal4/[9] Should store date time #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[10] Should store date time array #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[10] Should store date time array #2	PASS	PASS
+tck/expressions/temporal/Temporal4/[11] Should store duration #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[12] Should store duration array #1	PASS	PASS
+tck/expressions/temporal/Temporal4/[12] Should store duration array #2	PASS	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #1	PASS	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #2	PASS	PASS
 tck/expressions/temporal/Temporal4/[13] Should propagate null #3	PASS	PASS
@@ -3894,7 +3894,7 @@ lite/absent/a_relationship_over_a_model_declaring_none	PASS	PASS
 lite/absent/counts_over_a_pattern_no_relationship_reads	PASS	PASS
 lite/absent/a_long_pattern_no_relationship_reads_with_a_where	PASS	PASS
 lite/absent/a_hop_from_a_class_no_way_leaves_return_star	PASS	PASS
-lite/absent/a_cycle_from_an_absent_node_refused	REFUSED	REFUSED
+lite/absent/a_cycle_from_an_absent_node_refused	PASS	PASS
 lite/absent/optional_first_pattern_no_relationship_reads	PASS	PASS
 lite/absent/optional_first_hop_from_a_class_no_way_leaves	PASS	PASS
 lite/aggregates/count_star_in_an_expression	PASS	PASS
@@ -4016,7 +4016,7 @@ lite/continue/untyped_hop_after_a_labelless_match	PASS	PASS
 lite/continue/untyped_hop_that_fans_out	PASS	PASS
 lite/continue/two_untyped_hops_from_a_bound_node	PASS	PASS
 lite/continue/untyped_hop_after_a_projecting_with_refused	PASS	PASS
-lite/continue/untyped_hop_between_two_bound_nodes_refused	REFUSED	REFUSED
+lite/continue/untyped_hop_between_two_bound_nodes_refused	PASS	PASS
 lite/continue/untyped_hop_from_a_node_no_way_leaves	PASS	PASS
 lite/cycles/a_self_loop_matched	PASS	PASS
 lite/cycles/a_two_node_cycle_matched	PASS	PASS
@@ -4080,7 +4080,7 @@ lite/edges/a_type_joining_several_class_pairs_with_the_far_label	PASS	PASS
 lite/edges/a_type_joining_several_class_pairs_from_a_labelless_start	PASS	PASS
 lite/edges/a_type_joining_several_class_pairs_incoming	PASS	PASS
 lite/edges/a_type_joining_several_class_pairs_with_properties_on_one	PASS	PASS
-lite/edges/a_type_joining_several_class_pairs_in_an_optional_match	REFUSED	REFUSED
+lite/edges/a_type_joining_several_class_pairs_in_an_optional_match	PASS	PASS
 lite/edges/an_undirected_typed_pattern_from_a_labelless_start_is_refused	PASS	PASS
 lite/edges/an_edge_in_one_arm_and_an_association_in_another	PASS	PASS
 lite/edges/an_optional_edge_from_labelless_arms	PASS	PASS
@@ -4444,7 +4444,10 @@ lite/ordering/a_longer_list_is_greater_after_an_equal_prefix	PASS	PASS
 lite/ordering/a_null_or_unordered_pair_is_null	PASS	PASS
 lite/ordering/a_list_and_another_type_do_not_order	PASS	PASS
 lite/ordering/lists_of_values_of_the_row	PASS	PASS
-lite/ordering/ordering_nested_lists_refused	REFUSED	REFUSED
+lite/ordering/ordering_nested_lists_refused	PASS	PASS
+lite/ordering/lists_inside_lists_ordered	PASS	PASS
+lite/ordering/maps_ordered_by_size_keys_and_values	PASS	PASS
+lite/ordering/maps_of_row_values_ordered	PASS	PASS
 lite/overrows/a_predicate_over_a_product	PASS	PASS
 lite/overrows/an_untyped_predicate_over_label_less_nodes	PASS	PASS
 lite/overrows/an_undirected_predicate_over_a_product	PASS	PASS
@@ -4634,7 +4637,7 @@ lite/rows/a_fresh_match_with_a_relationship_after_rows	PASS	PASS
 lite/rows/a_fresh_untyped_match_after_rows_aggregated	PASS	PASS
 lite/rows/a_fresh_match_after_rows_counted	PASS	PASS
 lite/rows/a_fresh_match_after_rows_keeps_no_row_over_no_node	PASS	PASS
-lite/rows/a_match_binding_a_projected_variable_after_rows_refused	BOTH_ERROR	BOTH_ERROR
+lite/rows/a_match_binding_a_projected_variable_after_rows_refused	REFUSED	REFUSED
 lite/shapes/list_of_one_row_value	PASS	PASS
 lite/shapes/list_with_a_null_element	PASS	PASS
 lite/shapes/list_of_mixed_kinds	PASS	PASS
@@ -4729,7 +4732,9 @@ lite/temporal/duration_fraction_cascades	PASS	PASS
 lite/temporal/duration_of_a_date_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_unknown_field_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/duration_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
-lite/temporal/duration_order_refused_by_name	REFUSED	REFUSED
+lite/temporal/duration_order_refused_by_name	PASS	PASS
+lite/temporal/durations_compared_by_each_operator	PASS	PASS
+lite/temporal/lists_of_durations_compared	PASS	PASS
 lite/temporal/duration_to_string	PASS	PASS
 lite/temporal/duration_date_time_text_form	PASS	PASS
 lite/temporal/duration_divided	PASS	PASS
@@ -4786,7 +4791,8 @@ lite/temporal/localdatetime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_from_compact_text	PASS	PASS
 lite/temporal/datetime_from_text_with_named_zone	PASS	PASS
 lite/temporal/datetime_named_zone_offset	PASS	PASS
-lite/temporal/date_signed_year_refused_by_name	REFUSED	REFUSED
+lite/temporal/date_signed_year_refused_by_name	PASS	PASS
+lite/temporal/signed_four_digit_years_in_date_time_texts	PASS	PASS
 lite/temporal/datetime_text_offset_disagreeing_with_its_zone	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_bad_text_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
 lite/temporal/datetime_text_unknown_zone_is_neo4js_error	BOTH_ERROR	BOTH_ERROR
@@ -5022,7 +5028,9 @@ lite/varlen/an_unbounded_walk_no_way_reads	PASS	PASS
 lite/varlen/an_unbounded_walk_then_a_hop	PASS	PASS
 lite/varlen/a_variable_length_round_a_cycle	PASS	PASS
 lite/varlen/a_variable_length_from_a_labelless_start_over_several_types	PASS	PASS
-lite/varlen/a_property_map_on_a_variable_length_is_refused	REFUSED	REFUSED
+lite/varlen/a_property_map_on_a_variable_length_is_refused	PASS	PASS
+lite/varlen/a_property_map_on_a_variable_length_holds_of_every_hop	PASS	PASS
+lite/varlen/a_property_map_on_a_fixed_variable_length	PASS	PASS
 lite/varlen/a_bounded_variable_length_after_a_match	PASS	PASS
 lite/varlen/a_variable_length_pattern_as_a_predicate	PASS	PASS
 lite/varlen/an_undirected_fixed_length_pattern_as_a_predicate	PASS	PASS
@@ -5045,6 +5053,17 @@ lite/withlists/a_list_of_row_values_through_with_unwound	PASS	PASS
 lite/withlists/a_list_of_row_values_through_with_sized_and_tested	PASS	PASS
 lite/withlists/a_map_of_row_values_through_with	PASS	PASS
 lite/withlists/a_list_of_row_strings_through_with	PASS	PASS
+lite/writes/an_undirected_merge_over_both_orders_creates_one	PASS	PASS
+lite/writes/an_undirected_merge_binds_the_one_relationship_on_both_rows	PASS	PASS
+lite/writes/a_set_after_a_delete_writes_nothing_back	PASS	PASS
+lite/writes/a_relationship_from_a_deleted_node_is_neo4js_error	REFUSED	REFUSED
+lite/writes/several_rows_setting_one_property_from_itself	REFUSED	REFUSED
+lite/writes/a_set_item_reads_what_the_item_before_it_wrote	PASS	PASS
+lite/writes/a_set_item_reads_the_node_another_variable_wrote	PASS	PASS
+lite/writes/several_rows_setting_one_property_from_the_rows	PASS	PASS
+lite/writes/several_rows_counting_on_match	REFUSED	REFUSED
+lite/writes/a_node_written_reads_new_through_another_variable	PASS	PASS
+lite/writes/a_property_removed_reads_null_through_another_variable	PASS	PASS
 lite/zones/stored_offset_fields	PASS	PASS
 lite/zones/stored_offset_through_with	PASS	PASS
 lite/zones/stored_offset_texts	PASS	PASS

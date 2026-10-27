@@ -70,35 +70,47 @@ describe('one owner of the cube\'s state', () => {
  * pinned function is a new place too): its sheets, its tiles' places and names, its charts' specs, selections and the
  * grids they read, the grids it holds or keeps. Anything else is a gesture changing the page itself.
  */
-const BOARD = /(\bboard\.(?:add|remove|setLayout|rename)\(|#newSheet\(|#sheets\.(?:splice|push|sort)\(|#pageLayouts\.(?:set|delete)\(|chart\.conditions = |sheet\.name = |\.name = s\.name|#kept\.(?:set|delete)\(|\.link\.(?:grid|detached) = |delete chart\.link\.detached|#charts\.(?:set|delete|clear)\(|#grids\.(?:set|delete)\(|panel\.setSpec\()/g;
+// 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): a flow's boxes not shown (#boxes) are the board's
+// structure too
+const BOARD = /(\bboard\.(?:add|remove|setLayout|rename)\(|#newSheet\(|#sheets\.(?:splice|push|sort)\(|#pageLayouts\.(?:set|delete)\(|chart\.conditions = |sheet\.name = |\.name = s\.name|#kept\.(?:set|delete)\(|\.link\.(?:grid|detached) = |delete chart\.link\.detached|#charts\.(?:set|delete|clear)\(|#grids\.(?:set|delete)\(|#boxes\.(?:set|delete|clear)\(|panel\.setSpec\()/g;
 const SYNC = 'the board put at a page';
 // 2026-10-22 (S6 D, K11: D7's Show Grid replaced Open in grid and its Update): the editing grid's sites went with it --
 // #openEditor's two, #closeEditor's, #keptFor's three, sync's setChartCube query and its Update grid let go -- and the
 // #pendingKept pattern; nothing new: Show Grid makes its grid as a gesture does (addGridOver, placed by sync)
 const BOARD_SITES: Record<string, string | readonly [string, number]> = {
-  'constructor:#newSheet(': "a page's first sheet",
   'constructor:board.setLayout(': "a cube alone's own grid, the whole board",
   'constructor:#pageLayouts.set(': 'its layout, the page\'s',
   'constructor:#grids.set(': "a cube alone's own grid",
   '#newSheet:#newSheet(': '(its own header)',
-  '#newSheet:board.setLayout(': "a new sheet's board at bands.ts NEW_SHEET",
-  '#newSheet:#pageLayouts.set(': "a new sheet's layout (bands.ts NEW_SHEET)",
-  '#newSheet:#sheets.push(': 'a sheet made: by sync, setSheets, or the constructor',
-  '#place:board.add(': 'a tile on its board: by sync, restore, a placeholder, a chart with no spec yet',
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): a sheet is a board of bands (#newBands, its sites
+  // #newSheet's before; the constructor's first sheet made by it, `constructor:#newSheet(` gone) or a flow (#newFlow); a flow's box shown, closed or put down is the board's (sync, restore, or
+  // which box is shown: the screen's, §3.4), and a tile moved between sheets by sync or setSheets moves by #moveOnto
+  '#newBands:board.setLayout(': "a new sheet's board at bands.ts NEW_SHEET",
+  '#newBands:#pageLayouts.set(': "a new sheet's layout (bands.ts NEW_SHEET)",
+  '#newBands:#sheets.push(': 'a sheet made: by sync, setSheets, or the constructor',
+  '#newFlow:#sheets.push(': 'a flow sheet made: by sync or setSheets',
+  '#putBox:#boxes.set(': "a flow's box not shown, as sync or restore puts it down",
+  '#dropBox:#boxes.delete(': "a flow's box not shown, off the board as sync drops it",
+  '#closeBox:#grids.delete(': "the box shown, closed (another shown, or its source changed by a step): which box is shown is the screen's",
+  '#closeBox:#boxes.set(': 'the box shown, closed: its cube kept as a document',
+  '#place:#boxes.delete(': "a flow's box shown: its grid placed in its place",
+  '#moveOnto:board.remove(': [`${SYNC}: a tile onto its sheet (sync, setSheets): a box not shown, a box shown, a board's tile`, 3],
+  '#moveOnto:board.add(': [`${SYNC}: a tile onto its sheet (sync, setSheets): a box shown, a board's tile`, 2],
+  'dispose:#boxes.clear(': 'the board taken down',
+  '#place:board.add(': ['a tile on its board: by sync, restore, a placeholder, a chart with no spec yet -- a flow\'s box shown, or a board\'s tile', 2],
   '#take:board.remove(': 'a tile off its board: by sync (#drop), a chart with no spec yet',
   '#synced:#newSheet(': SYNC,
   // 2026-10-22 (the S7 audit's P-1): twice -- its selection as the step has it, and a chart the step moved off a grid
   // with a selection (another editor's followGrid), off that grid as the step took it off (ChartSource.unselected)
   '#synced:chart.conditions = ': [SYNC, 2],
-  '#synced:board.remove(': `${SYNC}: a tile onto its sheet`,
-  '#synced:board.add(': `${SYNC}: a tile onto its sheet`,
   '#synced:board.rename(': SYNC,
   '#synced:panel.setSpec(': SYNC,
   '#synced:#sheets.splice(': SYNC,
   '#synced:#pageLayouts.delete(': SYNC,
   '#synced:.name = s.name': SYNC,
   '#synced:#sheets.sort(': SYNC,
-  '#synced:board.setLayout(': SYNC,
+  // 2026-10-25 (the flow mode's M1 steps 3-4): a flow's boxes, a board's bands
+  '#synced:board.setLayout(': [SYNC, 2],
   '#synced:#pageLayouts.set(': SYNC,
   '#synced:#charts.clear(': `${SYNC}: the charts in its order`,
   '#synced:#charts.set(': `${SYNC}: the charts in its order`,
@@ -120,14 +132,14 @@ const BOARD_SITES: Record<string, string | readonly [string, number]> = {
   'dispose:#charts.clear(': 'the board taken down',
   'moveToSheet:board.remove(': "a chart with no spec yet moved: no page holds it",
   'moveToSheet:board.add(': "a chart with no spec yet moved: no page holds it",
-  'setSheets:#newSheet(': 'a saved page put back',
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4; dated by the flow mode review, 2026-10-26): a sheet
+  // put back of the other kind -- a board where a flow was, or a flow where a board was -- is made again under its id
+  'setSheets:#newSheet(': ['a saved page put back: a sheet it has not, or one of the other kind under its id made again', 2],
   'setSheets:sheet.name = ': 'a saved page put back',
-  'setSheets:board.remove(': 'a saved page put back',
-  'setSheets:board.add(': 'a saved page put back',
-  'setSheets:#sheets.splice(': 'a saved page put back',
-  'setSheets:#pageLayouts.delete(': 'a saved page put back',
+  'setSheets:#sheets.splice(': ['a saved page put back: a sheet of the other kind made again, a sheet it has not left', 2],
+  'setSheets:#pageLayouts.delete(': ['a saved page put back: a sheet of the other kind made again, a sheet it has not left', 2],
   'setSheets:#sheets.sort(': 'a saved page put back',
-  'restore:board.setLayout(': 'a saved page put back',
+  'restore:board.setLayout(': ['a saved page put back: a flow\'s boxes, a board\'s bands (2026-10-25, the flow mode\'s M1 steps 3-4)', 2],
   'restore:board.rename(': 'a saved page put back',
   'restore:#pageLayouts.set(': 'a saved page put back',
   '#reconcileGrid:chart.conditions = ': "the screen's reconcile (G8's note): the same rule as the page's, kept by keep (a cube alone's too: F6)",

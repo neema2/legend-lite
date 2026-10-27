@@ -261,12 +261,16 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " shape yet");
             case SqlExpr.CheckedOne co -> checkedOne(writer, co, parentPrec);
             case SqlExpr.CompactList cl -> compactList(writer, cl, parentPrec);
+            case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
+                    + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
+                    + " of it is not lowered");
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException("deferred relation-toString reached"
                     + " the renderer — the execution boundary must resolve the dynamic column list first"
                     + " (DeferredTdsString id " + d.id() + ")");
             case SqlExpr.WindowCall w -> windowCall(writer, w);
             case SqlExpr.Lambda l -> lambda(writer, l);
-            case SqlExpr.Cast c -> variantAwareCast(writer, c);
+            case SqlExpr.Cast c -> c.target() instanceof SqlType.Tagged
+                    ? writer.expr(c.value(), parentPrec) : variantAwareCast(writer, c);
             case SqlExpr.FoldCall f -> foldCall(writer, f);
             case SqlExpr.JsonObject j -> jsonObject(writer, j);
             case SqlExpr.JsonArray j -> jsonArray(writer, j);
@@ -2638,7 +2642,17 @@ public final class MongoDb extends AnsiSqlRenderer {
             case com.legend.sql.SqlDml.DeleteAll da -> "{\"delete\": "
                     + MongoJson.string(collection(da.schema(), da.table())) + ", \"deletes\": [{\"q\": {},"
                     + " \"limit\": 0}]}";
-            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct);
+            case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            // a program that changes a store (main's writes, docs/WRITES_DESIGN_2026_10_18.md; merged 2026-10-26) is not
+            // shaped on MongoDb: its writes are the bulk load alone (docs/MONGODB_PLAN_2026_10_16.md)
+            case com.legend.sql.SqlDml.InsertSelect is -> throw new DialectCapability("an insert of a query's rows"
+                    + " reached MongoDb: a store write is not shaped on MongoDb");
+            case com.legend.sql.SqlDml.Update u -> throw new DialectCapability("an update reached MongoDb: a store"
+                    + " write is not shaped on MongoDb");
+            case com.legend.sql.SqlDml.DeleteWhere dw -> throw new DialectCapability("a delete of a condition's rows"
+                    + " reached MongoDb: a store write is not shaped on MongoDb");
+            case com.legend.sql.SqlDml.Merge m -> throw new DialectCapability("a merge reached MongoDb: a store write"
+                    + " is not shaped on MongoDb");
         };
     }
 
@@ -2699,7 +2713,7 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     /** MongoDB: a dynamic pivot's probe plan reads the keys and then the body, two commands with no transaction
      *  across them on a server that is no replica set (a key written between the two is not the body's: register
-     *  S103). */
+     *  S110). */
     @Override
     public KeysSnapshot keysSnapshot() {
         return KeysSnapshot.NONE;

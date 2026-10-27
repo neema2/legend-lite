@@ -8,10 +8,13 @@ import {
   agg, and, cast, collection, derive, eq, fn, from, ge, gt, lambda, le, lit, lt, ne, property, type, variable,
   type JoinKind, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { plainType } from '../../engine-client/src/types.ts';
 import { rowCountLambda } from './query.ts';
-import type { JoinCondition, JoinHow, JoinKindWord, JoinRow, JoinSide } from './join-how.ts';
+import { CubeRefusal } from './snapshot.ts';
+import { isEveryPair, SIMILAR_WITHIN, type JoinCondition, type JoinHow, type JoinKindWord, type JoinRow, type JoinSide } from './join-how.ts';
 
 export * from './join-how.ts';
+export { joinWords, rowWords } from './join-words.ts';
 
 // ---------------------------------------------------------------- what it becomes
 
@@ -39,6 +42,9 @@ function rowTerm(row: JoinRow, right: string, [ma, tb]: readonly [string, string
     case '<=': return le(a, b);
     case '>': return gt(a, b);
     case '>=': return ge(a, b);
+    // similar text: both a value, at most so many edits apart -- the database's distance (a flow's Fuzzy Match)
+    case '~': return and(fn('isNotEmpty', a), fn('isNotEmpty', b),
+      le(fn('levenshteinDistance', fn('toOne', a), fn('toOne', b)), lit.integer(row.within ?? SIMILAR_WITHIN)));
   }
 }
 
@@ -81,7 +87,8 @@ function asOfCondition(how: Extract<JoinHow, { form: 'asOf' }>, named: (c: strin
  * in as written: a column an input lacks, a name taken twice, an append's column of two types are the compiler's to
  * refuse, as it types what this writes.
  */
-export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow): ValueSpecification {
+export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow, more: readonly JoinSide[] = []): ValueSpecification {
+  if (more.length > 0 && how.form !== 'append') throw new Error(`a ${how.form} joins two inputs, not ${2 + more.length}: only an append takes more`);
   const mine = left.columns.map((c) => c.name);
   switch (how.form) {
     case 'join':
@@ -102,17 +109,29 @@ export function joinRelation(left: JoinSide, right: JoinSide, how: JoinHow): Val
     case 'anti':
       return semi(left, from(right.relation), conditionLambda(how.on, (c) => c), how.form === 'semi' ? 'isNotEmpty' : 'isEmpty').node;
     case 'append':
-      return appended(left, right).node;
+      return appended([left, right, ...more]).node;
   }
 }
 
 /**
- * An append: mine in my order, then theirs I lack; each side extended by the columns only the other has -- `[]` of the
- * type the compiler gave that column -- and selected in that order when its own differs.
+ * An append of any number (a Union's, JoinSource.more): the first's columns in its order, then each next one's it lacks,
+ * in turn; each side extended by the columns only the others have -- `[]` of the type the compiler gave that column (the
+ * first side to have it) -- and selected in that order when its own differs; concatenated in the sides' order. A name
+ * two sides type differently is refused in words: the compiler unites an Integer and a Float as the first's type, its
+ * rows' fractions under it (the correctness audit's 6, 2026-10-26) -- a Select retypes one side first.
  */
-function appended(left: JoinSide, right: JoinSide): Relation {
-  const mine = new Set(left.columns.map((c) => c.name));
-  const all = [...left.columns, ...right.columns.filter((c) => !mine.has(c.name))];
+function appended(sides: readonly JoinSide[]): Relation {
+  const all: (JoinSide['columns'][number] & { readonly side: string })[] = [];
+  for (const s of sides) {
+    for (const c of s.columns) {
+      const had = all.find((a) => a.name === c.name);
+      if (had === undefined) all.push({ ...c, side: s.name });
+      else if (plainType(had.type) !== plainType(c.type)) {
+        throw new CubeRefusal(`'${c.name}' is ${plainType(had.type)} in ${had.side} and ${plainType(c.type)} in ${s.name}: `
+          + "a Union's column is of one type -- retype one of them with a Select first");
+      }
+    }
+  }
   const order = all.map((c) => c.name);
   const side = (s: JoinSide): Relation => {
     const own = new Set(s.columns.map((c) => c.name));
@@ -122,7 +141,7 @@ function appended(left: JoinSide, right: JoinSide): Relation {
     const now = [...s.columns.map((c) => c.name), ...lacking.map((c) => c.name)];
     return now.every((c, i) => c === order[i]) ? rel : rel.select(order);
   };
-  return side(left).concatenate(side(right));
+  return sides.slice(1).reduce((rel, s) => rel.concatenate(side(s)), side(sides[0]!));
 }
 
 // ---------------------------------------------------------------- what it will do, before it is applied
@@ -166,6 +185,8 @@ export function joinSummary(left: JoinSide, right: JoinSide, how: JoinHow): Join
       const matched = rowCountLambda(semi(left, theirs, pairs, 'isNotEmpty'));
       if (how.form === 'asOf') return { mine, matched };
       const joined = rowCountLambda(from(joinRelation(left, right, how)));
+      // every pair (an Append Fields): their rows counted too, by the database -- never mine's quotient
+      if (isEveryPair(how)) return { mine, matched, joined, theirs: rowCountLambda(from(right.relation)) };
       const keys = 'rows' in how.on && how.on.rows.length > 0 && how.on.rows.every((r) => r.op === '==')
         ? [...new Set(how.on.rows.map((r) => r.right))] : [];
       return { mine, matched, joined, ...(keys.length > 0 ? { repeated: repeatedKeys(right, keys) } : {}) };
@@ -218,6 +239,13 @@ export function summaryWords(how: JoinHow, c: JoinSummaryCounts): string[] {
     const theirs = asked(c.theirs, 'they have');
     return [`${plural(c.mine, 'row')} of mine and ${plural(theirs, 'row')} of theirs: ${plural(c.mine + theirs, 'row')}.`];
   }
+  // every pair (an Append Fields): each of mine beside each of theirs, no match asked of it
+  if (isEveryPair(how)) {
+    const joined = asked(c.joined, 'come out of it');
+    const theirs = asked(c.theirs, 'they have');
+    if (c.mine === 0) return ['I have no rows: none after it.'];
+    return [`Each of my ${plural(c.mine, 'row')} beside ${theirs === 1 ? 'the one row' : `each of the ${plural(theirs, 'row')}`} of theirs: ${plural(joined, 'row')}.`];
+  }
   const matched = asked(c.matched, 'find a match');
   const unmatched = c.mine - matched;
   switch (how.form) {
@@ -250,15 +278,6 @@ export function summaryWords(how: JoinHow, c: JoinSummaryCounts): string[] {
 
 // ---------------------------------------------------------------- in words
 
-const KIND_WORDS: Readonly<Record<JoinKindWord, string>> = {
-  inner: 'matching rows only', left: 'all of mine', right: 'all of theirs', full: 'everything',
-};
-
-/** A row in words: `cust = id`. */
-export function rowWords(row: JoinRow): string {
-  return `${row.left} ${row.op === '==' ? '=' : row.op} ${row.right}`;
-}
-
 /** A join's grid's title: `trades ⋈ customers`, `trades + more`, `trades with customers`, `trades without customers`. */
 export function joinTitle(how: JoinHow, left: string, right: string): string {
   switch (how.form) {
@@ -267,19 +286,6 @@ export function joinTitle(how: JoinHow, left: string, right: string): string {
     case 'semi': return `${left} with ${right}`;
     case 'anti': return `${left} without ${right}`;
     case 'append': return `${left} + ${right}`;
-  }
-}
-
-/** What a join does, in words: `all of mine, on cust = id`; `every pair`; `nearest at = at, on sym = sym`. */
-export function joinWords(how: JoinHow): string {
-  const on = (c: JoinCondition): string => ('lambda' in c ? 'a condition in Pure'
-    : c.rows.length === 0 ? 'every pair' : c.rows.map(rowWords).join(' and '));
-  switch (how.form) {
-    case 'join': return `${KIND_WORDS[how.kind]}, on ${on(how.on)}`;
-    case 'asOf': return `nearest ${rowWords(how.match)}${'rows' in how.on && how.on.rows.length === 0 ? '' : `, on ${on(how.on)}`}`;
-    case 'semi': return `my rows with a match, on ${on(how.on)}`;
-    case 'anti': return `my rows with no match, on ${on(how.on)}`;
-    case 'append': return 'the rows of both, columns by name';
   }
 }
 

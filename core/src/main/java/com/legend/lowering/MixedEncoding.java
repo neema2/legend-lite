@@ -29,8 +29,15 @@ final class MixedEncoding {
     private MixedEncoding() {
     }
 
-    /** Null when not per-element encodable or not mixed. */
-    record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals) {
+    /**
+     * Null when not per-element encodable or not mixed. Three channels per element: {@code ids}, its Pure literal
+     * spelling (the F10 carrier, the lists' until step B of docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a: the mixed
+     * sort rides it); {@code vals}, its comparable (every number a DOUBLE, every date a TIMESTAMP); and
+     * {@code candidates}, the element itself with its Pure kind and the SQL slot that holds it exactly, which a
+     * SELECTION returns as a tagged value ({@link #tagged}: the winner's kind survives as a type, never as a
+     * spelling; 2026-10-23).
+     */
+    record MixedElems(List<SqlExpr> ids, List<SqlExpr> vals, List<SqlExpr.Tagged.Candidate> candidates) {
 
         SqlExpr idList() {
             return new SqlExpr.ArrayLit(ids);
@@ -40,28 +47,66 @@ final class MixedEncoding {
             return new SqlExpr.ArrayLit(vals);
         }
 
-        /** {@code ids[list_position(vals, <winner>)]} — the selection recipe. */
-        SqlExpr select(SqlExpr winner) {
-            SqlExpr sel = SqlExpr.Call.of(SqlFn.LIST_GET, idList(),
-                    SqlExpr.Call.of(SqlFn.LIST_POSITION,
-                            valList(), winner));
-            // F10 slice 2b: a NUMERIC mix's selected identity IS a
-            // pure-literal spelling — the Cast is the construction-site
-            // LITERAL label (scalarRoot reads it; physically CAST AS
-            // VARCHAR over text, an identity). Date/string mixes keep
-            // the unmarked print carrier until slice 3 lands the
-            // temporal arm on both grammar halves.
-            return markLiteral(sel);
+        /** The selection: the candidate at the FIRST position of {@code winner} in the comparables (Pure's max and
+         *  min keep the first of equal elements), carried as a tagged value with the winner on the comparable
+         *  channel. */
+        SqlExpr tagged(SqlExpr winner) {
+            return taggedAt(SqlExpr.Call.of(SqlFn.LIST_POSITION, valList(), winner), winner);
         }
 
-        /** The construction-site LITERAL label for any composition
-         * that returns ONE identity text (select, mode's last-run
-         * pick). Slice 3: EVERY element arm now spells the pure
-         * literal (temporals joined via the %-forms), so the mark is
-         * unconditional — the 2b numericOnly gate dissolved. */
-        SqlExpr markLiteral(SqlExpr sel) {
-            return new SqlExpr.Cast(sel, SqlType.Scalar.LITERAL);
+        /** The selection at {@code position} (1-based, the caller's recipe: mode's LAST position of the winner),
+         *  carried as a tagged value with {@code winner} on the comparable channel. */
+        SqlExpr taggedAt(SqlExpr position, SqlExpr winner) {
+            return new SqlExpr.Tagged(position, winner, candidates);
         }
+    }
+
+    /** The Pure kind a tagged slot names ({@link SqlType.Tagged.Slot#kind}), as a type: the one map (the encoder
+     *  above names each candidate's kind as it builds it). */
+    static Type kindType(String kind) {
+        if (kind.startsWith("DateTime(")) {
+            return Type.Primitive.DATE_TIME;   // a DateTime at a written subsecond precision (PureDateLiteral.presentedAt)
+        }
+        return switch (kind) {
+            case "Integer" -> Type.Primitive.INTEGER;
+            case "Float" -> Type.Primitive.FLOAT;
+            case "Decimal" -> Type.Primitive.DECIMAL;
+            case "StrictDate" -> Type.Primitive.STRICT_DATE;
+            case "DateTime" -> Type.Primitive.DATE_TIME;
+            case "Date" -> Type.Primitive.DATE;
+            default -> throw new IllegalStateException("a tagged slot of kind '" + kind + "': not one a mixed"
+                    + " selection carries (Integer, Float, Decimal, StrictDate, DateTime, Date)");
+        };
+    }
+
+    /** One expression per candidate of {@code t}, chosen by its tag: {@code CASE WHEN tag = k THEN arm(kind k,
+     *  candidate k) ... END}, each arm built over the candidate's own value with its STATIC kind -- a print spells
+     *  each candidate as itself (a Float literal's text the database's own plain text; a computed Float's the exact
+     *  form, once), the judges' canon likewise. */
+    static SqlExpr perCandidate(SqlExpr.Tagged t,
+            java.util.function.BiFunction<Type, SqlExpr, SqlExpr> arm) {
+        List<SqlExpr.Case.When> whens = new ArrayList<>();
+        for (int k = 0; k < t.candidates().size(); k++) {
+            SqlExpr.Tagged.Candidate c = t.candidates().get(k);
+            whens.add(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.EQUAL, t.tag(), new SqlExpr.IntLit(k + 1)),
+                    arm.apply(kindType(c.kind()), c.value())));
+        }
+        return new SqlExpr.Case(whens, null);
+    }
+
+    /** {@code args} with every tagged value read on its comparable channel: a comparison, an equality or a
+     *  {@code compare} over a mixed selection's winner compares the number or the instant, as Pure does. */
+    static List<SqlExpr> comparables(List<SqlExpr> args) {
+        List<SqlExpr> out = new ArrayList<>(args.size());
+        for (SqlExpr a : args) {
+            out.add(a instanceof SqlExpr.Tagged t ? t.comparable() : a);
+        }
+        return out;
+    }
+
+    private static @com.legend.base.Nullable SqlType typeOf(SqlExpr e) {
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
     }
 
     /** Identity consumers of the NUMBER-LUB literal carrier rebuild
@@ -98,22 +143,26 @@ final class MixedEncoding {
             List<SqlExpr> lowered) {
         List<SqlExpr> ids = new ArrayList<>();
         List<SqlExpr> vals = new ArrayList<>();
+        List<SqlExpr.Tagged.Candidate> candidates = new ArrayList<>();
         for (int i = 0; i < elems.size(); i++) {
-            if (!encodeMixed(elems.get(i), lowered.get(i), ids, vals)) {
+            if (!encodeMixed(elems.get(i), lowered.get(i), ids, vals, candidates)) {
                 return null;
             }
         }
-        return new MixedElems(ids, vals);
+        return new MixedElems(ids, vals, candidates);
     }
 
     /**
-     * One element's (identity, comparable) SQL pair, dispatched on its
-     * STATIC type. All value work happens in SQL.
+     * One element's (identity, comparable, candidate) SQL triple, dispatched on its STATIC type. All value work
+     * happens in SQL. The candidate is the element itself under its kind and the slot that holds it exactly (an
+     * Integer a BIGINT, a Float a DOUBLE, a Decimal its own DECIMAL(p,s), a StrictDate a DATE, a DateTime a
+     * TIMESTAMP, a partial date its text); the root's egress casts it to the slot where its own type differs.
      */
     private static boolean encodeMixed(TypedSpec e,
                                        SqlExpr x,
                                        List<SqlExpr> ids,
-                                       List<SqlExpr> vals) {
+                                       List<SqlExpr> vals,
+                                       List<SqlExpr.Tagged.Candidate> candidates) {
         // a carrier-wrapped element unwraps: identity/comparable both
         // build from the RAW value (floatRepr over json cannot type)
         x = unwrapVariant(x);
@@ -121,6 +170,7 @@ final class MixedEncoding {
         if (t == Type.Primitive.INTEGER) {
             ids.add(new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR));
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
+            candidates.add(new SqlExpr.Tagged.Candidate("Integer", SqlType.Scalar.BIGINT, x));
             return true;
         }
         if (t == Type.Primitive.FLOAT) {
@@ -129,6 +179,7 @@ final class MixedEncoding {
             // ids byte-match the carrier's spellings on both sides
             ids.add(LiteralSpelling.literal(x, Type.Primitive.FLOAT));
             vals.add(x);
+            candidates.add(new SqlExpr.Tagged.Candidate("Float", SqlType.Scalar.DOUBLE, x));
             return true;
         }
         if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
@@ -136,6 +187,12 @@ final class MixedEncoding {
             // DECIMAL cast text has no D to strip)
             ids.add(LiteralSpelling.literal(x, Type.Primitive.DECIMAL));
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.DOUBLE));
+            SqlType slot = typeOf(x);
+            if (!(slot instanceof SqlType.Decimal)) {
+                throw new com.legend.error.NotImplementedException("a Decimal among mixed kinds whose SQL type is "
+                        + slot + ", not a DECIMAL(p,s) that holds it exactly: no slot for it");
+            }
+            candidates.add(new SqlExpr.Tagged.Candidate("Decimal", slot, x));
             return true;
         }
         if (t == Type.Primitive.STRICT_DATE) {
@@ -144,6 +201,7 @@ final class MixedEncoding {
             // host values replace the old date-string convention
             ids.add(LiteralSpelling.strictDateLiteral(x));
             vals.add(new SqlExpr.Cast(x, SqlType.Scalar.TIMESTAMP));
+            candidates.add(new SqlExpr.Tagged.Candidate("StrictDate", SqlType.Scalar.DATE, x));
             return true;
         }
         if (t == Type.Primitive.DATE_TIME) {
@@ -152,6 +210,13 @@ final class MixedEncoding {
                     : LiteralSpelling.dateTimeLiteral(x,
                             new SqlExpr.FormatLit(dateTimeFormatOf(e))));
             vals.add(x);
+            // the written precision is part of a DateTime value and no TIMESTAMP keeps it: the slot's kind carries
+            // it as a fact the reader presents the instant at -- a subsecond literal's digit count, else the
+            // second (as the spelling carrier spelled a computed or whole-second DateTime at ISO_LOCAL; the
+            // Snowflake lane's five date winners read back at nine digits, 2026-10-23)
+            String kind = e instanceof TypedCDate cd && cd.value() instanceof PureDateLiteral.DateWithSubsecond d
+                    ? "DateTime(" + d.subsecond().length() + ")" : "DateTime";
+            candidates.add(new SqlExpr.Tagged.Candidate(kind, SqlType.Scalar.TIMESTAMP, x));
             return true;
         }
         if (t == Type.Primitive.DATE) {
@@ -165,6 +230,7 @@ final class MixedEncoding {
             }
             ids.add(LiteralSpelling.partialDateLiteral(x));
             vals.add(cmp);
+            candidates.add(new SqlExpr.Tagged.Candidate("Date", SqlType.Scalar.TEMPORAL_TEXT, x));
             return true;
         }
         return false;
@@ -275,7 +341,9 @@ final class MixedEncoding {
             ids.add(x);
             vals.add(cmp);
         }
-        return new MixedElems(ids, vals);
+        // the Any-kind carrier stays on spellings (step B of docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its
+        // elements are no candidates of a tagged selection
+        return new MixedElems(ids, vals, List.of());
     }
 
     /** One element's rank-struct comparable, derived FROM ITS SPELLING —

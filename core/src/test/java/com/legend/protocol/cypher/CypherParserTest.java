@@ -179,16 +179,11 @@ class CypherParserTest {
         assertEquals("x", u.variable());
         assertEquals("[1,2]", tree(u.list()));
         assertInstanceOf(Return.class, s.clauses().get(1));
-        OtherClause create = (OtherClause) parse("CREATE (n:Person {name: 'a'})-[:KNOWS]->(m)").clauses().get(0);
-        assertEquals("CREATE", create.keyword());
-        assertEquals("CREATE (n:Person {name: 'a'})-[:KNOWS]->(m)", create.text());
         // (n:Foo) alone is a label predicate, in parentheses and inside a list literal (a pattern comprehension
         // starts only where a property map or a relationship follows the labels)
         assertTrue(expr("[(n:Foo)]") instanceof CypherAst.ListLit l && l.elements().size() == 1
                 && l.elements().get(0) instanceof CypherAst.Paren p && p.inner() instanceof CypherAst.LabelPredicate);
         assertTrue(expr("[(n:Foo)-[:T]->(m) | m]") instanceof CypherAst.PatternComprehension);
-        OtherClause detach = (OtherClause) parse("MATCH (n) DETACH DELETE n").clauses().get(1);
-        assertEquals("DETACH DELETE", detach.keyword());
         // CALL is read since the procedures leg (the study's §12.60): the dotted name, the arguments when written
         // in parentheses (null for the implicit form), the yielded outputs under their aliases, YIELD *
         CypherAst.ProcedureCall call = (CypherAst.ProcedureCall) parse("CALL db.labels() YIELD label RETURN label")
@@ -208,6 +203,32 @@ class CypherParserTest {
         assertTrue(((CypherAst.ProcedureCall) parse("CALL test.my.proc() YIELD *").clauses().get(0)).yieldAll());
         OtherClause foreach = (OtherClause) parse("MATCH (n) FOREACH (x IN [1] | SET n.p = x)").clauses().get(1);
         assertEquals("FOREACH", foreach.keyword());
+    }
+
+    @Test
+    void theClausesThatUpdateTheGraphAreRead() {
+        CypherAst.Create create = (CypherAst.Create) parse("CREATE (n:Person {name: 'a'})-[:KNOWS]->(m), (x)")
+                .clauses().get(0);
+        assertEquals(2, create.patterns().size());
+        assertEquals(3, create.patterns().get(0).elements().size());
+        CypherAst.SetClause set = (CypherAst.SetClause) parse("MATCH (n) SET n.x = n.x + 1, (n).y = 2, n = {a: 1},"
+                + " n += {b: 2}, n:A:B RETURN n").clauses().get(1);
+        assertEquals(5, set.items().size());
+        assertEquals("PLUS(n.x,1)", tree(((CypherAst.SetProperty) set.items().get(0)).value()));
+        assertEquals("y", ((CypherAst.SetProperty) set.items().get(1)).key());
+        assertTrue(set.items().get(2) instanceof CypherAst.SetProperties p && !p.merge());
+        assertTrue(set.items().get(3) instanceof CypherAst.SetProperties p && p.merge());
+        assertEquals(List.of("A", "B"), ((CypherAst.SetLabels) set.items().get(4)).labels());
+        CypherAst.Remove remove = (CypherAst.Remove) parse("MATCH (n) REMOVE n.x, n:A").clauses().get(1);
+        assertInstanceOf(CypherAst.RemoveProperty.class, remove.items().get(0));
+        assertInstanceOf(CypherAst.RemoveLabels.class, remove.items().get(1));
+        CypherAst.Delete detach = (CypherAst.Delete) parse("MATCH (n)-[r]->() DETACH DELETE n, r").clauses().get(1);
+        assertTrue(detach.detach());
+        assertEquals(2, detach.targets().size());
+        assertTrue(!((CypherAst.Delete) parse("MATCH (n) DELETE n").clauses().get(1)).detach());
+        assertTrue(!((CypherAst.Delete) parse("MATCH (n) NODETACH DELETE n").clauses().get(1)).detach());
+        assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("MATCH (n) SET n").kind());
+        assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("MATCH (n) REMOVE n").kind());
     }
 
     @Test
@@ -440,9 +461,12 @@ class CypherParserTest {
 
     @Test
     void mergeActionsListPredicatesAndKeywordMapKeys() {
-        OtherClause merge = (OtherClause) parse("MERGE (a:L) ON MATCH SET a.x = 1 ON CREATE SET a.y = 2 RETURN a")
-                .clauses().get(0);
-        assertEquals("MERGE (a:L) ON MATCH SET a.x = 1 ON CREATE SET a.y = 2", merge.text());
+        CypherAst.Merge merge = (CypherAst.Merge) parse("MERGE (a:L) ON MATCH SET a.x = 1 ON CREATE SET a.y = 2"
+                + " ON MATCH SET a:M RETURN a").clauses().get(0);
+        assertEquals(List.of("L"), ((CypherAst.NodePattern) merge.pattern().elements().get(0)).labels());
+        assertEquals("y", ((CypherAst.SetProperty) merge.onCreate().get(0)).key());
+        assertEquals(2, merge.onMatch().size());
+        assertInstanceOf(CypherAst.SetLabels.class, merge.onMatch().get(1));
         assertEquals("all(x IN [1,2] WHERE GT(x,0))", tree(expr("all(x IN [1, 2] WHERE x > 0)")));
         assertEquals("single(x IN [1,2] WHERE GT(x,0))", tree(expr("single(x IN [1, 2] WHERE x > 0)")));
         assertEquals(SqlTranslationException.Kind.SYNTAX, refusal("RETURN any(x IN [1, 2])").kind());

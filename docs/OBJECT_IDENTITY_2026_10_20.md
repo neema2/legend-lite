@@ -85,7 +85,7 @@ refused by name, never compared as a struct.
 **3.4 No output shows the synthetic fields.** The text carrier already skips them (`LiteralSpelling.synthetic`); the JSON,
 CSV and TDS writers and the typed rows must too (a gate: every output of an object, every lane).
 
-## 4. Where the product's identity is not Pure's (named; register row S104)
+## 4. Where the product's identity is not Pure's (named; register row S111)
 
 Where the product does not track an object's evaluations it mints **no id** for it (`Lowerer.objectId`, the plan path),
 and **reading the identity of such an object raises by name** in the database (`CanonicalRenderSql.trackedId`: every
@@ -139,7 +139,7 @@ copy (2026-10-20, the user's "fix all those": before, cases 2 to 4 answered sile
    shows the declared properties alone (`Lowerer.withDeclaredEgress`).
 4. Tests: **landed 2026-10-20**, `ObjectIdentityTest` (§2's table and more, on DuckDB and SQLite, through the plan);
    channel B's identity tests on the plan route with step 10 of the plan path program.
-5. Register rows: **S104** (§4's four, 2026-10-20).
+5. Register rows: **S111** (§4's four, 2026-10-20).
 6. **Landed 2026-10-20** (the user: "fix all those"): §4's cases 2 to 4 refuse by name where they answered silently,
    and a lambda body's let read at one level is one evaluation (§4.4); `ObjectIdentityTest`'s
    `anUntrackedObjectsIdentityIsRefusedByName` and its let cases.

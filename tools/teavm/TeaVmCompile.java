@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -34,6 +35,9 @@ import java.util.List;
  * starts clean, and its output is a function of its inputs alone. The runtime is
  * the MODULAR, unminified {@code wasm-gc-module-runtime.js}, the one DataCube's
  * {@code LitePlanner} and the differentials import.
+ *
+ * <p>One step after TeaVM: the module's data segment offsets re-encoded as the specification reads them
+ * ({@link WasmDataOffsets}, PARK-40), until TeaVM 0.16.0.
  */
 public final class TeaVmCompile {
 
@@ -86,9 +90,15 @@ public final class TeaVmCompile {
             // class it cannot find: the module is not what the source says
             System.exit(1);
         }
-        // TeaVM 0.15.0 writes a data segment's address unsigned; WebAssembly reads it signed (SegmentOffsets)
-        Path module = new File(out, "classes.wasm").toPath();
-        Files.write(module, SegmentOffsets.fix(Files.readAllBytes(module)));
+        // PARK-40 (docs/PARKED_WORK_LEDGER.md): TeaVM 0.15.0 writes a data segment's offset unsigned where the
+        // specification reads it signed; the module is re-encoded here, after TeaVM writes it, until the bump to 0.16.0
+        Path wasm = new File(out, "classes.wasm").toPath();
+        byte[] module = Files.readAllBytes(wasm);
+        byte[] fixed = WasmDataOffsets.fix(module);
+        if (!Arrays.equals(module, fixed)) {
+            Files.write(wasm, fixed);
+            log.info("data segment offsets re-encoded as signed LEB128 (TeaVM 0.15.0 writes them unsigned; PARK-40)");
+        }
         try (InputStream runtime = TeaVmCompile.class.getClassLoader().getResourceAsStream(RUNTIME)) {
             if (runtime == null) {
                 throw new IllegalStateException(RUNTIME + " is not in teavm-core");

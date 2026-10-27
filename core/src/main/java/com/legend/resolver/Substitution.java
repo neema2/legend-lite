@@ -1450,6 +1450,14 @@ final class Substitution {
                                     .getClass().getSimpleName()) + "]");
     }
 
+    /** Whether a collection operation's source is a list of values, not a relation, a class's instances or a
+     *  navigation from the scope's variable ({@link #listValueMap}'s test of a map's source). */
+    private boolean listValue(TypedSpec source) {
+        return !Type.isRelation(source.info().type())
+                && !(Type.asClassType(source.info().type()) instanceof Type.ClassType)
+                && pathOf(source, target.userVar()) == null;
+    }
+
     /** A LIST VALUE's map (a computed, many-valued String[*] — the
      * residual {@code if(..)->concatenate(..)} of toPostgresModel's
      * qualifiedName parts — never a row path, never a class collection):
@@ -2038,6 +2046,12 @@ final class Substitution {
             case TypedMap m when listValueMap(m) ->
                     new TypedMap(rewrite(m.source()),
                             (TypedLambda) rewrite(m.mapper()), m.info());
+            // a collection's drop, take or slice over values, not a navigation (an element of a stored list the
+            // Cypher island reads back by its elements' kind, 2026-10-20): a value operation, its operands rewritten
+            case com.legend.compiler.spec.typed.TypedDrop d when listValue(d.source()) -> d.mapChildren(this::rewrite);
+            case TypedLimit d when listValue(d.source()) -> d.mapChildren(this::rewrite);
+            case com.legend.compiler.spec.typed.TypedSlice d when listValue(d.source()) ->
+                    d.mapChildren(this::rewrite);
             case TypedMap m when objectSpaceFanOut(m) ->
                     rewrite(inlineParam(withAggReads(m.mapper().body().get(0)),
                             m.mapper().parameters().get(0), m.source()));

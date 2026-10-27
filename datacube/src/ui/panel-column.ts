@@ -51,6 +51,7 @@ import {
   checkbox,
   dropdown,
   field,
+  foldable,
   numberInput,
   section,
   textInput,
@@ -678,37 +679,6 @@ function columnList(ctx: Parameters<PanelBuilder>[0], ui: ColumnPanelUi, names: 
   paint();
   box.append(search, list);
   return box;
-}
-
-/** A section whose title folds it, marked when it holds a change. */
-function foldable(doc: Document, ui: ColumnPanelUi, section: HTMLElement, changed: boolean): void {
-  const title = section.querySelector<HTMLElement>(':scope > .dc-section-title');
-  if (!title) return;
-  const key = title.textContent ?? '';
-  section.classList.add('dc-pe-fold');
-  const folded = ui.folded?.includes(key) === true;
-  section.classList.toggle('dc-folded', folded);
-  title.setAttribute('role', 'button');
-  title.tabIndex = 0;
-  title.setAttribute('aria-expanded', String(!folded));
-  if (changed) {
-    const mark = doc.createElement('span');
-    mark.className = 'dc-pe-changed';
-    mark.title = 'Changed from the defaults';
-    title.append(mark);
-  }
-  const toggle = (): void => {
-    const now = !section.classList.contains('dc-folded');
-    section.classList.toggle('dc-folded', now);
-    title.setAttribute('aria-expanded', String(!now));
-    const set = new Set(ui.folded ?? []);
-    if (now) set.add(key); else set.delete(key);
-    ui.folded = [...set];
-  };
-  title.addEventListener('click', toggle);
-  title.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-  });
 }
 
 /** The kind control, with upstream's reason when a pivot locks it. */

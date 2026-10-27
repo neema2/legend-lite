@@ -10,6 +10,8 @@
 // Each call opens the grid afresh from the cube document it is given: the document is the grid's state, Python's
 // page keeps it, and nothing here holds a grid between calls.
 
+import { readsAnchor, seriesQuery, seriesSources, type TsInputs, type TsWindow } from '../timeseries-query.ts';
+import { answerOf, Problem, seriesOf } from './timeseries.ts';
 import { snapRefusal } from '../../../engine-client/src/snap.ts';
 import type { Scalar } from '../../../engine-client/src/result.ts';
 import { fromJson, toJson, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
@@ -17,6 +19,23 @@ import { nameProblem } from '../calc.ts';
 import { chartFrom, chartGrid, chartProblems, followCube, followRefusal, readChart, showGridWay } from '../chart-spec.ts';
 import { draftColumn, draftStage, existingDraft, newDraft, type ColumnDraft } from '../column-draft.ts';
 import { presetCommands, readGridPreset, type GridPreset } from '../grid-presets.ts';
+import { binningCommands, readBinning, type Binning } from '../binning.ts';
+import { readTextTool, TEXT_TOOL_KINDS, textToolCommands } from '../text-tool-columns.ts';
+import type { TextTool } from '../text-tools.ts';
+import { readUnique, uniqueCommands, type Unique } from '../unique.ts';
+import { imputeCommands, readImputation, type Imputation } from '../impute.ts';
+import { multiFieldCommands, multiFieldText, readMultiField } from '../multi-field-columns.ts';
+import { readRowSample, sampleCommands, type RowSample } from '../row-sample.ts';
+import { readTranspose, transposeCommands, type Transpose } from '../transpose.ts';
+import { readSelection, selectCommands, type Selection } from '../select-columns.ts';
+import { readSummary, summarizeCommands, type Summary } from '../summarize.ts';
+import { findReplaceCommands, readFindReplace, type FindReplace } from '../find-replace.ts';
+import { countRecordsCommands, readCountRecords } from '../count-records.ts';
+import { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterProbe, customFilterText, readCustomFilter } from '../custom-filter.ts';
+import { generateRowsCommands, readGenerateRows, type GenerateRows } from '../generate-rows.ts';
+import { checkCommands, checksOf, checkWords, failingChecks, failingWords, readChecks, type Check } from '../checks.ts';
+import type { MultiFieldAsked } from '../multi-field.ts';
+import { DATE_TOOL_KINDS, dateToolCommands, readDateTool, type DateTool } from '../date-tools.ts';
 import {
   argumentsGiven, gestureNamed, gestureReadsView, gridGestureGiven, type GestureArgs, type GestureView, type GridGestureName,
 } from '../grid-gestures.ts';
@@ -24,8 +43,8 @@ import { CubeController, type CubeView } from '../cube.ts';
 import { fold, openedState, type CubeState } from '../cube-state.ts';
 import {
   CubeDocumentError, cubeOpenedAgain, cubeTaken, cubeToJson, fileChanged, fileSourceOf, frameSource, gridCapped, leavesOf, newGridTree, openCube,
-  readCube, readCubeSource, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinSource,
-  type OpenedCube, type QuerySource, type WarehouseSource,
+  readCube, readCubeSource, rebuilt, remoteSourceOf, writeCube, type ClassSource, type CubeDocument, type CubeSource, type JoinInput, type JoinSource,
+  type OpenedCube, type QuerySource, type RowsSource, type WarehouseSource,
 } from '../cube-document.ts';
 import {
   OPERATORS, isCompatible, newCondition, newGroup, toFilterNode, type DraftCondition, type DraftNode,
@@ -41,11 +60,15 @@ import { applyToSnapshot } from '../config.ts';
 import { applyGridCommands, readGridCommand, readMeasure, type GridCommand } from '../grid-commands.ts';
 import { measureCommands } from '../grid-measures.ts';
 import type { GridDraft } from '../grid-edits.ts';
-import { leftOutNote, leftOutWhenUnopened, plainNumbers, readGridCopy, readPage, type GridCopy, type PageView } from '../page-document.ts';
+import {
+  layoutTiles, leftOutNote, leftOutWhenUnopened, plainNumbers, readGridCopy, readPage, type GridCopy, type PageView,
+} from '../page-document.ts';
 import { gridLens, readPageFilters } from '../page-filters.ts';
 import { typeColumns } from '../plan.ts';
 import { PlanError, type ModelOptions } from '../planner.ts';
-import { classBasis, classLambda, snapPull, type ClassBasis } from '../query.ts';
+import { classBasis, classLambda, pivotValuesLambda, pivotValuesOf, snapPull, tooManyValues, unpinnedValuesLambda, type ClassBasis } from '../query.ts';
+import { outputCsv } from '../flow-output.ts';
+import { lackingCheck, lackingWords } from '../cross-tab.ts';
 import type { PlanAndRun, QueryLens } from '../runner.ts';
 import { classSamples } from '../model-plans.ts';
 import { SampleRefusal, type SampleRows } from '../sample-rows.ts';
@@ -60,14 +83,20 @@ import {
 import { sourceColumns } from '../source-columns.ts';
 import { pythonRunner } from '../services/python-host.ts';
 import { hostCalls, hostEngine, hostWorker } from './host.ts';
-import { leafOnHost, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
+import { leafOnHost, leafTables, onHost, type HostBase, type HostLeaf, type HostTables } from './host-tables.ts';
+import { inputRows } from '../join-open.ts';
+import { boxRows, pureFrom, pureInput } from '../pure-box.ts';
+import type { PageCommand } from '../page-commands.ts';
+import type { JoinSide } from '../join.ts';
+import { gridInput, liveGrids, resolvedSource } from '../live-inputs.ts';
+import type { PageDocument } from '../page-document.ts';
 import { classGiven, className, type ClassElement } from '../class-source.ts';
 import { classTree, measuresOf, relatedName, relatedProblem, supertypesOf } from '../class-tree.ts';
 import { modelMeasureCommands } from '../model-measure-commands.ts';
 import { modelMeasures } from '../model-measures.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { sharedPart, type SharedQuery } from '../../../query-store/src/share.ts';
-import { joinOpenedOn } from './join.ts';
+import { joinOpenedOn, rowsOpenedOn } from './join.ts';
 import { base64 } from './web.ts';
 
 /** A grid as Python hands it in: its cube document (page-document's, as JSON text), and its base (gridBase's). */
@@ -284,8 +313,10 @@ export async function sourceCube(model: string | null, given: string, host: Host
  * host's database -- and what a host reads it by (a file's bytes' hash, a remote file's URL). JSON: `[{_type, name,
  * sha256?, url?}]`.
  */
-export function cubeLeaves(cube: string): string {
-  return JSON.stringify(leavesOf(readCube(fromJson(cube)).source).map((l) => ({
+// `page`, `id`: the page it is on and its cube there -- a grid over another grid's rows reads what that grid reads (onPage)
+export function cubeLeaves(cube: string, page: string | null = null, id: string | null = null): string {
+  const on = page === null ? undefined : readPage(page, { empty: true });
+  return JSON.stringify(leavesOf(onPage(readCube(fromJson(cube)).source, on, id)).map((l) => ({
     _type: l._type, name: l.name, ...(l._type === 'file' ? { sha256: l.sha256 } : {}), ...(l._type === 'remoteFile' ? { url: l.url } : {}),
   })));
 }
@@ -298,12 +329,76 @@ export function cubeLeaves(cube: string): string {
  * kind of source a cube has. JSON: `{model, runtime, source}` (Pure text) or `{model, runtime, relation}` (a lambda as
  * the protocol writes it, as text).
  */
-export async function gridBase(cube: string, host: HostTables): Promise<string> {
-  const on = await onHost(readCube(fromJson(cube)).source, host);
-  if ('leaf' in on) return JSON.stringify(on.leaf.base);
-  const opened = await joinOpenedOn(on.join, on.tables);
-  return `{"model":${JSON.stringify(opened.model)},"runtime":${JSON.stringify(opened.runtime)},`
-    + `"relation":${JSON.stringify(toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }))}}`;
+// `page`, `id`: the page it is on and its cube there -- what a grid over another grid's rows is resolved against
+// (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1); refused in words when such a grid is asked of with no page
+export async function gridBase(cube: string, host: HostTables, page: string | null = null, id: string | null = null): Promise<string> {
+  const doc = readCube(fromJson(cube));
+  const on = page === null ? undefined : readPage(page, { empty: true });
+  return JSON.stringify((await baseOver(onPage(doc.source, on, id), host)).base);
+}
+
+/**
+ * A SOURCE WITH ITS LINKS RESOLVED AGAINST ITS PAGE (live-inputs.ts resolvedSource): `page` the page it is on, `id` its
+ * cube there (its grid's, a link back to which is refused). A source with no link is as it is; one with a link and no
+ * page given is refused in words, never read without it.
+ */
+function onPage(source: CubeSource, page: PageDocument | undefined, id: string | null): CubeSource {
+  if (liveGrids(source).length === 0) return source;
+  if (page === undefined) throw new CubeRefusal(`${source.name} reads another grid of its page: it is read with its page`);
+  const grid = id === null ? undefined : page.views.find((v) => v.kind === 'grid' && v.cube === id)?.id;
+  return resolvedSource(page, source, grid);
+}
+
+/**
+ * A BASE ON THE HOST, the one rule every grid's base is (gridBase): a leaf's, where the host reads it (host-tables.ts
+ * leafOnHost); a join's, over the host's tables (headless join.ts joinOpenedOn); another grid's rows' -- its input's rows
+ * at their finest level (join-open.ts inputRows, a join's input's rule) over that input's own base in turn, typed by the
+ * host's compiler, read through what that base is read through (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1). `source`
+ * with its links resolved (onPage). What drifted in an input on the way is said; `side`, another grid's rows' relation
+ * and columns.
+ */
+async function baseOver(source: CubeSource, host: HostTables, given: Readonly<Record<string, string>> = {}): Promise<{
+  readonly base: HostBase; readonly notes: readonly string[]; readonly side?: JoinSide;
+}> {
+  const on = await onHost(source, host, given);
+  if ('leaf' in on) return { base: on.leaf.base, notes: [] };
+  if ('join' in on) {
+    const opened = await joinOpenedOn(on.join, on.tables);
+    return {
+      base: { model: opened.model, runtime: opened.runtime, relation: toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }) },
+      notes: opened.notes,
+    };
+  }
+  const input = on.rows.input;
+  // a Join's L or R reads both of the join's inputs: over one model of the host's tables, as the join is
+  if (input.unmatched !== undefined) {
+    const opened = await rowsOpenedOn(on.rows, await leafTables(on.rows, host, given));
+    return {
+      base: { model: opened.model, runtime: opened.runtime, relation: toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }) },
+      notes: opened.notes,
+      side: { name: input.name, relation: opened.relation, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) },
+    };
+  }
+  const inner = await baseOver(input.source, host, given);
+  const { planner, relation } = await typed(inner.base);
+  try {
+    const notes = [...inner.notes];
+    const read = await inputRows(input, relation, planner, notes);
+    // a Pure box's rows, its function of its input's (pure-box.ts), typed by the compiler as a relation
+    const rows = boxRows(on.rows, read.relation);
+    const side: JoinSide = on.rows.pure === undefined ? read
+      : { ...read, relation: rows, columns: (await sourceColumns(planner, rows)).map((c) => ({ name: c.name, type: c.type })) };
+    const { model, runtime, mapping, enumerations, project } = inner.base;
+    return {
+      base: {
+        model, runtime, ...(mapping !== undefined ? { mapping } : {}), ...(enumerations !== undefined ? { enumerations } : {}),
+        ...(project ? { project } : {}), relation: toJson({ _type: 'lambda', parameters: [], body: [side.relation] }),
+      },
+      notes, side,
+    };
+  } finally {
+    planner.dispose();
+  }
 }
 
 /** A copy its host holds, as the host modelled it (Python's engine: Engine.held_copies): what a snapped grid reads. */
@@ -324,8 +419,9 @@ export interface HeldCopy {
  * each grid it asks DataCube about (gridBaseOn).
  */
 export async function baseOnHost(cube: string, snapped: GridCopy | undefined, host: HostTables,
-  copies: Readonly<Record<string, HeldCopy>>): Promise<HostBase> {
-  if (snapped === undefined) return JSON.parse(await gridBase(cube, host)) as HostBase;
+  copies: Readonly<Record<string, HeldCopy>>, page?: PageDocument, id?: string): Promise<HostBase> {
+  // `page`, `id`: the page it is on and its cube there, what a link is resolved against (onPage)
+  if (snapped === undefined) return (await baseOver(onPage(readCube(fromJson(cube)).source, page, id ?? null), host)).base;
   const copy = copies[snapped.table];
   if (copy === undefined) {
     throw new CubeRefusal(`${readCube(fromJson(cube)).name}: its snap (${snapped.label}) is no longer held -- go live to `
@@ -342,11 +438,12 @@ export async function baseOnHost(cube: string, snapped: GridCopy | undefined, ho
 export async function gridBaseOn(cube: string, snapped: unknown, host: HostTables,
   copies: Readonly<Record<string, HeldCopy>>, page: string | null = null, id: string | null = null): Promise<string> {
   try {
-    const base = await baseOnHost(cube, snapped === null ? undefined : readGridCopy(snapped), host, copies);
-    if (page === null || id === null) return JSON.stringify(base);
-    // its page given: what its filters are to it, the grid's charts with them (a click's filter is not its own chart's
+    // its page given: what a grid over another grid's rows reads resolved against it (onPage)
+    const doc = page === null ? undefined : readPage(page, { empty: true });
+    const base = await baseOnHost(cube, snapped === null ? undefined : readGridCopy(snapped), host, copies, doc, id ?? undefined);
+    if (doc === undefined || id === null) return JSON.stringify(base);
+    // and its id: what its filters are to it, the grid's charts with them (a click's filter is not its own chart's
     // grid's), carried as the protocol's JSON (their values exact) for each grid call to read it through (GridSpec.lens)
-    const doc = readPage(page, { empty: true });
     const charts = doc.views.filter((v) => v.kind === 'chart' && v.cube === id).map((v) => v.id);
     return JSON.stringify({ ...base, lens: toJson({ filters: doc.filters ?? [], charts }) });
   } catch (e) {
@@ -369,11 +466,12 @@ export async function gridBaseOn(cube: string, snapped: unknown, host: HostTable
 // otherwise -- by the rule a page takes it by (cube-document.ts cubeTaken); `opened`, the source as it is now, which the
 // page's `rebuilt` command carries (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P11, Z10); `how`, its base's ModelOptions.
 // `leaveOut`, as its page opens: `{leftOut}`, the page's note, for a source the page leaves out (leftOutWhenUnopened)
+// `page`, `id`: the page it is opened on and its cube there, what a grid over another grid's rows reads (onPage)
 export async function gridOpened(cube: string, host: HostTables, name: string, gridsOnPage: number,
-  given: Readonly<Record<string, string>> = {}, leaveOut = false): Promise<string> {
+  given: Readonly<Record<string, string>> = {}, leaveOut = false, page: string | null = null, id: string | null = null): Promise<string> {
   const was = readCube(fromJson(cube));
   try {
-    return await openedOn(was, cube, host, name, gridsOnPage, given);
+    return await openedOn(was, cube, host, name, gridsOnPage, given, page === null ? undefined : readPage(page, { empty: true }), id);
   } catch (e) {
     // `leaveOut`, as a page opens: a source the page leaves out when it cannot be opened, for any reason, said in the
     // page's words, the cube kept as saved (page-document.ts leftOutWhenUnopened, the tab's Open…'s rule; the S7 audit's
@@ -385,8 +483,16 @@ export async function gridOpened(cube: string, host: HostTables, name: string, g
 
 /** gridOpened's cube opened over the host's tables, as it is now. */
 async function openedOn(was: CubeDocument, cube: string, host: HostTables, name: string, gridsOnPage: number,
-  given: Readonly<Record<string, string>>): Promise<string> {
-  const on = await onHost(was.source, host, given);
+  given: Readonly<Record<string, string>>, page: PageDocument | undefined, id: string | null): Promise<string> {
+  const on = await onHost(onPage(was.source, page, id), host, given);
+  if ('rows' in on) {
+    // another grid's rows: over its input as that grid is now; the source as the page holds it (its link), its columns
+    // as its input's rows are typed now (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1)
+    if (was.source._type !== 'rows') throw new Error(`${was.source.name} opened as another grid's rows`);
+    const { base, notes, side } = await baseOver(on.rows, host, given);
+    const now: RowsSource = { ...was.source, columns: side!.columns.map((c) => ({ name: c.name, type: c.type })) };
+    return openedAgain(was, now, notes, base);
+  }
   if ('leaf' in on) {
     const { base, leaf } = on.leaf;
     // the leaf's columns as the compiler types them now (gridCube): the source as it is now
@@ -397,8 +503,10 @@ async function openedOn(was: CubeDocument, cube: string, host: HostTables, name:
     const now = readCube(fromJson(made.cube)).source;
     return openedAgain(was, now, now._type === 'file' ? fileChanged(was.source, now) : [], base);
   }
+  // a join: over its inputs resolved (a flow's Join box reads them live); the source as the page holds it (its links)
+  if (was.source._type !== 'join') throw new Error(`${was.source.name} opened as a join`);
   const opened = await joinOpenedOn(on.join, on.tables);
-  const now: JoinSource = { ...on.join, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
+  const now: JoinSource = { ...was.source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) };
   return openedAgain(was, now, opened.notes, { model: opened.model, runtime: opened.runtime,
     relation: toJson({ _type: 'lambda', parameters: [], body: [opened.relation] }) });
 }
@@ -418,6 +526,55 @@ function openedAgain(was: CubeDocument, now: CubeSource, said: readonly string[]
     + `"changed":${JSON.stringify(changed)},"taken":${JSON.stringify(cubeTaken(changed, was.source, now))},`
     + `"opened":${JSON.stringify(toJson(now))},"model":${JSON.stringify(base.model)},"runtime":${JSON.stringify(base.runtime)},`
     + `"how":${JSON.stringify(how)},${reads}}`;
+}
+
+/**
+ * A GRID OVER ANOTHER GRID'S ROWS, AS IT IS ADDED (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1, FL20: Python's
+ * `page.grid(input=...)`, a flow's box after another): the page command every grid is added by (addGrid), with a new
+ * grid's cube document over grid `input` of the page, reading its rows live -- its rows as they are, capped at the row
+ * limit when it is not the page's only grid (gridCapped), titled as that grid is called (live-inputs.ts gridInput) -- on
+ * that grid's sheet unless `sheet` is named, near it; `title`, the one a person gave it. JSON: `{command, notes, model,
+ * runtime, relation}`, as headless joinCube's: the command, what drifted on the way, and the base a host plans its rows
+ * over -- or `{problems}`, its input refused in DataCube's words. `port`: one of `input`'s ports it reads (a Filter's
+ * False, a Join's L or R), as the tab adds a box on one.
+ */
+export async function rowsCube(spec: string): Promise<string> {
+  // the protocol's exact JSON: a cube's numbers kept as they are
+  const s = fromJson(spec) as unknown as {
+    readonly page: unknown; readonly input: string; readonly port?: unknown; readonly host: HostTables; readonly sheet: string | null;
+    readonly title: string | null;
+  };
+  // one of the input's ports (a Filter's False, a Join's L or R), as the tab adds a box on one (app/datacube-app.ts):
+  // the review of 2026-10-26's B5, Python's had none
+  const port = s.port ?? undefined;
+  if (port !== undefined && port !== 'false' && port !== 'left' && port !== 'right') {
+    return JSON.stringify({ problems: [`a box reads its input's rows, or its port 'false', 'left' or 'right', not ${JSON.stringify(port)}`] });
+  }
+  const page = readPage(s.page, { empty: true });
+  let input: JoinInput;
+  try {
+    input = gridInput(page, s.input, [], port);
+  } catch (e) {
+    // the input refused in DataCube's words (no grid of the page; a port it has not)
+    if (!(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+  const live: RowsSource = { _type: 'rows', name: input.name, input: { grid: s.input, ...(port !== undefined ? { port } : {}) }, columns: [] };
+  const { base, notes, side } = await baseOver(resolvedSource(page, live), s.host);
+  const columns = side!.columns;
+  const made = rebuilt(undefined, side!.relation, columns, input.name, gridCapped(page.cubes.length + 1));
+  // written as the screen holds a grid it opens (cube-state.ts openedState), as headless gridCube and joinCube write one
+  const state = openedState(made.snapshot, made.configuration, made.tree ?? newGridTree(made.configuration));
+  const cube = writeCube({
+    name: page.name, source: { ...live, columns: columns.map((c) => ({ name: c.name, type: c.type })) },
+    snapshot: state.snapshot, configuration: state.configuration, tree: state.tree,
+  });
+  const sheet = s.sheet ?? page.sheets.find((sh) => layoutTiles(sh.layout).includes(s.input))?.id ?? page.sheets[0]!.id;
+  const command = `{"kind":"addGrid","document":${cubeToJson(cube)},"sheet":${JSON.stringify(sheet)},`
+    + `"near":${JSON.stringify(s.input)},"title":${JSON.stringify(s.title)},"columns":null}`;
+  const reads = 'source' in base ? `"source":${JSON.stringify(base.source)}` : `"relation":${base.relation}`;
+  return `{"command":${command},"notes":${JSON.stringify(notes)},"model":${JSON.stringify(base.model)},`
+    + `"runtime":${JSON.stringify(base.runtime)},${reads}}`;
 }
 
 async function using<T>(spec: GridSpec, use: (o: Opened) => Promise<T>): Promise<T> {
@@ -642,21 +799,84 @@ export async function gridModelMeasure(spec: GridSpec, given: string): Promise<s
 
 /**
  * A PRESET ADDED AS THE HEADER MENU ADDS ONE (grid-presets.ts presetCommands: a date to its period, a measure shown as,
- * a number to its bin -- Python's grid.grain, grid.show_as, grid.bins): `given`, the preset as JSON (readGridPreset),
- * over the grid's columns as the compiler types them now. JSON: as gridApply's, or `{problems}`, in DataCube's words.
+ * a number to its bin -- Python's grid.grain, grid.show_as, grid.bins), or A FLOW'S TOOL AS ITS WINDOW SETS IT: a text
+ * tool's columns (text-tool-columns.ts textToolCommands: Text To Columns, RegEx, Data Cleansing -- grid.split,
+ * grid.regex, grid.cleanse), Unique (unique.ts uniqueCommands: grid.unique) or Imputation (impute.ts imputeCommands:
+ * grid.impute), a DateTime's part or text read as a date (date-tools.ts dateToolCommands: grid.date_part, grid.parse_date),
+ * a Multi-Field Formula (multi-field-columns.ts multiFieldCommands, its expression parsed by the compiler: grid.multi_field),
+ * a Sample (row-sample.ts sampleCommands: grid.sample), a Transpose (transpose.ts transposeCommands: grid.transpose), or a
+ * Select (select-columns.ts selectCommands: grid.select), a Summarize (summarize.ts summarizeCommands: grid.summarize), or
+ * a Find Replace's replacing (find-replace.ts findReplaceCommands: page.find_replace), or Count Records
+ * (count-records.ts countRecordsCommands: grid.count_records), or a Test (checks.ts checkCommands: grid.test), or a
+ * Custom Filter (custom-filter.ts customFilterCommands, its condition parsed and typed by the compiler: grid.custom_filter),
+ * or a Binning (binning.ts binningCommands: grid.binning), or a Generate Rows (generate-rows.ts generateRowsCommands:
+ * grid.generate_rows).
+ * `given`, the preset or the tool as JSON (readGridPreset, readTextTool, readUnique, readImputation, readMultiField, by
+ * its kind; readRowSample), over the grid's columns as the compiler types them now.
+ * JSON: as gridApply's, or `{problems}`, in DataCube's words.
  */
 export async function gridPreset(spec: GridSpec, given: string): Promise<string> {
-  let preset: GridPreset;
+  let asked: { readonly preset: GridPreset } | { readonly tool: TextTool } | { readonly unique: Unique } | { readonly impute: Imputation }
+    | { readonly date: DateTool } | { readonly multi: MultiFieldAsked } | { readonly sample: RowSample | null }
+    | { readonly transpose: Transpose } | { readonly select: Selection } | { readonly summarize: Summary } | { readonly findReplace: FindReplace }
+    | { readonly count: { readonly name: string } } | { readonly checks: readonly Check[] } | { readonly custom: { readonly expression: string } }
+    | { readonly binning: Binning } | { readonly generate: GenerateRows };
   try {
-    preset = readGridPreset(JSON.parse(given));
+    const raw: unknown = JSON.parse(given);
+    const kind = raw !== null && typeof raw === 'object' ? (raw as Record<string, unknown>)['kind'] : undefined;
+    asked = kind === 'unique' ? { unique: readUnique(raw) } : kind === 'impute' ? { impute: readImputation(raw) }
+      : kind === 'multiField' ? { multi: readMultiField(raw) } : kind === 'sample' ? { sample: readRowSample(raw) }
+      : kind === 'transpose' ? { transpose: readTranspose(raw) } : kind === 'selectColumns' ? { select: readSelection(raw) }
+      : kind === 'summarize' ? { summarize: readSummary(raw) } : kind === 'findReplace' ? { findReplace: readFindReplace(raw) }
+      : kind === 'countRecords' ? { count: readCountRecords(raw) } : kind === 'test' ? { checks: readChecks(raw) }
+      : kind === 'customFilter' ? { custom: readCustomFilter(raw) } : kind === 'binning' ? { binning: readBinning(raw) }
+      : kind === 'generateRows' ? { generate: readGenerateRows(raw) }
+      : (DATE_TOOL_KINDS as readonly unknown[]).includes(kind) ? { date: readDateTool(raw) }
+      : (TEXT_TOOL_KINDS as readonly unknown[]).includes(kind) ? { tool: readTextTool(raw) } : { preset: readGridPreset(raw) };
   } catch (e) {
     if (!(e instanceof CubeRefusal)) throw e;
     return JSON.stringify({ problems: [e.message] });
   }
   return using(spec, async (o) => {
     let commands: GridCommand[];
+    // a Multi-Field Formula's expression, parsed as the window parses it: a refusal the parser's
+    let lambda: Lambda | undefined;
+    if ('multi' in asked) {
+      try {
+        lambda = await o.planner.parse(multiFieldText(asked.multi.expression));
+      } catch (e) {
+        if (!(e instanceof PlanError)) throw e;
+        return JSON.stringify({ problems: [e.message] });
+      }
+    }
+    // a Custom Filter's condition, parsed and typed as the window parses and types it: a refusal the compiler's
+    let conditionType: string | undefined;
+    if ('custom' in asked) {
+      try {
+        lambda = await o.planner.parse(customFilterText(asked.custom.expression));
+        conditionType = (await typedColumns(o.runner, customFilterProbe(o.state.snapshot, lambda)))
+          .derived.find((d) => d.name === CUSTOM_FILTER_COLUMN)?.type;
+      } catch (e) {
+        if (!(e instanceof PlanError)) throw e;
+        return JSON.stringify({ problems: [e.message] });
+      }
+    }
     try {
-      commands = presetCommands(await typedColumns(o.runner, o.state.snapshot), preset);
+      commands = 'tool' in asked ? textToolCommands(asked.tool) : 'date' in asked ? dateToolCommands(asked.date)
+        : 'multi' in asked ? multiFieldCommands(await typedColumns(o.runner, o.state.snapshot), { ...asked.multi, lambda: lambda! })
+        : 'sample' in asked ? sampleCommands(await typedColumns(o.runner, o.state.snapshot), asked.sample)
+        : 'transpose' in asked ? transposeCommands(await typedColumns(o.runner, o.state.snapshot), asked.transpose)
+        : 'select' in asked ? selectCommands(await typedColumns(o.runner, o.state.snapshot), asked.select)
+        : 'summarize' in asked ? summarizeCommands(await typedColumns(o.runner, o.state.snapshot), asked.summarize)
+        : 'findReplace' in asked ? findReplaceCommands(await typedColumns(o.runner, o.state.snapshot), asked.findReplace)
+        : 'count' in asked ? countRecordsCommands(await typedColumns(o.runner, o.state.snapshot), asked.count.name)
+        : 'checks' in asked ? checkCommands(await typedColumns(o.runner, o.state.snapshot), asked.checks)
+        : 'custom' in asked ? customFilterCommands(o.state.snapshot, lambda!, conditionType)
+        : 'binning' in asked ? binningCommands(await typedColumns(o.runner, o.state.snapshot), asked.binning)
+        : 'generate' in asked ? generateRowsCommands(await typedColumns(o.runner, o.state.snapshot), asked.generate)
+        : 'unique' in asked ? uniqueCommands(await typedColumns(o.runner, o.state.snapshot), asked.unique)
+          : 'impute' in asked ? imputeCommands(await typedColumns(o.runner, o.state.snapshot), asked.impute)
+          : presetCommands(await typedColumns(o.runner, o.state.snapshot), asked.preset);
     } catch (e) {
       if (!(e instanceof CubeRefusal)) throw e;
       return JSON.stringify({ problems: [e.message] });
@@ -1114,6 +1334,81 @@ export async function gridView(spec: GridSpec): Promise<string> {
   });
 }
 
+/** A TEST'S FAILING CHECKS (checks.ts failingChecks: the canvas's reading of its row, Python's flow.run's): its view
+ *  run as the screen runs it, each check whose count is above 0 with its rows (a count of rows's: the rows it has); a
+ *  Cross Tab's whose columns are fixed (FL3, cross-tab.ts), its values with no column, asked as the page asks them.
+ *  JSON: `{failing: [{check, rows, says}]}` (the check in words, and its failing as the canvas says it), or `{problems}`
+ *  when the grid checks nothing. */
+export async function gridFailing(spec: GridSpec): Promise<string> {
+  return using(spec, async (o) => {
+    const checks = checksOf(o.state.snapshot);
+    // a Cross Tab whose columns are fixed (FL3): its one check, every value of its rows a column
+    const unpinned = checks === undefined ? unpinnedValuesLambda(o.state.snapshot) : null;
+    if (unpinned !== null) {
+      const s = o.state.snapshot;
+      const on = s.pivotOn[0]!;
+      const { rows } = await controllerOf(o).runQuery(unpinned, s);
+      const { values } = pivotValuesOf(s, rows);
+      return JSON.stringify({ failing: values.length === 0 ? []
+        : [{ check: lackingCheck(on), rows: values.length, says: lackingWords(on, values) }] });
+    }
+    if (checks === undefined) return JSON.stringify({ problems: ['it checks nothing: it is no Test, nor a Cross Tab with its columns fixed'] });
+    const view = await controllerOf(o).run({ snapshot: o.state.snapshot, tree: o.state.tree });
+    if (view === STALE) throw new Error('the grid was asked again before its view was ready');
+    const failing = failingChecks(checks, (name) => view.rows.columns.find((c) => c.name === name)?.values[0]);
+    return JSON.stringify({ failing: failing.map((f) => ({ check: checkWords(f.check), rows: f.rows, says: failingWords(f) })) });
+  });
+}
+
+/**
+ * A FLOW'S PURE BOX SET AS ITS WINDOW SETS IT (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; app.ts #openPure, pure-box.ts):
+ * `given`, `{pure}` -- its text, over `$input` or a lambda of one parameter as written (pureText), or null, taken off --
+ * parsed by the planner, its shape judged (pureProblem) and its rows typed as a relation over its input's, read back off
+ * the grid's rows as its window reads them (pureInputOf), before its page sets it: Python's grid.pure. JSON: `{commands}`,
+ * the page's setPure for its tile `grid` (for pageApply), or `{problems}`, in the compiler's words or DataCube's.
+ */
+export async function gridPure(spec: GridSpec, grid: string, given: string): Promise<string> {
+  const asked = JSON.parse(given) as { pure?: unknown };
+  const said = (pure: Lambda | null): string => {
+    const command: PageCommand = { kind: 'setPure', grid, pure };
+    return `{"commands":[${toJson(command)}]}`;
+  };
+  if (asked.pure === null) return said(null);
+  if (typeof asked.pure !== 'string') return JSON.stringify({ problems: [`a Pure box's function is its text, or None, not ${JSON.stringify(asked.pure)}`] });
+  const text = asked.pure;
+  const source = readCube(fromJson(spec.cube)).source;
+  if (source._type !== 'rows') return JSON.stringify({ problems: [`${source.name} is read from no other grid: a Pure box reads another grid's rows`] });
+  return using(spec, async ({ planner, state }) => {
+    try {
+      // parsed, judged and its rows typed as a relation, as its window does (pure-box.ts pureFrom)
+      return said(await pureFrom(text, pureInput(source, state.snapshot.source.query), {
+        parse: (t) => planner.parse(t), columns: (r) => planner.relationType({ _type: 'lambda', parameters: [], body: [r] }),
+      }));
+    } catch (e) {
+      // the planner's refusal is the compiler's words, a CubeRefusal DataCube's; any other failure is no mistake of the Pure's
+      if (!(e instanceof PlanError) && !(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+  });
+}
+
+/** A PIVOT'S VALUES AS ITS ROWS HOLD THEM NOW (a Cross Tab's Load values, FL2: app.ts pinPivotValues, the screen's
+ *  question): its values query asked with its pins taken off, run as the screen runs it, each value as the screen reads
+ *  a cell -- what Python's grid.load_pivot_values pins by the gesture pivot.pin. JSON: `{values}`, or `{problems}` when
+ *  it pivots on no column. */
+export async function gridPivotValues(spec: GridSpec): Promise<string> {
+  return using(spec, async (o) => {
+    const { pivotValues: _pinned, ...s } = o.state.snapshot;
+    const query = pivotValuesLambda(s);
+    if (query === null) return JSON.stringify({ problems: ['it pivots on no column: it has no values to load'] });
+    const { rows } = await controllerOf(o).runQuery(query, s);
+    // the screen's Load values' reading of them (query.ts pivotValuesOf), its refusal its own
+    const { values, more } = pivotValuesOf(s, rows);
+    if (more) return JSON.stringify({ problems: [tooManyValues(s.pivotOn[0]!)] });
+    return JSON.stringify({ values });
+  });
+}
+
 /** The grid's rows at their finest level as Pure, as Create a Class makes its class of them (classLambda). */
 export async function gridRelation(spec: GridSpec): Promise<string> {
   // through the page's filters, as it is sent to be planned (over its mapping: `->from(mapping, runtime)`), so its host
@@ -1122,6 +1417,52 @@ export async function gridRelation(spec: GridSpec): Promise<string> {
     const rows = classLambda(state.snapshot);
     return planner.compose(planner.sent(lens ? lens(rows) : rows), 'STANDARD');
   });
+}
+
+/**
+ * A FLOW'S OUTPUT AS PYTHON'S flow.run WRITES IT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): the box's rows as the tab's
+ * Output writes them, by the one writer (flow-output.ts outputCsv: in its sorts' order, the columns it hands on under
+ * their names, each value as it is) -- JSON `{csv}`, or `{problems}` in DataCube's words (a pivot its rows decide).
+ */
+export async function gridOutput(spec: GridSpec): Promise<string> {
+  return using(spec, async (o) => {
+    try {
+      return JSON.stringify({ csv: await outputCsv(o.state.snapshot, o.state.configuration as unknown as Record<string, unknown>, controllerOf(o)) });
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      return JSON.stringify({ problems: [e.message] });
+    }
+  });
+}
+
+/**
+ * A TIMESERIES' SERIES OF ONE GRID, AS THE GRID READS IT (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5; the review's
+ * P1): `spec` the grid over its base as every grid call has it -- its copy, snapped (baseOnHost); a class's mapping; the
+ * page's filters on it (its lens) -- and `asked` (JSON `{page, tile, series, window}`) the series of a tile of the page.
+ * Its query written over the grid as the grid is (timeseries-query.ts seriesQuery, every point of the window: the
+ * drawing's limit is the drawing's), through the page's filters, composed as it is sent to be planned, as gridRelation
+ * is -- what the tab's viewer reads through the grid's own runner. JSON: `{query, columns, unit, band, candles, split,
+ * name}`, the query Pure text, or `{problems}`, in DataCube's words.
+ */
+export async function gridTimeseries(spec: GridSpec, asked: string): Promise<string> {
+  try {
+    return await using(spec, async ({ planner, lens, state }) => {
+      const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series: string; readonly window?: TsWindow };
+      const { ts, series } = seriesOf(readPage(a.page, { empty: true }), a.tile, a.series);
+      const aliases = seriesSources(ts, series);
+      if (aliases.length !== 1) {
+        throw new Problem(`series ${series.id} reads ${aliases.length} grids: it is read over their tables together (timeseriesQuery)`);
+      }
+      const inputs: TsInputs = new Map([[aliases[0]!, { snapshot: state.snapshot, filter: state.snapshot.filter }]]);
+      const window = a.window ?? {};
+      const q = seriesQuery(inputs, ts, series, readsAnchor(ts, series) && window.from !== undefined ? { from: window.from } : {}, window, null);
+      const text = await planner.compose(planner.sent(lens ? lens(q.query) : q.query), 'STANDARD');
+      return `{"query":${JSON.stringify(text)},${answerOf(q, series)}}`;
+    });
+  } catch (e) {
+    if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });
+    throw e;
+  }
 }
 
 /**

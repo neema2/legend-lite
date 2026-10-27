@@ -55,7 +55,7 @@ public final class MirJson {
 
     enum AggTag { reducer, rankingFn, valueFn }
 
-    enum TypeTag { scalar, decimal, array, map, struct }
+    enum TypeTag { scalar, decimal, array, map, struct, tagged }
 
     enum FactTag { typed, bottom, raises, unknown }
 
@@ -418,6 +418,8 @@ public final class MirJson {
                 tag(o, ExprTag.compactList, c.type());
                 o.put("list", expr(c.list()));
             }
+            case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value (SqlExpr.Tagged) is resolved"
+                    + " at its query's root before a plan is written: its tag and slots are the plan's columns");
             case SqlExpr.DeferredTdsString d -> {
                 tag(o, ExprTag.deferredTdsString, d.type());
                 o.put("inner", query(d.inner()));
@@ -684,6 +686,17 @@ public final class MirJson {
                     fields.add(fo);
                 }
                 o.put("fields", fields);
+            }
+            case SqlType.Tagged tg -> {
+                o.put("_type", TypeTag.tagged.name());
+                List<Object> slots = new ArrayList<>();
+                for (SqlType.Tagged.Slot s : tg.slots()) {
+                    Map<String, Object> so = new LinkedHashMap<>();
+                    so.put("kind", s.kind());
+                    so.put("type", type(s.type()));
+                    slots.add(so);
+                }
+                o.put("slots", slots);
             }
         }
         return o;
@@ -1078,6 +1091,14 @@ public final class MirJson {
                     fields.add(new SqlType.Struct.Field(f.getString("name"), readType(f.getObj("type"))));
                 }
                 yield new SqlType.Struct(fields);
+            }
+            case tagged -> {
+                List<SqlType.Tagged.Slot> slots = new ArrayList<>();
+                for (Json.Node n : o.getArr("slots").items()) {
+                    Json.Obj s = (Json.Obj) n;
+                    slots.add(new SqlType.Tagged.Slot(s.getString("kind"), readType(s.getObj("type"))));
+                }
+                yield new SqlType.Tagged(slots);
             }
         };
     }

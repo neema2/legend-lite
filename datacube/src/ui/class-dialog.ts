@@ -8,6 +8,7 @@ import { focusedElement } from '../focus.ts';
 import type { ColumnChoice, ColumnRole, MadeProperty } from '../model-writer.ts';
 import { isPackage, isPureName } from '../model-names.ts';
 import type { PureChange } from '../../../sdlc-client/src/wire.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** What a person chose: the request's names and each column's choice. */
 export interface ClassChoice {
@@ -96,7 +97,7 @@ export function classDialog(doc: Document, o: ClassDialogOptions): Promise<Creat
     el(doc, 'p', 'dc-picker-subtitle', titles, o.project.isNew
       ? `Of ${o.sourceName}'s rows as this grid shows them, in a new project in this browser, where Studio opens it.`
       : `Of ${o.sourceName}'s rows as this grid shows them, in the page's project, ${o.project.name}.`);
-    const close = el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement;
+    const close = closeMark(el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => { if (!busy) finish(); });

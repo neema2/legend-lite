@@ -27,11 +27,15 @@ import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protoc
 import { readChart, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { type Bands, type Node, NEW_SHEET, add as addTile, problems, tiles as tilesOf } from './layout/bands.ts';
+import { flowProblems, flowTiles, type Flow } from './layout/flow.ts';
 import type { PageModelRef } from './page-model.ts';
 import { readPageFilters, type PageFilter } from './page-filters.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
+import { afterWhatTheyRead, liveProblem } from './live-inputs.ts';
+import { readTimeseries, type TimeseriesSpec } from './timeseries-spec.ts';
+import { readTextFiles, type TextFile } from './text-files.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
@@ -85,15 +89,95 @@ export interface TextView {
   readonly text: string;
   /** Its own title; else it is numbered (page-ids.ts textTitle). */
   readonly title?: string;
+  /** The files it shows beside its words (text-files.ts: pointed to, never copied); left out when none. */
+  readonly files?: readonly TextFile[];
   /** It shows no cube: read off any view, a text tile's cube is undefined. */
   readonly cube?: never;
 }
 
-export type PageView = GridView | ChartView | TextView;
+/**
+ * A TIMESERIES TILE (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of any number of the page's grids along one
+ * time axis -- its spec's sources name the cubes it reads (a grid's id is its cube's). A source whose grid was removed is
+ * kept as it was, its series said to wait for it (undo brings the grid back); the tile shows no one cube of its own.
+ */
+export interface TimeseriesView {
+  readonly id: string;
+  readonly kind: 'timeseries';
+  readonly spec: TimeseriesSpec;
+  /** Its own title; else it is numbered (page-ids.ts timeseriesTitle). */
+  readonly title?: string;
+  /** It reads its sources' cubes (spec.sources), never one of its own. */
+  readonly cube?: never;
+}
+
+export type PageView = GridView | ChartView | TextView | TimeseriesView;
+
+/**
+ * WHETHER A VIEW READS A CUBE -- a grid's or a chart's its own, a timeseries' each of its sources' (a text tile none): the
+ * one rule a page keeps a cube by, so a grid removed while a timeseries reads its cube leaves the cube on the page, as a
+ * frozen chart's is kept (the owner, 2026-10-25, the review's G4: the cube went with its grid, the tile after a reopen
+ * reading a cube the page no longer held).
+ */
+export function readsCube(view: PageView, cube: string): boolean {
+  return cubesRead(view).includes(cube);
+}
+
+/** The cubes a view reads: every kind of tile answers, a new kind not compiling until it does (the second audit's A-B1:
+ *  a page's writers read a view's `cube`, which a timeseries has none of, and dropped its cubes). */
+export function cubesRead(view: PageView): readonly string[] {
+  switch (view.kind) {
+    case 'grid':
+    case 'chart':
+      return [view.cube];
+    case 'timeseries':
+      return view.spec.sources.map((s) => s.cube);
+    case 'text':
+      return [];
+  }
+}
+
+/**
+ * THE CUBES A PAGE HOLDS: each its views read (cubesRead) -- a grid's, a detached chart's, a removed grid's a timeseries
+ * still reads -- and no other, a cube no view reads let go. The one rule every writer and every page command holds a
+ * page's cubes to (a page written out without one is refused: pageContent).
+ */
+export function cubesHeld(views: readonly PageView[]): ReadonlySet<string> {
+  return new Set(views.flatMap(cubesRead));
+}
+
+/** Of `cubes`, those `views` still read (cubesHeld): what a change that takes a view off leaves the page holding. */
+export function stillHeld<T extends { readonly id: string }>(cubes: readonly T[], views: readonly PageView[]): T[] {
+  const held = cubesHeld(views);
+  return cubes.filter((c) => held.has(c.id));
+}
+
+/** A page written out holding every cube its views read, or the writer's bug said: one without is a file the reader
+ *  refuses (the second audit's A-B1, a timeseries' kept cube written off its page). */
+function heldWhole(cubes: readonly { readonly id: string }[], views: readonly PageView[]): void {
+  const written = new Set(cubes.map((c) => c.id));
+  for (const view of views) {
+    const missing = cubesRead(view).find((c) => !written.has(c));
+    if (missing !== undefined) throw new Error(`the page is written without cube ${missing}, which ${view.kind} ${view.id} reads`);
+  }
+}
 
 /** Where the views sit: the page's bands (layout/bands.ts), each tile a view's id. */
-export interface PageLayout extends Bands {
+/** A board sheet's layout: its bands (layout/bands.ts). */
+export interface BandsLayout extends Bands {
   readonly kind: 'bands';
+}
+
+/** A flow sheet's layout (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): its boxes on a canvas (layout/flow.ts). */
+export interface FlowLayout extends Flow {
+  readonly kind: 'flow';
+}
+
+/** A sheet's layout: a board of bands, or a flow of boxes. */
+export type PageLayout = BandsLayout | FlowLayout;
+
+/** The tiles a sheet's layout holds: a board's in reading order, a flow's in the order its boxes were placed. */
+export function layoutTiles(layout: PageLayout): string[] {
+  return layout.kind === 'flow' ? flowTiles(layout) : tilesOf(layout);
 }
 
 /** A sheet: a whole screen of the page's views, laid out as its bands. */
@@ -117,7 +201,7 @@ export const oneSheet = (layout: PageLayout): readonly PageSheet[] => [{ id: FIR
  * THE VIEWS A PAGE STARTS WITH, on its one sheet: a new sheet's empty board (bands.ts NEW_SHEET), or with a grid
  * (`grid`: its view's id and its cube's) added to it as any first tile is (bands.ts add: the whole board). The one
  * writer of a starting page: a cube app's page of its grid alone (app.ts pageViews), a cube saved before pages opened as
- * a page (app/datacube-app.ts), and a new page (newPage: Python's and the tab's Blank Page), whose first grid the same add
+ * a page (app/datacube-app.ts), and a new page (newPage: Python's and the tab's New Page), whose first grid the same add
  * places.
  */
 export function startingViews(grid?: { readonly id: string; readonly cube: string }): PageViews {
@@ -130,20 +214,23 @@ export function startingViews(grid?: { readonly id: string; readonly cube: strin
 /**
  * A NEW PAGE, the one skeleton (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11, B9): no cube yet, its one sheet an empty
  * board (startingViews), unnamed ('': shown as "Untitled page", Save suggesting its first sheet's name) unless `name` is
- * given. Python's new page (headless page.ts pageNew) and the tab's Blank Page (PageApp.clear) both start from it.
+ * given. Python's new page (headless page.ts pageNew) and the tab's New Page (PageApp.clear) both start from it.
  */
 export function newPage(name = ''): PageDocument {
   return writePageOf({ name, cubes: [], views: startingViews() });
 }
 
 /**
- * WHAT A SHEET IS CALLED (its tab): the name someone gave it, else the report title of the first grid it shows (its
- * tiles in reading order; `grid` says of a tile whether it is a grid and its title), else "Sheet n" by its place (`at`,
- * from 0). The tab's sheet tabs ask it of the board, and a page's suggested name of its document (suggestedName).
+ * WHAT A SHEET IS CALLED (its tab): the name someone gave it, else -- a flow -- "Flow n", else the report title of the
+ * first grid it shows (its tiles in reading order; `grid` says of a tile whether it is a grid and its title), else
+ * "Sheet n" by its place (`at`, from 0). The tab's sheet tabs ask it of the board, and a page's suggested name of its
+ * document (suggestedName).
  */
-export function sheetLabel(sheet: { readonly name?: string | undefined; readonly tiles: readonly string[] }, at: number,
-  grid: (tile: string) => { readonly title: string | undefined } | undefined): string {
+export function sheetLabel(sheet: { readonly name?: string | undefined; readonly tiles: readonly string[]; readonly flow?: boolean },
+  at: number, grid: (tile: string) => { readonly title: string | undefined } | undefined): string {
   if (sheet.name !== undefined) return sheet.name;
+  // a flow is its steps, not its first box's source: "Flow N" until someone names it
+  if (sheet.flow === true) return `Flow ${at + 1}`;
   const first = sheet.tiles.map(grid).find((g) => g !== undefined);
   return first?.title || `Sheet ${at + 1}`;
 }
@@ -163,7 +250,7 @@ export function noneOpened(name: string, opened: number): string | undefined {
  * opened. Any other source refuses the open, in words (a file asked for, a frame given).
  */
 export function leftOutWhenUnopened(source: CubeSource): boolean {
-  return source._type === 'class' || source._type === 'join';
+  return source._type === 'class' || source._type === 'join' || source._type === 'rows';
 }
 
 /** What a cube left out as its page opens is said as (leftOutWhenUnopened): its source's name, and why. */
@@ -186,7 +273,7 @@ export function suggestedName(page: PageDocument): string {
 function labelOf(page: PageDocument, sheet: PageSheet, name: string | undefined): string {
   const cubes = new Map(page.cubes.map((c) => [c.id, c.cube]));
   const grids = new Map(page.views.flatMap((v) => (v.kind === 'grid' ? [[v.id, v.cube] as const] : [])));
-  return sheetLabel({ name, tiles: tilesOf(sheet.layout) }, page.sheets.indexOf(sheet), (tile) => {
+  return sheetLabel({ name, tiles: layoutTiles(sheet.layout), flow: sheet.layout.kind === 'flow' }, page.sheets.indexOf(sheet), (tile) => {
     const cube = grids.get(tile);
     if (cube === undefined) return undefined;
     const title = cubes.get(cube)?.configuration['reportTitle'];
@@ -349,7 +436,9 @@ export function writePage(o: {
 
 /**
  * A PAGE OF SEVERAL CUBES (a page of its own: one cube per grid, each over its own source, and one per grid kept off
- * the board for a detached chart). Each view names its cube by id; a cube no grid view names is a detached chart's.
+ * the board for a detached chart). Each view names its cube by id; a cube no grid view names is a detached chart's, or
+ * one a timeseries reads, its grid removed. A page the screen holds as it is now may name a grid's cube it cannot write
+ * yet (a grid that cannot say its source); a page written out holds every one (pageContent).
  */
 export function writePageOf(o: {
   readonly name: string;
@@ -446,17 +535,35 @@ export function filtersFor(filters: readonly PageFilter[], views: readonly PageV
 }
 
 /**
- * The order a saved page's cubes are opened in, wherever their tiles sit on the page: a join's after the grids over one
- * source, since it reads the files they read in (a file read once); a class's after every other, since its rows are
- * the tables the page's other grids read in.
+ * A FLOW'S BOXES (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1's design, 3): the cubes of `page` a box of a flow sheet
+ * shows. Each is a document until its box is shown, so a page opens none of them as it opens (the tab's Open…, its
+ * keeper's page converged): each is opened when its box is shown, over the page as it is then.
  */
-export function openingOrder<T extends { readonly cube: CubeDocument }>(cubes: readonly T[]): T[] {
-  const of = (kind: (t: string) => boolean): T[] => cubes.filter((c) => kind(c.cube.source._type));
-  return [...of((t) => t !== 'class' && t !== 'join'), ...of((t) => t === 'join'), ...of((t) => t === 'class')];
+export function boxCubes(page: Pick<PageDocument, 'views' | 'sheets'>): Set<string> {
+  const boxes = new Set(page.sheets.flatMap((s) => (s.layout.kind === 'flow' ? flowTiles(s.layout) : [])));
+  return new Set(page.views.flatMap((v) => (v.kind === 'grid' && boxes.has(v.id) ? [v.cube] : [])));
 }
 
-/** The page as a JSON-ready object: each cube as its own document writes itself. */
+/**
+ * The order a saved page's cubes are opened in, wherever their tiles sit on the page: a join's after the grids over one
+ * source, since it reads the files they read in (a file read once); a class's after every other, since its rows are
+ * the tables the page's other grids read in; and a grid over another grid's rows after the grids it reads
+ * (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1: live-inputs.ts afterWhatTheyRead), each cube's grid the page's view of it
+ * (`views`).
+ */
+export function openingOrder<T extends { readonly id: string; readonly cube: CubeDocument }>(cubes: readonly T[],
+  views: readonly PageView[]): T[] {
+  const of = (kind: (t: string) => boolean): T[] => cubes.filter((c) => kind(c.cube.source._type));
+  const gridOf = (c: T): string | undefined => views.find((v) => v.kind === 'grid' && v.cube === c.id)?.id;
+  return afterWhatTheyRead([...of((t) => t !== 'class' && t !== 'join' && t !== 'rows'), ...of((t) => t === 'join' || t === 'rows'),
+    ...of((t) => t === 'class')], gridOf);
+}
+
+/** The page as a JSON-ready object: each cube as its own document writes itself -- refused when a view reads a cube it
+ *  does not hold (cubesHeld's rule). */
 export function pageContent(page: PageDocument): Record<string, unknown> {
+  // every way a page leaves as data -- a page file, a saved record, its keeper, a link, Python's -- comes through here
+  heldWhole(page.cubes, page.views);
   const { unknown, cubes, ...rest } = page;
   return {
     ...unknown,
@@ -593,7 +700,7 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   // a link takes this page's other grids
   const gridIds = new Set(views.filter((v) => v.kind === 'grid').map((v) => v.id));
   for (const v of views) {
-    if (v.kind === 'text' || v.link === undefined) continue;
+    if ((v.kind !== 'grid' && v.kind !== 'chart') || v.link === undefined) continue;
     const wrong = v.link.to.filter((t) => t === v.id || !gridIds.has(t));
     if (wrong.length > 0) throw new PageDocumentError(`${v.kind} ${v.id}'s link takes ${wrong.join(', ')}, no other grid of this page`);
   }
@@ -601,7 +708,22 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   const sheets = readSheets(plain(raw['sheets']), viewIds);
   // every view has its place, on one sheet: a view the layout leaves out would be put somewhere on opening, and the
   // page read as changed before anyone touched it
-  const placed = sheets.flatMap((sheet) => tilesOf(sheet.layout));
+  const placed = sheets.flatMap((sheet) => layoutTiles(sheet.layout));
+  // a flow's boxes are grids (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL5), its comments text tiles (M7, 2026-10-25): a
+  // chart goes on a board
+  for (const sheet of sheets) {
+    if (sheet.layout.kind !== 'flow') continue;
+    const notGrid = sheet.layout.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
+    if (notGrid !== undefined) throw new PageDocumentError(`sheet ${sheet.id} is a flow of grids and comments: ${notGrid.tile} is a chart`);
+    // a frame is a container's, a comment's: a grid is a box, never a container
+    const framedGrid = sheet.layout.boxes.find((b) => b.frame !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'text');
+    if (framedGrid !== undefined) throw new PageDocumentError(`${framedGrid.tile} has a frame: a container is a comment, not a grid`);
+    // an output is a grid's: a comment writes no rows
+    const textOut = sheet.layout.boxes.find((b) => b.output !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+    if (textOut !== undefined) throw new PageDocumentError(`${textOut.tile} has an output: an output is a grid's rows, not a comment`);
+    const textStops = sheet.layout.boxes.find((b) => b.stops === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+    if (textStops !== undefined) throw new PageDocumentError(`${textStops.tile} stops a run: a Test is a grid's, not a comment`);
+  }
   const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
   if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);
   const missing = [...viewIds].filter((id) => !placed.includes(id));
@@ -626,7 +748,7 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     if (filters.length === 0) throw new PageDocumentError("'filters' is an empty list: a page with none has no field");
   }
 
-  return {
+  const page: PageDocument = {
     kind: PAGE_KIND,
     version: PAGE_VERSION,
     name: raw['name'],
@@ -639,6 +761,11 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     ...(record !== undefined ? { record } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
   };
+  // a grid over another grid's rows reads a grid of this page, and never its own rows (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+  // §3.1): a page whose link names no grid of it, or goes round, is no page any editor writes
+  const live = liveProblem(page);
+  if (live !== undefined) throw new PageDocumentError(live);
+  return page;
 }
 
 /** The copies the page's snapped grids read, by cube (§18.8), each read strictly: none is written as no field. */
@@ -755,7 +882,23 @@ function readView(v: unknown, cubes: ReadonlySet<string>): PageView {
     const problem = textProblem(v['text']);
     if (problem !== null) throw new PageDocumentError(`text ${id}: ${problem}`);
     if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`text ${id}'s title is blank`);
-    return { id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
+    // its files by the one rule (text-files.ts readTextFiles); none written, none read
+    const files = v['files'] === undefined ? [] : readTextFiles(v['files']);
+    if (typeof files === 'string') throw new PageDocumentError(`text ${id}: ${files}`);
+    return {
+      id, kind: 'text', text: v['text'] as string, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}),
+      ...(files.length > 0 ? { files } : {}),
+    };
+  }
+  if (v['kind'] === 'timeseries') {
+    // its spec by the tile's one reader (timeseries-spec.ts readTimeseries); its sources' cubes the page's -- a grid's
+    // that was removed kept while the tile reads it (readsCube) -- as a chart's cube is (the review's G4)
+    const spec = readTimeseries(v['spec']);
+    if (typeof spec === 'string') throw new PageDocumentError(`timeseries ${id} has no timeseries it can draw: ${spec}`);
+    const missing = spec.sources.find((s) => !cubes.has(s.cube));
+    if (missing) throw new PageDocumentError(`timeseries ${id}'s source ${missing.alias} reads ${missing.cube}, which is no cube of this page`);
+    if (v['title'] !== undefined && !named('tile', v['title'])) throw new PageDocumentError(`timeseries ${id}'s title is blank`);
+    return { id, kind: 'timeseries', spec, ...(typeof v['title'] === 'string' ? { title: v['title'] } : {}) };
   }
   if (typeof v['cube'] !== 'string' || !cubes.has(v['cube'])) {
     throw new PageDocumentError(`view ${id} shows no cube of this page`);
@@ -812,7 +955,8 @@ function readLink(link: unknown, what: string): GridLink | undefined {
  */
 export function readLayout(l: unknown, views: ReadonlySet<string>, what: string): PageLayout {
   if (!isObject(l)) throw new PageDocumentError(`${what} is not a layout`);
-  if (l['kind'] !== 'bands') throw new PageDocumentError(`${what} is not a layout of bands`);
+  if (l['kind'] === 'flow') return readFlow(l, views, what);
+  if (l['kind'] !== 'bands') throw new PageDocumentError(`${what} is not a layout of bands or a flow`);
   if (typeof l['fit'] !== 'boolean') throw new PageDocumentError(`${what}'s fit is not true or false`);
   if (!Array.isArray(l['bands'])) throw new PageDocumentError(`${what}'s bands are not a list`);
   const bands = l['bands'].map((b, i) => {
@@ -823,6 +967,38 @@ export function readLayout(l: unknown, views: ReadonlySet<string>, what: string)
   const wrong = problems(layout);
   if (wrong.length > 0) throw new PageDocumentError(`${what} cannot be laid out: ${wrong.join('; ')}`);
   return { kind: 'bands', ...layout };
+}
+
+/** A flow sheet's layout (layout/flow.ts): its boxes, each a tile of the page at a place, every rule of a flow held. */
+function readFlow(l: Record<string, unknown>, views: ReadonlySet<string>, what: string): FlowLayout {
+  const extra = Object.keys(l).filter((k) => k !== 'kind' && k !== 'boxes');
+  if (extra.length > 0) throw new PageDocumentError(`${what} is a flow of boxes, not ${extra.join(', ')}`);
+  if (!Array.isArray(l['boxes'])) throw new PageDocumentError(`${what}'s boxes are not a list`);
+  const boxes = l['boxes'].map((b, i) => {
+    if (!isObject(b) || typeof b['tile'] !== 'string' || typeof b['x'] !== 'number' || typeof b['y'] !== 'number') {
+      throw new PageDocumentError(`box ${i + 1} of ${what} is not a tile and its place (x, y)`);
+    }
+    if (!views.has(b['tile'])) throw new PageDocumentError(`a box shows no view of this page (${b['tile']})`);
+    const odd = Object.keys(b).filter((k) => !['tile', 'x', 'y', 'frame', 'output', 'stops'].includes(k));
+    if (odd.length > 0) throw new PageDocumentError(`box ${i + 1} of ${what} is a tile, its place, a frame, an output and its stopping, not ${odd.join(', ')}`);
+    if (b['stops'] !== undefined && b['stops'] !== true) throw new PageDocumentError(`box ${i + 1} of ${what} stops a run (true) or is without it, not ${JSON.stringify(b['stops'])}`);
+    const o = b['output'];
+    if (o !== undefined && (!isObject(o) || o['format'] !== 'csv' || typeof o['name'] !== 'string' || Object.keys(o).some((k) => k !== 'format' && k !== 'name'))) {
+      throw new PageDocumentError(`box ${i + 1} of ${what}'s output is {format: 'csv', name}, not ${JSON.stringify(o)}`);
+    }
+    const output = { ...(o === undefined ? {} : { output: { format: 'csv' as const, name: o['name'] as string } }),
+      ...(b['stops'] === true ? { stops: true as const } : {}) };
+    const f = b['frame'];
+    if (f === undefined) return { tile: b['tile'], x: b['x'], y: b['y'], ...output };
+    if (!isObject(f) || typeof f['w'] !== 'number' || typeof f['h'] !== 'number' || (f['collapsed'] !== undefined && f['collapsed'] !== true)
+      || Object.keys(f).some((k) => !['w', 'h', 'collapsed'].includes(k))) {
+      throw new PageDocumentError(`box ${i + 1} of ${what}'s frame is {w, h, collapsed?}, not ${JSON.stringify(f)}`);
+    }
+    return { tile: b['tile'], x: b['x'], y: b['y'], frame: { w: f['w'], h: f['h'], ...(f['collapsed'] === true ? { collapsed: true as const } : {}) }, ...output };
+  });
+  const wrong = flowProblems({ boxes });
+  if (wrong.length > 0) throw new PageDocumentError(`${what} cannot be laid out: ${wrong.join('; ')}`);
+  return { kind: 'flow', boxes };
 }
 
 function readNode(n: unknown, views: ReadonlySet<string>, where: string): Node {

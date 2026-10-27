@@ -67,6 +67,45 @@ describe('the row groups and the pivot', () => {
   });
 });
 
+describe("a Cross Tab's values pinned (FL2: pivot.pin, grid-edits.ts pinPivot): its columns fixed", () => {
+  const pivoted = (s: Partial<CubeSnapshot> = {}): GestureGrid => grid({ pivotOn: ['year'], ...s });
+  it('pins the values as the database answered them, each typed as its column is; null takes them off', () => {
+    // a big integer answered as its digits: a number again; one past a double's exact range kept as its text
+    assert.deepEqual(gridGesture('pivot.pin', pivoted(), { values: ['2023', 2024, '90071992547409930'] }),
+      [{ kind: 'pinPivot', values: [2023, 2024, '90071992547409930'] }]);
+    assert.deepEqual(gridGesture('pivot.pin', grid({ pivotOn: ['desk'] }), { values: ['FX', 'Rates'] }), [{ kind: 'pinPivot', values: ['FX', 'Rates'] }]);
+    assert.deepEqual(gridGesture('pivot.pin', pivoted({ pivotValues: [2023] }), { values: [2023] }), [], 'pinned so already');
+    assert.deepEqual(gridGesture('pivot.pin', pivoted({ pivotValues: [2023] }), { values: null }), [{ kind: 'pinPivot', values: null }]);
+    assert.deepEqual(gridGesture('pivot.pin', pivoted(), { values: null }), [], 'nothing pinned to take off');
+    refused(() => gridGesture('pivot.pin', pivoted(), { values: [2023, null] }), /an empty 'year', which names no column/);
+  });
+
+  it("a Decimal's values kept as their text, every digit (the review of 2026-10-26's B1); a Float's a number", () => {
+    const priced = grid({ columns: [...CUBE.columns, { name: 'px', type: 'Decimal' }, { name: 'rate', type: 'Float' }], pivotOn: ['px'] });
+    assert.deepEqual(gridGesture('pivot.pin', priced, { values: ['12.10', '12345678901234.567'] }),
+      [{ kind: 'pinPivot', values: ['12.10', '12345678901234.567'] }]);
+    assert.deepEqual(gridGesture('pivot.pin', { ...priced, snapshot: { ...priced.snapshot, pivotOn: ['rate'] } }, { values: ['0.25'] }),
+      [{ kind: 'pinPivot', values: [0.25] }]);
+  });
+
+  it('applied: its values kept while it pivots on that column, taken off by another pivot; refused in words', () => {
+    const applied = (s: Partial<CubeSnapshot>, commands: readonly unknown[]): CubeSnapshot =>
+      applyGridCommands({ snapshot: { ...CUBE, ...s }, config: DEFAULT_CONFIGURATION }, commands as never).snapshot;
+    assert.deepEqual(applied({ pivotOn: ['year'] }, [{ kind: 'pinPivot', values: [2023, 2024] }]).pivotValues, [2023, 2024]);
+    assert.equal(applied({ pivotOn: ['year'], pivotValues: [2023] }, [{ kind: 'pinPivot', values: null }]).pivotValues, undefined);
+    assert.deepEqual(applied({ pivotOn: ['year'], pivotValues: [2023] }, [{ kind: 'pivot', columns: ['year'] }]).pivotValues, [2023], 'the same pivot');
+    assert.equal(applied({ pivotOn: ['year'], pivotValues: [2023] }, [{ kind: 'pivot', columns: ['desk'] }]).pivotValues, undefined, "another's values none of its");
+    refused(() => applied({}, [{ kind: 'pinPivot', values: [1] }]), /pivots on no column/);
+    refused(() => applied({ pivotOn: ['year', 'desk'] }, [{ kind: 'pinPivot', values: [1] }]), /a pivot on one column has its values pinned, not on 2/);
+    refused(() => applied({ pivotOn: ['desk'] }, [{ kind: 'pinPivot', values: [] }]), /one value of 'desk' at least/);
+    refused(() => applied({ pivotOn: ['desk'] }, [{ kind: 'pinPivot', values: ['FX', 'FX'] }]), /'FX' is pinned twice/);
+    refused(() => applied({ pivotOn: ['desk'] }, [{ kind: 'pinPivot', values: [''] }]), /an empty text names no column/);
+    assert.deepEqual(readGridCommand({ kind: 'pinPivot', values: ['FX', 2] }), { kind: 'pinPivot', values: ['FX', 2] });
+    assert.deepEqual(readGridCommand({ kind: 'pinPivot', values: null }), { kind: 'pinPivot', values: null });
+    refused(() => readGridCommand({ kind: 'pinPivot', values: [{ x: 1 }] }), /a list of texts, numbers or true and false, or null/);
+  });
+});
+
 describe("the columns' presentation", () => {
   it("a setting a column has already, or a group it is not in taken out, is nothing to tell (the S8 audit's 6)", () => {
     const config = withColumns({ desk: { pinned: 'left', hidden: true, width: 120 }, notional: { heatmap: { from: '#ffffff', to: '#ff8a65' } } });
@@ -188,6 +227,30 @@ describe('the value list and date ranges: a column\'s own conditions replaced', 
         value: { relative: 'today', startOf: 'year', offset: 1, unit: 'YEARS' } },
     ] });
     refused(() => gridGesture('filter.dateRange', grid(), { column: 'year', range: 'soon' as never }), /a date range is today/);
+  });
+
+  it("a Date Filter's dates: a range or the days between two, both kept, its filter alone; refused in words", () => {
+    const [command] = gridGesture('filter.dates', grid(), { column: 'year', from: '2024-01-01', to: '2024-06-30' });
+    const days = [
+      { kind: 'condition', column: 'year', operator: 'greaterThanEqual', value: '2024-01-01' },
+      { kind: 'condition', column: 'year', operator: 'lessThanEqual', value: '2024-06-30' },
+    ] as const;
+    assert.deepEqual(command, { kind: 'refilter', remove: [], add: days });
+    // in place of every condition it had: another column's, a range's
+    const had = { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' } as const;
+    const filtered = { ...grid(), snapshot: { ...grid().snapshot, filter: had } };
+    assert.deepEqual(gridGesture('filter.dates', filtered, { column: 'year', range: 'thisYear' })[0],
+      { kind: 'refilter', remove: [had], add: gridGesture('filter.dateRange', grid(), { column: 'year', range: 'thisYear' })
+        .flatMap((c) => (c.kind === 'refilter' ? c.add : [])) });
+    const set = { ...grid(), snapshot: { ...grid().snapshot, filter: { kind: 'and', children: days } as const } };
+    assert.deepEqual(gridGesture('filter.dates', set, { column: 'year', from: '2024-01-01', to: '2024-06-30' }), [], 'so already');
+    refused(() => gridGesture('filter.dates', grid(), { column: 'year', from: '2024-02-30', to: '2024-06-30' }),
+      /its first day is a day, as 2024-06-30, not "2024-02-30"/);
+    refused(() => gridGesture('filter.dates', grid(), { column: 'year', from: '2024-07-01', to: '2024-06-30' }),
+      /its first day, 2024-07-01, is after its last, 2024-06-30/);
+    refused(() => gridGesture('filter.dates', grid(), { column: 'year', range: 'thisYear', from: '2024-07-01', to: '2024-08-01' }),
+      /a range of dates, or the days from one to another: one of them/);
+    refused(() => gridGesture('filter.dates', grid(), { column: 'year' }), /one of them/);
   });
 });
 

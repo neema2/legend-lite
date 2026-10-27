@@ -5,6 +5,7 @@
 // file's identity); this window asks and shows. Styled as the source picker (ui/source-picker.ts).
 
 import { focusedElement } from '../focus.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** What the window says about the cube being saved. */
 export interface SaveDialogOptions {
@@ -99,7 +100,7 @@ export function saveDialog(doc: Document, o: SaveDialogOptions): Promise<{ reado
     const title = el(doc, 'h2', 'dc-picker-title', titles, o.purpose === 'saveAs' ? 'Save as' : 'Save');
     title.id = 'dc-save-title';
     el(doc, 'p', 'dc-picker-subtitle', titles, `Kept ${o.where}: the cube's settings, never its rows.`);
-    const close = el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement;
+    const close = closeMark(el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => { if (!busy) finish(undefined); });

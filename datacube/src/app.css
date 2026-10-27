@@ -93,33 +93,35 @@
 .dc-page-filter-form[hidden] { display: none; }
 .dc-page-filter-form select, .dc-page-filter-form input { font: inherit; height: 18px; }
 .dc-page-filter-said { color: var(--dc-muted); }
-/* a grid the page's filters reach says so in its status bar, beside its own filter */
-.dc-status-page-filter { color: var(--tw-sky-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* a grid the page's filters reach says so in its status bar, beside its own filter: a chip in the filter's colours (as
+   a chip's own: .dc-status-chip, later in this sheet, took them -- the 2026-10-25 audit) */
+.dc-status-chip.dc-status-page-filter { background: var(--tw-sky-100); color: var(--tw-sky-700); }
 .dc-page-alone:empty { display: none; }
 .dc-page-alone > .dc-tile-cube { align-self: stretch; }
 
-/* THE NAME BOX (the design's §7.1): the page's name, after the menu -- "Untitled page" before it has one, a dot once
-   it changed since it was saved; a click renames it in place */
+/* THE PAGE'S NAME (the design's §7.1), after the menu: its title -- plain words, not a box (the user, 2026-10-25;
+   docs/DATACUBE_UI_REVIEW_2026_10_24.md §4) -- "Untitled page" before it has one, a dot once it changed since it was
+   saved; pointed at, the box a click renames it in */
 .dc-page-name {
   flex: 0 1 auto;
   min-width: 48px;
-  max-width: 240px;
-  height: 20px;
+  max-width: 280px;
+  height: 22px;
   margin: 0 var(--dc-pad-1);
   padding: 0 var(--dc-pad-2);
   display: flex;
   align-items: center;
   box-sizing: border-box;
-  border: 1px solid var(--dc-line);
+  border: 1px solid transparent;
   border-radius: var(--dc-radius-sm);
-  background: var(--tw-white);
-  font-weight: 500;
+  background: transparent;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .dc-page-name[role='button'] { cursor: text; }
-.dc-page-name[role='button']:hover { border-color: var(--dc-line-strong); }
+.dc-page-name[role='button']:hover { border-color: var(--dc-line); background: var(--tw-white); }
 .dc-page-name.dc-page-name-untitled { color: var(--dc-muted); font-weight: 400; font-style: italic; }
 .dc-page-name.dc-page-name-changed::after { content: '\2022'; margin-left: 6px; color: var(--dc-active); }
 .dc-page-name-field { width: 200px; font: inherit; border: 0; padding: 0; background: transparent; outline: none; }
@@ -129,14 +131,12 @@
 .dc-sheet-tabs { flex: 0 1 auto; min-width: 0; align-self: stretch; display: flex; align-items: flex-end; gap: 2px; }
 .dc-sheet-strip { min-width: 0; display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; scrollbar-width: none; }
 .dc-sheet-strip::-webkit-scrollbar { display: none; }
-/* a tab is 160px, shrinking alike to 56px when the bar has no room for them all. Its `width` is what Chrome sizes the
-   strip by (its intrinsic width): with the flex basis alone the strip came out at 802px of the bar's 1,529 free, ten
-   tabs at 76px each and "P&L and risk" cut, the empty status beside them taking the rest (measured, 2026-10-25) */
+/* each as wide as its name (the user, 2026-10-25; §4): cut short only when the strip runs out of room -- they were all
+   160px, and "Bars and lines" read "Bars and li..." with half the bar empty */
 .dc-sheet-tab {
-  flex: 0 1 160px;
-  width: 160px;
+  flex: 0 1 auto;
   min-width: 56px;
-  max-width: 200px;
+  max-width: 240px;
   height: 24px;
   padding: 0 var(--dc-pad-2);
   display: flex;
@@ -338,13 +338,6 @@
 .dc-tile-cube { display: flex; align-items: center; gap: 4px; }
 .dc-tile-cube .dc-titlebar-host { flex: none; }
 
-/* In a tile's header the pills (a grid's Live / Snapped, a chart's Dynamic / Frozen) are the
-   header's size, not the title bar's. */
-.dc-tile-actions .dc-titlebar-toggle {
-  height: 20px;
-  font-size: var(--dc-text-sm-size);
-  padding: 0 6px;
-}
 
 /* WHAT THE GRID READS, beside its pill (the user, 2026-09-30): quiet, it is a fact, not a control. */
 .dc-source-tag {
@@ -361,13 +354,6 @@
 .dc-tile-cube { display: flex; align-items: center; gap: 4px; }
 .dc-tile-cube .dc-titlebar-host { flex: none; }
 
-/* In a tile's header the pills (a grid's Live / Snapped, a chart's Dynamic / Frozen) are the
-   header's size, not the title bar's. */
-.dc-tile-actions .dc-titlebar-toggle {
-  height: 20px;
-  font-size: var(--dc-text-sm-size);
-  padding: 0 6px;
-}
 
 .dc-titlebar-menu {
   font: inherit;
@@ -834,7 +820,11 @@
   display: flex;
   align-items: center;
   min-width: 0;
+  /* a narrow tile: each group gives way, its words cut short, never pushed out of the bar (the 2026-10-25 audit) */
+  flex: 0 1 auto;
+  overflow: hidden;
 }
+.dc-status-readout { gap: 6px; padding-right: 2px; }
 
 /* the readout that changes where the planner runs: it says it can be clicked */
 .dc-status-host-pick { cursor: pointer; border-radius: var(--dc-radius-sm); }
@@ -856,8 +846,12 @@
 }
 
 .dc-status-rows {
-  color: var(--tw-neutral-500);
+  color: var(--tw-neutral-600);
   padding: 0 var(--dc-pad-2);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .dc-status-sep {
@@ -866,18 +860,26 @@
   background: var(--tw-neutral-200);
 }
 
-.dc-status-warning {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 var(--dc-pad-2);
-  font-weight: 600;
-  color: var(--tw-orange-500);
-}
+/* a cut result: the one chip in a warning's colours (as a chip's own, which come later: the 2026-10-25 audit) */
+.dc-status-chip.dc-status-warning { background: var(--tw-amber-50, #fffbeb); color: var(--tw-amber-700, #b45309); font-weight: 500; }
 
+/* the selection's figures, after the rows, while cells are selected */
 .dc-status-stats {
   padding: 0 var(--dc-pad-2);
   color: var(--tw-neutral-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dc-status-stats:empty { display: none; }
+.dc-status-stats::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 12px;
+  margin-right: var(--dc-pad-2);
+  vertical-align: middle;
+  background: var(--tw-neutral-200);
 }
 
 /* a note beside the rows until put away (CubeApp.note: what a quick join did) -- cut short, its whole text on hover */
@@ -906,7 +908,7 @@
 }
 
 .dc-status-note-close:hover {
-  color: var(--tw-neutral-800);
+  color: var(--tw-neutral-800, #262626);
 }
 
 /* -- the grid and its sidebar ---------------------------------------- */
@@ -965,34 +967,66 @@
   flex: 0 0 auto;
 }
 
-.dc-status-link {
-  font: inherit;
-  line-height: 1;
+/* THE GRID'S TOOLS, as icons (the user, 2026-10-25): quiet until pointed at, as a tile's buttons are. They were
+   underlined links, the one place the app looked like a 2005 web page. */
+.dc-status-tools { display: flex; flex: none; align-items: center; gap: 1px; padding: 0 2px; }
+.dc-status-tool,
+.dc-status-receipt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 18px;
+  padding: 0;
   border: 0;
-  padding: 0 var(--dc-pad-1);
+  border-radius: var(--dc-radius-sm);
   background: transparent;
-  /* Underlined and in the accent, as theirs is: in a strip of
-     read-only figures, the one thing that is clickable has to look
-     it. */
-  color: var(--dc-active, #0284c7);
-  text-decoration: underline;
+  color: var(--tw-neutral-500);
   cursor: pointer;
 }
+.dc-status-tool:hover,
+.dc-status-receipt:hover { background: var(--tw-neutral-200); color: var(--tw-neutral-800, #262626); }
+.dc-status-tool:focus-visible,
+.dc-status-receipt:focus-visible { outline: 1.5px solid var(--dc-active, #0284c7); outline-offset: -1px; }
+.dc-status-tool[aria-disabled='true'] { opacity: .4; cursor: default; }
+.dc-status-tool[aria-disabled='true']:hover { background: transparent; color: var(--tw-neutral-500); }
+/* a filter in force is state, not decoration: it changes what every number in the cube means */
+.dc-status-filter.dc-on { color: var(--dc-active, #0284c7); }
+/* a tool's name: for a screen reader and a test, not the eye (its tooltip says it) */
+.dc-status-tool-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
-.dc-status-link:hover {
-  color: var(--tw-black);
+/* WHAT IS TRUE OF THE GRID, at the right: a chip each, only while it is so */
+.dc-status-chip {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  max-width: 36ch;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--tw-neutral-200);
+  color: var(--tw-neutral-700);
+  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-
-.dc-status-link:focus-visible {
-  outline: 1.5px solid var(--dc-active, #0284c7);
-  outline-offset: -1px;
+button.dc-status-chip { cursor: pointer; }
+button.dc-status-chip:hover { background: var(--tw-neutral-300); }
+.dc-status-filtered { background: var(--tw-sky-100); color: var(--tw-sky-700); }
+button.dc-status-filtered:hover { background: var(--tw-sky-50); }
+.dc-status-chip-close {
+  border: 0;
+  background: none;
+  padding: 0 0 0 2px;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
 }
-
-/* A filter in force is state, not decoration: it changes what every
-   number in the cube means. */
-.dc-status-filter.dc-on {
-  font-weight: 500;
-}
+.dc-status-chip-close:hover { color: var(--tw-neutral-800, #262626); }
 
 /* -- the overlay ------------------------------------------------------ */
 
@@ -1037,6 +1071,12 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+}
+
+/* A window kept on the screen (ui/window.ts `viewport`): fixed to the browser's window, never in the page's flow nor
+   clipped by a tile -- a chart's options, beside it however the page scrolls. */
+.dc-app-overlay.dc-window.dc-window-fixed {
+  position: fixed;
 }
 
 /* The title bar is the handle, so it says so. `grab` while resting
@@ -1786,6 +1826,9 @@
 }
 
 .dc-selector-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font: inherit;
   font-size: var(--dc-text-lg-size);
   line-height: 1;
@@ -2393,15 +2436,21 @@
   color: var(--tw-neutral-600);
 }
 
-/* Upstream's task progress: a 192 x 14 box, a green indeterminate bar
-   while anything runs, the tasks in its tooltip. */
+/* WHAT RUNS: a thin bar along the grid's top edge, only while something does (the user, 2026-10-25). It was upstream's
+   192 x 14 box in the status bar, there and empty when idle, where it looked like an input. */
+.dc-app-middle { position: relative; }
 .dc-status-progress {
-  position: relative;
-  width: 192px;
-  height: 14px;
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
   overflow: hidden;
-  border: 0.5px solid var(--tw-neutral-300);
+  pointer-events: none;
+  z-index: 5;
 }
+.dc-status-progress.dc-busy { display: block; }
 
 .dc-status-progress.dc-busy::after {
   content: '';
@@ -2409,7 +2458,7 @@
   top: 0;
   bottom: 0;
   width: 40%;
-  background: var(--tw-green-500, #22c55e);
+  background: var(--dc-active, #0284c7);
   animation: dc-indeterminate 1.2s ease-in-out infinite;
 }
 
@@ -2440,6 +2489,7 @@
 
 /* ---- Ad Hoc Analysis mode ------------------------------------------- */
 .dc-adhoc {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
@@ -2795,7 +2845,7 @@
 .dc-lib-unsaved[hidden] { display: none; }
 .dc-lib-ask { white-space: pre-line; }
 
-/* The chart window (ui/chart-panel.ts): options left, the chart right.
+/* The chart (ui/chart-panel.ts); its options are a window of their own (.dc-chart-options).
    The --dc-chart-* tokens are the dataviz reference palette (light); the
    renderer reads them (chart-render.ts themeOf), since canvas cannot. */
 .dc-chartpanel {
@@ -2815,30 +2865,141 @@
   min-height: 0;
 }
 
-.dc-overlay-body.dc-chartpanel { padding: 0; }
 
-.dc-chartpanel-form {
-  flex: 0 0 220px;
-  overflow: auto;
-  padding: var(--dc-pad-2);
-  border-right: 1px solid var(--dc-line);
+/* A CHART'S OPTIONS, A WINDOW (ui/chart-panel.ts openForm): the page's windows' frame, title bar, x and grips, kept
+   on the screen beside its chart (ui/window.ts besideWindow). Moved into by the keyboard, it says so (the 2026-10-25
+   audit: the one cue was taken away). */
+.dc-chart-options:focus:not(:focus-visible) { outline: none; }
+.dc-chart-options:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-chart-options-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ITS FIELDS IN THE PROPERTIES WINDOW'S DESIGN (the user, 2026-10-25: "nice and sleek like we upgraded Properties,
+   Filters, Join"): its sections' titles, controls and focus are the Properties window's own rules (.dc-pe, below,
+   shared); in a narrow column each label sits above its control, the control full width. Its kind in a card at the
+   top, as the Join window's grids; a short choice segmented, chosen as a Join kind is; each value after the first a
+   card with its x at the corner; "+ Add a value" a link. */
+.dc-chart-options .dc-overlay-body { padding: 12px 16px 14px; }
+/* TWO COLUMNS WHERE THERE IS ROOM (the user, 2026-10-25: "more of a square"): what it reads on the left, how it is drawn
+   on the right (ui/chart-form.ts puts each section in its column), each at least 216px -- so a window opened beside its
+   chart, about 500px wide or more, reads Data and Layout side by side and barely scrolls, and one dragged narrow is one
+   column, the right's sections under the left's. Fixed columns, not the browser's balanced ones: folding a section
+   never moves another across (the 2026-10-25 review). Its kind, and the hint under it all, are the whole width. */
+.dc-chartpanel-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(216px, 1fr));
+  column-gap: 24px;
+  align-items: start;
 }
-
-/* a narrow column: each label above its control, the control full width */
 .dc-chartpanel-form .dc-field {
   flex-direction: column;
   align-items: stretch;
-  gap: 2px;
-  margin-bottom: 8px;
+  gap: 3px;
+  min-height: 0;
+  margin: 0 0 6px;
 }
 .dc-chartpanel-form .dc-field-label {
   width: auto;
   text-align: left;
-  color: var(--dc-muted-strong);
+  font-size: 12px;
+  color: var(--tw-neutral-600);
 }
 .dc-chartpanel-form .dc-field-body > * { flex: 1 1 auto; }
 .dc-chartpanel-form .dc-select,
 .dc-chartpanel-form .dc-input { width: 100%; }
+.dc-chartpanel-form .dc-check { display: flex; gap: 6px; margin: 2px 0 6px; font-size: 12px; color: var(--tw-neutral-700); }
+.dc-chartpanel-form .dc-check-box { margin: 0; accent-color: var(--tw-sky-600); }
+.dc-chartpanel-kind {
+  margin: 0 0 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 8px;
+  background: var(--tw-neutral-50);
+}
+/* its one field a row: the word, then the kind -- a header, not a stretched dropdown */
+.dc-chartpanel-kind .dc-field { flex-direction: row; align-items: center; gap: 10px; margin: 0; }
+.dc-chartpanel-kind .dc-field-label { flex: none; font-weight: 600; color: var(--tw-neutral-700); }
+.dc-chartpanel-kind .dc-field-body { flex: 1 1 auto; max-width: 260px; }
+.dc-chartpanel-measure {
+  position: relative;
+  margin: 0 0 8px;
+  padding: 8px 10px 2px;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 6px;
+  background: var(--tw-neutral-50);
+}
+.dc-chartpanel-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+}
+.dc-chartpanel-remove:hover { background: var(--tw-neutral-100); color: var(--tw-red-600); }
+.dc-chartpanel-remove .dc-chrome-icon { width: 12px; height: 12px; }
+.dc-chartpanel-add {
+  align-self: flex-start;
+  margin: 0 0 4px;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--tw-sky-700);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dc-chartpanel-add:hover:not(:disabled) { text-decoration: underline; }
+.dc-chartpanel-add:disabled { color: var(--tw-neutral-400); cursor: default; }
+.dc-chartpanel-hint,
+.dc-chartpanel-note { margin: 4px 0 0; font-size: 11px; line-height: 15px; color: var(--tw-neutral-500); }
+
+/* A few short choices side by side (ui/chart-form.ts segmented): the chosen one as a chosen Join kind -- sky-edged, sky-filled,
+   its words strong. */
+.dc-segmented {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 2px;
+  overflow: hidden;
+  background: var(--tw-white);
+}
+.dc-segment {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-left: 1px solid var(--tw-neutral-300);
+  border-radius: 0;
+  background: transparent;
+  color: var(--tw-neutral-700);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.dc-segment:first-child { border-left: 0; }
+.dc-segment:hover { background: var(--tw-sky-50); }
+.dc-segment.dc-chosen {
+  background: var(--tw-sky-50);
+  box-shadow: inset 0 0 0 1px var(--tw-sky-600);
+  color: var(--tw-sky-800);
+  font-weight: 600;
+}
+/* the keyboard's place: a ring inside the segment, clear of the chosen one's edge and of the group's -- the page's own
+   button ring (.dc-app-floating button:focus-visible) fell on that edge, and Tab into a choice showed nothing (the
+   2026-10-25 review) */
+.dc-segmented .dc-segment:focus-visible { outline: 2px solid var(--tw-sky-700); outline-offset: -4px; }
 
 .dc-chartpanel-main {
   flex: 1 1 auto;
@@ -3096,6 +3257,43 @@
 .dc-tile-tab.dc-tile-tab-after { box-shadow: inset -2px 0 0 var(--dc-active); }
 .dc-tile-title[hidden] { display: none; }
 
+/* A TILE'S STATE, LEFT OF ITS TITLE (ui/tile-icons.ts; the user, 2026-10-25): every tile says it in the same place,
+   quiet for the usual state and accented for an exception -- a page of ordinary tiles is calm, the one that is
+   different stands out. A grid: Live quiet, Snapped amber; a chart: Dynamic quiet, Pinned the accent, Frozen blue; a
+   text box: its pencil quiet, accented while its words are edited, gone in view mode (nothing is edited there). */
+.dc-tile-state {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--tw-neutral-400);
+  cursor: pointer;
+}
+.dc-tile-state:hover:not([aria-disabled='true']):not(:disabled) { border-color: var(--dc-line); background: var(--tw-neutral-100); }
+.dc-tile-state:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-tile-state:is([aria-disabled='true'], :disabled) { cursor: default; }
+.dc-tile-state[data-state='snapped'] { color: var(--tw-amber-500); }
+.dc-tile-state:is([data-state='pinned'], [data-state='editing']) { color: var(--dc-active); }
+.dc-tile-state[data-state='frozen'] { color: var(--tw-blue-600, #2563eb); }
+.dc-tile-state[data-state='detached'] { color: var(--tw-neutral-600); }
+.dc-tile-state-word { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.dc-bands-view .dc-tile-state[data-state='viewing'] { display: none; }
+
+/* a lone grid's state, in its sheet's tab, before its name */
+.dc-sheet-state { display: inline-flex; align-items: center; margin-right: 2px; }
+.dc-sheet-state:empty { display: none; }
+.dc-sheet-state .dc-tile-state { width: 16px; height: 16px; }
+
+/* what a grid in a tile reads and where its rows are, in words, in its status bar */
+.dc-status-source { color: var(--tw-neutral-600); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 36ch; }
+.dc-status-source[data-state='snapped'] { color: var(--tw-amber-700, #b45309); }
+
 /* a lone grid (a page of its own with one tile): no frame, no header -- its header's buttons are in the page's bar */
 .dc-band-tile.dc-band-tile-alone { border: 0; border-radius: 0; }
 .dc-band-tile.dc-band-tile-alone > .dc-tile-head { display: none; }
@@ -3250,17 +3448,8 @@
 
 .dc-chart-tile { display: flex; }
 .dc-chart-tile .dc-chartpanel { flex: 1 1 auto; min-width: 0; }
-.dc-chart-tile .dc-chartpanel-form[hidden] { display: none; }
 
 .dc-chartpanel-status[hidden] { display: none; }
-.dc-chartpanel-hint { margin: var(--dc-pad-2) 0 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
-/* batch 2: a value after the first (its own mark and axis), the add button, a section's heading */
-.dc-chartpanel-measure {
-  display: flex; flex-direction: column; gap: var(--dc-pad-1);
-  padding: var(--dc-pad-2) 0; border-top: 1px solid var(--dc-line);
-}
-.dc-chartpanel-measure > .dc-btn { align-self: flex-end; }
-.dc-chartpanel-add { align-self: flex-start; margin: var(--dc-pad-1) 0; }
 /* a drilled chart's path (batch 2 item 10): each step a way back up */
 .dc-chartpanel-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 0 var(--dc-pad-2); font-size: var(--dc-text-sm-size); color: var(--dc-muted); }
 /* the spans of time a chart offers (K14): a small segmented control at its top right, the one shown pressed */
@@ -3327,38 +3516,9 @@
 .dc-chartpanel-crumb { border: 0; background: none; padding: 0; color: var(--dc-active); cursor: pointer; text-decoration: underline; font: inherit; }
 .dc-chartpanel-crumb-here { color: var(--dc-muted-strong); }
 .dc-chartpanel-crumbs-hint .dc-chartpanel-crumb-here { color: var(--dc-muted); }
-.dc-chartpanel-heading {
-  margin: var(--dc-pad-2) 0 var(--dc-pad-1); padding-top: var(--dc-pad-2); border-top: 1px solid var(--dc-line);
-  color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); font-weight: 600;
-}
-
-/* In a tile the options float over the chart, from its left edge, rather
-   than taking width from it: a small tile keeps its chart whole. */
-.dc-chart-tile .dc-chartpanel { position: relative; }
-.dc-chart-tile .dc-chartpanel-form {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 220px;
-  max-width: 85%;
-  z-index: 1;
-  background: var(--dc-bg);
-  box-shadow: var(--dc-popup-shadow);
-}
 
 /* THE RECEIPT: what answered the view, as the engine that ran it said. */
-.dc-status-receipt {
-  font: inherit;
-  border: none;
-  background: none;
-  padding: 0 var(--dc-pad-1, 4px);
-  cursor: pointer;
-  color: var(--tw-neutral-600);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 40ch;
-}
-.dc-status-receipt:hover { text-decoration: underline; }
+/* its i, as the tools are (above); a warehouse's or an engine's answer in sky */
 .dc-status-receipt.dc-receipt-warehouse,
 .dc-status-receipt.dc-receipt-engine { color: var(--tw-sky-700); }
 .dc-receipts { padding: var(--dc-pad-2, 8px); overflow: auto; }
@@ -3709,10 +3869,10 @@
 .dc-picker-rows { width: 110px; font-variant-numeric: tabular-nums; }
 .dc-picker-choice-actions { display: flex; gap: 8px; }
 
-/* a line above an entry: what follows is apart (New ▸ Blank Page) */
+/* a line above an entry: what follows is apart (New Page) */
 .dc-menu-item.dc-menu-separated { border-top: 1px solid var(--tw-neutral-200); margin-top: 3px; padding-top: 3px; }
 
-/* ---- a blank page (demo New ▸ Blank Page): what to do first ---- */
+/* ---- a blank page (demo New Page): what to do first ---- */
 .dc-blank {
   display: flex;
   align-items: center;
@@ -3840,7 +4000,7 @@
 .dc-join-between { align-self: center; font-size: 22px; color: var(--tw-sky-600); }
 /* how they combine: a tile a form */
 .dc-join-how { margin-bottom: 12px; }
-.dc-join-kinds { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.dc-join-kinds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .dc-join-kind {
   display: flex; align-items: center; gap: 8px; padding: 7px 10px; min-width: 0;
   border: 1px solid var(--tw-neutral-200); border-radius: 8px; background: var(--tw-white);
@@ -4026,6 +4186,9 @@
 .dc-xc-kind-hint { font-size: 11px; line-height: 14px; color: var(--tw-neutral-500); font-weight: 400; }
 
 .dc-xc-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; padding: 14px 18px; overflow-y: auto; }
+/* each section its own height, the column scrolling: in a short window (a flow's settings pane, a window resized short)
+   a shrunk section spilled over the next, the preview's heading over its own builder's buttons (2026-10-25) */
+.dc-xc-main > * { flex-shrink: 0; }
 .dc-xc-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
 .dc-xc-label {
   display: block;
@@ -4307,8 +4470,8 @@
 .dc-pe .dc-editor-tab:focus-visible { outline: 1px solid var(--tw-sky-600); outline-offset: -1px; }
 .dc-pe .dc-editor-body { flex: 1; min-width: 0; overflow: auto; margin: 0; padding: 14px 18px; border: 0; }
 .dc-pe .dc-panel-title { font-size: 15px; line-height: 20px; font-weight: 600; margin: 0 0 12px; padding: 0; border: 0; }
-.dc-pe .dc-section { margin: 0 0 14px; padding: 0; border: 0; }
-.dc-pe .dc-section-title {
+:is(.dc-pe, .dc-chartpanel-form) .dc-section { margin: 0 0 14px; padding: 0; border: 0; }
+:is(.dc-pe, .dc-chartpanel-form) .dc-section-title {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -4324,7 +4487,8 @@
 .dc-pe .dc-field { display: flex; align-items: center; gap: 10px; margin: 0 0 6px; }
 .dc-pe .dc-field-label { flex: none; width: 150px; text-align: left; color: var(--tw-neutral-600); }
 .dc-pe :is(select, input, textarea, button) { font-family: inherit; }
-.dc-pe select, .dc-pe input[type=text], .dc-pe input[type=number], .dc-pe input[type=search] {
+.dc-pe select, .dc-pe input[type=text], .dc-pe input[type=number], .dc-pe input[type=search],
+.dc-chartpanel-form select, .dc-chartpanel-form input[type=text], .dc-chartpanel-form input[type=number] {
   height: 26px;
   box-sizing: border-box;
   padding: 0 6px;
@@ -4334,7 +4498,10 @@
   color: var(--tw-neutral-700);
   font-size: 12px;
 }
-.dc-pe select:focus, .dc-pe input:focus { border-color: var(--tw-sky-600); outline: none; }
+/* a text field's or a dropdown's focus is its sky border; a checkbox keeps the page's own ring -- `input:focus` took it
+   from every checkbox here, where a border shows nothing (the 2026-10-25 review) */
+.dc-pe :is(select, input[type=text], input[type=number], input[type=search]):focus,
+.dc-chartpanel-form :is(select, input[type=text], input[type=number]):focus { border-color: var(--tw-sky-600); outline: none; }
 .dc-pe .dc-button { border-radius: 2px; font-size: 12px; }
 .dc-pe .dc-editor-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 18px; margin: 0; border-top: 1px solid var(--tw-neutral-200); }
 .dc-pe .dc-editor-footer .dc-button:last-child { background: var(--tw-sky-700); border-color: var(--tw-sky-700); color: var(--tw-white); min-width: 64px; }
@@ -4367,8 +4534,10 @@
 .dc-pe-colhead { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .dc-pe-colname { font: 600 14px/20px var(--dc-font-mono, ui-monospace, monospace); }
 .dc-pe-fold > .dc-section-title { cursor: pointer; user-select: none; }
-.dc-pe-fold > .dc-section-title::before { content: '\25be'; width: 10px; font-size: 10px; color: var(--tw-neutral-400); }
-.dc-pe-fold.dc-folded > .dc-section-title::before { content: '\25b8'; }
+.dc-pe-fold > .dc-section-title:hover { color: var(--tw-neutral-700); }
+.dc-pe-fold > .dc-section-title:focus-visible { outline: 2px solid var(--tw-sky-600); outline-offset: 2px; }
+.dc-pe-fold > .dc-section-title > .dc-chrome-icon { width: 10px; height: 10px; flex: none; color: var(--tw-neutral-400); }
+.dc-pe-fold.dc-folded > .dc-section-title > .dc-chrome-icon { transform: rotate(-90deg); }
 .dc-pe-fold.dc-folded > :not(.dc-section-title) { display: none; }
 
 /* THE APP'S STATUS LINE (src/app/datacube-app.ts): what the planner says as it starts, the page's errors, and that it no
@@ -4381,6 +4550,22 @@
   font: inherit; opacity: .75; white-space: nowrap; overflow: hidden;
   text-overflow: ellipsis; max-width: 40vw; margin: 0;
 }
+/* AN ERROR, A CHIP (datacube-app.ts sayError): its mark and first words, the whole on hover and in "What went wrong" */
+.dc-status-host .dc-app-status.bad {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 40ch;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--tw-red-50, #fef2f2);
+  color: var(--tw-red-700, #b91c1c);
+  opacity: 1;
+  cursor: pointer;
+}
+.dc-app-status-words { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.errortext { margin: 0 0 8px; white-space: pre-wrap; word-break: break-word; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
 
 /* THE APP'S WINDOWS (src/app/datacube-app.ts: Open…'s list, Share, the Generated Pure & SQL), floating: `makeWindow`
    positions and sizes them, so only the frame is described here. They were the tab's page's; the app builds them on
@@ -4432,15 +4617,1129 @@
 
 /* A TEXT TILE (page-text.ts): a page's title or a note, its small Markdown drawn; edited in place */
 .dc-text-host { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-.dc-text-tile { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3); line-height: 1.45; }
-.dc-text-tile > :first-child { margin-top: 0; }
-.dc-text-tile h3 { font-size: 1.5em; margin: 0.2em 0 0.4em; }
-.dc-text-tile h4 { font-size: 1.2em; margin: 0.6em 0 0.3em; }
-.dc-text-tile h5 { font-size: 1em; margin: 0.6em 0 0.3em; }
-.dc-text-tile p { margin: 0 0 0.6em; }
-.dc-text-tile ul, .dc-text-tile ol { margin: 0 0 0.6em; padding-left: 1.4em; }
-.dc-text-tile code { font-family: var(--dc-mono, ui-monospace, monospace); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); padding: 0 0.25em; border-radius: 3px; }
-.dc-text-tile a { color: var(--dc-accent, #2f6fde); }
+/* FILES IN A TEXT BOX (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): a tab each beside its words, the one shown below */
+.dc-text-host.dc-text-drop { outline: 2px dashed var(--dc-active); outline-offset: -4px; background: var(--dc-selected-bg); }
+.dc-text-files {
+  flex: none; display: flex; gap: 2px; overflow-x: auto; padding: 4px var(--dc-pad-2) 0;
+  border-bottom: 1px solid var(--dc-line);
+}
+.dc-text-file-tab { flex: none; display: inline-flex; align-items: center; }
+.dc-text-file-name {
+  font: inherit; font-size: var(--dc-text-sm-size); max-width: 180px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; padding: 3px 8px; border: 1px solid transparent; border-bottom: 0;
+  border-radius: var(--dc-radius-sm) var(--dc-radius-sm) 0 0; background: transparent; color: var(--dc-muted); cursor: pointer;
+}
+.dc-text-file-name:hover { color: inherit; background: var(--dc-hover); }
+.dc-text-file-name[aria-pressed='true'] { color: inherit; border-color: var(--dc-line); background: var(--tw-white); }
+.dc-text-file-close {
+  display: inline-flex; align-items: center; padding: 2px; margin-left: -4px; border: 0; background: transparent;
+  color: var(--dc-muted); cursor: pointer; font-size: 10px;
+}
+.dc-text-file-close:hover { color: inherit; }
+.dc-text-pane { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.dc-text-file { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3, 12px); line-height: 1.45; }
+.dc-text-file-plain { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
+.dc-text-file-table { border-collapse: collapse; font-size: var(--dc-text-sm-size); }
+.dc-text-file-table th, .dc-text-file-table td { border: 1px solid var(--dc-line); padding: 2px 6px; text-align: left; white-space: nowrap; }
+.dc-text-file-table th { position: sticky; top: 0; background: var(--tw-white); font-weight: 600; }
+.dc-text-file-note { margin: 0 0 0.6em; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-text-file-missing { margin: auto; max-width: 360px; text-align: center; color: var(--dc-muted); padding: var(--dc-pad-2); }
+.dc-text-file-missing p { margin: 0 0 0.6em; }
+/* a text tile's words (page-text.ts textElement): the tile's box, then the words' type -- the tile's and its editor's
+   preview's alike */
+.dc-text-tile { flex: 1 1 auto; overflow: auto; padding: var(--dc-pad-2) var(--dc-pad-3, 12px); line-height: 1.45; }
+.dc-text-words > :first-child { margin-top: 0; }
+.dc-text-words h3 { font-size: 1.5em; margin: 0.2em 0 0.4em; }
+.dc-text-words h4 { font-size: 1.2em; margin: 0.6em 0 0.3em; }
+.dc-text-words h5 { font-size: 1em; margin: 0.6em 0 0.3em; }
+.dc-text-words p { margin: 0 0 0.6em; }
+.dc-text-words ul, .dc-text-words ol { margin: 0 0 0.6em; padding-left: 1.4em; }
+.dc-text-words code { font-family: var(--dc-mono, ui-monospace, monospace); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); padding: 0 0.25em; border-radius: 3px; }
+.dc-text-words a { color: var(--tw-blue-600, #2563eb); }
 .dc-text-area { flex: 1 1 auto; min-height: 4em; resize: none; margin: var(--dc-pad-2); font: inherit; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-text-words blockquote { margin: 0 0 0.6em; padding: 0 0 0 0.8em; border-left: 3px solid var(--tw-neutral-300); color: var(--tw-neutral-600); }
+.dc-text-words pre { margin: 0 0 0.6em; padding: 0.5em 0.7em; overflow: auto; border-radius: var(--dc-radius-sm); background: var(--dc-hover, rgba(127, 127, 127, 0.12)); }
+.dc-text-words pre code { padding: 0; background: none; }
+.dc-text-words hr { border: 0; border-top: 1px solid var(--tw-neutral-300); margin: 0.8em 0; }
+.dc-text-words h6 { font-size: 0.9em; margin: 0.6em 0 0.3em; color: var(--tw-neutral-600); }
+.dc-text-words li > ul, .dc-text-words li > ol { margin: 0.2em 0 0; }
+.dc-text-words li.dc-text-task { list-style: none; margin-left: -1.2em; }
+.dc-text-words li.dc-text-task > input { margin: 0 0.4em 0 0; vertical-align: -1px; }
+/* a list under a task: past its box, as under any item */
+.dc-text-words li.dc-text-task > ul, .dc-text-words li.dc-text-task > ol { padding-left: 2.6em; }
+.dc-text-table { overflow-x: auto; margin: 0 0 0.6em; }
+.dc-text-words table { border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.dc-text-words th, .dc-text-words td { padding: 2px 8px; border: 1px solid var(--tw-neutral-200); }
+.dc-text-words th { background: var(--tw-neutral-100); font-weight: 600; }
+
+/* ITS EDITOR (the user, 2026-10-25: Markdown with a toolbar): the marks, then the words and what they will look like side
+   by side -- one above the other where the tile is narrow -- then its bar */
+.dc-text-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 1px; padding: var(--dc-pad-1) var(--dc-pad-2) 0; }
+.dc-text-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: var(--tw-neutral-600);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dc-text-tool:hover { background: var(--tw-neutral-200); color: var(--tw-neutral-800, #262626); }
+.dc-text-tool:focus-visible { outline: 1.5px solid var(--dc-active, #0284c7); outline-offset: -1px; }
+.dc-text-tool[data-mark='Italic'] { font-style: italic; font-family: Georgia, 'Times New Roman', serif; }
+.dc-text-tool[data-mark='Strikethrough'] { text-decoration: line-through; }
+.dc-text-tools-sep { width: 1px; height: 14px; margin: 0 4px; background: var(--tw-neutral-200); }
+.dc-text-panes { display: flex; flex-wrap: wrap; flex: 1 1 auto; gap: var(--dc-pad-2); min-height: 0; padding: var(--dc-pad-2); overflow: auto; }
+.dc-text-panes > .dc-text-area,
+.dc-text-panes > .dc-text-preview { flex: 1 1 220px; min-width: 0; min-height: 6em; margin: 0; }
+.dc-text-preview { overflow: auto; border: 1px dashed var(--tw-neutral-300); border-radius: var(--dc-radius-sm); }
+.dc-text-preview > .dc-text-words { padding: var(--dc-pad-2); line-height: 1.45; }
+.dc-text-help { color: var(--tw-neutral-500); font-size: var(--dc-text-sm-size); }
 .dc-text-bar { display: flex; align-items: center; gap: var(--dc-pad-2); padding: 0 var(--dc-pad-2) var(--dc-pad-2); }
 .dc-text-problem { flex: 1 1 auto; color: var(--dc-error, #c62828); font-size: var(--dc-text-sm-size); }
+
+/* ---- A FLOW SHEET (layout/flow-board.ts, flow-canvas.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.4): the palette, the
+   canvas of boxes on a dot grid, and the results pane below -- the grid of the box shown ---- */
+.dc-flow {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  position: relative;
+  background: var(--dc-bg);
+}
+/* the palette: its tools two by two under their groups' headings, so a long one fits a window's height */
+.dc-flow-palette {
+  flex: none;
+  width: 144px;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-content: start;
+  gap: 2px;
+  padding: 8px 6px;
+  border-right: 1px solid var(--dc-line-faint);
+  background: var(--dc-bg);
+  overflow-y: auto;
+}
+.dc-flow-palette[hidden] { display: none; }
+/* a group of the palette's tools, under its heading (Alteryx's: In, Preparation, Join, Transform) */
+.dc-flow-group {
+  grid-column: 1 / -1;
+  padding: 6px 0 2px;
+  color: var(--dc-muted);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+}
+.dc-flow-group:not(:first-child) { margin-top: 4px; border-top: 1px solid var(--dc-line-faint); padding-top: 8px; }
+.dc-flow-tool {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 5px 2px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  font: inherit;
+  font-size: 11px;
+  line-height: 14px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.dc-flow-tool:hover { background: var(--dc-fill-faint); border-color: var(--dc-line-faint); color: var(--tw-black); }
+.dc-flow-tool:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-flow-tool-name { text-align: center; overflow-wrap: break-word; font-size: 10.5px; line-height: 13px; }
+
+/* a tool's icon: its glyph in its group's colour, on a tint of it (Alteryx's groups: in and out, preparation, join,
+   transform) -- readable on either theme, the colour tokens being each theme's own */
+.dc-flow-icon {
+  --dc-flow-tone: var(--tw-sky-600);
+  flex: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--dc-flow-tone);
+  background: color-mix(in srgb, var(--dc-flow-tone) 14%, transparent);
+}
+.dc-flow-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+[data-group='in'] > .dc-flow-icon { --dc-flow-tone: var(--tw-green-700); }
+[data-group='join'] > .dc-flow-icon { --dc-flow-tone: var(--tw-amber-500); }
+[data-group='transform'] > .dc-flow-icon { --dc-flow-tone: var(--tw-orange-500); }
+[data-group='parse'] > .dc-flow-icon { --dc-flow-tone: #8b5cf6; }
+
+.dc-flow-main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* the canvas and, beside it, the settings pane (Alteryx's Configuration window): its width the divider's */
+.dc-flow-top { flex: 1 1 auto; min-height: 120px; display: flex; }
+/* the canvas on its stage, its own tools at the stage's corner, over the canvas as it scrolls */
+.dc-flow-stage { flex: 1 1 auto; min-width: 240px; position: relative; display: flex; }
+.dc-flow-toolbar { position: absolute; top: 10px; right: 14px; z-index: 4; display: flex; gap: 6px; }
+.dc-flow-toolbar[hidden] { display: none; }
+.dc-flow-act {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--dc-line);
+  border-radius: 13px;
+  background: var(--dc-bg);
+  color: var(--dc-muted-strong);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+.dc-flow-act:hover { border-color: var(--dc-line-strong); color: var(--tw-black); }
+.dc-flow-act:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 1px; }
+.dc-flow-act[hidden] { display: none; }
+.dc-flow-zoom { min-width: 26px; padding: 0 8px; }
+.dc-flow-zoom.dc-chosen { background: color-mix(in srgb, var(--dc-active) 12%, var(--tw-white)); border-color: var(--dc-active); color: var(--dc-active); }
+/* Undo and Redo, a pair: off while there is no step to undo or redo */
+/* the canvas's keys and gestures, its ? opens them: at the stage's corner, under its tools */
+.dc-flow-keys-panel {
+  position: absolute;
+  top: 44px;
+  right: 14px;
+  z-index: 5;
+  width: 340px;
+  max-height: calc(100% - 60px);
+  overflow: auto;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 12%);
+  font-size: 12px;
+}
+.dc-flow-keys-panel[hidden] { display: none; }
+/* the command palette (Ctrl+K): a field over a list of what it finds, at the top of the canvas */
+.dc-flow-commands {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  z-index: 6;
+  width: min(460px, calc(100% - 28px));
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100% - 60px);
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 18%);
+  overflow: hidden;
+}
+.dc-flow-commands[hidden] { display: none; }
+.dc-flow-commands-find {
+  flex: none;
+  margin: 0;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid var(--dc-line-faint);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+.dc-flow-commands-list { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 0; }
+.dc-flow-command { display: flex; align-items: baseline; gap: 10px; padding: 6px 14px; cursor: pointer; min-width: 0; }
+.dc-flow-command:hover { background: var(--dc-fill-faint); }
+.dc-flow-command.dc-active { background: var(--dc-selected-bg); }
+.dc-flow-command-label { flex: none; font-weight: 600; white-space: nowrap; }
+.dc-flow-command-words { flex: 1 1 auto; min-width: 0; color: var(--dc-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-commands-none { padding: 8px 14px; color: var(--dc-muted); }
+.dc-flow-keys-list { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 0; padding: 10px 14px 14px; }
+.dc-flow-keys-list dt { font-weight: 600; color: var(--dc-muted-strong); white-space: nowrap; }
+.dc-flow-keys-list dd { margin: 0; color: var(--dc-muted-strong); }
+.dc-flow-undo, .dc-flow-redo { min-width: 26px; padding: 0 8px; font-size: 14px; }
+.dc-flow-undo { margin-left: 6px; }
+.dc-flow-undo:disabled, .dc-flow-redo:disabled { cursor: default; opacity: 0.45; box-shadow: none; }
+.dc-flow-undo:disabled:hover, .dc-flow-redo:disabled:hover { border-color: var(--dc-line); color: var(--dc-muted-strong); }
+.dc-flow-zoom-level { min-width: 52px; font-variant-numeric: tabular-nums; }
+.dc-flow-run { color: var(--dc-active); border-color: color-mix(in srgb, var(--dc-active) 45%, transparent); }
+.dc-flow-run:disabled { cursor: progress; opacity: 0.8; }
+/* a box's rows when its grid ran last: beside its output, under the lines out of it, as a connection's count is */
+.dc-flow-count {
+  position: absolute;
+  left: 100%;
+  top: calc(50% + 6px);
+  margin-left: 6px;
+  pointer-events: auto;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 12px;
+  color: var(--dc-muted);
+  font-variant-numeric: tabular-nums;
+}
+.dc-flow-count[hidden] { display: none; }
+/* a Filter's: its True rows, above its T port, clear of its F */
+.dc-flow-box.dc-flow-two > .dc-flow-count { top: calc(30% - 20px); }
+/* the palette's find field: its tools narrowed to what it holds */
+.dc-flow-find {
+  grid-column: 1 / -1;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 2px;
+  padding: 3px 6px;
+  border: 1px solid var(--dc-line-faint);
+  border-radius: 6px;
+  background: var(--dc-fill-faint);
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+}
+.dc-flow-find:focus { outline: none; border-color: var(--dc-active); background: var(--dc-bg); }
+.dc-flow-group[hidden], .dc-flow-tool[hidden] { display: none; }
+.dc-flow-canvas {
+  flex: 1 1 auto;
+  min-width: 240px;
+  min-height: 120px;
+  overflow: auto;
+  position: relative;
+  outline: none;
+  background-color: var(--tw-neutral-50);
+  background-image: radial-gradient(circle, var(--tw-neutral-300) 1px, transparent 1.25px);
+  background-size: 16px 16px;
+}
+.dc-flow-plane { position: relative; min-width: 100%; min-height: 100%; isolation: isolate; }
+.dc-flow-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.dc-flow-lines path { fill: none; stroke: var(--tw-neutral-400); stroke-width: 1.5; }
+/* a line's wider stroke beneath it, what a pointer finds: pressed, the line selected */
+.dc-flow-lines path.dc-flow-hit { stroke: transparent; stroke-width: 14; pointer-events: stroke; cursor: pointer; }
+.dc-flow-view .dc-flow-lines path.dc-flow-hit { pointer-events: none; }
+.dc-flow-lines path.dc-flow-hit:hover + .dc-flow-line { stroke: var(--tw-neutral-600); stroke-width: 2; }
+.dc-flow-lines path.dc-flow-line-selected { stroke: var(--dc-active); stroke-width: 2.5; }
+/* a line a dragged tool would go between, and the line being drawn from a box's output */
+.dc-flow-lines path.dc-flow-line-target { stroke: var(--dc-active); stroke-width: 2.5; stroke-dasharray: 6 4; }
+.dc-flow-lines path.dc-flow-wire { stroke: var(--dc-active); stroke-width: 2; stroke-dasharray: 5 4; }
+.dc-flow-wiring, .dc-flow-wiring * { cursor: crosshair !important; }
+/* a selected line's ×, at its middle: the box it goes into then reads a copy of its rows */
+.dc-flow-unlink {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--dc-active);
+  border-radius: 50%;
+  background: var(--dc-bg);
+  color: var(--dc-active);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 12%);
+}
+.dc-flow-unlink[hidden] { display: none; }
+.dc-flow-unlink:hover { background: var(--dc-active); color: var(--dc-bg); }
+.dc-flow-hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--dc-muted);
+  text-align: center;
+  pointer-events: none;
+}
+.dc-flow-hint[hidden] { display: none; }
+
+/* a box: a card, its tool's icon, its name and what it is set to; its ports at its sides */
+.dc-flow-box {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 184px;
+  height: 60px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+.dc-flow-box:hover { border-color: var(--dc-line-strong); box-shadow: 0 2px 8px rgb(0 0 0 / 10%); }
+.dc-flow-box:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 2px; }
+.dc-flow-box.dc-flow-shown { border-color: var(--dc-active); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dc-active) 22%, transparent); }
+/* the boxes picked together (Shift+click, a band): a dashed ring, beside the shown one's solid ring */
+.dc-flow-box.dc-flow-picked { outline: 2px dashed var(--dc-active); outline-offset: 3px; }
+/* the band a press on the empty canvas drags out */
+.dc-flow-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  border: 1px solid var(--dc-active);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--dc-active) 10%, transparent);
+  pointer-events: none;
+}
+.dc-flow-box.dc-flow-target { border: 1px dashed var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-box.dc-flow-dragging { cursor: grabbing; z-index: 2; transition: none; box-shadow: 0 8px 20px rgb(0 0 0 / 18%); }
+.dc-flow-view .dc-flow-box { cursor: pointer; }
+/* a box whose source was not opened the last time it was shown: red until it is, why in its settings */
+.dc-flow-box.dc-flow-refused { border-color: var(--tw-red-500); }
+.dc-flow-box.dc-flow-refused .dc-flow-says { color: var(--tw-red-600); }
+/* a file from the desktop over the canvas: dropped, an Input over it */
+.dc-flow-canvas.dc-flow-dropping { outline: 2px dashed var(--dc-active); outline-offset: -8px; }
+.dc-flow-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.dc-flow-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-says { font-size: 11px; line-height: 14px; color: var(--dc-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-rename { width: 100%; box-sizing: border-box; font: inherit; padding: 0 3px; border: 1px solid var(--dc-active); border-radius: 3px; background: var(--dc-bg); color: inherit; }
+.dc-flow-x {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  display: none;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dc-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-flow-box:hover > .dc-flow-x:not([hidden]), .dc-flow-box:focus-within > .dc-flow-x:not([hidden]) { display: grid; }
+.dc-flow-x:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-port {
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  margin-top: -5px;
+  border: 1.5px solid var(--dc-line-strong);
+  border-radius: 50%;
+  background: var(--dc-bg);
+}
+.dc-flow-port-in { left: -5px; }
+.dc-flow-port-out { right: -5px; cursor: crosshair; transition: transform 100ms ease, border-color 100ms ease; font-size: 0; }
+/* a Filter's outputs: its True above its False (Alteryx's T and F), each a port a line is drawn from -- a Unique's U and
+   D, a Sample's S and R (its rows and the rest) */
+.dc-flow-port-false { display: none; }
+.dc-flow-box.dc-flow-two > .dc-flow-port-out {
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  right: -7px;
+  top: 30%;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-box.dc-flow-two > .dc-flow-port-false { display: block; top: 70%; }
+/* a Join's outputs: its L above its J above its R (Alteryx's), each a port a line is drawn from */
+.dc-flow-port-unmatched { display: none; }
+.dc-flow-box[data-tool='join'] > .dc-flow-port-out, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-out {
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  right: -7px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-box[data-tool='join'] > .dc-flow-port-l, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-l { display: block; top: 22%; }
+.dc-flow-box[data-tool='join'] > .dc-flow-port-r, .dc-flow-box[data-tool='fuzzyMatch'] > .dc-flow-port-r { display: block; top: 78%; }
+.dc-flow-port-out:hover { transform: scale(1.4); border-color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-view .dc-flow-port-out { cursor: inherit; }
+.dc-flow-view .dc-flow-port-out:hover { transform: none; border-color: var(--dc-line-strong); background: var(--dc-bg); }
+/* its input ports: one, a join's left and right (L above R, where the lines into them come in) -- an Input has none */
+.dc-flow-port-left, .dc-flow-port-right, .dc-flow-port-more, .dc-flow-port-add {
+  display: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -7px;
+  left: -7px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 12px;
+  text-align: center;
+  color: var(--dc-muted);
+}
+.dc-flow-port-left { top: 30%; }
+.dc-flow-port-right { top: 70%; }
+.dc-flow-box[data-tool='input'] > .dc-flow-port-in { display: none; }
+/* every tool of the Join group reads two: a Join's, a Union's, an Append Fields', a Fuzzy Match's */
+.dc-flow-box[data-group='join'] > .dc-flow-port-in { display: none; }
+.dc-flow-box[data-group='join'] > .dc-flow-port-left, .dc-flow-box[data-group='join'] > .dc-flow-port-right { display: block; }
+/* a Union's inputs numbered, one a port, and its + below them: a line let go on it adds one (none to add on a locked page) */
+.dc-flow-box[data-tool='union'] > .dc-flow-port-more, .dc-flow-box[data-tool='union'] > .dc-flow-port-add { display: block; }
+.dc-flow-port-add { border-style: dashed; color: var(--dc-active); }
+.dc-flow-wiring .dc-flow-box.dc-flow-target > .dc-flow-port-add { border-style: solid; border-color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-flow-view .dc-flow-box[data-tool='union'] > .dc-flow-port-add { display: none; }
+/* three inputs or more: smaller ports, so each has its own room on the box's edge */
+.dc-flow-box.dc-flow-many > .dc-flow-port-in { width: 9px; height: 9px; margin-top: -5.5px; left: -5.5px; font-size: 6px; line-height: 9px; }
+/* a box reading a copy on a side (a line taken off): its input hollow and dashed, said in its title */
+.dc-flow-box.dc-flow-frozen > .dc-flow-port-in { border-style: dashed; border-color: var(--tw-sky-600); }
+.dc-flow-box.dc-flow-frozen .dc-flow-says::before { content: '❄ '; color: var(--tw-sky-600); }
+.dc-flow-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0.92;
+  background: var(--dc-bg);
+  box-shadow: 0 6px 16px rgb(0 0 0 / 18%);
+}
+
+/* the settings pane: the window of the shown box's grid that sets it (Properties, Filter, a calculated column's),
+   docked and filling it (CubeAppOptions.dock); with none docked, what the box does and how to set it */
+.dc-flow-side {
+  flex: none;
+  width: 6px;
+  border-left: 1px solid var(--dc-line);
+  background: var(--dc-fill-faint);
+  cursor: col-resize;
+  touch-action: none;
+}
+.dc-flow-side:hover, .dc-flow-side:focus-visible { background: var(--dc-selected-line); outline: none; }
+.dc-flow-settings {
+  flex: none;
+  width: var(--dc-flow-settings, clamp(320px, 40%, 640px));
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--dc-bg);
+}
+.dc-flow-settings-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  font-weight: 500;
+}
+.dc-flow-settings-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-settings:has(> .dc-flow-dock:not(:empty)) > .dc-flow-settings-head { display: none; }
+/* a comment (a text tile: M7), drawn as a note on the canvas: its head what it is moved by, its words below */
+.dc-flow-note {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 220px;
+  min-height: 48px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--tw-amber-500) 45%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--tw-amber-500) 12%, var(--dc-bg));
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
+  font-size: 12px;
+}
+.dc-flow-note:focus-visible { outline: 2px solid var(--dc-active); outline-offset: 2px; }
+.dc-flow-note.dc-flow-dragging { z-index: 2; box-shadow: 0 8px 20px rgb(0 0 0 / 18%); }
+.dc-flow-note-head { flex: none; height: 14px; display: flex; justify-content: flex-end; cursor: grab; touch-action: none; }
+.dc-flow-view .dc-flow-note-head { cursor: default; }
+.dc-flow-note-x {
+  width: 16px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--dc-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.dc-flow-note:hover .dc-flow-note-x, .dc-flow-note:focus-within .dc-flow-note-x { opacity: 1; }
+.dc-flow-note-x[hidden] { display: none; }
+.dc-flow-note-body { padding: 0 10px 8px; overflow-wrap: anywhere; }
+.dc-flow-note-body .dc-text-host { padding: 0; }
+.dc-flow-note-body p { margin: 0 0 4px; }
+[data-group='docs'] > .dc-flow-icon { --dc-flow-tone: var(--tw-amber-500); }
+/* the run's log, at the canvas's bottom corner: each box's rows and time, a refusal red, each a button that shows it */
+.dc-flow-log {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 4;
+  width: min(340px, calc(100% - 24px));
+  max-height: 45%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--dc-line);
+  border-radius: 10px;
+  background: var(--dc-bg);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 12%);
+  font-size: 12px;
+}
+.dc-flow-log[hidden] { display: none; }
+.dc-flow-log-head, .dc-flow-keys-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 10px; border-bottom: 1px solid var(--dc-line-faint); }
+.dc-flow-log-title, .dc-flow-keys-title { flex: 1 1 auto; font-weight: 600; }
+.dc-flow-log-close, .dc-flow-keys-close { border: none; background: transparent; color: var(--dc-muted); font-size: 15px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 50%; }
+.dc-flow-log-close:hover, .dc-flow-keys-close:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-log-list { margin: 0; padding: 4px; list-style: none; overflow: auto; }
+.dc-flow-log-box {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dc-flow-log-box:hover { background: var(--dc-fill-faint); }
+.dc-flow-log-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-log-rows, .dc-flow-log-ms { color: var(--dc-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-flow-log-refused .dc-flow-log-rows { color: var(--tw-red-600); white-space: normal; }
+.dc-flow-log-failing .dc-flow-log-rows { color: var(--tw-amber-700, #b45309); }
+/* a flow's Sample (ui/sample-form.ts): its first or last rows, in the order of a column */
+.dc-sample { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.dc-sample-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dc-sample-word { color: var(--dc-muted-strong); }
+/* a part of the Sample window its way has no use for: hidden, whatever its own display */
+.dc-sample [hidden] { display: none !important; }
+.dc-sample-seed { width: 64px; }
+.dc-sample-n { width: 6em; }
+/* a Test's result, once its rows have landed: amber with the checks it fails, its words green when every one passes */
+.dc-flow-box.dc-flow-failing { border-color: var(--tw-amber-500, #f59e0b); box-shadow: 0 0 0 1px var(--tw-amber-500, #f59e0b); }
+.dc-flow-box.dc-flow-failing .dc-flow-says { color: var(--tw-amber-700, #b45309); }
+.dc-flow-box.dc-flow-passing .dc-flow-says { color: var(--tw-green-600, #16a34a); }
+/* a Test that stops a run, failing (FL8's refuse): red, as a refusal is */
+.dc-flow-box.dc-flow-failing.dc-flow-stops { border-color: var(--tw-red-500); box-shadow: 0 0 0 1px var(--tw-red-500); }
+.dc-flow-box.dc-flow-failing.dc-flow-stops .dc-flow-says { color: var(--tw-red-600); }
+.dc-flow-stops-check { margin-top: 8px; }
+/* a Test's checks: a row each, and Add a check below them */
+.dc-test-checks { display: flex; flex-direction: column; gap: 6px; }
+.dc-test-check .dc-sample-n[hidden] { display: none; }
+/* a check's values or pattern, as text */
+.dc-test-text { min-width: 12em; flex: 1 1 12em; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-test-text[hidden], .dc-test-column[hidden] { display: none; }
+.dc-test-add { align-self: flex-start; }
+/* a Date Filter's two days, asked only when it keeps the days between them */
+.dc-date-filter-days[hidden] { display: none; }
+/* a Generate Rows' numbers or its days, one shown; a bound typed or a column picked */
+.dc-generate-numbers[hidden], .dc-generate-days[hidden], .dc-generate-numbers .dc-sample-n[hidden] { display: none; }
+.dc-generate-name { width: 12em; }
+.dc-sample-hint { margin: 0; color: var(--dc-muted); font-size: 12px; max-width: 52ch; }
+.dc-sample-status { margin: 0; min-height: 1em; color: var(--tw-red-600); font-size: 12px; }
+.dc-sample-status:empty { display: none; }
+.dc-sample-foot { display: flex; align-items: center; gap: 8px; }
+/* the box's inputs, above its settings: what it reads on each side, a box of the flow or a frozen copy */
+.dc-flow-inputs {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 6px var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  background: var(--dc-fill-faint);
+}
+.dc-flow-inputs[hidden] { display: none; }
+.dc-flow-input { display: flex; align-items: center; gap: 8px; min-width: 0; }
+/* an Output's settings: the file it writes, Write now, Write no file, and what writing said */
+.dc-flow-output {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 6px var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+}
+.dc-flow-output[hidden] { display: none; }
+.dc-flow-output-name { width: 16em; }
+.dc-flow-output-said { color: var(--dc-muted); font-size: 12px; }
+/* a Cross Tab's columns: found as it runs, or fixed by Load values (FL2), and what the last said */
+.dc-flow-pin-words { font-size: 12px; flex: 1 1 18em; min-width: 0; }
+.dc-flow-pin-said { color: var(--dc-muted); font-size: 12px; flex-basis: 100%; }
+.dc-flow-pin-said:empty { display: none; }
+.dc-flow-pin-lacking { color: var(--tw-amber-700, #b45309); font-size: 12px; flex-basis: 100%; }
+.dc-flow-pin-lacking:empty { display: none; }
+.dc-flow-input-side { color: var(--dc-muted); font-size: 12px; }
+.dc-flow-input > .dc-select { min-width: 10em; max-width: 22em; }
+/* a Union's input taken off (one of more than two), and its next one added */
+.dc-flow-input-off {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--dc-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.dc-flow-input-off:hover { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-input-add > .dc-select { color: var(--dc-muted); }
+.dc-flow-dock { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.dc-flow-dock:empty { display: none; }
+.dc-flow-dock:not(:empty) ~ .dc-flow-settings-empty { display: none; }
+.dc-flow-dock > .dc-app-overlay {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: static;
+  border: none;
+  box-shadow: none;
+}
+.dc-flow-dock > .dc-app-overlay > .dc-overlay-head { cursor: default; }
+.dc-flow-dock > .dc-app-overlay > .dc-overlay-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.dc-flow-settings-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  color: var(--dc-muted);
+}
+.dc-flow-settings-empty > p { margin: 0; max-width: 48ch; }
+.dc-flow-settings-now { color: var(--tw-black); font-weight: 500; }
+.dc-flow-settings-columns { font-size: 11px; line-height: 15px; overflow-wrap: anywhere; }
+.dc-flow-settings-refused { color: var(--tw-red-600); }
+
+/* the results pane: the box shown's grid, its height the divider's */
+.dc-flow-split {
+  flex: none;
+  height: 6px;
+  border-top: 1px solid var(--dc-line);
+  background: var(--dc-fill-faint);
+  cursor: row-resize;
+  touch-action: none;
+}
+.dc-flow-split:hover, .dc-flow-split:focus-visible { background: var(--dc-selected-line); outline: none; }
+.dc-flow-results {
+  flex: none;
+  height: var(--dc-flow-results, 45%);
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  background: var(--dc-bg);
+}
+.dc-flow-results-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--dc-pad-1);
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-1) 0 var(--dc-pad-2);
+  border-bottom: 1px solid var(--dc-line-faint);
+  font-weight: 500;
+}
+.dc-flow-results-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-results-actions { flex: none; display: flex; align-items: center; gap: var(--dc-pad-1); }
+/* the results pane's Rows and Profile (M5): a pair of tabs, the chosen one filled */
+.dc-flow-modes { flex: none; display: inline-flex; padding: 2px; border: 1px solid var(--dc-line); border-radius: 8px; background: var(--dc-bg); }
+.dc-flow-modes[hidden] { display: none; }
+.dc-flow-mode {
+  height: 22px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.dc-flow-mode:hover { color: var(--tw-black); }
+.dc-flow-mode.dc-chosen { background: var(--dc-selected-bg); color: var(--dc-active); font-weight: 600; }
+/* a box's profile: a row a column, how filled it is a bar */
+/* the shown box's grid kept in place, out of sight, while its profile is shown */
+.dc-flow-results-body.dc-flow-profiling > :not(.dc-flow-profile):not(.dc-flow-chart) { display: none !important; }
+/* a box's chart in the results pane: the chart panel filling it, its options beside the chart when shown */
+.dc-flow-chart { display: flex; flex: 1; min-height: 220px; height: 100%; }
+.dc-flow-chart-host { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.dc-flow-chart-host > .dc-chartpanel { flex: 1; min-width: 0; }
+.dc-flow-profile { height: 100%; overflow: auto; padding: 10px 14px; box-sizing: border-box; }
+.dc-flow-profile-wait { color: var(--dc-muted); padding: 8px 0; }
+/* a box's Code: its query as Pure and the SQL the database ran, each with its Copy */
+.dc-flow-code { display: flex; flex-direction: column; gap: 12px; }
+.dc-flow-code-part { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dc-flow-code-head { display: flex; align-items: center; gap: 8px; }
+.dc-flow-code-head > h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--dc-muted-strong); }
+.dc-flow-code-said { color: var(--dc-muted); font-size: 12px; }
+.dc-flow-code-text {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--dc-line-faint);
+  border-radius: 6px;
+  background: var(--dc-fill-faint);
+  font: 12px/1.5 var(--dc-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.dc-flow-profile-refused { color: var(--tw-red-600); }
+.dc-flow-profile-sum { margin-bottom: 8px; color: var(--dc-muted-strong); font-size: 12px; }
+.dc-flow-profile-table { border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.dc-flow-profile-table th {
+  position: sticky;
+  top: -10px;
+  padding: 6px 14px 6px 0;
+  background: var(--dc-bg);
+  color: var(--dc-muted);
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 1px solid var(--dc-line);
+}
+.dc-flow-profile-table td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--tw-neutral-100); white-space: nowrap; }
+.dc-flow-profile-name { font-weight: 600; }
+.dc-flow-profile-type { color: var(--dc-muted); }
+.dc-flow-profile-num { text-align: right; }
+.dc-flow-profile-value { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+.dc-flow-profile-filled { display: flex; align-items: center; gap: 8px; }
+.dc-flow-profile-bar { width: 72px; height: 6px; border-radius: 3px; background: var(--tw-neutral-200); overflow: hidden; }
+.dc-flow-profile-fill { display: block; height: 100%; border-radius: 3px; background: var(--dc-active); }
+.dc-flow-results-body { flex: 1 1 auto; min-height: 0; display: flex; }
+.dc-flow-results-body > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.dc-flow-results-empty { display: grid; place-items: center; color: var(--dc-muted); padding: 16px; text-align: center; }
+
+/* ---- a flow's Text Input (ui/text-input-dialog.ts): a small table typed in, in the Save window's style ---- */
+.dc-picker.dc-text-input { width: min(680px, 100%); }
+.dc-text-input-name { display: flex; flex-direction: column; gap: 4px; max-width: 280px; margin-bottom: 12px; }
+.dc-text-input-wrap { max-height: 46vh; overflow: auto; border: 1px solid var(--dc-line); border-radius: 8px; }
+.dc-text-input-table { border-collapse: collapse; font-size: 12px; }
+.dc-text-input-table th, .dc-text-input-table td { padding: 0; border-bottom: 1px solid var(--dc-line); }
+.dc-text-input-table td + td, .dc-text-input-table th + th { border-left: 1px solid var(--dc-line); }
+.dc-text-input-table thead th { position: sticky; top: 0; z-index: 1; background: var(--tw-neutral-50); text-align: left; }
+.dc-text-input-head, .dc-text-input-cell {
+  width: 132px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+.dc-text-input-head { font-weight: 600; padding-right: 22px; }
+.dc-text-input-head:focus, .dc-text-input-cell:focus { outline: 2px solid var(--dc-active); outline-offset: -2px; background: var(--dc-bg); }
+.dc-text-input-drop {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--dc-muted);
+  font-size: 12px;
+  line-height: 16px;
+  cursor: pointer;
+  opacity: 0;
+}
+.dc-text-input-table th:hover > .dc-text-input-drop, .dc-text-input-drop:focus-visible { opacity: 1; }
+.dc-text-input-drop:hover { background: var(--tw-neutral-200); color: var(--tw-black); }
+.dc-text-input-n {
+  width: 30px;
+  color: var(--dc-muted);
+  font-weight: 400;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.dc-text-input-n[title] { cursor: pointer; }
+.dc-text-input-n[title]:hover { color: var(--tw-red-600); text-decoration: line-through; }
+.dc-text-input-corner, .dc-text-input-plus { width: 30px; }
+.dc-text-input-add-column {
+  width: 24px;
+  height: 22px;
+  margin: 0 3px;
+  border: 1px dashed var(--dc-line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  cursor: pointer;
+}
+.dc-text-input-add-column:hover { border-style: solid; color: var(--dc-active); }
+.dc-text-input-add-row { margin: 8px 0 4px; }
+
+/* ---- a flow's text tools (ui/text-tool-form.ts): Text To Columns, RegEx, Data Cleansing, in the Sample form's style ---- */
+.dc-text-tool-field { display: flex; flex-direction: column; gap: 4px; max-width: 340px; }
+.dc-text-tool-field[hidden] { display: none; }
+.dc-text-tool-delimiter { width: 5em; }
+.dc-text-tool-columns { display: flex; flex-wrap: wrap; gap: 6px 14px; max-height: 140px; overflow-y: auto; }
+.dc-text-tool-check { display: inline-flex; align-items: center; gap: 6px; color: var(--dc-muted-strong); }
+.dc-text-tool-check[hidden] { display: none; }
+/* a Multi-Field Formula's expression (ui/multi-field-form.ts): Pure, typed as the column editor's is */
+.dc-multi-field .dc-text-tool-field { max-width: none; }
+.dc-multi-field-expression { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
+/* a Custom Filter's condition, and its input's columns a click away */
+.dc-custom-filter-condition { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); }
+.dc-custom-filter-columns { display: flex; flex-wrap: wrap; gap: 4px; max-height: 6.5em; overflow: auto; }
+.dc-custom-filter-column {
+  font: inherit; font-size: 12px; padding: 1px 8px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--dc-line); background: var(--dc-fill-faint); color: inherit;
+}
+.dc-custom-filter-column:hover { background: var(--dc-hover); border-color: var(--dc-line-strong); }
+/* a Pure box's function (ui/pure-form.ts): its text, its steps a click away, its input's columns */
+.dc-pure-box .dc-text-tool-field { max-width: none; }
+.dc-pure-text { width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
+.dc-pure-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.dc-pure-steps-label { font-size: 12px; color: var(--dc-muted, inherit); margin-right: 2px; }
+.dc-pure-step {
+  font-family: var(--dc-mono, ui-monospace, monospace); font-size: 11px; padding: 1px 7px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--dc-line); background: var(--dc-fill-faint); color: inherit;
+}
+.dc-pure-step:hover { background: var(--dc-hover); border-color: var(--dc-line-strong); }
+.dc-multi-field-suffix { width: 8em; }
+/* a Select's columns (ui/select-form.ts): a row a column -- kept, its name, its type, its new name */
+.dc-select-find { flex: 1; min-width: 10em; }
+.dc-select-list { display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
+.dc-select-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) 90px minmax(0, 1fr) 44px; align-items: center; gap: 8px; padding: 3px 10px; }
+/* a column moved up or down: two quiet arrows at its row's end */
+.dc-select-move { display: inline-flex; gap: 2px; }
+.dc-select-move button { width: 20px; height: 20px; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--dc-muted); cursor: pointer; font: inherit; font-size: 12px; line-height: 1; }
+.dc-select-move button:hover:not(:disabled) { border-color: var(--dc-line); color: var(--dc-active); background: var(--dc-selected-bg); }
+.dc-select-move button:disabled { opacity: .3; cursor: default; }
+.dc-select-row[hidden] { display: none; }
+.dc-select-names .dc-picker-input { width: 90px; }
+.dc-select-row + .dc-select-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-select-head { padding: 0 10px; color: var(--dc-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.dc-select-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-select-type { color: var(--dc-muted); font-size: 12px; }
+.dc-select-rename { padding: 3px 6px; }
+.dc-select-out .dc-select-name, .dc-select-out .dc-select-type { color: var(--dc-muted); text-decoration: line-through; }
+/* a Summarize's columns (ui/summarize-form.ts): a row a column -- its name, its type, what is done with it */
+.dc-summarize-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 170px 150px; align-items: center; gap: 8px; padding: 3px 10px; }
+.dc-summarize-second[hidden] { display: block; visibility: hidden; }
+.dc-summarize-row[hidden] { display: none; }
+.dc-summarize-row + .dc-summarize-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-summarize-action { width: 100%; }
+
+/* a Transpose's columns (ui/transpose-form.ts): each a key, made rows, or left out */
+.dc-transpose-list { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; border: 1px solid var(--tw-neutral-200); border-radius: 8px; }
+.dc-transpose-row { display: grid; grid-template-columns: 1fr 64px 84px; align-items: center; gap: 8px; padding: 4px 10px; }
+.dc-transpose-row + .dc-transpose-row { border-top: 1px solid var(--tw-neutral-100); }
+.dc-transpose-head { padding: 0 10px; color: var(--dc-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.dc-transpose-row input { justify-self: center; }
+.dc-transpose-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-transpose-name-input, .dc-transpose-value-input { width: 9em; }
+
+/* ---- a box's correlations (layout/flow-canvas.ts, under its profile): each pair's r, tinted by sign and strength ---- */
+.dc-flow-corr { margin-top: 14px; }
+.dc-flow-corr-sum { margin: 0 0 6px; color: var(--dc-muted-strong); font-size: 12px; }
+.dc-flow-corr-table { border-collapse: separate; border-spacing: 2px; font-variant-numeric: tabular-nums; font-size: 12px; }
+.dc-flow-corr-head { max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--dc-muted-strong); padding: 2px 6px; }
+.dc-flow-corr-name { text-align: left; font-weight: 600; padding: 2px 8px 2px 0; white-space: nowrap; }
+.dc-flow-corr-cell { min-width: 52px; padding: 4px 6px; text-align: center; border-radius: 4px; background: var(--tw-neutral-50); }
+.dc-flow-corr-positive { background: color-mix(in srgb, var(--dc-active) calc(var(--dc-corr, 0) * 70%), var(--tw-white)); }
+.dc-flow-corr-negative { background: color-mix(in srgb, var(--tw-red-600) calc(var(--dc-corr, 0) * 60%), var(--tw-white)); }
+.dc-flow-corr-self { color: var(--dc-muted); background: transparent; }
+.dc-flow-corr-strong { color: var(--tw-white); }
+
+/* ---- a flow's minimap (layout/flow-canvas.ts): the whole flow small, the part in view framed, while it does not fit ---- */
+.dc-flow-minimap {
+  position: absolute; right: 12px; bottom: 12px; z-index: 3;
+  padding: 6px; box-sizing: content-box;
+  background: color-mix(in srgb, var(--tw-white) 92%, transparent); border: 1px solid var(--tw-neutral-200); border-radius: 8px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 8%); cursor: pointer; touch-action: none;
+}
+.dc-flow-minimap-box { fill: var(--tw-neutral-300); rx: 1.5px; }
+.dc-flow-minimap-shown { fill: var(--dc-active); }
+.dc-flow-minimap-frame { fill: color-mix(in srgb, var(--dc-active) 6%, transparent); stroke: color-mix(in srgb, var(--dc-active) 40%, transparent); stroke-width: 1px; }
+.dc-flow-minimap-view { fill: color-mix(in srgb, var(--dc-active) 10%, transparent); stroke: var(--dc-active); stroke-width: 1.5px; }
+
+/* ---- a flow's containers (Alteryx's Tool Container: a comment with a frame) -- behind the lines and the boxes, its inside
+   the canvas's own (a band, a tool let go), its head and its corner its own ---- */
+.dc-flow-note.dc-flow-container {
+  z-index: -1;
+  min-height: 0;
+  border: 1.5px solid color-mix(in srgb, var(--dc-active) 35%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--dc-active) 4%, transparent);
+  box-shadow: none;
+  pointer-events: none;
+}
+.dc-flow-note.dc-flow-container.dc-flow-dragging { z-index: -1; box-shadow: 0 8px 20px rgb(0 0 0 / 12%); }
+.dc-flow-container > .dc-flow-note-head {
+  height: 30px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 0 4px 0 6px;
+  border-bottom: 1px solid color-mix(in srgb, var(--dc-active) 20%, transparent);
+  border-radius: 8px 8px 0 0;
+  background: color-mix(in srgb, var(--dc-active) 10%, var(--dc-bg));
+  pointer-events: auto;
+}
+.dc-flow-container.dc-flow-folded > .dc-flow-note-head { border-bottom: none; border-radius: 8px; }
+.dc-flow-container > .dc-flow-note-body { display: none; }
+.dc-flow-container .dc-flow-note-x { height: 20px; opacity: 0.6; }
+.dc-flow-frame-title { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 600; }
+.dc-flow-frame-count { flex: none; color: var(--dc-muted); font-size: 11px; }
+.dc-flow-frame-fold {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dc-muted-strong);
+  font-size: 11px;
+  cursor: pointer;
+}
+.dc-flow-frame-fold:hover:not(:disabled) { background: var(--dc-fill); color: var(--tw-black); }
+.dc-flow-frame-size {
+  position: absolute;
+  right: 1px;
+  bottom: 1px;
+  width: 14px;
+  height: 14px;
+  cursor: nwse-resize;
+  pointer-events: auto;
+  background: linear-gradient(135deg, transparent 55%, color-mix(in srgb, var(--dc-active) 45%, transparent) 55%, color-mix(in srgb, var(--dc-active) 45%, transparent) 65%, transparent 65%, transparent 75%, color-mix(in srgb, var(--dc-active) 45%, transparent) 75%, color-mix(in srgb, var(--dc-active) 45%, transparent) 85%, transparent 85%);
+  border-radius: 0 0 8px 0;
+}
+.dc-flow-frame-size[hidden] { display: none; }
+.dc-flow-note:not(.dc-flow-container) :is(.dc-flow-frame-fold, .dc-flow-frame-title, .dc-flow-frame-count, .dc-flow-frame-size) { display: none; }
+/* a box a folded container holds: out of sight, its container's head standing for it */
+.dc-flow-box[hidden] { display: none; }
+
+/* A TIMESERIES TILE (ui/timeseries-view.ts; docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §6): its toolbar -- the range
+   buttons, the frequency, compare, log, the statistics, its series and settings -- its legend of lines with their latest
+   value and change, the chart, and the statistics' table; its editors a popover over the chart. The chart's colours are
+   the charts' own (.dc-chartpanel's --dc-chart-* tokens, read by the renderer). */
+.dc-ts-host { display: flex; flex-direction: column; height: 100%; min-height: 0; container: dc-ts / inline-size; }
+.dc-ts.dc-chartpanel {
+  position: relative; flex-direction: column; flex: 1 1 auto; background: var(--dc-chart-surface); color: var(--dc-chart-ink);
+}
+.dc-ts-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1);
+  padding: var(--dc-pad-1) var(--dc-pad-2); border-bottom: 1px solid var(--dc-line-faint);
+}
+.dc-ts-gap { flex: 1 1 auto; }
+.dc-ts-ranges { display: inline-flex; align-items: center; }
+.dc-ts-range {
+  font: inherit; font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; height: 22px; min-width: 30px;
+  padding: 0 var(--dc-pad-1); border: 1px solid var(--dc-line); margin-left: -1px; background: var(--dc-bg); color: inherit;
+  cursor: pointer;
+}
+.dc-ts-range:first-child { margin-left: 0; border-radius: var(--dc-radius-sm) 0 0 var(--dc-radius-sm); }
+.dc-ts-range:last-of-type { border-radius: 0 var(--dc-radius-sm) var(--dc-radius-sm) 0; }
+.dc-ts-range:hover { background: var(--dc-hover); }
+.dc-ts-range[aria-pressed='true'] {
+  position: relative; border-color: var(--dc-active); background: var(--dc-selected-bg); color: var(--dc-active); font-weight: 600;
+}
+.dc-ts-custom { margin-left: var(--dc-pad-2); color: var(--dc-muted-strong); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-ts-btn, .dc-ts .dc-ts-select, .dc-ts-pop .dc-ts-select { height: 22px; font-size: var(--dc-text-sm-size); }
+.dc-ts-btn[aria-pressed='true'] { border-color: var(--dc-active); background: var(--dc-selected-bg); color: var(--dc-active); }
+/* a tile half a screen wide or less (the timeseries gallery's two and three abreast): its toolbar tighter, on one row
+   where it fits */
+@container dc-ts (max-width: 860px) {
+  .dc-ts-bar { gap: 3px; padding-inline: var(--dc-pad-1); }
+  .dc-ts-range { min-width: 24px; padding: 0 3px; }
+}
+
+.dc-ts-legend { display: flex; flex-wrap: wrap; gap: var(--dc-pad-1); padding: var(--dc-pad-1) var(--dc-pad-2) 0; }
+.dc-ts-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 20px; padding: 0 var(--dc-pad-2); border-radius: 10px;
+  border: 1px solid var(--dc-line-faint); background: var(--dc-bg); color: inherit; font: inherit;
+  font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; cursor: pointer; white-space: nowrap;
+}
+.dc-ts-chip:hover { border-color: var(--dc-line-strong); }
+.dc-ts-chip.dc-ts-off { opacity: 0.45; }
+.dc-ts-chip.dc-ts-off .dc-ts-chip-name { text-decoration: line-through; }
+.dc-ts-chip.dc-ts-failed { border-color: var(--tw-red-500); color: var(--tw-red-600); }
+.dc-ts-swatch { display: inline-block; width: 12px; height: 3px; border-radius: 2px; flex: 0 0 auto; }
+.dc-ts-chip-name { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; }
+.dc-ts-chip-value { font-weight: 600; }
+.dc-ts-up { color: var(--tw-green-700); }
+.dc-ts-down { color: var(--tw-red-600); }
+
+.dc-ts-banner {
+  margin: var(--dc-pad-1) var(--dc-pad-2) 0; padding: 2px var(--dc-pad-2); border-left: 3px solid var(--dc-line-strong);
+  background: var(--dc-fill-faint); color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size);
+}
+.dc-ts-banner.dc-ts-bad { border-left-color: var(--tw-red-500); color: var(--tw-red-600); }
+
+.dc-ts-body { position: relative; flex: 1 1 auto; min-height: 160px; display: flex; }
+.dc-ts-chart { flex: 1 1 auto; min-width: 0; min-height: 0; }
+.dc-ts-chart[aria-busy='true'] { opacity: 0.6; transition: opacity 0.2s 0.2s; }
+
+/* the statistics under the chart, a third of the tile at most: the chart keeps the room */
+.dc-ts-stats { flex: 0 1 auto; max-height: 33%; min-height: 0; overflow: auto; border-top: 1px solid var(--dc-line-faint); padding: 0 var(--dc-pad-2) var(--dc-pad-1); }
+.dc-ts-stats-head { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-stats-blanks { padding: var(--dc-pad-1) 0; color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-table { border-collapse: collapse; font-size: var(--dc-text-sm-size); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dc-ts-table th {
+  position: sticky; top: 0; background: var(--dc-chart-surface); text-align: right; font-weight: 600;
+  color: var(--dc-muted-strong); padding: 2px 6px; border-bottom: 1px solid var(--dc-line);
+}
+.dc-ts-table th:first-child { text-align: left; }
+.dc-ts-table td { padding: 2px 6px; border-bottom: 1px solid var(--dc-line-faint); }
+.dc-ts-table tr:hover td { background: var(--dc-row-hover); }
+.dc-ts-table-num { text-align: right; }
+.dc-ts-table-date { text-align: right; color: var(--dc-muted-strong); }
+.dc-ts-table-name { display: flex; align-items: center; gap: 6px; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; }
+
+/* ITS EDITORS, A WINDOW (ui/timeseries-view.ts #open; the user, 2026-10-26: PR #73's design): the page's windows' frame,
+   title bar, x and grips, kept on the screen beside its tile (ui/window.ts besideWindow), as a chart's options are --
+   its series editor and its Settings, one at a time, their fields a column */
+.dc-ts-window:focus:not(:focus-visible) { outline: none; }
+.dc-ts-window:focus-visible { outline: 2px solid var(--dc-active); outline-offset: -2px; }
+.dc-ts-window-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-ts-window .dc-overlay-body { padding: 12px 16px 14px; }
+.dc-ts-pop { display: flex; flex-direction: column; gap: var(--dc-pad-2); color: var(--dc-cell-fg); }
+/* a field's label over its control, the control the column's width -- in a window a label is a centred row otherwise */
+.dc-ts-pop .dc-ts-field { display: flex; flex-direction: column; align-items: stretch; }
+.dc-ts-close {
+  font: inherit; width: 22px; height: 22px; padding: 0; border: 1px solid transparent; border-radius: var(--dc-radius-sm);
+  background: transparent; color: var(--dc-muted-strong); cursor: pointer;
+}
+.dc-ts-close:hover:not(:disabled) { border-color: var(--dc-line); background: var(--dc-hover); }
+.dc-ts-close:disabled { color: var(--dc-disabled); cursor: default; }
+.dc-ts-heading { margin-top: var(--dc-pad-1); font-weight: 600; color: var(--dc-muted-strong); text-transform: uppercase; font-size: var(--dc-text-sm-size); letter-spacing: 0.04em; }
+.dc-ts-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1); }
+.dc-ts-field { display: inline-flex; flex-direction: column; gap: 2px; }
+.dc-ts-field-label { color: var(--dc-muted-strong); font-size: var(--dc-text-sm-size); }
+.dc-ts-check { display: inline-flex; align-items: center; gap: 4px; }
+.dc-ts-expr { width: 100%; font-family: var(--dc-font-mono); }
+.dc-ts-alias { width: 9ch; font-family: var(--dc-font-mono); }
+.dc-ts-small { width: 8ch; }
+.dc-ts-error { min-height: 1em; color: var(--tw-red-600); font-size: var(--dc-text-sm-size); }
+.dc-ts-error:empty { display: none; }
+.dc-ts-hint { color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+.dc-ts-actions { display: flex; justify-content: flex-end; gap: var(--dc-pad-1); }
+.dc-ts-swatches { display: inline-flex; gap: 3px; }
+.dc-ts-swatches .dc-ts-swatch { width: 16px; height: 16px; border-radius: 3px; cursor: pointer; border: 2px solid transparent; }
+.dc-ts-swatches .dc-ts-swatch[aria-checked='true'] { border-color: var(--dc-cell-fg); }
+.dc-ts-reference summary { cursor: pointer; color: var(--dc-muted-strong); }
+.dc-ts-functions { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; margin: var(--dc-pad-1) 0; font-size: var(--dc-text-sm-size); }
+.dc-ts-functions dt { font-family: var(--dc-font-mono); white-space: nowrap; }
+.dc-ts-functions dd { margin: 0; color: var(--dc-muted-strong); }

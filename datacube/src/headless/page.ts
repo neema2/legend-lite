@@ -20,6 +20,7 @@ import { chartPicked } from '../page-filters.ts';
 import { PAGE_GESTURES, isPageGesture } from '../page-gestures.ts';
 import { baseOnHost, draftFrom, gridApply, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
+import { resolvedSource } from '../live-inputs.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
@@ -98,7 +99,7 @@ export function pageRecord(fresh: string, name: string | null, text: string, asN
 
 /**
  * A NEW PAGE, as DataCube starts one (page-document.ts newPage, the one skeleton: D11, B9): unnamed when `name` is null
- * ('', as the tab's Blank Page), else named by DataCube's one rule (givenName) -- so Python writes no page skeleton of
+ * ('', as the tab's New Page), else named by DataCube's one rule (givenName) -- so Python writes no page skeleton of
  * its own. JSON: `{page}`, its text as DataCube writes it, or `{problems}`, why the name was refused, in DataCube's words.
  * A page with no cube is shown and followed (D2), never saved (pageSaved): Python's first grid makes it one DataCube
  * saves.
@@ -388,12 +389,14 @@ export function pageSearch(term: unknown, sort: unknown, limit: unknown): string
  * by its own reader (readCube: a calculated column's numbers exact, every other number plain, as DataCube holds a
  * cube), and the fields a newer writer added kept aside, as the page's own reader keeps them (`unknown`).
  */
-/** A page command as read plainly, the field it carries a cube's document or source in taken from its exact reading
+/** A page command as read plainly, the fields it carries a cube's document or source in taken from its exact reading
  *  (its numbers as the protocol's, as the page's cubes are read: page-commands.ts EXACT_FIELD). */
 export function exactly(plainly: unknown, exact: unknown): unknown {
   const c = plainly as { kind?: unknown } | null;
-  const field = typeof c?.kind === 'string' ? EXACT_FIELD[c.kind as keyof typeof EXACT_FIELD] : undefined;
-  return field === undefined ? plainly : { ...(plainly as object), [field]: (exact as Record<string, unknown>)[field] };
+  const fields = typeof c?.kind === 'string' ? EXACT_FIELD[c.kind as keyof typeof EXACT_FIELD] : undefined;
+  const of = exact as Record<string, unknown>;
+  return fields === undefined ? plainly
+    : { ...(plainly as object), ...Object.fromEntries(fields.filter((f) => of[f] !== undefined).map((f) => [f, of[f]])) };
 }
 
 export function heldPage(text: string): PageDocument {
@@ -491,7 +494,8 @@ export async function pageRebase(page: string, held: string, edits: string,
       async (at, cube, id, commands) => {
         const text = cubeToJson(cube);
         // a snapped grid's edit over its copy, as the writer applied it (baseOnHost: the one rule)
-        const base = await baseOnHost(text, (at.copies ?? {})[id], host, copies);
+        // over its page as the edit found it: a grid over another grid's rows reads that grid there
+        const base = await baseOnHost(text, (at.copies ?? {})[id], host, copies, at, id);
         const said = JSON.parse(await gridApply({ cube: text, ...base } as Parameters<typeof gridApply>[0],
           `[${commands.map((c) => toJson(c)).join(',')}]`)) as { cube?: string; problems?: string[] };
         if (said.problems) throw new CubeRefusal(said.problems.join('; '));
@@ -503,7 +507,9 @@ export async function pageRebase(page: string, held: string, edits: string,
     const was = new Map(now.cubes.map((c) => [c.id, c.cube.source]));
     for (const c of done.page.cubes) {
       if ((done.page.copies ?? {})[c.id] !== undefined) continue;
-      if (!sameValue(was.get(c.id), c.cube.source)) await onHost(c.cube.source, host);
+      // a grid over another grid's rows, held where what it reads is: its link resolved against the page it is on
+      const grid = done.page.views.find((v) => v.kind === 'grid' && v.cube === c.id)?.id;
+      if (!sameValue(was.get(c.id), c.cube.source)) await onHost(resolvedSource(done.page, c.cube.source, grid), host);
     }
     return `{"page":${JSON.stringify(pageToJson(done.page))},"held":${JSON.stringify(done.held)},`
       + `"edits":[${done.edits.map((e) => toJson(e)).join(',')}],`

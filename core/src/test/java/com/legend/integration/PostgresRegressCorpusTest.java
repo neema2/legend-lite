@@ -352,6 +352,7 @@ class PostgresRegressCorpusTest {
             case SqlAst.Select q -> !q.orderBy().isEmpty();
             case SqlAst.SetOperation o -> !o.orderBy().isEmpty();
             case SqlAst.With w -> true;
+            case SqlAst.Write w -> false;
         };
     }
 

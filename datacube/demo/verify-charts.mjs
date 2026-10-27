@@ -80,13 +80,13 @@ try {
     await drawn();
   };
   /** A chart's Dynamic / Pinned / Frozen / Detached pill. */
-  const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+  const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-state`);
   /** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
   const choose = async (id, state) => {
     await pill(id).click();
-    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state}$`) }) })
       .first().click();
-    await page.waitForFunction(([c, s]) => document.querySelector(`[data-tile="${c}"] .dc-tile-actions .dc-titlebar-toggle`)?.textContent === s,
+    await page.waitForFunction(([c, s]) => document.querySelector(`[data-tile="${c}"] .dc-tile-state`)?.textContent === s,
       [id, state], { timeout: 5_000 });
   };
   /** A chart's right-click menu entry. */
@@ -165,7 +165,7 @@ try {
     const next = fn === 'max' ? 'min' : 'max';
     // Properties > Column Properties > the column > Aggregation, Apply: as a person sets it
     await page.locator(FIRST).locator('.dc-row').nth(1).locator('.dc-cell').nth(2).click({ button: 'right' });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Properties..."))').first().click();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Properties…"))').first().click();
     await page.locator('.dc-editor-tab', { hasText: 'Column Properties' }).first().click();
     await page.locator(`.dc-pe-col[data-column="${column}"]`).first().click();
     await page.locator('.dc-field', { hasText: 'Aggregation:' }).first().locator('select').first().selectOption(next);
@@ -216,7 +216,7 @@ try {
     await settle();
     if (await page.locator(`[data-tile="${gridId}"]`).count()) throw new Error('the grid is still there');
     if (await page.locator(`[data-tile="${followingId}"]`).count()) throw new Error('its following chart is still there');
-    await page.waitForFunction((id) => document.querySelector(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`)?.textContent === 'Detached', frozenId, { timeout: 5_000 });
+    await page.waitForFunction((id) => document.querySelector(`[data-tile="${id}"] .dc-tile-state`)?.textContent === 'Detached', frozenId, { timeout: 5_000 });
     return `${gridId} removed: ${followingId} went with it, ${frozenId} detached`;
   });
 
@@ -225,8 +225,68 @@ try {
   await check('a chart made a KPI: its number, against a target it is above, its trend\'s line under it', async () => {
     await addChart();
     const id = await page.locator('[data-tile^="chart-"]').last().getAttribute('data-tile');
-    await chartMenu(id, 'Options...');
-    const form = page.locator(`[data-tile="${id}"] .dc-chartpanel-form`);
+    await chartMenu(id, 'Properties…');
+    const form = page.locator('.dc-chart-options');
+    // a window beside its chart, not over it, wholly on the screen (the user, 2026-10-25: "near the chart but not
+    // covering, and not half off the screen")
+    await form.waitFor();
+    const placed = await page.evaluate((chart) => {
+      const win = document.querySelector('.dc-chart-options').getBoundingClientRect();
+      const at = document.querySelector(`[data-tile="${chart}"] .dc-chart-tile`).getBoundingClientRect();
+      const box = (r) => [r.left, r.top, r.right, r.bottom].map(Math.round);
+      return { win: box(win), chart: box(at), screen: [innerWidth, innerHeight] };
+    }, id);
+    const [wl, wt, wr, wb] = placed.win;
+    const [cl, ct, cr, cb] = placed.chart;
+    if (wl < 0 || wt < 0 || wr > placed.screen[0] || wb > placed.screen[1]) throw new Error(`its options' window is off the screen: ${JSON.stringify(placed)}`);
+    if (wl < cr && wr > cl && wt < cb && wb > ct) throw new Error(`its options' window covers the chart: ${JSON.stringify(placed)}`);
+    // in the Properties window's design (the user, 2026-10-25): its sections titled as Properties' are, a short choice
+    // segmented with the chosen one sky-filled and sky-edged as a chosen Join kind
+    const look = await page.evaluate(() => {
+      const win = document.querySelector('.dc-chart-options');
+      const title = getComputedStyle(win.querySelector('.dc-section-title'));
+      const chosen = win.querySelector('.dc-segment.dc-chosen');
+      const seg = chosen ? getComputedStyle(chosen) : null;
+      return { titles: [...win.querySelectorAll('.dc-section-title')].map((t) => t.textContent),
+        transform: title.textTransform, size: title.fontSize, chosen: chosen?.textContent, fill: seg?.backgroundColor, edge: seg?.boxShadow };
+    });
+    if (look.transform !== 'uppercase' || look.size !== '10px') throw new Error(`its section titles are not Properties': ${JSON.stringify(look)}`);
+    if (look.fill !== 'rgb(240, 249, 255)' || !String(look.edge).includes('rgb(2, 132, 199)')) throw new Error(`its chosen choice is not sky: ${JSON.stringify(look)}`);
+    // a short choice and a checkbox ringed when reached by the keyboard (the 2026-10-25 review: the segments' ring was
+    // clipped, the checkboxes' taken off by the text controls' rule)
+    // the keyboard last used, so a focus is shown as the keyboard's
+    await page.keyboard.press('Tab');
+    const rings = await page.evaluate(() => {
+      const win = document.querySelector('.dc-chart-options');
+      const ring = (el) => {
+        el.focus();
+        const s = getComputedStyle(el);
+        return { visible: el.matches(':focus-visible'), style: s.outlineStyle, offset: s.outlineOffset };
+      };
+      // one in an open section: a folded one's are hidden, and take no focus
+      const shown = [...win.querySelectorAll('input[type="checkbox"]')].find((c) => c.checkVisibility());
+      if (!shown) return { segment: ring(win.querySelector('.dc-segment.dc-chosen')), checkbox: 'none in an open section' };
+      return { segment: ring(win.querySelector('.dc-segment.dc-chosen')), checkbox: ring(shown) };
+    });
+    if (!rings.segment.visible || rings.segment.style === 'none' || rings.segment.offset !== '-4px') {
+      throw new Error(`a short choice is not ringed inside itself when reached by the keyboard: ${JSON.stringify(rings)}`);
+    }
+    if (rings.checkbox?.visible !== true || rings.checkbox.style === 'none') throw new Error(`a checkbox is not ringed: ${JSON.stringify(rings)}`);
+    // more of a square (the user, 2026-10-25): two columns of sections where it is 500px wide or more (app.css
+    // .dc-chartpanel-columns), and no taller than its form once painted -- no empty space under it
+    await form.locator('.dc-chartpanel-form .dc-section').first().waitFor();
+    const layout = await page.evaluate(() => {
+      const win = document.querySelector('.dc-chart-options');
+      const scroller = win.querySelector('.dc-overlay-body');
+      const inner = win.querySelector('.dc-chartpanel-form');
+      const style = getComputedStyle(scroller);
+      const lefts = new Set([...inner.querySelectorAll('.dc-section')].map((s) => Math.round(s.getBoundingClientRect().left)));
+      return { width: Math.round(win.getBoundingClientRect().width), columns: lefts.size,
+        scrolls: scroller.scrollHeight > scroller.clientHeight + 1,
+        slack: Math.round(scroller.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - inner.offsetHeight) };
+    });
+    if (layout.width >= 500 && layout.columns < 2) throw new Error(`its options in one column at ${layout.width}px: ${JSON.stringify(layout)}`);
+    if (!layout.scrolls && layout.slack > 8) throw new Error(`its options' window taller than its form: ${JSON.stringify(layout)}`);
     const fieldNamed = (label) => form.locator(`.dc-field:has(> .dc-field-label:text-is("${label}"))`);
     await fieldNamed('Chart:').locator('select').selectOption('kpi');
     await page.locator(`[data-tile="${id}"] .dc-kpi-value`).waitFor({ timeout: 20_000 });
@@ -249,7 +309,10 @@ try {
     const saved = await page.evaluate((c) => window.__dataPage.views().views.find((v) => v.id === c)?.spec, id);
     if (saved.mark !== 'kpi' || saved.options.target !== 1 || saved.x !== across) throw new Error(`saved as ${JSON.stringify(saved)}`);
     if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath('kpi.png') }); }
-    return `${id}: ${value}, ${said}, its trend by ${across}`;
+    // its x puts the window away
+    await form.locator('.dc-overlay-close').click();
+    await form.waitFor({ state: 'detached' });
+    return `${id}: ${value}, ${said}, its trend by ${across}; its options beside it at ${placed.win.join(',')}, the chart at ${placed.chart.join(',')}; sections ${look.titles.join('/')}, ${look.chosen} chosen; ${layout.columns} columns at ${layout.width}px`;
   });
 
   // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): each opened from Open…'s Examples, over the
@@ -269,6 +332,12 @@ try {
       }, [marker, least], { timeout: 120_000 });
       await settle();
       const sheets = await page.locator('.dc-sheet-tab').evaluateAll((els) => els.map((e) => e.dataset.sheet));
+      // EACH TAB AS WIDE AS ITS NAME while the strip has room (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md
+      // §4): every gallery tab read "Bars and li..." with half the bar empty
+      const cut = await page.locator('.dc-sheet-tab .dc-sheet-label').evaluateAll((els) => els
+        .filter((e) => e.scrollWidth > e.clientWidth + 1).map((e) => e.textContent));
+      const room = await page.locator('.dc-sheet-strip').evaluate((s) => s.scrollWidth <= s.clientWidth + 1);
+      if (room && cut.length) throw new Error(`tabs cut short with room to spare: ${cut.join(' | ')}`);
       let drawnCharts = 0;
       let feeds = 0;
       for (const sheet of sheets) {
@@ -295,6 +364,53 @@ try {
         feeds += await page.locator('[data-tile] .dc-chart-tile .dc-feed').evaluateAll((els) => els.filter((e) => e.offsetParent !== null && e.querySelector('.dc-feed-card')).length);
       }
       return `${sheets.length} sheets, ${drawnCharts} canvases drawn${feeds > 0 ? `, ${feeds} news feeds` : ''}`;
+    });
+  }
+
+  // THE TIMESERIES EXAMPLES (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §9; the timeseries review's G5,
+  // docs/TIMESERIES_REVIEW_2026_10_25.md: no harness opened them): each opened from Open…'s Examples over the markets and
+  // rates samples it makes itself; on each of its sheets every timeseries tile draws -- its ECharts canvas, every line
+  // the database answered, no line refused and no problem in its banner (a tile on a sheet not shown draws when shown)
+  for (const [example, marker, least] of [['markets', 'performance', 6], ['timeseries-gallery', 'returns', 36]]) {
+    await check(`the example page ${example} opens from Open…, and every timeseries on every sheet draws`, async () => {
+      await page.click('.dc-titlebar-menu');
+      const open = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open\u2026"))').first();
+      if (!(await open.isVisible())) await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("File"))').first().hover();
+      await open.click();
+      await page.locator(`#cubeswin .dc-open-example[data-example="${example}"]`).click();
+      await page.waitForFunction(([mark, n]) => {
+        const views = window.__dataPage?.views().views ?? [];
+        return views.some((v) => v.id === mark) && views.filter((v) => v.kind === 'timeseries').length >= n;
+      }, [marker, least], { timeout: 120_000 });
+      await settle();
+      const sheets = await page.locator('.dc-sheet-tab').evaluateAll((els) => els.map((e) => e.dataset.sheet));
+      let drawn = 0;
+      for (const sheet of sheets) {
+        await page.locator(`.dc-sheet-tab[data-sheet="${sheet}"]`).click();
+        await settle();
+        // every timeseries tile shown on this sheet has drawn its answers -- a canvas, not still asking -- or said why not
+        await page.waitForFunction(() => {
+          const tiles = [...document.querySelectorAll('[data-tile] .dc-ts')].filter((t) => t.offsetParent !== null);
+          return tiles.every((t) => (t.querySelector('.dc-ts-chart canvas') && t.querySelector('.dc-ts-chart')?.getAttribute('aria-busy') !== 'true')
+            || t.querySelector('.dc-ts-failed') || t.querySelector('.dc-ts-banner.dc-ts-bad'));
+        }, null, { timeout: 120_000 }).catch(async (e) => {
+          const said = await page.locator('[data-tile] .dc-ts').evaluateAll((els) => els
+            .filter((t) => t.offsetParent !== null && !t.querySelector('.dc-ts-chart canvas'))
+            .map((t) => `${t.closest('[data-tile]')?.dataset.tile}: ${t.querySelector('.dc-ts-banner')?.textContent ?? ''}`));
+          throw new Error(`sheet ${sheet}: ${e.message}; undrawn: ${said.join(' | ')}`);
+        });
+        if (process.env.SHOTS) { await frames(page, 4); await page.screenshot({ path: outPath(`${example}-${sheet}.png`) }); }
+        const bad = await page.locator('[data-tile] .dc-ts').evaluateAll((els) => els.filter((t) => t.offsetParent !== null).flatMap((t) => {
+          const tile = t.closest('[data-tile]')?.dataset.tile;
+          const refused = [...t.querySelectorAll('.dc-ts-failed')].map((c) => `${tile}: ${c.getAttribute('title')}`);
+          const banner = t.querySelector('.dc-ts-banner.dc-ts-bad');
+          return banner ? [...refused, `${tile}: ${banner.textContent}`] : refused;
+        }));
+        if (bad.length) throw new Error(`sheet ${sheet}: ${bad.join(' | ')}`);
+        drawn += await page.locator('[data-tile] .dc-ts .dc-ts-chart canvas').evaluateAll((els) => els.filter((e) => e.offsetParent !== null).length);
+      }
+      if (drawn < least) throw new Error(`${drawn} timeseries drawn over ${sheets.length} sheets, of ${least}`);
+      return `${sheets.length} sheets, ${drawn} timeseries drawn`;
     });
   }
 

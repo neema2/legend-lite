@@ -50,7 +50,9 @@ import {
 import { toClipboard } from '../export.ts';
 import { onScreen } from './screen-colours.ts';
 import { focusedElement } from '../focus.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 import {
+  autoTextAlign,
   cellStyle,
   gridVariables,
   highlightBand,
@@ -89,6 +91,9 @@ export interface GridOptions {
   readonly appearance?: GridAppearance;
   /** Per-column appearance, merged over the grid's, by column name. */
   readonly columnAppearance?: Readonly<Record<string, CellAppearance>>;
+  /** Whether a leaf holds a measure's figures (grid-edits.ts isMeasureLeaf): with no alignment set, its numbers sit right
+   *  (style.ts autoTextAlign). Absent: every leaf that is no row dimension. */
+  readonly isMeasure?: (leaf: LeafColumn) => boolean;
   /** Metadata per absolute row index, for grouping and totals. */
   readonly rowMeta?: (absoluteRow: number) => GridRowMeta;
   readonly onToggleExpand?: (key: string, expanded: boolean) => void;
@@ -1512,10 +1517,13 @@ export class DataGrid {
       // Colour follows the VALUE, not the column: a scale across
       // a nested pivot compares a subtotal against a leaf and
       // puts the strongest colour on whatever aggregates most.
-      const appearance = mergeAppearance(
+      const merged = mergeAppearance(
         this.#options.appearance ?? {},
         this.#options.columnAppearance?.[leaf.name],
       );
+      // no alignment set: a measure's figures right, the rest left (style.ts autoTextAlign)
+      const appearance = merged.textAlign !== undefined ? merged
+        : { ...merged, textAlign: autoTextAlign(this.#options.isMeasure?.(leaf) ?? !leaf.isDimension, type) };
       for (const [k, v] of Object.entries(onScreen(cellStyle(appearance, value, type)))) {
         cell.style.setProperty(k, v);
       }
@@ -1556,11 +1564,12 @@ export class DataGrid {
         if (meta?.expanded !== undefined) {
           const chevron = doc.createElement('span');
           chevron.className = 'dc-chevron';
-          // The row already carries aria-expanded, so the glyph is
+          // The row already carries aria-expanded, so the mark is
           // decoration; announcing it again would say "collapsed"
-          // twice.
+          // twice. Drawn in the chrome's one set (ui/tile-icons.ts;
+          // found 4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md).
           chevron.setAttribute('aria-hidden', 'true');
-          chevron.textContent = meta.expanded ? '\u25be' : '\u25b8';
+          chevron.append(chromeIcon(doc, meta.expanded ? 'chevronDown' : 'chevronRight'));
           cell.appendChild(chevron);
         } else {
           // A leaf still needs the chevron's width, or its label

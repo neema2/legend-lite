@@ -13,7 +13,7 @@ import { CubeStateOwner, queryKey, stateKey, type CubeState, type OwnerEvent } f
 import { StateOwner, UndoStack, type StateRules } from '../src/state-owner.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import { accessor, fn, lambda, lit, variable } from '../../pure-protocol/src/index.ts';
+import { accessor, ExactNumber, fn, lambda, lit, variable } from '../../pure-protocol/src/index.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: accessor('t::DB', 'T') },
@@ -467,6 +467,17 @@ describe('the history, as the controller\'s pinned it', () => {
     assert.equal(stateKey(thousands('1000.0')), stateKey(thousands('1000.0')));
     assert.notEqual(stateKey(thousands('1000.0')), stateKey(thousands('1000.5')));
     assert.notEqual(queryKey(thousands('1000.0')), queryKey(thousands('1000.5')));
+  });
+
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1): a grid over another grid's rows read its input's filter in its
+  // source's relation, its literal an exact number, and its first edit threw (JSON.stringify refuses one)
+  it('keys a state whose source carries an exact number, as the protocol writes it', () => {
+    const over = (digits: string): CubeState => ({
+      ...INITIAL, snapshot: { ...SNAPSHOT, source: { query: { _type: 'cFloat', value: ExactNumber.of(digits) } as never } },
+    });
+    assert.equal(stateKey(over('500000.0')), stateKey(over('500000.0')));
+    assert.notEqual(stateKey(over('500000.0')), stateKey(over('500000.5')));
+    assert.notEqual(queryKey(over('1')), queryKey(over('2')));
   });
 
   it('drops the oldest step past the limit', async () => {

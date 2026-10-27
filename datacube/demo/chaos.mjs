@@ -158,11 +158,11 @@ check('a grouped cube has no filter row, so filters wait for phase two',
 /** Data rows currently rendered (the tree/total rows included). */
 const renderedRows = () => page.locator('.dc-row').count();
 
+/** The rows on screen, as the status bar's readout keeps them for a script (`data-rows`). */
 const statusRows = async () => {
-  const t = await page.locator('.dc-status-rows').first().textContent()
-    .catch(() => '');
-  const m = /([\d,]+)/.exec(t ?? '');
-  return m ? Number(m[1].replace(/,/g, '')) : null;
+  const t = await page.locator('.dc-status-rows').first().getAttribute('data-rows')
+    .catch(() => null);
+  return t !== null && t !== '' ? Number(t) : null;
 };
 
 // ---- the actions, each one a thing a person actually does ----------
@@ -300,14 +300,14 @@ const openFilters = async () => {
   await page.waitForSelector('.dc-menu', { timeout: 8000 });
   const found = await page.evaluate(() => {
     const el = [...document.querySelectorAll('.dc-menu .dc-menu-label')]
-      .find((e) => e.textContent === 'Filters...');
+      .find((e) => e.textContent === 'Filters…');
     const item = el?.parentElement;
     if (!item) return false;
     item.focus();
     item.click();
     return true;
   });
-  if (!found) throw new Error('no "Filters..." entry in the menu');
+  if (!found) throw new Error('no "Filters…" entry in the menu');
   await page.waitForSelector('.dc-filters', { timeout: 8000 });
 };
 

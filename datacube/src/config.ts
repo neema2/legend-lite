@@ -347,7 +347,8 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
     alternateRowsColor: '#d7e0eb',
     fontFamily: 'Roboto',
     fontSize: 11,
-    textAlign: 'left',
+    // no alignment: each column's by its kind -- a measure's figures right, the rest left (style.ts autoTextAlign; the
+    // user, 2026-10-25). One set here, or on a column, wins.
     normalForeground: '#000000',
     negativeForeground: '#ef4444',
     zeroForeground: '#a3a3a3',

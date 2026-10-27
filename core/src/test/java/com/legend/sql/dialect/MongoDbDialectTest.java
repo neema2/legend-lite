@@ -45,7 +45,7 @@ class MongoDbDialectTest {
             {
               database: db;
               store: test::Store;
-              serverURLs: [127.0.0.1:27017];
+              serverURLs: [localhost:27017];
               authentication: # UserPassword {
                 username: 'legend';
                 password: SystemPropertiesSecret

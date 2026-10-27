@@ -11,14 +11,16 @@ from typing import Any
 # a field a command may leave out, left out
 _ABSENT: Any = object()
 
-GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort',
-                               'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate', 'editCalculated',
-                               'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN', 'tree',)
-PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'renameSheet', 'moveSheet', 'removeSheet',
-                               'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText', 'followGrid',
-                               'detach', 'select', 'moveTile', 'stack', 'removeTile', 'arrange', 'layout',
-                               'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'modelInto', 'modelPin',
-                               'modelKeep',)
+GRID_KINDS: tuple[str, ...] = ('group', 'pivot', 'pinPivot', 'sorts', 'addSort', 'clearSort', 'clickSort',
+                               'clickTreeSort', 'column', 'configure', 'filter', 'addFilter', 'refilter', 'calculate',
+                               'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN',
+                               'tree',)
+PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet',
+                               'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText',
+                               'addTimeseries', 'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select',
+                               'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
+                               'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure',
+                               'setOutput', 'setStops', 'modelInto', 'modelPin', 'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -27,6 +29,10 @@ def grid_group(*, rows: Any) -> dict[str, Any]:
 
 def grid_pivot(*, columns: Any) -> dict[str, Any]:
     return {'kind': 'pivot', 'columns': columns}
+
+
+def grid_pin_pivot(*, values: Any) -> dict[str, Any]:
+    return {'kind': 'pinPivot', 'values': values}
 
 
 def grid_sorts(*, sorts: Any) -> dict[str, Any]:
@@ -116,6 +122,14 @@ def page_add_sheet(*, id: Any = _ABSENT, name: Any) -> dict[str, Any]:
     return {'kind': 'addSheet', **({} if id is _ABSENT else {'id': id}), 'name': name}
 
 
+def page_add_flow(*, id: Any = _ABSENT, name: Any) -> dict[str, Any]:
+    return {'kind': 'addFlow', **({} if id is _ABSENT else {'id': id}), 'name': name}
+
+
+def page_place_box(*, tile: Any, x: Any, y: Any, frame: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'placeBox', 'tile': tile, 'x': x, 'y': y, **({} if frame is _ABSENT else {'frame': frame})}
+
+
 def page_rename_sheet(*, sheet: Any, name: Any) -> dict[str, Any]:
     return {'kind': 'renameSheet', 'sheet': sheet, 'name': name}
 
@@ -154,6 +168,20 @@ def page_add_text(*, id: Any = _ABSENT, sheet: Any, text: Any, title: Any, colum
 
 def page_set_text(*, tile: Any, text: Any) -> dict[str, Any]:
     return {'kind': 'setText', 'tile': tile, 'text': text}
+
+
+def page_add_timeseries(*, id: Any = _ABSENT, sheet: Any, near: Any, spec: Any, title: Any, columns: Any,
+                        kept: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'addTimeseries', **({} if id is _ABSENT else {'id': id}), 'sheet': sheet, 'near': near,
+            'spec': spec, 'title': title, 'columns': columns, **({} if kept is _ABSENT else {'kept': kept})}
+
+
+def page_set_timeseries(*, tile: Any, spec: Any, kept: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'setTimeseries', 'tile': tile, 'spec': spec, **({} if kept is _ABSENT else {'kept': kept})}
+
+
+def page_set_text_files(*, tile: Any, files: Any) -> dict[str, Any]:
+    return {'kind': 'setTextFiles', 'tile': tile, 'files': files}
 
 
 def page_follow_grid(*, chart: Any, grid: Any) -> dict[str, Any]:
@@ -208,6 +236,26 @@ def page_live(*, grid: Any) -> dict[str, Any]:
 
 def page_rebuilt(*, cube: Any, source: Any) -> dict[str, Any]:
     return {'kind': 'rebuilt', 'cube': cube, 'source': source}
+
+
+def page_set_input(*, grid: Any, side: Any, input: Any) -> dict[str, Any]:
+    return {'kind': 'setInput', 'grid': grid, 'side': side, 'input': input}
+
+
+def page_set_join(*, grid: Any, how: Any, more: Any = _ABSENT) -> dict[str, Any]:
+    return {'kind': 'setJoin', 'grid': grid, 'how': how, **({} if more is _ABSENT else {'more': more})}
+
+
+def page_set_pure(*, grid: Any, pure: Any) -> dict[str, Any]:
+    return {'kind': 'setPure', 'grid': grid, 'pure': pure}
+
+
+def page_set_output(*, grid: Any, output: Any) -> dict[str, Any]:
+    return {'kind': 'setOutput', 'grid': grid, 'output': output}
+
+
+def page_set_stops(*, grid: Any, stops: Any) -> dict[str, Any]:
+    return {'kind': 'setStops', 'grid': grid, 'stops': stops}
 
 
 def page_model_into(*, project: Any, workspace: Any, package: Any) -> dict[str, Any]:

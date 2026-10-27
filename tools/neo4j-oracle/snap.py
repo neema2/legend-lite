@@ -2,7 +2,8 @@
 
   snap.sh --write [--only GLOB]   run the cases, write core/src/test/resources/cypher-parity/neo4j-answers.jsonl
   snap.sh --check [--only GLOB]   run the cases, report DRIFT, UNSNAPPED, STALE and GONE (and FUNCTIONS when the
-                                  server's function names are not cypher-functions.txt's); exit 1 on any
+                                  server's function names are not cypher-functions.txt's, SIDE EFFECTS when Neo4j's
+                                  diff of a write is not the TCK's table); exit 1 on any
   snap.sh --functions             write core/src/test/resources/cypher-parity/cypher-functions.txt: the server's
                                   function names (SHOW FUNCTIONS), lower-cased, which CypherFunctions must list
 
@@ -13,7 +14,8 @@ local Neo4j Community over Bolt (the Apache 2.0 Python driver; the standard libr
 python3 -I): the graph emptied, the case's setup run (under CYPHER 5, SETUP_CYPHER: the data the case is judged
 over, not what is judged), the graph dumped (that dump is what the lanes seed their tables from: CI never interprets
 a CREATE), then the query, under the Cypher version the case names or lite's default (25), its rows written in the
-TCK's value grammar, or its error by Neo4j's code and message.
+TCK's value grammar, or its error by Neo4j's code and message. A write's graph after it is dumped too, and a control
+query's answer recorded (run_case; docs/WRITES_DESIGN_2026_10_18.md §6).
 
 Neo4j Community is GPLv3: it runs here only, never on a classpath, never in CI; CI judges from the committed file.
 """
@@ -318,7 +320,16 @@ def case(prefix, name, steps, graphs):
     expect = None
     skip = None
     version = None
+    control = None
+    control_expect = None
+    side_effects = None
     for text, doc, table in steps:
+        if control is not None and (text.startswith("the result should be")
+                                    or re.match(r"an? \w+ should be raised", text)):
+            # the control query's expectation (a control query follows the query's own checks): Neo4j's answer to
+            # the control query judges, as its answer to the query does; the text is kept for a reader
+            control_expect = text
+            continue
         if text in ("an empty graph", "any graph"):
             pass
         elif re.match(r"the (\S+) graph$", text):
@@ -335,7 +346,9 @@ def case(prefix, name, steps, graphs):
                 skip = skip or "two queries"
             query = doc
         elif text == "executing control query:":
-            skip = skip or "a control query"
+            if control is not None:
+                skip = skip or "two control queries"
+            control = doc
         elif text.startswith("the result should be"):
             expect = {"kind": "rows", "ordered": "in order" in text, "ignoreListOrder": "ignoring element order" in text,
                       "columns": table[0] if table else [], "rows": table[1:] if table else []}
@@ -350,15 +363,20 @@ def case(prefix, name, steps, graphs):
             procedures.append(procedure_text(text, table))
         elif text.startswith("having defined"):
             skip = skip or "a defined function"
-        elif text in ("no side effects",) or text.startswith("the side effects should be"):
-            pass
+        elif text == "no side effects":
+            side_effects = {}
+        elif text.startswith("the side effects should be"):
+            # the TCK's counts ({+,-}{nodes,relationships,labels,properties}), checked against Neo4j's own state
+            # diff by --check (side_effects below); the lanes judge by Neo4j's graphs, not by this table
+            side_effects = {row[0]: int(row[1]) for row in table or []}
         else:
             skip = skip or ("an unread step: " + text)
     if query is None:
         skip = skip or "no query"
     return {"key": prefix + "/" + name, "query": query or "", "setup": setup, "params": params,
             "paramsText": "\n".join(params_text), "version": version, "expect": expect, "skip": skip,
-            "proceduresText": "\n".join(procedures)}
+            "proceduresText": "\n".join(procedures), "control": control, "controlExpect": control_expect,
+            "sideEffects": side_effects}
 
 
 def lite_procedures_text(block):
@@ -406,7 +424,8 @@ def procedure_text(text, table):
 def lite_cases(lite_dir):
     """cypher-parity/lite/*.yaml: a YAML subset -- `tests:` then items `- id:`, `cypher:` (a quoted line or a `|`
     block), `graph:` (a `|` block of CREATE statements, or `graph: <name>` naming a graphs/ file), `version:`,
-    `params:` (a flow map in the value grammar), `skip:`, `decision:`, `expect:`."""
+    `params:` (a flow map in the value grammar), `skip:`, `decision:`, `expect:`, `control:` (a query run after a write,
+    in its transaction, reading the graph it left)."""
     cases = []
     if not os.path.isdir(lite_dir):
         return cases
@@ -467,7 +486,8 @@ def lite_cases(lite_dir):
                           "params": params, "paramsText": it.get("params") or "", "version": it.get("version"),
                           "expect": None, "skip": it.get("skip"), "decision": it.get("decision"),
                           "expectText": it.get("expect"),
-                          "proceduresText": lite_procedures_text(it.get("procedures"))})
+                          "proceduresText": lite_procedures_text(it.get("procedures")), "control": it.get("control"),
+                          "controlExpect": None, "sideEffects": None})
     return cases
 
 
@@ -488,6 +508,8 @@ def sha(c):
              c.get("expectText") or ""]
     if c.get("proceduresText"):
         parts.append(c["proceduresText"])   # (a case declaring procedures, the study's §12.60)
+    if c.get("control") is not None:
+        parts.append("control:\n" + c["control"])   # (a write case's control query, the writes design's §6)
     return hashlib.sha256("\n\x00\n".join(parts).encode("utf-8")).hexdigest()
 
 
@@ -527,7 +549,10 @@ def server_version(driver):
 
 
 def run_case(driver, c):
-    """The case on an emptied graph: its setup, the graph's dump, then its query's rows or error."""
+    """The case on an emptied graph: its setup, the graph's dump, then its query's rows or error, in a transaction
+    committed (Neo4j checks some writes at commit: a node deleted with its relationships left is an error then); for
+    a query Neo4j's summary marks as writing, the graph it left (`after`, each element the first dump held by its
+    ordinal there) and the control query's rows (`control`). The next case empties the graph: nothing leaks."""
     out = {"id": c["key"], "cypher": cypher_version(c), "sha": sha(c)}
     with driver.session() as s:
         s.run("MATCH (n) DETACH DELETE n").consume()
@@ -539,21 +564,39 @@ def run_case(driver, c):
             except Exception as e:  # a setup Neo4j refuses: the case is unrunnable, recorded as such
                 out["setupError"] = error_of(e)
                 return out
-        out["graph"] = dump(s)
+        out["graph"], keys = dump(s)
         if c.get("proceduresText"):
             return out   # the query calls a procedure Neo4j has not: the graph alone is the oracle's
-        query = c["query"]
-        if not re.match(r"\s*CYPHER\b", query):
-            query = "CYPHER " + cypher_version(c) + " " + query
+        tx = s.begin_transaction(timeout=TIMEOUT_S)
         try:
-            result = s.run(query, c["params"], timeout=TIMEOUT_S)
+            result = tx.run(versioned(c["query"], cypher_version(c)), c["params"])
             columns = list(result.keys())
             rows = [[fmt(v) for v in rec.values()] for rec in result]
-            out["columns"] = columns
-            out["rows"] = rows
+            writes = result.consume().query_type != "r"
+            tx.commit()
         except Exception as e:
             out["error"] = error_of(e)
+            return out
+        finally:
+            if not tx.closed():
+                tx.rollback()
+        out["columns"] = columns
+        out["rows"] = rows
+        if writes:
+            out["after"], _ = dump(s, keys)
+        if c.get("control") is not None:
+            try:
+                result = s.run(versioned(c["control"], cypher_version(c)), timeout=TIMEOUT_S)
+                out["control"] = {"columns": list(result.keys()),
+                                  "rows": [[fmt(v) for v in rec.values()] for rec in result]}
+            except Exception as e:
+                out["control"] = {"error": error_of(e)}
     return out
+
+
+def versioned(query, version):
+    """The query under its Cypher version: its own prefix, else `version` made one."""
+    return query if re.match(r"\s*CYPHER\b", query) else "CYPHER " + version + " " + query
 
 
 def error_of(e):
@@ -574,21 +617,61 @@ def error_of(e):
     return {"code": code, "message": message}
 
 
-def dump(s):
+def dump(s, prior=None):
     """The graph as the lanes seed it: each node's ordinal, labels and properties, each relationship's ordinal, ends,
-    type and properties, every value in the value grammar."""
+    type and properties, every value in the value grammar; with the element ids' ordinals. Given `prior` (an earlier
+    dump's ordinals: element ids outlive the transaction), an element the earlier dump held keeps its ordinal and a
+    new one takes the next free, so that the two dumps of a write name each element alike (the side effects are their
+    diff)."""
     nodes = []
-    ids = {}
-    for rec in s.run("MATCH (n) RETURN elementId(n) AS id, labels(n) AS labels, properties(n) AS props ORDER BY id"):
-        ids[rec["id"]] = len(nodes)
-        nodes.append({"id": len(nodes), "labels": sorted(rec["labels"]),
-                      "props": {k: stored(v) for k, v in sorted(rec["props"].items())}})
     rels = []
-    for rec in s.run("MATCH (a)-[r]->(b) RETURN elementId(r) AS id, elementId(a) AS a, elementId(b) AS b, type(r) AS t,"
-                     " properties(r) AS props ORDER BY id"):
-        rels.append({"id": len(rels), "start": ids[rec["a"]], "end": ids[rec["b"]], "type": rec["t"],
-                     "props": {k: stored(v) for k, v in sorted(rec["props"].items())}})
-    return {"nodes": nodes, "rels": rels}
+    keys = {"nodes": {}, "rels": {}}
+    for kind, out, query in (
+            ("nodes", nodes, "MATCH (n) RETURN elementId(n) AS id, labels(n) AS labels, properties(n) AS props"
+                             " ORDER BY id"),
+            ("rels", rels, "MATCH (a)-[r]->(b) RETURN elementId(r) AS id, elementId(a) AS a, elementId(b) AS b,"
+                           " type(r) AS t, properties(r) AS props ORDER BY id")):
+        known = (prior or {}).get(kind, {})
+        fresh = max(known.values(), default=-1) + 1
+        for rec in s.run(query):
+            if rec["id"] in known:
+                ordinal = known[rec["id"]]
+            else:
+                ordinal = fresh
+                fresh += 1
+            keys[kind][rec["id"]] = ordinal
+            props = {k: stored(v) for k, v in sorted(rec["props"].items())}
+            if kind == "nodes":
+                out.append({"id": ordinal, "labels": sorted(rec["labels"]), "props": props})
+            else:
+                out.append({"id": ordinal, "start": keys["nodes"][rec["a"]], "end": keys["nodes"][rec["b"]],
+                            "type": rec["t"], "props": props})
+        out.sort(key=lambda e: e["id"])
+    return {"nodes": nodes, "rels": rels}, keys
+
+
+def side_effects(before, after):
+    """The TCK's side effects as a state diff of two dumps (elements named by their ordinals, `dump`'s `prior`):
+    the nodes and relationships created and deleted, the label names the graph gained and lost (distinct names, not
+    per node), and the (element, key, value) triples it gained and lost (an overwrite is one of each). Only the
+    non-zero counts, keyed as the TCK keys them (+nodes, -properties, ...). CypherParity.sideEffects computes the
+    same."""
+    def state(g):
+        nodes = {n["id"] for n in g["nodes"]}
+        rels = {r["id"] for r in g["rels"]}
+        labels = {l for n in g["nodes"] for l in n["labels"]}
+        props = {("n", n["id"], k, v) for n in g["nodes"] for k, v in n["props"].items()}
+        props |= {("r", r["id"], k, v) for r in g["rels"] for k, v in r["props"].items()}
+        return {"nodes": nodes, "relationships": rels, "labels": labels, "properties": props}
+    b = state(before)
+    a = state(after if after is not None else before)
+    out = {}
+    for k in ("nodes", "relationships", "labels", "properties"):
+        if a[k] - b[k]:
+            out["+" + k] = len(a[k] - b[k])
+        if b[k] - a[k]:
+            out["-" + k] = len(b[k] - a[k])
+    return out
 
 
 # ------------------------------------------------------------------ the answers file
@@ -634,7 +717,19 @@ def same_answer(a, b, ignore_list_order=False):
         rows_b = [[list_bag(cell) for cell in row] for row in rows_b]
     if sorted(map(json.dumps, rows_a)) != sorted(map(json.dumps, rows_b)):
         return False
-    return graph_shape(a.get("graph")) == graph_shape(b.get("graph"))
+    if graph_shape(a.get("graph")) != graph_shape(b.get("graph")):
+        return False
+    # a write's graph after it, by its shape, and the diff it makes (which the shape alone does not show: an
+    # overwrite with an equal value against a delete and a create), and its control query's answer
+    if graph_shape(a.get("after")) != graph_shape(b.get("after")):
+        return False
+    if a.get("after") is not None and (side_effects(a["graph"], a["after"]) != side_effects(b["graph"], b["after"])):
+        return False
+    ca = a.get("control") or {}
+    cb = b.get("control") or {}
+    if ca.get("columns") != cb.get("columns") or ca.get("error") != cb.get("error"):
+        return False
+    return sorted(map(json.dumps, ca.get("rows") or [])) == sorted(map(json.dumps, cb.get("rows") or []))
 
 
 def list_bag(cell):
@@ -724,16 +819,36 @@ def main():
     driver.close()
     meta = {"tool": "tools/neo4j-oracle/snap.py", "format": FORMAT, "server": version, "edition": edition,
             "defaultCypher": DEFAULT_CYPHER}
+    # Neo4j's diff against the TCK's table, where the scenario has one: the diff is the oracle's reading of a side
+    # effect, so a disagreement is the tool's to explain before the lanes judge by it
+    effects = []
+    for c in runnable:
+        a = live[c["key"]]
+        if c.get("sideEffects") is not None and "error" not in a and "setupError" not in a:
+            neo = side_effects(a["graph"], a.get("after"))
+            tck = {k: v for k, v in c["sideEffects"].items() if v != 0}
+            if neo != tck:
+                effects.append("SIDE EFFECTS: " + c["key"] + ": Neo4j's diff " + json.dumps(neo, sort_keys=True)
+                               + ", the TCK's " + json.dumps(tck, sort_keys=True))
     if args.write:
         merged = dict(old) if args.only else {}
-        merged.update(live)
+        for c in runnable:
+            # an answer the file holds that agrees with the live one keeps the file's spelling: Neo4j's row order
+            # where nothing orders and its elements' ordinals are the run's, so a re-snap moves only what moved
+            a = old.get(c["key"])
+            keep = a is not None and a["sha"] == sha(c) and same_answer(a, live[c["key"]], bool(
+                (c.get("expect") or {}).get("ignoreListOrder")))
+            merged[c["key"]] = a if keep else live[c["key"]]
         write_answers(answers_file, meta, merged)
         errors = sum(1 for a in live.values() if "error" in a)
         setup_errors = sum(1 for a in live.values() if "setupError" in a)
+        writes = sum(1 for a in live.values() if "after" in a)
         print("wrote", answers_file, "-", len(live), "answers:", len(live) - errors - setup_errors, "with rows,",
-              errors, "errors,", setup_errors, "setup errors")
-        return 0
-    problems = []
+              errors, "errors,", setup_errors, "setup errors;", writes, "writes")
+        for p in effects:
+            print(p)
+        return 1 if effects else 0
+    problems = list(effects)
     if old_meta and old_meta.get("server") != version:
         problems.append("VERSION: the answers were snapped on " + str(old_meta.get("server")) + ", this server is "
                         + version)

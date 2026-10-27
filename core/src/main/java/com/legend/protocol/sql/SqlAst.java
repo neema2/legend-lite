@@ -35,9 +35,59 @@ public final class SqlAst {
 
     // ------------------------------------------------------------------ statements
 
-    /** A query: a SELECT, a set operation of two queries, or a query with a WITH clause. */
-    public sealed interface Statement permits Select, SetOperation, With {
+    /** A query: a SELECT, a set operation of two queries, or a query with a WITH clause; or a statement that writes
+     *  a table (the writes design's leg 4, docs/WRITES_DESIGN_2026_10_18.md §5): an INSERT, an UPDATE, a DELETE,
+     *  which only an island's own statement may be ({@link Write}). */
+    public sealed interface Statement permits Select, SetOperation, With, Write {
         Pos pos();
+    }
+
+    /** A statement that writes a table: never a query's part, only an island's own statement. */
+    public sealed interface Write extends Statement permits Insert, Update, Delete {
+    }
+
+    /** {@code INSERT INTO target [(columns)] source [ON CONFLICT ...] [RETURNING ...]}: the source a query, the
+     *  columns empty for every column of the table in its order; {@code values} when the source is a VALUES list,
+     *  whose literals Postgres types by the columns they are written into (not text, as a query's). */
+    public record Insert(FromItem target, List<Ident> columns, Statement source, boolean values,
+            @com.legend.base.Nullable OnConflict onConflict, List<SelectItem> returning, Pos pos)
+            implements Write {
+        public Insert {
+            columns = List.copyOf(columns);
+            returning = List.copyOf(returning);
+        }
+    }
+
+    /** {@code ON CONFLICT [(keys)] DO NOTHING} ({@code update} null) or {@code DO UPDATE SET ... [WHERE]}. */
+    public record OnConflict(List<Ident> keys, @com.legend.base.Nullable List<Assignment> update,
+            @com.legend.base.Nullable Expr where, Pos pos) {
+        public OnConflict {
+            keys = List.copyOf(keys);
+            update = update == null ? null : List.copyOf(update);
+        }
+    }
+
+    /** {@code column = value} of a SET. */
+    public record Assignment(Ident column, Expr value, Pos pos) {
+    }
+
+    /** {@code UPDATE target SET assignments [FROM ...] [WHERE] [RETURNING ...]}. */
+    public record Update(FromItem target, List<Assignment> sets, List<FromItem> from,
+            @com.legend.base.Nullable Expr where, List<SelectItem> returning, Pos pos) implements Write {
+        public Update {
+            sets = List.copyOf(sets);
+            from = List.copyOf(from);
+            returning = List.copyOf(returning);
+        }
+    }
+
+    /** {@code DELETE FROM target [USING ...] [WHERE] [RETURNING ...]}. */
+    public record Delete(FromItem target, List<FromItem> using, @com.legend.base.Nullable Expr where,
+            List<SelectItem> returning, Pos pos) implements Write {
+        public Delete {
+            using = List.copyOf(using);
+            returning = List.copyOf(returning);
+        }
     }
 
     /** {@code SELECT [DISTINCT] items [FROM from, ...] [WHERE] [GROUP BY] [HAVING] [ORDER BY] [LIMIT] [OFFSET]}: the

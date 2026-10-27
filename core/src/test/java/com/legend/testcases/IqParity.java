@@ -1567,6 +1567,7 @@ public final class IqParity {
             case SqlAst.Select s -> s;
             case SqlAst.SetOperation o -> first(o.left());
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         };
     }
 

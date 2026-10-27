@@ -60,7 +60,9 @@ export function openedState(snapshot: CubeSnapshot, configuration: CubeConfigura
  */
 export function queryKey(state: CubeState): string {
   const { epoch: _epoch, ...query } = fold(state).snapshot;
-  // the protocol's own writer: a calculated column's decimal literal is an ExactNumber, which JSON.stringify refuses
+  // written exactly (json.ts): a calculated column's decimal literal is an ExactNumber, and a source over another
+  // grid's rows, or a join, carries its inputs' literals as the protocol's exact numbers, all of which JSON.stringify
+  // refuses (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1)
   return toJson([query, state.tree.key]);
 }
 

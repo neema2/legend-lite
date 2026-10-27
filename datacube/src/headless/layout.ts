@@ -2,13 +2,15 @@
 // DataCube's own layout rules (layout/bands.ts) beyond the page commands that edit a layout (page-commands.ts, headless
 // pageApply: a tile placed, moved, stacked or taken off, a sheet arranged) -- a sheet's tiles in reading order, and
 // bands of tiles as the layout picker's shape -- so Python walks no layout by rules of its own. Each takes a sheet's
-// layout as a page writes it (`{kind: 'bands', fit, bands}`, JSON).
+// layout as a page writes it (`{kind: 'bands', fit, bands}`, or a flow's `{kind: 'flow', boxes}`: JSON).
 
 import { leafOf, problems, stackOf, tiles, type Bands } from '../layout/bands.ts';
+import { flowProblems, flowTiles, type Flow } from '../layout/flow.ts';
 
 /** A sheet's layout, held to bands.ts's rules as its page holds it: one that breaks them is refused, never mended. */
 function read(layout: string): Bands {
   const { kind, fit, bands } = JSON.parse(layout) as { kind?: unknown; fit: boolean; bands: Bands['bands'] };
+  if (kind === 'flow') throw new Error("a flow sheet's boxes are placed on its canvas (box.place), not laid out in bands");
   if (kind !== 'bands') throw new Error(`not a layout of bands: ${layout.slice(0, 200)}`);
   const laid: Bands = { fit, bands };
   const wrong = problems(laid);
@@ -16,9 +18,20 @@ function read(layout: string): Bands {
   return laid;
 }
 
-/** The tiles of a sheet's layout, in reading order, a stack's in its tabs' order (bands.ts tiles): JSON, a list. */
+/** A flow sheet's layout (layout/flow.ts), held to its rules: refused, never mended. */
+function readFlow(layout: string): Flow {
+  const { boxes } = JSON.parse(layout) as { boxes: Flow['boxes'] };
+  const flow: Flow = { boxes };
+  const wrong = flowProblems(flow);
+  if (wrong.length > 0) throw new Error(`the flow cannot be laid out: ${wrong.join('; ')}`);
+  return flow;
+}
+
+/** The tiles of a sheet's layout, in reading order, a stack's in its tabs' order (bands.ts tiles) -- a flow's in the
+ *  order its boxes were placed (flow.ts flowTiles): JSON, a list. */
 export function layoutTiles(layout: string): string {
-  return JSON.stringify(tiles(read(layout)));
+  const kind = (JSON.parse(layout) as { kind?: unknown }).kind;
+  return JSON.stringify(kind === 'flow' ? flowTiles(readFlow(layout)) : tiles(read(layout)));
 }
 
 /**
@@ -29,6 +42,10 @@ export function layoutTiles(layout: string): string {
  * in no bands, is as it is: `{preset: null}`.
  */
 export function layoutBands(layout: string, bands: string): string {
+  // a flow's boxes are placed one by one on its canvas (placeBox): no bands lay them out
+  if ((JSON.parse(layout) as { kind?: unknown }).kind === 'flow') {
+    return JSON.stringify({ problems: ["a flow sheet's boxes are placed on its canvas (box.place), not laid out in bands"] });
+  }
   const laid = read(layout);
   const asked = JSON.parse(bands) as string[][];
   const used = new Set<string>();

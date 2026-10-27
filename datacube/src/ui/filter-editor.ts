@@ -57,6 +57,7 @@ import {
   type OperandKind,
   type TypeOf,
 } from '../filter-operators.ts';
+import { closeMark } from './tile-icons.ts';
 
 // the operators' table and the conversion of a draft to a filter, moved to a module of their own (no DOM: the headless
 // bundle builds Python's filters by them too) and said here as before
@@ -647,9 +648,7 @@ export class FilterEditor {
     index: number,
   ): HTMLElement {
     const parts: HTMLElement[] = [];
-    if (level !== 0) {
-      parts.push(this.#controller(group), ...this.#notLabel(group));
-    }
+    if (level !== 0) parts.push(this.#controller(group));
     parts.push(
       this.#select(
         ['and', 'or'],
@@ -659,6 +658,8 @@ export class FilterEditor {
         ['All of', 'Any of'],
       ),
     );
+    // NOT at the row's end, after what it negates: every row's controls start on the same x (the user, 2026-10-25)
+    if (level !== 0) parts.push(...this.#notLabel(group));
     return this.#nodeRow(group, level, parts, parent, index);
   }
 
@@ -681,11 +682,13 @@ export class FilterEditor {
 
     const parts: HTMLElement[] = [
       this.#controller(c),
-      ...this.#notLabel(c),
       this.#select(names, c.column, 'dc-filter-column', (v) => this.setColumn(c.id, v)),
       this.#select(offered, c.operator, 'dc-filter-op',
         (v) => this.setOperator(c.id, v as FilterOperator), offered.map(label)),
-      ...this.#valueEditor(c, type),
+      this.#valueSlot(this.#valueEditor(c, type)),
+      // NOT at the row's end, after what it negates: every row's column, operator and value line up, negated or not
+      // (the user, 2026-10-25)
+      ...this.#notLabel(c),
     ];
     return this.#nodeRow(c, level, parts, parent, index);
   }
@@ -878,8 +881,8 @@ export class FilterEditor {
         ? this.#numberInput(item, edit, 'dc-filter-listinput')
         : this.#textInput(item, edit, 'dc-filter-listinput');
       if (dataTypeOf(type) === 'date') input.type = 'date';
-      const del = this.#button('×', () => set(items.filter((_x, j) => j !== i)),
-        'dc-filter-listdel', 'Remove');
+      const del = closeMark(this.#button('×', () => set(items.filter((_x, j) => j !== i)),
+        'dc-filter-listdel', 'Remove'), 'Remove');
       row.append(input, del);
       pop.append(row);
     });
@@ -1014,7 +1017,16 @@ export class FilterEditor {
     return bar;
   }
 
-  /** The standing NOT badge, shown beside a negated node. */
+  /** A row's value editor in a slot of one width, whatever the column's type (a number, a date, a list, a checkbox):
+   *  what follows it -- the NOT badge -- on the same x on every row. */
+  #valueSlot(editor: readonly HTMLElement[]): HTMLElement {
+    const slot = this.#root.ownerDocument.createElement('span');
+    slot.className = 'dc-filter-slot';
+    slot.append(...editor);
+    return slot;
+  }
+
+  /** The standing NOT badge, shown at the end of a negated node's row. */
   #notLabel(node: DraftNode): HTMLElement[] {
     if (!node.not) return [];
     const el = this.#root.ownerDocument.createElement('span');

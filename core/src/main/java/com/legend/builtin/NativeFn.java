@@ -645,7 +645,21 @@ public final class NativeFn {
         // key (StoreResolver.elementIdRead; the Cypher island's identity, W2 of
         // docs/CYPHER_TCK_TO_ZERO_PLAN_2026_10_17.md; claimed here 2026-10-17, the spec guards' repair)
         ELEMENT_ID(Pure.Lite.ELEMENT_ID,
-                Pure.ELEMENT_ID__ANY_0_1, Pure.ELEMENT_ID__ANY_MANY);
+                Pure.ELEMENT_ID__ANY_0_1, Pure.ELEMENT_ID__ANY_MANY),
+        // the class writes over direct mappings (docs/WRITES_DESIGN_2026_10_18.md §4, L2; 2026-10-20, the Cypher
+        // island's writes on a domain model), each rewritten by the store resolver to L1's statement over its class's
+        // mapped table (resolver/ClassWrites)
+        WRITE_INSTANCES(Pure.Lite.WRITE_INSTANCES, Pure.WRITE_INSTANCES__RELATION_1__CLASS_1__COL_SPEC_1),
+        MERGE_INSTANCES(Pure.Lite.MERGE_INSTANCES, Pure.MERGE_INSTANCES__RELATION_1__CLASS_1__COL_SPEC_1),
+        DELETE_INSTANCES(Pure.Lite.DELETE_INSTANCES, Pure.DELETE_INSTANCES__RELATION_1__CLASS_1__COL_SPEC_1),
+        LINK(Pure.Lite.LINK, Pure.LINK__RELATION_1__CLASS_1__COL_SPEC_1__COL_SPEC_1),
+        UNLINK(Pure.Lite.UNLINK, Pure.UNLINK__RELATION_1__CLASS_1__COL_SPEC_1__COL_SPEC_1);
+
+        /** Whether this form is one of the class writes (L2), which the store resolver writes as L1's. */
+        public boolean classWrite() {
+            return this == WRITE_INSTANCES || this == MERGE_INSTANCES || this == DELETE_INSTANCES || this == LINK
+                    || this == UNLINK;
+        }
 
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;

@@ -108,13 +108,6 @@ public final class EmbeddedPostgres {
             EmbeddedPostgres pg = new EmbeddedPostgres(root.resolve("bin"), data);
             pg.run(List.of(pg.tool("initdb"), "-D", cluster.toString(), "-U", USER, "-A", "trust", "-E", "UTF8",
                     "--no-locale", "--no-sync"));
-            // pgcrypto, the install's own contrib extension, in the template every later database copies and in the
-            // default one: SHA-1 is its digest() (no Postgres has a core sha1), as on the engine's test databases
-            // (2026-10-20, the parity phase). Single-user mode, before the server starts: the install has no client
-            for (String database : List.of("template1", "postgres")) {
-                pg.run(List.of(pg.tool("postgres"), "--single", "-D", cluster.toString(), "-j", database),
-                        "CREATE EXTENSION pgcrypto;\n");
-            }
             // the settings go in the cluster's own configuration, never through pg_ctl's -o: that string
             // reaches postgres through a shell, and cmd.exe keeps quotes (unix_socket_directories=''
             // became the directory '' on Windows, CI 2026-10-02)
@@ -134,6 +127,7 @@ public final class EmbeddedPostgres {
                         java.nio.file.StandardOpenOption.APPEND);
                 try {
                     pg.startServer(cluster);
+                    pg.createPgcrypto();
                     return pg;
                 } catch (IllegalStateException e) {
                     String log = Files.exists(data.resolve("postgres.log"))
@@ -215,19 +209,28 @@ public final class EmbeddedPostgres {
         return bin.resolve(WINDOWS ? name + ".exe" : name).toString();
     }
 
-    /** Runs one of the server's tools to completion; a failure says what it printed (and the server's log). */
-    private void run(List<String> command) throws IOException {
-        run(command, "");
+    /** pgcrypto, the install's own contrib extension, in the template every later database copies and in the default
+     *  one: SHA-1 is its digest() (no Postgres has a core sha1), as on the engine's test databases (2026-10-20, the
+     *  parity phase). Through a client connection once the server is up (2026-10-26): single-user mode
+     *  ({@code postgres --single}) refuses an administrator on Windows, where CI runs as one, while pg_ctl starts the
+     *  server under a restricted token. The driver is the caller's: every test that starts this server connects. */
+    private void createPgcrypto() {
+        for (String database : List.of("template1", "postgres")) {
+            try (java.sql.Connection c = java.sql.DriverManager.getConnection(jdbcUrl(database));
+                 java.sql.Statement st = c.createStatement()) {
+                st.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto");
+            } catch (java.sql.SQLException e) {
+                stop();
+                throw new IllegalStateException("CREATE EXTENSION pgcrypto on " + database + " failed: " + e.getMessage(), e);
+            }
+        }
     }
 
-    /** {@link #run(List)} with {@code input} as the tool's standard input (single-user mode's commands). */
-    private void run(List<String> command, String input) throws IOException {
+    /** Runs one of the server's tools to completion; a failure says what it printed (and the server's log). */
+    private void run(List<String> command) throws IOException {
         Path out = data.resolve("tool.out");
         Process p = new ProcessBuilder(new ArrayList<>(command)).redirectErrorStream(true)
                 .redirectOutput(out.toFile()).start();
-        try (var stdin = p.getOutputStream()) {
-            stdin.write(input.getBytes(StandardCharsets.UTF_8));
-        }
         try {
             if (!p.waitFor(180, TimeUnit.SECONDS)) {
                 p.destroyForcibly();

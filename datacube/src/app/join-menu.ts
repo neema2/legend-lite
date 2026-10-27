@@ -54,7 +54,9 @@ export function joinMenu(o: {
   // the window: at the first grid with the column clicked, on its key, when there is one
   const first = quick[0];
   asks.set(JOIN_WINDOW, first ? { their: first.their, row: first.row } : {});
-  items.push({ id: JOIN_WINDOW, label: 'Join…', ...(items.length > 0 ? { separated: true } : {}), ...(o.others.length > 0 ? {} : { disabled: true }) });
+  // off, saying why: the grid's status bar greys its Join with it (app.ts #joinTool)
+  items.push({ id: JOIN_WINDOW, label: 'Join…', ...(items.length > 0 ? { separated: true } : {}),
+    ...(o.others.length > 0 ? {} : { disabled: true, hint: 'There is no other grid on this page to join' }) });
   if (o.source) items.push({ id: JOIN_SOURCE, label: 'Join a Data Source…' });
   return { items, asks };
 }

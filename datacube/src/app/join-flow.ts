@@ -6,17 +6,21 @@
 // loads none of it (test/bundle-budget.test.ts).
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
-import { gridCapped, leavesOf, type JoinInput, type JoinSource } from '../cube-document.ts';
+import { gridCapped, isLive, leavesOf, type JoinInput, type JoinSource } from '../cube-document.ts';
+import { gridInput } from '../live-inputs.ts';
+import { pageCommand } from '../page-gestures.ts';
 import { HOST_TABLES, JoinInputs, TAB_TABLES, leafRefusal, openInputs, summaryCounts, type OpenedInputs } from '../join-open.ts';
 import {
-  joinRepeats, joinSummary, joinTitle, quickHow, summaryWords, type JoinHow, type JoinRow, type JoinSide, type JoinSummaryCounts,
+  joinRepeats, joinSummary, joinTitle, quickHow, summaryWords, type JoinHow, type JoinOp, type JoinRow, type JoinSide, type JoinSummaryCounts,
   type QuickForm,
 } from '../join.ts';
-import { joinInputOf } from '../page-commands.ts';
+import { joinInputOf, type PageCommand } from '../page-commands.ts';
 import { pageToJson, type PageDocument } from '../page-document.ts';
 import type { PageApp } from '../page/page-app.ts';
-import { CubeRefusal } from '../snapshot.ts';
-import { joinDialog, type JoinCandidate } from '../ui/join-dialog.ts';
+import { CubeRefusal, sameValue } from '../snapshot.ts';
+import { joinDialog, type Choice, type JoinCandidate } from '../ui/join-dialog.ts';
+import { FLOW_TOOLS, pageBoxName, readersOf } from '../flow-boxes.ts';
+import type { LineEnd } from '../layout/flow-board.ts';
 import { catalogColumns } from '../upload.ts';
 import type { GridRows, HostJoin, LocalEngine, Services } from './services.ts';
 import type { PageSources } from './sources.ts';
@@ -49,7 +53,8 @@ interface JoinSession {
  * its grid; else the window, starting where the ask says. What a made grid's opening left out is noted on it too --
  * where it is seen, not in a window that may be closed.
  */
-async function asked(page: PageApp, ask: JoinAsk | undefined, s: JoinSession): Promise<void> {
+async function asked(page: PageApp, ask: JoinAsk | undefined, s: JoinSession, words: { readonly lead?: string; readonly action?: string;
+  readonly how?: JoinHow; readonly form?: Choice; readonly op?: JoinOp } = {}): Promise<void> {
   const noted = (made: { readonly id: string; readonly notes: readonly string[] } | undefined, words: readonly string[]): void => {
     const text = [...words, ...(made?.notes ?? [])].join(' ');
     if (made !== undefined && text !== '') page.grid(made.id)?.note(text);
@@ -67,11 +72,14 @@ async function asked(page: PageApp, ask: JoinAsk | undefined, s: JoinSession): P
     ...(ask?.row !== undefined ? { row: ask.row } : {}),
     ...(ask?.quick !== undefined ? { form: ask.quick } : {}),
   };
+  const begun = { ...start, ...(words.how !== undefined ? { how: words.how } : {}), ...(words.form !== undefined ? { form: words.form } : {}),
+    ...(words.op !== undefined ? { op: words.op } : {}) };
   await joinDialog(document, {
     mine: s.mine, others: s.others, inputs: (their) => s.inputs(their), parse: (text) => s.parse(text),
     summary: (their, how) => s.summary(their, how),
     apply: async (their, how) => noted(await s.make(their, how), []),
-    ...(Object.keys(start).length > 0 ? { start } : {}),
+    ...(Object.keys(begun).length > 0 ? { start: begun } : {}),
+    ...(words.lead !== undefined ? { lead: words.lead } : {}), ...(words.action !== undefined ? { action: words.action } : {}),
   });
 }
 
@@ -186,7 +194,7 @@ export interface HostJoinFlowOf {
 
 /** Why a grid of a host's page is no input of a join there (join-open.ts leafRefusal over HOST_TABLES), or undefined. */
 function hostRefusal(o: HostJoinFlowOf, id: string): string | undefined {
-  const source = o.sources.place(id)?.cubeSource;
+  const source = o.sources.reads(id);
   if (source === undefined) return 'this grid is written down by no source: a join reads none';
   for (const leaf of leavesOf(source)) {
     const refused = leafRefusal(leaf, HOST_TABLES);
@@ -237,4 +245,117 @@ export async function hostJoinFlow(o: HostJoinFlowOf): Promise<void> {
       return { id: page.addGrid(opened.make, { near: o.cube }), notes: opened.notes };
     },
   });
+}
+
+/** A flow's Join or Union box, made or set again by the Join window (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
+export interface FlowJoinOf {
+  /** The box joined: the new box's Left -- or, `box` given, the Join box set again. */
+  readonly cube: string;
+  readonly box?: string;
+  /** The tool it is: a Union's window starts at Append, an Append Fields' at Every pair, a Fuzzy Match's at matching
+   *  rows only on similar text. */
+  readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace';
+  /** The flow's boxes, as its canvas names them: the boxes its Right is chosen among. */
+  readonly boxes: readonly string[];
+  /** Dropped on a line: the box that line went into, which reads the new box from then on (one step). */
+  readonly into?: LineEnd;
+  readonly page: PageApp;
+  readonly sources: PageSources;
+  readonly services: Services & { readonly engine: { readonly local: LocalEngine } };
+  readonly stillShown: () => boolean;
+}
+
+/**
+ * A FLOW'S JOIN BOX (M2; FL6, new joins are live): the Join window over box `cube` (its Left) and another box of the flow
+ * (its Right), each read as it is now -- its leaves' tables found or read in, the boxes' grids not open (sources.ts
+ * openedInputs) -- applied, a box after the Left reading both live, made as a saved join of the page opens. A Join box set
+ * again (`box`): the window over its two inputs, starting at its join; applied, its join and its Right told as one step
+ * (setJoin, setInput). A box whose Left is a copy is linked first.
+ */
+export async function flowJoin(o: FlowJoinOf): Promise<void> {
+  const { page, sources, services } = o;
+  const local = services.engine.local;
+  const now = page.document(page.title);
+  if (!now) throw new Error('this page has no box to join');
+  const view = o.box === undefined ? undefined : now.views.find((v) => v.id === o.box);
+  const was = view === undefined ? undefined : now.cubes.find((c) => c.id === view.cube)?.cube.source;
+  if (o.box !== undefined && was?._type !== 'join') throw new Error(`${o.box} is no join`);
+  const joined = was?._type === 'join' ? was : undefined;
+  if (joined !== undefined && !isLive(joined.left)) throw new CubeRefusal('its Left reads a copy: link it to a box first (its settings\' Left)');
+  const left = joined !== undefined && isLive(joined.left) ? joined.left.grid : o.cube;
+  const right = joined !== undefined && isLive(joined.right) ? joined.right.grid : undefined;
+  const cubeOf = (id: string) => {
+    const v = now.views.find((x) => x.id === id);
+    return v === undefined ? undefined : now.cubes.find((c) => c.id === v.cube)?.cube;
+  };
+  // each box called as its canvas calls it: the name a person gave it, else its tool's (flow-boxes.ts pageBoxName)
+  const named = (id: string): string => pageBoxName(now, id);
+  // its Right: any other box of the flow -- set again, none that reads the Join box (it would read its own rows)
+  const readers = o.box === undefined ? new Set<string>() : readersOf(o.box, o.boxes, cubeOf);
+  const others = o.boxes.filter((b) => b !== left && b !== o.box && !readers.has(b)).map((id) => ({ id, name: named(id) }));
+  if (others.length === 0) throw new CubeRefusal('a join needs another box on the flow: add one first (an Input)');
+  const opened = new JoinInputs<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void> }>(async (their) => {
+    const at = page.document(page.title) ?? now;
+    const got = await sources.openedInputs(gridInput(at, left), gridInput(at, their), named(left));
+    if (got === undefined) throw new Error('a file it reads was not given');
+    return got;
+  });
+  try {
+    await asked(page, right !== undefined ? { their: right } : undefined, {
+      mine: named(left),
+      others: others.map((b) => ({ id: b.id, name: b.name })),
+      inputs: async (their) => (await opened.get(their)).inputs,
+      parse: (text) => local.planner.parse(text),
+      summary: (their, how) => opened.use(their, ({ inputs, rows }) => summaryCounts(joinSummary(inputs.left, inputs.right, how),
+        async (query) => rows.engine!.run((await rows.planner!.plan(query)).sql, 0))),
+      make: async (their, how) => {
+        if (joined !== undefined) {
+          // set again: its Right, then its join -- one step, one undo
+          const commands: PageCommand[] = [
+            ...(their !== right ? [pageCommand('setInput', { grid: o.box!, side: 'right', input: { grid: their } })] : []),
+            ...(sameValue(how, joined.how) ? [] : [pageCommand('setJoin', { grid: o.box!, how })]),
+          ];
+          if (commands.length > 0 && !page.editPage(`Set ${FLOW_TOOLS[o.tool].name}`, commands)) {
+            throw new Error('the page refused it');
+          }
+          return undefined;
+        }
+        const source: JoinSource = {
+          _type: 'join', name: joinTitle(how, named(left), named(their)), left: { grid: left }, right: { grid: their }, how, columns: [],
+        };
+        const at = page.document(page.title);
+        if (!at) throw new Error('the page has no grid now');
+        const made = await sources.openedJoin(source, { capped: gridCapped(page.cubes.length + 1), on: { page: at, cube: '' } });
+        if (!made) return undefined;
+        if (!o.stillShown()) {
+          await made.discard?.();
+          return undefined;
+        }
+        const into = o.into;
+        const id = page.addGrid(made.make, {
+          near: left,
+          ...(into !== undefined ? {
+            label: 'Insert Box', after: (id: string) => [pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } })],
+          } : {}),
+        });
+        // a Find Replace: the join made, its column replaced in its own window, docked (TOOL_EDITORS)
+        if (o.tool === 'findReplace') {
+          page.boxAddedAs(id, 'findReplace');
+          page.grid(id)?.openStep?.({ window: 'findReplace' });
+        }
+        return { id, notes: made.notes };
+      },
+    }, {
+      lead: joined !== undefined ? `How ${named(left)} and its Right combine: the box's rows, read again as they are now.`
+        : o.tool === 'findReplace' ? `Find each row of ${named(left)} among another box's rows -- a column of yours, theirs it is found in -- then, beside, the column of theirs it becomes.`
+          : `Combine ${named(left)} with another box of the flow: a box after it that reads both, live.`,
+      action: joined !== undefined ? 'Apply' : `Add ${FLOW_TOOLS[o.tool].name}`,
+      // a Union's window starts at Append, an Append Fields' at Every pair; a box set again, at its own join
+      ...(joined !== undefined ? { how: joined.how } : o.tool === 'union' ? { form: 'append' as const }
+        : o.tool === 'appendFields' ? { form: 'cross' as const } : o.tool === 'fuzzyMatch' ? { form: 'inner' as const, op: '~' as const }
+          : o.tool === 'findReplace' ? { form: 'left' as const } : {}),
+    });
+  } finally {
+    await opened.close();
+  }
 }

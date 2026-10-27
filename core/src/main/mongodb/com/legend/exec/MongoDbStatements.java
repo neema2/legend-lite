@@ -89,6 +89,20 @@ final class MongoDbStatements implements Statements {
         work.run();
     }
 
+    /** A write plan's step: not designed on MongoDB (its writes are the bulk load alone, docs/MONGODB_PLAN_2026_10_16.md);
+     *  refused by name. */
+    @Override
+    public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+        throw new com.legend.error.NotImplementedException("a write plan's step on MongoDB: a program that changes a"
+                + " store is not designed for MongoDB (its writes are the bulk load alone)");
+    }
+
+    @Override
+    public <T> T inTransaction(java.util.function.Supplier<T> work) {
+        throw new com.legend.error.NotImplementedException("a transaction over a plan's steps on MongoDB: a program that"
+                + " changes a store is not designed for MongoDB");
+    }
+
     @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {

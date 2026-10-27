@@ -10,12 +10,12 @@ import { lambda, property, variable } from '../../pure-protocol/src/index.ts';
 import { nameProblem } from './calc.ts';
 import { draftColumn, newDraft } from './column-draft.ts';
 import { applyToSnapshot, columnConfig, withColumn, type ColumnPatch, type CubeConfiguration } from './config.ts';
-import { spreadMeasures } from './query.ts';
+import { defaultAggregate, MAX_PIVOT_VALUES, spreadMeasures } from './query.ts';
 import { takesAggregate } from './offers.ts';
 import {
   AGGREGATE_FNS, COLUMN_KINDS, CubeRefusal, SECOND_COLUMN, SORT_DIRECTIONS, TWO_COLUMN_AGGREGATES, rowColumns,
   totalOrderSorts, type AggregateFn,
-  type ColumnKind, type CubeSnapshot, type DerivedColumn, type Measure, type SortDirection, type SortSpec,
+  type ColumnKind, type CubeShape, type CubeSnapshot, type DerivedColumn, type FilterValue, type Measure, type SortDirection, type SortSpec,
 } from './snapshot.ts';
 import type { TreeState } from './tree.ts';
 
@@ -41,6 +41,13 @@ export function columnKind(draft: GridDraft, name: string): ColumnKind | undefin
   return c.derived ? c.kind : columnConfig(draft.config, name).kind ?? c.kind;
 }
 
+/** Whether a grid leaf holds a measure's figures: not a row dimension, nor a column of kind dimension (written, or by
+ *  its type) -- a pivot's value column and a total, named by no column, are measures. What its alignment reads
+ *  (style.ts autoTextAlign), on the screen and in an export. */
+export function isMeasureLeaf(draft: GridDraft, leaf: { readonly name: string; readonly isDimension: boolean }): boolean {
+  return !leaf.isDimension && columnKind(draft, leaf.name) !== 'dimension';
+}
+
 /**
  * The columns a row group or a pivot may use: the dimensions, as DataCube's `enableRowGroup: kind === DIMENSION`.
  * Grouping by a notional makes one group per distinct amount, which is never what anyone meant.
@@ -64,6 +71,47 @@ export function offeredAggregates(type: string | undefined): AggregateFn[] {
   return type === undefined ? [...AGGREGATE_FNS] : AGGREGATE_FNS.filter((fn) => takesAggregate(fn, type));
 }
 
+/** What a flow's Summarize does with a column (summarize.ts): groups by it, or aggregates it so (an aggregate of one
+ *  column). */
+export type SummaryAction = 'group' | AggregateFn;
+
+/** What a Summarize can do with a column of `type`: group by it, or each aggregate offered for it -- one of two columns
+ *  (a weighted average, a distinct count, ...) with its second chosen beside it. */
+export function summaryActions(type: string | undefined): SummaryAction[] {
+  return ['group', ...offeredAggregates(type)];
+}
+
+/**
+ * A GRID'S COLUMNS AS ITS SUMMARIZE HAS THEM NOW (`configuration`: its settings; summarize.ts sets them): each grouped
+ * by, aggregated -- by its Aggregation, else its default -- or left out (hidden, or a dimension it does not group by),
+ * and what it could do with each. Here, beside the offers it reads, so the Summarize's own rule fetches none of them.
+ */
+export function summaryOf(s: Pick<CubeShape, 'columns' | 'derived' | 'rows' | 'pivotOn'>, configuration: Readonly<Record<string, unknown>>): {
+  readonly name: string; readonly type: string; readonly numeric: boolean; readonly action?: SummaryAction; readonly second?: string;
+  readonly actions: readonly SummaryAction[];
+}[] {
+  const settings = configuration['columns'];
+  const of = (name: string): Readonly<Record<string, unknown>> => {
+    const c = settings !== null && typeof settings === 'object' ? (settings as Record<string, unknown>)[name] : undefined;
+    return c !== null && typeof c === 'object' ? c as Record<string, unknown> : {};
+  };
+  return rowColumns(s).map((c) => {
+    const set = of(c.name);
+    const fn = typeof set['aggregateFn'] === 'string' ? set['aggregateFn'] as AggregateFn
+      : defaultAggregate({ name: c.name, ...(c.type !== undefined ? { type: c.type } : {}), kind: c.kind });
+    const action: SummaryAction | undefined = s.rows.includes(c.name) ? 'group'
+      : set['hidden'] === true || c.kind !== 'measure' ? undefined : fn;
+    // the second column an aggregate of two reads (its weight, its pair, ...), as its Aggregation keeps it
+    const params = set['aggregationParameters'];
+    const second = action !== undefined && action !== 'group' && SECOND_COLUMN[action] !== undefined && Array.isArray(params)
+      && typeof params[0] === 'string' ? params[0] : undefined;
+    return {
+      name: c.name, type: c.type ?? '', numeric: isNumeric(c.type), ...(action !== undefined ? { action } : {}),
+      ...(second !== undefined ? { second } : {}), actions: summaryActions(c.type),
+    };
+  });
+}
+
 /** `rows` as the grid's row groups, outermost first (the Vertical Pivots panel, the menu's Vertical Pivot, the Rows
  *  zone): each once, and each it did not have a dimension of the grid -- the screen offers dimensions to add, and a
  *  group it has is taken away whatever it is. */
@@ -84,7 +132,37 @@ export function setPivot<D extends GridDraft>(draft: D, pivotOn: readonly string
   checkGroupable(draft, pivotOn, draft.snapshot.pivotOn, 'the pivot');
   const columns = allColumns(draft);
   const sorts = pivotOn.length > 0 ? draft.snapshot.sorts : draft.snapshot.sorts.filter((x) => columns.includes(x.column));
-  return { ...draft, snapshot: { ...draft.snapshot, pivotOn: [...pivotOn], sorts } };
+  // its pinned values are the values of what it pivoted on (pinPivot): another pivot's are none of its
+  const { pivotValues, ...rest } = draft.snapshot;
+  const same = pivotOn.length === draft.snapshot.pivotOn.length && pivotOn.every((c, i) => c === draft.snapshot.pivotOn[i]);
+  return { ...draft, snapshot: { ...rest, ...(same && pivotValues !== undefined ? { pivotValues } : {}), pivotOn: [...pivotOn], sorts } };
+}
+
+/**
+ * THE PIVOT'S VALUES PINNED (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2, a Cross Tab's Load values): its columns those
+ * values', whatever its rows hold -- a value its rows lack an empty column, one they hold that it lacks no column of its
+ * own (said by the check FL3 adds) -- so what reads its rows reads fixed columns (query.ts crossTabRows); null, its
+ * values its rows' each time it runs. Refused in words: a grid pivoting on no column, or on more than one; no value; an
+ * empty value (no column can be named by it); a value twice; more than a pivot shows.
+ */
+export function pinPivot<D extends GridDraft>(draft: D, values: readonly FilterValue[] | null): D {
+  const { pivotValues: _was, ...rest } = draft.snapshot;
+  if (values === null) return { ...draft, snapshot: rest };
+  const on = draft.snapshot.pivotOn;
+  if (on.length === 0) throw new CubeRefusal('the grid pivots on no column: it has no values to pin');
+  if (on.length > 1) throw new CubeRefusal(`a pivot on one column has its values pinned, not on ${on.length} (${on.join(', ')})`);
+  if (values.length === 0) throw new CubeRefusal(`a pin is of one value of '${on[0]}' at least`);
+  if (values.length > MAX_PIVOT_VALUES) throw new CubeRefusal(`a pivot shows ${MAX_PIVOT_VALUES} values at most, not ${values.length}`);
+  const seen = new Set<string>();
+  for (const v of values) {
+    if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'boolean') {
+      throw new CubeRefusal(`a pinned value is a text, a number or true or false, not ${JSON.stringify(v)}`);
+    }
+    if (v === '') throw new CubeRefusal('an empty text names no column: fill or filter its empty values first');
+    if (seen.has(String(v))) throw new CubeRefusal(`'${String(v)}' is pinned twice`);
+    seen.add(String(v));
+  }
+  return { ...draft, snapshot: { ...rest, pivotValues: [...values] } };
 }
 
 function checkGroupable(draft: GridDraft, names: readonly string[], had: readonly string[], what: string): void {

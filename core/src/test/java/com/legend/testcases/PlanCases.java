@@ -220,6 +220,8 @@ public final class PlanCases {
             case ExecutionPlan.Keyed keyed -> keyed.keys().target();
             case ExecutionPlan.TdsResult tds -> tds.sql().target();
             case ExecutionPlan.Sequence s -> throw new IllegalArgumentException("a plan of several steps");
+            case ExecutionPlan.Update u -> u.sql().target();
+            case ExecutionPlan.Check k -> k.sql().target();
         };
         com.legend.exec.PlanRunner.run(plan, values, com.legend.exec.PlanSessions.setUp(c, target), out);
         return out.toString();

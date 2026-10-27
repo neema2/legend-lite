@@ -27,7 +27,7 @@ import type { PageDocument } from '../src/page-document.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
 import { pageHash } from '../src/page-hash.ts';
 import { rebaseEdits } from '../src/page-rebase.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
 import { openCube, type CubeDocument } from '../src/cube-document.ts';
 import { applyGridToCube, FakeKeeper } from './fake-keeper.ts';
 import { corpus } from './fixtures/pages/make.ts';
@@ -920,7 +920,7 @@ describe('a real page and its keeper', () => {
     let during = 0;
     const { cubes, over, channelOf } = realPage({ grid: () => {
       // the converge asks for a touched grid (step 1, the page held): a person clicks New Sheet meanwhile
-      (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+      plus(host);
       during += 1;
     } });
     const a = page!.addGrid(over('trades.csv'));
@@ -941,7 +941,7 @@ describe('a real page and its keeper', () => {
     assert.equal(pageHash(page!.document(page!.title, undefined, true)!), pageHash(keeper.page), 'one page (W17), under the name the other editor gave it');
     assert.equal(page!.held, false, 'released after the converge');
     // and the same click once the page is released: applied, told, written
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     await written(channel);
     await settle();
@@ -1056,7 +1056,7 @@ describe('a real page and its keeper', () => {
     const sheets = (): number => page!.document(page!.title || 'Q3', undefined, true)!.sheets.length;
 
     // a sheet added, written as its command; undone, written as the command that takes the sheet off, and kept
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     await written(channel);
     assert.equal(sheets(), 2);
@@ -1079,7 +1079,7 @@ describe('a real page and its keeper', () => {
 
     // the other editor writes; the undo here, made behind it, is made again on top as any edit is: both stand, the screen
     // converged on both
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     await written(channel);
     assert.equal(keeper.page.sheets.length, 2);
@@ -1417,8 +1417,10 @@ describe("a real page and its keeper: the D19 audit's fourth round", () => {
         channel.changed();
         await new Promise((r) => setTimeout(r, 20));
       }
-      // the person's Snap
-      (host.querySelector('.dc-titlebar-toggle') as HTMLButtonElement).click();
+      // the person's Snap: the grid's state's menu, Snap
+      (host.querySelector('.dc-tile-state') as HTMLButtonElement).click();
+      [...host.ownerDocument.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+        .find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === 'Snap')!.click();
       await settle();
       await settle();
       assert.equal(cubes.get(a)!.copy?.table, 'snap_2', 'snapped here');

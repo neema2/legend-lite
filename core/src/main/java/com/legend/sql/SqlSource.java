@@ -32,7 +32,7 @@ public sealed interface SqlSource {
      * cast's order; empty when {@code in} is given or no cast names them. They pin no row: a dialect without a native
      * dynamic PIVOT pivots on them as it does a static {@code in} (a group whose key none of them is keeps its row,
      * every named column null), and one with it runs the dynamic form and reads the columns by name (the engine's
-     * DuckDB: a named key no row has is the database's error there, a null column elsewhere -- register S102).
+     * DuckDB: a named key no row has is the database's error there, a null column elsewhere -- register S109).
      */
     record Pivot(SqlSource source, List<SqlExpr> on, List<SqlExpr> in, List<SqlExpr> named, List<Using> usings,
                  String alias, List<OutputCol> outputs) implements SqlSource {

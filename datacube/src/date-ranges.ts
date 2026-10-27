@@ -5,6 +5,7 @@
 // header menu's Date Range and Python's grid.filter_date_range (grid-gestures.ts 'filter.dateRange'); the dates are the
 // database's to compute, never the tab's.
 
+import { hasTimeOfDay, isTimeOfDay } from '../../engine-client/src/types.ts';
 import { CubeRefusal, type FilterNode, type RelativeDate } from './snapshot.ts';
 
 export const DATE_RANGES = [
@@ -58,5 +59,49 @@ export function dateRangeConditions(column: string, range: DateRange): FilterNod
   return [
     { kind: 'condition', column, operator: 'greaterThanEqual', value: ends[0] },
     { kind: 'condition', column, operator: 'lessThan', value: ends[1] },
+  ];
+}
+
+/** A day as a filter writes one: `2024-06-30`, a real day of its month. */
+const DAY = /^(\d{4})-(\d{2})-(\d{2})$/;
+export function isDay(text: string): boolean {
+  const m = DAY.exec(text);
+  if (m === null) return false;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.getUTCFullYear() === Number(m[1]) && d.getUTCMonth() === Number(m[2]) - 1 && d.getUTCDate() === Number(m[3]);
+}
+
+/** A day `by` days on (or back): the calendar's, the day as it is written (YYYY-MM-DD). */
+export function dayOn(day: string, by: number): string {
+  const m = DAY.exec(day);
+  if (m === null || !isDay(day)) throw new CubeRefusal(`a day is written as 2024-06-30, not ${JSON.stringify(day)}`);
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + by)).toISOString().slice(0, 10);
+}
+
+/** A day's first moment, as a date-time column's value is written (`2024-06-30T00:00:00`). */
+export const MIDNIGHT = 'T00:00:00';
+
+/**
+ * THE DAYS FROM ONE TO ANOTHER, both kept (a flow's Date Filter between two days, Python's grid.filter_dates), each a
+ * day (YYYY-MM-DD), the first not after the last -- refused in words otherwise. A column of days (`type` a StrictDate or
+ * Date, or not given): `from <= column <= to`. A date-time column: every moment of both, `from`'s midnight `<= column <`
+ * the next day's after `to` (the correctness audit's 5, 2026-10-26: a day compared with a moment was no literal of its
+ * type, and `<= to` left out every moment of the last day after its midnight). A time of day has no days: refused.
+ */
+export function datesBetweenConditions(column: string, from: string, to: string, type: string | undefined): FilterNode[] {
+  for (const [day, what] of [[from, 'its first day'], [to, 'its last day']] as const) {
+    if (!isDay(day)) throw new CubeRefusal(`${what} is a day, as 2024-06-30, not ${JSON.stringify(day)}`);
+  }
+  if (from > to) throw new CubeRefusal(`its first day, ${from}, is after its last, ${to}`);
+  if (isTimeOfDay(type)) throw new CubeRefusal(`'${column}' is a time of day: it has no days to keep`);
+  if (hasTimeOfDay(type)) {
+    return [
+      { kind: 'condition', column, operator: 'greaterThanEqual', value: `${from}${MIDNIGHT}` },
+      { kind: 'condition', column, operator: 'lessThan', value: `${dayOn(to, 1)}${MIDNIGHT}` },
+    ];
+  }
+  return [
+    { kind: 'condition', column, operator: 'greaterThanEqual', value: from },
+    { kind: 'condition', column, operator: 'lessThanEqual', value: to },
   ];
 }

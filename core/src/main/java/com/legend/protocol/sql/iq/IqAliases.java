@@ -114,6 +114,7 @@ final class IqAliases {
                         o.orderBy(), o.limit(), o.offset(), o.pos());
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         };
         done.put(q, out);
         return out;

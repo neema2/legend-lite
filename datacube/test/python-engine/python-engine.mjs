@@ -207,8 +207,7 @@ try {
   // grid's rows are Python's over the model that code wrote -- the SQL Python ran, in the Pure & SQL window, reads the
   // file's own table
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.setInputFiles('.dc-picker-file', {
     name: 'books.csv', mimeType: 'text/csv', buffer: Buffer.from('title,pages\nDune,412\nEmma,474\nUlysses,730\n'),
@@ -318,12 +317,11 @@ try {
     dc.on('pageerror', (e) => { console.log(`page error: ${e.message}`); failed = true; });
     await dc.goto(served.link);
     await dc.locator('.dc-row').first().waitFor({ timeout: 60_000 });
-    // on a page of the tab's own (New ▸ Blank Page leaves the page Python serves: D1) -- a page Python serves holds what
+    // on a page of the tab's own (New Page leaves the page Python serves: D1) -- a page Python serves holds what
     // Python holds, its frames, until Python reads more (X1-X5)
     const tiles = 0;
     await dc.click('.dc-titlebar-menu');
-    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+    await dc.locator('.dc-menu .dc-menu-item', { has: dc.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
     await dc.locator('.dc-blank .dc-primary').click();
     await dc.locator('.dc-picker').waitFor({ timeout: 5000 });
     await dc.locator('.dc-picker-tab[data-section="saved"]').click();
@@ -338,8 +336,8 @@ try {
         const tile = dc.locator('[data-tile^="grid-"]').nth(tiles);
         await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 }).catch(() => undefined);
         const cells = await tile.locator('.dc-row').evaluateAll((rs) => rs.map((r) => r.textContent ?? ''));
-        // the page's one grid: its header in the page's bar (a lone grid's)
-        openedSaved = `${(await dc.locator('.dc-page-alone').textContent()) ?? ''}: ${cells.length} rows | ${cells.join(' | ')}`;
+        // the page's one grid: its source in its status bar
+        openedSaved = `${(await tile.locator('.dc-status-source').textContent().catch(() => '')) ?? ''}: ${cells.length} rows | ${cells.join(' | ')}`;
       }
     } else {
       openedSaved = `Saved queries listed: ${(await dc.$$eval('.dc-picker-row[data-query]', (els) => els.map((e) => e.textContent ?? ''))).join(', ')}`;
@@ -361,8 +359,7 @@ try {
   // AN EXAMPLE goes the same way: generated in the page, read into Python's DuckDB as a file is (and the file before it
   // let go of: its grid gone, its table dropped in Python -- forget.json, every answer here a success)
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="examples"]').click();
   // the trades example, a CSV (an example whose rows hold nested values, a Variant, is read too; its queries wait on
@@ -381,8 +378,7 @@ try {
   // NESTED VALUES (a Variant column) on Python's page: the orders example, its customers and items JSON -- planned and
   // run as the tab plans and runs them (PlanAndRun), where Python's legend-engine answer refused a Variant column
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="examples"]').click();
   await cube.click('.dc-picker-card[data-example="orders-json"]');
@@ -398,8 +394,7 @@ try {
   // A REMOTE FILE, read by Python's DuckDB through the httpfs extension the wheel carries: the app's own Remote section,
   // a Parquet file a server on this machine serves (nothing leaves the machine)
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="remote"]').click();
   await cube.fill('.dc-picker-url', served.remote);
@@ -434,8 +429,7 @@ try {
   }
   // a blank page, then the saved one opened from Open…: its grid over its remote file again
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await menuEntry('Open\u2026');
   const row = cube.locator('#cubelib .dc-lib-row', { hasText: 'Books from Python' });
@@ -453,8 +447,7 @@ try {
   // AN ICEBERG TABLE (G5), read by Python's DuckDB through the iceberg extension the wheel carries, every file it names
   // served by the server on this machine: the app's own Remote section, as for a remote file
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="remote"]').click();
   await cube.fill('.dc-picker-url', served.iceberg);
@@ -472,8 +465,7 @@ try {
   // Python signs in as rita, the table opens Live (its rows the warehouse's, its receipt saying so), the grid's plane
   // button snaps it into Python's DuckDB (the button and the receipt saying where the copy is), and goes live again
   await cube.click('.dc-titlebar-menu');
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await cube.locator('.dc-blank .dc-primary').click();
   await cube.locator('.dc-picker-tab[data-section="database"]').click();
   await cube.getByLabel('Address').fill(warehouseUrl);
@@ -481,10 +473,11 @@ try {
   await cube.getByLabel('Password').fill('rita-pw');
   await cube.click('.dc-picker-form .dc-primary');
   await cube.click('.dc-picker-row[data-object="main.POSITIONS"]', { timeout: 60_000 });
-  // the plane button and the receipt of the grid on screen (an earlier page's are in the document too, hidden)
+  // the grid's state (left of its title, or a lone grid's in its sheet's tab) and the receipt of the grid on screen (an
+  // earlier page's are in the document too, hidden)
   const plane = () => cube.evaluate(() => {
     const shown = (e) => e !== null && e.offsetParent !== null;
-    const toggle = [...document.querySelectorAll('.dc-titlebar-toggle')].find(shown);
+    const toggle = [...document.querySelectorAll('.dc-tile-state')].find(shown);
     const receipt = [...document.querySelectorAll('.dc-status-receipt')].find(shown);
     return { text: toggle?.textContent?.trim() ?? '', title: toggle?.getAttribute('title') ?? '', receipt: receipt?.textContent ?? '',
       rows: /\b3 rows\b/.test(document.body.innerText), picker: document.querySelector('.dc-picker') !== null };
@@ -505,19 +498,24 @@ try {
     console.log(`  the grid said: ${JSON.stringify(live)}`);
     failed = true;
   }
-  await cube.locator('.dc-titlebar-toggle:visible').click();
+  // its state's menu: Snap
+  const moveTo = async (pick) => {
+    await cube.locator('.dc-tile-state:visible').first().click();
+    await cube.locator('.dc-menu .dc-menu-item', { has: cube.locator(`:scope > .dc-menu-label:text-is("${pick}")`) }).click();
+  };
+  await moveTo('Snap');
   const snapped = await until((p) => p.text === 'Snapped' && /Python's copy/.test(p.receipt));
   const snappedOk = snapped.text === 'Snapped' && /Python's copy/.test(snapped.receipt) && /a copy in Python's database/.test(snapped.title)
     && /3 rows/.test(snapped.title) && snapped.rows;
-  console.log(`${snappedOk ? 'ok  ' : 'FAIL'} its plane button snaps it into Python's DuckDB, the button and the receipt saying where the copy is`);
+  console.log(`${snappedOk ? 'ok  ' : 'FAIL'} its state's Snap snaps it into Python's DuckDB, its state and the receipt saying where the copy is`);
   if (!snappedOk) {
     console.log(`  the grid said: ${JSON.stringify(snapped)}`);
     failed = true;
   }
-  await cube.locator('.dc-titlebar-toggle:visible').click();
+  await moveTo('Go Live');
   const back = await until((p) => p.text === 'Live' && /the warehouse/.test(p.receipt));
   const backOk = back.text === 'Live' && /the warehouse/.test(back.receipt) && back.rows;
-  console.log(`${backOk ? 'ok  ' : 'FAIL'} clicked again, it reads Live on the warehouse once more, the copy let go`);
+  console.log(`${backOk ? 'ok  ' : 'FAIL'} Go Live: it reads Live on the warehouse once more, the copy let go`);
   if (!backOk) {
     console.log(`  the grid said: ${JSON.stringify(back)}`);
     failed = true;
@@ -718,7 +716,7 @@ try {
   // SNAP AS PAGE STATE (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.8): a grid snapped in Python reads Python's copy on
   // the open page, by the page's snap command (not opened again), whatever its frame does; gone live in Python it reads
   // the frame again; snapped on the page, Python's page has the copy; and ll.show(df, snap=True) opens snapped
-  const pill = () => document.querySelector('[data-tile="grid-1"] .dc-titlebar-toggle')?.textContent;
+  const pill = () => document.querySelector('[data-tile="grid-1"] .dc-tile-state')?.textContent;
   const joinTile = () => [...document.querySelectorAll('[data-tile^="grid"]')].find((t) => t.querySelector('.dc-th[data-column="d_desk"]'));
   await tabbed.evaluate(() => { document.querySelector('[data-tile="grid-1"]').dataset.kept = 'yes'; });
   await python('py-page-snap');
@@ -731,7 +729,8 @@ try {
   await python('py-page-live');
   await seen('gone live in Python (grid.live()): the open page reads the frame again',
     `(${String(pill)})() === 'Live' && document.querySelector('[data-tile="grid-1"]').innerText.includes('LATAM')`);
-  await tabbed.locator('[data-tile="grid-1"] .dc-titlebar-toggle').click();
+  await tabbed.locator('[data-tile="grid-1"] .dc-tile-state').click();
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Snap")') }).click();
   await seen('snapped on the open page', `(${String(pill)})() === 'Snapped'`);
   const copies = await (async () => {
     // the page reports its document once a change settles: asked until it has, or ten seconds
@@ -810,6 +809,8 @@ try {
   await tabbed.locator('.dc-sheet-tab input').fill('Two tabs');
   const typed = tabbed.locator('.dc-sheet-tab input').press('Enter');
   await secondTab.locator('.dc-sheet-add').click();
+  // the + offers a Sheet and a Flow (2026-10-26)
+  await secondTab.locator('.dc-menu .dc-menu-item', { has: secondTab.locator(':scope > .dc-menu-label:text-is("Sheet")') }).click();
   await typed;
   await python('py-page-group');
   await oneHeld('a sheet renamed in one tab, a sheet added in the other and Python\'s grouping between: one page in all three',
@@ -868,7 +869,7 @@ try {
   if (catchingUp) failed = true;
   await secondTab.close();
 
-  // D1 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P10): New > Blank Page on the page Python serves puts a page of the
+  // D1 (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P10): New Page on the page Python serves puts a page of the
   // tab's own on screen and leaves Python's page as it is -- nothing written to it, and Python's next change to it not
   // followed here
   const servedVersion = async () => {
@@ -894,9 +895,8 @@ try {
   const asking = asked > 0;
   tabbed.on('dialog', (d) => { void d.accept(); });
   await tabbed.click('.dc-page-bar .dc-titlebar-menu');
-  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
-  await seen('Blank Page on the page Python serves: a page of the tab\'s own, said',
+  await tabbed.locator('.dc-menu .dc-menu-item', { has: tabbed.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
+  await seen('New Page on the page Python serves: a page of the tab\'s own, said',
     () => document.querySelector('[data-tile="grid-1"]') === null && /a page of this tab's own/.test(document.body.innerText));
   const askedThen = asked;
   await python('py-page-sheet');
@@ -917,7 +917,7 @@ try {
   const snappedTab = await browser.newPage();
   snappedTab.on('pageerror', (e) => { console.log(`snapped tab error: ${e.message}`); failed = true; });
   await snappedTab.goto(JSON.parse(snappedLine.slice('done show-snapped '.length)));
-  const tabSnapped = await snappedTab.waitForFunction(() => document.querySelector('.dc-titlebar-toggle')?.textContent === 'Snapped',
+  const tabSnapped = await snappedTab.waitForFunction(() => document.querySelector('.dc-tile-state')?.textContent === 'Snapped',
     undefined, { timeout: 60_000 }).then(() => true, () => false);
   console.log(`${tabSnapped ? 'ok  ' : 'FAIL'} ll.show(df, snap=True) opens the frame snapped`);
   if (!tabSnapped) {
@@ -1122,6 +1122,21 @@ try {
     console.log(`  the second view showed: ${(await cut.evaluate(() => document.getElementById('b').innerText)).slice(0, 300)}`);
     failed = true;
   }
+
+  // A TIMESERIES OF TWO GRIDS ON A PAGE PYTHON SERVES (the timeseries review's A7, docs/TIMESERIES_REVIEW_2026_10_25.md:
+  // the host's half of a combined series ran in no test): built with ll.Page, opened in a tab -- its one series reading
+  // both grids together through Python (python-host.ts together: join.json, headless joinTogether), planned and run by
+  // Python where the rows are -- its line drawn, its latest value the database's (102 - 4.2), none refused
+  engine.stdin.write('py-ts\n');
+  const tsBuilt = await nextLine();
+  if (!tsBuilt.startsWith('done py-ts ')) throw new Error(`the engine did not build the timeseries page: ${tsBuilt}`);
+  await tabbed.goto(JSON.parse(tsBuilt.slice('done py-ts '.length)));
+  await seen('a timeseries of two grids on a page Python serves: read together by Python, its line drawn, its latest value the database\'s',
+    () => {
+      const t = document.querySelector('[data-tile^="timeseries-"] .dc-ts');
+      return t !== null && t.querySelector('.dc-ts-chart canvas') !== null && t.querySelector('.dc-ts-failed') === null
+        && t.querySelector('.dc-ts-banner.dc-ts-bad') === null && /97\.8/.test(t.querySelector('.dc-ts-legend')?.textContent ?? '');
+    });
 } finally {
   closing = true;
   await browser?.close();

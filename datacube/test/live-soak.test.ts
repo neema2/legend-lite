@@ -21,7 +21,7 @@ import type { PageCommand } from '../src/page-commands.ts';
 import { PageApp, type GridMaker } from '../src/page/page-app.ts';
 import type { PageDocument } from '../src/page-document.ts';
 import { pageHash } from '../src/page-hash.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, plus } from './cube-fixture.ts';
 import { FakeKeeper } from './fake-keeper.ts';
 import type { LiveCommand } from '../src/app/services.ts';
 import { openCube } from '../src/cube-document.ts';
@@ -308,7 +308,7 @@ async function gesture(tab: Tab, rand: () => number, n: number): Promise<string 
       return 'addGrid';
     }
     case 4: {
-      (tab.host.querySelector('.dc-sheet-add') as HTMLElement).click();
+      plus(tab.host);
       await settle();
       return 'addSheet';
     }

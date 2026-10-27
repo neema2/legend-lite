@@ -134,6 +134,8 @@ final class FoldToListReduce extends SqlRewriter {
                     co.scalarCarrier(), co.atLeastOnly());
             case SqlExpr.CompactList cl -> new SqlExpr.CompactList(
                     unwrapElemRefs(cl.list(), elem));
+            case SqlExpr.Tagged tg -> tg.withChildren(
+                    tg.children().stream().map(x -> unwrapElemRefs(x, elem)).toList());
             case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             // JSON envelope nodes never appear inside fold bodies (the

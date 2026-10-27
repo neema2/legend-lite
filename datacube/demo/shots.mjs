@@ -66,8 +66,8 @@ const pick = async (label) => {
 };
 const tool = async (label) => {
   const viaMenu = {
-    'Properties': 'Properties...',
-    'Filters': 'Filters...',
+    'Properties': 'Properties…',
+    'Filters': 'Filters…',
     'Collapse all': 'Collapse All',
   };
   await rightClick();

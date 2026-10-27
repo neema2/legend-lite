@@ -483,7 +483,7 @@ describe('the app', () => {
     // the DOM cannot drift apart. (The drag zones have no setting there: they fold from their
     // own chevron, the user, 2026-09-30.)
     hamburger();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll('.dc-editor-tab')]
       .find((b) => b.textContent === 'General Properties')
@@ -523,7 +523,7 @@ describe('the app', () => {
   // menu entry
   /** Properties ▸ Dimensions, picked from the open hamburger: the editor's window. */
   const dimensionsTab = (): HTMLElement => {
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
       .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -571,7 +571,7 @@ describe('the app', () => {
     const own = new CubeApp(host, SNAPSHOT, { engine, planner, dimensions: [{ name: 'Desks', columns: ['desk', 'region'] }] });
     await own.open();
     (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
-    pick('Properties...');
+    pick('Properties…');
     const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
     [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
       .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -597,7 +597,7 @@ describe('the app', () => {
     });
     await own.open();
     (host.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
-    pick('Properties...');
+    pick('Properties…');
     const tab = host.querySelector('.dc-app-overlay') as HTMLElement;
     [...tab.querySelectorAll<HTMLElement>('.dc-editor-tab')].find((b) => b.textContent === 'Dimensions')!
       .dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
@@ -778,7 +778,7 @@ describe('the app', () => {
 
   it('opens the editor from the right-click menu, as DataCube does', () => {
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     assert.equal(
       (root.querySelector('.dc-app-overlay') as HTMLElement).hidden,
       false,
@@ -875,15 +875,15 @@ describe('the app', () => {
     ]);
   });
 
-  it('adds and removes a heatmap from the menu (Conditional Formatting ▸ Color Scales ▸)', async () => {
+  it('adds and removes a heatmap from the menu (Conditional Formatting ▸ Heatmap, then Remove Heatmap)', async () => {
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Heatmap');
+    pick('Add Heatmap');
     const column = Object.entries(app.configuration.columns).find(
       ([, c]) => c.heatmap,
     );
     assert.notEqual(column, undefined);
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('No Color Scale');
+    pick('Remove Heatmap');
     assert.equal(
       Object.values(app.configuration.columns).some((c) => c.heatmap),
       false,
@@ -903,7 +903,7 @@ describe('the app', () => {
     // the selected cells: clicked, then Shift+clicked across to the measure -- the grid's own Ctrl+C text
     const cell = (text: string): HTMLElement =>
       [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === text) as HTMLElement;
-    cell('▸EMEA').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    cell('EMEA').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
     cell('400.00').dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, shiftKey: true }));
     rightClick('.dc-cell:not(.dc-dim)');
     pick('Copy Selected Cells');
@@ -942,7 +942,7 @@ describe('the app', () => {
   });
 
   it('a double-click on a group\'s label opens it, and again closes it, as a pivot\'s row label does', async () => {
-    const label = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
+    const label = [...root.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === 'EMEA') as HTMLElement;
     label.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, detail: 2 }));
     for (let i = 0; i < 50 && commands.length === 0; i++) await new Promise((r) => setTimeout(r, 0));
     assert.equal(root.querySelector('[data-window="Drill-through"]'), null, 'no drill from a label');
@@ -969,9 +969,9 @@ describe('the app', () => {
     // the EchoPlanner's "SQL" is the query's JSON, so the values query is told apart by its count column
     const own = new CubeApp(host, SNAPSHOT, { engine: values, planner: new EchoPlanner(), onCommand: (c) => told.push(c) });
     await own.open();
-    const cell = [...host.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === '▸EMEA') as HTMLElement;
+    const cell = [...host.querySelectorAll<HTMLElement>('.dc-cell')].find((c) => c.textContent === 'EMEA') as HTMLElement;
     cell.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true }));
-    pick('Filter Values of region...');
+    pick('Filter Values of region…');
     for (let i = 0; i < 50 && !host.querySelector('[data-window="Filter Values"]'); i++) await new Promise((r) => setTimeout(r, 0));
     const win = host.querySelector('[data-window="Filter Values"]') as HTMLElement;
     assert.ok(win, 'the window opened');
@@ -996,7 +996,7 @@ describe('the app', () => {
     assert.deepEqual(own.snapshot.filter, { kind: 'condition', column: 'region', operator: 'in', value: ['AMER', 'EMEA'] });
   });
 
-  it('? shows the keyboard shortcuts, as View ▸ Keyboard Shortcuts... does; not while typing', () => {
+  it('? shows the keyboard shortcuts, as View ▸ Keyboard Shortcuts… does; not while typing', () => {
     const grid = root.querySelector('.dc-grid') as HTMLElement;
     grid.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: '?', bubbles: true }));
     const win = root.querySelector('[data-window="Keyboard Shortcuts"]') as HTMLElement;
@@ -1014,7 +1014,7 @@ describe('the app', () => {
     assert.equal(shown(), false);
     // and from the menu
     rightClick('.dc-cell:not(.dc-dim)');
-    pick('Keyboard Shortcuts...');
+    pick('Keyboard Shortcuts…');
     assert.equal(shown(), true);
   });
 
@@ -1141,12 +1141,12 @@ describe('the app', () => {
   it('offers no named dimension in the title bar menu: Properties ▸ Dimensions groups by one (the user, 2026-10-23)', () => {
     hamburger();
     const labels = menuItems().map((i) => i.querySelector('.dc-menu-label')?.textContent ?? '');
-    assert.ok(labels.includes('Properties...') && !labels.includes('Geography'), labels.join(', '));
+    assert.ok(labels.includes('Properties…') && !labels.includes('Geography'), labels.join(', '));
   });
 
   it('opens the editor, and Cancel closes it', () => {
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     assert.equal(overlay.hidden, false);
     assert.notEqual(overlay.querySelector('.dc-editor'), null);
@@ -1159,9 +1159,9 @@ describe('the app', () => {
     assert.equal(root.querySelector('.dc-app-overlay'), null);
   });
 
-  it('Properties... from a HEADER opens Column Properties on that column', () => {
+  it('Properties… from a HEADER opens Column Properties on that column', () => {
     rightClick('.dc-th[data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
     assert.equal(active?.textContent, 'Column Properties');
@@ -1170,9 +1170,9 @@ describe('the app', () => {
     assert.equal(win.querySelector<HTMLElement>('.dc-pe-col.dc-on')?.dataset['column'], 'notional');
   });
 
-  it('Properties... from a CELL opens Column Properties on its column too (the user, 2026-09-30)', () => {
+  it('Properties… from a CELL opens Column Properties on its column too (the user, 2026-09-30)', () => {
     rightClick('.dc-row [data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
     assert.equal(active?.textContent, 'Column Properties');
@@ -1193,7 +1193,7 @@ describe('the app', () => {
 
   it("Column Properties' Colors: data bars, an icon set, a rule of a value of one's own, applied as the grid's configure", async () => {
     rightClick('.dc-th[data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = (): HTMLElement => root.querySelector('[data-window="Properties"]') as HTMLElement;
     // the panel is redrawn after each change: each control found anew
     const field = (label: string): HTMLElement => [...win().querySelectorAll('.dc-field')]
@@ -1230,7 +1230,7 @@ describe('the app', () => {
     assert.deepEqual(cells.map((c) => [c.textContent, c.style.color]).filter(([t]) => t !== ''),
       [['0.6k', 'rgb(0, 0, 255)'], ['0.4k', 'rgb(0, 0, 255)']]);
     rightClick('.dc-th[data-column="notional"]');
-    pick('Properties...');
+    pick('Properties…');
     const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
     const field = [...win.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Format Code:') as HTMLElement;
     const input = field.querySelector('input') as HTMLInputElement;
@@ -1416,12 +1416,12 @@ describe('the app', () => {
     };
     assert.ok(cells(total).length > 0, 'the total is on screen');
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'no heatmap yet');
-    await pickOnTotal('Heatmap');
+    await pickOnTotal('Add Heatmap');
     assert.ok(app.configuration.columns[total]?.heatmap, "the total's own heatmap");
     assert.equal(app.configuration.columns['notional']?.heatmap, undefined, "its measure's is left alone");
     assert.ok(cells(total).some((c) => c.style.backgroundColor !== ''), 'the total is painted');
     assert.ok(cells('A__|__notional').every((c) => c.style.backgroundColor === ''), 'the cells are not');
-    await pickOnTotal('No Color Scale');
+    await pickOnTotal('Remove Heatmap');
     assert.equal(app.configuration.columns[total]?.heatmap, undefined);
     assert.ok(cells(total).every((c) => c.style.backgroundColor === ''), 'taken off');
     app.dispose();
@@ -1440,6 +1440,12 @@ describe('the app', () => {
       planner: new EchoPlanner(),
     });
     await pivoted.open();
+    // It arrives folded under its measure (found 3 of
+    // docs/DATACUBE_UI_REVIEW_2026_10_24.md); unfolded here.
+    const twist = host.querySelector<HTMLButtonElement>(
+      '.dc-tool-panel-row[data-column="notional"] button.dc-tool-panel-twist');
+    assert.equal(twist?.getAttribute('aria-expanded'), 'false', 'the pivot columns arrive folded');
+    twist!.click();
     const rows = [...host.querySelectorAll('.dc-tool-panel-row')]
       .map((r) => ({
         column: (r as HTMLElement).dataset['column'],
@@ -1517,7 +1523,7 @@ describe('the app', () => {
     // Once, here, so a setting that shapes the query cannot reach the
     // engine through one path and not another.
     rightClick();
-    pick('Properties...');
+    pick('Properties…');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll('.dc-editor-tab')]
       .find((b) => b.textContent === 'General Properties')
@@ -1643,11 +1649,8 @@ describe('the bar says what you are looking at, and nothing else', () => {
     );
   });
 
-  it('states the result and its cost in the STATUS bar', async () => {
-    // The row count, the column count and the elapsed time went to
-    // the host through `onStatus` and were rendered above the grid,
-    // while the status bar said "Rows: 2" -- two readouts of one
-    // fact, the fuller one in the wrong place.
+  it('says what the last query returned and what it cost, as a host is told it', async () => {
+    // the user, 2026-10-25: "just show stats/num rows of the last query" -- its own figures, nothing summed or guessed
     const statuses: string[] = [];
     const app = new CubeApp(root, SNAPSHOT, {
       engine: new StubEngine(),
@@ -1655,50 +1658,118 @@ describe('the bar says what you are looking at, and nothing else', () => {
       onStatus: (text) => statuses.push(text),
     });
     await app.open();
-    const timing = root.querySelector('.dc-status-timing')?.textContent ?? '';
-    assert.match(timing, /^2 rows × \d+ cols in \d+ms$/);
-    // The same line, so a host's figure and the screen's cannot
-    // drift apart.
-    assert.equal(statuses.at(-1), timing);
-    assert.equal(
-      root.querySelector('.dc-app-stats')?.textContent?.includes('Rows:'),
-      false,
-    );
+    const readout = root.querySelector('.dc-status-rows') as HTMLElement;
+    assert.match(readout.textContent ?? '', /^2 rows × \d+ cols in \d+ms$/);
+    // the very line a host is told, so the two cannot drift apart
+    assert.equal(readout.textContent, statuses.at(-1));
+    // and for a script: the rows on screen, and which view this is
+    assert.equal(readout.dataset['rows'], '2');
+    assert.match(readout.dataset['view'] ?? '', /^\d+$/);
   });
 
-  it('puts what you can DO at one end and what is TRUE at the other',
-    async () => {
-      // DataCube's own bar is `justify-between`: two link buttons at
-      // the left -- Properties, then Filter -- and its readouts at
-      // the right. Ours had one link with every figure crowded after
-      // it, and both editors were reachable only from the grid's
-      // right-click menu, two levels down.
-      const app = new CubeApp(root, SNAPSHOT, {
-        engine: new StubEngine(),
-        planner: new StubPlanner(),
-        hostStatus: (slot) => {
-          slot.textContent = 'local';
-        },
-      });
-      await app.open();
-      const actions = root.querySelector('.dc-app-stats .dc-status-actions');
-      const readout = root.querySelector('.dc-app-stats .dc-status-readout');
-      assert.notEqual(actions, null);
-      assert.notEqual(readout, null);
-      // Properties FIRST, as theirs is.
-      assert.deepEqual(
-        [...(actions?.querySelectorAll('.dc-status-link') ?? [])]
-          .map((b) => b.textContent?.replace(/^\W+\s*/, '')),
-        ['Properties', 'Filter'],
-      );
-      // And every figure on the other side, the backend's word last.
-      assert.notEqual(readout?.querySelector('.dc-status-timing'), null);
-      assert.equal(
-        readout?.querySelector('.dc-status-host')?.textContent,
-        'local',
-      );
-      assert.equal(actions?.querySelector('.dc-status-timing'), null);
+  it('which view the readout says: a repaint that runs no query is not another; a cube built in another\u2019s place is', async () => {
+    const flat = new CubeApp(root, { ...SNAPSHOT, rows: [] }, { engine: new StubEngine(), planner: new StubPlanner() });
+    await flat.open();
+    const readout = (): HTMLElement => root.querySelector('.dc-status-rows') as HTMLElement;
+    const first = Number(readout().dataset['view']);
+    // a presentation change (a note) paints the bar again over the same view
+    flat.note('a note');
+    assert.equal(Number(readout().dataset['view']), first, 'the same view, said again');
+    await flat.edit([{ kind: 'group', rows: ['region'] }], 'group');
+    await flush();
+    assert.equal(Number(readout().dataset['view']), first + 1, 'a view landed');
+    // a cube built in its place, saying the same: its view's number is another, so a script waiting on it sees it land
+    flat.dispose();
+    root.replaceChildren();
+    const again = new CubeApp(root, SNAPSHOT, { engine: new StubEngine(), planner: new StubPlanner() });
+    await again.open();
+    assert.equal(Number(readout().dataset['view']) > first + 1, true, `${readout().dataset['view']} after ${first + 1}`);
+  });
+
+  it('puts the grid’s tools and what it shows at the left, and what is true of it at the right', async () => {
+    // DataCube's own bar is `justify-between`; ours had its figures crowded after two underlined links, the one place
+    // the app looked like a 2005 web page (the user, 2026-10-25): its tools are icons now, named for a screen reader
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+      hostStatus: (slot) => {
+        slot.textContent = 'local';
+      },
     });
+    await app.open();
+    const actions = root.querySelector('.dc-app-stats .dc-status-actions');
+    const readout = root.querySelector('.dc-app-stats .dc-status-readout');
+    assert.deepEqual([...(actions?.querySelectorAll('.dc-status-tool') ?? [])].map((b) => b.textContent),
+      ['Properties', 'Filter', 'Add Column'], 'no Join without a host that joins');
+    assert.equal([...(actions?.querySelectorAll('.dc-status-tool svg') ?? [])].length, 3, 'each an icon');
+    assert.notEqual(actions?.querySelector('.dc-status-rows'), null, 'what it shows, after its tools');
+    // nothing narrows it, so no chip; the host's word last
+    assert.equal(readout?.querySelector('.dc-status-chip'), null);
+    assert.equal(readout?.querySelector('.dc-status-host')?.textContent, 'local');
+    // what runs is no longer a box in the bar: a bar on the grid's top edge, while something runs
+    assert.equal(root.querySelector('.dc-app-stats .dc-status-progress'), null);
+    assert.notEqual(root.querySelector('.dc-app-middle > .dc-status-progress'), null);
+  });
+
+  it('Add Column opens the column editor; a filter in force says so in a chip that opens it', async () => {
+    const app = new CubeApp(root, {
+      ...SNAPSHOT,
+      filter: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+    }, { engine: new StubEngine(), planner: new StubPlanner() });
+    await app.open();
+    (root.querySelector('.dc-status-add-column') as HTMLButtonElement).click();
+    assert.notEqual(root.querySelector('[data-window^="column:new:"]'), null, 'no column editor');
+    assert.equal(root.querySelector('.dc-status-filter')?.classList.contains('dc-on'), true, 'the funnel accented');
+    const chip = root.querySelector('.dc-status-filtered') as HTMLButtonElement;
+    assert.equal(chip.textContent, 'Filtered');
+    chip.click();
+    assert.notEqual(root.querySelector('.dc-filters'), null, 'the chip opened no filter');
+  });
+
+  it('a top N says so in a chip, and its × shows every row again', async () => {
+    const app = new CubeApp(root, { ...SNAPSHOT, topN: { by: 'notional', n: 10 } },
+      { engine: new StubEngine(), planner: new StubPlanner() });
+    await app.open();
+    const chip = (): HTMLElement | null => root.querySelector('.dc-status-topn');
+    assert.match(chip()?.textContent ?? '', /^Top 10 by notional/);
+    (chip()?.querySelector('.dc-status-chip-close') as HTMLButtonElement).click();
+    await flush();
+    assert.equal(app.snapshot.topN, undefined, 'the top N cleared');
+    assert.equal(chip(), null, 'and its chip gone');
+  });
+
+  it('Join opens its host’s entries on no column, and a pick reaches the host; with nothing to join it is greyed, saying why', async () => {
+    let entries: { id?: 'host.join.window'; label: string; disabled?: boolean; hint?: string }[] =
+      [{ label: 'Join…', disabled: true, hint: 'There is no other grid on this page to join' }];
+    const asked: (string | undefined)[] = [];
+    const picked: string[] = [];
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+      joinMenu: (column) => { asked.push(column); return entries; },
+      onHostMenu: (item) => picked.push(item.id ?? ''),
+    });
+    await app.open();
+    const join = root.querySelector('.dc-status-join') as HTMLButtonElement;
+    assert.equal(join.textContent, 'Join');
+    assert.deepEqual(asked, [], 'not asked at a paint');
+    join.dispatchEvent(new dom.window.Event('pointerenter'));
+    assert.deepEqual(asked, [undefined], 'asked on no column, as the pointer reached it');
+    assert.equal(join.getAttribute('aria-disabled'), 'true');
+    assert.equal(join.title, 'Join: There is no other grid on this page to join');
+    join.click();
+    assert.equal(dom.window.document.querySelector('.dc-menu'), null, 'a greyed Join opens nothing');
+    // another grid joins the page
+    entries = [{ id: 'host.join.window', label: 'Join…' }];
+    join.dispatchEvent(new dom.window.Event('pointerenter'));
+    assert.equal(join.hasAttribute('aria-disabled'), false);
+    join.click();
+    const entry = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu-item')]
+      .find((el) => el.querySelector(':scope > .dc-menu-label')?.textContent === 'Join…');
+    assert.ok(entry, 'its host’s entries, under it');
+    entry.click();
+    assert.deepEqual(picked, ['host.join.window'], 'the pick given back to the host');
+  });
 
   it('opens the properties editor from the status bar', async () => {
     const app = new CubeApp(root, SNAPSHOT, {

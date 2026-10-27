@@ -25,8 +25,64 @@ public final class CypherAst {
 
     // ------------------------------------------------------------------ clauses
 
-    public sealed interface Clause permits Match, With, Return, Unwind, Use, ProcedureCall, OtherClause {
+    public sealed interface Clause permits Match, With, Return, Unwind, Use, ProcedureCall, Create, Merge, SetClause,
+            Remove, Delete, OtherClause {
         Pos pos();
+    }
+
+    // ------------------------------------------------------------------ the clauses that update the graph
+
+    /** {@code CREATE pattern, ...}: the nodes and relationships the patterns write, once per row in hand (the
+     *  writes design's §5). */
+    public record Create(List<PathPattern> patterns, Pos pos) implements Clause {
+    }
+
+    /** {@code MERGE pattern [ON CREATE SET items] [ON MATCH SET items]}: the pattern read, and created where the read
+     *  finds nothing; each action's items in the order written (several of each kind may be written). */
+    public record Merge(PathPattern pattern, List<SetItem> onCreate, List<SetItem> onMatch, Pos pos)
+            implements Clause {
+    }
+
+    /** {@code SET item, ...}. */
+    public record SetClause(List<SetItem> items, Pos pos) implements Clause {
+    }
+
+    /** {@code REMOVE item, ...}. */
+    public record Remove(List<RemoveItem> items, Pos pos) implements Clause {
+    }
+
+    /** {@code [DETACH] DELETE expr, ...}: the nodes, relationships or paths the expressions name. */
+    public record Delete(boolean detach, List<Expr> targets, Pos pos) implements Clause {
+    }
+
+    public sealed interface SetItem permits SetProperty, SetProperties, SetLabels {
+        Pos pos();
+    }
+
+    /** {@code target.key = value} ({@code target} a variable, or any expression naming a node or relationship:
+     *  {@code (n).key}). */
+    public record SetProperty(Expr target, String key, Expr value, Pos pos) implements SetItem {
+    }
+
+    /** {@code v = map} (every property replaced: {@code merge} false) or {@code v += map} (the map's entries
+     *  written, the others kept: {@code merge} true); the value a map, a node or a relationship. */
+    public record SetProperties(String variable, Expr value, boolean merge, Pos pos) implements SetItem {
+    }
+
+    /** {@code v:Label:Other}. */
+    public record SetLabels(String variable, List<String> labels, Pos pos) implements SetItem {
+    }
+
+    public sealed interface RemoveItem permits RemoveProperty, RemoveLabels {
+        Pos pos();
+    }
+
+    /** {@code target.key}. */
+    public record RemoveProperty(Expr target, String key, Pos pos) implements RemoveItem {
+    }
+
+    /** {@code v:Label:Other}. */
+    public record RemoveLabels(String variable, List<String> labels, Pos pos) implements RemoveItem {
     }
 
     /** {@code CALL name[(args)] [YIELD * | item, ...]} (the study's §12.60): a procedure of the model, called standalone
@@ -64,9 +120,9 @@ public final class CypherAst {
     public record Use(String graph, Pos pos) implements Clause {
     }
 
-    /** A clause the reader recognises by its keyword and does not read yet ({@code UNWIND}, {@code CREATE},
-     *  {@code CALL}, ...): its keyword, as written, and its text up to the next clause. The translator refuses it by
-     *  name. */
+    /** A clause the reader recognises by its keyword and does not read yet ({@code FOREACH}, {@code LOAD CSV},
+     *  {@code UNION}, ...): its keyword, as written, and its text up to the next clause. The translator refuses it by
+     *  name (a {@code UNION} it reads between the parts). */
     public record OtherClause(String keyword, String text, Pos pos) implements Clause {
     }
 
@@ -89,9 +145,15 @@ public final class CypherAst {
         Pos pos();
     }
 
-    /** {@code (v:Label1:Label2 {key: expr})}; labels as written, including a backticked one's text. */
+    /** {@code (v:Label1:Label2 {key: expr})}; labels as written, including a backticked one's text; {@code mapped}
+     *  when a property map is written, an empty one too ({@code (n {})}: a CREATE of a bound node with it is Neo4j's
+     *  error). */
     public record NodePattern(@com.legend.base.Nullable String variable, List<String> labels,
-            Map<String, Expr> properties, Pos pos) implements PatternElement {
+            Map<String, Expr> properties, Pos pos, boolean mapped) implements PatternElement {
+        public NodePattern(@com.legend.base.Nullable String variable, List<String> labels,
+                Map<String, Expr> properties, Pos pos) {
+            this(variable, labels, properties, pos, !properties.isEmpty());
+        }
     }
 
     public enum Direction { OUT, IN, BOTH }

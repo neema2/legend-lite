@@ -36,7 +36,7 @@ public class Test_LegendLite_Databricks_RelationFunctions_PCT extends PCTReportC
             // and harness limits, the 0-based indexOf, error positions and messages
             one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\"")
             // NOTE 2026-10-20 (plan-route parity, measured by the Databricks lane session at 31196a87): the ten pivot
-            // pins removed, each passing (the dynamic pivot's probe plan, register S103)
+            // pins removed, each passing (the dynamic pivot's probe plan, register S110)
     );
 
     public static Test suite() {

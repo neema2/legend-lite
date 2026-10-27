@@ -21,6 +21,8 @@
 //    user's hands are already on the keyboard and a settings panel
 //    that needs the mouse is a settings panel nobody adjusts.
 
+import { chromeIcon, closeMark } from './tile-icons.ts';
+
 const NONE = '(None)';
 
 export interface Disposable {
@@ -67,6 +69,47 @@ export function section(
   }
   s.append(...children);
   return s;
+}
+
+/** Where a panel keeps which of its sections are folded, by title, as it is painted again. */
+export interface FoldState {
+  folded?: string[];
+}
+
+/**
+ * A section whose title folds it (the Properties window's, and a chart's options'), marked when it holds a change: its
+ * caret drawn in the chrome's set and turned when folded (app.css .dc-pe-fold), the title a button for the keyboard.
+ */
+export function foldable(doc: Document, ui: FoldState, section: HTMLElement, changed = false): void {
+  const title = section.querySelector<HTMLElement>(':scope > .dc-section-title');
+  if (!title) return;
+  const key = title.textContent ?? '';
+  section.classList.add('dc-pe-fold');
+  // its caret drawn in the chrome's set, turned when folded (app.css; the 2026-10-25 audit: typed in the CSS)
+  title.prepend(chromeIcon(doc, 'chevronDown'));
+  const folded = ui.folded?.includes(key) === true;
+  section.classList.toggle('dc-folded', folded);
+  title.setAttribute('role', 'button');
+  title.tabIndex = 0;
+  title.setAttribute('aria-expanded', String(!folded));
+  if (changed) {
+    const mark = doc.createElement('span');
+    mark.className = 'dc-pe-changed';
+    mark.title = 'Changed from the defaults';
+    title.append(mark);
+  }
+  const toggle = (): void => {
+    const now = !section.classList.contains('dc-folded');
+    section.classList.toggle('dc-folded', now);
+    title.setAttribute('aria-expanded', String(!now));
+    const set = new Set(ui.folded ?? []);
+    if (now) set.add(key); else set.delete(key);
+    ui.folded = [...set];
+  };
+  title.addEventListener('click', toggle);
+  title.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+  });
 }
 
 export function textInput(
@@ -213,8 +256,8 @@ export function colorPicker(
   if (options.clearable !== false) {
     const clear = make(doc, 'button', 'dc-color-clear');
     clear.type = 'button';
-    clear.textContent = '×';
     clear.title = 'Clear colour';
+    closeMark(clear);
     clear.addEventListener('click', () => {
       wrap.classList.add('dc-color-unset');
       onChange(undefined);

@@ -29,7 +29,10 @@ import {
   startingViews,
   suggestedName,
   writePage,
+  writePageOf,
+  cubesRead,
   type PageDocument,
+  type PageView,
   type PageLayout,
   type PageViews,
 } from '../src/page-document.ts';
@@ -39,6 +42,7 @@ import type { ChartSpec } from '../src/chart-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
 import { accessor, col, element, lambda, lit, times, toJson } from '../../pure-protocol/src/index.ts';
+import { bandsOf } from './bands-of.ts';
 
 const SOURCE: FileSource = {
   _type: 'file', name: 'trades.csv', format: 'csv', size: 120, sha256: 'ab'.repeat(32),
@@ -215,6 +219,28 @@ describe('a saved page', () => {
     assert.deepEqual(readPage(pageToJson(written)).model, written.model);
   });
 
+  // the second audit's A-B1: a page's writers took its cubes from each view's one `cube`, and wrote a timeseries' kept
+  // cube off the page -- a file its reader refused. One rule now, every tile kind answering it (cubesRead), and a page
+  // written out (pageContent: a file, a record, its keeper, a link, Python's) refused without a cube a view reads
+  it('holds every cube its views read, each tile kind answering which; a page written out without one is refused', () => {
+    const ts: PageView = { id: 'timeseries-1', kind: 'timeseries', spec: { sources: [
+      { alias: 'px', cube: 'cube', date: 'region' }, { alias: 'kept', cube: 'grid-2', date: 'region' }], series: [] } };
+    assert.deepEqual([...VIEWS.views, ts, { id: 'text-1', kind: 'text', text: 'hi' } as PageView].map(cubesRead),
+      [['cube'], ['cube'], ['cube'], ['cube', 'grid-2'], []]);
+    const views: PageViews = {
+      views: [VIEWS.views[0]!, ts],
+      sheets: oneSheet({ kind: 'bands', fit: false, bands: [{ height: 1, node: { split: 'row', parts: [
+        { node: { tile: 'grid' }, size: 0.5 }, { node: { tile: 'timeseries-1' }, size: 0.5 }] } }] }),
+    };
+    // as the screen holds it now, it may name a cube it cannot write yet (a grid that cannot say its source); written
+    // out, never
+    const partial = writePageOf({ name: 'p', cubes: [{ id: 'cube', cube: CUBE }], views });
+    assert.throws(() => pageToJson(partial), /the page is written without cube grid-2, which timeseries timeseries-1 reads/);
+    assert.throws(() => pageFile(writePage({ name: 'p', cube: CUBE, views })), /without cube grid-2/);
+    const held = writePageOf({ name: 'p', cubes: [{ id: 'cube', cube: CUBE }, { id: 'grid-2', cube: CUBE }], views });
+    assert.deepEqual(readPage(pageToJson(held)).cubes.map((c) => c.id), ['cube', 'grid-2'], 'read back, its kept cube with it');
+  });
+
   it('says what is wrong with a page it cannot read', () => {
     const raw = JSON.parse(pageToJson(page()));
     const bad = (patch: Record<string, unknown>) => () => readPage(JSON.stringify({ ...raw, ...patch }));
@@ -273,7 +299,7 @@ describe('a saved page', () => {
     const base = pageDefinitionText(page());
     const renamed = writePage({ name: 'other', cube: CUBE, views: VIEWS });
     assert.equal(pageDefinitionText(renamed), base);
-    const moved = { ...VIEWS, sheets: oneSheet({ ...LAYOUT, bands: LAYOUT.bands.map((b, i) => (i === 1 ? { ...b, height: 0.5 } : b)) }) };
+    const moved = { ...VIEWS, sheets: oneSheet({ ...bandsOf(LAYOUT), bands: bandsOf(LAYOUT).bands.map((b, i) => (i === 1 ? { ...b, height: 0.5 } : b)) }) };
     assert.notEqual(pageDefinitionText(writePage({ name: 'Q3 page', cube: CUBE, views: moved })), base);
     const sheetNamed = { ...VIEWS, sheets: [{ ...VIEWS.sheets[0]!, name: 'Summary' }] };
     assert.notEqual(pageDefinitionText(writePage({ name: 'Q3 page', cube: CUBE, views: sheetNamed })), base);
@@ -331,7 +357,7 @@ describe('a saved page', () => {
 });
 
 describe('a page as it starts (startingViews: the cube app, a cube saved before pages, Python\'s new page)', () => {
-  it('is one skeleton, unnamed unless named (newPage: Python\'s new page and the tab\'s Blank Page, D11, B9)', () => {
+  it('is one skeleton, unnamed unless named (newPage: Python\'s new page and the tab\'s New Page, D11, B9)', () => {
     assert.deepEqual(newPage(), { ...readPage(pageToJson(newPage()), { empty: true }), name: '' });
     assert.equal(newPage().name, '');
     assert.equal(newPage('Q3').name, 'Q3');

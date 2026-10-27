@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  autoTextAlign,
   cellStyle,
   columnRange,
   heatColour,
@@ -153,6 +154,19 @@ describe('cellStyle', () => {
 
   it('says nothing when nothing is configured', () => {
     assert.deepEqual(cellStyle({}, 1, 'Float'), {});
+  });
+});
+
+describe('a column\'s alignment when none is set (the user, 2026-10-25: DataCube\'s rule)', () => {
+  it('a measure\'s figures right, so they line up by place value', () => {
+    for (const type of ['Float', 'Integer', 'Decimal', 'Number']) assert.equal(autoTextAlign(true, type), 'right', type);
+  });
+  it('everything else left: a dimension of numbers, a text or date measure, a column not yet typed', () => {
+    assert.equal(autoTextAlign(false, 'Integer'), 'left', 'a year grouped by is a label');
+    assert.equal(autoTextAlign(false, 'String'), 'left');
+    assert.equal(autoTextAlign(true, 'String'), 'left', 'a text measure (a unique) reads as text');
+    assert.equal(autoTextAlign(true, 'StrictDate'), 'left');
+    assert.equal(autoTextAlign(true, undefined), 'left');
   });
 });
 

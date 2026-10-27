@@ -31,9 +31,11 @@ import {
   isIdentifier,
   readLambda,
   toJson as protocolJson,
+  type Lambda,
   type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { readFormatCode } from './format-code.ts';
+import { pureProblem } from './pure-box.ts';
 import {
   applyToSnapshot, DEFAULT_CONFIGURATION, DEFAULT_MAX_ROWS, fromSnapshot, REQUIRED_SETTINGS, type CubeConfiguration,
 } from './config.ts';
@@ -48,7 +50,8 @@ import {
   type SourceRef,
 } from './snapshot.ts';
 import { TreeState, parsePathKey, type RowPath } from './tree.ts';
-import { readJoinHow, type JoinHow } from './join-how.ts';
+import { readJoinCondition, readJoinHow, type JoinCondition, type JoinHow } from './join-how.ts';
+import { idShape } from './page-ids.ts';
 import type { UploadFormat } from './upload.ts';
 import type { SharedQuery } from '../../query-store/src/share.ts';
 
@@ -167,15 +170,20 @@ export interface ClassSource {
 /**
  * A JOIN of two inputs (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17): each a cube -- a source and its saved query --
  * read as its rows at its finest level (query.ts classLambda, what Create a Class reads), and how they combine
- * (join.ts JoinHow). Kept by value, so a saved join reopens alone: an input is what its grid was when it was joined.
+ * (join.ts JoinHow). Kept by value, so a saved join reopens alone: an input is what its grid was when it was joined --
+ * or, a flow's Join box (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2), LIVE: the grid of that id on the same page, read as
+ * it is now, as a box's one input is (RowsSource).
  */
 export interface JoinSource {
   readonly _type: 'join';
   /** What a person calls it: `trades ⋈ customers` (join.ts joinTitle). */
   readonly name: string;
-  readonly left: JoinInput;
-  readonly right: JoinInput;
+  readonly left: CubeInput;
+  readonly right: CubeInput;
   readonly how: JoinHow;
+  /** A Union's inputs after its right, in order (Alteryx's Union of any number: an append's only), each appended in turn
+   *  -- its sides `more1`, `more2`, ... Absent, two. */
+  readonly more?: readonly CubeInput[];
   /** What it answered when the cube was saved. */
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
@@ -185,21 +193,163 @@ export interface JoinInput {
   readonly name: string;
   readonly source: CubeSource;
   readonly query: SavedQuery;
+  /** The columns its rows leave out: a flow's box's hidden columns -- a Select's, Unique's row number -- since a box's
+   *  rows are the columns it shows (live-inputs.ts gridInput). Absent, every column of its query. */
+  readonly omit?: readonly string[];
+  /** The columns its rows rename, each from its name to another: a flow's box's renamed columns (a Select's: its display
+   *  names), since what reads a box reads them by the names it gives them. Absent, none. */
+  readonly rename?: readonly { readonly from: string; readonly to: string }[];
+  /** The order its rows hand their columns on in, by their own names: a flow's box's (a Select's columns moved: its
+   *  column order, box-columns.ts boxOrder), those it does not list after them. Absent, its query's own. */
+  readonly order?: readonly string[];
+  /** Its rows that no row of another input pairs with, in turn (a Join's L or R: live-inputs.ts gridInput) -- each an
+   *  anti-join the database runs (join-open.ts), on a condition naming each side's columns by the names it hands them on
+   *  by. Absent, every row. */
+  readonly unmatched?: readonly Unmatched[];
 }
 
-/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class, a join. */
-export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource | ClassSource | JoinSource;
+/** Rows of an input matched against another's (JoinInput.unmatched): those `by`'s rows pair with none on `on`. */
+export interface Unmatched {
+  readonly by: JoinInput;
+  readonly on: JoinCondition;
+}
 
-/** A source that is no join: where rows are read from (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.1). */
-export type LeafSource = Exclude<CubeSource, JoinSource>;
+/**
+ * A GRID OVER ANOTHER GRID'S ROWS (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1, FL5): a flow's box after its first -- a
+ * Filter, a Formula, a Summarize -- its rows its input's at their finest level (query.ts classLambda), as a join reads
+ * each of its inputs. Its input is LIVE (FL6): the grid of that id on the same page, read as it is now, so an edit there
+ * reaches this grid; or FROZEN, a copy of what that grid was, as a join's input is. A live input is resolved against
+ * its page (live-inputs.ts resolvedSource) before anything asks what the grid reads.
+ */
+export interface RowsSource {
+  readonly _type: 'rows';
+  /** What a person calls it: its input's name when it was made. */
+  readonly name: string;
+  readonly input: CubeInput;
+  /** A Pure box's (FL12: pure-box.ts): its rows a function of its input's, in Pure -- one parameter, its input's rows;
+   *  its body one expression, typed by the compiler as a relation when the box opens. Absent, its input's rows as they
+   *  are. */
+  readonly pure?: Lambda;
+  /** What it answered when the cube was saved. */
+  readonly columns: readonly { readonly name: string; readonly type: string }[];
+}
+
+/** A LIVE INPUT (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL6): the grid of this id on the same page, as it is now -- or one
+ *  of its ports (FL7): `false`, the rows its filter leaves out (a Filter's False output); `left`, `right`, a Join's L and
+ *  R. */
+export interface LiveInput {
+  readonly grid: string;
+  readonly port?: InputPort;
+}
+
+/** A grid's output besides its rows (FL7): a Filter's False -- its input's rows its condition does not hold for; a
+ *  Join's L and R -- the rows of its Left, or of its Right, its condition pairs with no row of the other (Alteryx's). */
+export type InputPort = 'false' | 'left' | 'right';
+
+/** An input of a grid over another's rows: live (the grid on the page), or frozen (what a grid was: a join's input). */
+export type CubeInput = LiveInput | JoinInput;
+
+/** An input as a cube document (join-open.ts, a box's first source opened): its configuration the product's, nothing
+ *  open. */
+export function inputCube(input: JoinInput): CubeDocument {
+  return {
+    kind: CUBE_KIND, version: CUBE_VERSION, name: input.name, source: input.source, query: input.query,
+    configuration: {}, tree: { open: [], showTotals: false },
+  };
+}
+
+/** Whether an input is live: a grid of its page, read as it is now. */
+export const isLive = (input: CubeInput): input is LiveInput => 'grid' in input;
+
+/** An input resolved against its page (live-inputs.ts resolvedSource): the copy it is -- a live one, read before it was
+ *  resolved, refused (`of`: the source it is an input of), never guessed. */
+export function frozenInput(input: CubeInput, of: string): JoinInput {
+  if (isLive(input)) throw new Error(`${of} reads grid '${input.grid}' of its page live: resolve it against the page first`);
+  return input;
+}
+
+/** Which input of a grid over others' rows: another grid's rows have one (`input`), a join two (`left`, `right`), a Union
+ *  any number more after them (`more1`, `more2`, ...: JoinSource.more). */
+export type InputSide = 'input' | 'left' | 'right' | `more${number}`;
+
+/** Which of a Union's inputs after its right a side is (`more2`: 2), or undefined for any other side. */
+export function moreIndex(side: string): number | undefined {
+  const m = /^more([1-9]\d*)$/.exec(side);
+  return m === null ? undefined : Number(m[1]);
+}
+
+/** The input on `side` of `source`, refused in words when the source has none there. */
+export function inputOn(source: CubeSource, side: InputSide): CubeInput {
+  if (source._type === 'rows' && side === 'input') return source.input;
+  const k = moreIndex(side);
+  if (source._type === 'join' && k !== undefined) {
+    const i = source.more?.[k - 1];
+    if (i !== undefined) return i;
+    throw new CubeRefusal(`${source.name} has ${2 + (source.more?.length ?? 0)} inputs: it has no input ${k + 2}`);
+  }
+  if (source._type === 'join' && (side === 'left' || side === 'right')) return source[side];
+  throw new CubeRefusal(source._type === 'join' ? `${source.name} is a join: its inputs are its left and its right`
+    : source._type === 'rows' ? `${source.name} reads another grid's rows: its one input is its input, not its ${side}`
+      : `${source.name} reads no other grid: it has no input`);
+}
+
+/** `source` with its input on `side` replaced (inputOn's sides, refused as it refuses them) -- or, a Union's next side
+ *  (`more` one past its last), one more input appended. */
+export function withInputOn(source: CubeSource, side: InputSide, input: CubeInput): CubeSource {
+  const k = moreIndex(side);
+  if (source._type === 'join' && k !== undefined && k === (source.more?.length ?? 0) + 1) {
+    if (source.how.form !== 'append') throw new CubeRefusal(`${source.name} is a join of two: only a Union takes more inputs`);
+    return { ...source, more: [...(source.more ?? []), input] };
+  }
+  inputOn(source, side);
+  if (source._type === 'rows') return { ...source, input };
+  if (source._type === 'join' && k !== undefined) return { ...source, more: source.more!.map((i, n) => (n === k - 1 ? input : i)) };
+  if (source._type === 'join') return side === 'left' ? { ...source, left: input } : { ...source, right: input };
+  throw new Error('unreachable: inputOn refused it');
+}
+
+/** A join's inputs in order: its left, its right, and a Union's more after them (JoinSource.more). */
+export function joinInputs<I extends CubeInput>(source: { readonly left: I; readonly right: I; readonly more?: readonly I[] }): I[] {
+  return [source.left, source.right, ...(source.more ?? [])];
+}
+
+/** A join with `f` made of each of its inputs (joinInputs'), a Union's more as well. */
+export function withJoinInputs(source: JoinSource, f: (i: CubeInput) => CubeInput): JoinSource {
+  return { ...source, left: f(source.left), right: f(source.right), ...(source.more !== undefined ? { more: source.more.map(f) } : {}) };
+}
+
+/** The sides of `source` that read another grid's rows, in its order (none: it reads no other grid). */
+export function inputSides(source: CubeSource): readonly InputSide[] {
+  return source._type === 'rows' ? ['input'] : source._type === 'join'
+    ? ['left', 'right', ...(source.more ?? []).map((_, i): InputSide => `more${i + 1}`)] : [];
+}
+
+/** Where a cube's rows come from: a file, a saved query, a warehouse table, a remote file, a dataframe, a class, a join,
+ *  another grid's rows. */
+export type CubeSource = FileSource | QuerySource | WarehouseSource | RemoteSource | FrameSource | ClassSource | JoinSource
+  | RowsSource;
+
+/** A source that is no join and no other grid's rows: where rows are read from (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+ *  §18.1). */
+export type LeafSource = Exclude<CubeSource, JoinSource | RowsSource>;
 
 /**
  * WHAT A GRID READS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): its source's leaves -- a join's, its inputs' in
- * turn, left's then right's; any other source, itself. Every question of what a grid reads (its files, its frames, the
- * tables a join of it reads) is asked of these, never of its source's kind.
+ * turn, left's then right's; another grid's rows, that input's; any other source, itself. Every question of what a grid
+ * reads (its files, its frames, the tables a join of it reads) is asked of these, never of its source's kind. A live
+ * input is its page's to answer: resolved first (live-inputs.ts resolvedSource), never guessed here.
  */
 export function leavesOf(source: CubeSource): LeafSource[] {
-  return source._type === 'join' ? [...leavesOf(source.left.source), ...leavesOf(source.right.source)] : [source];
+  switch (source._type) {
+    case 'join': return joinInputs(source).flatMap((i) => inputLeaves(frozenInput(i, source.name)));
+    case 'rows': return inputLeaves(frozenInput(source.input, source.name));
+    default: return [source];
+  }
+}
+
+/** An input's leaves: its source's, then each input its rows are matched against (JoinInput.unmatched), in turn. */
+export function inputLeaves(input: JoinInput): LeafSource[] {
+  return [...leavesOf(input.source), ...(input.unmatched ?? []).flatMap((u) => inputLeaves(u.by))];
 }
 
 /**
@@ -365,8 +515,10 @@ export function readCubeSource(raw: unknown): CubeSource {
 }
 
 function readSource(raw: unknown): CubeSource {
-  // a join's condition may be a lambda, read exactly (its numbers as the protocol's): read before made plain
+  // a join's condition may be a lambda, read exactly (its numbers as the protocol's): read before made plain -- and so is
+  // a frozen input's query, a join's or another grid's rows'
   if (isObject(raw) && raw['_type'] === 'join') return readJoinSource(raw);
+  if (isObject(raw) && raw['_type'] === 'rows') return readRowsSource(raw);
   const s = plain(raw);
   if (!isObject(s)) throw new CubeDocumentError("missing 'source'");
   if (s['_type'] === 'savedQuery') return readQuerySource(s);
@@ -446,11 +598,10 @@ function readJoinSource(s: Record<string, unknown>): JoinSource {
   if (typeof s['name'] !== 'string' || s['name'] === '') throw new CubeDocumentError('the join source has no name');
   const columns = plain(s['columns']);
   if (!hasColumns({ columns })) throw new CubeDocumentError('the join source has no columns');
-  const input = (which: 'left' | 'right'): JoinInput => {
+  const input = (which: 'left' | 'right'): CubeInput => {
     const i = s[which];
     if (!isObject(i)) throw new CubeDocumentError(`the join source has no ${which} input`);
-    if (typeof i['name'] !== 'string' || i['name'] === '') throw new CubeDocumentError(`the join source's ${which} input has no name`);
-    return { name: i['name'], source: readSource(i['source']), query: readQuery(i['query']) };
+    return readInput(i, `the join source's ${which} input`);
   };
   let how: JoinHow;
   try {
@@ -459,7 +610,96 @@ function readJoinSource(s: Record<string, unknown>): JoinSource {
     if (e instanceof CubeRefusal) throw new CubeDocumentError(`the join source: ${e.message}`);
     throw e;
   }
-  return { _type: 'join', name: s['name'], left: input('left'), right: input('right'), how, columns: columns as JoinSource['columns'] };
+  // a Union's inputs after its right, each read as its others are
+  const more = s['more'];
+  if (more !== undefined && !(Array.isArray(more) && more.length > 0 && more.every(isObject))) {
+    throw new CubeDocumentError(`the join source's inputs after its right are a list of inputs, not ${JSON.stringify(plain(more) ?? null)}`);
+  }
+  if (more !== undefined && how.form !== 'append') throw new CubeDocumentError('the join source is a join of two: only a Union takes more inputs');
+  return {
+    _type: 'join', name: s['name'], left: input('left'), right: input('right'), how,
+    ...(more !== undefined ? { more: (more as Record<string, unknown>[]).map((i, n) => readInput(i, `the join source's input ${n + 3}`)) } : {}),
+    columns: columns as JoinSource['columns'],
+  };
+}
+
+/** A frozen input (`what`, as said: "the join source's left input"): what a grid was -- its name, source and query. */
+function readFrozenInput(i: Record<string, unknown>, what: string): JoinInput {
+  if (typeof i['name'] !== 'string' || i['name'] === '') throw new CubeDocumentError(`${what} has no name`);
+  const omit = i['omit'];
+  if (omit !== undefined && !(Array.isArray(omit) && omit.length > 0 && omit.every((c) => typeof c === 'string'))) {
+    throw new CubeDocumentError(`${what}'s columns left out are a list of names, not ${JSON.stringify(plain(omit) ?? null)}`);
+  }
+  const rename = i['rename'];
+  if (rename !== undefined && !(Array.isArray(rename) && rename.length > 0 && rename.every((r) => r !== null && typeof r === 'object'
+    && typeof (r as Record<string, unknown>)['from'] === 'string' && typeof (r as Record<string, unknown>)['to'] === 'string'))) {
+    throw new CubeDocumentError(`${what}'s columns renamed are a list of {from, to}, not ${JSON.stringify(plain(rename) ?? null)}`);
+  }
+  const order = i['order'];
+  if (order !== undefined && !(Array.isArray(order) && order.length > 0 && order.every((c) => typeof c === 'string'))) {
+    throw new CubeDocumentError(`${what}'s columns' order is a list of names, not ${JSON.stringify(plain(order) ?? null)}`);
+  }
+  const unmatched = i['unmatched'];
+  if (unmatched !== undefined && !(Array.isArray(unmatched) && unmatched.length > 0 && unmatched.every((u) => isObject(u) && isObject(u['by'])))) {
+    throw new CubeDocumentError(`${what}'s unmatched rows are a list of {by, on}, not ${JSON.stringify(plain(unmatched) ?? null)}`);
+  }
+  const matched = (u: Record<string, unknown>, n: number): Unmatched => {
+    const by = readFrozenInput(u['by'] as Record<string, unknown>, `${what}'s unmatched ${n}`);
+    try {
+      return { by, on: readJoinCondition(u['on'], `${what}'s unmatched ${n}`) };
+    } catch (e) {
+      if (e instanceof CubeRefusal) throw new CubeDocumentError(e.message);
+      throw e;
+    }
+  };
+  return { name: i['name'], source: readSource(i['source']), query: readQuery(i['query']), ...(omit !== undefined ? { omit: omit as string[] } : {}),
+    ...(rename !== undefined ? { rename: (rename as { from: string; to: string }[]).map((r) => ({ from: r.from, to: r.to })) } : {}),
+    ...(order !== undefined ? { order: order as string[] } : {}),
+    ...(unmatched !== undefined ? { unmatched: (unmatched as Record<string, unknown>[]).map((u, n) => matched(u, n + 1)) } : {}) };
+}
+
+/** Another grid's rows (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): its name, its columns, its input live or frozen. */
+function readRowsSource(s: Record<string, unknown>): RowsSource {
+  if (typeof s['name'] !== 'string' || s['name'] === '') throw new CubeDocumentError("the source of another grid's rows has no name");
+  const columns = plain(s['columns']);
+  if (!hasColumns({ columns })) throw new CubeDocumentError("the source of another grid's rows has no columns");
+  const i = s['input'];
+  if (!isObject(i)) throw new CubeDocumentError("the source of another grid's rows has no input");
+  const input = readInput(i, "the source of another grid's rows' input");
+  // a Pure box's function (pure-box.ts), read exactly: its shape judged here, what it computes the compiler's when it opens
+  let pure: Lambda | undefined;
+  if (s['pure'] !== undefined) {
+    const problem = pureProblem(s['pure']);
+    if (problem !== undefined) throw new CubeDocumentError(problem);
+    try {
+      pure = readLambda(s['pure']);
+    } catch (e) {
+      if (!(e instanceof ProtocolError)) throw e;
+      throw new CubeDocumentError(`${s['name']}'s Pure: ${e.message}`);
+    }
+  }
+  return { _type: 'rows', name: s['name'], input, ...(pure !== undefined ? { pure } : {}), columns: columns as RowsSource['columns'] };
+}
+
+/** An input (`what`, as said), live -- `{grid}`, a grid of its page -- or frozen, a copy of what a grid was. */
+function readInput(i: Record<string, unknown>, what: string): CubeInput {
+  if (!('grid' in i)) return readFrozenInput(i, what);
+  const extra = Object.keys(i).filter((k) => k !== 'grid' && k !== 'port');
+  if (extra.length > 0) throw new CubeDocumentError(`a live input is its grid alone, and its port, not ${extra.join(', ')}`);
+  if (typeof i['grid'] !== 'string' || !idShape('grid').test(i['grid'])) {
+    throw new CubeDocumentError(`a live input names a grid of its page ('grid-3'), not ${JSON.stringify(plain(i['grid']) ?? null)}`);
+  }
+  const port = i['port'];
+  if (port !== undefined && port !== 'false' && port !== 'left' && port !== 'right') {
+    throw new CubeDocumentError(`a live input's port is a Filter's 'false' or a Join's 'left' or 'right', not ${JSON.stringify(plain(port) ?? null)}`);
+  }
+  return port !== undefined ? { grid: i['grid'], port } : { grid: i['grid'] };
+}
+
+/** An input read from JSON (a page command's: setInput), refused in words as a cube's own reader refuses it. */
+export function readCubeInput(raw: unknown, what: string): CubeInput {
+  if (!isObject(raw)) throw new CubeDocumentError(`${what} is {grid} or a copy of a grid {name, source, query}, not ${JSON.stringify(raw)}`);
+  return readInput(raw, what);
 }
 
 function readQuerySource(s: Record<string, unknown>): QuerySource {
@@ -601,9 +841,12 @@ function reopened(doc: CubeDocument, columns: readonly ColumnSpec[]): Omit<Opene
   const now = new Map(columns.map((c) => [c.name, c]));
   let configuration = merge(DEFAULT_CONFIGURATION, doc.configuration) as CubeConfiguration;
 
-  // New columns: available, not shown.
+  // New columns: available, not shown -- but a grid reading another live (a flow's box) passes on what its input gains,
+  // as Alteryx's *Unknown does (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2: a Join set again to bring their columns back hid
+  // them, 2026-10-25); a Select box hides what it hides by name
+  const live = inputSides(doc.source).some((side) => isLive(inputOn(doc.source, side)));
   const added = columns.filter((c) => !saved.has(c.name)).map((c) => c.name);
-  if (added.length > 0) {
+  if (added.length > 0 && !live) {
     notes.push(`${plural(added.length, 'new column')} since this cube was saved, hidden: ${added.join(', ')}`);
     const cols = { ...configuration.columns };
     for (const name of added) cols[name] = { ...cols[name], hidden: true };
@@ -616,7 +859,7 @@ function reopened(doc: CubeDocument, columns: readonly ColumnSpec[]): Omit<Opene
   }
   // Gone columns, and every calculated column that reads one (in order: one may read another).
   const gone = new Set(q.columns.filter((c) => !now.has(c.name)).map((c) => c.name));
-  if (gone.size > 0) notes.push(`${plural(gone.size, 'column')} no longer in the file: ${[...gone].join(', ')}`);
+  if (gone.size > 0) notes.push(`${plural(gone.size, 'column')} no longer in ${live ? 'its input' : 'the file'}: ${[...gone].join(', ')}`);
   const keepDerived = (list: readonly DerivedColumn[]): DerivedColumn[] => list.filter((d) => {
     const lost = [...derivedReads(d)].filter((n) => gone.has(n));
     if (lost.length === 0) return true;

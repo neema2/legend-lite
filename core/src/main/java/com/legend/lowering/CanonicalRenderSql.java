@@ -127,11 +127,15 @@ public final class CanonicalRenderSql {
                     instanceKeys,
             boolean literalChannel, boolean nameValued,
             @com.legend.base.Nullable String enumFrame) {
+        Type t = rootInfo.type();
+        if (!plan.outputs().isEmpty() && plan.outputs().get(0).type() instanceof SqlType.Tagged tg
+                && plan.outputs().size() == 1 + tg.slots().size()) {
+            return taggedCanon(plan, tg, t, rootInfo, canonicalOrder);
+        }
         if (plan.outputs().size() != 1) {
             return CanonWrap.decline(plan, "non-scalar plan shape: "
                     + plan.outputs().size() + " columns");
         }
-        Type t = rootInfo.type();
         com.legend.sql.OutputCol valueCol = plan.outputs().get(0);
         SqlExpr valueRef = SqlExpr.Column.of(null, valueCol);
         List<Type> candidates;
@@ -991,6 +995,43 @@ public final class CanonicalRenderSql {
      * F10 v1 compares Any-involving pairs in it.) */
     static @com.legend.base.Nullable SqlExpr literalCanon(SqlExpr v, Type kind) {
         return LiteralSpelling.literal(v, kind);
+    }
+
+    /**
+     * The canon of a tagged root (a mixed selection's winner, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the
+     * literal spelling of the slot the tag names, each slot by its own kind -- the one candidate is the literal
+     * channel, as a LITERAL-carried root's is. The root's columns (the tag and its slots) ride through.
+     */
+    private static CanonWrap taggedCanon(com.legend.sql.SqlQuery plan, SqlType.Tagged tg, Type t,
+            com.legend.compiler.element.type.ExprType rootInfo, boolean canonicalOrder) {
+        com.legend.sql.OutputCol tagCol = plan.outputs().get(0);
+        SqlExpr tag = SqlExpr.Column.of(null, tagCol);
+        List<SqlExpr.Case.When> whens = new java.util.ArrayList<>();
+        for (int i = 0; i < tg.slots().size(); i++) {
+            SqlType.Tagged.Slot slot = tg.slots().get(i);
+            SqlExpr ref = SqlExpr.Column.of(null, SqlType.Tagged.slotColumn(tagCol.name(), i), slot.type(), true,
+                    com.legend.sql.OutputCol.Origin.DERIVED);
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
+                    Objects.requireNonNull(literalCanon(ref, MixedEncoding.kindType(slot.kind())))));
+        }
+        SqlExpr canon = new SqlExpr.Case(whens, null);
+        List<com.legend.sql.SqlSelect.Projection> projections = new java.util.ArrayList<>();
+        List<com.legend.sql.OutputCol> outputs = new java.util.ArrayList<>();
+        for (com.legend.sql.OutputCol c : plan.outputs()) {
+            projections.add(new com.legend.sql.SqlSelect.Projection(SqlExpr.Column.of(null, c), c.name(), c));
+            outputs.add(c);
+        }
+        com.legend.sql.OutputCol canonCol = new com.legend.sql.OutputCol("__canon0", SqlType.Scalar.VARCHAR, true);
+        projections.add(new com.legend.sql.SqlSelect.Projection(canon, "__canon0", canonCol));
+        outputs.add(canonCol);
+        return new CanonWrap(new com.legend.sql.SqlSelect(projections, false,
+                new com.legend.sql.SqlSource.Subselect(plan, "side", null), null, List.of(), null, null,
+                canonicalOrder ? List.of(new com.legend.sql.SqlSelect.SortKey(canon, true, null, null)) : List.of(),
+                null, null, outputs),
+                List.of(t),
+                rootInfo.multiplicity().requireBounded("canon side").upper() == null
+                        || rootInfo.multiplicity().requireBounded("canon side").upper() > 1,
+                0, null);
     }
 
     /** F10 v1 — the unclaimable-tree sentinel: an Any cell holding a

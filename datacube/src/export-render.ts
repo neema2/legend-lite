@@ -8,6 +8,7 @@ import { columnConfig, labelFor, leafFormats, renderFormats, toColumnAppearance,
 import type { CubeView } from './cube.ts';
 import { toPdf, toPlainText } from './export-doc.ts';
 import { exportTable, type ExportPage } from './export-model.ts';
+import { isMeasureLeaf } from './grid-edits.ts';
 import { toHtml } from './export-rich.ts';
 import { exportCsv, exportFileName } from './export.ts';
 import { toXlsx, XLSX_MIME } from './export-xlsx.ts';
@@ -206,6 +207,7 @@ export function renderExport(kind: ExportKind, o: ExportOf): ExportedFile {
     cellBackground: o.cellBackground,
     formats: o.formats,
     ...(o.cellDecoration ? { cellDecoration: o.cellDecoration } : {}),
+    isMeasure: (leaf) => isMeasureLeaf({ snapshot: o.view.snapshot, config: o.config }, leaf),
   });
   const doc = { formatters: o.formatters, formats: o.formats, ...(o.page ? { page: o.page } : {}) };
   switch (kind) {

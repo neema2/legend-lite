@@ -773,6 +773,8 @@ public final class BigQuery extends AnsiSqlRenderer {
                 }
                 yield sb.append('>').toString();
             }
+            case SqlType.Tagged tg -> throw new IllegalStateException("a tagged value is never cast or stored: its"
+                    + " tag and slots are its query's columns");
         };
     }
 

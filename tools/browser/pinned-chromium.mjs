@@ -12,6 +12,9 @@ import { existsSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 
+// behind a proxy: the proxy the environment names, given as Chromium's own flags (proxy-args.mjs)
+import { proxyArgs } from './proxy-args.mjs';
+
 const pinned = process.env.PINNED_CHROMIUM;
 // Bazel gives a test HOME = TEST_TMPDIR but passes the host's TMPDIR through on macOS
 // (/var/folders/...), where Playwright would put the browser profile and artifacts: keep them in
@@ -61,14 +64,15 @@ if (pinned) {
 // //datacube:browser_guard_test fails when a launch stops being guarded (a Playwright upgrade, or this file changed).
 export const HERMETIC_ARGS = ['--host-resolver-rules=MAP extensions.duckdb.org ~NOTFOUND'];
 
-/** Guards every launch of `chromium` (Playwright's BrowserType) with HERMETIC_ARGS; answers it. */
+/** Guards every launch of `chromium` (Playwright's BrowserType) with HERMETIC_ARGS, behind a proxy too; answers it. */
 export function hermetic(chromium) {
   if (chromium.__hermetic) return chromium;
+  const guard = [...HERMETIC_ARGS, ...proxyArgs()];
   const launch = chromium.launch.bind(chromium);
-  chromium.launch = (options = {}) => launch({ ...options, args: [...(options.args ?? []), ...HERMETIC_ARGS] });
+  chromium.launch = (options = {}) => launch({ ...options, args: [...(options.args ?? []), ...guard] });
   const persistent = chromium.launchPersistentContext.bind(chromium);
   chromium.launchPersistentContext = (dir, options = {}) =>
-    persistent(dir, { ...options, args: [...(options.args ?? []), ...HERMETIC_ARGS] });
+    persistent(dir, { ...options, args: [...(options.args ?? []), ...guard] });
   chromium.__hermetic = true;
   return chromium;
 }

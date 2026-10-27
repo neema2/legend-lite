@@ -1,5 +1,5 @@
 // A PAGE'S SHEET TABS, in its bar, as a browser's tabs (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.1; the user,
-// 2026-10-09): the sheet shown raised, a click shows another, a double click renames one in place, the + adds one, a
+// 2026-10-09): the sheet shown raised, a click shows another, a double click renames one in place, the + adds one (a Sheet or a Flow), a
 // tab's × deletes it (on the tab shown and the tab under the pointer; none for the last sheet, or on a locked page), its
 // right-click menu has Rename, Move Left, Move Right and Delete, and a tab dragged along the strip reorders.
 // Many sheets shrink their tabs, then the strip scrolls, with a list of every sheet at its end.
@@ -11,6 +11,7 @@
 // What a sheet IS is the page's (page/cube-page.ts); this strip only says the sheets and asks for changes.
 
 import { MenuView } from './menu-view.ts';
+import { chromeIcon } from './tile-icons.ts';
 import type { MenuGroup, MenuItem } from './menu.ts';
 
 /** A sheet as its tab says it. */
@@ -21,13 +22,24 @@ export interface SheetTab {
 
 export interface SheetTabsOptions {
   readonly onShow: (id: string) => void;
+  /** The +'s Sheet: a sheet of grids and charts. */
   readonly onAdd: () => void;
+  /** The +'s Flow (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): a sheet of boxes on a canvas, each a step. */
+  readonly onAddFlow: () => void;
   /** A tab renamed: its new name, or '' to be named after what it shows again. */
   readonly onRename: (id: string, name: string) => void;
   /** A tab moved to `to` in the order (counted with it taken out). */
   readonly onMove: (id: string, to: number) => void;
   /** Its menu's Delete: the page asks first when the sheet has tiles. */
   readonly onRemove: (id: string) => void;
+}
+
+/** A tab's parts: its state (`stateSlot`), its name, its ×. */
+interface Parts {
+  readonly tab: HTMLElement;
+  readonly state: HTMLElement;
+  readonly label: HTMLElement;
+  readonly close: HTMLButtonElement;
 }
 
 /** How far a pressed tab moves before it is dragged rather than clicked, in pixels. */
@@ -53,7 +65,7 @@ export class SheetTabs {
    * Each sheet's tab and its parts, kept from paint to paint: a click that shows a sheet leaves its tab, so a double
    * click renames it; and a rename's field, in the parts' place, leaves them to be painted all the same.
    */
-  readonly #els = new Map<string, { readonly tab: HTMLElement; readonly label: HTMLElement; readonly close: HTMLButtonElement }>();
+  readonly #els = new Map<string, Parts>();
 
   constructor(doc: Document, options: SheetTabsOptions) {
     this.#doc = doc;
@@ -68,14 +80,22 @@ export class SheetTabs {
     this.#add.type = 'button';
     this.#add.className = 'dc-sheet-add';
     this.#add.textContent = '+';
-    this.#add.title = 'A new sheet';
-    this.#add.setAttribute('aria-label', 'New sheet');
-    this.#add.addEventListener('click', () => this.#options.onAdd());
+    this.#add.title = 'A new sheet or flow';
+    this.#add.setAttribute('aria-label', 'New sheet or flow');
+    this.#add.setAttribute('aria-haspopup', 'menu');
+    // what it adds, offered as Create ▸ offers it (the user, 2026-10-26: a flow from the +, not only the menu)
+    this.#add.addEventListener('click', () => {
+      const at = this.#add.getBoundingClientRect();
+      this.#showMenu([{ label: '', items: [
+        { id: 'sheet.new' as const, label: 'Sheet' },
+        { id: 'sheet.newFlow' as const, label: 'Flow' },
+      ] }], at.left, at.bottom, this.#add);
+    });
     // every sheet, when they are more than the strip shows
     this.#list = doc.createElement('button');
     this.#list.type = 'button';
     this.#list.className = 'dc-sheet-list';
-    this.#list.textContent = '▾';
+    this.#list.append(chromeIcon(doc, 'more'));
     this.#list.title = 'Every sheet';
     this.#list.setAttribute('aria-label', 'Every sheet');
     this.#list.setAttribute('aria-haspopup', 'menu');
@@ -135,6 +155,11 @@ export class SheetTabs {
     this.#paintOverflow();
   }
 
+  /** Where a sheet's tab says the state of the grid alone on it (the user, 2026-10-25): its Live or Snapped. */
+  stateSlot(id: string): HTMLElement | undefined {
+    return this.#els.get(id)?.state;
+  }
+
   /** The sheet whose tab is at a point of the window, if any. */
   at(x: number, y: number): string | undefined {
     for (const tab of this.#strip.querySelectorAll<HTMLElement>('.dc-sheet-tab')) {
@@ -164,13 +189,13 @@ export class SheetTabs {
     field.value = sheet.label;
     field.setAttribute('aria-label', 'Sheet name');
     // the tab's own label and ×, back in place when the field goes
-    const { label, close } = this.#els.get(id)!;
+    const { state, label, close } = this.#els.get(id)!;
     let done = false;
     const finish = (keep: boolean): void => {
       if (done) return;
       done = true;
       this.#renaming = undefined;
-      tab.replaceChildren(label, close);
+      tab.replaceChildren(state, label, close);
       if (keep && field.value.trim() !== sheet.label) this.#options.onRename(id, field.value.trim());
       this.#tabAt(id)?.focus();
     };
@@ -194,19 +219,24 @@ export class SheetTabs {
   // -- a tab ---------------------------------------------------------------------------------------------------
 
   /** A sheet's tab, its handlers reading where it is now (`paint` keeps it while its sheet lasts). */
-  #tab(id: string): { tab: HTMLElement; label: HTMLElement; close: HTMLButtonElement } {
+  #tab(id: string): Parts {
     const doc = this.#doc;
     const tab = doc.createElement('div');
     tab.className = 'dc-sheet-tab';
     tab.dataset['sheet'] = id;
     tab.setAttribute('role', 'tab');
+    // a lone grid's state, before its name (the page puts it here: `stateSlot`); a press on it is its own, not the tab's
+    const state = doc.createElement('span');
+    state.className = 'dc-sheet-state';
+    state.addEventListener('pointerdown', (e) => e.stopPropagation());
+    state.addEventListener('dblclick', (e) => e.stopPropagation());
     const label = doc.createElement('span');
     label.className = 'dc-sheet-label';
     // its ×: deleted as its menu's Delete does (the page asks first when it has tiles)
     const close = doc.createElement('button');
     close.type = 'button';
     close.className = 'dc-sheet-close';
-    close.textContent = '\u00d7';
+    close.append(chromeIcon(close.ownerDocument, 'close'));
     close.tabIndex = -1;
     close.addEventListener('pointerdown', (e) => e.stopPropagation());
     close.addEventListener('dblclick', (e) => e.stopPropagation());
@@ -214,7 +244,7 @@ export class SheetTabs {
       e.stopPropagation();
       this.#options.onRemove(id);
     });
-    tab.append(label, close);
+    tab.append(state, label, close);
     tab.addEventListener('dblclick', () => this.rename(id));
     tab.addEventListener('contextmenu', (e) => {
       e.preventDefault();
@@ -222,10 +252,10 @@ export class SheetTabs {
     });
     tab.addEventListener('keydown', (e) => this.#onKey(e, id, tab));
     tab.addEventListener('pointerdown', (e) => this.#press(e, id, tab));
-    return { tab, label, close };
+    return { tab, state, label, close };
   }
 
-  #paintTab({ tab, label, close }: { tab: HTMLElement; label: HTMLElement; close: HTMLButtonElement }, sheet: SheetTab): void {
+  #paintTab({ tab, label, close }: Parts, sheet: SheetTab): void {
     const shown = sheet.id === this.#shown;
     tab.setAttribute('aria-selected', String(shown));
     tab.tabIndex = shown ? 0 : -1;
@@ -327,15 +357,18 @@ export class SheetTabs {
 
   #tabMenu(id: string, x: number, y: number, trigger: HTMLElement): void {
     const at = this.#tabs.findIndex((t) => t.id === id);
-    const locked = this.#editing ? {} : { disabled: true };
+    // off, and why said on its hover (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md): a locked page first, then
+    // what this one entry cannot do
+    const off = (why: string | false): { disabled?: true; hint?: string } =>
+      (!this.#editing ? { disabled: true, hint: 'Edit Layout first' } : why ? { disabled: true, hint: why } : {});
     this.#showMenu([
-      { label: '', items: [{ id: `sheet.rename.${id}` as const, label: 'Rename', ...locked }] },
+      { label: '', items: [{ id: `sheet.rename.${id}` as const, label: 'Rename\u2026', ...off(false) }] },
       { label: '', items: [
-        { id: `sheet.left.${id}` as const, label: 'Move Left', ...(this.#editing && at > 0 ? {} : { disabled: true }) },
-        { id: `sheet.right.${id}` as const, label: 'Move Right', ...(this.#editing && at < this.#tabs.length - 1 ? {} : { disabled: true }) },
+        { id: `sheet.left.${id}` as const, label: 'Move Left', ...off(at === 0 && 'It is the first sheet') },
+        { id: `sheet.right.${id}` as const, label: 'Move Right', ...off(at === this.#tabs.length - 1 && 'It is the last sheet') },
       ] },
       // the last sheet stays: a page has one at least
-      { label: '', items: [{ id: `sheet.delete.${id}` as const, label: 'Delete', ...(this.#editing && this.#tabs.length > 1 ? {} : { disabled: true }) }] },
+      { label: '', items: [{ id: `sheet.delete.${id}` as const, label: 'Delete Sheet', ...off(this.#tabs.length < 2 && 'A page keeps one sheet at least') }] },
     ], x, y, trigger);
   }
 
@@ -345,6 +378,9 @@ export class SheetTabs {
 
   #onMenu(item: MenuItem): void {
     const id = item.id ?? '';
+    // the +'s, while the page may still change (its menu opened before the page was locked adds nothing)
+    if (id === 'sheet.new' && this.#editing) this.#options.onAdd();
+    if (id === 'sheet.newFlow' && this.#editing) this.#options.onAddFlow();
     const of = (verb: string): string | undefined => (id.startsWith(`sheet.${verb}.`) ? id.slice(`sheet.${verb}.`.length) : undefined);
     const show = of('show');
     if (show !== undefined) this.#options.onShow(show);

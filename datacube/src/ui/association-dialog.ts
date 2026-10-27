@@ -9,6 +9,7 @@ import { focusedElement } from '../focus.ts';
 import type { AssociationAction, Joinable, ModelAnswer, Suggestion } from '../model-writer.ts';
 import { isPureName } from '../model-names.ts';
 import type { CreatedClass } from './class-dialog.ts';
+import { closeMark } from './tile-icons.ts';
 
 export interface AssociationDialogOptions {
   /** The page's project, as the window names it. */
@@ -72,7 +73,7 @@ export function associationDialog(doc: Document, o: AssociationDialogOptions): P
     const titles = el(doc, 'div', 'dc-picker-titles', head);
     el(doc, 'h2', 'dc-picker-title', titles, 'Create an Association').id = 'dc-association-title';
     el(doc, 'p', 'dc-picker-subtitle', titles, `Between two of the page's classes, in ${o.project}: equal on a property or key of each.`);
-    const close = el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement;
+    const close = closeMark(el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => { if (!busy) finish(); });

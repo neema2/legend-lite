@@ -37,7 +37,7 @@ describe('while Ad Hoc Analysis is on, the shell acts on it (B5b)', () => {
 
   it('cube-only entries are not offered, and Ctrl-E opens nothing (P2-289)', async () => {
     await enter();
-    for (const label of ['Properties...', 'Hide Drag Zones', 'Show Drag Zones']) {
+    for (const label of ['Properties…', 'Hide Drag Zones', 'Show Drag Zones']) {
       const e = entry(label);
       if (e) assert.equal(e.getAttribute('aria-disabled'), 'true', `${label} is the cube's`);
     }
@@ -50,7 +50,17 @@ describe('while Ad Hoc Analysis is on, the shell acts on it (B5b)', () => {
     const bar = root.querySelector('.dc-app-stats') as HTMLElement;
     assert.equal(bar.querySelector('.dc-status-filter'), null, 'the cube\'s Filter link under the Ad Hoc grid');
     const view = app.adhoc?.view ?? assert.fail('no Ad Hoc view');
-    assert.match(bar.textContent ?? '', new RegExp(`${view.table.rowCount} rows`), `the Ad Hoc counts: ${bar.textContent}`);
+    assert.match(bar.textContent ?? '', new RegExp(`\\b${view.table.rowCount} rows?\\b`), `the Ad Hoc counts: ${bar.textContent}`);
+  });
+
+  it('what runs is a bar along Ad Hoc\'s top edge while it is on, and the grid\'s again after (the 2026-10-25 audit)', async () => {
+    // the bar moved into the grid's frame, which Ad Hoc hides: a slow expansion showed nothing while it ran
+    await enter();
+    const bar = root.querySelector('.dc-status-progress') as HTMLElement;
+    assert.ok(bar.parentElement?.classList.contains('dc-adhoc'), `in Ad Hoc's frame: ${bar.parentElement?.className}`);
+    assert.equal(bar.closest('[hidden]'), null, 'not under anything hidden');
+    app.exitAdHoc();
+    assert.ok(root.querySelector('.dc-app-middle > .dc-status-progress'), "the grid's again");
   });
 
   it('Settings reach Ad Hoc: Max History Stack Size and Debug Mode (P2-283)', async () => {

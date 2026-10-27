@@ -76,4 +76,33 @@ public sealed interface SqlType {
         public record Field(String name, SqlType type) {
         }
     }
+
+    /**
+     * A value whose Pure kind the database decides among statically-kinded candidates -- a mixed Number's or Date's
+     * {@code max}, {@code min}, {@code greatest}, {@code least} or {@code mode}
+     * (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a, 2026-10-23). The column of this type holds the TAG: the index
+     * into {@code slots} of the winner's slot. Beside it, one column per slot, named by {@link #slotColumn}, holds
+     * the winner in that slot's own type and NULL in the others. A slot is a distinct pair of a Pure kind
+     * ({@code Integer}, {@code Float}, {@code Decimal}, {@code StrictDate}, {@code DateTime}, {@code Date}) and an
+     * SQL type, so the kind survives as a type, never as a spelling. Never cast, never stored: the carrier of a
+     * query's root alone.
+     */
+    record Tagged(java.util.List<Slot> slots) implements SqlType {
+        public Tagged {
+            slots = java.util.List.copyOf(slots);
+            if (slots.isEmpty()) {
+                throw new IllegalArgumentException("a tagged type has at least one slot");
+            }
+        }
+
+        /** One slot: the Pure kind it holds and the SQL type that holds it exactly. */
+        public record Slot(String kind, SqlType type) {
+        }
+
+        /** The physical column holding slot {@code i} of the tagged column {@code column}: {@code column__i}. The one
+         *  owner of the name, read by the planner's column facts and the runner's decode alike. */
+        public static String slotColumn(String column, int i) {
+            return column + "__" + i;
+        }
+    }
 }

@@ -1419,11 +1419,22 @@ final class Fold {
     /** Per-lane scope: {@link LiteralSpelling.ValueLane}. */
     static SqlSelect conformValueEgress(SqlSelect s,
             LiteralSpelling.ValueLane lane) {
+        // a tagged root's tag and slot columns are in their wire form by construction (the Lowerer's taggedRoot,
+        // docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): each slot its own type, the tag an index
+        java.util.Set<String> tagged = new java.util.HashSet<>();
+        for (SqlSelect.Projection p : s.projections()) {
+            if (p.out() != null && p.out().type() instanceof com.legend.sql.SqlType.Tagged tg) {
+                tagged.add(p.out().name());
+                for (int i = 0; i < tg.slots().size(); i++) {
+                    tagged.add(com.legend.sql.SqlType.Tagged.slotColumn(p.out().name(), i));
+                }
+            }
+        }
         java.util.List<SqlSelect.Projection> out = null;
         for (int i = 0; i < s.projections().size(); i++) {
             SqlSelect.Projection p = s.projections().get(i);
             com.legend.sql.OutputCol col = p.out();
-            if (col == null) {
+            if (col == null || tagged.contains(col.name())) {
                 continue;
             }
             SqlExpr.Cast conformed = LiteralSpelling.wireValueEgress(

@@ -12,6 +12,7 @@
 
 import type { MenuGroup, MenuItem } from './menu.ts';
 import { focusedElement } from '../focus.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 export interface MenuViewOptions {
   readonly onSelect: (item: MenuItem) => void;
@@ -154,6 +155,14 @@ export class MenuView {
       el.setAttribute('aria-disabled', 'true');
     }
     if (item.hint !== undefined) el.title = item.hint;
+    if (item.shortcut !== undefined) {
+      // its key, right-aligned and quiet, and said to a screen reader as the entry's own
+      el.setAttribute('aria-keyshortcuts', item.shortcut.replace(/Ctrl/g, 'Control'));
+      const keys = doc.createElement('span');
+      keys.className = 'dc-menu-shortcut';
+      keys.textContent = item.shortcut;
+      el.appendChild(keys);
+    }
 
     if (item.submenu && item.submenu.length > 0) {
       el.classList.add('dc-has-submenu');
@@ -161,7 +170,7 @@ export class MenuView {
       const chevron = doc.createElement('span');
       chevron.className = 'dc-menu-chevron';
       chevron.setAttribute('aria-hidden', 'true');
-      chevron.textContent = '\u203a';
+      chevron.append(chromeIcon(doc, 'chevronRight'));
       el.appendChild(chevron);
 
       const sub = doc.createElement('div');
@@ -176,8 +185,13 @@ export class MenuView {
     if (item.id !== undefined && !item.disabled) {
       el.addEventListener('click', (event) => {
         event.stopPropagation();
+        const menu = this.#el;
         this.#options.onSelect(item);
-        this.close();
+        // the entry put the focus somewhere of its own, outside the menu -- a window it opened -- and it stays there,
+        // not back where the menu came from (the 2026-10-25 review: a chart's Properties… lost its window's focus to
+        // the tile, and Escape no longer closed it)
+        const now = focusedElement(this.#doc);
+        this.close(now !== null && now !== this.#doc.body && menu?.contains(now) !== true);
       });
     } else {
       el.addEventListener('click', (event) => event.stopPropagation());
@@ -202,7 +216,8 @@ export class MenuView {
     this.close();
   };
 
-  close(): void {
+  /** Put the menu away, the focus back where it came from -- unless `keepFocus` (an entry moved it on). */
+  close(keepFocus = false): void {
     if (!this.#el) return;
     this.#doc.removeEventListener('pointerdown', this.#onOutside, true);
     this.#doc.removeEventListener('keydown', this.#onEscape, true);
@@ -218,9 +233,12 @@ export class MenuView {
     // -- or a test DOM -- the check is false and focus is silently
     // dropped. This is the second place that bit; it is a property of
     // cross-realm DOM, not of any one call site.
-    const back = this.#returnFocus as { focus?: unknown } | null;
-    if (back && typeof back.focus === 'function') {
-      (back as HTMLElement).focus();
+    const back = this.#returnFocus as { focus?: unknown; disabled?: unknown; parentElement?: HTMLElement | null } | null;
+    if (!keepFocus && back && typeof back.focus === 'function') {
+      // an entry that disabled the button it was opened from (a grid's Snap, while it snaps): focus in what holds it
+      // instead, or it falls to the body (the 2026-10-25 audit)
+      const holder = back.disabled === true ? back.parentElement?.closest<HTMLElement>('[tabindex]') : null;
+      (holder ?? (back as HTMLElement)).focus();
     }
     this.#returnFocus = null;
     this.#options.onClose?.();

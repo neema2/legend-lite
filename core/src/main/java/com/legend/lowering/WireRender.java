@@ -79,7 +79,7 @@ public final class WireRender {
             byName.put(c.name(), c);
         }
         List<Type.Column> relCols = new ArrayList<>();
-        for (var oc : inner.outputs()) {
+        for (var oc : Render.presented(inner.outputs())) {
             Type.Column t = byName.get(oc.name());
             if (t == null) {
                 throw new com.legend.error.NotImplementedException(
@@ -138,7 +138,7 @@ public final class WireRender {
             byName.put(c.name(), c);
         }
         List<Type.@com.legend.base.Nullable Column> out = new ArrayList<>();
-        for (var oc : inner.outputs()) {
+        for (var oc : Render.presented(inner.outputs())) {
             out.add(byName.get(oc.name()));
         }
         return out;

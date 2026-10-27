@@ -18,7 +18,7 @@ import type { Lambda } from '../../../../pure-protocol/src/index.ts';
 import { chartQuery } from '../../../src/chart-spec.ts';
 import { openCube, type CubeDocument } from '../../../src/cube-document.ts';
 import { LitePlanner } from '../../../src/lite-planner.ts';
-import { pageToJson, readPage, type ChartView, type GridView, type PageDocument, type PageView } from '../../../src/page-document.ts';
+import { layoutTiles, pageToJson, readPage, type ChartView, type GridView, type PageDocument, type PageView } from '../../../src/page-document.ts';
 import { levelWithValues } from '../../../src/plan.ts';
 import { savedQueryOpened } from '../../../src/saved-queries.ts';
 import { MARKET_RUNTIME, MARKET_TAB_MODEL } from '../../deephaven/market/model.ts';
@@ -66,14 +66,6 @@ const say = (what: string): void => {
   out.progress = what;
   console.log(`[measure] ${what}`);
 };
-
-/** Every tile a sheet's layout places, a stack's every tile among them. */
-function tilesOf(node: unknown): string[] {
-  const n = node as { tile?: string; stack?: string[]; parts?: { node: unknown }[] };
-  if (n.tile !== undefined) return [n.tile];
-  if (n.stack !== undefined) return [...n.stack];
-  return (n.parts ?? []).flatMap((p) => tilesOf(p.node));
-}
 
 /** DuckDB's own memory, bytes (duckdb_memory()): what the measurement reads of the database itself. */
 const MEMORY_SQL = 'SELECT sum(memory_usage_bytes) AS bytes FROM duckdb_memory()';
@@ -181,7 +173,7 @@ async function main(): Promise<void> {
   const views = new Map<string, PageView>(page.views.map((v) => [v.id, v]));
   const plans = new Map<string, Plan>();
   for (const v of page.views) {
-    if (v.kind === 'text') continue;
+    if (v.kind !== 'grid' && v.kind !== 'chart') continue;
     const cube = cubes.get(v.cube);
     if (cube === undefined) continue;
     try {
@@ -218,7 +210,7 @@ async function main(): Promise<void> {
     const name = sheet.name ?? sheet.id;
     if (ONLY !== undefined && !ONLY.includes(name)) continue;
     say(`tab ${name}`);
-    tabs.push(await runTab(name, tilesOf({ parts: sheet.layout.bands.map((b) => ({ node: b.node })) })));
+    tabs.push(await runTab(name, layoutTiles(sheet.layout)));
   }
   out.report = {
     settings: {

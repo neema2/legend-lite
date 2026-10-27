@@ -343,9 +343,11 @@ describe('the panel as three sections of one surface', () => {
     assert.equal(plain?.classList.contains('dc-tool-panel-spacer'), true);
   });
 
-  it('FOLDS a pivoted measure that made too many columns', () => {
-    // A pivot on one key makes five of a measure; on two it makes
-    // twenty, and the list became a wall of `Q3 . 2024`.
+  it('FOLDS every pivoted measure under its own row', () => {
+    // The start page listed 25 tick boxes for 3 measures -- `2021 …
+    // 2025, Total` again under each -- and a pivot on two keys made
+    // the list a wall of `Q3 . 2024` (docs/DATACUBE_UI_REVIEW_2026_10_24.md,
+    // found 3). A block of any size arrives folded.
     const many = (n: number) => [{
       name: 'notional',
       type: 'Float',
@@ -357,22 +359,49 @@ describe('the panel as three sections of one surface', () => {
       })),
     }];
     panel.setColumns(PIVOTED);
-    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 2,
-      'a small block should be open');
+    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 0,
+      'a small block arrives folded too');
+    const twist = (): HTMLButtonElement =>
+      root.querySelector('.dc-tool-panel-row[data-column="notional"] button.dc-tool-panel-twist') as HTMLButtonElement;
+    assert.equal(twist().getAttribute('aria-expanded'), 'false');
+    assert.equal(twist().title, 'Show the 2 columns of notional');
+    twist().click();
+    assert.deepEqual(
+      [...root.querySelectorAll<HTMLElement>('.dc-tool-panel-child')].map((r) => r.dataset['column']),
+      ['A__|__notional', 'B__|__notional']);
 
-    // BY ITS CURRENT SIZE: pivoting on a second key takes five
-    // columns to twenty, and a measure remembered from when it was
-    // small stayed unfolded at twenty.
+    // And the choice sticks: neither the next render nor a pivot on a
+    // second key folds it again.
+    panel.setColumns(PIVOTED);
+    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 2);
     panel.setColumns(many(20));
-    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 0);
-    const twist = root.querySelector('.dc-tool-panel-twist') as
-      HTMLButtonElement;
-    assert.notEqual(twist, null);
-    twist.click();
     assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 20);
+    twist().click();
+    panel.setColumns(many(20));
+    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 0, 'folded by hand stays folded');
+  });
 
-    // And the choice sticks: the next render must not fold it again.
-    panel.setColumns(many(20));
-    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 20);
+  it("says on the measure's own box when part of its folded block is hidden", () => {
+    // Folded, the block's ticks are out of sight: the measure's box is
+    // ticked when every column shows, clear when none does, and part
+    // ticked between -- a press on it then hides them all.
+    const toggled: [string, boolean][] = [];
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const withBoxes = new ColumnsToolPanel(host, { onVisibility: (c, v) => toggled.push([c, v]) });
+    const block = (shown: readonly boolean[]) => [{
+      name: 'notional', type: 'Float', groupable: false,
+      children: shown.map((visible, i) => ({ name: `v${i}__|__notional`, label: `v${i}`, visible })),
+    }];
+    const box = (): HTMLInputElement => host.querySelector('.dc-tool-panel-row[data-column="notional"] .dc-tool-panel-show') as HTMLInputElement;
+    withBoxes.setColumns(block([true, true, true]));
+    assert.deepEqual([box().checked, box().indeterminate], [true, false]);
+    withBoxes.setColumns(block([false, false, false]));
+    assert.deepEqual([box().checked, box().indeterminate], [false, false]);
+    withBoxes.setColumns(block([true, false, true]));
+    assert.equal(box().indeterminate, true);
+    assert.equal(box().title, '2 of the 3 columns of notional are shown; hide them all');
+    box().click();
+    assert.deepEqual(toggled, [['v0__|__notional', false], ['v1__|__notional', false], ['v2__|__notional', false]]);
   });
 });

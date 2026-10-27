@@ -63,12 +63,12 @@ On lite's side: `compiler/spec/PivotChecker` (the group rule, the static columns
    the cast's; the executor refuses a label absent from them (`ExecutionNodeTDSResultHelper.getTDSColumn`), so an
    uncast pivot has no engine execution to compare against -- the PCT casts every pivot result before
    `assertTdsEquivalent`. Lite types a static pivot's columns and a dynamic pivot's templates, and an uncast pivot
-   answers (its TDS text, CSV and JSON built by the database: step 4). Register S99.
+   answers (its TDS text, CSV and JSON built by the database: step 4). Register S106.
 
 4. **H2.** The engine refuses every pivot by name ("pivot is not supported"). Lite answers a static pivot on H2 by
    emulation (`H2.needsStaticPivot`, the staticization pre-pass) and refuses a dynamic pivot's text road at render
    by the row-JSON capability (`DialectCapability`: "a row as JSON reached a dialect without a row-to-JSON form"),
-   a refusal that does not name the pivot. Register S101; the wording is a later item, not a defect of outcome.
+   a refusal that does not name the pivot. Register S108; the wording is a later item, not a defect of outcome.
 
 5. **A cast naming a key no row has.** Both fail at the database: the engine projects `"root"."'2013__|__newCol'"`,
    lite reads the physical column by name (`castOverDynamicPivot`), and DuckDB refuses the unknown column either
@@ -93,7 +93,7 @@ On lite's side: `compiler/spec/PivotChecker` (the group rule, the static columns
 - `lowering/WireRender.wrap`: the dynamic road dispatches both wires from the one pivot, its static columns and its
   templates.
 - `PlanMakerTest.aDynamicPivotsTextIsBuiltByTheDatabase_asTheLegacyProbeBuildsIt`: the two pins, the static case.
-- `docs/SEMANTICS_REGISTER.md`: S99, S100, S101.
+- `docs/SEMANTICS_REGISTER.md`: S106, S107, S108.
 
 ## 4. Verdicts
 

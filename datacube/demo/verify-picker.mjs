@@ -52,9 +52,8 @@ try {
   const openPicker = async () => {
     await page.click('.dc-titlebar-menu');
     await page.waitForSelector('.dc-menu', { timeout: 10_000 });
-    // in place of the page: New ▸ Blank Page, then "Add a data source"
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+    // in place of the page: New Page, then "Add a data source"
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
     await page.waitForSelector('.dc-picker', { timeout: 10_000 }).catch(() => bad('the source picker did not open from the title bar menu'));

@@ -98,6 +98,14 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
   `node_test` gives any test that takes DuckDB-WASM (`DUCKDB_EXTENSIONS`, `tools/js/defs.bzl`);
   `//engine-client:node_duckdb_test` holds it. The browser tests (`//datacube:verify_smoke_test`, `//query:verify_test`,
   `//site:verify_test`) pass in the container too (2026-10-17).
+- **The browser tests' guard holds behind the proxy** (2026-10-25). The guard (`tools/browser/pinned-chromium.mjs`)
+  makes extensions.duckdb.org unresolvable (`--host-resolver-rules`), but the container's `~/.bazelrc` passes
+  `HTTPS_PROXY` to every test, and Chromium hands a proxied host to the proxy unresolved: the rule never applied, so
+  `//datacube:browser_guard_test` met the proxy's certificate (`ERR_CERT_AUTHORITY_INVALID`), and a Chromium that
+  trusts it downloaded the extension. The guard now gives Chromium the environment's proxy as its own flag, that host
+  bypassing it (`proxyArgs`), so it is resolved locally and refused; every other host still goes through the proxy.
+  Nothing the sites load comes from there: every DuckDB extension is the site's own `vendor/` copy, pinned by content
+  in MODULE.bazel (`duckdb_wasm_<extension>_extension_wasm_eh`, served by `//engine-client:duckdb_extensions`).
 - **`//tools/guards:classpath_test`** reaches an arm64-only target and cannot run on an x86 host.
 - **WebAssembly.** The local core suite compiles no TeaVM target, so a JDK method TeaVM's class library lacks (such
   as `Character.toString(int)`) reaches CI first: after calling a JDK method new to core, build `//sdlc-server:page`

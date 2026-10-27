@@ -1244,7 +1244,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
-                    return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
+                    return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
                     // a TO-ONE collection is its own extreme — but a
@@ -1257,7 +1257,7 @@ final class Scalars {
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
                     return ma != null
-                            ? ma.select(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
+                            ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
                             : new SqlExpr.Call(SqlFn.LEAST, args);
                 }
                 return isToOne(n.args().get(0))
@@ -1269,7 +1269,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
-                    return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
+                    return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
                     // (same singleton-list-literal guard as min)
@@ -1280,7 +1280,7 @@ final class Scalars {
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
                     return ma != null
-                            ? ma.select(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
+                            ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
                             : new SqlExpr.Call(SqlFn.GREATEST, args);
                 }
                 return isToOne(n.args().get(0))
@@ -1315,7 +1315,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
-                    return mx.select(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
+                    return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
@@ -1326,7 +1326,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
-                    return mx.select(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
+                    return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
@@ -1348,8 +1348,7 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.LIST_POSITION,
                                     SqlExpr.Call.of(SqlFn.LIST_REVERSE, mx.valList()),
                                     winner));
-                    return mx.markLiteral(SqlExpr.Call.of(
-                            SqlFn.LIST_GET, mx.idList(), lastPos));
+                    return mx.taggedAt(lastPos, winner);
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
@@ -2665,8 +2664,23 @@ final class Scalars {
             // no rule here: the implementation table says why (untangle step 4a)
             throw NoRule.explain(call, implementations);
         }
+        // a mixed selection's winner (SqlExpr.Tagged, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) compared, made
+        // equal or ordered: the comparable channel, as Pure compares the number or the instant; a print reads each
+        // candidate (pureToString); any other rule that puts it into SQL is refused where the renderer meets it
+        if (COMPARISONS.contains(key) && loweredArgs.stream().anyMatch(a -> a instanceof SqlExpr.Tagged)) {
+            loweredArgs = MixedEncoding.comparables(loweredArgs);
+        }
         return rule.apply(call, loweredArgs);
     }
+
+    /** The natives that compare, order or equate their arguments: over a tagged value they read its comparable. */
+    private static final Set<com.legend.model.FunctionId> COMPARISONS = java.util.Collections.unmodifiableSet(
+            new java.util.LinkedHashSet<>(com.legend.model.FunctionId.all(
+                    Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,
+                    Pure.AT_BOOLEAN_GREATER_THAN_EQUAL, Pure.AT_LEGEND_LITE_LESS_THAN,
+                    Pure.AT_LEGEND_LITE_LESS_THAN_EQUAL, Pure.AT_LEGEND_LITE_GREATER_THAN,
+                    Pure.AT_LEGEND_LITE_GREATER_THAN_EQUAL, Pure.AT_BOOLEAN_EQ, Pure.AT_BOOLEAN_EQUAL,
+                    Pure.AT_LANG_COMPARE)));
 
 
     /**
@@ -2710,6 +2724,12 @@ final class Scalars {
     /** Package-visible for the RENDER phase (F4.2): the CSV cell rule is
      *  {@code toString()->escapeCSVString()} — one print form, one owner. */
     static SqlExpr pureToString(Type t, SqlExpr x) {
+        if (x instanceof SqlExpr.Tagged tg) {
+            // a mixed selection's winner prints as the candidate it is, each by its own static kind; a Decimal with
+            // its D, as the spelling carrier's print form kept it (LiteralSpelling.printForm: "D-decimals")
+            return MixedEncoding.perCandidate(tg, (k, v) -> k == Type.Primitive.DECIMAL
+                    ? LiteralSpelling.decimalPrintD(v) : pureToString(k, v));
+        }
         if (t == Type.Primitive.FLOAT) {
             return floatRepr(x);
         }

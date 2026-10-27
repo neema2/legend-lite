@@ -62,6 +62,8 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Keyed k -> new ExecutionPlan.Keyed(withoutTree(k.keys()), k.keyFields(), k.format(),
                     k.outputs(),
                     withoutTree(k.body()), k.snapshot(), k.maxColumns());
+            case ExecutionPlan.Update u -> new ExecutionPlan.Update(withoutTree(u.sql()), u.count());
+            case ExecutionPlan.Check c -> new ExecutionPlan.Check(withoutTree(c.sql()));
         };
     }
 
@@ -75,6 +77,8 @@ public final class PlanRoundTrip {
             case ExecutionPlan.TdsResult t -> t.sql().statement().length();
             case ExecutionPlan.TextResult t -> t.sql().statement().length();
             case ExecutionPlan.Keyed k -> k.keys().statement().length() + k.body().statement().length();
+            case ExecutionPlan.Update u -> u.sql().statement().length();
+            case ExecutionPlan.Check c -> c.sql().statement().length();
         };
     }
 
@@ -87,6 +91,13 @@ public final class PlanRoundTrip {
                 assertRenders(k.keys(), what);
                 assertRenders(k.body(), what);
             }
+            // a write's DML statement carries no typed tree (SqlDml is not a query); a check's query does
+            case ExecutionPlan.Update u -> {
+                if (u.sql().tree() != null) {
+                    assertRenders(u.sql(), what);
+                }
+            }
+            case ExecutionPlan.Check c -> assertRenders(c.sql(), what);
         }
     }
 

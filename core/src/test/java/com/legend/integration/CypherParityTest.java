@@ -136,9 +136,45 @@ class CypherParityTest {
     }
 
     @Test
+    void theJudgesDiffIsTheTcksSideEffects() throws Exception {
+        // (the writes design's §6) a write is judged on its side effects by Neo4j's diff of its two graphs, the
+        // graph before and the graph after (the oracle snaps both); that diff, computed as the lanes compute lite's,
+        // is the TCK's own table on every scenario that states one ("no side effects" an empty one)
+        List<CypherParity.Case> cases = CypherParity.cases(Runfile.property("cypher.parity.tck").getParent(),
+                Runfile.property("cypher.parity.lite").getParent());
+        CypherAnswers.File answers = CypherAnswers.read(Runfile.property("cypher.parity.answers"));
+        List<String> problems = new ArrayList<>();
+        int tables = 0;
+        for (CypherParity.Case c : cases) {
+            CypherAnswers.Answer a = answers.answers().get(c.key());
+            if (c.sideEffects() == null || a == null || a.graph() == null || a.error() != null) {
+                continue;
+            }
+            CypherParity.Read before = CypherParity.Read.of(a.graph());
+            Map<String, Integer> diff = CypherParity.sideEffects(before,
+                    a.after() == null ? before : CypherParity.Read.of(a.after()));
+            tables += c.sideEffects().isEmpty() ? 0 : 1;
+            if (!diff.equals(c.sideEffects())) {
+                problems.add(c.key() + ": Neo4j's diff " + diff + ", the TCK's " + c.sideEffects());
+            }
+        }
+        assertTrue(problems.isEmpty(), String.join("\n", problems));
+        // the scenarios with a table of counts Neo4j answers (2026-10-18, the TCK as vendored): a fall means the
+        // reader stopped seeing them
+        assertEquals(248, tables, "the TCK's side-effect tables judged");
+    }
+
+    @Test
     void everyCaseHasItsLedgerStatusOnThePlatform() throws Exception {
         List<CypherParity.Case> cases = CypherParity.cases(Runfile.property("cypher.parity.tck").getParent(),
                 Runfile.property("cypher.parity.lite").getParent());
+        // a development run over some of the cases (-Dcypher.parity.only=<a regex found in a case's key>): each
+        // case's outcome printed, the ledger not read
+        String only = System.getProperty("cypher.parity.only");
+        if (only != null) {
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(only);
+            cases = cases.stream().filter(c -> p.matcher(c.key()).find()).toList();
+        }
         CypherAnswers.File answers = CypherAnswers.read(Runfile.property("cypher.parity.answers"));
         Map<String, CypherParity.Decision> decisions = CypherParity.decisions(
                 Runfile.property("cypher.parity.decisions"), "duckdb");
@@ -162,9 +198,26 @@ class CypherParityTest {
                 public ExecutionResult run(String model, String island) throws Exception {
                     return service.execute(model, island, CypherGraph.RUNTIME, session);
                 }
-            });
+
+                @Override
+                public void begin() throws Exception {
+                    session.setAutoCommit(false);
+                }
+
+                @Override
+                public void rollback() throws Exception {
+                    session.rollback();
+                    session.setAutoCommit(true);
+                }
+            }, problems);
+        }
+        if (only != null) {
+            outcomes.forEach((k, o) -> System.out.println(o.status() + "\t" + k + "\t" + o.detail()));
+            return;
         }
         CypherParity.census(outcomes, "duckdb");
+        System.out.println("the write cases by what a graph over a domain model needs: "
+                + CypherParity.writeGroups(cases, answers.answers()));
         String update = System.getProperty("cypher.parity.update");
         problems.addAll(CypherParity.ratchet(cases, outcomes, Runfile.property("cypher.parity.ledger"), "duckdb",
                 update == null ? null : Path.of(update)));

@@ -78,6 +78,26 @@ function grainStart(column: string, grain: TimeGrain): ValueSpecification {
   return fn(f, one(column), lit.integer(n), enumValue('meta::pure::functions::date::DurationUnit', unit));
 }
 
+/**
+ * The period a column takes a date to, if it is one (grainColumn's shape, by the function it calls -- whoever wrote
+ * it: the preset, Python's grid.grain, or a person typing `$x.d->toOne()->firstDayOfMonth()`), and the column it takes.
+ * A flow's DateTime box is drawn by it (flow-boxes.ts).
+ */
+export function grainOf(d: DerivedColumn): { readonly column: string; readonly grain: TimeGrain } | undefined {
+  const param = d.lambda?.parameters[0]?.name;
+  const body = d.lambda?.body;
+  if (param === undefined || body?.length !== 1) return undefined;
+  const call = body[0]!;
+  if (call._type !== 'func' || call.parameters.length !== 1) return undefined;
+  const grain = (Object.keys(GRAIN_FUNCTION) as TimeGrain[]).find((g) => GRAIN_FUNCTION[g] === call.function);
+  const toOne = call.parameters[0]!;
+  if (grain === undefined || toOne._type !== 'func' || toOne.function !== 'toOne' || toOne.parameters.length !== 1) return undefined;
+  const read = toOne.parameters[0]!;
+  if (read._type !== 'property' || read.parameters.length !== 1) return undefined;
+  const owner = read.parameters[0]!;
+  return owner._type === 'var' && owner.name === param ? { column: read.property, grain } : undefined;
+}
+
 /** One period of each grain, as the compiler's `adjust` takes it: how many of which DurationUnit. */
 const GRAIN_STEP: Readonly<Record<TimeGrain, readonly [number, string]>> = {
   second: [1, 'SECONDS'], minute: [1, 'MINUTES'], minute5: [5, 'MINUTES'], minute15: [15, 'MINUTES'],
@@ -106,6 +126,15 @@ export function grainEndColumn(column: string, grain: TimeGrain, name: string): 
 }
 
 // ---------------------------------------------------------------- bins
+
+/** A preset's name no column of the grid has (`taken`): `base`, else `base_2`, `base_3`... -- each of the columns it makes
+ *  (`make`) free (grid-presets.ts presetCommands; a flow's Binning, binning.ts). */
+export function freeName(base: string, make: (name: string) => readonly DerivedColumn[], taken: ReadonlySet<string>): string {
+  const fits = (name: string): boolean => make(name).every((d) => !taken.has(d.name));
+  let free = base;
+  for (let i = 2; !fits(free); i += 1) free = `${base}_${i}`;
+  return free;
+}
 
 /** The column bins make of `column`: its name. */
 export function binName(column: string): string {

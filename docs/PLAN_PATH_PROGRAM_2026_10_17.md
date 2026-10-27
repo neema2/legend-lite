@@ -300,8 +300,8 @@ does not close while any of them has neither a fix nor a recorded ruling by the 
   pivot's TDS text from each row's own JSON (step 4), a form only DuckDB's dialect writes today. Resolved by each
   dialect's own row-to-JSON arm where the database has one (H2 and MariaDB's `JSON_OBJECT`, SQLite's `json_object`,
   Postgres' `row_to_json`, the others' measured when the arm lands), a render item per dialect; a lane whose database
-  has none pins them by name (the engine refuses every pivot on H2, S101). The cast form is not residue: it answers
-  on every dialect since 2026-10-19 (S102).
+  has none pins them by name (the engine refuses every pivot on H2, S108). The cast form is not residue: it answers
+  on every dialect since 2026-10-19 (S109).
 - **A declared SERVER connection opened by the plan's runner with its credentials** (found 2026-10-19 by the server
   lanes: `Sessions.openingFor` admits no credential -- every authentication but `NoAuth`, `DefaultH2` and `TestAuth`
   is refused by name -- and has no opening for Trino, ClickHouse, Snowflake, Databricks or BigQuery, so a plan on
@@ -330,6 +330,20 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 
 ## 9. Status
 
+- **2026-10-23, landed: a mixed selection's winner as a tag plus typed slots** (GATES "a mixed selection's winner as a
+  tag plus typed slots"; 8159fbec to 31b55fa3): the platform's and MongoDB's PCT suites exact; Snowflake, BigQuery and
+  Databricks channel A exact with Snowflake's standard suite at 325 s against a same-hour merge-base 269 s (the
+  statements over 20K characters gone) and the five suites at the merge-base's total; channel B unchanged on every
+  lane once a tagged DateTime's written precision rode in its slot's kind, and BigQuery's Decimal pair gained. Announced
+  the same day (`docs/RESULTS_AND_RENDERERS_2026_10_22.md`
+  §5a, ratified by the user that day: "is there really no way to do mixed lists without casting to string?", then "do
+  the right design and fixes now towards the correct architecture"): `SqlExpr.Tagged` and `SqlType.Tagged`; the five
+  selection rules (`max`, `min`, `greatest`, `least`, `mode` over mixed Number or Date) return the winner as a tag and
+  one typed slot per kind, never as a spelling; the root projects them, the plan's column is `TAGGED<kind slot, ...>`
+  (format 10), the decoders read the tag then the slot, the text wires and the judges' canon spell the slot the tag
+  names. Step B, after it: the lists (mixed `sort`, the Any-kind carrier, a mixed collection at a root) onto parallel
+  typed arrays, retiring the `LITERAL` slot. Judged by `TaggedSelectionTest`, the core lanes, the platform's PCT
+  suites, then every lane's channels A and B against the merged head.
 - **2026-10-20, the parity phase, second batch: twenty-five more lane pins removed** (GATES "the parity phase, second
   batch"): Jaro-Winkler on MySQL, MariaDB and SQLite; MongoDB's dynamic pivot through the probe plan (its markers bound
   by place, the keyed plan's cells named in the plan, JSON v9) and its divide as doubles; the metamodel's tables inline
@@ -352,7 +366,7 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
   MariaDB and SQLite; MongoDB's dynamic pivot through the probe plan (positional markers); the metamodel's tables inline
   where a database has no temporary table (Trino, MongoDB); MongoDB's decimal divide as doubles; then the variant key
   order (MySQL, Postgres), ClickHouse's outer join with a residual condition, SQLite's digests.
-- **2026-10-20, a dynamic pivot's probe plan, on every database** (GATES "a dynamic pivot's probe plan"; register S103;
+- **2026-10-20, a dynamic pivot's probe plan, on every database** (GATES "a dynamic pivot's probe plan"; register S110;
   the user's rulings of the day: the probe plan, a plan step whose rows fill the next statement's per-key fragment,
   and "before we move on we need to have 100% parity on PCT across all backends", then passes of deep SQL
   optimization): `ExecutionPlan.Keyed` -- a keys probe, a body with per-key regions the runner writes once per key
@@ -408,7 +422,7 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
   `throughThePlan` true for every lane (`83f2810`); the H2 lane's 414 version refusals fixed by planning for the
   session's server (`2b7bad3`); the siblings (`docs/STEP9_LANE_BRIEF_2026_10_19.md`) burn their lanes down on their
   own branches while this session landed the shared item: the keys a cast names are the pivot's named values and
-  every static emulation pivots on them (S102), so the four composition cases pass on every lane. Verdicts: nine core
+  every static emulation pivots on them (S109), so the four composition cases pass on every lane. Verdicts: nine core
   lanes pass, DuckDB's relation suite exact, H2 459 of 469 and SQLite's relation suite 459 of 469 (the ten uncast
   dynamic pivots each, §7's residue). Next: the siblings' merge, the corpus lanes and the core gate on it.
 - **2026-10-18, step 9, first landing: the DuckDB PCT lane exact on the plan route** (GATES "step 9, first
@@ -432,7 +446,7 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
   the absent cast key and the composite key hold. The defect found: the CSV wire's header and the JSON wires' keys
   printed the bare physical name while the TDS text presented the engine's -- fixed, every wire presents the name as
   the engine labels it, and the dynamic pivot's JSON wire is built from its cells as its CSV is (step 4's named
-  residue retired). Register S99 to S101. Verdicts: the core gate 45 of 45, PCT channels A and B 11 of 11, both
+  residue retired). Register S106 to S108. Verdicts: the core gate 45 of 45, PCT channels A and B 11 of 11, both
   corpus lanes exact (every judge 0). Step 7 continues as announced below.
 - **2026-10-18, step 7 announced; its first landing: the judges onto the typed seam, the dynamic pivot's holes**
   (GATES "step 7, first landing"): `Statements.rows` (typed cells by the plan's columns) on JDBC (`exec.JdbcDecode`)
@@ -504,7 +518,7 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 - **2026-10-18, step 2, `pure/v1`'s text** (GATES "step 2, `pure/v1`'s text"): the JSON wire has a spelling
   (`WireRender.Spelling`, `PURE` on lite's outputs, `ENGINE` at the two engine-API seams); two more owners,
   `floatPrintJava` (Java's layout over the database's digits) and `dateTimeTextEngine` (nine digits, `+0000`); the
-  values Pure's (register S97, S98). The design's five steps are landed; PARK-24 closes. Step 2 is complete; step 3
+  values Pure's (register S104, S105). The design's five steps are landed; PARK-24 closes. Step 2 is complete; step 3
   (the text carrier) is next.
 - **2026-10-18, step 2, the DateTime's text** (GATES "step 2, the DateTime's text"): one owner,
   `LiteralSpelling.dateTimeText` (`T`, the fraction read at nine digits and trimmed of trailing zeros by the database,

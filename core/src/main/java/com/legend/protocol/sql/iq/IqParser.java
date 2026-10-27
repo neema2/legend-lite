@@ -739,6 +739,7 @@ public final class IqParser {
                 yield new SqlAst.SetOperation(o.op(), o.all(), o.left(), o.right(), orderBy, null, null, o.pos());
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         };
     }
 

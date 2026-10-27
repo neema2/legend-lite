@@ -82,6 +82,11 @@ export function gridBetween(from: GridDraft, to: GridDraft): GridCommand[] {
   if (topNMoves && cur.snapshot.topN !== undefined) emit({ kind: 'topN', topN: null });
   for (const command of draftCommands(cur, to)) emit(command);
   for (const command of postponed) emit(command);
+  // the pivot's values pinned, once it pivots on what `to` does (a pivot set again takes another's off)
+  const pinned = to.snapshot.pivotValues !== undefined && to.snapshot.pivotValues.length > 0 ? to.snapshot.pivotValues : null;
+  if (!sameValue(cur.snapshot.pivotValues !== undefined && cur.snapshot.pivotValues.length > 0 ? cur.snapshot.pivotValues : null, pinned)) {
+    emit({ kind: 'pinPivot', values: pinned });
+  }
   const filter = to.snapshot.filter ?? null;
   if (!sameValue(cur.snapshot.filter ?? null, filter)) emit({ kind: 'filter', filter });
   if (topNMoves && topN !== null) emit({ kind: 'topN', topN });

@@ -196,11 +196,18 @@
 
 .dc-chevron {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 12px;
-  text-align: center;
   cursor: pointer;
   opacity: 0.75;
   user-select: none;
+}
+
+.dc-chevron .dc-chrome-icon {
+  width: 12px;
+  height: 12px;
 }
 
 .dc-chevron:hover {
@@ -292,9 +299,10 @@
 
 .dc-filter-tree {
   min-height: 120px;
-  padding: 4px 0;
+  padding: 6px 0;
   border: 1px solid var(--tw-neutral-200);
   border-radius: 4px;
+  background: var(--tw-white);
   overflow: auto;
 }
 
@@ -302,8 +310,9 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  padding: 12px;
+  gap: 10px;
+  padding: 14px 4px;
+  color: var(--tw-neutral-600);
 }
 
 /* A group and its children are ONE block, so the group's highlight
@@ -324,10 +333,10 @@
   content: "";
   position: absolute;
   top: 0;
-  bottom: 12px;
+  bottom: 15px;
   left: var(--dc-f-gutter, 16px);
   width: 1px;
-  background: var(--tw-neutral-300);
+  background: var(--tw-neutral-200);
 }
 
 .dc-selected-group > .dc-filter-children::before {
@@ -343,13 +352,14 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding-left: var(--dc-f-indent, 10px);
-  min-height: 26px;
+  padding-right: 8px;
+  min-height: 32px;
 }
 
 .dc-filter-row:hover {
-  background: var(--tw-sky-50);
+  background: var(--tw-neutral-50);
 }
 
 .dc-filter-row.dc-selected {
@@ -369,14 +379,14 @@
   justify-content: flex-end;
   flex: 0 0 22px;
   width: 22px;
-  margin-right: 8px;
-  height: 26px;
+  margin-right: 6px;
+  height: 32px;
 }
 
 .dc-filter-connector {
   flex: 0 0 22px;
   height: 1px;
-  background: var(--tw-neutral-300);
+  background: var(--tw-neutral-200);
 }
 
 /* With a word present the stub shortens rather than the word
@@ -385,30 +395,46 @@
   flex-basis: 8px;
 }
 
+/* the word between the things combined, as the Properties window's section labels: small capitals */
 .dc-filter-joinword {
   flex: 0 0 auto;
   padding-left: 4px;
-  font-size: 11px;
-  opacity: 0.7;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tw-sky-700);
   white-space: nowrap;
 }
 
-/* The four-button controller DataCube puts on every node. */
+/* The four-button controller DataCube puts on every node: one segmented control, quiet until its row is pointed at,
+   picked or focused -- there, always, never hidden (content first, chrome on demand:
+   docs/DATACUBE_UI_REVIEW_2026_10_24.md §1). */
 .dc-filter-controller {
   display: inline-flex;
   flex-shrink: 0;
-  margin-right: 4px;
+  margin-right: 2px;
+  opacity: 0.55;
+  transition: opacity 0.12s ease;
+}
+
+.dc-filter-row:hover > .dc-filter-controller,
+.dc-filter-row.dc-selected > .dc-filter-controller,
+.dc-filter-controller:focus-within {
+  opacity: 1;
 }
 
 .dc-filter-ctl {
-  font: 11px/1 ui-sans-serif, system-ui, sans-serif;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  border: 1px solid var(--tw-neutral-400);
+  font: 600 11px/1 ui-sans-serif, system-ui, sans-serif;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1px solid var(--tw-neutral-300);
   border-left-width: 0;
+  /* square inside the group: the page's own button rule rounds every button (its middle ones read as four) */
+  border-radius: 0;
   background: var(--tw-white);
-  color: var(--tw-black);
+  color: var(--tw-neutral-600);
   cursor: pointer;
 }
 
@@ -422,7 +448,14 @@
 }
 
 .dc-filter-ctl:hover {
-  background: var(--tw-neutral-200);
+  background: var(--tw-neutral-100);
+  color: var(--tw-black);
+}
+
+.dc-filter-ctl:focus-visible {
+  position: relative;
+  outline: 2px solid var(--tw-sky-600);
+  outline-offset: -1px;
 }
 
 /* The standing badge beside a negated node. Reading a filter
@@ -431,8 +464,8 @@
 .dc-filter-notlabel {
   font: 10px/1 ui-sans-serif, system-ui, sans-serif;
   letter-spacing: 0.06em;
-  padding: 2px 4px;
-  border-radius: 3px;
+  padding: 3px 7px;
+  border-radius: 999px;
   background: var(--tw-red-50, #fef2f2);
   color: var(--tw-red-600);
   font-weight: 700;
@@ -443,9 +476,13 @@
   font-weight: 600;
 }
 
-.dc-filter-join {
+/* "All of" / "Any of": the group's heading, tinted as a chosen tile is in the Join window */
+.dc-filters select.dc-filter-join {
   font-weight: 600;
   min-width: 5.5em;
+  border-color: var(--tw-sky-200);
+  background-color: var(--tw-sky-50);
+  color: var(--tw-sky-700);
 }
 
 .dc-filter-not {
@@ -461,28 +498,66 @@
   font-weight: 700;
 }
 
+/* the controls as the Properties window draws its own (app.css .dc-pe): 26px, a light edge, the sky's when focused */
 .dc-filters select,
 .dc-filters input {
   font: inherit;
-  padding: 2px 4px;
-  border-radius: 4px;
-  border: 1px solid var(--tw-neutral-400);
-  background: var(--tw-white);
-  color: var(--tw-black);
+  font-size: 12px;
+  height: 26px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-radius: 2px;
+  border: 1px solid var(--tw-neutral-300);
+  background-color: var(--tw-white);
+  color: var(--tw-neutral-700);
 }
 
-.dc-filter-op { max-width: 15em; }
+.dc-filters select:hover,
+.dc-filters input:hover {
+  border-color: var(--tw-neutral-400);
+}
+
+.dc-filters select:focus,
+.dc-filters input:focus {
+  border-color: var(--tw-sky-600);
+  outline: none;
+}
+
+.dc-filters input[type=checkbox] {
+  height: 14px;
+  padding: 0;
+}
+
+/* a column by its name, as the Properties window lists its columns */
+.dc-filters select.dc-filter-column,
+.dc-filters select.dc-filter-rightcolumn {
+  font-family: var(--dc-mono, ui-monospace, monospace);
+}
+
+/* one width whatever the column's type offers (a text's operators are longer than a number's): every row's value starts
+   on the same x (the user, 2026-10-25) */
+.dc-filter-op { width: 13em; max-width: 15em; }
 .dc-filter-value { min-width: 7em; }
+/* the value editor's slot: one width on every row, so the NOT badge after it lines up (the user, 2026-10-25) */
+.dc-filter-slot { flex: 0 0 18em; width: 18em; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.dc-filter-slot > .dc-filter-value:not(.dc-filter-bool) { flex: 1 1 auto; min-width: 0; width: auto; }
 
 .dc-filter-btn,
 .dc-filter-remove {
   font: inherit;
-  padding: 2px 8px;
-  border-radius: 4px;
-  border: 1px solid var(--tw-neutral-400);
+  font-size: 12px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 2px;
+  border: 1px solid var(--tw-neutral-300);
   background: var(--tw-white);
-  color: var(--tw-black);
+  color: var(--tw-neutral-700);
   cursor: pointer;
+}
+
+.dc-filter-btn:hover {
+  background: var(--tw-neutral-100);
+  border-color: var(--tw-neutral-400);
 }
 
 .dc-filter-remove {
@@ -689,7 +764,31 @@
 }
 
 .dc-menu-chevron {
+  display: flex;
   color: var(--tw-neutral-500);
+}
+
+/* The page chrome's marks (ui/tile-icons.ts chromeIcon; docs/DATACUBE_UI_REVIEW_2026_10_24.md,
+   found 4), one drawn set in place of glyphs from four fonts: at the size of the text of the
+   button they sit in, on its middle, the button the target of a press. */
+.dc-chrome-icon {
+  display: inline-block;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+  pointer-events: none;
+}
+
+/* An entry's key, right-aligned and quiet, where one does what the entry
+   does (the menus: docs/DATACUBE_UI_REVIEW_2026_10_24.md). */
+.dc-menu-shortcut {
+  flex: none;
+  margin-left: auto;
+  padding-left: 24px;
+  color: var(--tw-neutral-500);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Upstream's check mark: a fixed gutter, so checked and unchecked
@@ -792,19 +891,39 @@
   overflow: auto;
 }
 
-/* Cancel / Apply / OK, right-aligned, as every upstream window. The
-   reason a publish was refused sits at the left, in the window that
-   asked. */
+/* Cancel / Apply / OK, right-aligned, as every upstream window -- and as the Properties window draws them: below a
+   line, OK the one filled. The reason a publish was refused sits at the left, in the window that asked. */
 .dc-filter-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
-  height: 36px;
+  min-height: 36px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tw-neutral-200);
+}
+
+.dc-filter-footer .dc-button {
+  border-radius: 2px;
+  font-size: 12px;
+  min-width: 64px;
+}
+
+.dc-filter-footer .dc-button.dc-primary {
+  background: var(--tw-sky-700);
+  border-color: var(--tw-sky-700);
+  color: var(--tw-white);
+}
+
+.dc-filter-footer .dc-button.dc-primary:hover:not(:disabled) {
+  background: var(--tw-sky-700);
+  filter: brightness(0.9);
 }
 
 .dc-filter-problem {
   flex: 1;
+  font-size: 12px;
   color: var(--tw-red-600);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -819,26 +938,33 @@
 
 .dc-filter-list {
   min-width: 9em;
+  height: 26px;
+  box-sizing: border-box;
   text-align: left;
   font: inherit;
-  padding: 2px 4px;
-  border: 1px solid var(--tw-neutral-400);
-  border-radius: 4px;
+  font-size: 12px;
+  padding: 0 6px;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 2px;
   background: var(--tw-white);
+  color: var(--tw-neutral-700);
   cursor: pointer;
 }
+
+.dc-filter-list:hover { border-color: var(--tw-neutral-400); }
 
 /* The entries of an `in` list, below its summary. */
 .dc-filter-listpop {
   position: absolute;
   z-index: 20;
-  top: calc(100% + 2px);
+  top: calc(100% + 4px);
   left: 0;
   width: 15rem;
   padding: 8px;
-  border: 1px solid var(--tw-neutral-300);
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 6px;
   background: var(--tw-white);
-  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.12);
   display: flex;
   flex-direction: column;
   gap: 4px;

@@ -415,6 +415,9 @@ describe('a command read from JSON is the same command, and what DataCube does n
     { kind: 'collapseAll' },
     { kind: 'expandAll' },
     { kind: 'topN', topN: { by: 'notional', n: 3, bottom: true } },
+    // a Cross Tab's values pinned, and taken off (FL2)
+    { kind: 'pinPivot', values: ['EMEA', 'APAC'] },
+    { kind: 'pinPivot', values: null },
     { kind: 'tree', open: [['EMEA'], ['EMEA', 'FX']], showTotals: true, expandTo: 1, closed: [['AMER']] },
   ];
 

@@ -10,7 +10,7 @@
 // meaning, made and proven there.
 
 import {
-  agg, and, asc, collection, derive, desc, enumValue, flatten, fn, from, lambda, lit, not, or, projectObjects, property, variable,
+  agg, and, asc, collection, colSpecs, derive, desc, enumValue, flatten, fn, from, lambda, lit, not, or, projectObjects, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import {
@@ -44,10 +44,13 @@ import {
   type WindowSpec,
   type ValueGroups,
 } from './snapshot.ts';
-import { filterWithout, keptCondition, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { cellFilterValue, filterWithout, keptCondition, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
 import type { GroupKey, RowPath } from './tree.ts';
 import { ROOT_COLUMN, WINDOW_ALL_PREFIX } from './grid/columns.ts';
+// the product's own columns, as what reads a box's rows leaves them out (join-open.ts), through this module's edge
+export { isMachinery } from './grid/columns.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import { isBoolean, isNumeric, isVariant, plainType } from '../../engine-client/src/types.ts';
 import { columnRef, measureNameProblem } from './calc.ts';
 
@@ -456,6 +459,43 @@ export function pivotValuesLambda(s: QuerySnapshot): Lambda | null {
     .lambda();
 }
 
+/**
+ * A CROSS TAB'S VALUES ITS COLUMNS LACK (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL3): the values of its pivot's column its
+ * rows hold that its pinned values do not list -- an empty one among them, as SQL's `not in` leaves it out -- in its
+ * pivot's order, one past what a pivot shows, the database finding them. Null when nothing is pinned.
+ */
+export function unpinnedValuesLambda(s: QuerySnapshot): Lambda | null {
+  const pinned = s.pivotValues ?? [];
+  const on = s.pivotOn[0];
+  if (pinned.length === 0 || on === undefined || s.pivotOn.length !== 1) return null;
+  const lacking: FilterNode = { kind: 'or', children: [
+    { kind: 'condition', column: on, operator: 'isEmpty' },
+    { kind: 'condition', column: on, operator: 'notIn', value: pinned },
+  ] };
+  const { pivotValues: _pinned, ...rest } = s;
+  return pivotValuesLambda({ ...rest, filter: s.filter === undefined ? lacking : { kind: 'and', children: [s.filter, lacking] } });
+}
+
+/**
+ * A PIVOT'S VALUES AS ITS QUESTION ANSWERED THEM (`answered`: pivotValuesLambda's rows -- Load values -- or
+ * unpinnedValuesLambda's, those its pin lacks), the one reading the screen's Cross Tab and Python's (headless) share
+ * (the review of 2026-10-26): each a filter value of its column's type (value-filter.ts cellFilterValue), and whether
+ * there were more than a pivot shows (its question asks one past MAX_PIVOT_VALUES). An answer without its column is
+ * refused, never read as none.
+ */
+export function pivotValuesOf(s: Pick<CubeSnapshot, 'pivotOn' | 'columns' | 'derived'>, answered: ResultTable):
+  { readonly values: readonly (FilterValue | null)[]; readonly more: boolean } {
+  const on = s.pivotOn[0];
+  const column = answered.columns.find((c) => c.name === on);
+  if (on === undefined || column === undefined) throw new Error(`its values' answer has no column ${on ?? '(none pivoted)'}`);
+  const type = rowColumns(s).find((c) => c.name === on)?.type;
+  return { values: column.values.map((v) => cellFilterValue(v, type)), more: column.values.length > MAX_PIVOT_VALUES };
+}
+
+/** Load values refused, its rows holding more values than a pivot shows (pivotValuesOf's `more`), in words. */
+export const tooManyValues = (on: string): string =>
+  `its rows hold more than ${MAX_PIVOT_VALUES} values of ${on}, more columns than a pivot shows: filter its rows first`;
+
 /** The condition a pivot cell's rows meet. */
 function tupleCondition(s: QuerySnapshot, tuple: readonly GroupKey[]): ValueSpecification {
   const conditions = memberConditions(s, s.pivotOn, tuple);
@@ -472,12 +512,72 @@ export function levelLambda(snapshot: QuerySnapshot, scope?: LevelScope, pivot?:
  * A CLASS'S ROWS (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.1, Create a Class…): the cube's rows at its finest
  * level, as the grid shows them -- a flat cube's rows (its calculated columns, its filter, the columns it shows), a
  * grouped cube's groups (one row per group, its measures beside its keys) -- in no order and uncapped: a class's
- * instances have neither. Refused in words: a pivot (its columns are its values, and a class's properties are
- * fixed). A grid asks no aggregate of its own (snapshot.ts QuerySnapshot), so one grouped by nothing is its rows.
+ * instances have neither. A pivot whose values are pinned (a Cross Tab's, crossTabRows) has fixed columns, so its rows
+ * are its groups' too; one whose values its rows decide each time is refused in words (its columns are its values, and
+ * a class's properties, a box's columns, are fixed). A grid asks no aggregate of its own (snapshot.ts QuerySnapshot),
+ * so one grouped by nothing is its rows.
  */
 export function classLambda(snapshot: CubeSnapshot): Lambda {
-  if (snapshot.pivotOn.length > 0) throw new Error('a class has fixed properties: take the pivot off first');
-  return levelRelation(snapshot, undefined, undefined, false).lambda();
+  if (snapshot.pivotOn.length > 0) return crossTabRows(snapshot).lambda();
+  return levelRelation(snapshot, undefined, undefined, 'none').lambda();
+}
+
+/** The question that types `rows`: none of them (`limit(0)`), its columns typed by the plan -- a box's Profile's and its
+ *  Output's (profile.ts, flow-output.ts). */
+export function columnsLambda(rows: ValueSpecification): Lambda {
+  return from(rows).limit(0).lambda();
+}
+
+/**
+ * A BOX'S ROWS AS IT HANDS THEM ON (docs/DATACUBE_FLOW_MODE_2026_10_24.md: a flow's box; the review of 2026-10-26's C1):
+ * classLambda's, in the order its sorts give them -- a Sort box's order reaches the box after it and its Output, as
+ * Alteryx's records keep their order -- uncapped. A fixed Cross Tab's rows (crossTabRows) are its groups', in no order:
+ * a sort of one is its grid's.
+ */
+export function handedOnLambda(snapshot: CubeSnapshot): Lambda {
+  if (snapshot.pivotOn.length > 0) return crossTabRows(snapshot).lambda();
+  return levelRelation(snapshot, undefined, undefined, 'sorted').lambda();
+}
+
+/** The name of a pinned pivot's column as its rows hand it on (crossTabRows): its value alone when it spreads one
+ *  measure, else its value and its measure; a total `Total`, or `Total_<measure>`. */
+export function crossTabName(column: PivotColumn, spread: number): string {
+  const label = column.tuple === null ? 'Total' : column.tuple.map(pivotLabel).join('_');
+  return spread === 1 ? label : `${label}_${column.measure.name}`;
+}
+
+/**
+ * A CROSS TAB'S ROWS (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2, Alteryx's Cross Tab): a pivot whose values are pinned
+ * has fixed columns -- one per value (and measure), its total's -- so its rows at their finest level are a relation the
+ * box after it reads: a row per group, its keys beside its cells, each cell named by its value (crossTabName), the
+ * measures it keeps out of the pivot beside them; no order, no cap. Refused in words: values its rows decide each time
+ * (Load its values to fix them), a value naming a column it has already.
+ */
+function crossTabRows(snapshot: CubeSnapshot): Relation {
+  const facts = pinnedPivotFacts(snapshot);
+  if (facts === null) {
+    throw new CubeRefusal('its columns are its values, which its rows decide each time it runs: Load its values to fix them, or take its pivot off');
+  }
+  let rel = levelRelation(snapshot, undefined, facts, 'none');
+  const cells = pivotColumns(snapshot, facts);
+  const spread = spreadMeasures(snapshot).length;
+  const kept = [
+    ...snapshot.rows,
+    ...(snapshot.rows.length > 0 ? carriedMeasures(snapshot, snapshot.rows) : []).map((m) => m.name),
+    ...(snapshot.groupDerived ?? []).filter((d) => !d.childAggregate).map((d) => d.name),
+  ];
+  const names = new Set(kept);
+  const renamed: string[] = [];
+  for (const c of cells) {
+    const name = crossTabName(c, spread);
+    if (name === '') throw new CubeRefusal('an empty text value names no column: fill or filter its empty values first');
+    if (names.has(name)) throw new CubeRefusal(`its value '${name}' names a column it has already: rename that column first`);
+    names.add(name);
+    renamed.push(name);
+    if (name !== c.name) rel = rel.rename(c.name, name);
+  }
+  // its keys, its cells, the rest: no machinery (the root a pivot of no groups is grouped under)
+  return rel.select([...snapshot.rows, ...renamed, ...kept.slice(snapshot.rows.length)]);
 }
 
 /**
@@ -600,8 +700,21 @@ export function duplicateLambda(relation: ValueSpecification, column: string): L
     .lambda();
 }
 
-/** `ordered`: a level's rows sorted and capped as the grid reads them; a class's, neither. */
-function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: PivotFacts, ordered = true): Relation {
+/** The literals a column of one value is (`x|'all'`): its value the same for every row, whatever the row. */
+const LITERALS = new Set(['string', 'integer', 'float', 'decimal', 'boolean', 'strictDate', 'dateTime']);
+
+/** A calculated column's one value, when it is one (`x|'all'`: its body a literal, no window); else undefined. */
+function constantOf(snapshot: QuerySnapshot, column: string): ValueSpecification | undefined {
+  const d = snapshot.derived.find((x) => x.name === column);
+  const body = d?.lambda?.body;
+  return d !== undefined && d.window === undefined && body?.length === 1 && LITERALS.has(body[0]!._type) ? body[0] : undefined;
+}
+
+/** A level's rows' order: `grid`, sorted and capped as the grid reads them; `sorted`, sorted and uncapped, as a box hands
+ *  them on (handedOnLambda); `none`, neither, a class's. */
+type LevelOrder = 'grid' | 'sorted' | 'none';
+
+function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: PivotFacts, order: LevelOrder = 'grid'): Relation {
   // each measure named a column of its own, grouped or pivoted, or the level writes two columns of one name: a
   // grouped level its measures beside the keys, a pivot its kept-out measures beside them (calc.ts measureNameProblem)
   for (let at = 0; at < askedMeasures(snapshot).length; at++) {
@@ -637,9 +750,17 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
   };
 
   const groupByLevel = (aggs: readonly ColSpec[]): void => {
+    // grouped by columns of one value alone (`x|'all'`: Count Records', a Test's): every row aggregated, no key -- one
+    // row even of no rows, where a grouping gives no group of none -- each key its one value beside (the review of
+    // 2026-10-26's C4: Count Records of no rows gave no row)
+    const constants = groupCols.map((c) => constantOf(snapshot, c));
     if (groupCols.length === 0) {
       rel = rel.extend([derive(ROOT_COLUMN, lambda(['x'], lit.string(ROOT_VALUE)))])
         .groupBy([ROOT_COLUMN], aggs);
+    } else if (constants.every((v) => v !== undefined)) {
+      rel = rel.apply('aggregate', colSpecs(aggs))
+        .extend(groupCols.map((c, i) => derive(c, lambda(['x'], constants[i]!))))
+        .select([...groupCols, ...aggs.map((a) => a.name)]);
     } else {
       rel = rel.groupBy(groupCols, aggs);
     }
@@ -733,16 +854,25 @@ function levelRelation(snapshot: QuerySnapshot, scope?: LevelScope, pivot?: Pivo
   if (top !== undefined && ranked && !grandTotal && !pivoting) {
     // machinery (grid/columns.ts isMachinery): never shown -- named here, as the module loads before columns.ts's prefix
     const TOP_N_RANK = `${WINDOW_ALL_PREFIX}topN`;
-    rel = extendWindow(rel, TOP_N_RANK, { fn: 'rank', partition: [], order: [{ column: top.by, direction: top.bottom ? 'asc' : 'desc' }] });
+    // the largest first, its empties after every value (Pure's empty is the largest: first in a falling order), so led by
+    // whether it is empty, a value first (the correctness audit's 3, 2026-10-26); the smallest first puts them last already
+    let order: SortSpec[] = [{ column: top.by, direction: 'asc' }];
+    if (top.bottom !== true) {
+      const TOP_N_EMPTY = `${WINDOW_ALL_PREFIX}topN_empty`;
+      rel = rel.extend([derive(TOP_N_EMPTY, lambda(['x'], fn('isEmpty', property(variable('x'), top.by))))]);
+      order = [{ column: TOP_N_EMPTY, direction: 'asc' }, { column: top.by, direction: 'desc' }];
+    }
+    rel = extendWindow(rel, TOP_N_RANK, { fn: 'rank', partition: [], order });
     rel = rel.filter(lambda(['x'], fn('lessThanEqual', property(variable('x'), TOP_N_RANK), lit.integer(top.n))));
   }
 
-  if (ordered && !isSingleRow(snapshot, groupCols, grandTotal)) {
+  if (order !== 'none' && !isSingleRow(snapshot, groupCols, grandTotal)) {
     const sorts = totalOrderSorts(snapshot, groupCols).filter((x) => produced === null || produced.has(x.column));
     if (sorts.length > 0) rel = rel.sort(sorts.map(sortKey));
-    if (scope?.limit !== undefined) {
+    // capped as the grid reads them; a box's handed on, every row
+    if (order === 'grid' && scope?.limit !== undefined) {
       rel = rel.limit(scope.limit);
-    } else if (snapshot.window) {
+    } else if (order === 'grid' && snapshot.window) {
       const { offset, limit } = snapshot.window;
       rel = rel.slice(offset, offset + limit);
     }

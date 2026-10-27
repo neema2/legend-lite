@@ -44,10 +44,12 @@ JARS = {
     # The server's Postgres arm (ConnectionResolver: jdbc:postgresql://). 42.7.13, released 2026-07-06.
     # Its POM declares checker-qual (annotations only) and waffle-jna (optional: Windows single sign-on). Neither is
     # fetched: annotations whose classes are missing are ignored at run time, and the Postgres tests prove it.
+    # testing (2026-10-26): EmbeddedPostgres creates pgcrypto through a client connection once its server is up, and
+    # the driver is that client on every JVM that starts the server (the warehouse's live tests carry no other).
     "postgresql": struct(
         coordinate = "org.postgresql:postgresql:42.7.13",
         sha256 = "6e0e4cc2d8cae902084f8a2b18728b073a6fd9d1f87c9d8bff8f298c18185b93",
-        users = ["core"],
+        users = ["core", "testing"],
     ),
     # THE CLOUD PCT LANES' drivers (docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the PCT suites on Databricks, Snowflake
     # and BigQuery, on real accounts. Test-only until the server opens those databases; each is one self-contained

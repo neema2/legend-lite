@@ -22,6 +22,7 @@
 // to find out.
 
 import { cubeScopeOf } from './scope.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 export type Zone = 'rows' | 'columns';
 
@@ -188,7 +189,7 @@ export class PivotPanel {
           const arrow = doc.createElement('span');
           arrow.className = 'dc-zone-arrow';
           arrow.setAttribute('aria-hidden', 'true');
-          arrow.textContent = '›';
+          arrow.append(chromeIcon(doc, 'chevronRight'));
           el.append(arrow);
         }
         el.append(this.#chip(zone, column));
@@ -256,7 +257,7 @@ export class PivotPanel {
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-chip-remove';
-    remove.textContent = '×';
+    remove.append(chromeIcon(doc, 'close'));
     remove.title = `Remove ${column}`;
     remove.setAttribute('aria-label', `Remove ${column}`);
     remove.addEventListener('click', () => this.#set(zone, placeColumn(this.#state[zone], column, null)));

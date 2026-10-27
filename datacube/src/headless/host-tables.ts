@@ -9,7 +9,8 @@ import { lambda, toJson, type ValueSpecification } from '../../../pure-protocol/
 import { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { classOpened, type ClassElement } from '../class-source.ts';
 import {
-  leavesOf, type ClassSource, type CubeSource, type JoinSource, type LeafSource, type QuerySource, type WarehouseSource,
+  isLive, leavesOf, type ClassSource, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type QuerySource,
+  type RowsSource, type WarehouseSource,
 } from '../cube-document.ts';
 import { HOST_TABLES, leafRefusal } from '../join-open.ts';
 import { LitePlanner } from '../lite-planner.ts';
@@ -196,10 +197,21 @@ async function warehouseBase(leaf: WarehouseSource): Promise<HostBase> {
  * so does the keeper of each cube a write adds or moves to another source (headless page.ts pageRebase: the S4 audit's 2).
  */
 export async function onHost(source: CubeSource, host: HostTables, given: Readonly<Record<string, string>> = {}):
-  Promise<{ readonly leaf: LeafOnHost } | { readonly join: JoinSource; readonly tables: string[] }> {
+  Promise<{ readonly leaf: LeafOnHost } | { readonly join: JoinSource; readonly tables: string[] } | { readonly rows: FrozenRows }> {
+  if (source._type === 'rows') {
+    // another grid's rows (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): held where its input's source is, its link
+    // resolved against its page first (live-inputs.ts resolvedSource) -- an unresolved one is refused, never guessed
+    const input = source.input;
+    if (isLive(input)) throw new Error(`${source.name} reads grid '${input.grid}' live: resolve it against its page first`);
+    await onHost(input.source, host, given);
+    return { rows: { ...source, input } };
+  }
   if (source._type !== 'join') return { leaf: await leafOnHost(source, host, given) };
   return { join: source, tables: await leafTables(source, host, given) };
 }
+
+/** Another grid's rows with its input resolved: a copy of what that grid is now (live-inputs.ts gridInput). */
+export type FrozenRows = RowsSource & { readonly input: JoinInput };
 
 /** The table of the host's database each leaf of `source` reads, in its order (cube-document.ts leavesOf): a join's
  *  inputs' tables, as a join over the host's tables is opened (headless join.ts). A leaf read elsewhere is refused as a

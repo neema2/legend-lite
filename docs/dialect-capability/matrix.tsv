@@ -1727,7 +1727,7 @@ DuckDb	DuckDB	call	IS_DISTINCT_FROM	emulated	distinctFrom		0
 DuckDb	DuckDB	call	ALL_DISTINCT	emulated	allDistinct		0
 DuckDb	DuckDB	call	NULL_SAFE_EQUAL	emulated	notDistinctFrom		3
 DuckDb	DuckDB	call	NULL_SAFE_NOT_EQUAL	emulated	distinctFrom		10
-DuckDb	DuckDB	call	STRFTIME	spelled	strftime		193
+DuckDb	DuckDB	call	STRFTIME	emulated	strftime		193
 DuckDb	DuckDB	call	STRPTIME	spelled	strptime		0
 DuckDb	DuckDB	call	PARSE_DATE	emulated	castAs: TIMESTAMP		4
 DuckDb	DuckDB	call	LIST_REVERSE	spelled	list_reverse	via DuckDb.listCall	4
@@ -2921,7 +2921,7 @@ Deephaven	Deephaven	call	ABS	emulated	function: abs		0
 Deephaven	Deephaven	call	IS_NULL	emulated	booleanValue		0
 Deephaven	Deephaven	call	IS_NOT_NULL	emulated	booleanValue		0
 Deephaven	Deephaven	call	IN	emulated	booleanValue		0
-Deephaven	Deephaven	call	COALESCE	emulated	coalesce		0
+Deephaven	Deephaven	call	COALESCE	emulated	by its operands: composed / composed		0
 Deephaven	Deephaven	call	PARSE_INT	refused	function reached Deephaven: no shape yet		0
 Deephaven	Deephaven	call	CONCAT	emulated	concat		0
 Deephaven	Deephaven	call	LENGTH	emulated	stringMethod: length		0

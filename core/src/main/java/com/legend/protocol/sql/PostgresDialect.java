@@ -143,6 +143,7 @@ public final class PostgresDialect implements InputDialect {
                     : new Named(x.alias() != null ? x.alias().text() : defaultName(x.expr()), true);
             case SqlAst.SetOperation op -> firstColumn(op.left());
             case SqlAst.With w -> firstColumn(w.body());
+            case SqlAst.Write w -> null;
         };
     }
 
@@ -382,6 +383,7 @@ public final class PostgresDialect implements InputDialect {
             case SqlAst.SetOperation o -> o.values() && o.orderBy().isEmpty() && o.limit() == null
                     && o.offset() == null && untypedNull(o.left(), i) && untypedNull(o.right(), i);
             case SqlAst.With w -> false;
+            case SqlAst.Write w -> false;
         };
     }
 

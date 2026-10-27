@@ -19,6 +19,66 @@ function isComment(line: string): boolean {
   return t.startsWith('//') || t.startsWith('*') || t.startsWith('/*');
 }
 
+/**
+ * Each custom property a stylesheet declares, with whether it is declared only under the dark theme: the blocks are
+ * walked by their braces, so a declaration inside `@media` or a dark selector is known as one.
+ */
+function declaredTokens(css: string): { readonly light: Set<string>; readonly dark: Set<string> } {
+  const light = new Set<string>();
+  const dark = new Set<string>();
+  const selectors: string[] = [];
+  let text = '';
+  for (const ch of css.replace(/\/\*[\s\S]*?\*\//g, '')) {
+    if (ch === '{') {
+      selectors.push(text.trim());
+      text = '';
+    } else if (ch === '}' || ch === ';') {
+      const name = /^\s*(--[\w-]+)\s*:/.exec(text)?.[1];
+      if (name) (selectors.some((s) => s.includes('dark')) ? dark : light).add(name);
+      text = '';
+      if (ch === '}') selectors.pop();
+    } else {
+      text += ch;
+    }
+  }
+  return { light, dark };
+}
+
+describe('style guardrails', () => {
+  it('reads no custom property without a fallback that the light theme never declares', () => {
+    // This bit 2026-10-25: a frozen chart's icon used --tw-blue-600, declared for the dark theme only, and drew black in
+    // the light one; --dc-pad-3, declared nowhere, took a text tile's padding with it. A token the light theme lacks
+    // needs its fallback written beside it: var(--tw-blue-600, #2563eb).
+    const files = ['src/theme.css', 'src/app.css', 'src/grid/grid.css'];
+    const light = new Set(files.flatMap((f) => [...declaredTokens(SOURCES.read(f)).light]));
+    assert.ok(light.has('--dc-active') && light.size > 50, `the light theme's tokens found (${light.size})`);
+    const bare: string[] = [];
+    for (const file of files.slice(1)) {
+      for (const m of SOURCES.read(file).replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/var\((--[\w-]+)\s*\)/g)) {
+        if (!light.has(m[1]!)) bare.push(`${file}: var(${m[1]}) -- declared for the dark theme only, or nowhere`);
+      }
+    }
+    assert.deepEqual([...new Set(bare)], []);
+  });
+
+  it('reads no palette colour that neither theme declares: its fallback would be the light theme\'s colour in the dark one', () => {
+    // This bit 2026-10-25 (the audit): --tw-neutral-800 on five hovers and --tw-red-700 on the error chip, declared in
+    // neither theme, drew their light fallbacks on the dark surface (1.3:1). A colour token is declared in both, or in
+    // the dark theme beside a light fallback. (The palette's: a --dc- token may be a host's or a grid's setting, set
+    // inline -- style.ts --dc-grid-line -- which a theme declaration on the grid would hide.)
+    const files = ['src/theme.css', 'src/app.css', 'src/grid/grid.css'];
+    const declared = files.map((f) => declaredTokens(SOURCES.read(f)));
+    const any = new Set(declared.flatMap((d) => [...d.light, ...d.dark]));
+    const nowhere: string[] = [];
+    for (const file of files.slice(1)) {
+      for (const m of SOURCES.read(file).replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/var\((--tw-[\w-]+)\s*,\s*(#|rgb|hsl)/g)) {
+        if (!any.has(m[1]!)) nowhere.push(`${file}: var(${m[1]}, ...) -- a colour neither theme declares`);
+      }
+    }
+    assert.deepEqual([...new Set(nowhere)], []);
+  });
+});
+
 describe('source guardrails', () => {
   it('finds source files at all', () => {
     // A guardrail that scans nothing passes for the wrong reason.
@@ -74,6 +134,38 @@ describe('source guardrails', () => {
     assert.deepEqual(hits, [], `name the locale (UI_LOCALE):\n${hits.join('\n')}`);
   });
 
+  it('marks a menu entry that asks for more with the one character … (docs/DATACUBE_UI_REVIEW_2026_10_24.md, the menus)', () => {
+    // 2026-10-25: a third of the entries said "..." and the rest "…"; one menu said "Properties..." beside "Arrange…".
+    // any literal on a label's line: a ternary's branches too (the 2026-10-25 audit)
+    const dots = /label:.*['`"][^'`"]*\.\.\.['`"]/;
+    const hits: string[] = [];
+    for (const file of FILES) {
+      SOURCES.read(file).split('\n').forEach((line, i) => {
+        if (!isComment(line) && dots.test(line)) hits.push(`${file}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    assert.deepEqual(hits, [], `write … (\\u2026), not three dots:\n${hits.join('\n')}`);
+  });
+
+  it('draws the chrome\'s marks in one set: no typed ×, ≡, ⊞, ⤢, ⤡, ▸, ▾, › or ‹ (docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 4)', () => {
+    // 2026-10-25: the page's marks came from four fonts, at four weights and on four baselines; they are drawn now
+    // (ui/tile-icons.ts chromeIcon, closeMark). A close button made with its glyph and then drawn says closeMark.
+    // the tree carets too (2026-10-25: the grid's, the JSON field picker's, Ad Hoc's member picker's)
+    // a mark alone in its literal, spaced or not; › and ‹ as an element's whole text (2026-10-25 audit: the columns
+    // selector's arrows) -- as words they are words: a breadcrumb's separator, a code page's table
+    const typed = /['`"]\s*(×|\\u00d7|≡|\\u2261|⊞|⤢|⤡|▸|\\u25b8|▾|\\u25be)\s*['`"]|textContent\s*=\s*['`"]\s*(›|\\u203a|‹|\\u2039)\s*['`"]/;
+    const hits: string[] = [];
+    for (const file of FILES) {
+      SOURCES.read(file).split('\n').forEach((line, i) => {
+        // a separator joining words (a pivot's path, a class's: `' › '`) is a word, not a mark of the chrome
+        if (!isComment(line) && typed.test(line) && !line.includes('closeMark(') && !/\.join\(\s*['`"]/.test(line)) {
+          hits.push(`${file}:${i + 1}: ${line.trim()}`);
+        }
+      });
+    }
+    assert.deepEqual(hits, [], `draw it (chromeIcon, closeMark):\n${hits.join('\n')}`);
+  });
+
   it('keeps the demo-only planner out of the product', () => {
     // "One planner" is an architectural commitment, and a convenient
     // second one is exactly how such commitments rot.
@@ -117,11 +209,18 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
    * The text a person edits, and what it may say: the calculated-column editor's typing
    * help (its examples and completions are inserted into what the person types), one
    * refusal that suggests an expression to type, and one that names the accessor a table's
-   * name cannot be read through.
+   * name cannot be read through. Added 2026-10-25 (the flow mode's Multi-Field Formula,
+   * docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its window's example expressions, one per kind
+   * of column, put in its box for the person to edit -- the compiler parses what they leave
+   * there, as it parses the column editor's. Added 2026-10-26 (the flow mode's Pure box, FL12): its window's steps
+   * (filter, extend, groupBy, ...) and its example, put in its box for the person to finish -- the compiler parses what
+   * they leave there (pure-box.ts pureFrom).
    */
   const FOR_A_PERSON = new Map([
     ['src/calc.ts', 'the column editor\'s examples and completions'],
     ['src/query.ts', 'a refusal suggesting what to type'],
+    ['src/ui/multi-field-form.ts', 'the Multi-Field Formula window\'s examples'],
+    ['src/ui/pure-form.ts', 'the Pure box window\'s steps and its example'],
   ]);
 
   it('builds no Pure text outside what a person types', () => {
@@ -142,6 +241,10 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     // pinned, so a query built as text cannot hide in an allowed file
     assert.equal(count('src/query.ts'), 1, 'query.ts: only the unpivotable refusal');
     assert.ok(count('src/calc.ts') > 0, 'calc.ts: the editor help still exists');
+    // pinned too (the flow mode review, 2026-10-26: the windows' allowances were open-ended): the Multi-Field Formula's
+    // examples, the Pure box's eight steps and its example
+    assert.equal(count('src/ui/multi-field-form.ts'), 4, "multi-field-form.ts: the window's examples");
+    assert.equal(count('src/ui/pure-form.ts'), 9, "pure-form.ts: the window's steps and its example");
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {

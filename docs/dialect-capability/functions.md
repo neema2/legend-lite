@@ -1516,7 +1516,7 @@ Database types planned with it: DuckDB.
 | `ALL_DISTINCT` | emulated | `allDistinct` |  | 0 |
 | `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` |  | 3 |
 | `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
-| `STRFTIME` | spelled | `strftime` |  | 193 |
+| `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | spelled | `strptime` |  | 0 |
 | `PARSE_DATE` | emulated | `castAs: TIMESTAMP` |  | 4 |
 | `LIST_REVERSE` | spelled | `list_reverse` | `via DuckDb.listCall` | 4 |
@@ -2506,7 +2506,7 @@ Database types planned with it: Deephaven.
 | `IS_NULL` | emulated | `booleanValue` |  | 0 |
 | `IS_NOT_NULL` | emulated | `booleanValue` |  | 0 |
 | `IN` | emulated | `booleanValue` |  | 0 |
-| `COALESCE` | emulated | `coalesce` |  | 0 |
+| `COALESCE` | emulated | `by its operands: composed / composed` |  | 0 |
 | `PARSE_INT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `CONCAT` | emulated | `concat` |  | 0 |
 | `LENGTH` | emulated | `stringMethod: length` |  | 0 |

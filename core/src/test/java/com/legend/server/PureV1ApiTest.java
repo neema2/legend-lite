@@ -182,8 +182,8 @@ class PureV1ApiTest {
      * digits and {@code +0000}, a StrictDate its day -- measured against legend-engine 4.145.0
      * ({@code docs/execution-plan-boundary-2026-10-05/probes/engine-reference/results.txt} §2, the {@code lit-*}
      * cases) and, for the Float's layout beyond them, Java's own {@code Double.toString}. The VALUES stay Pure's: a
-     * Decimal keeps its scale where the engine answers {@code 2.5} and {@code 5.0000000000000000} (register S97), and
-     * {@code 3 * 1.1} is {@code 3.3} where the engine computes {@code 3.3000000000000003} (S98).
+     * Decimal keeps its scale where the engine answers {@code 2.5} and {@code 5.0000000000000000} (register S104), and
+     * {@code 3 * 1.1} is {@code 3.3} where the engine computes {@code 3.3000000000000003} (S105).
      */
     @Test
     void e8_execute_writesTheEnginesText_overPuresValues() {
@@ -200,12 +200,12 @@ class PureV1ApiTest {
         cases.put("100.0", Double.toString(100.0));
         cases.put("-2.5e-7", Double.toString(-2.5e-7));
         cases.put("0.0", "0.0");
-        cases.put("3 * 1.1", "3.3");                                  // S98: the engine's 3.3000000000000003
+        cases.put("3 * 1.1", "3.3");                                  // S105: the engine's 3.3000000000000003
         cases.put("%2024-01-02T10:30:00", "\"2024-01-02T10:30:00.000000000+0000\"");
         cases.put("%2024-01-02T10:30:00.123456789", "\"2024-01-02T10:30:00.123456789+0000\"");
         cases.put("%2024-01-02", "\"2024-01-02\"");
-        cases.put("2.50D", "2.50");                                   // S97: the engine's 2.5
-        cases.put("2 * 2.50D", "5.00");                               // S97: the engine's 5.0000000000000000
+        cases.put("2.50D", "2.50");                                   // S104: the engine's 2.5
+        cases.put("2 * 2.50D", "5.00");                               // S104: the engine's 5.0000000000000000
         cases.put("7", "7");
         cases.put("'a'", "\"a\"");
         cases.put("true", "true");
@@ -528,6 +528,40 @@ class PureV1ApiTest {
             assertEquals(200, a.status(), q + " -> " + a.json());
             assertEquals(Json.toCompact(c.get("engine")), Json.toCompact(Json.parse(a.json())), q);
         }
+    }
+
+    /** A program that writes executes from its plan (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): its staged rows are
+     *  its answer, in the engine's TDS shape, and the write runs on a database of its own -- the in-memory database the
+     *  runner shares by the target is never changed, so the next read answers as the test data has it (decision A). */
+    @Test
+    void e8_execute_aProgramThatWrites_runsFromItsPlan() {
+        String code = """
+                ###Relational
+                Database w::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(20)) )
+                ###Connection
+                RelationalDatabaseConnection w::Conn {
+                  store: w::DB;
+                  type: H2;
+                  specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,NAME\\n1,a\\n2,b\\n'; };
+                  auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime w::RT { mappings: [ ]; connections: [ w::DB: [ c: w::Conn ] ]; }
+                """;
+        String modelContext = Json.toCompact(Map.of("_type", "text", "code", code));
+        String write = PureV1Api.grammarToJsonLambda("{|let s = #>{w::DB.T}#->filter(r|$r.ID == 1)"
+                + "->meta::legend::lite::stage(); #>{w::DB.T}#->delete(r|$r.ID == 1); $s->select(~[NAME])"
+                + "->from(w::RT);}", false).json();
+        PureV1Api.Answer a = execute("{\"function\":" + write + ",\"model\":" + modelContext + "}");
+        assertEquals(200, a.status(), a.json());
+        Json.Arr rows = Json.parseObject(a.json()).getObj("result").getArr("rows");
+        assertEquals(1, rows.items().size(), a.json());
+        assertEquals("a", ((Json.Str) ((Json.Obj) rows.items().get(0)).getArr("values").items().get(0)).value());
+        String read = PureV1Api.grammarToJsonLambda("|#>{w::DB.T}#->select(~[NAME])->sort(~NAME->ascending())"
+                + "->from(w::RT)", false).json();
+        PureV1Api.Answer after = execute("{\"function\":" + read + ",\"model\":" + modelContext + "}");
+        assertEquals(200, after.status(), after.json());
+        assertEquals(2, Json.parseObject(after.json()).getObj("result").getArr("rows").items().size(), after.json());
     }
 
     /** An enumeration column executes as the engine answers it: typed String in the TDS builder (measured, 4.145.0). */

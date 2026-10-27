@@ -755,6 +755,9 @@ final class Typer {
                     GetAllChecker.checkVersions(this, af, env);
             case FROM -> FromChecker.check(this, af, env);
             case WRITE -> WriteChecker.check(this, af, env);
+            case DELETE -> WriteChecker.delete(this, af, env);
+            case UPDATE -> WriteChecker.update(this, af, env);
+            case MERGE -> WriteChecker.merge(this, af, env);
             case FOLD -> FoldChecker.check(this, af, env);
             case NAVIGATE -> NavigateChecker.check(this, af, env);
             // legacyNavigate: the pre-map rule, target table rows spelled in
@@ -762,6 +765,9 @@ final class Typer {
             case ROUTE -> throw NavigateChecker.routeAlone();
             case INLINE_VIEW -> InlineViewChecker.check(this, af, env);
             case RECURSE -> RecurseChecker.check(this, af, env);
+            // stage(rows): its relation, typed by the signature; a let's value only, which the executor runs into
+            // the session's temporary table (StatementExecutor.stageRows, docs/WRITES_DESIGN_2026_10_18.md §8 leg 6)
+            case STAGE -> applyGeneric(af, env);
             case IS_DISTINCT -> IsDistinctChecker.check(this, af, env);
             case GRAPH_FETCH -> GraphFetchChecker.graphFetch(this, af, env);
             case GRAPH_FETCH_CHECKED ->

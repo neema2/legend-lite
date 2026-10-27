@@ -18,7 +18,7 @@ public sealed interface SqlExpr
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
                 SqlExpr.CheckedDefects, SqlExpr.CheckedChildValue,
                 SqlExpr.InSubquery, SqlExpr.Quantified,
-                SqlExpr.CompactList,
+                SqlExpr.CompactList, SqlExpr.Tagged,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
@@ -100,6 +100,15 @@ public sealed interface SqlExpr
             case CheckedChildValue cv -> List.of(cv.envelope());
             case CheckedOne co -> List.of(co.list());   // flags ride
             case CompactList cl -> List.of(cl.list());
+            case Tagged t -> {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+                out.add(t.tag());
+                out.add(t.comparable());
+                for (Tagged.Candidate c : t.candidates()) {
+                    out.add(c.value());
+                }
+                yield out;
+            }
             case DeferredTdsString ignored -> List.of();
             case WindowCall w -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
@@ -181,6 +190,14 @@ public sealed interface SqlExpr
             case CheckedOne co2 -> new CheckedOne(cs.get(0),
                     co2.scalarCarrier(), co2.atLeastOnly());
             case CompactList ignored -> new CompactList(cs.get(0));
+            case Tagged t -> {
+                java.util.List<Tagged.Candidate> candidates = new java.util.ArrayList<>();
+                for (int i = 0; i < t.candidates().size(); i++) {
+                    Tagged.Candidate c = t.candidates().get(i);
+                    candidates.add(new Tagged.Candidate(c.kind(), c.slot(), cs.get(2 + i)));
+                }
+                yield new Tagged(cs.get(0), cs.get(1), candidates);
+            }
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
             case ArrayLit a -> new ArrayLit(cs, a.type());
@@ -432,6 +449,22 @@ public sealed interface SqlExpr
             return outs.stream().filter(c -> c.name().equals(name))
                     .findFirst().map(oc -> of(table, oc))
                     .orElseGet(() -> new Column(table, name));
+        }
+
+        /** {@link #of(String, List, String)} for many names over one
+         * output list, the list indexed once (a relation of n columns
+         * read whole is n lookups, not n scans of n: Cypher's staged
+         * rows carry a column per element a clause creates). */
+        public static java.util.function.Function<String, Column> lookup(
+                @com.legend.base.Nullable String table, List<OutputCol> outs) {
+            java.util.Map<String, OutputCol> byName = new java.util.HashMap<>();
+            for (OutputCol oc : outs) {
+                byName.putIfAbsent(oc.name(), oc);
+            }
+            return name -> {
+                OutputCol oc = byName.get(name);
+                return oc == null ? new Column(table, name) : of(table, oc);
+            };
         }
 
         /** §E3 M-N2 — the JOIN-PAD door: this reference with its fact
@@ -1015,6 +1048,45 @@ public sealed interface SqlExpr
 
         public CompactList(SqlExpr list) {
             this(list, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /**
+     * A value whose Pure kind the database decides among statically-kinded candidates: a mixed Number's or Date's
+     * {@code max}, {@code min}, {@code greatest}, {@code least} or {@code mode}
+     * (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a, 2026-10-23). {@code tag} is the 1-based position of the winning
+     * candidate; {@code comparable} the winner on the channel the candidates were compared on (a DOUBLE, a
+     * TIMESTAMP); each candidate its Pure kind, the SQL slot that holds it exactly and its value. No dialect renders
+     * it: a query's root projects the tag and one column per slot ({@link SqlType.Tagged}; the Lowerer's egress), and
+     * a rule consuming it reads the channel it needs -- a comparison the comparable, a print each candidate's own
+     * text. Its type is the tagged type of its distinct slots, nullable where any candidate is.
+     */
+    record Tagged(SqlExpr tag, SqlExpr comparable, List<Candidate> candidates, TypeFact type) implements SqlExpr {
+        public Tagged {
+            candidates = List.copyOf(candidates);
+            if (candidates.isEmpty()) {
+                throw new IllegalArgumentException("a tagged value chooses among candidates; none were given");
+            }
+            type = SqlTyping.taggedType(candidates);
+        }
+
+        public Tagged(SqlExpr tag, SqlExpr comparable, List<Candidate> candidates) {
+            this(tag, comparable, candidates, SqlTyping.UNKNOWN);
+        }
+
+        /** One candidate: its Pure kind, the SQL slot holding it exactly, its value (typed as the slot). */
+        public record Candidate(String kind, SqlType slot, SqlExpr value) {
+        }
+
+        /** The distinct slots, in order of first appearance: the tagged type's. */
+        public List<SqlType.Tagged.Slot> slots() {
+            return ((SqlType.Tagged) ((TypeFact.Typed) type).type()).slots();
+        }
+
+        /** The slot index of candidate {@code i}. */
+        public int slotOf(int i) {
+            Candidate c = candidates.get(i);
+            return slots().indexOf(new SqlType.Tagged.Slot(c.kind(), c.slot()));
         }
     }
 

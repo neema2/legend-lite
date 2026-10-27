@@ -1,7 +1,7 @@
 // DATACUBE'S APP ON A PAGE ANOTHER EDITOR SERVES (src/app/datacube-app.ts, Python's `ll.Page`): the app as a tab opens
 // it -- over a stand-in editor that says the page, its moves and the writes it takes -- following the page from its
 // start: a page of no grid yet followed as Python adds to it, a first read that failed tried again at its next move (the
-// S4 audit's 1: only New ▸ Blank Page leaves the page, D1), and a follow on its way when the page is left landing
+// S4 audit's 1: only New Page leaves the page, D1), and a follow on its way when the page is left landing
 // nothing (the S4 audit's 4).
 
 import assert from 'node:assert/strict';
@@ -17,7 +17,7 @@ import type { LiveWrite } from '../src/app/services.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { FakeKeeper } from './fake-keeper.ts';
 import { pageHash } from '../src/page-hash.ts';
-import { GateEngine, StubPlanner } from './cube-fixture.ts';
+import { GateEngine, StubPlanner, plus } from './cube-fixture.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { cubeToJson, writeCube } from '../src/cube-document.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -80,7 +80,7 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
       reading: {},
       // a frame's rows, planned and run here over the fixture's planner and engine: what opening a page's grid asks
       rows: () => ({ planner: new StubPlanner(), engine: new GateEngine() }),
-      // a source to pick: the page offers New ▸ Blank Page; the host's frames, as the test says them
+      // a source to pick: the page offers New Page; the host's frames, as the test says them
       database: { ingestFile: async () => { throw new Error('no file here'); }, ...(frame ? { frame } : {}), ...host },
       ...engine,
     },
@@ -115,7 +115,7 @@ async function opened(editor: Editor, frame?: (name: string) => Promise<unknown>
   };
 }
 
-/** New ▸ Blank Page, from the page's menu. */
+/** New Page, from the page's menu. */
 function blankPage(): void {
   const doc = dom.window.document;
   (doc.querySelector('.dc-page-bar .dc-titlebar-menu') as HTMLElement).click();
@@ -125,14 +125,11 @@ function blankPage(): void {
     assert.ok(found, `no entry '${label}': ${items.map((i) => i.textContent).join(' | ')}`);
     return found;
   };
-  const opener = item('Create');
-  opener.dispatchEvent(new dom.window.MouseEvent('mouseenter', { bubbles: true }));
-  opener.click();
-  item('Blank Page').click();
+  item('New Page').click();
 }
 
 describe("the app on a page Python serves, from its start (the S4 audit's 1)", () => {
-  it('a page of no grid yet is followed as Python moves it: only New ▸ Blank Page leaves it', async () => {
+  it('a page of no grid yet is followed as Python moves it: only New Page leaves it', async () => {
     const editor = new Editor();
     const app = await opened(editor);
     assert.equal(app.unwatched(), false, 'still watched: a start that opened nothing leaves nothing');
@@ -162,7 +159,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.equal(tabs.length, 2);
     assert.match(doc.querySelector('.dc-page-name')?.textContent ?? '', /Q3/, 'its name');
     // a sheet the person adds is given an id the keeper has not held
-    (doc.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(doc);
     await new Promise((done) => { setTimeout(done, 700); });
     const added = written.flatMap((w) => ('edits' in w ? w.edits : [])).flatMap((e) => ('page' in e && e.page.kind === 'addSheet' ? [e.page] : []));
     assert.equal(added.length, 1, 'the sheet added, written to its keeper');
@@ -296,6 +293,28 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     assert.equal(app.shown(), undefined, 'left: no page of the editor\'s on screen');
   });
 
+  // the user, 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §5): an error ran into the status bar as red text cut
+  // short; a chip now, its whole a click away
+  it('an error is said as a chip: its first words, the whole on hover and in a window a click opens', async () => {
+    const editor = new Editor();
+    editor.read = async () => {
+      editor.reads += 1;
+      throw new Error('the engine is not answering yet: Catalog Error: Table with name sample_sales does not exist!');
+    };
+    await opened(editor);
+    const doc = dom.window.document;
+    const status = doc.getElementById('status')!;
+    assert.equal(status.classList.contains('bad'), true, `said: ${status.textContent}`);
+    assert.equal(status.getAttribute('role'), 'button');
+    assert.match(status.querySelector('.dc-app-status-words')?.textContent ?? '', /sample_sales does not exist/);
+    assert.match(status.title, /sample_sales does not exist!\n\nClick for the whole of it/);
+    const win = doc.getElementById('errorwin')!;
+    assert.equal(win.hidden, true);
+    status.click();
+    assert.equal(win.hidden, false, 'a click opens What went wrong');
+    assert.match(doc.getElementById('errortext')?.textContent ?? '', /^the engine is not answering yet: Catalog Error/);
+  });
+
   it('a first read that failed is tried again at the next move', async () => {
     const editor = new Editor();
     const read = editor.read;
@@ -313,7 +332,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
   });
 });
 
-describe("New ▸ Blank Page while a follow is on its way (the S4 audit's 4)", () => {
+describe("New Page while a follow is on its way (the S4 audit's 4)", () => {
   it('its page, answered once the page is left, lands nothing: the page is the tab\'s own, said', async () => {
     const editor = new Editor();
     const app = await opened(editor);
@@ -422,7 +441,7 @@ describe("the ids the page has held, read with it (B12: the S4 audit's 5)", () =
     };
     await opened(editor, async () => ({ version: 0, model: '', runtime: '', source: { _type: 'packageableElementPtr', fullPath: 'trades' } }));
     await settle();
-    (dom.window.document.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(dom.window.document);
     // written once the change settles (live-channel.ts WRITE_AFTER)
     await new Promise((done) => { setTimeout(done, 700); });
     const added = written.flatMap((w) => ((w as { edits?: { page?: { kind: string; id?: string } }[] }).edits ?? []))

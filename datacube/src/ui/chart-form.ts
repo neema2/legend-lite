@@ -28,15 +28,22 @@ import {
   type TimeGrain,
 } from '../chart-spec.ts';
 import { SECOND_COLUMN, type AggregateFn, type CubeSnapshot } from '../snapshot.ts';
-import { checkbox, dropdown, field, numberInput } from './form.ts';
+import { checkbox, dropdown, field, foldable, numberInput, section, type Choice, type FoldState } from './form.ts';
 import { aggregatesFor } from './panel-column.ts';
 import { GRAIN_LABELS, SHOW_AS_LABELS } from '../calc-presets.ts';
 import { familyOf, isNumeric, isTemporal } from '../../../engine-client/src/types.ts';
+import { chromeIcon } from './tile-icons.ts';
 
 /** What each kind calls its split. Which kinds draw one series (no split) and which need one are the rulebook's. */
 const SPLIT_LABELS: Readonly<Partial<Record<ChartMark, string>>> = {
   heatmap: 'Rows:', sankey: 'Flows to:', chord: 'Flows to:', stream: 'Layers:', pie: 'Outer ring:', marimekko: 'Made of:',
 };
+
+/**
+ * The sections folded to start (the user, 2026-10-25: "more of a square"): the rarer ones, opened by a click and kept
+ * open by the chart after -- unless one holds a setting, which starts it open, marked.
+ */
+const FOLDED_TO_START = ['Small multiples', 'Reference lines', 'Look and interaction'] as const;
 
 /** The most values one chart plots side by side (bars, lines). */
 const MAX_MEASURES = 6;
@@ -51,6 +58,8 @@ function current(h: FormHost): ChartSpec {
 /** What the form reads and changes: its panel's spec, through the panel. */
 export interface FormHost {
   readonly doc: Document;
+  /** Which of its sections are folded, kept by its panel as the form is painted again (absent: none kept). */
+  readonly folds?: FoldState;
   /** The spec as it is now. */
   spec(): ChartSpec | null;
   /**
@@ -175,67 +184,104 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
     return f === 'value' ? undefined : f;
   };
 
-  const markField = field(doc, 'Chart:', dropdown<ChartMark>(doc, spec.mark, CHART_MARKS, (v) => {
+  // ITS KIND FIRST, then its fields in titled sections that fold (the Properties window's, docs/DATACUBE_UI_REVIEW_2026_10_24.md
+  // §2): what it reads, more values, small multiples, its layout, reference lines, its labels and legend, how it looks
+  // -- each section left out where the kind has nothing in it
+  const kind = doc.createElement('div');
+  kind.className = 'dc-chartpanel-kind';
+  kind.append(field(doc, 'Chart:', dropdown<ChartMark>(doc, spec.mark, CHART_MARKS, (v) => {
     if (!v || !h.spec()) return;
     // a kind takes what it needs and leaves what it has no place for (editChart's asMark)
     h.set({ mark: v }, true);
-  }));
+  })));
+  form.append(kind);
+  // which of the rarer sections hold a setting one of their fields shows: marked as changed, and open to start -- never
+  // for a setting no field there shows, which the form could not take off (the 2026-10-25 review)
+  const looks = spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'scatter';
+  const series = spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area';
+  const holds: Readonly<Record<string, boolean>> = {
+    'Small multiples': series && spec.facet !== undefined,
+    'Reference lines': series && referencesHold(spec),
+    'Look and interaction': looks && looksHold(spec),
+  };
+  const folds = h.folds ?? {};
+  folds.folded ??= FOLDED_TO_START.filter((title) => !holds[title]);
+  // TWO COLUMNS, each section in its own (the user, 2026-10-25: "more of a square"): what it reads on the left, how it
+  // is drawn on the right -- fixed, so folding one never moves another across, as columns balanced by the browser did
+  // (the 2026-10-25 review); one under the other where the window is narrow (app.css .dc-chartpanel-columns)
+  const sides = [doc.createElement('div'), doc.createElement('div')] as const;
+  for (const side of sides) side.className = 'dc-chartpanel-column';
+  const group = (title: string, side: 0 | 1, ...children: readonly HTMLElement[]): void => {
+    if (children.length === 0) return;
+    const block = section(doc, title, ...children);
+    foldable(doc, folds, block, holds[title] === true);
+    sides[side].append(block);
+  };
+  /** The sections, in their columns, onto the form: an empty column left out, the other then the whole width. */
+  const columns = (): void => {
+    const used = sides.filter((side) => side.childElementCount > 0);
+    if (used.length === 0) return;
+    const both = doc.createElement('div');
+    both.className = 'dc-chartpanel-columns';
+    both.append(...used);
+    form.append(both);
+  };
   if (spec.mark === 'kpi') {
     // a number, what it measures, its trend by a column (or none), and a target with which way is good
-    form.append(
-      markField,
+    group('Data', 0,
       field(doc, 'Value:', dropdown<string>(doc, first?.column, measures.map((c) => ({ value: c.name, label: c.name })),
         (v) => { if (v) h.set({ y: [{ column: v, fn: currentFn() ?? 'sum' }] }, true); })),
       field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, currentFn(), fns, (v) => {
         const now = h.spec()?.y[0];
         if (v && now) h.set({ y: [{ column: now.column, fn: v }] });
       })),
-      field(doc, 'Trend by:', dropdown<string>(doc, spec.x, dims, (v) => h.set({ x: v ?? null }), { allowNone: true })),
+      field(doc, 'Trend by:', dropdown<string>(doc, spec.x, dims, (v) => h.set({ x: v ?? null }), { allowNone: true })));
+    group('Target', 1,
       field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => h.setOption('target', v ?? null), { width: 110 })),
-      field(doc, 'Good when:', dropdown(doc, spec.options.better ?? 'higher', [
-        { value: 'higher', label: 'Above target' },
-        { value: 'lower', label: 'Below target' },
-      ] as const, (v) => { if (v) h.setOption('better', v); })),
-    );
+      choice(h, 'Good when:', spec.options.better ?? 'higher', [
+        { value: 'higher', label: 'Above it' },
+        { value: 'lower', label: 'Below it' },
+      ] as const, (v) => h.setOption('better', v)));
+    columns();
     return;
   }
   if (spec.mark === 'gauge') {
     // one value against its target, the scale's end: a dial, or a progress ring
-    form.append(
-      markField,
+    group('Data', 0,
       field(doc, 'Value:', dropdown<string>(doc, first?.column, measures.map((c) => ({ value: c.name, label: c.name })),
         (v) => { if (v) h.set({ y: [{ column: v, fn: currentFn() ?? 'sum' }] }, true); })),
       field(doc, 'Aggregate:', dropdown<AggregateFn>(doc, currentFn(), fns, (v) => {
         const now = h.spec()?.y[0];
         if (v && now) h.set({ y: [{ column: now.column, fn: v }] });
-      })),
+      })));
+    group('Target', 1,
       field(doc, 'Target:', numberInput(doc, spec.options.target, (v) => h.setOption('target', v ?? null), { width: 110 })),
-      field(doc, 'Good when:', dropdown(doc, spec.options.better ?? 'higher', [
-        { value: 'higher', label: 'At or above target' },
-        { value: 'lower', label: 'At or below target' },
-      ] as const, (v) => { if (v) h.setOption('better', v); })),
-      checkbox(doc, 'As a progress ring', spec.options.ring === true, (v) => setFlag(h, 'ring', v)),
-    );
+      choice(h, 'Good when:', spec.options.better ?? 'higher', [
+        { value: 'higher', label: 'At or above' },
+        { value: 'lower', label: 'At or below' },
+      ] as const, (v) => h.setOption('better', v)),
+      checkbox(doc, 'As a progress ring', spec.options.ring === true, (v) => setFlag(h, 'ring', v)));
+    columns();
     return;
   }
   if (spec.mark === 'matrix') {
     // rows' values against each other: what they are, and a colour per value of the split
     const numbers = measures.map((c) => ({ value: c.name, label: c.name }));
-    form.append(
-      markField,
+    group('Data', 0,
       field(doc, 'Value 1:', dropdown<string>(doc, first?.column, numbers, (v) => {
         if (!v || !h.spec()) return;
         h.set({ y: [{ column: v, fn: 'sum' }, ...current(h).y.slice(1)] }, true);
       })),
       ...measureRows(h, spec, numbers, typeOf, false),
       field(doc, 'Colour by:', dropdown<string>(doc, spec.split, dims, (v) => h.set({ split: v ?? null }),
-        { allowNone: true })),
-    );
+        { allowNone: true })));
+    columns();
     return;
   }
   if (spec.mark === 'feed') {
     // its rows into its cards: each slot a column of the cube
-    form.append(markField, ...feedFields(h, spec, [...new Map([...dimensions, ...measures].map((c) => [c.name, c])).values()]));
+    group('Data', 0, ...feedFields(h, spec, [...new Map([...dimensions, ...measures].map((c) => [c.name, c])).values()]));
+    columns();
     return;
   }
   if (GRID_MARKS.has(spec.mark)) {
@@ -247,21 +293,20 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       : spec.mark === 'sunburst'
         ? 'Draws the grid\'s rows as shown: each group a ring, its rows outside it, sized by the first number column the grid shows. Expand a group to see its ring.'
         : 'Draws the grid\'s rows as shown: each group a node, its rows its branches, valued by the first number column the grid shows. Expand a group to grow its branch.';
-    form.append(markField, note);
+    form.append(note);
     if (spec.mark === 'treemap') {
       // a block coloured by a value the grid shows, either side of zero (a day's change): its reach a fixed number or
       // the largest drawn
-      form.append(
+      group('Colour', 0,
         field(doc, 'Colour by:', dropdown<string>(doc, spec.colour?.column, measures.map((c) => ({ value: c.name, label: c.name })),
           (v) => h.set({ colour: v ? { column: v, fn: 'value' } : null }), { allowNone: true })),
         field(doc, 'Colour reach:', numberInput(doc, spec.options.colourReach, (v) => h.setOption('colourReach', v !== undefined && v > 0 ? v : null),
-          { width: 110 })),
-      );
+          { width: 110 })));
+      columns();
     }
     return;
   }
-  form.append(
-    markField,
+  const data: HTMLElement[] = [
     field(doc, scatter ? 'X:' : map ? 'Country:' : bubbles ? 'Place:' : 'Across:', dropdown<string>(doc, spec.x, across, (v) => {
       // a new column across takes its own order, and a grain or bins go with the old one (editChart)
       if (v) h.set({ x: v }, true);
@@ -291,7 +336,11 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       (v) => h.set({ split: v ?? null }),
       { allowNone: SPLIT_NEEDED[spec.mark] === undefined },
     ))]),
-  );
+  ];
+  const more: HTMLElement[] = [];
+  const multiples: HTMLElement[] = [];
+  const layout: HTMLElement[] = [];
+  const references: HTMLElement[] = [];
   if (bubbles) {
     // where each place is: a number column of its latitude, another of its longitude (the chart groups by them)
     // a number column once, whether a dimension or a measure (chartColumns lists a numeric dimension among both)
@@ -305,10 +354,11 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         h.set({ at: Object.keys(next).length > 0 ? next : null });
       }, { allowNone: true },
     ));
-    form.append(place('lat', 'Latitude:'), place('lon', 'Longitude:'));
+    data.push(place('lat', 'Latitude:'), place('lon', 'Longitude:'));
   }
   if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area') {
-    form.append(...measureRows(h, spec, plotted, typeOf), ...layerFields(h, spec, plotted));
+    more.push(...measureRows(h, spec, plotted, typeOf));
+    references.push(...layerFields(h, spec, plotted));
     // SMALL MULTIPLES: a chart per value of a column, in a row of charts or a column of them (both: a matrix)
     const facetField = (which: 'column' | 'row', text: string): HTMLElement => field(doc, text, dropdown<string>(
       doc, spec.facet?.[which], dims.filter((d) => d.value !== spec.x && d.value !== spec.split), (v) => {
@@ -318,41 +368,41 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
         h.set({ facet: Object.keys(next).length > 0 ? next : null });
       }, { allowNone: true },
     ));
-    form.append(facetField('column', 'A chart per:'), facetField('row', 'And a row per:'));
+    multiples.push(facetField('column', 'A chart per:'), facetField('row', 'And a row per:'));
   }
   if (scatter) {
     // A BUBBLE: each point sized by a third column of its row
-    form.append(field(doc, 'Size by:', dropdown<string>(
+    data.push(field(doc, 'Size by:', dropdown<string>(
       doc, spec.size?.column, measures.map((c) => ({ value: c.name, label: c.name })),
       (v) => h.set({ size: v ? { column: v, fn: 'sum' } : null }), { allowNone: true },
     )));
   }
   // the kinds of several values, none drawn as another mark: a dumbbell's two ends, a radar's spokes
   if (spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'radar' || spec.mark === 'parallel' || spec.mark === 'polar') {
-    form.append(...measureRows(h, spec, plotted, typeOf, false));
+    more.push(...measureRows(h, spec, plotted, typeOf, false));
   }
   // a Gantt's end: a date column's greatest, as its start is one's least
-  if (gantt) form.append(...measureRows(h, spec, dates, typeOf, false, 'max'));
+  if (gantt) more.push(...measureRows(h, spec, dates, typeOf, false, 'max'));
   if (spec.mark === 'bar' || spec.mark === 'lollipop' || spec.mark === 'dumbbell' || spec.mark === 'range' || spec.mark === 'polar'
     || box) {
-    form.append(field(doc, 'Orientation:', dropdown(doc, spec.options.orientation, spec.mark === 'polar' ? [
-      { value: 'vertical', label: 'Around (a polar bar)' },
-      { value: 'horizontal', label: 'Radial bars' },
+    layout.push(choice(h, 'Orientation:', spec.options.orientation, spec.mark === 'polar' ? [
+      { value: 'vertical', label: 'Around' },
+      { value: 'horizontal', label: 'Radial' },
     ] as const : [
       { value: 'vertical', label: 'Vertical' },
       { value: 'horizontal', label: 'Horizontal' },
-    ] as const, (v) => { if (v) h.setOption('orientation', v); })));
+    ] as const, (v) => h.setOption('orientation', v)));
   }
-  if (spec.mark === 'pie') form.append(checkbox(doc, 'Half a ring', spec.options.half === true, (v) => setFlag(h, 'half', v)));
+  if (spec.mark === 'pie') layout.push(checkbox(doc, 'Half a ring', spec.options.half === true, (v) => setFlag(h, 'half', v)));
   if (spec.mark === 'bar' || spec.mark === 'area' || spec.mark === 'polar') {
-    form.append(field(doc, 'Stack:', dropdown(doc, spec.options.stack, [
+    layout.push(choice(h, 'Stack:', spec.options.stack, [
       { value: 'none', label: 'None' },
       { value: 'stacked', label: 'Stacked' },
       { value: 'percent', label: '100%' },
-    ] as const, (v) => { if (v) h.setOption('stack', v); })));
+    ] as const, (v) => h.setOption('stack', v)));
   }
   if (!scatter) {
-    form.append(
+    layout.push(
       field(doc, 'Order by:', dropdown(doc, `${spec.options.sort.by}:${spec.options.sort.direction}`, [
         { value: 'y:desc', label: 'Value, largest first' },
         { value: 'y:asc', label: 'Value, smallest first' },
@@ -368,20 +418,28 @@ export function paintChartForm(h: FormHost, form: HTMLElement): void {
       }, { min: 1, max: 5000, step: 10, width: 80 })),
     );
   }
-  if (spec.mark === 'bar' || spec.mark === 'line' || spec.mark === 'area' || spec.mark === 'scatter') form.append(...lookFields(h, spec));
-  form.append(
-    // a map draws no legend (its colour scale is its key), nor a Gantt (one series): no choice of where it goes
-    ...(map || bubbles || gantt ? [] : [field(doc, 'Legend:', dropdown(doc, spec.options.legend, [
-      { value: 'top', label: 'Top' },
-      { value: 'bottom', label: 'Bottom' },
-      { value: 'right', label: 'Right' },
-      { value: 'none', label: 'None' },
-    ] as const, (v) => { if (v) h.setOption('legend', v); }))]),
+  const labels: HTMLElement[] = [
     // a box plot writes none of its five figures on its box (the phase 5 audit), nor a map its values on its places:
     // no checkbox that does nothing
     ...(box || map || bubbles || gantt || spec.mark === 'marimekko' || spec.mark === 'waffle'
       ? [] : [checkbox(doc, 'Show values', spec.options.labels, (v) => h.setOption('labels', v))]),
-  );
+    ...(looks ? labelFields(h, spec) : []),
+    // a map draws no legend (its colour scale is its key), nor a Gantt (one series): no choice of where it goes
+    ...(map || bubbles || gantt ? [] : [choice(h, 'Legend:', spec.options.legend, [
+      { value: 'top', label: 'Top' },
+      { value: 'bottom', label: 'Bottom' },
+      { value: 'right', label: 'Right' },
+      { value: 'none', label: 'None' },
+    ] as const, (v) => h.setOption('legend', v))]),
+  ];
+  group('Data', 0, ...data);
+  group('More values', 0, ...more);
+  group('Small multiples', 0, ...multiples);
+  group('Layout', 1, ...layout);
+  group('Reference lines', 1, ...references);
+  group('Labels and legend', 1, ...labels);
+  group('Look and interaction', 1, ...(looks ? lookFields(h, spec) : []));
+  columns();
   if (!scatter) {
     const hint = doc.createElement('p');
     hint.className = 'dc-chartpanel-hint';
@@ -435,19 +493,21 @@ function measureRows(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
         replace(i, v === 'left' || v === 'right' ? { ...rest, axis: v } : rest);
       }))]),
     );
+    // its x at the card's corner, quiet until hovered (the Join window's condition rows')
     const remove = doc.createElement('button');
     remove.type = 'button';
-    remove.className = 'dc-btn dc-btn-small';
-    remove.textContent = '\u00d7';
+    remove.className = 'dc-chartpanel-remove';
+    remove.append(chromeIcon(doc, 'close'));
     remove.title = `Take value ${i + 1} off the chart`;
     remove.setAttribute('aria-label', remove.title);
     remove.addEventListener('click', () => replace(i, null));
     row.append(remove);
     out.push(row);
   });
+  // a link, as the Join window's "+ Add a condition"
   const add = doc.createElement('button');
   add.type = 'button';
-  add.className = 'dc-btn dc-btn-small dc-chartpanel-add';
+  add.className = 'dc-chartpanel-add';
   add.textContent = '+ Add a value';
   add.disabled = spec.split !== undefined || spec.y.length >= MAX_MEASURES;
   add.title = spec.split !== undefined
@@ -486,13 +546,9 @@ function layerFields(h: FormHost, spec: ChartSpec, plotted: readonly { value: st
   const target = own('line');
   const threshold = own('threshold');
   const stat = own('stat');
-  const heading = doc.createElement('div');
-  heading.className = 'dc-chartpanel-heading';
-  heading.textContent = 'Reference lines';
   const measures = plotted.filter((p) => !p.value.startsWith('group:'));
   const extraOf = (m: ChartMeasure | undefined): string | undefined => m?.column;
   return [
-    heading,
     field(doc, 'Target:', numberInput(doc, target?.kind === 'line' ? target.value : undefined, (v) => {
       setLayer('line', v === undefined ? null : { kind: 'line', value: v, label: 'Target' });
     }, { width: 110 })),
@@ -548,22 +604,61 @@ function presetFields(h: FormHost, spec: ChartSpec, xType: string | undefined): 
   return out;
 }
 
+/** A few short choices, one chosen, all in sight (`segmented`, below): labelled as a field is. */
+function choice<T extends string>(h: FormHost, label: string, value: T, choices: readonly { value: T; label: string }[],
+  onChange: (value: T) => void): HTMLElement {
+  return field(h.doc, label, segmented(h.doc, value, choices, onChange, { label: label.replace(/:$/, '') }));
+}
+
+/** Where a mark's value is written, and turned: batch 2 item 12's, beside Show values. */
+function labelFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
+  const o = spec.options;
+  return [
+    choice(h, 'Labels:', o.labelPosition ?? 'outside', [
+      { value: 'outside', label: 'Beyond the mark' }, { value: 'inside', label: 'Inside it' },
+    ] as const, (v) => h.setOption('labelPosition', v)),
+    choice(h, 'Turn labels:', String(o.labelRotate ?? 0), [
+      { value: '0', label: 'No' }, { value: '45', label: '45\u00b0' }, { value: '90', label: '90\u00b0' },
+    ], (v) => h.setOption('labelRotate', v === '0' ? null : Number(v))),
+  ];
+}
+
+/** Whether the reference lines' fields show a setting (`layerFields`): the first value's target, line, extremes or
+ *  threshold, a value added to the hover, a mark's label. A layer none of them shows -- a band, another value's target,
+ *  both Python's -- is not one. */
+function referencesHold(spec: ChartSpec): boolean {
+  const own = (kind: ChartLayerKind): boolean =>
+    (spec.layers ?? []).some((l) => l.kind !== 'band' && l.kind === kind && (l.measure ?? 0) === 0);
+  return own('line') || own('stat') || own('extremes') || own('threshold') || spec.tooltip?.[0] !== undefined
+    || spec.label !== undefined;
+}
+
+/** Whether a chart draws a line or an area -- the smooth and step options apply to it (`lookFields`). */
+function drawsLines(spec: ChartSpec): boolean {
+  return spec.mark === 'line' || spec.mark === 'area' || spec.y.some((m) => m.mark === 'line' || m.mark === 'area');
+}
+
+/** Whether the look's fields show a setting (`lookFields`): smooth or step only on a chart of lines, a log axis only off
+ *  a scatter -- a setting kept from another kind, with no field to take it off, is not one. */
+function looksHold(spec: ChartSpec): boolean {
+  const o = spec.options;
+  return (drawsLines(spec) && (o.smooth === true || o.step === true))
+    || (spec.mark !== 'scatter' && (o.logAxis === true || o.fitAxis === true))
+    || o.labelPosition !== undefined || o.labelRotate !== undefined
+    || o.dim === false || o.decal === true || o.zoom !== undefined || o.brush === true || o.toolbox === true;
+}
+
 /**
- * THE CHEAPER OPTIONS (batch 2 item 12): how a line is drawn, the value axis, where labels sit, hovering, pattern
- * fills, zoom, brushing, the toolbox. Each an option of the spec, off (or automatic) unless set.
+ * THE CHEAPER OPTIONS (batch 2 item 12): how a line is drawn, the value axis, hovering, pattern fills, zoom, brushing,
+ * the toolbox. Each an option of the spec, off (or automatic) unless set.
  */
 function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
   const doc = h.doc;
   const o = spec.options;
-  const heading = doc.createElement('div');
-  heading.className = 'dc-chartpanel-heading';
-  heading.textContent = 'Look and interaction';
   const flag = <K extends 'smooth' | 'step' | 'logAxis' | 'fitAxis' | 'decal' | 'brush' | 'toolbox'>(key: K, text: string): HTMLElement =>
     checkbox(doc, text, o[key] === true, (on) => setFlag(h, key, on));
-  const lines = spec.mark === 'line' || spec.mark === 'area' || spec.y.some((m) => m.mark === 'line' || m.mark === 'area');
   return [
-    heading,
-    ...(lines ? [flag('smooth', 'Smooth lines'), flag('step', 'Step lines')] : []),
+    ...(drawsLines(spec) ? [flag('smooth', 'Smooth lines'), flag('step', 'Step lines')] : []),
     ...(spec.mark !== 'scatter' ? [flag('logAxis', 'Log value axis'), flag('fitAxis', 'Value axis fitted to the values (not from zero)')] : []),
     field(doc, 'Labels:', dropdown(doc, o.labelPosition ?? 'outside', [
       { value: 'outside', label: 'Beyond each mark' }, { value: 'inside', label: 'Inside each mark' },
@@ -573,9 +668,9 @@ function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
     ], (v) => { if (v !== undefined) h.setOption('labelRotate', v === '0' ? null : Number(v)); })),
     checkbox(doc, 'Dim the rest on hover', o.dim !== false, (on) => h.setOption('dim', on ? null : false)),
     flag('decal', 'Pattern fills'),
-    field(doc, 'Zoom slider:', dropdown<string>(doc, o.zoom === undefined ? 'auto' : o.zoom ? 'on' : 'off', [
-      { value: 'auto', label: 'For a long series' }, { value: 'on', label: 'Always' }, { value: 'off', label: 'Never' },
-    ], (v) => { if (v !== undefined) h.setOption('zoom', v === 'auto' ? null : v === 'on'); })),
+    choice(h, 'Zoom slider:', o.zoom === undefined ? 'auto' : o.zoom ? 'on' : 'off', [
+      { value: 'auto', label: 'When long' }, { value: 'on', label: 'Always' }, { value: 'off', label: 'Never' },
+    ], (v) => h.setOption('zoom', v === 'auto' ? null : v === 'on')),
     flag('brush', 'Drag to filter (brush)'),
     flag('toolbox', 'Toolbox: picture, data, CSV'),
   ];
@@ -584,4 +679,65 @@ function lookFields(h: FormHost, spec: ChartSpec): HTMLElement[] {
 /** An on/off option: on is said, off is left out (the spec stays as small as what it means). */
 function setFlag(h: FormHost, key: 'smooth' | 'step' | 'logAxis' | 'fitAxis' | 'decal' | 'brush' | 'toolbox' | 'half' | 'ring', on: boolean): void {
   h.setOption(key, on ? true : null);
+}
+
+/**
+ * A few choices side by side, one of them chosen: a segmented control, the Join window's kinds made small (the chosen
+ * one sky-edged, app.css .dc-segmented) -- here, in the options' own chunk, as only they use it (the grid's startup
+ * fetches none of it: test/bundle-budget.test.ts). Where a dropdown hid two or four short words behind a click, all of them are in
+ * sight. A radio group to assistive technology and the keyboard: Tab lands on the chosen one, the arrows move the choice.
+ */
+function segmented<T extends string>(
+  doc: Document,
+  value: T,
+  choices: readonly Choice<T>[],
+  onChange: (value: T) => void,
+  options: { label?: string } = {},
+): HTMLElement {
+  const group = doc.createElement('div');
+  group.className = 'dc-segmented';
+  group.setAttribute('role', 'radiogroup');
+  if (options.label !== undefined) group.setAttribute('aria-label', options.label);
+  const buttons = choices.map((c) => {
+    const b = doc.createElement('button');
+    b.className = 'dc-segment';
+    b.type = 'button';
+    b.textContent = c.label;
+    b.setAttribute('role', 'radio');
+    b.dataset['value'] = c.value;
+    // its words in full on a hover, where a narrow column cuts them short
+    b.title = c.label;
+    return b;
+  });
+  const show = (chosen: T, focus = false): void => {
+    buttons.forEach((b, i) => {
+      const on = choices[i]!.value === chosen;
+      b.setAttribute('aria-checked', String(on));
+      b.classList.toggle('dc-chosen', on);
+      b.tabIndex = on ? 0 : -1;
+      if (on && focus) b.focus();
+    });
+    // none of them the value (an option the choices do not name): the first is still reached by Tab
+    if (!choices.some((c) => c.value === chosen) && buttons[0]) buttons[0].tabIndex = 0;
+  };
+  const choose = (chosen: T, focus = false): void => {
+    if (buttons.some((b, i) => choices[i]!.value === chosen && b.getAttribute('aria-checked') === 'true')) return;
+    show(chosen, focus);
+    onChange(chosen);
+  };
+  show(value);
+  buttons.forEach((b, i) => {
+    b.addEventListener('click', () => choose(choices[i]!.value));
+    b.addEventListener('keydown', (e) => {
+      // the arrows move the choice and wrap; Home and End go to the first and the last (a radio group's keys)
+      const to = e.key === 'Home' ? 0 : e.key === 'End' ? choices.length - 1
+        : e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % choices.length
+          : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i - 1 + choices.length) % choices.length : undefined;
+      if (to === undefined) return;
+      e.preventDefault();
+      choose(choices[to]!.value, true);
+    });
+  });
+  group.append(...buttons);
+  return group;
 }

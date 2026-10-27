@@ -146,6 +146,11 @@ class ErrorShapeGuardrailTest {
             // into execution (the Dual.alias lesson); an unreadable
             // ResultSetMetaData is a counted unknown, never a failure
             Map.entry("SqlTypeCensus.java", 1),
+            // 0 -> 1 (2026-10-18, the writes design's leg 2, reviewed): Executor.inTransaction's rollback -- any
+            // failure of the work (a RuntimeException or an Error) rolls the transaction back and restores
+            // autocommit, a failure of either suppressed into it, and is RETHROWN unchanged; never a swallow, never
+            // a value. A finally cannot attach the rollback's own failure to the work's (and may not throw).
+            Map.entry("Executor.java", 1),
             Map.entry("StaticFold.java", 1),
             // 3 -> 4 (2026-08-28 V7 batch 1): the dual channel's decline
             // tunnel — a production-route probe failure becomes a COUNTED

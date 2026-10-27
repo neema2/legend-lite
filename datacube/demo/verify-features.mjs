@@ -361,10 +361,9 @@ async function settle(before) {
  * carries the real figure.
  */
 const resultRows = async () => {
-  const text = await statusNow();
-  const m = /([\d,]+) rows/.exec(text);
-  if (!m) throw new Error(`no row count in the status line: ${text}`);
-  return Number(m[1].replace(/,/g, ''));
+  const text = await page.evaluate(() => document.querySelector('.dc-status-timing')?.dataset.rows ?? '');
+  if (!/^\d+$/.test(text)) throw new Error(`no row count in the status bar: "${text}"`);
+  return Number(text);
 };
 
 /**
@@ -375,8 +374,11 @@ const resultRows = async () => {
  * when a query lands -- and a settle that waited on it would wait
  * the full timeout every single time.
  */
-const statusNow = () => page.evaluate(() =>
-  document.querySelector('.dc-status-timing')?.textContent ?? '');
+const statusNow = () => page.evaluate(() => {
+  // its words and which view they say (`data-view`, counting landed views): the words alone need not move
+  const e = document.querySelector('.dc-status-timing');
+  return e ? `${e.textContent} #${e.dataset.view}` : '';
+});
 
 /**
  * Right-click a body cell and walk the menu by LABEL.
@@ -512,6 +514,16 @@ const dimensionNames = () => page.evaluate(() =>
   [...document.querySelectorAll('.dc-tool-panel-row:not(.dc-measure)')]
     .map((e) => e.dataset.column));
 
+/**
+ * Every pivoted measure's columns unfolded in the columns panel: they arrive folded under their measure
+ * (docs/DATACUBE_UI_REVIEW_2026_10_24.md, found 3), and a check that reads or unticks one opens the block as a person
+ * would.
+ */
+async function unfoldPivots() {
+  const folded = page.locator('.dc-tool-panel-row button.dc-tool-panel-twist[aria-expanded="false"]');
+  while (await folded.count() > 0) await folded.first().click();
+}
+
 /** Open the hamburger and pick an entry. */
 /**
  * Pick a hamburger entry by its own label, through its submenus: an entry under View or Insert is
@@ -541,7 +553,7 @@ async function burger(label) {
   await settle();
 }
 /**
- * An entry of the first GRID's right-click, through its submenus: Edit ▸ Undo and Redo, Properties... -- its menu button
+ * An entry of the first GRID's right-click, through its submenus: Edit ▸ Undo and Redo, Properties… -- its menu button
  * went (the user, 2026-10-23: the right-click has all it had).
  */
 async function gridMenu(label) {
@@ -557,7 +569,7 @@ async function gridMenu(label) {
 }
 /** Ad Hoc Analysis, started from Properties ▸ Dimensions (the user, 2026-10-23: no menu entry of its own). */
 async function startAdHoc() {
-  await gridMenu('Properties...');
+  await gridMenu('Properties…');
   await page.locator('.dc-editor-tab', { hasText: 'Dimensions' }).click();
   await page.locator('.dc-dimension-adhoc button', { hasText: 'Start Ad Hoc Analysis' }).click();
 }
@@ -615,10 +627,9 @@ async function openThroughPicker(file) {
     await page.click('.dc-titlebar-lip');
     await page.locator('.dc-titlebar-menu').waitFor({ timeout: 10_000 });
   }
-  // in place of the page: New ▸ Blank Page, then "Add a data source"
+  // in place of the page: New Page, then "Add a data source"
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ timeout: 10_000 });
@@ -700,8 +711,9 @@ async function freshCube() {
   await openSource();
   await page.waitForFunction(
     (was) => {
-      const line = document.querySelector('.dc-status-timing')?.textContent ?? '';
-      return (line !== was && /rows/.test(line)
+      const e = document.querySelector('.dc-status-timing');
+      const line = e ? `${e.textContent} #${e.dataset.view}` : '';
+      return (line !== was && /rows|groups/.test(line)
         && document.querySelectorAll('.dc-row').length > 0)
         || /could not|error/i.test(
           document.getElementById('status')?.textContent ?? '');
@@ -983,7 +995,7 @@ try {
     // A filter IN FORCE, so there is something to list: opening on an
     // empty editor over a filtered cube would drop it on Apply.
     await menu(['Filter', /^Add Filter: .* = /]);
-    await menu(['Filter', 'Filters...'], { requery: false });
+    await menu(['Filter', 'Filters…'], { requery: false });
     const open = await page.evaluate(() =>
       Boolean(document.querySelector('.dc-app-overlay:not([hidden])')));
     if (!open) throw new Error('the overlay never opened');
@@ -1011,7 +1023,7 @@ try {
   await check('the filter editor builds a compound filter', async () => {
     await menu(['Filter', 'Clear All Filters']).catch(() => {});
     const all = await resultRows();
-    await menu(['Filter', 'Filters...'], { requery: false });
+    await menu(['Filter', 'Filters…'], { requery: false });
 
     const create = page.locator('button', { hasText: 'Create New Filter' });
     if (await create.count()) {
@@ -1130,7 +1142,7 @@ try {
     // the planner accepts for that column's type.
     await menu(['Filter', 'Clear All Filters']).catch(() => {});
     const all = await resultRows();
-    await menu(['Filter', 'Filters...'], { requery: false });
+    await menu(['Filter', 'Filters…'], { requery: false });
     const create = page.locator('button', { hasText: 'Create New Filter' });
     if (await create.count()) await create.first().click();
     const names = await page.locator('.dc-filter-column').first()
@@ -1776,7 +1788,7 @@ try {
       isNumeric(view.find((c) => c.name === n)?.type));
     if (measure < 0) throw new Error('no measure column to shade');
     heatCol = measure;
-    await menu(['Conditional Formatting', 'Color Scales', 'Heatmap'], { col: heatCol });
+    await menu(['Conditional Formatting', 'Add Heatmap'], { col: heatCol });
     const after = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-cell')]
         .filter((c) => c.style.backgroundColor).length);
@@ -1791,7 +1803,7 @@ try {
       [...document.querySelectorAll('.dc-cell')]
         .filter((c) => c.style.backgroundColor).length);
     if (!before) throw new Error('could not set up: no cell was coloured');
-    await menu(['Conditional Formatting', 'Color Scales', 'No Color Scale'], { col: heatCol });
+    await menu(['Conditional Formatting', 'Remove Heatmap'], { col: heatCol });
     const left = await page.evaluate(() =>
       [...document.querySelectorAll('.dc-cell')]
         .filter((c) => c.style.backgroundColor).length);
@@ -1996,7 +2008,7 @@ try {
   await section('the editor');
 
   await check('the properties editor opens with its tabs', async () => {
-    await menu(['Properties...'], { requery: false });
+    await menu(['Properties…'], { requery: false });
     const tabs = await page.locator('.dc-app-overlay [role=tab],'
       + ' .dc-tab').allTextContents();
     if (tabs.length < 3) {
@@ -2048,7 +2060,7 @@ try {
   };
 
   async function editorTab(name) {
-    await menu(['Properties...'], { requery: false });
+    await menu(['Properties…'], { requery: false });
     const tab = page.locator('.dc-editor-tab', { hasText: name });
     if (!(await tab.count())) {
       const seen = await page.locator('.dc-editor-tab').allTextContents();
@@ -2067,8 +2079,8 @@ try {
   /** Turn a General Properties checkbox on or off, by its label. */
   const setGeneralCheck = async (label, on) => {
     await reset();
-    // the grid's Properties..., from its right-click
-    await gridMenu('Properties...');
+    // the grid's Properties…, from its right-click
+    await gridMenu('Properties…');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
@@ -2090,8 +2102,8 @@ try {
   /** Turn "keep grouped columns in the grid" on or off. */
   const setKeepGrouped = async (on) => {
     await reset();
-    // the grid's Properties..., from its right-click
-    await gridMenu('Properties...');
+    // the grid's Properties…, from its right-click
+    await gridMenu('Properties…');
     await settle();
     await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
       .click();
@@ -2287,7 +2299,7 @@ try {
     ['pinning a column', ['Pin', 'Pin Left'], {}],
     // a NUMERIC column as the grid shows it NOW: the index the heatmap check found is stale
     // once a later check has reordered the columns
-    ['a heatmap', ['Conditional Formatting', 'Color Scales', 'Heatmap'], async () => {
+    ['a heatmap', ['Conditional Formatting', 'Add Heatmap'], async () => {
       const view = await readView(page);
       return { col: (await headerNames()).findIndex((n) => isNumeric(view.find((c) => c.name === n)?.type)) };
     }],
@@ -2462,7 +2474,7 @@ try {
 
   await check('the filter editor is reachable from the status bar', async () => {
     // It was two levels down a right-click menu -- Filter, then
-    // "Filters..." -- and went unfound. DataCube puts a Filter button
+    // "Filters…" -- and went unfound. DataCube puts a Filter button
     // in the status bar (DataCubeStatusBar) for this reason.
     const button = page.locator('.dc-status-filter');
     if (!(await button.count())) {
@@ -2487,7 +2499,7 @@ try {
       // the page down and showed it below the data it was about.
       const pageBefore = await page.evaluate(() =>
         document.documentElement.scrollHeight);
-      await menu(['Properties...'], { requery: false });
+      await menu(['Properties…'], { requery: false });
       const g = await page.evaluate(() => {
         const w = document.querySelector('.dc-app-overlay');
         const grid = document.querySelector('.dc-app-grid');
@@ -2539,7 +2551,7 @@ try {
     // swallowing every click, while `element.hidden` still reported
     // true. Nothing looked wrong; cells simply could not be
     // right-clicked, and ten checks timed out.
-    await menu(['Properties...'], { requery: false });
+    await menu(['Properties…'], { requery: false });
     await page.locator('.dc-overlay-close').first().click();
     await settle();
 
@@ -2569,7 +2581,7 @@ try {
   await check('the Filter and Properties windows stay open together', async () => {
     // Upstream's layout keeps several windows open at once; there used
     // to be ONE overlay, and opening the filter threw the editor away.
-    await menu(['Properties...'], { requery: false });
+    await menu(['Properties…'], { requery: false });
     // From the status bar: `menu()` starts by closing every window.
     await page.locator('.dc-status-filter').click();
     await settle();
@@ -2595,7 +2607,7 @@ try {
     async () => {
       // `reset` shut whatever the previous check left open, so open
       // it here.
-      await menu(['Properties...'], { requery: false });
+      await menu(['Properties…'], { requery: false });
       const box = () => page.evaluate(() => {
         const b = document.querySelector('.dc-app-overlay')
           .getBoundingClientRect();
@@ -2634,7 +2646,7 @@ try {
       // Closed and reopened, it comes back where it was left.
       await page.locator('.dc-overlay-close').first().click();
       await settle();
-      await menu(['Properties...'], { requery: false });
+      await menu(['Properties…'], { requery: false });
       const again = await box();
       if (again.x !== sized.x || again.y !== sized.y
         || again.w !== sized.w || again.h !== sized.h) {
@@ -2718,11 +2730,11 @@ try {
 
   /**
    * Open an "Add New Column" window from the GRID's menu, where
-   * upstream keeps it: Extended Columns > Add New Column...
+   * upstream keeps it: Extended Columns > Add New Column…
    */
   const openCalc = async () => {
     await closeCalc();
-    await menu(['Extended Columns', 'Add New Column...'], { requery: false });
+    await menu(['Extended Columns', 'Add New Column…'], { requery: false });
     await page.waitForSelector('.dc-coleditor', { timeout: 10_000 });
   };
 
@@ -3015,8 +3027,8 @@ try {
     async () => {
       await addCalc(0, 'uplift', 'x|$x.notional->toOne() * 1.1');
       await settle();
-      // From its own window, as upstream: Edit Column uplift... > Delete.
-      await menu(['Extended Columns', 'Edit Column uplift...'],
+      // From its own window, as upstream: Edit Column uplift… > Delete.
+      await menu(['Extended Columns', 'Edit Column uplift…'],
         { col: await needCol('uplift'), requery: false });
       await page.waitForSelector('.dc-coleditor .dc-calc-delete', { timeout: 5000 });
       const before = await statusNow();
@@ -3480,7 +3492,7 @@ try {
       // A check that failed earlier cannot leave its columns behind.
       await clearCalcs();
       // C6, and upstream's own entries: Extended Columns > Add New
-      // Column..., Extend Column X..., Edit Column X..., Delete
+      // Column..., Extend Column X..., Edit Column X…, Delete
       // Column X.
       await flatten();
       await page.click('.dc-titlebar-menu');
@@ -3492,8 +3504,8 @@ try {
       }
       const onSource = (await menuAt(await needCol('notional')))
         .map((i) => i.label);
-      for (const want of ['Extended Columns', 'Add New Column...',
-        'Extend Column notional...']) {
+      for (const want of ['Extended Columns', 'Add New Column…',
+        'Extend Column notional…']) {
         if (!onSource.includes(want)) {
           throw new Error(`no "${want}"; offered ${onSource.join(' / ')}`);
         }
@@ -3502,7 +3514,7 @@ try {
         throw new Error('Edit/Delete offered on a source column');
       }
       // EXTEND prefills the reference and inherits the column's kind.
-      await menu(['Extended Columns', 'Extend Column notional...'],
+      await menu(['Extended Columns', 'Extend Column notional…'],
         { col: await needCol('notional'), requery: false });
       await page.waitForSelector('.dc-coleditor', { timeout: 5000 });
       const seeded = await page.evaluate(() => ({
@@ -3519,7 +3531,7 @@ try {
       await settle();
       await closeCalc();
       const onCalc = (await menuAt(await needCol('n2'))).map((i) => i.label);
-      for (const want of ['Edit Column n2...', 'Delete Column n2']) {
+      for (const want of ['Edit Column n2…', 'Delete Column n2']) {
         if (!onCalc.includes(want)) {
           throw new Error(`no "${want}"; offered ${onCalc.join(' / ')}`);
         }
@@ -3543,7 +3555,7 @@ try {
         await page.locator('.dc-row').nth(3).locator('.dc-cell').nth(1).click({ button: 'right' });
         const own = (t) => `.dc-menu-item:has(> .dc-menu-label:text-is(${JSON.stringify(t)}))`;
         await page.locator(own('Extended Columns')).first().hover();
-        await page.locator(own('Add New Column...')).first().click();
+        await page.locator(own('Add New Column…')).first().click();
       };
       await openNew();
       await page.locator('.dc-coleditor').first().evaluate((e) => {
@@ -3555,7 +3567,7 @@ try {
       if (both !== 2) throw new Error(`${both} editor windows, expected 2`);
       await addCalc(0, 'uplift', 'x|$x.notional->toOne() * 1.1');
       await settle();
-      const edit = async () => menu(['Extended Columns', 'Edit Column uplift...'],
+      const edit = async () => menu(['Extended Columns', 'Edit Column uplift…'],
         { col: await needCol('uplift'), requery: false });
       await edit();
       await page.fill('.dc-coleditor .dc-calc-input-expr', 'x|$x.notional->toOne() * 9');
@@ -3570,13 +3582,15 @@ try {
       return '2 new windows together; Edit opens the column, Reset restores it';
     });
 
-  await check('Settings: from the title bar, and Row Buffer draws more rows', async () => {
+  await check('Settings: from the title bar\'s View, and Row Buffer draws more rows', async () => {
     await reset();
     await flatten();
     const drawn = () => page.locator('.dc-row').count();
     const before = await drawn();
     await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings..."))').click();
+    // under View (the user, 2026-10-25)
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("View"))').first().hover();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings…"))').click();
     await page.waitForSelector('[data-window="Settings"] .dc-settings', { timeout: 5000 });
     const groups = await page.locator('.dc-settings-group').allTextContents();
     const buffer = page.locator('[data-setting="dataCube.grid.rowBuffer"] input');
@@ -3587,7 +3601,9 @@ try {
     const after = await drawn();
     // Back to the defaults, through the same window.
     await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings..."))').click();
+    // under View (the user, 2026-10-25)
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("View"))').first().hover();
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings…"))').click();
     await page.locator('.dc-settings-restore').click();
     await page.locator('.dc-settings-ok').click();
     if (groups.join(',') !== 'Grid,Editor,Debug') throw new Error(`groups ${groups}`);
@@ -3699,7 +3715,8 @@ try {
     await menu(['Pivot', 'Measures First in Column Headers'], { requery: false });
     await settle();
     const [top1, second1] = await rows();
-    await menu(['Pivot', 'Measures First in Column Headers'], { requery: false });
+    // the switch says what it will do, so flipping back is its other words
+    await menu(['Pivot', 'Values First in Column Headers'], { requery: false });
     await settle();
     const [top2] = await rows();
     await menu(['Pivot', 'Clear All Horizontal Pivots']).catch(() => {});
@@ -3903,11 +3920,11 @@ try {
         bar: box('.dc-app-stats'),
         actions: box('.dc-app-stats .dc-status-actions'),
         readout: box('.dc-app-stats .dc-status-readout'),
-        links: [...document.querySelectorAll(
-          '.dc-app-stats .dc-status-actions .dc-status-link')]
-          .map((b) => b.textContent.replace(/^\W+\s*/, '')),
-        timingInReadout: Boolean(document.querySelector(
-          '.dc-app-stats .dc-status-readout .dc-status-timing')),
+        tools: [...document.querySelectorAll(
+          '.dc-app-stats .dc-status-actions .dc-status-tool')]
+          .map((b) => b.textContent),
+        rowsAfterTools: Boolean(document.querySelector(
+          '.dc-app-stats .dc-status-actions .dc-status-tools ~ .dc-status-rows')),
         backend: document.querySelector(
           '.dc-app-stats .dc-status-readout .dc-status-host')
           ?.textContent?.trim() ?? null,
@@ -3927,11 +3944,12 @@ try {
       throw new Error(`the actions sit ${leftGap}px from the left edge and`
         + ` the readouts ${rightGap}px from the right`);
     }
-    if (bar.links.join(', ') !== 'Properties, Filter') {
-      throw new Error(`the links read: ${bar.links.join(', ') || 'none'}`);
+    // its tools as icons, named for a screen reader (the user, 2026-10-25): Join where its host joins
+    if (!/^Properties, Filter, Add Column(, Join)?$/.test(bar.tools.join(', '))) {
+      throw new Error(`the tools read: ${bar.tools.join(', ') || 'none'}`);
     }
-    if (!bar.timingInReadout) {
-      throw new Error('the timing is not among the readouts');
+    if (!bar.rowsAfterTools) {
+      throw new Error('what the grid shows is not after its tools');
     }
     // AND THE BACKEND IN A WORD. Three planes want three words a
     // person can tell apart in a 20px strip, not three sentences:
@@ -4315,6 +4333,19 @@ try {
       await menu(['Pivot', /^Horizontal Pivot on/],
         { col: await needCol(key) });
       await settle();
+      // FOLDED under their measure as they arrive (found 3 of
+      // docs/DATACUBE_UI_REVIEW_2026_10_24.md): the start page listed
+      // 25 tick boxes for 3 measures.
+      const arrived = await page.evaluate(() => ({
+        open: document.querySelectorAll('.dc-tool-panel-child').length,
+        folded: document.querySelectorAll(
+          '.dc-tool-panel-row button.dc-tool-panel-twist[aria-expanded="false"]').length,
+      }));
+      if (arrived.open > 0 || arrived.folded === 0) {
+        throw new Error(`the pivot columns arrived open: ${arrived.open} listed,`
+          + ` ${arrived.folded} measure(s) folded`);
+      }
+      await unfoldPivots();
       const children = await page.evaluate(() =>
         [...document.querySelectorAll('.dc-tool-panel-child')].map((r) => ({
           column: r.dataset.column,
@@ -4377,6 +4408,7 @@ try {
       await menu(['Pivot', /^Horizontal Pivot on/],
         { col: await needCol(key) });
       await settle();
+      await unfoldPivots();
       const children = await page.evaluate(() =>
         [...document.querySelectorAll('.dc-tool-panel-child')]
           .map((r) => r.dataset.column));
@@ -4806,7 +4838,13 @@ try {
         titleFolded: document.querySelector('.dc-titlebar')?.classList.contains('dc-collapsed') ?? false,
         zonesHidden: document.querySelector('.dc-zone-bar')?.hidden ?? false,
         timing: document.querySelector('.dc-status-timing')?.textContent ?? '',
+        shown: document.querySelector('.dc-status-timing')?.dataset.rows ?? '',
         warning: document.querySelector('.dc-status-warning')?.textContent ?? null,
+        // its colours: a warning's, not any chip's (the 2026-10-25 audit: the chip's rule came later and won)
+        warningBackground: (() => {
+          const w = document.querySelector('.dc-status-warning');
+          return w ? getComputedStyle(w).backgroundColor : null;
+        })(),
         stats: document.querySelector('.dc-status-stats')?.textContent ?? '',
         pure: document.getElementById('pure')?.textContent ?? '',
       };
@@ -4872,7 +4910,8 @@ try {
       expect: (b, a) => (a.tree.filter(Boolean).length > b.tree.filter(Boolean).length ? null : 'no child rows') });
     await control('Row Limit, flat cube, with its warning', {
       act: general(() => put(fieldOf('Row Limit:').locator('input[type=number]').first(), 10)),
-      expect: (b, a) => (/\b10 rows/.test(a.timing) && a.warning ? null : `timing "${a.timing}" warning ${a.warning}`) });
+      expect: (b, a) => (a.shown === '10' && a.warning && a.warningBackground === 'rgb(255, 251, 235)' ? null
+        : `rows on screen "${a.shown}" warning ${a.warning} on ${a.warningBackground}`) });
     await control('Display warning when truncated, off', {
       setup: general(() => put(fieldOf('Row Limit:').locator('input[type=number]').first(), 10)),
       act: general(() => boxOf('Display warning when truncated').uncheck()),
@@ -4897,7 +4936,8 @@ try {
     await control('Default font bold', { act: general(() => font().locator('button[title="Bold"]').click()), expect: styleChanged('weight') });
     await control('Default font italic', { act: general(() => font().locator('button[title="Italic"]').click()), expect: styleChanged('italic') });
     await control('Default font underline', { act: general(() => font().locator('button[title="Underline"]').click()), expect: styleChanged('deco') });
-    await control('Default alignment', { act: general(() => font().locator('button[title="Align Right"]').click()), expect: styleChanged('justify') });
+    // centred: neither default (a measure's numbers sit right, the rest left -- the user, 2026-10-25), so a change on any column
+    await control('Default alignment', { act: general(() => font().locator('button[title="Align Center"]').click()), expect: styleChanged('justify') });
     await control('Default case (cube-wide)', { col: 'region',
       act: general(() => fieldOf('Case:').locator('select').selectOption('uppercase')), expect: styleChanged('transform') });
     await control('Default normal foreground', { act: general(() => put(sectionOf('Default Colors').locator('input[title="Normal foreground"]'), '#aa00aa')),
@@ -5126,7 +5166,7 @@ try {
       let was = await answered();
       await cellOf(a.labels[0]).dblclick();
       const b = await changed(was);
-      await page.locator('.dc-adhoc-tool', { hasText: 'Options...' }).click();
+      await page.locator('.dc-adhoc-tool', { hasText: 'Options…' }).click();
       const win = page.locator('.dc-app-overlay[data-window="Ad Hoc Options"]');
       await win.waitFor({ timeout: 5000 });
       await win.locator('input[name="dc-adhoc-indentation"][value="none"]').check();
@@ -5160,8 +5200,9 @@ try {
     // the grid added beside the page's first (grid-1): every grid on a page alike
     const tile = page.locator('[data-tile^="grid-"]:not([data-tile="grid-1"])').first();
     await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 });
-    const head = (await tile.locator('.dc-tile-cube').textContent()) ?? '';
-    if (!/sample-trades\.csv/.test(head)) throw new Error(`its header says "${head}"`);
+    // its source in its status bar (its header shows its state and title: the user, 2026-10-25)
+    const head = (await tile.locator('.dc-status-source').textContent()) ?? '';
+    if (!/sample-trades\.csv/.test(head)) throw new Error(`its status bar says "${head}"`);
     await page.waitForFunction(() => /first 1,000 of 1,500 rows/.test(
       document.querySelector('[data-tile^="grid-"]:not([data-tile="grid-1"]) .dc-status-warning')?.textContent ?? ''), null, { timeout: 30_000 });
     const main = await page.locator('[data-tile="grid-1"] .dc-row').count();
@@ -5194,8 +5235,9 @@ try {
     await page.locator('.dc-picker').waitFor({ state: 'detached', timeout: 60_000 });
     const tile = page.locator('[data-tile^="grid-"]').nth(tiles);
     await tile.locator('.dc-row').first().waitFor({ timeout: 60_000 });
-    const head = (await tile.locator('.dc-tile-cube').textContent()) ?? '';
-    if (!/Sells/.test(head)) throw new Error(`its header says "${head}"`);
+    // its source in its status bar (its header shows its state and title: the user, 2026-10-25)
+    const head = (await tile.locator('.dc-status-source').textContent()) ?? '';
+    if (!/Sells/.test(head)) throw new Error(`its status bar says "${head}"`);
     const cols = (await tile.locator('.dc-th').allTextContents()).map((t) => t.trim());
     if (cols.join() !== 'Trade Id,Side,Quantity') throw new Error(`columns ${cols.join(', ')}`);
     const sides = await tile.locator('.dc-row').evaluateAll((rows) => rows.map((r) => r.querySelectorAll('.dc-cell')[1]?.textContent?.trim()));

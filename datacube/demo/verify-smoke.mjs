@@ -81,14 +81,13 @@ let pageErrors = [];
 page.on('pageerror', (e) => pageErrors.push(e.message));
 
 /**
- * The file opened in place of the cube, as a person does now: New ▸ Blank Page, "Add a data source",
+ * The file opened in place of the cube, as a person does now: New Page, "Add a data source",
  * the picker's Files section and ITS file input (src/ui/source-picker.ts). The page no longer has an
  * input of its own for data files -- the one left is the saved cubes' import.
  */
 async function openThroughPicker(file) {
   await page.click('.dc-titlebar-menu');
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Create")') }).hover();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("Blank Page")') }).click();
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label:text-is("New Page")') }).click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ timeout: 10_000 });
@@ -169,13 +168,17 @@ try {
     // THE FILE'S answer, not the built-in cube's: its status line already reads "... rows",
     // so waiting for /rows/ alone read a slower ingest (the JSONL sample) before it landed and
     // checked the built-in cube in its place. Wait for the line to CHANGE.
-    const before = await page.evaluate(() =>
-      document.querySelector('.dc-status-timing')?.textContent ?? '');
+    // the readout and which view it says (its `data-view`): its text alone may say the same of the file's rows
+    const before = await page.evaluate(() => {
+      const e = document.querySelector('.dc-status-timing');
+      return e ? `${e.textContent} #${e.dataset.view}` : '';
+    });
     await openThroughPicker(file);
     await page.waitForFunction(
       (was) => {
-        const line = document.querySelector('.dc-status-timing')?.textContent ?? '';
-        return (line !== was && /rows/.test(line))
+        const e = document.querySelector('.dc-status-timing');
+        const line = e ? `${e.textContent} #${e.dataset.view}` : '';
+        return (line !== was && /rows|groups/.test(line))
           || /could not|error/i.test(document.getElementById('status')?.textContent ?? '');
       },
       before, { timeout: 90_000 },

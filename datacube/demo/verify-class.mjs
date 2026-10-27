@@ -78,8 +78,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   // a blank page, then the first source
   await page.click('.dc-titlebar-menu');
-  await item('Create').hover();
-  await item('Blank Page').click();
+  await item('New Page').click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await openFile(trades, 1);
@@ -178,8 +177,7 @@ try {
   const downloads = [];
   page.on('download', (d) => downloads.push(d.suggestedFilename()));
   await page.click('.dc-titlebar-menu');
-  await item('Export').hover();
-  await item('Page File (JSON)').click();
+  await item('Export Page File…').click();
   await until(() => alerts.length > 0, 10_000);
   check(alerts.some((a) => /a page file cannot carry them yet/.test(a)) && downloads.length === 0,
     `the page file refused while its classes are only here: ${alerts.join(' | ') || '(nothing said)'}`);
@@ -239,10 +237,10 @@ try {
   // A DASHBOARD'S TILE (§16.1): the grid made Trade gets Create ▸ Grid over Trade -- the class read beside it at the page's
   // pin, its properties its columns, the same rows its table holds
   const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.dataset.column));
-  // a grid's own readout of its rows (its status bar's `40 rows × 4 cols in 3ms`), and a wait for it to say `n`
-  const rowsOf = async (tile) => Number((/^([\d,]+) rows/.exec((await tile.locator('.dc-status-rows').first().textContent()) ?? '')?.[1]
-    ?? 'NaN').replace(/,/g, ''));
-  const untilRows = (tile, n) => tile.locator('.dc-status-rows').filter({ hasText: new RegExp(`^${n} rows`) }).first()
+  // a grid's own count of the rows on screen (its status bar's readout keeps it for a script: `data-rows`), and a wait
+  // for it to say `n`
+  const rowsOf = async (tile) => Number((await tile.locator('.dc-status-rows').first().getAttribute('data-rows')) ?? 'NaN');
+  const untilRows = (tile, n) => tile.locator(`.dc-status-rows[data-rows="${n}"]`).first()
     .waitFor({ timeout: 30_000 }).catch(() => undefined);
   const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) }).first();
   await gridEntry(gridTiles().nth(0), 'Create', 'Grid over Trade');
@@ -311,8 +309,7 @@ try {
   await one.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
   await one.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   await one.click('.dc-titlebar-menu');
-  await pick('Create').hover();
-  await pick('Blank Page').click();
+  await pick('New Page').click();
   await one.click('.dc-blank .dc-primary');
   for (const [i, f] of [trades, customers].entries()) {
     if (i > 0) {
@@ -367,8 +364,7 @@ try {
   await j.goto(`http://127.0.0.1:${port}/demo/index.html`, { waitUntil: 'load', timeout: 120_000 });
   await j.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   await j.click('.dc-titlebar-menu');
-  await jItem('Create').hover();
-  await jItem('Blank Page').click();
+  await jItem('New Page').click();
   await j.click('.dc-blank .dc-primary');
   for (const [i, f] of [trades, customers].entries()) {
     if (i > 0) {

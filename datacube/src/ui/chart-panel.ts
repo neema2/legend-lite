@@ -1,11 +1,12 @@
 // The chart window: a chart of the cube, and the options that shape it.
 //
-// Left, the options (mark, what goes across, what is plotted and how it is
-// aggregated, the split, orientation, stacking, order, how many, labels,
-// legend); right, the chart. The chart follows the cube: its query is the
-// cube's own, regrouped (`chart-spec.ts`), so a filter added to the grid
-// narrows the chart, and a click on a mark (a bar, a slice, a cell) adds
-// that mark's values to the cube's filter.
+// The chart, and beside it on asking, a window of its options (mark, what
+// goes across, what is plotted and how it is aggregated, the split,
+// orientation, stacking, order, how many, labels, legend). The chart
+// follows the cube: its query is the cube's own, regrouped
+// (`chart-spec.ts`), so a filter added to the grid narrows the chart, and a
+// click on a mark (a bar, a slice, a cell) adds that mark's values to the
+// cube's filter.
 
 import {
   axisName,
@@ -42,7 +43,10 @@ import type { FeedPick, FeedView } from './chart-feed.ts';
 import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../snapshot.ts';
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
+import { isTextEntry } from '../focus.ts';
 import { lazily } from '../lazily.ts';
+import { chromeIcon } from './tile-icons.ts';
+import { besideWindow, makeWindow, moveWindow, raiseWindow, screenOf, windowSpecOf, type WindowSpec } from './window.ts';
 
 /** The kinds with an axis of categories or time across, whose pointer a page's other charts follow (a crosshair). */
 const CROSSHAIRED: ReadonlySet<ChartMark> = new Set(['bar', 'line', 'area', 'heatmap', 'lollipop', 'dumbbell', 'range', 'waterfall', 'pareto']);
@@ -71,6 +75,13 @@ let mapsRegistered = false;
 /** How long a click on a chart that drills waits for a second click (a double-click drills instead of filtering). */
 const DOUBLE_CLICK_MS = 250;
 
+/**
+ * The options' window: two columns of sections where the room beside the chart allows (its form flows into them,
+ * app.css), one where it does not -- `besideWindow` makes it narrower to fit, never under one column -- and no taller
+ * than its form, once painted, nor than the screen.
+ */
+const CHART_WINDOW = { width: 588, height: 880, minWidth: 248, minHeight: 200 } as const;
+
 export interface ChartPanelOptions {
   /** The cube as it is NOW (the chart follows it). */
   readonly snapshot: () => CubeSnapshot;
@@ -88,7 +99,7 @@ export interface ChartPanelOptions {
   readonly crosshair?: string;
   /** Upstream-style debounce between an edit and the query; a test passes 0. */
   readonly debounceMs?: number;
-  /** Whether the options start open (a chart tile starts with the chart alone). */
+  /** Whether the options open with the chart (default not: a chart tile starts with the chart alone). */
   readonly formOpen?: boolean;
   /** The chart's state changed (ChartState: by its pill, or pinned by an edit to its grouping). */
   readonly onState?: (state: ChartState) => void;
@@ -104,6 +115,10 @@ export interface ChartPanelOptions {
    * asked while it waits is drawn when `wake` is called.
    */
   readonly held?: () => boolean;
+  /** Where its options' window floats -- the page's windows' place, above its tiles; else in the chart's own element. */
+  readonly windowHost?: HTMLElement;
+  /** Its name as its tile says it: its options' window's title. */
+  readonly title?: () => string;
 }
 
 export class ChartPanel {
@@ -111,7 +126,18 @@ export class ChartPanel {
   readonly #doc: Document;
   readonly #options: ChartPanelOptions;
   #spec: ChartSpec | null;
-  #form!: HTMLElement;
+  /** Its options' window, while it is open (`openForm`). */
+  #window: HTMLElement | null = null;
+  /** The window's body: what the form (ui/chart-form.ts) paints. */
+  #formBody: HTMLElement | null = null;
+  /** Lets the open window's listeners go when it closes. */
+  #closing: AbortController | null = null;
+  /** The size a person left its window at: its next opening's. */
+  #size: { width: number; height: number } | null = null;
+  /** Its window just opened: fitted to its form once the form is painted (`#fit`), unless it moved meanwhile. */
+  #fitting = false;
+  /** Where its window opened: `#fit` leaves a window moved or resized since (the form's code still loading). */
+  #opened: WindowSpec | null = null;
   #canvas!: HTMLElement;
   #status!: HTMLElement;
   /** A drilled chart's path, above it (batch 2 item 10). */
@@ -119,11 +145,10 @@ export class ChartPanel {
   /** The spans of time it offers, above it (K14: a stock chart's 1m, 5m, 1h, All). */
   #spans!: HTMLElement;
   #clickTimer: ReturnType<typeof setTimeout> | undefined;
-  /** The spec changed while the form was closed: painted when it is next shown. */
-  #formStale = false;
   /** What the options form (ui/chart-form.ts) reads and changes. */
   readonly #formHost: FormHost = ((panel: ChartPanel): FormHost => ({
     get doc() { return panel.#doc; },
+    folds: {},
     spec: () => this.#spec,
     set: (change, redraw) => this.#set(change, redraw),
     setOption: (key, value) => this.#setOption(key, value),
@@ -241,15 +266,136 @@ export class ChartPanel {
     this.refresh(0);
   }
 
-  /** Show or hide the options; answers whether they are now shown. */
-  toggleForm(): boolean {
-    this.#form.hidden = !this.#form.hidden;
-    if (!this.#form.hidden && this.#formStale) this.#paintForm();
-    return !this.#form.hidden;
+  /**
+   * THE OPTIONS, A WINDOW (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §2): the page's windows' own title
+   * bar, x and grips (app.ts #showOverlay, ui/window.ts makeWindow), floating where the page's windows float, above its
+   * tiles. It opens BESIDE ITS CHART, NOT OVER IT, AND WHOLLY ON THE SCREEN (ui/window.ts besideWindow) -- each time, as
+   * the chart may have moved; the size a person gave it kept -- and stays on the screen however it is dragged. Its x or
+   * Escape puts it away; Properties... again brings it forward. A popover before, it went at every press elsewhere.
+   */
+  openForm(): void {
+    const open = this.#window;
+    if (open) {
+      this.#retitle(open);
+      raiseWindow(open, this.#windowHost);
+      open.focus({ preventScroll: true });
+      return;
+    }
+    const doc = this.#doc;
+    const view = doc.defaultView;
+    if (view === null) return;
+    const host = this.#windowHost;
+    const win = doc.createElement('div');
+    // outside the cube it does not inherit the cube's type and colours, so it carries them (app.ts #showOverlay)
+    win.className = 'dc-app-overlay dc-app-floating dc-chart-options';
+    win.tabIndex = -1;
+    win.setAttribute('role', 'dialog');
+    const head = doc.createElement('div');
+    head.className = 'dc-overlay-head';
+    const title = doc.createElement('span');
+    title.className = 'dc-chart-options-title';
+    const close = doc.createElement('button');
+    close.type = 'button';
+    close.className = 'dc-overlay-close';
+    close.append(chromeIcon(doc, 'close'));
+    close.addEventListener('click', () => this.closeForm());
+    head.append(title, close);
+    // the window's body scrolls; the form inside it flows into columns, as tall as its sections (app.css)
+    const scroller = doc.createElement('div');
+    scroller.className = 'dc-overlay-body';
+    const body = doc.createElement('div');
+    body.className = 'dc-chartpanel-form';
+    scroller.append(body);
+    win.append(head, scroller);
+    host.append(win);
+    this.#window = win;
+    this.#formBody = body;
+    this.#fitting = this.#size === null;
+    this.#retitle(win);
+    const closing = new AbortController();
+    this.#closing = closing;
+    this.#opened = makeWindow(win, head, host, {
+      viewport: true,
+      spec: besideWindow(this.#anchor().getBoundingClientRect(), screenOf(view), { ...CHART_WINDOW, ...this.#size }),
+      minWidth: CHART_WINDOW.minWidth,
+      minHeight: CHART_WINDOW.minHeight,
+      signal: closing.signal,
+      // only a size a person gave it with a grip is kept for its next opening -- not one a press on its title bar or the
+      // browser shrinking settled (the 2026-10-25 review: one click there kept a squeezed window squeezed for good)
+      onChange: (spec, by) => { if (by === 'resized') this.#size = { width: spec.width, height: spec.height }; },
+    });
+    // touched, it comes to the front of the page's windows
+    win.addEventListener('pointerdown', () => raiseWindow(win, host));
+    // Escape puts it away -- not one typed in a field, where it is the field's (the page's windows' rule, app.ts)
+    win.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      if (isTextEntry(event.target)) return;
+      event.preventDefault();
+      this.closeForm();
+    });
+    // its chart off the page (its sheet left, moved to another, removed): it goes too (the 2026-10-25 audit)
+    const Watch = (view as Window & { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+    if (Watch) {
+      const watch = new Watch(() => {
+        const at = this.#root.getBoundingClientRect();
+        if (!this.#root.isConnected || (at.width === 0 && at.height === 0)) this.closeForm();
+      });
+      watch.observe(this.#root);
+      closing.signal.addEventListener('abort', () => watch.disconnect());
+    }
+    raiseWindow(win, host);
+    this.#paintForm();
+    win.focus({ preventScroll: true });
+  }
+
+  /** The options put away -- the focus, when it was in them, back on their chart's tile (the 2026-10-25 audit: it fell
+   *  to the body). */
+  closeForm(): void {
+    const win = this.#window;
+    if (!win) return;
+    const root = win.getRootNode() as Document | ShadowRoot;
+    const focused = root.activeElement !== null && win.contains(root.activeElement);
+    this.#shut();
+    if (focused) this.#root.closest<HTMLElement>('[tabindex]')?.focus({ preventScroll: true });
+  }
+
+  /** Whether the options are open. */
+  get formOpen(): boolean {
+    return this.#window !== null;
+  }
+
+  /** What its window opens beside: its whole tile, its header too -- never over the tile's own title and buttons. */
+  #anchor(): HTMLElement {
+    return this.#root.closest<HTMLElement>('[data-tile]') ?? this.#root;
+  }
+
+  /** Where its options' window floats: the page's windows' place, else its own. */
+  get #windowHost(): HTMLElement {
+    return this.#options.windowHost ?? this.#root;
+  }
+
+  /** The window's title: whose properties, by its chart's name as its tile says it now. */
+  #retitle(win: HTMLElement): void {
+    const title = `Properties \u2014 ${this.#options.title?.() ?? 'Chart'}`;
+    win.setAttribute('aria-label', title);
+    win.querySelector('.dc-chart-options-title')!.textContent = title;
+    const close = win.querySelector<HTMLElement>('.dc-overlay-close')!;
+    close.title = 'Close (Escape)';
+    close.setAttribute('aria-label', `Close ${title}`);
+  }
+
+  /** Its window gone, its listeners with it. */
+  #shut(): void {
+    this.#closing?.abort();
+    this.#closing = null;
+    this.#window?.remove();
+    this.#window = null;
+    this.#formBody = null;
   }
 
   dispose(): void {
     this.#disposed = true;
+    this.#shut();
     clearTimeout(this.#timer);
     clearTimeout(this.#clickTimer);
     this.#inflight?.abort();
@@ -265,8 +411,6 @@ export class ChartPanel {
     const doc = this.#doc;
     this.#root.replaceChildren();
     this.#root.classList.add('dc-chartpanel');
-    this.#form = doc.createElement('div');
-    this.#form.className = 'dc-chartpanel-form';
     const right = doc.createElement('div');
     right.className = 'dc-chartpanel-main';
     this.#canvas = doc.createElement('div');
@@ -303,9 +447,10 @@ export class ChartPanel {
       this.#keyword(this.#search.value);
     });
     right.append(this.#crumbs, this.#spans, this.#search, this.#canvas, this.#status);
-    this.#root.append(this.#form, right);
-    this.#form.hidden = this.#options.formOpen === false;
+    this.#root.append(right);
+    // its crumbs, spans and keyword box painted; its options' window painted when it opens
     this.#paintForm();
+    if (this.#options.formOpen === true) this.openForm();
   }
 
   /** The keyword typed into a feed's box, asked of its grid: none, its selection taken off. */
@@ -352,25 +497,47 @@ export class ChartPanel {
 
   /**
    * The options form (ui/chart-form.ts): fetched the first time it is shown -- a grid alone, or a chart whose options
-   * stay closed, never downloads it -- and painted again whenever the spec changes while it is shown.
+   * stay closed, never downloads it -- painted as its window opens, and again whenever the spec changes while it is
+   * open.
    */
   #paintForm(): void {
     this.#paintCrumbs();
     this.#paintSpans();
     this.#search.hidden = this.#spec?.mark !== 'feed';
-    if (this.#form.hidden) {
-      this.#formStale = true;
-      return;
-    }
-    this.#formStale = false;
+    if (this.#formBody === null) return;
     void lazily(() => import('./chart-form.ts')).then(({ paintChartForm }) => {
-      if (this.#disposed || this.#form.hidden) return;
-      paintChartForm(this.#formHost, this.#form);
+      const body = this.#formBody;
+      if (this.#disposed || body === null) return;
+      paintChartForm(this.#formHost, body);
+      if (this.#fitting) this.#fit();
     });
   }
 
-
-
+  /**
+   * The window just opened, its form painted: no taller than the form needs, placed beside the chart again at that
+   * height (a shorter window sits level with the chart's top, where a tall one was raised to fit the screen). Once, as
+   * it opens -- a window that changed height at every option would jump under the pointer -- and never over a size a
+   * person gave it. Where nothing is laid out (no height measured), left as it is.
+   */
+  #fit(): void {
+    this.#fitting = false;
+    const win = this.#window;
+    const body = this.#formBody;
+    const scroller = body?.parentElement;
+    const view = this.#doc.defaultView;
+    const now = win ? windowSpecOf(win) : undefined;
+    if (!win || !body || !scroller || !view || !now || body.scrollHeight === 0) return;
+    // moved or resized while the form's code loaded: where the person put it, it stays (the 2026-10-25 review)
+    const opened = this.#opened;
+    if (!opened || now.x !== opened.x || now.y !== opened.y || now.width !== opened.width || now.height !== opened.height) return;
+    const head = win.querySelector<HTMLElement>('.dc-overlay-head');
+    const pad = scroller.offsetHeight - scroller.clientHeight + parseFloat(view.getComputedStyle(scroller).paddingTop)
+      + parseFloat(view.getComputedStyle(scroller).paddingBottom);
+    const needs = Math.ceil((head?.offsetHeight ?? 0) + pad + body.scrollHeight + (win.offsetHeight - win.clientHeight));
+    if (!Number.isFinite(needs) || needs >= now.height) return;
+    moveWindow(win, besideWindow(this.#anchor().getBoundingClientRect(), screenOf(view),
+      { ...CHART_WINDOW, width: now.width, height: Math.max(CHART_WINDOW.minHeight, needs) }));
+  }
 
   /**
    * THE SPANS OF TIME (K14): a button per span the chart offers (`options.spans`), the one shown pressed -- a press shows

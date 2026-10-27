@@ -321,9 +321,11 @@ const L8_SOURCES: Record<string, { readonly read?: Entry; readonly add?: Entry }
 // 2026-10-22 (S6 E, X4): a class, a saved query and a warehouse table added by Python too (page.grid(cls=..., query=...,
 // warehouse=...): sourceCube over the source where the host reads it), tested by test_page.py OverClasses, OverWarehouse,
 // OverSavedQueries and PublishedQueries
+// 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 step 2, FL20's names): another grid's rows added by Python too
+// (page.grid(input=...): rowsCube over the grid it reads, resolved against the page), tested by test_page.py Flowed
 const PYTHON_ADDS: Record<string, string> = {
   frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube',
-  class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube',
+  class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube', rows: 'rowsCube',
 };
 
 /** Headless exports Python never asks (`call('<name>'`): each one Python should. */
@@ -408,7 +410,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
 
   it('each command kind is made by the screen and by Python, or listed', () => {
     // what the page's table makes is credited, never the module's other gestures (the S8 audit's 1)
-    assert.ok(made(pageGestureRule, 'followGrid') && made(pageGestureRule, 'setChart') && !made(pageGestureRule, 'layout'));
+    // (2026-10-25, docs/DATACUBE_FLOW_MODE_2026_10_24.md M7: the table's flow.tidy makes a flow's layout now -- a module
+    // gesture it does not call, moveToSheetCommands' moveTile, is the one that must not be credited)
+    assert.ok(made(pageGestureRule, 'followGrid') && made(pageGestureRule, 'setChart') && !made(pageGestureRule, 'moveTile'));
     const problems: string[] = [];
     for (const kind of [...gridKinds, ...pageKinds]) {
       const has: Record<Cell, boolean> = {
@@ -441,7 +445,9 @@ describe('L8: every command kind and source kind, against who makes and reads it
       const next = rest.search(/\bcase '/);
       return (next < 0 ? rest : rest.slice(0, next)).includes('return ');
     };
-    const reads = (kind: string): boolean => (kind === 'join' ? onHostBody.includes('{ join: source') : leafReads(kind));
+    // a join's and another grid's rows' (2026-10-25, the flow mode's M1 step 2) are onHost's own arms, as a join's is
+    const reads = (kind: string): boolean => (kind === 'join' ? onHostBody.includes('{ join: source')
+      : kind === 'rows' ? onHostBody.includes('{ rows: {') : leafReads(kind));
     const problems: string[] = [];
     for (const kind of kinds) {
       const read = reads(kind);
@@ -454,7 +460,7 @@ describe('L8: every command kind and source kind, against who makes and reads it
     assert.deepEqual(problems, []);
     assert.deepEqual(PYTHON_ADDS, {
       frame: 'gridCube', join: 'joinCube', file: 'leafCube', remoteFile: 'leafCube',
-      class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube',
+      class: 'sourceCube', savedQuery: 'sourceCube', warehouseTable: 'sourceCube', rows: 'rowsCube',
     }, 'a new way for Python to add a grid comes with its test');
     pinned('L8_SOURCES', Object.keys(L8_SOURCES).length);
   });
@@ -511,8 +517,26 @@ const PASS_THROUGH: Record<string, string> = {
   setChart: "the spec as the chart's panel made it (chart-spec.ts editChart)",
   addText: "a new text tile's id, as the page numbers ids, on the sheet it was asked for, with its starting words",
   setText: "the words as typed in the text tile's editor (setText judges them, by page-text.ts textProblem)",
+  // 2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7); corrected the same day by the
+  // review's A2 and A3 (docs/TIMESERIES_REVIEW_2026_10_25.md): the rules were the viewer's own, Python's apart
+  addTimeseries: "a new timeseries tile's id, as the page numbers ids, under the grid it was asked from, its first series DataCube's rule over that grid's columns (timeseries-edit.ts firstTimeseries and firstPlotOf, which Python's headless timeseriesMade asks)",
+  setTimeseries: "the spec as the timeseries tile's editors made it (timeseries-edit.ts editTimeseries, which Python's Timeseries methods ask headless: timeseriesEdit)",
+  // 2026-10-25 (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8 step 1, files in a text box): a new screen-made page command
+  setTextFiles: "the files opened or dropped on a text box, each its name, size and fingerprint (setTextFiles judges them, by text-files.ts readTextFiles); Python's Text.files fingerprints a path the same way",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4, the flow sheet): Create ▸ Flow, and a box let go
+  addFlow: "a new flow sheet's id, as the page numbers ids, unnamed",
+  placeBox: "where the box was let go, or its arrow key took it (placeBox rounds and judges it: layout/flow.ts moveBox)",
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, a flow's lines)
+  setInput: "the box a line was drawn from, the box and side it was let go on (or a box's settings' Input picked), or none -- Freeze, a line taken off; setInput judges it (a cycle, a side the source has not) and makes the copy",
+  setJoin: "the join a flow's Join box's window made (ui/join-dialog.ts, as the board's Join… makes one), its Right with it when it changed; setJoin judges it",
+  // 2026-10-25 (the flow mode's Output, M6)
+  setOutput: "the file name typed in an Output's settings, or none (its Write no file); setOutput judges it",
+  // 2026-10-25 (the flow mode's Test that stops a run, FL8)
+  setStops: "a Test box's settings' checkbox, ticked or not; setStops judges it",
+  // 2026-10-26 (the flow mode's Pure box, FL12)
+  setPure: "the function a Pure box's window made of what was typed (pure-box.ts pureFrom, which headless gridPure asks for Python's grid.pure), or none (Take Its Pure Off); setPure judges its shape",
 };
 /** Functions that make commands a screen file calls and no headless function asks, each the screen's own (2026-10-22,
  *  S8): a person's input passed through, a form's edits, the board's hand or a tab's drag. */
@@ -527,6 +551,8 @@ const SCREEN_OWN_MAKERS: Record<string, string> = {
   selectionRefilters: "the tab's page undo and redo: a step brought back puts its charts' selections back on their grids (G8); Python's page has no undo",
   rebuiltCommands: "the tab opening the page Python serves: a cube it opened over the host's frames as they are now told back (P11); Python's own reopening tells its rebuilt as it reopens (_current)",
   // 2026-10-24 (D19 W3, W7)
+  // 2026-10-25 (the flow mode's Output, M6)
+  outputCommand: "the palette's Output named after the box it reads, in the step that adds it; Python's grid.output is given its file's name",
   gridBetween: "the commands between two states of a grid: the tab's own history (an undo or a redo told as the commands between: state-owner.ts toward) and its converge (a touched grid put back at the keeper's cube: live-converge.ts); Python's grid has no history",
 };
 
@@ -551,6 +577,64 @@ function callArguments(text: string, open: number): string {
 /** A gesture's arguments a screen gives, computed: a list made (spread, filtered, mapped ...) or the grid's state read
  *  -- what the gesture would decide, decided before it (the S8 review's blind spot: `zones.set` given `[...rows, c]`). */
 const DECIDED = /\[\s*\.\.\.|\.(?:filter|map|flatMap|concat|slice|splice|reduce|sort|toSorted|reverse|includes|indexOf|find)\(|this\.#(?:snapshot|config|shown|view|owner)\b/;
+
+// -- every change of a timeseries tile, its viewer's and Python's ----------------------------------------------------
+
+/**
+ * The changes of a timeseries tile (timeseries-edit.ts TsChange) one side makes and the other makes by another change of
+ * the same rule (editTimeseries), each with what that is -- so a change made on one side only is decided, never missed
+ * (the review's A8, docs/TIMESERIES_REVIEW_2026_10_25.md, 2026-10-25). The viewer has a control per slot; Python's
+ * options() tells several slots at once, each whole.
+ */
+const TS_CHANGE_ONE_SIDE: Record<string, { readonly other: string; readonly slot?: string }> = {
+  grain: { other: "the viewer's Frequency; Python's options(grain=...), the slots change", slot: 'grain' },
+  range: { other: "the viewer's ranges and Settings' dates; Python's options(range=...)", slot: 'range' },
+  view: { other: "the viewer's Compare, Stats and Settings' toggles, a key each; Python's options(view=...), the view whole", slot: 'view' },
+  pane: { other: "the viewer's Log and Settings' panes, a pane each; Python's options(panes=...), the panes whole", slot: 'panes' },
+  slots: { other: "Python's options(**slots), several slots at once; the viewer sets each by its own change (grain, range, view, pane, annotate)" },
+};
+
+describe("every change of a timeseries tile, made by its viewer and by Python's Timeseries, or listed (the review's A8)", () => {
+  const edit = SOURCES.read('src/timeseries-edit.ts');
+  const kinds = unionKinds(edit, 'TsChange');
+  const viewer = codeLines(SOURCES.read('src/ui/timeseries-view.ts')).join('\n');
+  const python = pythonCode(SOURCES.read(`${PY}/page.py`));
+  const start = python.indexOf('class Timeseries(');
+  const timeseries = python.slice(start, python.indexOf('\nclass ', start + 1));
+  // the viewer's changes: each an edit (its #edit, or editTimeseries over its spec); Python's, each a change its
+  // Timeseries methods tell (its _edit)
+  const byViewer = new Set([...viewer.matchAll(/(?:#edit\(|editTimeseries\(this\.#spec, )\{ kind: '([a-z]+)'/g)].map((m) => m[1]!));
+  const byPython = new Set([...timeseries.matchAll(/\{'kind': '([a-z]+)'/g)].map((m) => m[1]!));
+
+  it('the change kinds are read where they are made', () => {
+    assert.ok(kinds.length >= 13 && kinds.includes('plot') && kinds.includes('slots'), `TsChange's kinds: ${kinds.join(', ')}`);
+    assert.ok(byViewer.has('plot') && byViewer.has('range'), `the viewer's: ${[...byViewer].join(', ')}`);
+    assert.ok(byPython.has('plot') && byPython.has('source'), `Python's: ${[...byPython].join(', ')}`);
+  });
+
+  it('each change made by both, or listed with what the other side makes instead -- which its rule takes', () => {
+    const problems: string[] = [];
+    for (const k of kinds) {
+      const both = byViewer.has(k) && byPython.has(k);
+      const one = TS_CHANGE_ONE_SIDE[k];
+      if (!byViewer.has(k) && !byPython.has(k)) problems.push(`${k}: made by neither side`);
+      else if (both && one) problems.push(`${k}: both make it now -- take it off the list`);
+      else if (!both && !one) problems.push(`${k}: made by ${byViewer.has(k) ? 'the viewer' : 'Python'} alone -- make it on the other side, or list it with what it makes instead`);
+    }
+    for (const k of Object.keys(TS_CHANGE_ONE_SIDE)) if (!kinds.includes(k)) problems.push(`${k}: no such change`);
+    // what a viewer-only change is made by on Python's side: a slot the slots change lays (editTimeseries's 'slots' arm,
+    // over the SLOTS it names -- 2026-10-26, the second audit's A-S3: the arm refuses a slot not among them, so the list
+    // is read where it is written)
+    const arm = edit.slice(edit.indexOf("case 'slots':"), edit.indexOf('return next;', edit.indexOf("case 'slots':")));
+    assert.ok(/for \(const key of SLOTS\)/.test(arm), "the slots arm lays the SLOTS it names");
+    const slots = [...(edit.match(/const SLOTS = \[([^\]]*)\]/)?.[1] ?? '').matchAll(/'([a-z]+)'/g)].map((m) => m[1]!);
+    for (const [k, { slot }] of Object.entries(TS_CHANGE_ONE_SIDE)) {
+      if (slot !== undefined && !slots.includes(slot)) problems.push(`${k}: Python's options() lays no ${slot} (the slots change lays ${slots.join(', ')})`);
+    }
+    if (!byPython.has('slots')) problems.push("Python's options() tells no slots change");
+    assert.deepEqual(problems, [], 'every change of a timeseries tile is made by its viewer and by Python');
+  });
+});
 
 describe('L11: screen code builds no command', () => {
   const kinds = [...unionKinds(SOURCES.read('src/grid-commands.ts'), 'GridCommand'), ...unionKinds(SOURCES.read('src/page-commands.ts'), 'PageCommand')];
@@ -743,12 +827,20 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:modelActions:modelHome': { count: 2, other: `${BOTH} the model actions where the host has a model home and a writer`, ability: 'model' },
   'src/app/datacube-app.ts:openDataCube:engine.local': { other: `${BOTH} Add a Grid over a class: opened here, or made by the host (K16)`, ability: 'class' },
   'src/app/datacube-app.ts:openDataCube:localEngine': { other: `${BOTH} Join…: the tab's own join, or the host's (B11)`, ability: 'join' },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): a flow's Join or Union box, made in the tab's own database
+  'src/app/datacube-app.ts:openDataCube:local': { other: `${BOTH} a flow's Join box: the tab's Join window over its boxes, or Python's flow.join (page.join of two boxes, live)`, ability: 'join' },
   'src/app/datacube-app.ts:offered:localEngine': { other: `${BOTH} Join… offered on a grid of the tab's tables, or one the host opened`, ability: 'join' },
+  // 2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2)
+  'src/app/datacube-app.ts:openDataCube:tabEngine': { other: `${BOTH} a timeseries series of several grids read together over one model of the tab's tables, or the host's (join.json together: headless joinTogether)`, ability: 'join' },
+  'src/app/datacube-app.ts:openDataCube:hostTables': { other: `${BOTH} the host's half of grids read together (headless joinTogether, join-open.ts openSources)`, ability: 'join' },
+  'src/app/datacube-app.ts:rows:rows.runner': { other: `${BOTH} a timeseries' combined query run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
   // -- the sources (sources.ts) --
   'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'remote' },
   'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'warehouse' },
   'src/app/sources.ts:pageSources:services.warehouse': { count: 2, other: `${BOTH} a warehouse read through the tab's own pair, or by a host that reads its tables (C3)`, ability: 'warehouse' },
-  'src/app/sources.ts:pageSources:local': { count: 2, other: `${BOTH} a remote file read by the page's database or the host's`, ability: 'remote' },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): count 2 -> 3, the Join window's inputs over a flow's boxes
+  // (sources.ts openedInputs), read in the tab's own database -- on a host's page, Python's flow.join
+  'src/app/sources.ts:pageSources:local': { count: 3, other: `${BOTH} a remote file read by the page's database or the host's; a flow's Join window's inputs read in the tab, or by Python's flow.join`, ability: 'remote' },
   'src/app/sources.ts:openedTable:local': { other: `${BOTH} the tab's warehouse table; the host's is openedHostTable`, ability: 'warehouse' },
   'src/app/sources.ts:openedRemote:database.mountRemote': { other: `${BOTH} mounted by whichever database reads it`, ability: 'remote' },
   'src/app/sources.ts:openedRemote:local': { other: `${BOTH} snapped into the tab's copy, or the host's`, ability: 'snap' },
@@ -767,6 +859,11 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:openedGivenClass:database.made': { other: `${BOTH} the host's half of a named class (K16)`, ability: 'class' },
   'src/app/sources.ts:reopened:database.opened': { count: 2, other: `${BOTH} a grid of the host's page opened by the host (H-2, H-3)`, ability: 'reopen' },
   'src/app/sources.ts:reopened:local': { other: `${BOTH} a saved join opened by the tab, or the host`, ability: 'join' },
+  // 2026-10-25, the flow mode's M1 step 2 (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): another grid's rows
+  'src/app/sources.ts:rowsWhere:local': { other: `${BOTH} a box after another opened by the tab, or by the host on its page`, ability: 'input' },
+  'src/app/sources.ts:rowsWhere:database.opened': { other: `${BOTH} a box after another opened by the host on its page (gridOpened)`, ability: 'input' },
+  'src/app/sources.ts:openedRows:local': { other: `${BOTH} a box after another opened in the tab's database; on a host's page, by the host (rowsWhere)`, ability: 'input' },
+  'src/app/join-sources.ts:openedAfterStart:place.runner': { other: `${BOTH} a box over a source read elsewhere, typed by the host's runner (Python's) or the tab's planner`, ability: 'input' },
   'src/app/sources.ts:pick:database.ingestFile': { other: `${BOTH} Files and Examples where a database takes a file (the tab's, Python's)`, ability: 'files' },
   'src/app/sources.ts:pick:files': { count: 2, other: `${BOTH} Files and Examples where a database takes a file`, ability: 'files' },
   'src/app/sources.ts:pick:queries': { other: `${BOTH} Saved queries where the host has a query store`, ability: 'queries' },
@@ -812,17 +909,22 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   // -- a grid (app.ts) --
   'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner`, ability: 'rows' },
   'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in`, ability: 'warehouse' },
-  'src/app.ts:#snapPill:options.runner': { count: 2, other: `${BOTH} Snap into the tab's copy, or the host's`, ability: 'snap' },
-  'src/app.ts:paint:options.runner': { count: 2, other: `${BOTH} where the rows are, said for the tab's or the host's`, ability: 'rows' },
+  // 2026-10-25 (the one tile header, docs/DATACUBE_UI_REVIEW_2026_10_24.md §1a): #snapPill's two and its paint's two,
+  // moved as they were into #plane -- one description of where a grid's rows are, for a grid alone's pill and a tile's
+  // state -- no branch added
+  'src/app.ts:#plane:options.runner': { count: 4, other: `${BOTH} where the rows are, and Snap into the tab's copy or the host's`, ability: 'snap' },
 };
 
 /** What a `both:` branch is a way to on each host: an ability, proved on each (HOST_ABILITIES). */
 type HostAbility = 'rows' | 'pages' | 'model' | 'class' | 'join' | 'warehouse' | 'remote' | 'files' | 'snap' | 'queries'
-  | 'reopen';
+  | 'reopen' | 'input';
 
 /** A test, `file::name`: a test file of DataCube's (under test/) or the tab's libraries' and the title of one of its
  *  `it`s, `describe`s, browser `check`s or conformance runs, or a Python test file (under ../python/tests/) and one of
- *  its test methods. */
+ *  its test methods. 2026-10-25 (the timeseries review's A7, docs/TIMESERIES_REVIEW_2026_10_25.md: the code a `both:`
+ *  vouched for ran in no test it named): also a browser harness's check -- one of demo/'s browser tests' `check`s on
+ *  the tab (demo/verify-charts.mjs, //datacube:verify_charts_test), and the Python engine's harness's `seen`s
+ *  (test/python-engine/python-engine.mjs, //datacube:python_engine_test) -- where a whole page runs it end to end. */
 type Proof = string;
 
 /**
@@ -882,9 +984,26 @@ const HOST_ABILITIES: Readonly<Record<HostAbility, {
   join: {
     kind: 'shared',
     tab: ['test/join-open.test.ts::a join opened over one model, its rows from DuckDB',
-      "test/host-join-flow.test.ts::Join… on a host's page: each of the window's answers the host's (B11)"],
+      "test/host-join-flow.test.ts::Join… on a host's page: each of the window's answers the host's (B11)",
+      'test/timeseries-queries.test.ts::a series combining two grids, planned over one model of their tables (§5.2)',
+      // 2026-10-25 (the timeseries review's A7): a series of two grids drawn on a page of the tab's -- tabSources,
+      // openTogether, the tab's planner and database -- in the timeseries gallery, every tile drawn
+      'demo/verify-charts.mjs::opens from Open…, and every timeseries on every sheet draws'],
     python: ['../python/tests/test_headless.py::test_two_frames_joined_as_the_tabs_join_joins_them',
-      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers'],
+      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_each_of_its_join_windows_answers',
+      // 2026-10-25 (the timeseries tile): grids read together over one model of Python's tables (join.json together)
+      '../python/tests/test_page.py::test_a_tab_on_the_page_asks_python_to_read_a_timeseries_grids_together',
+      // and on a page Python serves, built with ll.Page: python-host.ts together, join.json, headless joinTogether, run
+      // by Python (the timeseries review's A7)
+      'test/python-engine/python-engine.mjs::a timeseries of two grids on a page Python serves'],
+  },
+  // another grid's rows (2026-10-25, the flow mode's M1 step 2): join-open.ts inputRows on both -- the tab's openRows and
+  // openedAfterStart, the host's headless baseOver
+  input: {
+    kind: 'shared',
+    tab: ["test/join-open.test.ts::another grid's rows: a chain of boxes over a table, each its input's rows at their finest level (flow mode §3.1)"],
+    python: ['../python/tests/test_page.py::test_a_box_reads_its_inputs_rows_as_that_grid_is_now',
+      '../python/tests/test_page.py::test_a_box_after_a_box_and_after_a_grouped_one_its_groups'],
   },
   // a driver each (the tab's, Python's), held to one recorded corpus of the warehouse's calls
   warehouse: {
@@ -943,7 +1062,10 @@ function proved(proof: Proof): string | undefined {
   const lines = SOURCES.read(file).split('\n');
   const found = file.endsWith('.py')
     ? lines.some((l) => l.trimStart().startsWith(`def ${name}(`))
-    : lines.some((l) => /\b(?:it|describe|check|conformance)\(/.test(l) && l.replace(/\\'/g, "'").includes(name));
+    // a test's call: `seen(` the Python engine harness's alone (2026-10-26, the second audit's G-4: accepted in every
+    // file, an assertion's message there passed for a test)
+    : lines.some((l) => (/\b(?:it|describe|check|conformance)\(/.test(l) || (file.endsWith('python-engine.mjs') && /\bseen\(/.test(l)))
+      && l.replace(/\\'/g, "'").includes(name));
   return found ? undefined : `${proof}: no test of that name in it`;
 }
 
@@ -969,7 +1091,9 @@ describe("L12: every branch on the host, with what the other host does there", (
     const used = new Set(Object.values(HOST_BRANCHES).flatMap((e) => (e.ability ? [e.ability] : [])));
     for (const [ability, a] of Object.entries(HOST_ABILITIES)) {
       if (!used.has(ability as HostAbility)) problems.push(`${ability}: an ability no branch is a way to`);
-      if (a.tab.length === 0 || a.tab.some((p) => !p.startsWith('test/'))) problems.push(`${ability}: proved on the tab by DataCube's tests`);
+      if (a.tab.length === 0 || a.tab.some((p) => !p.startsWith('test/') && !/^demo\/verify-[a-z-]+\.mjs::/.test(p))) {
+        problems.push(`${ability}: proved on the tab by DataCube's tests`);
+      }
       if (!a.python.some((p) => p.startsWith('../python/tests/'))) problems.push(`${ability}: proved on the Python host by Python's own tests`);
       if (a.kind === 'two' && (a.parity ?? []).length === 0) problems.push(`${ability}: two implementations, and no test holds them to one result`);
       for (const p of [...a.tab, ...a.python, ...(a.parity ?? [])]) {

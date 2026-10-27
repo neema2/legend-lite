@@ -70,8 +70,9 @@ public final class TdsTextWrap {
         // 2026-10-18), and the text is then an ordinary relation's
         SqlSource.Pivot dynamic = probe == null && !schema.dynamicColumns().isEmpty()
                 ? pivots(plan).stream().filter(p -> p.in().isEmpty()).findFirst().orElse(null) : null;
-        List<Type.Column> typedCols = dynamic != null ? staticColumns(outs, schema)
-                : typedColumns(outs, schema, plan, probe, sqlTypeToPure);
+        // a tagged column's slots are read through it (Render.perSlot): the typed columns are the presented ones
+        List<Type.Column> typedCols = dynamic != null ? staticColumns(Render.presented(outs), schema)
+                : typedColumns(Render.presented(outs), schema, plan, probe, sqlTypeToPure);
         String alias = "_pct0";
         Lift lift = liftOrder(lifted, outs, inner0, alias);
         inner0 = lift.inner0();

@@ -66,14 +66,14 @@ async function openFile(path, n) {
     undefined, { timeout: 120_000 });
   await page.waitForFunction((k) => document.querySelectorAll('[data-tile] .dc-app-grid').length >= k, n, { timeout: 60_000 });
 }
-const rowsOf = async (tile) => Number((/^([\d,]+) rows/.exec((await tile.locator('.dc-status-rows').first().textContent()) ?? '')?.[1]
-  ?? 'NaN').replace(/,/g, ''));
-const untilRows = (tile, n) => tile.locator('.dc-status-rows').filter({ hasText: new RegExp(`^${n} rows`) }).first()
+// a grid's own count of the rows on screen (its status bar's readout keeps it for a script: `data-rows`)
+const rowsOf = async (tile) => Number((await tile.locator('.dc-status-rows').first().getAttribute('data-rows')) ?? 'NaN');
+const untilRows = (tile, n) => tile.locator(`.dc-status-rows[data-rows="${n}"]`).first()
   .waitFor({ timeout: 60_000 }).catch(() => undefined);
 const tileWith = (column) => page.locator('[data-tile^="grid"]').filter({ has: page.locator(`.dc-th[data-column="${column}"]`) });
 const columnsOf = (tile) => tile.locator('.dc-th[data-column]').evaluateAll((ths) => ths.map((t) => t.getAttribute('data-column')));
 /** The trades' own grid: its 40 rows (a join of it has its columns too). */
-const tradesTile = () => tileWith('trade_id').filter({ has: page.locator('.dc-status-rows', { hasText: /^40 rows/ }) }).first();
+const tradesTile = () => tileWith('trade_id').filter({ has: page.locator('.dc-status-rows[data-rows="40"]') }).first();
 /**
  * The trades grid's Join ▸ Join… from a customer_id cell, with the customers' grid (by its name: a join of it, beside it,
  * has the column too), the window's answer to what it will do waited for.
@@ -129,8 +129,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.dc-row').length > 0, undefined, { timeout: 120_000 });
   // a blank page, then the two sources
   await page.click('.dc-titlebar-menu');
-  await item('Create').hover();
-  await item('Blank Page').click();
+  await item('New Page').click();
   await page.locator('.dc-blank').waitFor({ timeout: 10_000 });
   await page.click('.dc-blank .dc-primary');
   await openFile(trades, 1);
@@ -182,7 +181,7 @@ try {
     `its columns: mine, then theirs, the one mine has prefixed (${await columnsOf(joined)})`);
   // where its rows are (§18.3): two files read into this tab, so a copy held here from the start, as a file's grid is --
   // never Live, and no Snap of a copy offered
-  const pill = joined.locator('.dc-titlebar-toggle').first();
+  const pill = joined.locator('.dc-tile-state').first();
   const plane = { text: await pill.textContent(), title: await pill.getAttribute('title') ?? '' };
   check(plane.text === 'Snapped' && /^trades\.csv, customers\.csv — copied into this tab at /.test(plane.title)
     && await pill.getAttribute('aria-disabled') === 'true', `the join's plane: its files' copies, held here (${JSON.stringify(plane)})`);
@@ -197,7 +196,7 @@ try {
   await page.locator('.dc-join').waitFor({ state: 'detached', timeout: 60_000 });
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 4, undefined, { timeout: 60_000 });
   // its tile wherever the page placed it: the one grid of trades' columns and six rows (the customers' grid has six too)
-  const six = () => tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^6 rows/ }) });
+  const six = () => tileWith('notional').filter({ has: page.locator('.dc-status-rows[data-rows="6"]') });
   await six().first().waitFor({ timeout: 60_000 }).catch(() => undefined);
   check(await six().count() === 1, `the trades with no customer: a grid of 6 rows (${await six().count()})`);
 
@@ -244,7 +243,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length >= 4, undefined, { timeout: 60_000 });
   const removeGrid = (tile) => gridEntry(tile, 'View', 'Remove from Page');
   await removeGrid(tileWith('name').filter({ hasNot: page.locator('.dc-th[data-column="trade_id"]') }).first());
-  await removeGrid(tileWith('notional').filter({ has: page.locator('.dc-status-rows', { hasText: /^40 rows/ }) }).first());
+  await removeGrid(tileWith('notional').filter({ has: page.locator('.dc-status-rows[data-rows="40"]') }).first());
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length === 2, undefined, { timeout: 30_000 });
   await page.click('.dc-titlebar-menu');
   await item('Save As\u2026').click();
@@ -303,6 +302,16 @@ try {
     `the saved start page reopens, its sample rebuilt, nothing asked: ${start.said} ${start.asked}`);
   await page.waitForFunction(() => document.querySelectorAll('[data-tile] .dc-app-grid').length === 1, undefined, { timeout: 60_000 })
     .then(() => check(true, 'the start page reopened: its one grid'), async () => bad(`grids open: ${await page.locator(GRIDS).count()}`));
+
+  // AFTER ANOTHER EXAMPLE OVER THE SAME SAMPLE (the example-switch bug, docs/DATACUBE_UI_REVIEW_2026_10_24.md found 1):
+  // the Chart gallery holds the sales sample's table when the join example opens; its joins took that table, which went
+  // with the gallery's page -- "Table with name sample_sales does not exist". The checks below are its joins' rows.
+  await page.click('.dc-titlebar-menu');
+  await item('Open…').click();
+  await page.locator('#cubeswin .dc-open-example[data-example="charts-gallery"]').click();
+  await page.waitForFunction(() => (window.__dataPage?.views().views ?? []).some((v) => v.kind === 'chart'), undefined, { timeout: 120_000 });
+  // its first sheet charts alone: one drawn, its rows read
+  await page.locator('[data-tile] .dc-chartpanel-chart canvas:visible').first().waitFor({ timeout: 120_000 });
 
   // THE JOIN EXAMPLE (the user, 2026-10-23: join prep was on the site, but nothing showed it): opened from Open…'s
   // examples, its two samples made in this tab and its two joins made again -- every order beside its country, by

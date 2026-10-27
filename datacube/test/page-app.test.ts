@@ -7,6 +7,7 @@
 // reopened, a sheet renamed and deleted.
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
@@ -19,10 +20,9 @@ import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-a
 import { HOLD_MS } from '../src/ui/long-press.ts';
 import { gridCopyOf, newPage as freshPage, pageToJson, readPage, unnamedLabel, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { PlanThenRun, type QueryRunner } from '../src/runner.ts';
-import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, plus } from './cube-fixture.ts';
 import { theirs } from './theirs.ts';
 import { convergeOn, type ConvergeGrid } from '../src/app/live-converge.ts';
 import { classRelation } from '../src/class-source.ts';
@@ -31,6 +31,8 @@ import * as echarts from 'echarts/core';
 // loaded within one settle() on any machine -- CI's Windows runner took longer than that to fetch it (PR #64's CI,
 // 2026-10-22: 'a page with a class grid has the bar' saw the slot still empty)
 import '../src/ui/page-filter-bar.ts';
+import { bandsOf } from './bands-of.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 let dom: JSDOM;
 let host: HTMLElement;
@@ -108,12 +110,12 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
 }
 
 const tile = (id: string): HTMLElement => host.querySelector(`[data-tile="${id}"]`) as HTMLElement;
-/** A chart pinned by its pill (its grouping its own): the pill opened, Pinned picked from its menu. */
+/** A chart pinned by its state (its grouping its own): its state's menu opened, Pinned picked. */
 async function pin(chart: string): Promise<void> {
-  (tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement).click();
+  (tile(chart).querySelector('.dc-tile-state') as HTMLElement).click();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((e) => e.textContent?.startsWith('Pinned \u2014 '));
-  if (!item) throw new Error('the pill offers no Pinned');
+    .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === 'Pinned');
+  if (!item) throw new Error('the state offers no Pinned');
   item.click();
   await settle();
 }
@@ -136,6 +138,17 @@ function pageMenu(): HTMLElement[] {
 }
 const label = (item: HTMLElement): string => item.querySelector(':scope > .dc-menu-label')?.textContent ?? '';
 const entry = (items: HTMLElement[], text: string): HTMLElement | undefined => items.find((i) => label(i) === text);
+/** A grid's plane moved from its state (left of its title, or a lone grid's in its sheet's tab): its menu opened,
+ *  `pick` chosen -- Snap, or Go Live, Snap Again. */
+async function movePlane(pick: string): Promise<void> {
+  dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+  (host.querySelector('.dc-tile-state:is([data-state="live"], [data-state="snapped"])') as HTMLElement).click();
+  const items = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
+  const item = entry(items, pick);
+  assert.ok(item, `its state offers ${pick}: ${items.map(label).join(' | ')}`);
+  item.click();
+  await settle();
+}
 /** An entry of a grid's right-click (a submenu's too: Create ▸, Tile ▸ Move to Sheet ▸), by what it says. */
 function gridMenuItem(gridTile: string, text: string): HTMLElement {
   dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
@@ -176,7 +189,7 @@ describe('a page of its own', () => {
     assert.equal(page.document('Q3'), undefined);
   });
 
-  it('cleared (Blank Page), is the new page DataCube starts, unnamed (page-document.ts newPage: D11, B9)', async () => {
+  it('cleared (New Page), is the new page DataCube starts, unnamed (page-document.ts newPage: D11, B9)', async () => {
     newPage();
     page.addGrid(over('trades.csv'));
     await settle();
@@ -187,16 +200,19 @@ describe('a page of its own', () => {
     assert.deepEqual(page.document(page.title, undefined, true), freshPage());
   });
 
-  it('one grid alone shares the bar\'s strip: no frame, its source, pill and menu at the bar\'s right', async () => {
+  it('one grid alone: no frame, no header -- its state in its sheet\'s tab, its source in its status bar (the user, 2026-10-25)', async () => {
     newPage();
     const id = page.addGrid(over('trades.csv'));
     await settle();
     assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, true);
     assert.ok(host.querySelector('.dc-bands')!.classList.contains('dc-bands-alone'));
     assert.ok(tile(id).classList.contains('dc-band-tile-alone'));
-    const strip = bar().querySelector('.dc-page-alone')!;
-    assert.match(strip.textContent ?? '', /trades\.csv/);
-    assert.ok(strip.querySelector('.dc-titlebar-toggle'), 'its Live/Snapped pill');
+    const state = bar().querySelector<HTMLElement>('.dc-sheet-tab-shown .dc-sheet-state .dc-tile-state');
+    assert.ok(state, 'its state in its sheet\'s tab, before the sheet\'s name');
+    assert.deepEqual([state.dataset['state'], state.textContent], ['live', 'Live']);
+    assert.equal(tile(id).querySelector('.dc-tile-head .dc-tile-state'), null, 'not in its hidden header too');
+    assert.equal(tile(id).querySelector('.dc-status-source')?.textContent, 'trades.csv \u00b7 Live', 'its status bar says it in words');
+    assert.doesNotMatch(bar().querySelector('.dc-page-alone')!.textContent ?? '', /trades\.csv/, 'no source in the bar');
     assert.equal(host.querySelector('.dc-tile-menu'), null, 'no menu button: its right-click is its menu (the user, 2026-10-23)');
   });
 
@@ -207,14 +223,18 @@ describe('a page of its own', () => {
     await settle();
     assert.equal(host.querySelector('.dc-bands')!.classList.contains('dc-bands-alone'), false);
     assert.equal(bar().querySelector('.dc-page-alone')!.children.length, 0);
+    assert.equal(bar().querySelector('.dc-sheet-state .dc-tile-state'), null, 'no lone grid\'s state in the tab');
     for (const id of [a, b]) {
       assert.equal(tile(id).querySelector<HTMLButtonElement>('.dc-tile-remove')!.hidden, false, `${id} can be removed`);
+      // its state back in its own header, first, before its title
+      assert.ok(tile(id).querySelector('.dc-tile-head')!.firstElementChild!.classList.contains('dc-tile-state'), `${id}: its state first`);
     }
-    // the first one removed: the other alone in the bar
+    // the first one removed: the other alone -- its state in the sheet's tab
     tile(a).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
     assert.deepEqual(page.grids, [b]);
-    assert.match(bar().querySelector('.dc-page-alone')!.textContent ?? '', /orders\.csv/);
+    assert.ok(bar().querySelector('.dc-sheet-state .dc-tile-state'), 'the lone grid\'s state in its sheet\'s tab');
+    assert.equal(tile(b).querySelector('.dc-status-source')?.textContent, 'orders.csv \u00b7 Live');
     // and the last, from its right-click's Tile ▸ (its tile has no remove button while alone): the empty page
     gridMenuItem(b, 'Remove from Page').click();
     await settle();
@@ -278,6 +298,275 @@ describe('a page of its own', () => {
     await until(() => tile(id)?.querySelector('.dc-text-tile strong'));
     assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
     assert.equal(tile(id).querySelector('.dc-text-tile strong')?.textContent, 'Python');
+  });
+
+  it("a text box's files (§8): opened, a tab each beside its words, drawn; taken off; reopened where the file is not, it is asked for", async () => {
+    // docs/DATACUBE_UI_REVIEW_2026_10_24.md §8: a page points to a text box's files by name, size and fingerprint --
+    // their bytes stay where they were picked
+    const told: PageCommand[] = [];
+    const until = async (shown: () => unknown): Promise<void> => {
+      for (let i = 0; i < 200 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+    };
+    const plan = new File(['# Plan\n\nBy **desk**'], 'plan.md');
+    const sha = createHash('sha256').update('# Plan\n\nBy **desk**').digest('hex');
+    /** The file input Open Files… puts in the page (no handles to give in this browser), given `files`. */
+    const pick = async (...files: File[]): Promise<void> => {
+      await until(() => dom.window.document.querySelector('input.dc-file-input'));
+      const input = dom.window.document.querySelector<HTMLInputElement>('input.dc-file-input')!;
+      Object.defineProperty(input, 'files', { value: files });
+      input.dispatchEvent(new dom.window.Event('change'));
+    };
+    const tabs = (id: string): string[] => [...tile(id).querySelectorAll('.dc-text-file-name')].map((t) => t.textContent ?? '');
+    const open = (id: string, entry: string): void => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      tile(id).querySelector('.dc-text-host')!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')].find((i) => label(i) === entry)!.click();
+    };
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    gridMenuItem(a, 'Text Box').click();
+    await settle();
+    const id = 'text-1';
+    await until(() => tile(id).querySelector('textarea'));
+    tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    // Open Files…: told as the page's command, pointed to; shown in its own tab, drawn as Markdown
+    told.length = 0;
+    open(id, 'Open Files\u2026');
+    await pick(plan);
+    await until(() => tile(id).querySelector('.dc-text-file h3'));
+    assert.deepEqual(told, [{ kind: 'setTextFiles', tile: id, files: [{ name: 'plan.md', size: plan.size, sha256: sha }] }]);
+    assert.deepEqual(tabs(id), ['Text', 'plan.md']);
+    assert.equal(tile(id).querySelector('.dc-text-file h3')?.textContent, 'Plan');
+    assert.equal(tile(id).querySelector('.dc-text-file-name[aria-pressed="true"]')?.textContent, 'plan.md', 'the file added shown');
+    // its words a tab away
+    [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === 'Text')!.click();
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    assert.equal(tile(id).querySelector('.dc-text-file'), null);
+    // the same file again: nothing told
+    told.length = 0;
+    open(id, 'Open Files\u2026');
+    await pick(plan);
+    await settle();
+    assert.deepEqual(told, [], 'a file it shows already');
+    // saved with the page as where it is, never its bytes
+    const doc = page.document('Q3')!;
+    assert.deepEqual(doc.views.find((v) => v.id === id), { id, kind: 'text', text: 'Double-click to write here.', files: [{ name: 'plan.md', size: plan.size, sha256: sha }] });
+    assert.equal(pageToJson(doc).includes('By **desk**'), false, "the file's words are not in the page");
+    // its tab's x takes it off
+    tile(id).querySelector<HTMLButtonElement>('.dc-text-file-close')!.click();
+    await settle();
+    assert.deepEqual(told.at(-1), { kind: 'setTextFiles', tile: id, files: [] });
+    assert.equal(tile(id).querySelector('.dc-text-files'), null, 'no files: no tabs');
+    // reopened in a browser that kept nothing of it: asked for again by its name; the same file picked is shown
+    const back = readPage(pageToJson(doc));
+    page.dispose();
+    newPage();
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    await until(() => tile(id)?.querySelector('.dc-text-files'));
+    [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === 'plan.md')!.click();
+    await until(() => tile(id).querySelector('.dc-text-file-missing'));
+    const missing = tile(id).querySelector('.dc-text-file-missing')!;
+    assert.match(missing.textContent ?? '', /^plan\.md is not here \(this browser keeps nothing of it\): a page points to its files, never copies them\./);
+    missing.querySelector('button')!.click();
+    await pick(plan);
+    await until(() => tile(id).querySelector('.dc-text-file h3'));
+    assert.equal(tile(id).querySelector('.dc-text-file h3')?.textContent, 'Plan');
+    // where the host kept its handle: read from there -- the browser asking first, the person's click letting it
+    page.dispose();
+    const asked: boolean[] = [];
+    newPage({ textFile: async (given, click) => {
+      asked.push(click);
+      return given === sha ? (click ? { state: 'file', file: plan } : { state: 'needs-click' }) : undefined;
+    } });
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    await until(() => tile(id)?.querySelector('.dc-text-files'));
+    [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === 'plan.md')!.click();
+    await until(() => tile(id).querySelector('.dc-text-file-missing button'));
+    assert.equal(tile(id).querySelector('.dc-text-file-missing button')?.textContent, 'Allow reading plan.md');
+    tile(id).querySelector<HTMLButtonElement>('.dc-text-file-missing button')!.click();
+    await until(() => tile(id).querySelector('.dc-text-file h3'));
+    assert.deepEqual(asked, [false, true], 'asked once without a click, then with the click');
+  });
+
+  it("a text box's files, as the 2026-10-25 audit found them: refused before they are read, a read that fails said, by fingerprint, a changed file said each time, its preview no editor, an export its words", async () => {
+    const told: PageCommand[] = [];
+    const said: string[] = [];
+    const until = async (shown: () => unknown): Promise<void> => {
+      for (let i = 0; i < 200 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+    };
+    const pick = async (...files: File[]): Promise<void> => {
+      await until(() => dom.window.document.querySelector('input.dc-file-input'));
+      const input = dom.window.document.querySelector<HTMLInputElement>('input.dc-file-input')!;
+      Object.defineProperty(input, 'files', { value: files });
+      input.dispatchEvent(new dom.window.Event('change'));
+    };
+    const open = (id: string, entry: string): void => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      tile(id).querySelector('.dc-text-host')!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')].find((i) => label(i) === entry)!.click();
+    };
+    const show = (id: string, name: string): void => {
+      [...tile(id).querySelectorAll<HTMLElement>('.dc-text-file-name')].find((t) => t.textContent === name)!.click();
+    };
+    // a maker that keeps each grid's export, as its CubeApp would call it
+    const exports = new Map<string, () => ExportPage | undefined>();
+    const keep = (name: string): GridMaker => (gridHost, spawned, start) => {
+      if (spawned.id !== undefined && spawned.exportPage) exports.set(spawned.id, spawned.exportPage);
+      return over(name)(gridHost, spawned, start);
+    };
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c), refuse: (t) => said.push(t) });
+    const a = page.addGrid(keep('trades.csv'));
+    await settle();
+    await chartOf(a);
+    gridMenuItem(a, 'Text Box').click();
+    await settle();
+    const id = page.views().views.find((v) => v.kind === 'text')!.id;
+    await until(() => tile(id).querySelector('textarea'));
+    tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    told.length = 0;
+    // a kind it does not show: refused by its name, never read (a gigabyte was read and hashed before its kind was seen)
+    let read = false;
+    class Watched extends File {
+      override arrayBuffer(): Promise<ArrayBuffer> {
+        read = true;
+        return super.arrayBuffer();
+      }
+    }
+    open(id, 'Open Files…');
+    await pick(new Watched(['not text'], 'clip.mp4'));
+    await until(() => said.length > 0);
+    assert.match(said.at(-1) ?? '', /^clip\.mp4 is not a kind of file a text box shows: Markdown, text, CSV or JSON/);
+    assert.equal(read, false, 'refused before it was read');
+    // a file that cannot be read (a folder dropped, a file changed since it was picked): said, never a silent nothing
+    class Unread extends File {
+      override arrayBuffer(): Promise<ArrayBuffer> {
+        return Promise.reject(new Error('The file could not be read'));
+      }
+    }
+    open(id, 'Open Files…');
+    await pick(new Unread(['x'], 'notes.md'));
+    await until(() => said.length > 1);
+    assert.match(said.at(-1) ?? '', /^notes\.md could not be read \(The file could not be read\)/);
+    assert.deepEqual(told, [], 'nothing told for either');
+    // added: its preview double-clicked opens no editor over it; an export writes the box's words, the file in front
+    const plan = new File(['# Plan\n\nBy **desk**'], 'plan.md');
+    open(id, 'Open Files…');
+    await pick(plan);
+    await until(() => tile(id).querySelector('.dc-text-file h3'));
+    tile(id).querySelector('.dc-text-file h3')!.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+    await settle();
+    assert.equal(tile(id).querySelector('textarea'), null, "its preview's words are not the box's");
+    const exported = exports.get(a)?.()?.tiles.find((t) => t.id === id) as { readonly text?: { readonly html: string } } | undefined;
+    assert.ok(exported?.text?.html.includes('dc-text-tile'), `its words drawn, not their Markdown: ${exported?.text?.html}`);
+    const withPlan = page.document('Q3')!;
+    // taken off by its fingerprint: a step that draws the same files again draws equal ones, not the same objects
+    page.putBack(readPage(pageToJson(withPlan)), []);
+    await settle();
+    told.length = 0;
+    tile(id).querySelector<HTMLButtonElement>('.dc-text-file-close')!.click();
+    await settle();
+    assert.deepEqual(told.at(-1), { kind: 'setTextFiles', tile: id, files: [] });
+    // reopened where the file changed since: said each time it is shown, never kept as the one added
+    const back = readPage(pageToJson(withPlan));
+    page.dispose();
+    newPage({ textFile: async () => ({ state: 'file', file: new File(['# Plan, again'], 'plan.md') }) });
+    page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
+    await settle();
+    await until(() => tile(id)?.querySelector('.dc-text-files'));
+    for (let time = 0; time < 2; time++) {
+      show(id, 'plan.md');
+      await until(() => tile(id).querySelector('.dc-text-file h3'));
+      assert.equal(tile(id).querySelector('.dc-text-file-note')?.textContent, 'plan.md has changed since it was added to this text box.', `shown ${time + 1}`);
+      show(id, 'Text');
+      await until(() => tile(id).querySelector('.dc-text-tile'));
+    }
+  });
+
+  it("a text tile's right-click, in the menus' one order: Create ▸, Edit Text…, Open Files…, then View ▸ -- Maximise / Restore, Move to Sheet, Remove from Page", async () => {
+    // the menus (docs/DATACUBE_UI_REVIEW_2026_10_24.md): a text box had no right-click; its own window first, then how
+    // it is shown and where, as a chart's and a grid's
+    const told: PageCommand[] = [];
+    const until = async (shown: () => unknown): Promise<void> => {
+      for (let i = 0; i < 100 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+    };
+    // a host with a picker: Create ▸ Data Source… on it (its grid beside the text box: the 2026-10-25 audit)
+    newPage({ confirm: () => true, onPageCommand: (c) => told.push(c), openSource: async () => over('orders.csv') });
+    const a = page.addGrid(over('trades.csv'));
+    await settle();
+    gridMenuItem(a, 'Text Box').click();
+    await settle();
+    const id = 'text-1';
+    await until(() => tile(id).querySelector('textarea'));
+    const menu = (): { top: string[]; view: string[]; create: string[]; entry: (text: string) => HTMLElement } => {
+      dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      const opened = tile(id).querySelector('.dc-text-host')!.dispatchEvent(
+        new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+      assert.equal(opened, false, 'the menu is the tile\'s, not the browser\'s');
+      const root = dom.window.document.querySelector('.dc-menu')!;
+      const under = (parent: string): string[] => {
+        const item = [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].find((i) => label(i) === parent)!;
+        return [...item.querySelectorAll<HTMLElement>(':scope > .dc-submenu > .dc-menu-item')].map(label);
+      };
+      return {
+        top: [...root.querySelectorAll<HTMLElement>(':scope > .dc-menu-item')].map(label),
+        view: under('View'),
+        create: under('Create'),
+        entry: (text) => [...root.querySelectorAll<HTMLElement>('.dc-menu-item')].find((i) => label(i) === text)!,
+      };
+    };
+    // while its words are edited, the browser's own menu (copy, paste) in its editor
+    assert.equal(tile(id).querySelector('.dc-text-host')!.dispatchEvent(
+      new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true })), true, 'the editor keeps the browser\'s menu');
+    tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    const first = menu();
+    assert.deepEqual(first.top, ['Create', 'Edit Text\u2026', 'Open Files\u2026', 'View']);
+    assert.deepEqual(first.view, ['Maximise', 'Move to Sheet', 'Remove from Page']);
+    // Create ▸ in the grid's own words; what needs a grid is off, and says why
+    assert.deepEqual(first.create, ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Timeseries', 'Text Box']);
+    for (const off of ['Copy of This Grid', 'Visualization', 'Timeseries']) {
+      assert.equal(first.entry(off).getAttribute('aria-disabled'), 'true', off);
+      assert.equal(first.entry(off).title, 'A text box reads no grid');
+    }
+    first.entry('Text Box').click();
+    await settle();
+    assert.deepEqual(told.at(-1)?.kind, 'addText', 'Create ▸ Text Box: another text box beside it');
+    await until(() => tile('text-2')?.querySelector('textarea'));
+    tile('text-2').querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile('text-2').querySelector('.dc-text-tile'));
+    first.entry('Edit Text\u2026').click();
+    await until(() => tile(id).querySelector('textarea'));
+    assert.ok(tile(id).querySelector('textarea'), 'Edit Text\u2026 opens its editor');
+    tile(id).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    // Create ▸ Data Source…: the host's picker, its grid told beside the text box (the 2026-10-25 audit: placed as one
+    // beside nothing)
+    told.length = 0;
+    menu().entry('Data Source\u2026').click();
+    await settle();
+    const added = told.find((c) => c.kind === 'addGrid');
+    assert.equal(added?.kind === 'addGrid' ? added.near : undefined, id, 'beside the text box');
+    // a locked page: its Remove from Page offered off, as its x is hidden (the 2026-10-25 audit)
+    page.setLayoutEditing(false);
+    const locked = menu().entry('Remove from Page');
+    assert.deepEqual([locked.getAttribute('aria-disabled'), locked.title], ['true', 'Edit Layout first']);
+    page.setLayoutEditing(true);
+    // Maximise fills the page with it, and the same entry then says Restore
+    menu().entry('Maximise').click();
+    assert.ok(host.querySelector('.dc-bands-maximised'), 'the page filled with it');
+    assert.deepEqual(menu().view, ['Restore', 'Move to Sheet', 'Remove from Page']);
+    menu().entry('Restore').click();
+    assert.equal(host.querySelector('.dc-bands-maximised'), null, 'back to the page');
+    told.length = 0;
+    menu().entry('Remove from Page').click();
+    await settle();
+    assert.deepEqual(told.map((c) => c.kind), ['removeTile']);
+    assert.equal(tile(id), null, 'off the page');
   });
 
   it('is saved as one cube per grid, each over its own source, and reopens as it was', async () => {
@@ -369,7 +658,7 @@ describe('a page of its own', () => {
     // the page as its keeper has it, sheet-9 among the ids it has held (made and taken off by its other editor)
     page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])), ['sheet-9']);
     await settle();
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.deepEqual(told.flatMap((c) => (c.kind === 'addSheet' ? [c.id] : [])), ['sheet-10']);
   });
@@ -382,7 +671,7 @@ describe('a page of its own', () => {
     const sheets = (): number => page.document('Q3')!.sheets.length;
     page.hold();
     assert.equal(page.held, true);
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.equal(sheets(), 1, 'nothing applied');
     assert.deepEqual(told.filter((c) => c.kind === 'addSheet'), [], 'nothing told');
@@ -391,10 +680,23 @@ describe('a page of its own', () => {
     assert.equal(page.document('Q3')!.views.length, 1, 'nothing moves');
     page.release();
     assert.equal(page.held, false);
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.equal(sheets(), 2, 'released: applied');
     assert.equal(told.filter((c) => c.kind === 'addSheet').length, 1, 'and told');
+  });
+
+  it("the +'s Flow adds a flow sheet, shown, told as the menu's Create ▸ Flow tells it (2026-10-26)", async () => {
+    const told: PageCommand[] = [];
+    newPage({ onPageCommand: (c) => told.push(c) });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    plus(host, 'Flow');
+    await settle();
+    const doc = page.document('Q3')!;
+    assert.deepEqual(doc.sheets.map((s) => s.layout.kind), ['bands', 'flow']);
+    assert.deepEqual(told.map((c) => c.kind).filter((k) => k !== 'addGrid'), ['addFlow'], 'told as one addFlow');
+    assert.equal(page.shownSheet, doc.sheets[1]!.id, 'the new flow is the sheet shown');
   });
 
   it('a frozen chart whose grid is removed keeps reading that grid, kept off the board; saved, and reopened detached', async () => {
@@ -406,7 +708,7 @@ describe('a page of its own', () => {
     await pin(chart);
     tile(b).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
-    assert.equal(tile(chart).querySelector('.dc-titlebar-toggle')!.textContent, 'Detached');
+    assert.equal(tile(chart).querySelector('.dc-tile-state')!.textContent, 'Detached');
     assert.deepEqual(page.grids, [a]);
     const doc = page.document('Q3')!;
     assert.deepEqual(doc.cubes.map((c) => c.id), [a, b], 'the removed grid kept, for its chart');
@@ -417,7 +719,7 @@ describe('a page of its own', () => {
     page.restore(back, new Map(back.cubes.map((c) => [c.id, over(c.cube.source.name)])));
     await settle();
     assert.deepEqual(page.grids, [a]);
-    assert.equal(tile(chart).querySelector('.dc-titlebar-toggle')!.textContent, 'Detached');
+    assert.equal(tile(chart).querySelector('.dc-tile-state')!.textContent, 'Detached');
     // its last chart gone, the kept grid goes too
     tile(chart).querySelector<HTMLButtonElement>('.dc-tile-remove')!.click();
     await settle();
@@ -447,7 +749,7 @@ describe('a page of its own', () => {
       const original = grid.useSettings.bind(grid);
       grid.useSettings = (values) => { used.push(id); original(values); };
     }
-    entry(pageMenu(), 'Settings...')!.click();
+    entry(pageMenu(), 'Settings…')!.click();
     await settle();
     const save = [...dom.window.document.querySelectorAll<HTMLButtonElement>('button')].find((x) => x.textContent === 'Save');
     assert.ok(save, 'the Settings window, from the page\'s menu');
@@ -616,7 +918,7 @@ describe('a page of its own', () => {
     await settle();
     const chart = await chartOf(a);
     const first = page.shownSheet;
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     assert.equal(tabs().length, 2);
     assert.notEqual(page.shownSheet, first, 'the new sheet is shown');
@@ -628,7 +930,7 @@ describe('a page of its own', () => {
     const second = page.sheets[1]!;
     gridMenuItem(a, 'Sheet 2').click();
     await settle();
-    assert.deepEqual(page.sheets.map((id) => page.views().sheets.find((s) => s.id === id)!.layout.bands.length), [1, 1]);
+    assert.deepEqual(page.sheets.map((id) => bandsOf(page.views().sheets.find((s) => s.id === id)!.layout).bands.length), [1, 1]);
     assert.equal(tile(a).closest<HTMLElement>('.dc-sheet')!.dataset['sheet'], second, 'the grid is on the second sheet');
     assert.equal(tile(chart).closest<HTMLElement>('.dc-sheet')!.dataset['sheet'], first, 'its chart stays');
     assert.deepEqual(tabs(), ['Sheet 1', 'trades.csv'], 'each sheet named after its first grid, else by its place');
@@ -646,7 +948,7 @@ describe('a page of its own', () => {
     const a = page.addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     const [s1, s2] = page.sheets;
     clickTab(tabs()[0]!);
@@ -669,7 +971,7 @@ describe('a page of its own', () => {
     assert.deepEqual(tabs(), ['Charts', 'trades.csv']);
     const doc = page.document('Q3')!;
     assert.deepEqual(doc.sheets.map((s) => [s.id, s.name]), [[s2, 'Charts'], [s1, undefined]]);
-    assert.deepEqual(doc.sheets.map((s) => tilesOf(s.layout)), [[chart], [a]]);
+    assert.deepEqual(doc.sheets.map((s) => layoutTiles(s.layout)), [[chart], [a]]);
     const back = readPage(pageToJson(doc));
     page.dispose();
     newPage();
@@ -680,27 +982,32 @@ describe('a page of its own', () => {
     assert.deepEqual(page.views(), { views: doc.views, sheets: doc.sheets });
   });
 
-  it('on a locked page offers Move to Sheet disabled, in a grid\'s menu and a chart\'s, and moves nothing', async () => {
+  it('on a locked page offers Move to Sheet and Remove from Page disabled, in a grid\'s menu and a chart\'s, and moves nothing', async () => {
     newPage();
     const a = page.addGrid(over('trades.csv'));
     await settle();
     const chart = await chartOf(a);
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     clickTab(tabs()[0]!);
     page.setLayoutEditing(false);
     await settle();
     const move = gridMenuItem(a, 'Move to Sheet');
     assert.equal(move.getAttribute('aria-disabled'), 'true', 'the grid\'s');
+    // Remove from Page too, as a tile's x is hidden on a locked page (the 2026-10-25 audit)
+    const remove = gridMenuItem(a, 'Remove from Page');
+    assert.deepEqual([remove.getAttribute('aria-disabled'), remove.title], ['true', 'Edit Layout first'], "the grid's Remove");
     (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
       .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
     const chartMove = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Move to Sheet');
     assert.equal(chartMove?.getAttribute('aria-disabled'), 'true', 'the chart\'s');
+    const chartRemove = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove from Page');
+    assert.equal(chartRemove?.getAttribute('aria-disabled'), 'true', "the chart's Remove");
     // and its entries, reached anyway, move nothing
     [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'New Sheet')?.click();
     await settle();
     assert.equal(page.sheets.length, 2);
     // the grid and its chart under it (two bands since 2026-10-23: a chart goes under its grid) stay where they were
-    assert.deepEqual(page.views().sheets.map((s) => s.layout.bands.length), [2, 0]);
+    assert.deepEqual(page.views().sheets.map((s) => bandsOf(s.layout).bands.length), [2, 0]);
   });
 
   it('a grid behind a chart in a stack still exports its table, beside the charts of its sheet', async () => {
@@ -735,7 +1042,7 @@ describe('a page of its own', () => {
     newPage({ confirm: (q) => { asked.push(q); return answer; }, hostStatus: (slot) => slot.append(readout) });
     const a = page.addGrid(over('trades.csv'));
     await settle();
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     const b = page.addGrid(over('orders.csv'));
     await settle();
     assert.ok(tile(b).contains(readout), 'in the first grid of the sheet shown');
@@ -744,7 +1051,7 @@ describe('a page of its own', () => {
     assert.ok(tile(a).contains(readout), 'moved with the sheet shown');
     const del = (labelText: string): void => {
       tabOf(labelText).dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!.click();
+      [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete Sheet')!.click();
     };
     del('orders.csv');
     assert.equal(asked.length, 1, 'asked, as it has a tile');
@@ -755,7 +1062,7 @@ describe('a page of its own', () => {
     assert.deepEqual(tabs(), ['trades.csv']);
     assert.deepEqual(page.grids, [a], 'its grid went with it');
     tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    const last = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!;
+    const last = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete Sheet')!;
     assert.equal(last.getAttribute('aria-disabled'), 'true', 'the last sheet stays');
   });
 
@@ -766,7 +1073,7 @@ describe('a page of its own', () => {
     assert.equal(page.undoLabel, 'Add Grid', 'a grid a person adds: a step');
     page.started();
     assert.equal(page.undoLabel, undefined, 'a fresh page offered "Undo Add Grid", which left it blank (2026-10-23)');
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.equal(page.undoLabel, 'Add Sheet');
   });
@@ -793,7 +1100,7 @@ describe('a page of its own', () => {
     newPage({ confirm: () => true, onPageCommand: (c) => told.push(c) });
     const a = page.addGrid(over('trades.csv'));
     await settle();
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     told.length = 0;
     const step = page.undoLabel;
@@ -836,7 +1143,7 @@ describe('a page of its own', () => {
     told.length = 0;
     // a sheet added; the second grid moved onto it from its menu; the chart removed from its menu; the first sheet
     // deleted with its grid
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     clickTab(tabs()[0]!);
     await settle();
@@ -845,10 +1152,10 @@ describe('a page of its own', () => {
     const [first, second] = page.sheets;
     (tile(chart).querySelector('.dc-chart-tile') as HTMLElement)
       .dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove')!.click();
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Remove from Page')!.click();
     await settle();
     tabOf('trades.csv').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
-    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete')!.click();
+    [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].find((i) => label(i) === 'Delete Sheet')!.click();
     await settle();
     assert.deepEqual(told.map((c) => c.kind), ['addSheet', 'moveTile', 'removeTile', 'removeSheet']);
     assert.deepEqual(told[0], { kind: 'addSheet', id: second, name: null });
@@ -863,7 +1170,7 @@ describe('a page of its own', () => {
     newPage({ confirm: () => true });
     const a = page.addGrid(over('trades.csv'));
     await settle();
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     assert.equal(page.undoLabel, 'Add Sheet', "the screen's own edit: a step");
     const second = page.sheets[1]!;
@@ -908,8 +1215,8 @@ describe('a page of its own', () => {
     newPage();
     const a = page.addGrid(hosted);
     await settle();
-    // a grid alone on its sheet has its header -- its plane's button -- in the page's bar
-    const pill = (): string | null | undefined => host.querySelector('.dc-titlebar-toggle')?.textContent;
+    // a grid alone on its sheet has its state in its sheet's tab
+    const pill = (): string | null | undefined => host.querySelector('.dc-tile-state')?.textContent;
     const copy = gridCopyOf({ table: 'snap_1', rowCount: 9, takenAt: new Date('2026-10-20T14:02:00Z'), label: 'Snap 14:02' });
     await theirs(page, [{ kind: 'snap', grid: a, copy }], new Map());
     await settle();
@@ -923,8 +1230,7 @@ describe('a page of its own', () => {
     assert.equal(page.state.page.copies, undefined);
     assert.equal(pill(), 'Live');
     // the screen's own Snap: the page's document says the copy its host made
-    (host.querySelector('.dc-titlebar-toggle') as HTMLElement).click();
-    await settle();
+    await movePlane('Snap');
     const stateCopies = (): PageDocument['copies'] => page.state.page.copies;
     assert.equal(stateCopies()?.[a]?.table, 'snap_2', "the screen's Snap is in the page's state");
     // gone live by the other editor, which let the copy go (it read the page first): nothing let go here
@@ -966,14 +1272,14 @@ describe('a page of its own', () => {
     const following = theirs(page, [{ kind: 'snap', grid: a, copy }], new Map());
     await settle();
     // the person adds a sheet while the converge waits for the copy: held, nothing
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     release();
     await following;
     await settle();
     assert.equal(page.sheets.length, 1, 'nothing added while the page was held');
     assert.deepEqual(page.grid(a)?.copy, copy, "the editor's snap: its grid reads the copy");
-    (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(host);
     await settle();
     assert.deepEqual(page.state.page.sheets.map((s) => s.id), page.sheets, 'the state holds the sheet added after');
     assert.ok(page.state.held.includes(page.sheets[1]!), 'and its id, held');
@@ -1019,12 +1325,10 @@ describe('a page of its own', () => {
     newPage({ refuse: (text) => refused.push(text), onPageCommand: (c) => told.push(c) });
     page.addGrid(hostedGrid({}));
     await settle();
-    const pill = (): HTMLElement => host.querySelector('.dc-titlebar-toggle') as HTMLElement;
-    pill().click();
-    await settle();
+    const pill = (): HTMLElement => host.querySelector('.dc-tile-state') as HTMLElement;
+    await movePlane('Snap');
     assert.equal(pill().textContent, 'Snapped');
-    pill().click();
-    await settle();
+    await movePlane('Go Live');
     assert.equal(pill().textContent, 'Live');
     assert.deepEqual(refused, [], 'Go Live refused nothing');
     assert.deepEqual(told.filter((c) => c.kind === 'snap' || c.kind === 'live'), [], "no copy of the page's: it holds no cube for the grid");
@@ -1047,7 +1351,7 @@ describe('a page of its own', () => {
     assert.match(String(await grid.applyGridCommands([{ kind: 'group', rows: ['nope'] }], 'Python')), /nope/, 'refused in words');
   });
 
-  it('its menu: New > Data Source adds a grid through the host\'s picker; the host\'s entries; Page File exports it', async () => {
+  it('its menu: Create > Data Source adds a grid through the host\'s picker; the host\'s entries; Export Page File… exports it', async () => {
     const files: [string, string][] = [];
     const picked: string[] = [];
     newPage({
@@ -1063,11 +1367,237 @@ describe('a page of its own', () => {
     assert.equal(page.grids.length, 1);
     entry(pageMenu(), 'Save')!.click();
     assert.deepEqual(picked, ['host.save']);
-    const exportItem = entry(pageMenu(), 'Export')!;
-    (exportItem.querySelector('[role^="menuitem"]') as HTMLElement).click();
+    entry(pageMenu(), 'Export Page File…')!.click();
     assert.equal(files.length, 1);
     assert.equal(files[0]![0], 'Q3.page.json');
     assert.equal(readPage(files[0]![1]).cubes[0]!.cube.source.name, 'picked.csv');
+  });
+});
+
+describe("the page's ≡, grouped by purpose (docs/DATACUBE_UI_REVIEW_2026_10_24.md §3; the user, 2026-10-25)", () => {
+  /** The menu's top level as a person reads it down: each entry, a line (─) between its groups. */
+  const topLevel = (): string[] => {
+    pageMenu();
+    const menu = dom.window.document.querySelector('.dc-menu')!;
+    return [...menu.children].map((c) => (c.classList.contains('dc-menu-sep') ? '─' : label(c as HTMLElement)));
+  };
+  /** A submenu's entries, by its parent's words. */
+  const under = (parent: string): string[] =>
+    [...entry(pageMenu(), parent)!.querySelectorAll<HTMLElement>(':scope > .dc-submenu > [role^="menuitem"]')].map(label);
+  const sitePage = (o: Partial<PageAppOptions> = {}): PageApp => newPage({
+    openSource: async () => over('picked.csv'),
+    onBlankPage: () => {},
+    download: () => {},
+    hostMenu: () => [
+      { id: 'host.open', label: 'Open…', section: 'file' },
+      { id: 'host.save', label: 'Save', section: 'file' },
+      { id: 'host.saveAs', label: 'Save As…', section: 'file' },
+      { id: 'host.share', label: 'Share…', section: 'file' },
+      { id: 'host.query', label: 'Generated Pure & SQL…', section: 'view' },
+      { id: 'host.association', label: 'Association…', section: 'create' },
+    ],
+    ...o,
+  });
+
+  it('what leaves the app, the history, the layout, Create ▸, then View ▸ with the app\'s Settings…', async () => {
+    sitePage();
+    page.addGrid(over('trades.csv'));
+    await settle();
+    assert.deepEqual(topLevel(), [
+      'New Page', 'Open…', 'Save', 'Save As…', 'Share…', 'Export Page File…', '─',
+      'Undo Add Grid', 'Redo', '─',
+      'Done Editing Layout', 'Arrange…', '─',
+      'Create', '─',
+      'View',
+    ]);
+    assert.deepEqual(under('Create'), ['Data Source…', 'Sheet', 'Flow', 'Text Box', 'Association…']);
+    // the app's Settings… under View, beside its Keyboard Shortcuts… (the user, 2026-10-25): this browser's, not a grid's
+    assert.deepEqual(under('View'), ['Hide the Bar', 'Generated Pure & SQL…', 'Keyboard Shortcuts…', 'Settings…']);
+  });
+
+  it('New Page asks the host for a new page; Export Page File… writes the page, one entry', async () => {
+    let asked = 0;
+    const files: string[] = [];
+    sitePage({ onBlankPage: () => { asked += 1; }, download: (name) => files.push(name) });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    entry(pageMenu(), 'New Page')!.click();
+    assert.equal(asked, 1);
+    entry(pageMenu(), 'Export Page File…')!.click();
+    assert.deepEqual(files, ['Q3.page.json']);
+  });
+
+  it('while the host is starting, New Page and Data Source… are greyed, saying so; started, they act (2026-10-26)', async () => {
+    let starting: string | undefined = 'The page is still starting';
+    let asked = 0;
+    sitePage({ onBlankPage: () => { asked += 1; }, openSource: () => Promise.resolve(undefined), starting: () => starting });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    const blank = entry(pageMenu(), 'New Page')!;
+    assert.equal(blank.getAttribute('aria-disabled'), 'true');
+    assert.equal(blank.title, 'The page is still starting');
+    blank.click();
+    assert.equal(asked, 0, 'greyed: nothing asked of the host');
+    const source = [...entry(pageMenu(), 'Create')!.querySelectorAll<HTMLElement>(':scope > .dc-submenu > [role^="menuitem"]')]
+      .find((i) => label(i) === 'Data Source…');
+    assert.equal(source?.getAttribute('aria-disabled'), 'true');
+    starting = undefined;
+    assert.equal(entry(pageMenu(), 'New Page')!.getAttribute('aria-disabled'), null);
+    entry(pageMenu(), 'New Page')!.click();
+    assert.equal(asked, 1);
+  });
+
+  it('Edit Layout says what it will do and flips; off, Arrange… and Sheet are greyed, saying why', async () => {
+    sitePage();
+    page.addGrid(over('trades.csv'));
+    await settle();
+    entry(pageMenu(), 'Done Editing Layout')!.click();
+    const items = pageMenu();
+    assert.ok(entry(items, 'Edit Layout'), 'flipped');
+    assert.equal(entry(items, 'Done Editing Layout'), undefined);
+    for (const off of ['Arrange…', 'Sheet']) {
+      assert.equal(entry(items, off)!.getAttribute('aria-disabled'), 'true', off);
+      assert.equal(entry(items, off)!.title, 'Edit Layout first', off);
+    }
+    entry(items, 'Edit Layout')!.click();
+    assert.equal(entry(pageMenu(), 'Arrange…')!.getAttribute('aria-disabled'), null);
+  });
+
+  it('Create ▸ Text Box puts a text tile on the page, an empty one too', async () => {
+    sitePage();
+    entry(pageMenu(), 'Text Box')!.click();
+    await settle();
+    assert.equal(page.views().views.filter((v) => v.kind === 'text').length, 1);
+    assert.equal(host.querySelector<HTMLElement>('.dc-page-empty')!.hidden, true);
+  });
+
+  it('View ▸ Hide the Bar folds it; Keyboard Shortcuts… opens their window', async () => {
+    sitePage();
+    page.addGrid(over('trades.csv'));
+    await settle();
+    entry(pageMenu(), 'Keyboard Shortcuts…')!.click();
+    await settle();
+    assert.ok(dom.window.document.querySelector('[data-window="Keyboard Shortcuts"]:not([hidden])'), 'the shortcuts window');
+    entry(pageMenu(), 'Hide the Bar')!.click();
+    assert.equal(page.barFolded, true);
+  });
+
+  it('on an empty page, Settings… and Keyboard Shortcuts… are greyed, saying why', () => {
+    sitePage();
+    const items = pageMenu();
+    for (const off of ['Settings…', 'Keyboard Shortcuts…', 'Arrange…']) {
+      assert.equal(entry(items, off)!.getAttribute('aria-disabled'), 'true', off);
+    }
+    assert.equal(entry(items, 'Settings…')!.title, 'Open a data source first');
+    assert.equal(entry(items, 'Arrange…')!.title, 'Nothing on this page to arrange');
+  });
+});
+
+describe('one tile header for every kind: its state left of its title, the board\'s buttons at its right (the user, 2026-10-25)', () => {
+  const until = async (shown: () => unknown): Promise<void> => {
+    for (let i = 0; i < 100 && !shown(); i++) await new Promise((r) => setTimeout(r, 5));
+  };
+  /** A tile's header, child by child: its state's `data-state`, then the rest by class. */
+  const headOf = (id: string): string[] => [...tile(id).querySelector('.dc-tile-head')!.children]
+    .map((c) => (c.classList.contains('dc-tile-state') ? `state:${(c as HTMLElement).dataset['state']}` : c.className));
+  /** What a grid's state offers, its menu opened and shut. */
+  const offered = (): string[] => {
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    (host.querySelector('.dc-tile-state:is([data-state="live"], [data-state="snapped"])') as HTMLElement).click();
+    const labels = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')].map(label);
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    return labels;
+  };
+
+  it('a grid, a chart and a text box: state, title, the board\'s buttons -- in that order', async () => {
+    newPage({ confirm: () => true });
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(b);
+    entry(pageMenu(), 'Text Box')!.click();
+    await settle();
+    const text = page.views().views.find((v) => v.kind === 'text')!.id;
+    for (const [id, state] of [[a, 'live'], [chart, 'dynamic'], [text, 'editing']] as const) {
+      const head = headOf(id);
+      assert.equal(head[0], `state:${state}`, `${id}: its state first`);
+      assert.equal(head[1], 'dc-tile-title', `${id}: then its title`);
+      assert.equal(head.at(-1), 'dc-tile-actions', `${id}: the board's buttons last`);
+    }
+    // the buttons say no state: no pill among them
+    assert.equal(host.querySelector('.dc-tile-actions .dc-tile-state, .dc-tile-actions .dc-titlebar-toggle'), null);
+  });
+
+  it('a chart\'s state: Dynamic quiet, a pick among three, its ✓ on the one it is in, what each does on hover', async () => {
+    newPage();
+    const a = page.addGrid(over('trades.csv'));
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const chart = await chartOf(b);
+    const state = tile(chart).querySelector<HTMLElement>('.dc-tile-head > .dc-tile-state')!;
+    assert.deepEqual([state.dataset['state'], state.textContent, state.getAttribute('aria-haspopup')], ['dynamic', 'Dynamic', 'menu']);
+    state.click();
+    const items = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
+    assert.deepEqual(items.map(label), ['Dynamic', 'Pinned', 'Frozen']);
+    assert.deepEqual(items.map((i) => i.getAttribute('aria-checked')), ['true', 'false', 'false']);
+    assert.match(items[2]!.title, /^It keeps its grouping and the grid's filter/);
+    dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+    await pin(chart);
+    assert.deepEqual([state.dataset['state'], state.textContent], ['pinned', 'Pinned']);
+  });
+
+  it('a text box\'s pencil: accented while its words are edited, quiet once they are', async () => {
+    newPage({ confirm: () => true });
+    page.addGrid(over('trades.csv'));
+    await settle();
+    entry(pageMenu(), 'Text Box')!.click();
+    await settle();
+    const id = page.views().views.find((v) => v.kind === 'text')!.id;
+    const pencil = tile(id).querySelector<HTMLElement>('.dc-tile-head > .dc-tile-state')!;
+    await until(() => tile(id).querySelector('textarea'));
+    assert.deepEqual([pencil.dataset['state'], pencil.textContent], ['editing', 'Editing'], 'its editor opens on a new one');
+    [...tile(id).querySelectorAll('button')].find((b) => b.textContent === 'Cancel')!.click();
+    await until(() => tile(id).querySelector('.dc-text-tile'));
+    assert.deepEqual([pencil.dataset['state'], pencil.textContent], ['viewing', 'Edit']);
+    // a click on it edits the words again
+    pencil.click();
+    await until(() => tile(id).querySelector('textarea'));
+    assert.equal(pencil.dataset['state'], 'editing');
+  });
+
+  it('a grid\'s state: live, it offers Snap; snapped, Go Live and Snap Again -- a fresh copy, written down', async () => {
+    let made = 0;
+    const runner = new PlanThenRun(new StubPlanner(), engine) as unknown as QueryRunner;
+    newPage();
+    const a = page.addGrid((gridHost, spawned) => new CubeApp(gridHost, SNAPSHOT, {
+      runner, cubeSource: file('trades.csv'), sourceLabel: 'trades.csv', compact: true,
+      hostSnap: {
+        store: 'Python',
+        snap: async () => ({ rowCount: 3, table: `snap_${made += 1}`, source: SNAPSHOT.source.query, runner }),
+        release: async () => {},
+        held: async (table) => ({ table, source: SNAPSHOT.source.query, runner }),
+      },
+      ...(page ? { windowHost: page.root } : {}), ...spawned,
+    }));
+    await settle();
+    assert.deepEqual(offered(), ['Snap']);
+    await movePlane('Snap');
+    assert.equal(page.state.page.copies?.[a]?.table, 'snap_1');
+    assert.equal(host.querySelector<HTMLElement>('.dc-tile-state')!.dataset['state'], 'snapped');
+    assert.deepEqual(offered(), ['Go Live', 'Snap Again']);
+    await movePlane('Snap Again');
+    assert.equal(page.state.page.copies?.[a]?.table, 'snap_2', 'a fresh copy, the page told');
+    assert.equal(host.querySelector<HTMLElement>('.dc-tile-state')!.dataset['state'], 'snapped');
+    await movePlane('Go Live');
+    assert.equal(page.state.page.copies, undefined);
+    assert.equal(host.querySelector<HTMLElement>('.dc-tile-state')!.dataset['state'], 'live');
+    // a grid whose rows cannot move (no store to snap into): its state says Live, and opens nothing
+    const b = page.addGrid(over('orders.csv'), { near: a });
+    await settle();
+    const fixed = tile(b).querySelector<HTMLButtonElement>('.dc-tile-head > .dc-tile-state')!;
+    assert.equal(fixed.getAttribute('aria-disabled'), 'true');
+    fixed.click();
+    assert.equal(dom.window.document.querySelector('.dc-menu'), null, 'no menu');
   });
 });
 
@@ -1283,7 +1813,7 @@ describe("another editor's commands followed: nothing told back that the page di
     page.restore(doc, new Map(doc.cubes.map((c) => [c.id, over(c.cube.source.name)])));
     await settle();
     assert.equal(page.record, 'r-3');
-    (bar().querySelector('.dc-sheet-add') as HTMLElement).click();
+    plus(bar());
     await settle();
     assert.equal(page.state.page.record, 'r-3', 'kept through an edit');
     // an undo or a redo of an edit made before a Save and a rename: neither is a step, so both stay (the S7

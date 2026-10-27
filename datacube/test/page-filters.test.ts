@@ -77,7 +77,7 @@ describe('what reaches a grid: the class\'s rows filtered before its columns are
 
   it('a saved page\'s cubes open with a class\'s after every other, wherever its tile sits (the audit\'s 2)', () => {
     const cubes = classPage.cubes.map((c, i) => (i === 0 ? c : { ...c, cube: frames.cubes[i]!.cube }));
-    assert.deepEqual(openingOrder(cubes).map((c) => c.id), [cubes[1]!.id, cubes[0]!.id]);
+    assert.deepEqual(openingOrder(cubes, classPage.views).map((c) => c.id), [cubes[1]!.id, cubes[0]!.id]);
   });
 
   it('every getAll of the class, filtered first -- the query around it as it was', () => {

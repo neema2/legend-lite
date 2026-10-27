@@ -3,9 +3,10 @@
 // move said they were (planned -> given), and `canonical`, a page as content in the screen's order, in a scope.
 
 import { inScreenOrder, type PageCommand } from '../src/page-commands.ts';
-import { pageToJson, type PageDocument } from '../src/page-document.ts';
+import { gridTitle, textTitle, timeseriesTitle } from '../src/page-ids.ts';
+import { pageToJson, type PageDocument, type PageView } from '../src/page-document.ts';
 import type { PageScope } from '../src/page-between.ts';
-import { renamedCommand } from '../src/page-rebase.ts';
+import { renamedCommand, renamedSpec } from '../src/page-rebase.ts';
 
 /** `page` with its ids renamed as `given` says (planned -> given): what a move that brought a tile back makes of it. */
 export function renamedPage(page: PageDocument, given: Readonly<Record<string, string>>): PageDocument {
@@ -16,9 +17,19 @@ export function renamedPage(page: PageDocument, given: Readonly<Record<string, s
   const n = (id: string): string => renamed[id] ?? id;
   const keys = <V>(o: Readonly<Record<string, V>> | undefined): Record<string, V> | undefined =>
     (o === undefined ? undefined : Object.fromEntries(Object.entries(o).map(([k, v]) => [n(k), v])));
+  // a grid, text or timeseries tile made again named what its new id is numbered keeps no title of its own, as the
+  // command making it leaves none (page-commands.ts addGrid: two grids brought back with their ids swapped, 2026-10-25)
+  const renamedTo = new Set(Object.values(given));
+  const untitled = <V extends PageView>(v: V): V => {
+    const numbered = v.kind === 'grid' ? gridTitle : v.kind === 'text' ? textTitle : v.kind === 'timeseries' ? timeseriesTitle : undefined;
+    if (numbered === undefined || !renamedTo.has(v.id) || v.title !== numbered(v.id)) return v;
+    const { title: _same, ...rest } = v;
+    return rest as V;
+  };
   return {
     ...page,
-    views: page.views.map((v) => (v.kind === 'text' ? { ...v, id: n(v.id) } : { ...v, id: n(v.id), cube: n(v.cube) })),
+    views: page.views.map((v): PageView => untitled(v.kind === 'text' ? { ...v, id: n(v.id) }
+      : v.kind === 'timeseries' ? { ...v, id: n(v.id), spec: renamedSpec(v.spec, n) } : { ...v, id: n(v.id), cube: n(v.cube) })),
     cubes: page.cubes.map((c) => ({ id: n(c.id), cube: c.cube })),
     sheets: page.sheets.map((s) => ({
       ...s, id: n(s.id), layout: (renamedCommand({ kind: 'layout', sheet: s.id, layout: s.layout }, map) as Extract<PageCommand, { kind: 'layout' }>).layout,
@@ -40,7 +51,10 @@ export function canonical(page: PageDocument, scope: PageScope): unknown {
   const shown = new Set(ordered.views.filter((v) => v.kind === 'grid').map((v) => v.cube));
   const same = {
     ...ordered,
-    views: [...ordered.views.filter((v) => v.kind === 'grid'), ...byId(ordered.views.filter((v) => v.kind === 'chart'))],
+    // the text and timeseries tiles in reading order, as the screen writes them (the review's G4: left out, a walk's
+    // timeseries tile made again reading a cube the page no longer held went unseen)
+    views: [...ordered.views.filter((v) => v.kind === 'grid'), ...byId(ordered.views.filter((v) => v.kind === 'chart')),
+      ...ordered.views.filter((v) => v.kind === 'text' || v.kind === 'timeseries')],
     cubes: [...ordered.cubes.filter((c) => shown.has(c.id)), ...byId(ordered.cubes.filter((c) => !shown.has(c.id)))],
   };
   if (scope === 'whole') return JSON.parse(pageToJson(same));

@@ -29,6 +29,12 @@ export interface ExportOptions {
   readonly columns?: readonly string[];
   /** Prepend a UTF-8 BOM so Excel does not mangle non-ASCII. */
   readonly bom?: boolean;
+  /**
+   * A value a spreadsheet would read as a formula defused (escapeField): on by default. Off for a data file a program
+   * reads (a flow's Output, flow-output.ts), whose values are written as they are -- a phone number `+44 20 7946 0958`
+   * is that, not `'+44 ...` (the review of 2026-10-26's C9).
+   */
+  readonly defuse?: boolean;
   /** CRLF by default, which every spreadsheet reads. */
   readonly newline?: string;
 }
@@ -43,23 +49,25 @@ const PLAIN_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
  * newline; embedded quotes are doubled. A leading `=` or `@` is also
  * prefixed with a quote character, because spreadsheets treat those as
  * the start of a FORMULA -- the CSV-injection problem -- and a cell
- * whose value came from a database should never execute.
+ * whose value came from a database should never execute. `defuse`
+ * false (a data file's, ExportOptions.defuse): none is.
  */
 export function escapeField(
   value: string,
   delimiter: string,
+  defuse = true,
 ): string {
   // '=' and '@' can only begin a formula. '+' and '-' usually begin a
   // NUMBER, and prefixing those would turn -42 into text -- destroying
   // the whole point of a raw export, which is that it can be summed
   // again. So they are only defused when the rest is not numeric.
   const leading = value.charAt(0);
-  const risky =
+  const risky = defuse && (
     leading === '=' ||
     leading === '@' ||
     leading === '\t' ||
     leading === '\r' ||
-    ((leading === '+' || leading === '-') && !PLAIN_NUMBER.test(value));
+    ((leading === '+' || leading === '-') && !PLAIN_NUMBER.test(value)));
   const body = risky ? `'${value}` : value;
   const needsQuotes =
     body.includes(delimiter) ||
@@ -81,6 +89,7 @@ export function toDelimited(
 ): string {
   const delimiter = options.delimiter ?? ',';
   const newline = options.newline ?? '\r\n';
+  const defuse = options.defuse ?? true;
   const wanted = options.columns
     ? options.columns
         .map((n) => table.columns.find((c) => c.name === n))
@@ -93,7 +102,7 @@ export function toDelimited(
 
   const lines: string[] = [];
   lines.push(
-    wanted.map((c) => escapeField(c.name, delimiter)).join(delimiter),
+    wanted.map((c) => escapeField(c.name, delimiter, defuse)).join(delimiter),
   );
 
   for (let r = 0; r < table.rowCount; r++) {
@@ -102,7 +111,7 @@ export function toDelimited(
       const text = options.formatted
         ? options.formatters!.format(v, options.formats?.[c.name], c.type)
         : rawText(v);
-      return escapeField(text, delimiter);
+      return escapeField(text, delimiter, defuse);
     });
     lines.push(cells.join(delimiter));
   }

@@ -51,4 +51,30 @@ export const EXAMPLE_PAGES: readonly ExamplePage[] = [
       + 'whose country the table lacks.',
     build: async () => (await lazily(() => import('./prep-joins.ts'))).prepJoinsPage(),
   },
+  {
+    id: 'markets',
+    label: 'Markets: timeseries',
+    about: 'Ten instruments\' daily prices and a Treasury curve as timeseries: performance rebased, drawdowns, realized '
+      + 'volatility, correlation and beta, Bollinger bands, moving averages and RSI, the 10s2s spread, and a bond fund '
+      + 'against its yield read across two grids in one query -- gs-quant\'s functions, every figure the database\'s.',
+    build: async () => (await lazily(() => import('./markets.ts'))).marketsPage(),
+  },
+  {
+    // the user, 2026-10-25: "a real saved page with multiple tabs showing all of these", as the chart gallery is
+    id: 'timeseries-gallery',
+    label: 'Timeseries gallery: every function',
+    about: 'Every function of the timeseries tile, a sheet per family -- returns, levels, rolling statistics, risk, '
+      + 'relationships, technicals and math -- then the ways to read a tile: a line per symbol, a month at a time, a log '
+      + 'scale, every line from one start, its styles, and two grids in one query; over the markets and rates samples.',
+    build: async () => (await lazily(() => import('./timeseries-gallery.ts'))).timeseriesGalleryPage(),
+  },
+  {
+    // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
+    id: 'prep-flow',
+    label: 'A data flow',
+    about: 'The orders and their countries prepared on a flow\'s canvas, as Alteryx prepares them: two Inputs, the big '
+      + 'orders filtered, joined live to their countries and given a margin, summarized by continent and written out as '
+      + 'a CSV, the top order of each country kept -- each box a step, its rows below it when clicked.',
+    build: async () => (await lazily(() => import('./prep-flow.ts'))).prepFlowPage(),
+  },
 ];

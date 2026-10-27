@@ -118,9 +118,9 @@ try {
       if (s) window.__status(s.textContent ?? '');
     }).observe(document, { subtree: true, childList: true, characterData: true });
   });
-  // Live: the title bar's plane button says so, and the status bar's receipt names the warehouse
+  // Live: the grid's state says so (a lone grid's, in its sheet's tab), and the status bar's receipt names the warehouse
   const live = () => page.waitForFunction(() =>
-    document.querySelector('.dc-titlebar-toggle')?.textContent?.trim() === 'Live'
+    document.querySelector('.dc-tile-state')?.textContent?.trim() === 'Live'
     && /the warehouse/.test(document.querySelector('.dc-status-receipt')?.textContent ?? ''), undefined,
   { timeout: 120_000 });
 
@@ -152,11 +152,12 @@ try {
     else ok(`grouped by ${GROUP}: ${await page.locator('.dc-row[aria-expanded]').count()} groups`);
   }
 
-  // 2b. SNAPPED: the plane button copies the table into the tab; the copy shows the same groups,
+  // 2b. SNAPPED: the grid's state's Snap copies the table into the tab; the copy shows the same groups,
   // planned for the tab's DuckDB, with no failure (every column of the table, as Postgres read it)
   const groups = await page.locator('.dc-row[aria-expanded]').count();
-  await page.click('.dc-titlebar-toggle');
-  await page.waitForFunction(() => document.querySelector('.dc-titlebar-toggle')?.classList.contains('dc-on')
+  await page.click('.dc-tile-state');
+  await page.click('.dc-menu .dc-menu-item:has(> .dc-menu-label:text-is("Snap"))');
+  await page.waitForFunction(() => document.querySelector('.dc-tile-state')?.dataset.state === 'snapped'
     && !window.__dataCube.busy, null, { timeout: 120_000 })
     .catch(() => bad('the table did not snap'));
   if (await page.locator('text=Data Fetch Failure').count()) {

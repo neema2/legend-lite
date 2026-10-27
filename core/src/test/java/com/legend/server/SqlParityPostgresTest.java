@@ -53,7 +53,21 @@ class SqlParityPostgresTest {
             // the answers are Postgres's
             Map<String, SqlParity.Answer> live = new LinkedHashMap<>();
             for (SqlParity.Case c : cases) {
-                if (c.skip() == null) {
+                if (c.skip() == null && c.check() != null) {
+                    // a statement that writes a table, and the query that reads what it wrote, in a transaction
+                    // rolled back after
+                    admin.setAutoCommit(false);
+                    try {
+                        SqlParity.Answer written = written(admin, c.sql());
+                        live.put(SqlParity.key(c), written);
+                        if (written instanceof SqlParity.Rows) {
+                            live.put(SqlParity.key(c) + SqlParity.CHECK, answer(admin, c.check()));
+                        }
+                    } finally {
+                        admin.rollback();
+                        admin.setAutoCommit(true);
+                    }
+                } else if (c.skip() == null) {
                     live.put(SqlParity.key(c), answer(admin, c.sql()));
                 }
             }
@@ -81,15 +95,50 @@ class SqlParityPostgresTest {
                     + " Static { host: '127.0.0.1'; port: %d; name: 'postgres'; };\n    auth: Test;", pg.port()));
             QueryService service = new QueryService();
             Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
+            SqlParity.Legend legend = new SqlParity.Legend() {
+                @Override
+                public com.legend.exec.ExecutionResult run(String island) throws Exception {
+                    return service.execute(model, island, SqlParity.RUNTIME, admin);
+                }
+
+                @Override
+                public void begin() throws Exception {
+                    admin.setAutoCommit(false);
+                }
+
+                @Override
+                public void rollback() throws Exception {
+                    admin.rollback();
+                    admin.setAutoCommit(true);
+                }
+            };
             for (SqlParity.Case c : cases) {
-                outcomes.put(SqlParity.key(c), SqlParity.outcome(c, answers.get(SqlParity.key(c)), names,
-                        island -> service.execute(model, island, SqlParity.RUNTIME, admin)));
+                outcomes.put(SqlParity.key(c), SqlParity.outcome(c, answers, names, legend));
             }
             String update = System.getProperty("sql.parity.update");
             problems.addAll(SqlParity.ratchet(cases, outcomes, Runfile.property("sql.parity.ledger"), "postgres",
                     update == null ? null : Path.of(update)));
         }
         assertTrue(problems.isEmpty(), problems.size() + " problems:\n" + String.join("\n", problems));
+    }
+
+    /** What Postgres answers {@code sql}, a statement that writes a table: its count of rows (one column,
+     *  {@code count}), the rows it returns (RETURNING), or its error; a failed statement leaves the transaction to its
+     *  rollback. */
+    private static SqlParity.Answer written(Connection pg, String sql) {
+        try (Statement s = pg.createStatement()) {
+            if (s.execute(sql)) {
+                // (RETURNING: the rows it returns)
+                try (ResultSet rs = s.getResultSet()) {
+                    return new SqlParity.Rows(SqlParity.grid(rs));
+                }
+            }
+            long count = s.getLargeUpdateCount();
+            return new SqlParity.Rows(new SqlParity.Grid(List.of("count"), List.of(List.of((Object) count))));
+        } catch (SQLException e) {
+            String message = e.getMessage() == null ? "" : e.getMessage().split("\n")[0];
+            return new SqlParity.Rejected(e.getSQLState() == null ? "" : e.getSQLState(), message);
+        }
     }
 
     /** What Postgres answers {@code sql}: its rows, or its error. */

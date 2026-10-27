@@ -183,7 +183,7 @@ class Screen {
 
   /** Column Properties on `column`'s header, each field set in turn (`[label, value]`), then OK. */
   async properties(column: string, ...fields: readonly (readonly [string, string])[]): Promise<void> {
-    await this.menu(this.header(column), 'Properties...');
+    await this.menu(this.header(column), 'Properties…');
     const win = this.dom.window.document.querySelector<HTMLElement>('[data-window="Properties"]');
     assert.ok(win, 'the Properties window');
     for (const [field, value] of fields) {
@@ -235,8 +235,8 @@ class Screen {
       case 'wavg':
         return this.properties(a.column, ['Aggregation:', 'wavg'], ['Weight column:', a.weight]);
       case 'calculate': {
-        // Extended Columns > Add New Column..., its name and expression typed, OK once the compiler's check passes
-        await this.menu(this.header(columns[0]!.name), 'Add New Column...');
+        // Extended Columns > Add New Column…, its name and expression typed, OK once the compiler's check passes
+        await this.menu(this.header(columns[0]!.name), 'Add New Column…');
         const doc = this.dom.window.document;
         const type = (selector: string, text: string): void => {
           const input = doc.querySelector<HTMLInputElement>(selector);
@@ -254,7 +254,7 @@ class Screen {
         return this.idle();
       }
       case 'heatmap':
-        await this.menu(this.header(a.column), 'Heatmap');
+        await this.menu(this.header(a.column), 'Add Heatmap');
         // the colours the menu sets are the ones the case gives Python's call
         assert.deepEqual(this.app.configuration.columns[a.column]?.heatmap, { from: a.from, to: a.to });
         return;

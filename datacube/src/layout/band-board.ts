@@ -57,14 +57,20 @@ import {
   tradeBands,
 } from './bands.ts';
 import { givenName } from '../page-names.ts';
+import { chromeIcon } from '../ui/tile-icons.ts';
 
 export interface BandTile {
   readonly id: string;
   readonly title: string;
   /** What the tile shows. Placed in the tile once, never moved in the DOM. */
   readonly element: HTMLElement;
-  /** Extra buttons for the title bar (a chart's pill, a grid's source). */
+  /** Extra buttons for the title bar, at its right (a chart's filter chip, a grid's zones' way back). */
   readonly actions?: readonly HTMLElement[];
+  /** Its state, an icon left of its title, always shown (ui/tile-icons.ts; the user, 2026-10-25): a grid's Live or
+   *  Snapped, a chart's Dynamic, Pinned or Frozen, a text box's pencil. A lone tile's goes where `setAlone` says. */
+  readonly state?: HTMLElement;
+  /** What the tile reads, a sentence said on its title's hover ("Reads trades.csv"): the header shows its title alone. */
+  readonly about?: string;
   /** Whether the tile offers to be removed. */
   readonly removable?: boolean;
 }
@@ -142,6 +148,8 @@ interface Placed {
   renaming: boolean;
   /** The header's buttons: the tile's own (`spec.actions`), then the board's (layouts, maximise, remove). */
   readonly actions: HTMLElement;
+  /** Its maximise button: ⤢, or ⤡ while it fills the page. */
+  readonly maximise: HTMLButtonElement;
   readonly remove: HTMLButtonElement;
   name: string;
 }
@@ -265,14 +273,17 @@ export class BandBoard {
    * buttons (`actions`: a grid's source, pill and menu) moved into `slot`, the page's bar. `null` puts every tile back
    * in its own frame, its buttons in its header.
    */
-  setAlone(id: string | null, slot: HTMLElement | null): void {
+  setAlone(id: string | null, slot: HTMLElement | null, stateSlot: HTMLElement | null = null): void {
     const next = id !== null && slot !== null && this.#tiles.has(id) ? id : null;
     const was = this.#alone !== null ? this.#tiles.get(this.#alone) : undefined;
-    if (was && this.#alone !== next) was.actions.prepend(...(was.spec.actions ?? []));
+    if (was && this.#alone !== next) this.#takeBack(was);
     this.#alone = next;
     const now = next !== null ? this.#tiles.get(next) : undefined;
     if (now && slot) slot.replaceChildren(...(now.spec.actions ?? []));
     else slot?.replaceChildren();
+    // ITS STATE, where the page says (the user, 2026-10-25: a lone grid's Live or Snapped in its sheet's tab)
+    if (now?.spec.state && stateSlot) stateSlot.replaceChildren(now.spec.state);
+    else stateSlot?.replaceChildren();
     this.#host.classList.toggle('dc-bands-alone', next !== null);
     for (const [tile, p] of this.#tiles) p.root.classList.toggle('dc-band-tile-alone', tile === next);
     this.#paint();
@@ -283,13 +294,19 @@ export class BandBoard {
     return this.#alone;
   }
 
+  /** A tile no longer alone: its buttons and its state back in its own header. */
+  #takeBack(placed: Placed): void {
+    placed.actions.prepend(...(placed.spec.actions ?? []));
+    if (placed.spec.state) placed.title.before(placed.spec.state);
+  }
+
   /** Take a tile off the board, its neighbours closing over its place. Its element is detached, not destroyed. */
   remove(id: string): void {
     const placed = this.#tiles.get(id);
     if (!placed) return;
     if (this.#alone === id) {
       // its buttons go back to it, and go with it
-      placed.actions.prepend(...(placed.spec.actions ?? []));
+      this.#takeBack(placed);
       this.#alone = null;
       this.#host.classList.remove('dc-bands-alone');
     }
@@ -440,7 +457,7 @@ export class BandBoard {
     const title = doc.createElement('span');
     title.className = 'dc-tile-title';
     title.textContent = spec.title;
-    title.title = 'Drag to move; double-click to rename';
+    title.title = `${spec.about !== undefined ? `${spec.about}. ` : ''}Drag to move; double-click to rename`;
     // a stack's tabs, while this tile is its tile in front (`#paintTabs`)
     const tabs = doc.createElement('span');
     tabs.className = 'dc-tile-tabs';
@@ -453,7 +470,7 @@ export class BandBoard {
     const layout = doc.createElement('button');
     layout.type = 'button';
     layout.className = 'dc-tile-tool dc-tile-layout';
-    layout.textContent = '⊞';
+    layout.append(chromeIcon(doc, 'layout'));
     layout.title = 'Layouts';
     layout.setAttribute('aria-label', `Layouts for ${spec.title}`);
     layout.hidden = this.#options.onLayout === undefined;
@@ -461,26 +478,26 @@ export class BandBoard {
     const maximise = doc.createElement('button');
     maximise.type = 'button';
     maximise.className = 'dc-tile-tool dc-tile-maximise';
-    maximise.textContent = '⤢';
+    maximise.append(chromeIcon(doc, 'maximise'));
     maximise.title = 'Fill the page with this tile (and back)';
     maximise.setAttribute('aria-label', `Maximise ${spec.title}`);
     maximise.addEventListener('click', () => this.maximise(this.#maximised === spec.id ? null : spec.id));
     const remove = doc.createElement('button');
     remove.type = 'button';
     remove.className = 'dc-tile-remove';
-    remove.textContent = '×';
+    remove.append(chromeIcon(doc, 'close'));
     remove.title = `Remove ${spec.title}`;
     remove.setAttribute('aria-label', `Remove ${spec.title}`);
     remove.hidden = spec.removable === false;
     remove.addEventListener('click', () => this.#options.onRemove?.(spec.id));
     actions.append(layout, maximise, remove);
-    head.append(title, tabs, actions);
+    head.append(...(spec.state ? [spec.state] : []), title, tabs, actions);
     const body = doc.createElement('div');
     body.className = 'dc-tile-body';
     body.append(spec.element);
     root.append(head, body);
     this.#canvas.append(root);
-    const placed: Placed = { spec, root, title, tabs, tabsKey: '', renaming: false, actions, remove, name: spec.title };
+    const placed: Placed = { spec, root, title, tabs, tabsKey: '', renaming: false, actions, maximise, remove, name: spec.title };
     head.addEventListener('pointerdown', (e) => this.#startMove(spec.id, e));
     root.addEventListener('keydown', (e) => this.#onKey(spec.id, e));
     head.addEventListener('dblclick', (e) => {
@@ -524,7 +541,7 @@ export class BandBoard {
     const close = this.#doc.createElement('button');
     close.type = 'button';
     close.className = 'dc-tile-tab-close';
-    close.textContent = '\u00d7';
+    close.append(chromeIcon(this.#doc, 'close'));
     close.title = `Remove ${name}`;
     close.setAttribute('aria-label', `Remove ${name}`);
     close.tabIndex = -1;
@@ -661,6 +678,13 @@ export class BandBoard {
         : id === maximised ? { x: 0, y: 0, w: width, h: screen } : undefined;
       p.root.hidden = box === undefined;
       if (box) place(p.root, box);
+      // its corners pulled out fill the page with it; pushed in, on the tile that fills it, they put it back
+      const filling = id === maximised;
+      if (p.maximise.firstElementChild?.getAttribute('data-icon') !== (filling ? 'restore' : 'maximise')) {
+        p.maximise.replaceChildren(chromeIcon(this.#doc, filling ? 'restore' : 'maximise'));
+      }
+      p.maximise.title = filling ? 'Restore: back to the page' : 'Fill the page with this tile';
+      p.maximise.setAttribute('aria-label', `${filling ? 'Restore' : 'Maximise'} ${p.name}`);
     }
     // a tile taken out of its stack, as it is dragged: where it was, following the pointer from there
     const floating = this.#floating !== null ? this.#tiles.get(this.#floating.id) : undefined;
@@ -1049,7 +1073,8 @@ export class BandBoard {
 
   #onKey(id: string, e: KeyboardEvent): void {
     const p = this.#tiles.get(id);
-    if (e.key === 'Escape' && this.#maximised === id && e.target === p?.root) {
+    // one another listener used (a chart's options put away: ui/chart-panel.ts) fills it no less
+    if (e.key === 'Escape' && !e.defaultPrevented && this.#maximised === id && e.target === p?.root) {
       e.preventDefault();
       this.maximise(null);
       p.root.focus();

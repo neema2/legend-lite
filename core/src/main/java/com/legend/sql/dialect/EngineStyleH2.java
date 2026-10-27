@@ -70,6 +70,14 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
                         && c.target() instanceof com.legend.sql.SqlType.Array;
     }
 
+    /** legend-engine has no tagged values: a mixed selection's text is the plain selection over its comparables
+     *  ({@link SqlExpr.Tagged#comparable}: the list extreme over the elements, which {@link #listCall} writes as the
+     *  engine's variadic {@code greatest(a, b, c)} / {@code least(a, b, c)}). */
+    @Override
+    protected SqlWriter tagged(SqlWriter writer, SqlExpr.Tagged t, int parentPrec) {
+        return expr(writer, t.comparable(), parentPrec);
+    }
+
     @Override
     protected SqlWriter listCall(SqlWriter writer, com.legend.sql.SqlFn fn,
             java.util.List<SqlExpr> args) {
@@ -415,6 +423,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);
             case com.legend.sql.SqlDml.DeleteAll da -> super.render(da);
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> super.render(ct);
+            // (the store writes: legend-engine's text has none; the base refuses)
+            case com.legend.sql.SqlDml.InsertSelect is -> super.render(is);
+            case com.legend.sql.SqlDml.Update u -> super.render(u);
+            case com.legend.sql.SqlDml.DeleteWhere dw -> super.render(dw);
+            case com.legend.sql.SqlDml.Merge m -> super.render(m);
         };
     }
 

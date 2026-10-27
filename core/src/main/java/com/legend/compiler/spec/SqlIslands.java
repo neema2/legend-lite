@@ -45,7 +45,48 @@ final class SqlIslands {
             return CypherIslands.desugar(island, model);
         }
         java.util.Set<String> read = new java.util.TreeSet<>();
-        SqlToPure.Sources sources = new SqlToPure.Sources() {
+        SqlToPure.Sources sources = sources(island, typeSource, model, env, read);
+        try {
+            ValueSpecification pure = SqlToPure.translate(island.sql(), sources, dialect(island));
+            String hidden = read.isEmpty() ? null : hidden(pure, read);
+            if (hidden != null) {
+                throw new com.legend.error.NotImplementedException(island.opening() + "...}# at "
+                        + position(island, 1, 1) + ": the variable '" + hidden + "' is named like a lambda parameter"
+                        + " of the island's translation, which would hide it there: rename it");
+            }
+            return NameResolver.resolveQuery(pure);
+        } catch (SqlTranslationException e) {
+            throw refusal(island, e);
+        }
+    }
+
+    /** Whether {@code island} is a {@code #SQL{...}#} statement that writes a table in more than one statement (one
+     *  with RETURNING, the writes design's leg 4, 2026-10-20; an ON CONFLICT DO UPDATE, PR #67's second review,
+     *  2026-10-24): a program of statements ({@link #statements}), as a Cypher statement that updates the graph is. */
+    static boolean isProgram(SqlIsland island) {
+        return island.language().equals(SqlIsland.SQL) && island.profile() == null
+                && SqlToPure.isProgram(island.sql(), dialect(island));
+    }
+
+    /** The statements a {@code #SQL{...}#} statement that returns the rows it writes means (the staged rows' let, the
+     *  write, the rows last), names resolved; {@code typeSource} types a resolved source in no scope (a query's own
+     *  statement reads no variable of it). */
+    static java.util.List<ValueSpecification> statements(SqlIsland island,
+            Function<ValueSpecification, TypedSpec> typeSource, ModelContext model) {
+        SqlToPure.Sources sources = sources(island, typeSource, model, Env.empty(), new java.util.TreeSet<>());
+        try {
+            return SqlToPure.program(island.sql(), sources, dialect(island)).stream().map(NameResolver::resolveQuery)
+                    .toList();
+        } catch (SqlTranslationException e) {
+            throw refusal(island, e);
+        }
+    }
+
+    /** What the translator asks of the model for {@code island}: a source's columns, the model's tables, a table's
+     *  primary key, the variables of {@code env} (each one read added to {@code read}), the inline-view marker. */
+    private static SqlToPure.Sources sources(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
+            ModelContext model, Env env, java.util.Set<String> read) {
+        return new SqlToPure.Sources() {
             @Override
             public void columns(ValueSpecification source, SqlToPure.Column column) {
                 SqlIslands.columns(typeSource.apply(NameResolver.resolveQuery(source)), island, column);
@@ -54,6 +95,11 @@ final class SqlIslands {
             @Override
             public void tables(SqlToPure.Table table) {
                 model.derived(Catalog.class, Catalog::of).tables().forEach(t -> table.table(t[0], t[1], t[2]));
+            }
+
+            @Override
+            public java.util.@com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+                return SqlIslands.primaryKey(model, database, table);
             }
 
             @Override
@@ -76,24 +122,48 @@ final class SqlIslands {
                 return Calls.exact(com.legend.builtin.Pure.Lite.INLINE_VIEW, java.util.List.of(relation));
             }
         };
-        try {
-            ValueSpecification pure = SqlToPure.translate(island.sql(), sources, dialect(island));
-            String hidden = read.isEmpty() ? null : hidden(pure, read);
-            if (hidden != null) {
-                throw new com.legend.error.NotImplementedException(island.opening() + "...}# at "
-                        + position(island, 1, 1) + ": the variable '" + hidden + "' is named like a lambda parameter"
-                        + " of the island's translation, which would hide it there: rename it");
-            }
-            return NameResolver.resolveQuery(pure);
-        } catch (SqlTranslationException e) {
-            String message = island.opening() + "...}# at " + position(island, e.line(), e.column()) + ": "
-                    + e.getMessage();
-            throw switch (e.kind()) {
-                case SYNTAX -> new com.legend.error.IslandSyntaxException(message);
-                case UNSUPPORTED -> new com.legend.error.NotImplementedException(message);
-                case INVALID -> new TypeInferenceException(message);
-            };
+    }
+
+    /** A translator's refusal as the compile error its kind says, placed in the enclosing source (the #SQL and the
+     *  #Cypher islands'). */
+    static RuntimeException refusal(SqlIsland island, SqlTranslationException e) {
+        String message = island.opening() + "...}# at " + position(island, e.line(), e.column()) + ": "
+                + e.getMessage();
+        return switch (e.kind()) {
+            case SYNTAX -> new com.legend.error.IslandSyntaxException(message);
+            case UNSUPPORTED -> new com.legend.error.NotImplementedException(message);
+            case INVALID -> new TypeInferenceException(message);
+        };
+    }
+
+    /** The writes design's leg 4 (2026-10-20): the primary key's columns of {@code table} ({@code schema.table}, or a
+     *  table of the default schema) of the Database {@code database}, as it declares them; null for a table it does not
+     *  declare (SqlToPure.Sources#primaryKey). */
+    static java.util.@com.legend.base.Nullable List<String> primaryKey(ModelContext model, String database,
+            String table) {
+        com.legend.model.DatabaseDefinition db = model.findDatabase(database).orElse(null);
+        if (db == null) {
+            return null;
         }
+        int dot = table.indexOf('.');
+        java.util.List<com.legend.model.DatabaseDefinition.TableDefinition> tables = new java.util.ArrayList<>();
+        if (dot < 0) {
+            tables.addAll(db.defaultSchemaTables());
+        } else {
+            for (com.legend.model.DatabaseDefinition.SchemaDefinition schema : db.schemas()) {
+                if (schema.name().equals(table.substring(0, dot))) {
+                    tables.addAll(schema.tables());
+                }
+            }
+        }
+        String name = dot < 0 ? table : table.substring(dot + 1);
+        for (com.legend.model.DatabaseDefinition.TableDefinition t : tables) {
+            if (t.name().equals(name)) {
+                return t.columns().stream().filter(com.legend.model.DatabaseDefinition.ColumnDefinition::primaryKey)
+                        .map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toList();
+            }
+        }
+        return null;
     }
 
     /** IQ island, 2026-10-14 (M1e): the model's tables, by Database, schema ({@code default} for one declared outside

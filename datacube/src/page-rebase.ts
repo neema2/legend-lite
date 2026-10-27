@@ -6,10 +6,13 @@
 
 import type { CubeDocument } from './cube-document.ts';
 import { leavesOf } from './cube-document.ts';
+import { relinked, relinkedInput, resolvedSource } from './live-inputs.ts';
+import { flowTiles, placeAfter, type Flow, type FlowBox } from './layout/flow.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { add, asSaved, remove, tiles, type Bands } from './layout/bands.ts';
 import { applyPageCommand, followedPage, idsOf, type PageCommand, type PageDraft } from './page-commands.ts';
-import type { PageDocument, PageLayout } from './page-document.ts';
+import { layoutTiles, type PageDocument, type PageLayout } from './page-document.ts';
+import type { TimeseriesSpec } from './timeseries-spec.ts';
 import { CubeRefusal } from './snapshot.ts';
 
 /** One edit of a page, as its writer made it: a page command, or a grid's command by its tile's id. */
@@ -45,6 +48,11 @@ function renamedLayout(node: unknown, renamed: ReadonlyMap<string, string>): unk
   return node;
 }
 
+/** A timeseries' spec with the cubes its sources read renamed (a grid's id is its cube's). */
+export function renamedSpec(spec: TimeseriesSpec, n: (id: string) => string): TimeseriesSpec {
+  return spec.sources.some((s) => n(s.cube) !== s.cube) ? { ...spec, sources: spec.sources.map((s) => ({ ...s, cube: n(s.cube) })) } : spec;
+}
+
 /** A page command with every id it names renamed (the one it makes is its own, never renamed here; a page filter's is
  *  the one it sets, which an edit before may have made afresh). */
 export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string, string>): PageCommand {
@@ -59,10 +67,23 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     // a maker's planned id follows too (page-state.ts rename: a tile brought back under a new id is that tile in every
     // later step; the keeper gives a taken one out afresh either way)
     case 'addSheet':
+    case 'addFlow':
       return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}) };
+    case 'placeBox':
+      return { ...command, tile: n(command.tile) };
     case 'modelKeep':
-    case 'rebuilt':
       return { ...command, cube: n(command.cube) };
+    // a source's links name grids: they follow too (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1)
+    case 'rebuilt':
+      return { ...command, cube: n(command.cube), source: relinked(command.source, n) };
+    case 'setInput':
+      return { ...command, grid: n(command.grid), input: command.input === null ? null : relinkedInput(command.input, n) };
+    case 'setPure':
+    case 'setOutput':
+    case 'setStops':
+      return { ...command, grid: n(command.grid) };
+    case 'setJoin':
+      return { ...command, grid: n(command.grid), ...(command.more !== undefined ? { more: command.more.map((i) => relinkedInput(i, n)) } : {}) };
     case 'renameSheet':
     case 'moveSheet':
     case 'removeSheet':
@@ -71,20 +92,39 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'removeTile':
       return { ...command, tile: n(command.tile) };
     case 'addGrid':
-      return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet), near: command.near === null ? null : n(command.near) };
+      return {
+        ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet),
+        near: command.near === null ? null : n(command.near),
+        document: command.document === null ? null : { ...command.document, source: relinked(command.document.source, n) },
+      };
     case 'addChart':
       return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), near: n(command.near) };
     case 'addText':
       return { ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet) };
     case 'setText':
+    case 'setTextFiles':
       return { ...command, tile: n(command.tile) };
+    case 'addTimeseries':
+      return {
+        ...command, ...(command.id !== undefined ? { id: n(command.id) } : {}), sheet: n(command.sheet),
+        near: command.near === null ? null : n(command.near), spec: renamedSpec(command.spec, n),
+        ...(command.kept !== undefined ? { kept: command.kept.map((k) => ({ ...k, cube: n(k.cube) })) } : {}),
+      };
+    case 'setTimeseries':
+      return {
+        ...command, tile: n(command.tile), spec: renamedSpec(command.spec, n),
+        ...(command.kept !== undefined ? { kept: command.kept.map((k) => ({ ...k, cube: n(k.cube) })) } : {}),
+      };
     case 'setChart':
     case 'select':
       return { ...command, chart: n(command.chart) };
     case 'followGrid':
       return { ...command, chart: n(command.chart), grid: n(command.grid) };
     case 'detach':
-      return { ...command, chart: n(command.chart), cube: n(command.cube) };
+      return {
+        ...command, chart: n(command.chart), cube: n(command.cube),
+        document: { ...command.document, source: relinked(command.document.source, n) },
+      };
     case 'moveTile':
       return { ...command, tile: n(command.tile), sheet: n(command.sheet) };
     case 'stack':
@@ -113,11 +153,29 @@ export function rearranged(command: PageCommand, page: PageDocument): PageComman
   if (command.kind !== 'layout' && command.kind !== 'arrange') return command;
   const sheet = page.sheets.find((s) => s.id === command.sheet);
   if (sheet === undefined) return command;
-  const now = tiles(sheet.layout);
+  const now = layoutTiles(sheet.layout);
   if (command.kind === 'arrange') {
     if (command.order === null) return command;
     const knew = command.order;
     return { ...command, order: [...knew.filter((t) => now.includes(t)), ...now.filter((t) => !knew.includes(t))] };
+  }
+  if (command.layout.kind === 'flow') {
+    // a flow's: the boxes it knew where it put them, a box there now that it did not know placed as adding places one
+    const knew = new Set(command.layout.boxes.map((b) => b.tile));
+    let flow: Flow = { boxes: command.layout.boxes.filter((b) => now.includes(b.tile)) };
+    for (const t of now) if (!flowTiles(flow).includes(t)) flow = placeAfter(flow, t);
+    // a box's Output and its stopping a run are its settings, not its place: as the page has them now, the other
+    // writer's too; a box it did not know keeps its frame (the review of 2026-10-26: each was dropped)
+    const current = new Map(sheet.layout.kind === 'flow' ? sheet.layout.boxes.map((b) => [b.tile, b] as const) : []);
+    const settled = flow.boxes.map((b): FlowBox => {
+      const { output: _o, stops: _s, ...place } = b;
+      const c = current.get(b.tile);
+      const frame = knew.has(b.tile) ? place.frame : c?.frame;
+      const { frame: _f, ...at } = place;
+      return { ...at, ...(frame !== undefined ? { frame } : {}), ...(c?.output !== undefined ? { output: c.output } : {}),
+        ...(c?.stops === true ? { stops: true as const } : {}) };
+    });
+    return { ...command, layout: { kind: 'flow', boxes: settled } };
   }
   const { kind: _kind, ...given } = command.layout as PageLayout & Bands;
   let bands = given as Bands;
@@ -180,7 +238,9 @@ export async function rebaseEdits(draft: PageDraft, edits: readonly PageEdit[], 
  * audit's 3).
  */
 export function pageReads(page: PageDocument): PageReads {
-  const leaves = page.cubes.flatMap((c) => leavesOf(c.cube.source));
+  // a grid over another grid's rows reads what that grid reads: its links resolved against the page first
+  // (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1)
+  const leaves = page.cubes.flatMap((c) => leavesOf(resolvedSource(page, c.cube.source)));
   const sorted = (keys: readonly string[]): string[] => [...new Set(keys)].sort();
   return {
     frames: sorted(leaves.flatMap((leaf) => (leaf._type === 'frame' ? [leaf.name] : []))),

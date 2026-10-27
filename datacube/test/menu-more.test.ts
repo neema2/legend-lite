@@ -83,18 +83,18 @@ describe('a calculated column\'s own entries (Extended Columns)', () => {
   it('a row-stage column is extended, binned, edited and deleted from its own header, each entry naming it', () => {
     const ctx: MenuContext = { snapshot: CALCULATED, column: 'big', extendable: true, ...calcStageOf(CALCULATED, 'big') };
     assert.deepEqual(labels(submenu(ctx, 'Extended Columns')),
-      ['Add New Column...', 'Extend Column big...', 'Bins of big...', 'Edit Column big...', 'Delete Column big']);
+      ['Add New Column…', 'Extend Column big…', 'Bins of big…', 'Edit Column big…', 'Delete Column big']);
     const del = find(ctx, 'Delete Column big');
     assert.equal(del?.id, 'calc.delete');
     assert.equal(del?.column, 'big');
-    assert.equal(find(ctx, 'Edit Column big...')?.id, 'calc.edit');
+    assert.equal(find(ctx, 'Edit Column big…')?.id, 'calc.edit');
   });
 
   it('a group-stage column is edited and deleted, never extended: a row-stage expression cannot see it', () => {
     // the app spreads extendable only over a column that exists before aggregation (app.ts #kindOf)
     const ctx: MenuContext = { snapshot: CALCULATED, column: 'margin', ...calcStageOf(CALCULATED, 'margin') };
     assert.deepEqual(labels(submenu(ctx, 'Extended Columns')),
-      ['Add New Column...', 'Edit Column margin...', 'Delete Column margin']);
+      ['Add New Column…', 'Edit Column margin…', 'Delete Column margin']);
   });
 
   it('a source column has no Edit or Delete: it is not the editor\'s to change', () => {
@@ -105,7 +105,7 @@ describe('a calculated column\'s own entries (Extended Columns)', () => {
   });
 
   it('with no column under the pointer, Extended Columns offers a new column alone', () => {
-    assert.deepEqual(labels(submenu({ snapshot: CALCULATED }, 'Extended Columns')), ['Add New Column...']);
+    assert.deepEqual(labels(submenu({ snapshot: CALCULATED }, 'Extended Columns')), ['Add New Column…']);
   });
 });
 
@@ -117,22 +117,23 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
       'Copy Column', 'Ascending', 'Descending', 'Add Ascending', 'Add Descending',
       'Vertical Pivot', 'Add Vertical Pivot', 'Remove Vertical Pivot', 'Horizontal Pivot', 'Add Horizontal Pivot',
       'Remove Horizontal Pivot', 'Auto-size to Fit Content', 'Minimize Column', 'Pin Left', 'Pin Right', 'Unpin', 'Hide',
-      'Heatmap', 'No Color Scale',
+      'Add Heatmap',
     ]) {
       assert.ok(off.includes(`${want} [off]`), `${want}: ${off.join(' | ')}`);
     }
     // none of them carries a column to act on
     assert.ok(bare.filter((i) => i.disabled).every((i) => i.column === undefined));
     for (const live of ['Auto-size All Columns', 'Minimize All Columns', 'Size Grid to Fit Screen', 'Remove All Pinnings',
-      'Filters...', 'Add New Column...', 'Visualization', 'Copy of This Grid', 'Properties...']) {
+      'Filters…', 'Add New Column…', 'Visualization', 'Copy of This Grid', 'Properties…']) {
       assert.ok(labels(bare).includes(live), live);
     }
   });
 
-  it('a heatmap is added to a column that has none and removed from one that has (Conditional Formatting ▸ Color Scales ▸)', () => {
+  // the user, 2026-10-25: one click in Conditional Formatting ▸, saying what it will do
+  it('a heatmap is added to a column that has none and removed from one that has (Conditional Formatting ▸, first)', () => {
     const heat = (ctx: MenuContext) => labels(items(ctx).filter((i) => i.id === 'heatmap.add' || i.id === 'heatmap.remove'));
-    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional' }), ['Heatmap', 'No Color Scale [off]']);
-    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional', hasHeatmap: true }), ['Heatmap [off]', 'No Color Scale']);
+    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional' }), ['Add Heatmap']);
+    assert.deepEqual(heat({ snapshot: CUBE, column: 'notional', hasHeatmap: true }), ['Remove Heatmap']);
   });
 
   it('the cube itself is exported as a file only when the host knows its source; the grid\'s exports always', () => {
@@ -167,7 +168,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     const total = pivotTotalColumn('notional');
     const ctx: MenuContext = { snapshot: { ...CUBE, pivotTotal: { placement: 'right' } }, column: total, pivotBase: 'notional',
       canGroup: false, isMeasure: true };
-    for (const label of ['Hide Total / notional', 'Copy Column Total / notional', 'Heatmap',
+    for (const label of ['Hide Total / notional', 'Copy Column Total / notional', 'Add Heatmap',
       'Minimize Column', 'Auto-size to Fit Content']) {
       assert.equal(find(ctx, label)?.disabled, false, label);
       assert.equal(find(ctx, label)?.column, total, label);
@@ -175,19 +176,19 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     // a pivot's result is not pinned, as upstream's
     for (const label of ['Pin Left', 'Pin Right']) assert.equal(find(ctx, label)?.disabled, true, label);
     // with its own heatmap on (the app's hasHeatmap: heatmapSetting, a total's alone), its menu offers to take it off
-    assert.equal(find({ ...ctx, hasHeatmap: true }, 'No Color Scale')?.disabled, false);
+    assert.equal(find({ ...ctx, hasHeatmap: true }, 'Remove Heatmap')?.disabled, false);
     // named as its header names it: Properties' Pivot Statistic Column Name, when renamed
     assert.equal(find({ ...ctx, totalLabel: 'All years' }, 'Hide All years / notional')?.column, total);
     // nothing about it as a calculated column (the app finds no stage for it: calcStageOf), nor as a dimension
     assert.deepEqual(calcStageOf(ctx.snapshot, total), {});
-    assert.deepEqual(labels(submenu(ctx, 'Extended Columns')), ['Add New Column...']);
+    assert.deepEqual(labels(submenu(ctx, 'Extended Columns')), ['Add New Column…']);
     assert.ok(labels(submenu(ctx, 'Pivot')).every((l) => !/on Total/.test(l) || l.endsWith('[off]')), labels(submenu(ctx, 'Pivot')).join(' | '));
   });
 
   it('a value on a column whose type is not known yet offers no value filter: the operators are the type\'s, never guessed', () => {
     // a calculated column the compiler has not typed yet (the app passes no columnType)
     const filter = submenu({ snapshot: CALCULATED, column: 'big', value: 5 }, 'Filter');
-    assert.deepEqual(labels(filter), ['Filters...', 'Clear All Filters [off]']);
+    assert.deepEqual(labels(filter), ['Filters…', 'Clear All Filters [off]']);
   });
 
   it('a date\'s value filters compare it; a relative date is named TODAY or NOW, a JSON document as written', () => {
@@ -202,7 +203,7 @@ describe('entries that cannot apply are disabled, never omitted, and say what th
     // a time of day is compared for equality only
     const time = submenu({ snapshot: DATED, column: 'cutoff', columnType: 'StrictTime', value: '17:30:00' }, 'Filter');
     assert.deepEqual(labels(time), [
-      'Add Filter: cutoff = \'17:30:00\'', 'More Filters on cutoff...', 'Filter Values of cutoff...', 'Filters...',
+      'Add Filter: cutoff = \'17:30:00\'', 'More Filters on cutoff…', 'Filter Values of cutoff…', 'Filters…',
       'Clear All Filters [off]',
     ], 'its values to tick; no date range for a time of day');
     // a date offers its ranges relative to today, each the dateRange gesture with its range
@@ -319,5 +320,23 @@ describe('applying an entry to the grid (its gesture)', () => {
     // a header of a column the pivot does not spread (region is a row group, not a measure) is no header of the grid's
     refused(CUBE, { id: 'sort.addAsc', column: '2021__|__region', direction: 'asc' },
       'the sort names \'2021__|__region\', which the grid does not have: one of its columns (desk, notional, region, year), or a pivot\'s header');
+  });
+});
+
+describe("a flow's box: New Box After (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9)", () => {
+  const flat: CubeSnapshot = { ...CUBE, rows: [], pivotOn: [] };
+  it("offers the cell's value filtered by, its column sorted and grouped by -- each the grid's gesture, made after", () => {
+    const after = submenu({ snapshot: flat, stepAfter: true, column: 'region', value: 'EMEA', columnType: 'String' }, 'New Box After');
+    assert.deepEqual(labels(after), ["Filter: region = 'EMEA'", "Filter: region != 'EMEA'", 'Sort: region ascending', 'Sort: region descending',
+      'Summarize: by region']);
+    assert.ok(after.every((i) => i.after === true), 'each made in a box after this one');
+    assert.deepEqual(after.map((i) => menuGesture(i)?.name), ['filter.add', 'filter.add', 'sort.asc', 'sort.desc', 'pivot.vertical']);
+    assert.deepEqual(menuGesture(after[0]!)?.args, { column: 'region', operator: 'equal', value: 'EMEA' });
+    // an empty value: its emptiness filtered by; off a column, nothing to make
+    const empty = submenu({ snapshot: flat, stepAfter: true, column: 'region', value: null, columnType: 'String' }, 'New Box After');
+    assert.deepEqual(labels(empty).slice(0, 2), ['Filter: region is null', 'Filter: region is not null']);
+    assert.deepEqual(labels(submenu({ snapshot: flat, stepAfter: true }, 'New Box After')), ['Filter, sort or group in a box of its own [off]']);
+    // a grid on a board: none
+    assert.equal(find({ snapshot: flat, column: 'region', value: 'EMEA', columnType: 'String' }, 'New Box After'), undefined);
   });
 });

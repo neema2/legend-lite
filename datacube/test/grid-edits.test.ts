@@ -5,7 +5,7 @@ import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts
 import { DEFAULT_CONFIGURATION, applyToSnapshot, columnConfig, withColumn } from '../src/config.ts';
 import {
   addSort, allColumns, clickSort, clickTreeSort, columnKind, copiedColumn, firstSortDirection, groupableColumns,
-  headerSorts, measureAsColumn, measuresAsColumns, offeredAggregates, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
+  headerSorts, isMeasureLeaf, measureAsColumn, measuresAsColumns, offeredAggregates, setColumn, setGrouping, setPivot, setSorts, type GridDraft,
 } from '../src/grid-edits.ts';
 import {
   AGGREGATE_FNS, CubeRefusal, pivotTotalColumn, refuseMeasuresList, type CubeSnapshot, type QuerySnapshot,
@@ -53,6 +53,20 @@ describe('the offers', () => {
     const fee = withColumn(DEFAULT_CONFIGURATION, 'fee', { kind: 'dimension' });
     assert.equal(columnKind(draft({}, fee), 'fee'), 'measure');
     assert.equal(columnKind(draft(), 'share'), undefined);
+  });
+
+  it('a leaf holds a measure\'s figures unless it is a row dimension or a column of kind dimension', () => {
+    const leaf = (name: string, isDimension = false) => ({ name, isDimension });
+    assert.equal(isMeasureLeaf(draft(), leaf('notional')), true);
+    assert.equal(isMeasureLeaf(draft(), leaf('fee')), true, 'a calculated measure');
+    assert.equal(isMeasureLeaf(draft(), leaf('region', true)), false, 'a row dimension');
+    assert.equal(isMeasureLeaf(draft(), leaf('big')), false, 'a calculated dimension, not grouped by');
+    // Column Properties makes an integer a dimension: a year is a label, not a figure
+    assert.equal(isMeasureLeaf(draft(), leaf('year')), true);
+    assert.equal(isMeasureLeaf(draft({}, withColumn(DEFAULT_CONFIGURATION, 'year', { kind: 'dimension' })), leaf('year')), false);
+    // a pivot's value column and a total are named by no column: measures
+    assert.equal(isMeasureLeaf(draft(), leaf(`2021${PIVOT_SEPARATOR}notional`)), true);
+    assert.equal(isMeasureLeaf(draft(), leaf(pivotTotalColumn('notional'))), true);
   });
 
   it('lists every column, its calculated ones too', () => {

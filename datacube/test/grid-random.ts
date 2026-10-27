@@ -85,6 +85,12 @@ export function randomEdit(rand: () => number, d: Walked): [string, GridCommand]
       const on = rand() < 0.4 ? [] : offered.filter(() => rand() < 0.3).slice(0, 1);
       return [`pivot ${on.join(',')}`, { kind: 'pivot', columns: on }];
     }],
+    // a Cross Tab's values pinned, or taken off (FL2: grid-edits.ts pinPivot): a pivot set again takes them off
+    ['pin', () => {
+      if (d.snapshot.pivotOn.length !== 1 || rand() < 0.3) return ['pin off', { kind: 'pinPivot', values: null }];
+      const values = pick([['A'], ['A', 'B'], ['B', 'C']]);
+      return [`pin ${values.join(',')}`, { kind: 'pinPivot', values }];
+    }],
     ['click a header', () => {
       const column = pick(sortable);
       const chained = rand() < 0.5;
@@ -259,7 +265,9 @@ export function editedGrid(seed: number, steps = 12): { draft: GridDraft; steps:
  * what a person sees.
  */
 export function savedForm(d: GridDraft & { readonly tree?: TreeState }): unknown {
-  const { source: _relation, epoch: _epoch, window: _window, pivotValues: _pinned, ...query } = d.snapshot;
+  // its pinned values none when empty (a pin is one value at least: grid-edits.ts pinPivot)
+  const { source: _relation, epoch: _epoch, window: _window, pivotValues, ...pinless } = d.snapshot;
+  const query = { ...pinless, ...(pivotValues !== undefined && pivotValues.length > 0 ? { pivotValues } : {}) };
   const untyped = (columns: readonly { readonly type?: string }[]): unknown[] =>
     columns.map(({ type: _learned, ...c }) => c);
   const { groupDerived, ...rest } = query;

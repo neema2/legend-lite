@@ -8,13 +8,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { tiles } from '../src/layout/bands.ts';
 import { applyPageCommand, applyToState as apply, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import type { PageDocument } from '../src/page-document.ts';
 import { PageState, type PageDead, type PageMoved } from '../src/page-state.ts';
 import { CubeRefusal } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { canonical, renamedPage } from './page-same.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2 and two charts on sheet-1, grid-2 alone on sheet-2
 const trades = (await corpus())['trades.page.json']!;
@@ -48,7 +48,7 @@ describe('a page edit is one step of one history', () => {
     const again = moved(state.redo());
     assert.deepEqual(again.renamed, { 'sheet-3': 'sheet-4' });
     assert.deepEqual(sheets(state), ['sheet-1', 'sheet-2', 'sheet-4']);
-    assert.deepEqual(tiles(state.draft.page.sheets[2]!.layout), ['chart']);
+    assert.deepEqual(layoutTiles(state.draft.page.sheets[2]!.layout), ['chart']);
     assert.equal(state.redo(), undefined);
     // and the steps follow the rename: undone again, it is sheet-4 that goes
     const once = moved(state.undo());
@@ -170,6 +170,31 @@ describe("the history survives another editor's change (D19 W4): a step is comma
     assert.ok(state.reachable.has(fresh), 'and reachable by its new id');
     assert.ok(!state.reachable.has(grid.id), 'the old id is no one\'s');
   });
+
+  // the review's A1 (docs/TIMESERIES_REVIEW_2026_10_25.md): the timeseries brought back named the grid by the id the
+  // plan's simulation gave it, renamed again as the plan was applied -- refused under an editor's tag, as every live
+  // page has; silently the wrong grid with none
+  for (const [what, tag, between] of [['no tag', undefined, false], ["an editor's tag", 'abc12', false], ['a step between', undefined, true]] as const) {
+    it(`a sheet of a grid and the timeseries reading it deleted, undone (${what}): the tile reads the grid brought back`, () => {
+      const state = new PageState(start());
+      state.tag = tag;
+      const spec = { sources: [{ alias: 'bydesk', cube: 'grid-2', date: 'traded', key: 'desk' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] } as const;
+      apply(state, [{ kind: 'addTimeseries', sheet: 'sheet-2', near: 'grid-2', spec, title: null, columns: null }], 'Add Timeseries');
+      apply(state, [{ kind: 'removeSheet', sheet: 'sheet-2' }], 'Delete Sheet');
+      if (between) apply(state, [{ kind: 'addSheet', name: 'More' }], 'Add Sheet');
+      if (between) moved(state.undo());
+      moved(state.undo());
+      const page = state.draft.page;
+      const series = page.views.find((v) => v.kind === 'timeseries');
+      assert.ok(series?.kind === 'timeseries', 'the tile is back');
+      const shown = new Set(page.views.flatMap((v) => (v.kind === 'grid' ? [v.cube] : [])));
+      assert.deepEqual(series.spec.sources.map((s) => shown.has(s.cube)), [true], `its source a grid of the page shows: ${series.spec.sources[0]!.cube}`);
+      const sheet = page.sheets.find((s) => layoutTiles(s.layout).includes(series.id))!;
+      const beside = layoutTiles(sheet.layout).filter((t) => t !== series.id);
+      const grid = page.views.find((v) => v.kind === 'grid' && beside.includes(v.id));
+      assert.ok(grid?.kind === 'grid' && grid.cube === series.spec.sources[0]!.cube, 'the grid back beside it, the one it reads');
+    });
+  }
 
   it("a rename the keeper tells (a write made again on top): a later move names the tile as it is now", () => {
     const state = new PageState(start());

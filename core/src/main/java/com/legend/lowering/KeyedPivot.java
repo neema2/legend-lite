@@ -38,7 +38,7 @@ import java.util.List;
  *
  * The CASE form is the static emulation's own: exact for every aggregate that skips nulls (a sum, a count of a value,
  * an average, an extreme, a joined text), as DuckDB's FILTER-form PIVOT is; an aggregate that keeps nulls (a list)
- * differs there as in the static emulation (register S103). A null key names no column (the legacy probe's rule).
+ * differs there as in the static emulation (register S110). A null key names no column (the legacy probe's rule).
  */
 public final class KeyedPivot {
 

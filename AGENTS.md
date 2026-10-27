@@ -258,7 +258,7 @@ Sealed roots in `com.legend.sql` (15 files, ~1,743 LOC):
 |---|---|
 | `SqlQuery` | `permits SqlSelect, SqlUnion, SqlWith` |
 | `SqlSource` | 11 — `Pivot, SourceUrl, Table, Cte, VarSetPlaceholder, Dual, Subselect, Values, RawSql, Catalog, Join` (counted 2026-10-17) |
-| `SqlExpr` | 33 — incl. `Lambda` (**not** `LambdaExpr`), `Call`, `Cast`, `WindowCall`, `SqlAgg.Reducer`, `RowJson` (2026-10-18) |
+| `SqlExpr` | 45 — incl. `Lambda` (**not** `LambdaExpr`), `Call`, `Cast`, `WindowCall`, `SqlAgg.Reducer`, `Tagged` (a mixed selection's winner as a tag plus typed slots, 2026-10-23; recounted from the permits clause that day -- `RowJson` went 2026-10-20) |
 | `SqlAgg` | carries `enum Fn` (~35) + `Reducer` |
 | `SqlType` | `Scalar` enum, `Decimal(p,s)`, `Array`, `Map` |
 | `DateFmt` | — |
@@ -368,6 +368,7 @@ otherwise, which is how it drifted:
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
 | `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
+| `docs/RESULT_BOUNDARY_START_HERE.md` | **The result boundary program, start here** (handoff 2026-10-26): where everything is, the state, the rules, how to run every check, the cloud lanes, a brief per step, the traps; the plan itself is `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` (revision 2: the plan in plain words, rules R1 to R8 with guards, step 0 measures first, steps 1 to 8 each ending in a deletion, the rulings it waits on in its §8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md` |
 | `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
@@ -402,6 +403,15 @@ by GitHub:
 **The build rebuild program lands without PRs** (the user, 2026-10-06): an audit, the local gate, one full CI run on
 the branch, then that exact commit pushed to `main` (`docs/build-inventory/program/START_HERE.md` §4). Whether other
 work keeps rule 2's PR path is open (`docs/build-inventory/program/PHASE_8.md` OD-9).
+
+**No session pushes to `main` without the user's explicit word, in that session (the user, 2026-10-26, after the
+plan path branch's 170-commit landing went straight to `main` on the strength of the rules above, turned 15 CI lanes
+red, and was reverted and reset).** The three conditions are necessary, never sufficient: a session that has met them
+says so and asks; a ratified plan that names a landing is not the go. A landing of more than one change (a long-lived
+branch, a merge of `main` carried back) goes through a PR whatever the rules above say, so CI runs on every OS before
+it lands: the local gate does not cover Windows, arm, macOS, the corpus lanes or the product build, and the branch had
+never run CI. Decision D17's fast loop stays for one small change the user asked to land. A revert, a reset or a
+force push of `main` is likewise the user's call, never a session's own.
 
 A documentation-only PR gets no gate run (`gate.yml`'s `paths-ignore`), so `gates green` never reports on it:
 the owner merges it by bypass.

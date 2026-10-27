@@ -283,6 +283,121 @@ export function countriesCsv(): string {
 /** The sample a table of countries is: the join example's second table. */
 export const COUNTRIES_SAMPLE = 'countries';
 
+/** The business days (Monday to Friday) from `from` to `to`, ISO days. */
+function businessDays(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let d = new Date(`${from}T00:00:00Z`); d <= new Date(`${to}T00:00:00Z`); d = new Date(d.getTime() + 86_400_000)) {
+    if (d.getUTCDay() !== 0 && d.getUTCDay() !== 6) out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
+/** A standard normal draw (Box-Muller) from a uniform source. */
+function normal(rand: () => number): number {
+  return Math.sqrt(-2 * Math.log(1 - rand())) * Math.cos(2 * Math.PI * rand());
+}
+
+/** The markets sample's instruments: each its asset class, its first close, its drift and volatility a year, its beta
+ *  to the market and its usual daily volume. */
+const INSTRUMENTS = [
+  { symbol: 'SPX', asset: 'Index', start: 3250, drift: 0.15, vol: 0.15, beta: 1, volume: 2.5e9 },
+  { symbol: 'NDX', asset: 'Index', start: 8800, drift: 0.2, vol: 0.2, beta: 1.15, volume: 1.2e9 },
+  { symbol: 'AAPL', asset: 'Equity', start: 75, drift: 0.28, vol: 0.27, beta: 1.15, volume: 9e7 },
+  { symbol: 'MSFT', asset: 'Equity', start: 160, drift: 0.26, vol: 0.25, beta: 1.05, volume: 3e7 },
+  { symbol: 'NVDA', asset: 'Equity', start: 6, drift: 0.85, vol: 0.5, beta: 1.6, volume: 4e8 },
+  { symbol: 'JPM', asset: 'Equity', start: 140, drift: 0.14, vol: 0.25, beta: 1.1, volume: 1e7 },
+  { symbol: 'XOM', asset: 'Equity', start: 70, drift: 0.14, vol: 0.3, beta: 0.8, volume: 2e7 },
+  { symbol: 'GLD', asset: 'Commodity', start: 145, drift: 0.1, vol: 0.14, beta: 0.05, volume: 8e6 },
+  { symbol: 'TLT', asset: 'Bond', start: 136, drift: -0.05, vol: 0.16, beta: -0.25, volume: 1.5e7 },
+  { symbol: 'EURUSD', asset: 'FX', start: 1.12, drift: -0.005, vol: 0.07, beta: 0.15, volume: 0 },
+] as const;
+
+/** The markets sample's columns, in order. */
+export const MARKET_COLUMNS = ['symbol', 'asset_class', 'date', 'open', 'high', 'low', 'close', 'volume'] as const;
+
+/**
+ * DAILY PRICES for a timeseries tile (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): five years of business days of
+ * ten instruments -- indices, equities, gold, a bond fund, a currency -- each an open, a high, a low, a close and a
+ * volume, moved by one market and its own noise (so they correlate as a market does), through a crash in the spring of
+ * 2020 and a bear market in 2022. Prices have two places (four for a currency; a DOUBLE to DuckDB: a Float), the volume
+ * is whole (an Integer), the date a date (a StrictDate). `rows`: the rows asked for, divided among the instruments, its
+ * days counted back from the last.
+ */
+export function marketsCsv(rows = 13_050, seed = 20261058): string {
+  const rand = rng(seed);
+  const all = businessDays('2020-01-02', '2024-12-31');
+  const days = all.slice(Math.max(0, all.length - Math.max(1, Math.ceil(rows / INSTRUMENTS.length))));
+  const close: number[] = INSTRUMENTS.map((x) => x.start);
+  const out: string[] = [MARKET_COLUMNS.join(',')];
+  for (const day of days) {
+    // the market's day: a crash (Feb-Mar 2020), its rebound, a bear market (2022), and calm otherwise
+    const regime = day >= '2020-02-20' && day <= '2020-03-23' ? { mu: -0.012, sigma: 2.8 }
+      : day > '2020-03-23' && day <= '2020-06-30' ? { mu: 0.004, sigma: 1.8 }
+        : day >= '2022-01-03' && day <= '2022-10-12' ? { mu: -0.0011, sigma: 1.5 } : { mu: 0, sigma: 1 };
+    const market = normal(rand) * regime.sigma;
+    INSTRUMENTS.forEach((x, i) => {
+      const daily = x.vol / Math.sqrt(252);
+      const shock = x.beta * market * 0.7 + normal(rand) * Math.sqrt(Math.max(0.2, 1 - 0.49 * x.beta * x.beta)) * Math.min(regime.sigma, 1.6);
+      const open = close[i]! * Math.exp(normal(rand) * daily * 0.3);
+      const next = close[i]! * Math.exp(x.drift / 252 - daily * daily / 2 + daily * shock + regime.mu * x.beta);
+      const high = Math.max(open, next) * (1 + Math.abs(normal(rand)) * daily * 0.5);
+      const low = Math.min(open, next) * (1 - Math.abs(normal(rand)) * daily * 0.5);
+      close[i] = next;
+      const places = x.asset === 'FX' ? 4 : 2;
+      const volume = x.volume === 0 ? 0 : Math.round(x.volume * (0.7 + 0.3 * Math.abs(shock)) * (0.85 + rand() * 0.3));
+      out.push([x.symbol, x.asset, day, open.toFixed(places), high.toFixed(places), low.toFixed(places), next.toFixed(places), String(volume)]
+        .map(csvCell).join(','));
+    });
+  }
+  return `${out.join('\n')}\n`;
+}
+
+/** The rates sample's tenors, each its years and how far its yield moves with the front of the curve. */
+const TENORS = [
+  { tenor: '3M', years: 0.25, front: 1 }, { tenor: '2Y', years: 2, front: 0.85 }, { tenor: '5Y', years: 5, front: 0.65 },
+  { tenor: '10Y', years: 10, front: 0.5 }, { tenor: '30Y', years: 30, front: 0.38 },
+] as const;
+
+/** The rates sample's columns, in order. */
+export const RATE_COLUMNS = ['tenor', 'years', 'date', 'yield'] as const;
+
+/**
+ * A TREASURY CURVE, day by day, beside the markets sample: five tenors' yields in percent over the same business days
+ * -- near zero through 2020 and 2021, rising through 2022 and 2023 with the front faster than the back (the curve
+ * inverted), easing in 2024 -- so a timeseries reads two grids: a spread (10Y less 2Y), a bond fund against its yield.
+ */
+export function ratesCsv(rows = 6525, seed = 20261026): string {
+  const rand = rng(seed);
+  const all = businessDays('2020-01-02', '2024-12-31');
+  const days = all.slice(Math.max(0, all.length - Math.max(1, Math.ceil(rows / TENORS.length))));
+  // the policy rate's path: its level on each date, by straight lines between turns
+  const turns: readonly (readonly [string, number])[] = [
+    ['2020-01-02', 1.55], ['2020-03-16', 0.08], ['2022-03-01', 0.1], ['2022-12-15', 4.3], ['2023-07-27', 5.33], ['2024-09-18', 5.33], ['2024-12-31', 4.35],
+  ];
+  const policy = (day: string): number => {
+    const t = Date.parse(day);
+    for (let i = 1; i < turns.length; i++) {
+      const [a, va] = turns[i - 1]!;
+      const [b, vb] = turns[i]!;
+      if (day <= b) return va + (vb - va) * (t - Date.parse(a)) / Math.max(1, Date.parse(b) - Date.parse(a));
+    }
+    return turns.at(-1)![1];
+  };
+  const noise: number[] = TENORS.map(() => 0);
+  const out: string[] = [RATE_COLUMNS.join(',')];
+  for (const day of days) {
+    const level = policy(day);
+    const common = normal(rand) * 0.04;
+    TENORS.forEach((x, i) => {
+      // a term premium that grows with the tenor, the front's level carried less far out, and a slow wander of its own
+      noise[i] = noise[i]! * 0.98 + common + normal(rand) * 0.02;
+      const y = Math.max(0.01, level * x.front + (1 - x.front) * 2.6 + 0.12 * Math.log1p(x.years) + noise[i]!);
+      out.push([x.tenor, String(x.years), day, y.toFixed(3)].map(csvCell).join(','));
+    });
+  }
+  return `${out.join('\n')}\n`;
+}
+
 export const SAMPLES: readonly Sample[] = [
   {
     id: 'trades',
@@ -309,6 +424,22 @@ export const SAMPLES: readonly Sample[] = [
       + 'units, revenue, cost, profit, discount and a target. What the chart examples are drawn from.',
     defaultRows: 6000,
     build: (rows, seed) => salesCsv(rows, seed),
+  },
+  {
+    id: 'markets',
+    label: 'Markets -- daily prices, for timeseries',
+    about: 'Five years of business days of ten instruments (indices, equities, gold, a bond fund, a currency): an open, '
+      + 'high, low, close and volume each, through a crash and a bear market. What a timeseries tile reads.',
+    defaultRows: 13_050,
+    build: (rows, seed) => marketsCsv(rows, seed),
+  },
+  {
+    id: 'rates',
+    label: 'Rates -- a Treasury curve, day by day',
+    about: 'Five tenors\' yields over the markets sample\'s days, rising and inverting through 2022: a second grid for a '
+      + 'timeseries to read beside the prices (a spread, a bond fund against its yield).',
+    defaultRows: 6525,
+    build: (rows, seed) => ratesCsv(rows, seed),
   },
   {
     // the sales sample's countries: a table to join its orders to (examples/prep-joins.ts)

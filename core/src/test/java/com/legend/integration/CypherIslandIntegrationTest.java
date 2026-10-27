@@ -115,7 +115,8 @@ class CypherIslandIntegrationTest {
             ###Pure
             Profile graph::graph
             {
-               stereotypes: [Anonymous, Edge, Open, from, to, type, nanoseconds, timeOfDay];
+               stereotypes: [Anonymous, Edge, Open, Native, from, to, type, nanoseconds, timeOfDay,
+                   listOfDate, listOfLocalTime, listOfZonedTime, listOfLocalDateTime, listOfZonedDateTime, listOfDuration];
             }
             ###DataSpace
             DataSpace <<graph::graph.Open>> test::G
@@ -193,6 +194,14 @@ class CypherIslandIntegrationTest {
         assertEquals(List.of("Alice|Bob", "Bob|Alice"), rows(run("MATCH (a:Person)-[:firm]->(f:Firm),"
                 + " (b:Person)-[:firm]->(g:Firm) WHERE f = g AND a <> b RETURN a.name AS an, b.name AS bn"
                 + " ORDER BY an")));
+        // (2026-10-18, the writes judge's read-back, the study's §12.94) elementId(x) returns it: a node's, an
+        // association relationship's ordered pair of its ends' (S74), null for a node an OPTIONAL MATCH never found
+        assertEquals(List.of("test::Person:1|firm:test::Person:1>test::Firm:1|test::Firm:1",
+                        "test::Person:3|firm:test::Person:3>test::Firm:2|test::Firm:2"),
+                rows(run("MATCH (p:Person)-[r:firm]->(f:Firm) WHERE p.name IN ['Alice', 'Charlie'] RETURN"
+                        + " elementId(p) AS p, elementId(r) AS r, elementId(f) AS f ORDER BY p")));
+        assertEquals(List.of("Diana|null"), rows(run("MATCH (p:Person {name: 'Diana'}) OPTIONAL MATCH"
+                + " (p)-[:firm]->(f:Firm) RETURN p.name AS n, elementId(f) AS f")));
         // a class with neither key has no identity: a compile error naming it
         String keyless = MODEL.replace("Table T_CITY (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))",
                 "Table T_CITY (ID INTEGER, NAME VARCHAR(100))");
@@ -345,9 +354,133 @@ class CypherIslandIntegrationTest {
                 () -> run("MATCH (p:Person)-[r:firm]->(f:Firm) RETURN r.since"));
         assertEquals("#Cypher{...}# at line 1, column 53: a property of a relationship over a property or association"
                 + " (no edge class, the study's §5.6) is not supported yet", e.getMessage());
-        com.legend.error.NotImplementedException create = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> run("CREATE (p:Person {name: 'x'})"));
-        assertTrue(create.getMessage().contains("CREATE is not supported yet"), create.getMessage());
+        // a label changed on a domain model: its node's labels are its class (the writes design's §3 A)
+        com.legend.error.NotImplementedException relabel = assertThrows(
+                com.legend.error.NotImplementedException.class, () -> run("MATCH (p:Person) SET p:Admin"));
+        assertTrue(relabel.getMessage().contains("SET of a label over a graph of a domain model is not supported"),
+                relabel.getMessage());
+    }
+
+    /** A write over a domain model goes through its classes' direct mappings (the writes design's leg 5, L2): the
+     *  node created is the class's row, read back by the statement and by the next; the caller's rollback takes it
+     *  back. */
+    @Test
+    void aWriteOverADomainModelGoesThroughItsMappings() throws SQLException {
+        session.setAutoCommit(false);
+        try {
+            assertEquals(List.of("Eve|22"), rows(run("CREATE (p:Person {name: 'Eve', age: 22})"
+                    + " RETURN p.name AS n, p.age AS a")));
+            assertEquals(List.of("Eve"), rows(run("MATCH (p:Person) WHERE p.age = 22 RETURN p.name AS n")));
+            run("MATCH (p:Person {name: 'Eve'}) SET p.age = 23");
+            assertEquals(List.of("23"), rows(run("MATCH (p:Person {name: 'Eve'}) RETURN p.age AS a")));
+            // (a node of a class with associations: its links are no edge class's, refused by name)
+            com.legend.error.NotImplementedException delete = assertThrows(
+                    com.legend.error.NotImplementedException.class, () -> run("MATCH (p:Person {name: 'Eve'})"
+                    + " DELETE p"));
+            assertTrue(delete.getMessage().contains("whose relationships include associations"),
+                    delete.getMessage());
+        } finally {
+            session.rollback();
+            session.setAutoCommit(true);
+        }
+        assertEquals(4, rows(run("MATCH (p:Person) RETURN p.name AS n")).size());
+    }
+
+    /** A model of one class whose Variant properties the graph profile's list marks mark (2026-10-20,
+     *  docs/WRITES_DESIGN_2026_10_18.md §5): each a stored list of temporals of one kind, each element its text. */
+    private static final String LISTS_MODEL = """
+            ###Pure
+            Profile graph::graph
+            {
+               stereotypes: [Anonymous, Edge, Open, Native, from, to, type, nanoseconds, timeOfDay,
+                   listOfDate, listOfLocalTime, listOfZonedTime, listOfLocalDateTime, listOfZonedDateTime, listOfDuration];
+            }
+            Class test::Log
+            {
+                <<graph::graph.listOfDate>> dates: meta::pure::metamodel::variant::Variant[0..1];
+                <<graph::graph.listOfLocalTime>> times: meta::pure::metamodel::variant::Variant[0..1];
+                <<graph::graph.listOfZonedDateTime>> zoned: meta::pure::metamodel::variant::Variant[0..1];
+                <<graph::graph.listOfDuration>> durs: meta::pure::metamodel::variant::Variant[0..1];
+                plain: meta::pure::metamodel::variant::Variant[0..1];
+            }
+            ###Relational
+            Database store::LDB
+            (
+                Table T_LOG (ID INTEGER PRIMARY KEY, DATES SEMISTRUCTURED, TIMES SEMISTRUCTURED, ZONED SEMISTRUCTURED,
+                             DURS SEMISTRUCTURED, PLAIN SEMISTRUCTURED)
+            )
+            ###Mapping
+            Mapping test::LM
+            (
+                test::Log: Relational
+                {
+                    ~mainTable [store::LDB] T_LOG
+                    dates: [store::LDB] T_LOG.DATES,
+                    times: [store::LDB] T_LOG.TIMES,
+                    zoned: [store::LDB] T_LOG.ZONED,
+                    durs: [store::LDB] T_LOG.DURS,
+                    plain: [store::LDB] T_LOG.PLAIN
+                }
+            )
+            ###Connection
+            RelationalDatabaseConnection store::LConn { %s }
+            ###Runtime
+            Runtime test::LRT { mappings: [ test::LM ]; connections: [ store::LDB: [ environment: store::LConn ] ]; }
+            """.formatted(PLATFORM.connectionBody());
+
+    private static ExecutionResult runLists(String model, String cypher) throws SQLException {
+        return new QueryService().execute(model, "#Cypher{" + cypher + "}#", "test::LRT", session);
+    }
+
+    @Test
+    void aMarkedListOfTemporalsReadsItsElementsBackOrIsReadWhole() throws SQLException {
+        try (Statement s = session.createStatement()) {
+            s.execute("CREATE TABLE T_LOG (ID INTEGER PRIMARY KEY, DATES JSON, TIMES JSON, ZONED JSON, DURS JSON,"
+                    + " PLAIN JSON)");
+            s.execute("INSERT INTO T_LOG VALUES (1, '[\"Date(''1984-10-12'')\",\"Date(''1984-10-14'')\"]',"
+                    + " '[\"Time(''13:00:00.000000'')\"]', '[\"DateTime(''1913-01-01T00:00:00.000000000+01:00'')\"]',"
+                    + " '[\"Duration(''PT13S'')\"]', '[1,2]')");
+        }
+        try {
+            // a list of dates or local times: its elements read back as the values (an index, IN, UNWIND)
+            assertEquals(expect("true"), rows(runLists(LISTS_MODEL,
+                    "MATCH (l:Log) RETURN l.dates[1] = date('1984-10-14') AS same")));
+            assertEquals(expect("true"), rows(runLists(LISTS_MODEL,
+                    "MATCH (l:Log) RETURN date('1984-10-12') IN l.dates AS found")));
+            assertEquals(expect("12", "14"), rows(runLists(LISTS_MODEL,
+                    "MATCH (l:Log) UNWIND l.dates AS d RETURN d.day AS day ORDER BY day")));
+            assertEquals(expect("13"), rows(runLists(LISTS_MODEL, "MATCH (l:Log) RETURN l.times[0].hour AS h")));
+            assertEquals(expect("13"), rows(runLists(LISTS_MODEL, "MATCH (l:Log) UNWIND l.times AS t RETURN t.hour AS h")));
+            assertEquals(expect("[1984,1984]"), rows(runLists(LISTS_MODEL,
+                    "MATCH (l:Log) RETURN [x IN l.dates | x.year] AS ys")));
+            assertEquals(expect("1984-10-14"), rows(runLists(LISTS_MODEL,
+                    "MATCH (l:Log) WITH l.dates AS ds RETURN ds[1] AS d")));
+            // a list of zoned values or durations: read whole, as the store holds it
+            assertEquals(1, rows(runLists(LISTS_MODEL, "MATCH (l:Log) RETURN l.zoned AS z, l.durs AS d")).size());
+            assertEquals(expect("1"), rows(runLists(LISTS_MODEL, "MATCH (l:Log) RETURN size(l.durs) AS n")));
+            // an element of one read alone: refused by name, as a read the island does not make yet
+            for (String read : List.of("RETURN l.zoned[0] AS z", "UNWIND l.durs AS d RETURN d",
+                    "RETURN [x IN l.zoned | x] AS xs", "RETURN l.durs[0] AS d", "RETURN head(l.zoned) AS z",
+                    "WITH l.zoned AS zs UNWIND zs AS z RETURN z")) {
+                com.legend.error.NotImplementedException refused = assertThrows(
+                        com.legend.error.NotImplementedException.class,
+                        () -> runLists(LISTS_MODEL, "MATCH (l:Log) " + read));
+                assertTrue(refused.getMessage().contains("an element of a stored list of"), read + ": "
+                        + refused.getMessage());
+            }
+            // a list mark on a property of another type is the model's error
+            LegendCompileException misplaced = assertThrows(LegendCompileException.class,
+                    () -> runLists(LISTS_MODEL.replace("plain: meta", "<<graph::graph.listOfDate>> plain: meta")
+                            .replace("plain: meta::pure::metamodel::variant::Variant[0..1]", "plain: String[0..1]")
+                            .replace("PLAIN SEMISTRUCTURED", "PLAIN VARCHAR(10)"),
+                            "MATCH (l:Log) RETURN l.plain AS p"));
+            assertTrue(misplaced.getMessage().contains("is marked listOfDate but is of type String"),
+                    misplaced.getMessage());
+        } finally {
+            try (Statement s = session.createStatement()) {
+                s.execute("DROP TABLE T_LOG");
+            }
+        }
     }
 
     @Test

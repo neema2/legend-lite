@@ -147,6 +147,25 @@ describe('tooltips', () => {
   });
 });
 
+// (its headers stay centred: grid.css's rule, which no DOM without the stylesheet reads -- not claimed here)
+describe('a cell\'s alignment when none is set (the user, 2026-10-25): figures right, the rest left', () => {
+  const justify = (name: string): string =>
+    (container.querySelector(`.dc-cell[data-column="${name}"]`) as HTMLElement).style.getPropertyValue('justify-content');
+
+  it('a measure\'s numbers sit right; a text and a boolean left', () => {
+    grid();
+    assert.deepEqual(['region', 'notional', 'settled'].map(justify), ['flex-start', 'flex-end', 'flex-start']);
+  });
+  it('a number the cube calls a dimension sits left, as a label', () => {
+    grid({ isMeasure: (leaf) => leaf.name !== 'notional' });
+    assert.equal(justify('notional'), 'flex-start');
+  });
+  it('an alignment set wins, the grid\'s or the column\'s', () => {
+    grid({ appearance: { textAlign: 'center' }, columnAppearance: { region: { textAlign: 'right' } } });
+    assert.deepEqual(['region', 'notional'].map(justify), ['flex-end', 'center']);
+  });
+});
+
 describe('the overlays', () => {
   it('an empty result says "0 rows"', () => {
     const g = new DataGrid(container, new FormatterCache(), {});

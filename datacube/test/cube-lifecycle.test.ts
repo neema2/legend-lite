@@ -11,6 +11,20 @@ beforeEach(setUp);
 afterEach(tearDown);
 
 describe('lifecycle (B3)', () => {
+  it("the status bar's chips say what the view shown is, as its readout does, not a change still running (the 2026-10-25 audit)", async () => {
+    // a Top N in flight: a repaint of the bar (a note) said "Top 10 by notional" beside the last query's rows, and its x
+    // acted on a change not shown yet
+    engine.gate.hold = true;
+    void app.edit([{ kind: 'topN', topN: { by: 'notional', n: 10 } }], 'Top 10');
+    await settle();
+    app.note('a note meanwhile');
+    assert.equal(root.querySelector('.dc-status-topn'), null, 'not yet: its view has not landed');
+    engine.gate.hold = false;
+    engine.gate.releaseAll();
+    await settle();
+    assert.match(root.querySelector('.dc-status-topn')?.textContent ?? '', /^Top 10 by notional/, 'once it has');
+  });
+
   it('a disposed cube stops: its query is cancelled and nothing reaches the host after (P2-105)', async () => {
     const heard: string[] = [];
     await remount({ onView: () => heard.push('view'), onChange: () => heard.push('change'),

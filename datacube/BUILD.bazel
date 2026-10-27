@@ -131,6 +131,10 @@ _SCANNED = {
         ":scanned_demo",
         "test/wasm-differential/compare.ts",
         "//wasm:differential",
+        # the stylesheets: every token they read without a fallback is one the light theme defines (2026-10-25)
+        "src/app.css",
+        "src/grid/grid.css",
+        "src/theme.css",
     ],
     "menu-ids": [":src"],
     # everything a build or a person runs from this package
@@ -148,6 +152,9 @@ _SCANNED = {
         "//engine-client:warehouse_corpus_test_source",
         "//query-store:wasm_test_source",
         "//sdlc-client:wasm_test_source",
+        # the browser harnesses whose checks prove an ability end to end on a page (2026-10-25, the timeseries review's A7)
+        "demo/verify-charts.mjs",
+        "test/python-engine/python-engine.mjs",
     ],
     # the WASM list against the files that load the planner (A28)
     "wasm-flag": ["BUILD.bazel", ":scanned_tests"],
@@ -232,6 +239,8 @@ _EXTRA_ENV = {
 
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
+    "timeseries-queries",
+    "timeseries-view-dom",
     # chart queries planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)
     "chart-queries",
     # graph mode's G0: a Cypher query planned in the tab and run on its DuckDB (docs/DATACUBE_GRAPH_MODE_2026_10_18.md)
@@ -283,7 +292,9 @@ _EXTRA_DATA = {
     "parity-screen": ["test/fixtures/parity/parity.json"],
     # the saved-page corpus, and the script that makes it (the test holds the files to what it makes)
     "page-corpus": [":corpus_pages", "test/fixtures/pages/make.ts"],
-    "page-commands": ["test/fixtures/pages/make.ts"],
+    "page-commands": ["test/fixtures/pages/make.ts", "test/bands-of.ts"],
+    # a sheet's layout read as a board's (a flow's is boxes: docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4)
+    "page-document": ["test/bands-of.ts"],
     "host-join-flow": ["test/fixtures/pages/make.ts"],
     "page-filters": ["test/fixtures/pages/make.ts"],
     "page-state": ["test/fixtures/pages/make.ts", "test/page-same.ts"],
@@ -314,9 +325,11 @@ _EXTRA_DATA = {
     "cube-editors-app": ["test/cube-fixture.ts", "test/gate.ts"],
     "cube-adhoc-shell": ["test/cube-fixture.ts", "test/gate.ts"],
     "multi-cube": ["test/cube-fixture.ts", "test/gate.ts"],
-    "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts"],
-    "page-app": ["test/cube-fixture.ts", "test/gate.ts", "test/theirs.ts"],
-    "cube-page-shell": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts", "test/theirs.ts"],
+    "chart-tiles": ["test/cube-fixture.ts", "test/gate.ts", "test/bands-of.ts"],
+    "page-app": ["test/cube-fixture.ts", "test/gate.ts", "test/theirs.ts", "test/bands-of.ts"],
+    "cube-page-shell": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts", "test/theirs.ts", "test/bands-of.ts"],
+    # a flow sheet on a page of its own, over real grids (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1)
+    "flow-page": ["test/cube-fixture.ts", "test/gate.ts"],
     # the headless lane's stand-ins for node:assert and node:test, held to Node's own here
     "headless-assert": ["test/headless/node-assert.ts"],
     "headless-test-runner": [
@@ -330,6 +343,8 @@ _EXTRA_DATA = {
 # the tests that write a model from a table's columns ask the compiler (T2): legend-lite's
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
+    "timeseries-queries",
+    "timeseries-view-dom",
     "calc-fix",
     "chart-queries",
     "cypher-spike",
@@ -499,6 +514,8 @@ _HEADLESS_TESTS = [
     "cube-document",
     # a grid edit as a value (docs/DATACUBE_COMMANDS_STAGE1_2026_10_18.md)
     "cypher-spike",
+    # a flow sheet's layout, a box's words and its page commands (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): pure
+    "flow-sheet",
     "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)
@@ -506,6 +523,13 @@ _HEADLESS_TESTS = [
     "page-gestures",
     # a text tile's words read, and written by an export (docs/DATACUBE_BI_EXCEL_PARITY_2026_10_24.md P4)
     "page-text",
+    # a timeseries tile's spec read and its expressions parsed, and its drawing (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md)
+    "timeseries-spec",
+    "timeseries-option",
+    # its changes, one rule its viewer and Python ask (2026-10-25, docs/TIMESERIES_REVIEW_2026_10_25.md A2)
+    "timeseries-edit",
+    # a text box's files (§8 step 1, 2026-10-25): the one rule, pure
+    "text-files",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
     "cube-round-trip",
     "cube-state",
@@ -539,6 +563,8 @@ _HEADLESS_TESTS = [
     "json-shape",
     "lazily",
     "lite-planner",
+    # a grid over another grid's rows, and its live input (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): pure
+    "live-inputs",
     "menu",
     "menu-more",
     "model-join",
@@ -592,11 +618,16 @@ _HEADLESS_LEFT_OUT = {
     "chart-echarts": "ECharts draws on a DOM canvas",
     "chart-kinds": "ECharts draws on a DOM canvas",
     "chart-maps": "ECharts draws on a DOM canvas",
+    # a timeseries drawn by ECharts, as chart-echarts draws a chart (2026-10-25, the timeseries review's G5)
+    "timeseries-echarts": "ECharts draws on a DOM canvas",
     # a picked File read as a stream (Blob, TextDecoderStream: upload.ts fileParts) is the page's: headless reads a file
     # by its path (readFileInto, run by //python:headless_test's Files)
     "upload": "a picked File, read as the page's stream",
     # its rows read in from a picked File, as upload's are (the queries themselves run headless in every chart's page)
     "chart-queries": "a picked File, read as the page's stream",
+    # a timeseries tile's queries against gs-quant's figures, their rows read in as chart-queries' are (2026-10-25, the
+    # timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md; dated by the review's A9)
+    "timeseries-queries": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
     "headless-assert": "node:assert/strict, its reference",
     "headless-test-runner": "node:test's own run, its reference",
@@ -1804,6 +1835,7 @@ _HARNESSES = [
     "verify-engine",
     "verify-engine-differential",
     "verify-features",
+    "verify-flow",
     "verify-join",
     "verify-layout",
     "verify-page",
@@ -1829,6 +1861,9 @@ _BROWSER_TESTS = {
     # Create a Class… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.7): two classes of two grids, in the page's SDLC
     "verify-class": "large",
     "verify-cubes": "large",
+    # a flow built by drag and drop alone, each box set and previewed, saved, reopened and shared
+    # (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1)
+    "verify-flow": "large",
     # Join… (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17.5): two files joined, what it will do said first, saved and reopened
     "verify-join": "large",
     "verify-layout": "large",

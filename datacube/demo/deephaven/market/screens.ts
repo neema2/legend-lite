@@ -12,8 +12,10 @@ import { CHART_VERSION, DEFAULT_OPTIONS, candleMeasures, type ChartOptions, type
 import { DEFAULT_CONFIGURATION, type ColumnConfiguration, type CubeConfiguration } from '../../../src/config.ts';
 import { writeCube, type CubeDocument, type QuerySource } from '../../../src/cube-document.ts';
 import { openedState } from '../../../src/cube-state.ts';
-import { tiles, type Node } from '../../../src/layout/bands.ts';
-import { writePageOf, type ChartView, type PageDocument, type PageSheet, type PageView } from '../../../src/page-document.ts';
+import type { Node } from '../../../src/layout/bands.ts';
+import {
+  layoutTiles, writePageOf, type BandsLayout, type ChartView, type PageDocument, type PageLayout, type PageSheet, type PageView,
+} from '../../../src/page-document.ts';
 import type { ColumnSpec, CubeSnapshot, FilterNode } from '../../../src/snapshot.ts';
 import { TreeState } from '../../../src/tree.ts';
 import { MARKET_RUNTIME } from './model.ts';
@@ -141,6 +143,11 @@ function chart(id: string, cube: string, title: string,
 const sheet = (id: string, name: string, bands: readonly (readonly [height: number, node: Node])[]): PageSheet => ({
   id, name, layout: { kind: 'bands', fit: true, bands: bands.map(([height, node]) => ({ height, node })) },
 });
+/** A screen's sheet's bands: every screen is a board (a flow sheet is no screen's). */
+const boardOf = (layout: PageLayout): BandsLayout => {
+  if (layout.kind !== 'bands') throw new Error('a screen\'s sheet is a board of bands, not a flow');
+  return layout;
+};
 /** Tiles side by side, each its share of the width. */
 const row = (...parts: readonly (readonly [tile: string, size: number])[]): Node => ({
   split: 'row', parts: parts.map(([tile, size]) => ({ node: { tile }, size })),
@@ -176,7 +183,7 @@ const pageOf = <A extends unknown[]>(parts: (...args: A) => Promise<Parts>) => a
  */
 function tabOf(prefix: string, parts: Parts, name: string, bands: readonly (readonly [height: number, node: Node])[]): Parts {
   const laid = sheet('sheet', name, bands);
-  const shown = new Set(tiles(laid.layout));
+  const shown = new Set(layoutTiles(laid.layout));
   for (const id of shown) if (!parts.views.some((v) => v.id === id)) throw new Error(`${parts.name} has no view '${id}' for the desk's ${name}`);
   const at = (id: string): string => `${prefix}-${id}`;
   const node = (n: Node): Node => ('tile' in n ? { tile: at(n.tile) }
@@ -184,6 +191,7 @@ function tabOf(prefix: string, parts: Parts, name: string, bands: readonly (read
       : { split: n.split, parts: n.parts.map((p) => ({ node: node(p.node), size: p.size })) });
   const views = parts.views.filter((v) => shown.has(v.id)).map((v): PageView => {
     if (v.kind === 'text') return { ...v, id: at(v.id) };
+    if (v.kind !== 'grid' && v.kind !== 'chart') throw new Error(`${parts.name}'s ${v.id} is a ${v.kind}, which no screen has`);
     const to = v.link?.to.filter((t) => shown.has(t)).map(at) ?? [];
     const { link: _link, ...rest } = v;
     return { ...rest, id: at(v.id), cube: at(v.cube), ...(v.link && to.length > 0 ? { link: { column: v.link.column, to } } : {}) };
@@ -193,7 +201,7 @@ function tabOf(prefix: string, parts: Parts, name: string, bands: readonly (read
     name,
     cubes: parts.cubes.map((c) => ({ id: at(c.id), cube: c.cube })).filter((c) => read.has(c.id)),
     views,
-    sheets: [{ ...laid, id: at(laid.id), layout: { ...laid.layout, bands: laid.layout.bands.map((b) => ({ ...b, node: node(b.node) })) } }],
+    sheets: [{ ...laid, id: at(laid.id), layout: { ...boardOf(laid.layout), bands: boardOf(laid.layout).bands.map((b) => ({ ...b, node: node(b.node) })) } }],
   };
 }
 
@@ -1178,7 +1186,7 @@ async function deskParts(types: SourceTypes, first: FirstValue): Promise<Parts> 
     marketMapParts(types), tickerParts(types, first), newsParts(types, first), flowParts(types), cryptoParts(types),
     blotterParts(types), tcaParts(types), pnlParts(types), optionsParts(types), fxParts(types),
   ]);
-  const bandsOf = (parts: Parts): readonly (readonly [number, Node])[] => parts.sheets[0]!.layout.bands.map((b) => [b.height, b.node] as const);
+  const bandsOf = (parts: Parts): readonly (readonly [number, Node])[] => boardOf(parts.sheets[0]!.layout).bands.map((b) => [b.height, b.node] as const);
   const tabs = [
     tabOf('mk', map, 'Markets', [
       [0.6, across(['map', 0.56], ['sectors', 0.18], [down([across(['advancing', 0.5], ['declining', 0.5]), 0.32], ['by-sector', 0.68]), 0.26])],

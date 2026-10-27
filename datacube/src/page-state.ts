@@ -147,13 +147,15 @@ export class PageState {
   }
 
   /** Every grid a step of the history (back or forward) can bring back, by the id it had -- and every kept cube a chart
-   *  can be put back on (`detach`): what its host keeps the maker and the tables of while it can (page-app.ts recoverable). */
+   *  can be put back on (`detach`) or a timeseries tile read again (its command's `kept`): what its host keeps the maker
+   *  and the tables of while it can (page-app.ts recoverable). */
   get reachable(): ReadonlySet<string> {
     const ids = new Set<string>();
     for (const step of [...this.#past, ...this.#future]) {
       for (const c of [...step.forward, ...step.inverse]) {
         if (c.kind === 'addGrid' && c.id !== undefined) ids.add(c.id);
         if (c.kind === 'detach') ids.add(c.cube);
+        if (c.kind === 'addTimeseries' || c.kind === 'setTimeseries') for (const k of c.kept ?? []) ids.add(k.cube);
       }
     }
     return ids;

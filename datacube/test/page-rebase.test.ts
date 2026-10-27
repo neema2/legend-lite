@@ -9,7 +9,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import type { CubeDocument } from '../src/cube-document.ts';
-import { tiles } from '../src/layout/bands.ts';
 import { applyPageCommands, idsOf, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { gridCopyOf, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { pageReads, rebaseEdits, renamedCommand, type GridApplier, type PageEdit } from '../src/page-rebase.ts';
@@ -19,6 +18,7 @@ import { pageRebase } from '../src/headless/page.ts';
 import { pageToJson } from '../src/page-document.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
 import { corpus } from './fixtures/pages/make.ts';
+import { layoutTiles } from '../src/page-document.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) and chart-2 (frozen, of grid-2);
 // sheets sheet-1 and sheet-2
@@ -80,7 +80,7 @@ describe('edits made again on top of a page that moved on', () => {
     assert.deepEqual(done.edits, mine.edits, 'the edits applied as given: nothing renamed');
     assert.equal(sheetName(done.page, 'sheet-3'), 'Theirs', 'theirs untouched');
     assert.equal(sheetName(done.page, 'sheet-ta-3'), 'Mine, renamed');
-    assert.ok(tiles(done.page.sheets.find((s) => s.id === 'sheet-ta-3')!.layout).includes('grid-2'), 'moved onto its own sheet');
+    assert.ok(layoutTiles(done.page.sheets.find((s) => s.id === 'sheet-ta-3')!.layout).includes('grid-2'), 'moved onto its own sheet');
   });
 
   it('an id the page holds already, made again: refused in words, never given out afresh', async () => {
@@ -110,7 +110,7 @@ describe('edits made again on top of a page that moved on', () => {
     assert.equal(done.page.views.find((v) => v.id === 'grid-3')!.title, 'Theirs');
     const chart = done.page.views.find((v) => v.kind === 'chart' && v.id === 'chart-ta-3') as ChartView;
     assert.equal(chart.cube, 'grid-ta-3', "the chart is of the writer's grid");
-    const placed = tiles(done.page.sheets.find((s) => s.id === 'sheet-2')!.layout);
+    const placed = layoutTiles(done.page.sheets.find((s) => s.id === 'sheet-2')!.layout);
     assert.ok(placed.includes('grid-3') && placed.includes('grid-ta-3'), `both grids placed: ${placed.join(', ')}`);
   });
 
@@ -219,7 +219,7 @@ describe('edits made again on top of a page that moved on', () => {
     }
     const layout = trades.sheets.find((s) => s.id === 'sheet-1')!.layout;
     const renamedLayout = renamedCommand({ kind: 'layout', sheet: 'sheet-1', layout }, r) as { layout: typeof layout };
-    assert.deepEqual(tiles(renamedLayout.layout).sort(), tiles(layout).map((t) => r.get(t) ?? t).sort());
+    assert.deepEqual(layoutTiles(renamedLayout.layout).sort(), layoutTiles(layout).map((t) => r.get(t) ?? t).sort());
   });
 });
 
@@ -340,7 +340,7 @@ describe('two writers\' edits, one made again on top of the other\'s, keep what 
       const grids = (page: PageDocument): number => page.views.filter((v) => v.kind === 'grid').length;
       const wanted = [a, b].flatMap((w) => w.edits).filter((e) => 'page' in e && e.page.kind === 'addGrid').length;
       assert.equal(grids(p), grids(trades) + wanted, `${where}: every grid made`);
-      const placed = p.sheets.flatMap((s) => tiles(s.layout));
+      const placed = p.sheets.flatMap((s) => layoutTiles(s.layout));
       assert.deepEqual([...placed].sort(), p.views.map((v) => v.id).sort(), `${where}: every tile placed once`);
       assert.equal(new Set(p.views.map((v) => v.id)).size, p.views.length, `${where}: no id twice`);
       for (const id of idsOf(p)) assert.ok(done.held.includes(id), `${where}: ${id} held`);

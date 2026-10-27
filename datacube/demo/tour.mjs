@@ -160,11 +160,11 @@ async function takeOff(zone, column) {
   await settle();
 }
 /** A chart's Dynamic / Pinned / Frozen / Detached pill, and its right-click menu. */
-const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`);
+const pill = (id) => page.locator(`[data-tile="${id}"] .dc-tile-state`);
 /** A chart put in a state as a person does: its pill clicked, the state picked from the menu it opens. */
 async function choose(id, state) {
   await pill(id).click();
-  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state} \u2014 `) }) })
+  await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: new RegExp(`^${state}$`) }) })
     .first().click();
 }
 async function chartMenu(id, label) {
@@ -176,7 +176,7 @@ const field = (scope, label) => scope.locator(`.dc-field:has(> .dc-field-label:t
 
 /** Properties > Column Properties > `column` > Aggregation: `fn`, Apply -- as a person sets it. */
 async function setAggregation(column, pick, shot) {
-  await cellMenu(['Properties...']);
+  await cellMenu(['Properties…']);
   await page.locator('.dc-editor-tab', { hasText: 'Column Properties' }).first().click();
   await page.locator(`.dc-pe-col[data-column="${column}"]`).first().click();
   const select = page.locator('.dc-field', { hasText: 'Aggregation:' }).first().locator('select').first();
@@ -199,11 +199,11 @@ function differs(a, b) {
 }
 
 /**
- * A sample at `rows` rows as a person starts a page: New > Blank Page, "Add a data source", the picker's Examples. A
+ * A sample at `rows` rows as a person starts a page: New Page, "Add a data source", the picker's Examples. A
  * page over a picked sample can be saved and shared (the demo's own first grid knows no source, so it cannot be).
  */
 async function pickSample(id, rows) {
-  await burger('Blank Page');
+  await burger('New Page');
   await page.locator('.dc-blank').waitFor({ state: 'visible' });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ state: 'visible' });
@@ -239,7 +239,7 @@ try {
   await settle();
 
   let start;
-  await step('A page over the sample trades: New > Blank Page, Add a data source, Examples', async () => {
+  await step('A page over the sample trades: New Page, Add a data source, Examples', async () => {
     await pickSample('trades', 2000);
     start = await snapshot();
     const shown = await page.locator(`${FIRST} .dc-row, .dc-app .dc-row`).count();
@@ -292,7 +292,7 @@ try {
 
   await step('A calculated column: Extended Columns > Add New Column…', async (shot) => {
     if (!numeric) throw new Error('the grid has no numeric column');
-    await cellMenu(['Extended Columns', 'Add New Column...']);
+    await cellMenu(['Extended Columns', 'Add New Column…']);
     await page.waitForSelector('.dc-coleditor', { timeout: 10_000 });
     await page.fill('.dc-coleditor .dc-calc-input-name', 'uplift');
     await page.locator('.dc-coleditor .dc-xc-kind[data-kind="formula"]').click();
@@ -350,8 +350,8 @@ try {
     if ((await pill(chart.id).textContent()) !== 'Pinned') throw new Error(`the pill says ${await pill(chart.id).textContent()}`);
     const [column, fn] = (await charts()).find((c) => c.id === chart.id).y[0];
     const other = fn === 'min' ? 'max' : 'min';
-    await chartMenu(chart.id, 'Options...');
-    const form = page.locator(`[data-tile="${chart.id}"] .dc-chartpanel-form`);
+    await chartMenu(chart.id, 'Properties…');
+    const form = page.locator('.dc-chart-options');
     await form.locator('.dc-chartpanel-add').click();
     const second = () => form.locator('.dc-chartpanel-measure').first();
     await field(second(), 'Value 2:').locator('select').selectOption(column);
@@ -360,8 +360,8 @@ try {
     const frozen = (await charts()).find((c) => c.id === chart.id);
     if (!same(frozen.y, [[column, fn], [column, other]])) throw new Error(`the frozen chart plots ${JSON.stringify(frozen.y)}`);
     await shot(page, 'frozen, two values');
-    // Options... again puts the form away
-    await chartMenu(chart.id, 'Options...');
+    // its × puts the options away (Properties… only opens them: the user, 2026-10-25)
+    await form.locator('.dc-overlay-close').click();
     await form.waitFor({ state: 'hidden' });
     await choose(chart.id, 'Dynamic');
     await settle();
@@ -469,7 +469,7 @@ try {
   // no older page is read (the user, 2026-10-17: docs/DATACUBE_ONE_GRID_EDIT_PATH_2026_10_17.md §3.4)
   await step('A page file from before a grid\'s aggregates were its columns\' is refused, and said', async (shot) => {
     const want = await snapshot();
-    const [download] = await Promise.all([page.waitForEvent('download'), burger('Page File (JSON)')]);
+    const [download] = await Promise.all([page.waitForEvent('download'), burger('Export Page File…')]);
     const doc = JSON.parse(await readFile(await download.path(), 'utf8'));
     doc.cubes[0].cube.version = 1;
     const legacy = join(dir, 'older.page.json');
@@ -510,6 +510,102 @@ try {
       return `${sheets.length} sheets, ${canvases} charts drawn`;
     });
   }
+
+  // A FLOW (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1): its boxes from the palette, each set in the settings pane by the
+  // grid's own window docked there, its rows below; verify_flow_test builds one by drag and drop and saves and shares it
+  await step('A flow: Create > Flow, an Input, a Filter after it, a Summarize after that', async (shot) => {
+    await burger('Flow');
+    await page.locator('.dc-flow-palette').waitFor({ timeout: 20_000 });
+    await page.click('.dc-flow-tool[data-tool="input"]');
+    await page.click('.dc-picker-nav button:has-text("Examples")');
+    await page.locator('.dc-picker-card').first().click();
+    await page.click('.dc-picker-choice-actions button:has-text("Open")');
+    await page.waitForFunction(() => document.querySelectorAll('.dc-flow-box').length === 1, null, { timeout: 60_000 });
+    await settle();
+    await page.click('.dc-flow-tool[data-tool="filter"]');
+    await page.locator('.dc-flow-dock > .dc-app-overlay[data-window="Filters"]').waitFor({ timeout: 20_000 });
+    await page.locator('.dc-flow-dock button', { hasText: 'Create New Filter' }).click();
+    await page.locator('.dc-flow-dock .dc-filter-column').first().selectOption('notional');
+    await page.locator('.dc-flow-dock .dc-filter-op').first().selectOption('greaterThan');
+    const n = page.locator('.dc-flow-dock .dc-filter-number').first();
+    await n.fill('500000');
+    await n.press('Enter');
+    await shot(page, 'the Filter set in the settings pane');
+    await page.locator('.dc-flow-dock button', { hasText: /^OK$/ }).click();
+    await settle();
+    await page.click('.dc-flow-tool[data-tool="summarize"]');
+    await page.locator('.dc-flow-dock > .dc-app-overlay[data-window="Summarize"]').waitFor({ timeout: 20_000 });
+    await page.locator('.dc-flow-dock .dc-summarize-row[data-column="region"] .dc-summarize-action').selectOption('group');
+    await shot(page, 'the Summarize window: region grouped by, each number aggregated');
+    await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+    await settle();
+    const says = await page.locator('.dc-flow-box .dc-flow-says').allTextContents();
+    await shot(page, 'the flow, its Summarize shown');
+    if (says.length !== 3 || !/500000/.test(says[1] ?? '') || says[2] !== 'by region') throw new Error(`the boxes say ${says.join(' | ')}`);
+    // Run (M5): each box shown in turn, its rows counted beside its output
+    await page.click('.dc-flow-run');
+    await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? '')
+      && document.querySelectorAll('.dc-flow-count:not([hidden])').length === 3, null, { timeout: 120_000 });
+    const counts = await page.locator('.dc-flow-count').allTextContents();
+    await shot(page, 'the flow run, each box counted');
+    return `${says.join(' → ')}; counted ${counts.join(', ')}`;
+  });
+
+  // the example flow (Open…'s "A data flow"): opened, run, a box's profile, a container folded
+  await step('The example flow: opened, run, a box profiled, a container folded', async (shot) => {
+    await burger('Open…');
+    await page.locator('#cubeswin .dc-open-example[data-example="prep-flow"]').click();
+    // its first sheet's boxes (its Reshape sheet's are on the page too, out of sight)
+    await page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-box')].filter((e) => e.offsetParent !== null).length === 8, null, { timeout: 120_000 });
+    await shot(page, 'the example flow: its inputs, its steps and its report, each in a container');
+    const [file] = await Promise.all([page.waitForEvent('download', { timeout: 240_000 }), page.locator('.dc-flow-run:visible').click()]);
+    const ran = () => page.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')), null, { timeout: 240_000 });
+    await ran();
+    await page.locator('.dc-flow-log-close:visible').click();
+    // the join's rows profiled: each column's values, its different values, its smallest and largest
+    await page.locator('.dc-flow-box[data-tile="grid-4"]').focus();
+    await page.keyboard.press('Enter');
+    // its grid shown (Run leaves its Output's) and its rows in: what it is made of settled before its profile is asked
+    await page.waitForFunction(() => document.querySelector('.dc-flow-results-title')?.textContent === 'Orders with their country'
+      && /of [\d,]+ rows|[\d,]+ rows ×/.test(document.querySelector('.dc-flow-results')?.textContent ?? ''), null, { timeout: 120_000 });
+    await page.locator('.dc-flow-mode[data-mode="profile"]:visible').click();
+    await page.locator('.dc-flow-profile-table:visible').waitFor({ timeout: 60_000 });
+    await shot(page, 'run, each box counted; the join profiled below');
+    await page.locator('.dc-flow-mode[data-mode="rows"]:visible').click();
+    await page.locator('.dc-flow-container[data-tile="text-2"] .dc-flow-frame-fold').click();
+    await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-3"]')?.hidden === true, null, { timeout: 20_000 });
+    await shot(page, 'its Prepare container folded to its head');
+    const counts = await page.locator('.dc-flow-count:visible').allTextContents();
+    // its Reshape sheet: a Sample, a Select that renames, a Transpose and a Summarize by measure, run
+    await page.locator('.dc-sheet-tab', { hasText: 'Reshape' }).click();
+    await page.locator('.dc-flow-box[data-tile="grid-12"]').waitFor({ timeout: 60_000 });
+    await page.locator('.dc-flow-run:visible').click();
+    await ran();
+    await page.locator('.dc-flow-log-close:visible').click();
+    await page.locator('.dc-flow-box[data-tile="grid-12"]').click();
+    await page.waitForFunction(() => /of [\d,]+ rows|[\d,]+ rows ×/.test([...document.querySelectorAll('.dc-flow-results')].find((r) => r.offsetParent !== null)?.textContent ?? ''), null, { timeout: 120_000 });
+    await shot(page, 'its Reshape sheet run: the top orders of each region, chosen and renamed, their money made rows and summed');
+    const reshaped = await page.locator('.dc-flow-count:visible').allTextContents();
+    // its Match sheet: the Join's L and R, a Count Records, a Find Replace, run
+    await page.locator('.dc-sheet-tab', { hasText: 'Match' }).click();
+    await page.locator('.dc-flow-box[data-tile="grid-16"]').waitFor({ timeout: 60_000 });
+    await page.locator('.dc-flow-run:visible').click();
+    await ran();
+    await page.locator('.dc-flow-log-close:visible').click();
+    await page.locator('.dc-flow-box[data-tile="grid-13"]').click();
+    await page.waitForFunction(() => /of [\d,]+ rows|[\d,]+ rows ×/.test([...document.querySelectorAll('.dc-flow-results')].find((r) => r.offsetParent !== null)?.textContent ?? ''), null, { timeout: 120_000 });
+    await shot(page, "its Match sheet run: the big orders the join found no country for (its L), counted; the countries no big order is of (its R); every order's country as named");
+    // its Checks sheet: three regions unioned again, 2024's kept and written, every order checked -- one check failing
+    await page.locator('.dc-sheet-tab', { hasText: 'Checks' }).click();
+    await page.locator('.dc-flow-box[data-tile="grid-22"]').waitFor({ timeout: 60_000 });
+    await page.locator('.dc-flow-run:visible').click();
+    await ran();
+    await page.waitForFunction(() => ['grid-22', 'grid-23'].every((t) => document.querySelector(`.dc-flow-box[data-tile="${t}"]`)?.classList.contains('dc-flow-failing')), null, { timeout: 60_000 });
+    await shot(page, "its Checks sheet run: three regions' orders unioned again, 2024's kept and written, every order checked -- its discount check failing; revenue by channel, its columns fixed to two regions, its third said -- on their boxes and in the run's log");
+    const tested = await page.locator('.dc-flow-box[data-tile="grid-22"] .dc-flow-says').textContent();
+    const crossed = await page.locator('.dc-flow-box[data-tile="grid-23"] .dc-flow-says').textContent();
+    return `wrote ${file.suggestedFilename()}; counted ${counts.filter((c) => c !== '').join(', ')}; reshaped ${reshaped.filter((c) => c !== '').join(', ')}; tested: ${tested}; crossed: ${crossed}`;
+  });
 
   await step('No page errors on the way', async () => {
     if (pageErrors.length) throw new Error(pageErrors.slice(0, 3).join(' | '));

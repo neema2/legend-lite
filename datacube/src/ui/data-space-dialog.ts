@@ -8,6 +8,7 @@ import { focusedElement } from '../focus.ts';
 import type { AssociationAction, ModelAnswer, Suggestion } from '../model-writer.ts';
 import { isPureName } from '../model-names.ts';
 import type { CreatedClass } from './class-dialog.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** A grid of the page, as the window offers it: a class already, or one to make. */
 export interface DataSpaceGrid {
@@ -89,7 +90,7 @@ export function dataSpaceDialog(doc: Document, o: DataSpaceDialogOptions): Promi
     el(doc, 'p', 'dc-picker-subtitle', titles, o.project.isNew
       ? 'The page\'s model, as one front door Query lists: its classes and their associations, in a new project in this browser.'
       : `The page's model, as one front door Query lists: its classes and their associations, in ${o.project.name}.`);
-    const close = el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement;
+    const close = closeMark(el(doc, 'button', 'dc-picker-close', head, '×') as HTMLButtonElement);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => { if (!busy) finish(); });

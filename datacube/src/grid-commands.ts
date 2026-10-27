@@ -14,7 +14,7 @@ import {
   type CubeConfiguration, type Patch,
 } from './config.ts';
 import {
-  addSort, allColumns, clearSort, clickSort, clickTreeSort, columnKind, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
+  addSort, allColumns, clearSort, clickSort, clickTreeSort, columnKind, pinPivot, pivotHeaderMeasure, setColumn, setGrouping, setPivot,
   setSorts, spreadMeasureNames, type ColumnChange, type GridDraft,
 } from './grid-edits.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
@@ -42,6 +42,9 @@ export type GridCommand =
   | { readonly kind: 'group'; readonly rows: readonly string[] }
   /** The pivot, whole (the Columns zone, the menu's Horizontal Pivot, Python's pivot). */
   | { readonly kind: 'pivot'; readonly columns: readonly string[] }
+  /** The pivot's values pinned, its columns those (a Cross Tab's Load values, FL2: grid-edits.ts pinPivot); null, its
+   *  values its rows' each time it runs. */
+  | { readonly kind: 'pinPivot'; readonly values: readonly FilterValue[] | null }
   /** The sorts, whole (the Sorts panel, the menu's Ascending, Descending and Clear). */
   | { readonly kind: 'sorts'; readonly sorts: readonly SortSpec[] }
   /** A sort added last (the menu's Add Ascending and Add Descending, Python's sort). */
@@ -104,13 +107,13 @@ export type GridCommand =
   };
 
 export const GRID_COMMAND_KINDS = [
-  'group', 'pivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
+  'group', 'pivot', 'pinPivot', 'sorts', 'addSort', 'clearSort', 'clickSort', 'clickTreeSort', 'column', 'configure', 'filter', 'addFilter',
   'refilter', 'calculate', 'editCalculated', 'removeCalculated', 'open', 'collapseAll', 'expandAll', 'topN', 'tree',
 ] as const satisfies readonly GridCommand['kind'][];
 
 /** Each grid command's fields, by kind: what readGridCommand takes, and what Python's generated builders write (D17). */
 export const GRID_COMMAND_FIELDS = {
-  group: ['rows'], pivot: ['columns'], sorts: ['sorts'], addSort: ['column', 'direction'], clearSort: ['column'],
+  group: ['rows'], pivot: ['columns'], pinPivot: ['values'], sorts: ['sorts'], addSort: ['column', 'direction'], clearSort: ['column'],
   clickSort: ['column', 'first', 'chained'], clickTreeSort: ['chained'], column: ['name', 'change'], configure: ['patch'],
   filter: ['filter'], addFilter: ['condition'], refilter: ['remove', 'add'], calculate: ['level', 'column', 'before?'],
   editCalculated: ['name', 'level', 'column', 'before?'], removeCalculated: ['name'], open: ['path', 'open'],
@@ -128,6 +131,8 @@ export function applyGridCommand<D extends GridDraft>(draft: D, command: GridCom
       return setGrouping(draft, command.rows);
     case 'pivot':
       return setPivot(draft, command.columns);
+    case 'pinPivot':
+      return pinPivot(draft, command.values);
     case 'sorts':
       return setSorts(draft, command.sorts);
     case 'addSort':
@@ -796,6 +801,15 @@ export function readGridCommand(given: unknown): GridCommand {
     case 'pivot':
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       return { kind, columns: namesFrom(o['columns'], 'the pivot') };
+    case 'pinPivot': {
+      fields(o, kind, GRID_COMMAND_FIELDS[kind]);
+      const values = o['values'];
+      if (values === null) return { kind, values: null };
+      if (!Array.isArray(values) || !values.every((v) => typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean')) {
+        throw new CubeRefusal(`a pivot's pinned values are a list of texts, numbers or true and false, or null, not ${JSON.stringify(values)}`);
+      }
+      return { kind, values: values as FilterValue[] };
+    }
     case 'sorts': {
       fields(o, kind, GRID_COMMAND_FIELDS[kind]);
       if (!Array.isArray(o['sorts'])) throw new CubeRefusal('the sorts are a list');

@@ -99,13 +99,14 @@ final class ValueCollections {
             String sub) {
         List<SqlExpr> cells = new ArrayList<>();
         boolean allSpell = true;
+        var column = SqlExpr.Column.lookup(sub, rel.outputs());
         for (Type.Column c : rt.columns()) {
             // WIRE columns by construction — DateTime cells spell the
             // engine's value-read decode (NINE subsecond digits,
             // disagree-9 burn); written-literal spellings never pass
             // through this caller
             SqlExpr s = MixedEncoding.spellByKind(c.type(),
-                    SqlExpr.Column.of(sub, rel.outputs(), c.name()),
+                    column.apply(c.name()),
                     com.legend.sql.DateFmt.ISO_NANO);
             if (s == null) {
                 allSpell = false;
@@ -117,7 +118,7 @@ final class ValueCollections {
             cells.clear();
             for (Type.Column c : rt.columns()) {
                 cells.add(SqlExpr.Call.of(SqlFn.TO_VARIANT,
-                        SqlExpr.Column.of(sub, rel.outputs(), c.name())));
+                        column.apply(c.name())));
             }
         }
         return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))

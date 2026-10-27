@@ -25,6 +25,7 @@ beforeEach(() => {
   tabs = new SheetTabs(dom.window.document, {
     onShow: (id) => asked.push(`show ${id}`),
     onAdd: () => asked.push('add'),
+    onAddFlow: () => asked.push('add flow'),
     onRename: (id, name) => asked.push(`rename ${id} ${name}`),
     onMove: (id, to) => asked.push(`move ${id} ${to}`),
     onRemove: (id) => asked.push(`remove ${id}`),
@@ -103,14 +104,17 @@ describe('a page\'s sheet tabs', () => {
   it('offer in a tab\'s menu only what can be done: no Move Left first, no Move Right last, no Delete of the last sheet', () => {
     let menu = menuOf('sheet-1');
     assert.equal(disabled(menu.get('Move Left')), true);
+    // off, and why said on its hover (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md)
+    assert.equal(menu.get('Move Left')!.title, 'It is the first sheet');
     assert.equal(disabled(menu.get('Move Right')), false);
     menu.get('Move Right')!.click();
     menu = menuOf('sheet-3');
     assert.equal(disabled(menu.get('Move Right')), true);
-    menu.get('Delete')!.click();
+    menu.get('Delete Sheet')!.click();
     assert.deepEqual(asked, ['move sheet-1 1', 'remove sheet-3']);
     tabs.paint([SHEETS[0]!], 'sheet-1', true);
-    assert.equal(disabled(menuOf('sheet-1').get('Delete')), true);
+    assert.equal(disabled(menuOf('sheet-1').get('Delete Sheet')), true);
+    assert.equal(menuOf('sheet-1').get('Delete Sheet')!.title, 'A page keeps one sheet at least');
   });
 
   it('on a locked page still switch sheets, and add, rename, move and delete none', () => {
@@ -119,7 +123,9 @@ describe('a page\'s sheet tabs', () => {
     tabs.rename('sheet-1');
     assert.equal(tab('sheet-1').querySelector('input'), null);
     const menu = menuOf('sheet-2');
-    assert.ok(['Rename', 'Move Left', 'Move Right', 'Delete'].every((l) => disabled(menu.get(l))));
+    assert.ok(['Rename…', 'Move Left', 'Move Right', 'Delete Sheet'].every((l) => disabled(menu.get(l))));
+    assert.ok(['Rename…', 'Move Left', 'Move Right', 'Delete Sheet'].every((l) => menu.get(l)!.title === 'Edit Layout first'),
+      'a locked page says what unlocks them');
     key(tab('sheet-1'), 'ArrowRight');
     assert.deepEqual(asked, ['show sheet-2']);
   });
@@ -131,7 +137,28 @@ describe('a page\'s sheet tabs', () => {
     assert.deepEqual([...tabs.element.querySelectorAll('.dc-sheet-tab .dc-sheet-label')].map((t) => t.textContent), ['Sheet 3', 'Charts', 'trades.csv']);
     tabs.paint(SHEETS.slice(0, 2), 'sheet-1', true);
     assert.equal(tab('sheet-3'), null, 'a sheet gone takes its tab');
+  });
+
+  it('offer from the + a Sheet and a Flow, as Create ▸ offers them (2026-10-26)', () => {
+    const add = tabs.element.querySelector<HTMLElement>('.dc-sheet-add')!;
+    assert.equal(add.getAttribute('aria-haspopup'), 'menu');
+    const pick = (label: string): void => {
+      add.click();
+      const items = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')];
+      assert.deepEqual(items.map((i) => i.querySelector('.dc-menu-label')?.textContent), ['Sheet', 'Flow']);
+      items.find((i) => i.querySelector('.dc-menu-label')?.textContent === label)!.click();
+    };
+    pick('Sheet');
+    pick('Flow');
+    assert.deepEqual(asked, ['add', 'add flow']);
+  });
+
+  it('add nothing from a + menu opened before the page was locked', () => {
     tabs.element.querySelector<HTMLElement>('.dc-sheet-add')!.click();
-    assert.deepEqual(asked, ['add']);
+    const flow = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+      .find((i) => i.querySelector('.dc-menu-label')?.textContent === 'Flow')!;
+    tabs.paint(SHEETS, 'sheet-1', false);
+    flow.click();
+    assert.deepEqual(asked, []);
   });
 });

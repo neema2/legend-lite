@@ -33,7 +33,7 @@ const MINE_WITH_NONE: JoinHow = { form: 'anti', on: ON };
 
 /** A sample's file as a cube records it -- `rows` of it, else its own number -- built here and hashed, so the page reopens
  *  over the same rows rebuilt. */
-async function sampleSource(id: string, columns: readonly ColumnSpec[], rows?: number): Promise<FileSource> {
+export async function sampleSource(id: string, columns: readonly ColumnSpec[], rows?: number): Promise<FileSource> {
   const sample = sampleById(id);
   if (!sample) throw new Error(`no sample '${id}'`);
   rows ??= sample.defaultRows;

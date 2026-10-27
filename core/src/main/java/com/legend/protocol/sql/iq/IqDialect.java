@@ -1046,6 +1046,7 @@ public final class IqDialect implements InputDialect {
                 queries(o.right(), out);
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         }
     }
 
@@ -1102,6 +1103,7 @@ public final class IqDialect implements InputDialect {
             case SqlAst.Select s -> s;
             case SqlAst.SetOperation o -> first(o.left());
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         };
     }
 
@@ -1486,6 +1488,7 @@ public final class IqDialect implements InputDialect {
                 }
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         }
     }
 
@@ -2154,6 +2157,7 @@ public final class IqDialect implements InputDialect {
                 }
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         }
     }
 
@@ -2424,6 +2428,7 @@ public final class IqDialect implements InputDialect {
                 branches(o.right(), out);
             }
             case SqlAst.With w -> throw new IllegalStateException("IQ's reader makes no WITH");
+            case SqlAst.Write w -> throw new IllegalStateException("IQ's reader makes no write");
         }
     }
 

@@ -485,6 +485,43 @@ describe('the band board', () => {
     assert.equal(changes.length, 0);
   });
 
+  it('maximise says what it does and flips: its corners out fill the page with a tile, in on that tile put it back (the user, 2026-10-25)', () => {
+    const { board } = sideBySide(['a', 'b']);
+    const button = (id: string): HTMLButtonElement => root(id).querySelector<HTMLButtonElement>('.dc-tile-maximise')!;
+    // drawn in the chrome's one set (ui/tile-icons.ts chromeIcon; found 4 of docs/DATACUBE_UI_REVIEW_2026_10_24.md)
+    const icon = (id: string): string | null => button(id).querySelector('svg')?.getAttribute('data-icon') ?? null;
+    assert.deepEqual([icon('a'), button('a').getAttribute('aria-label')], ['maximise', 'Maximise A']);
+    assert.equal(button('a').textContent, '', 'no glyph typed');
+    button('a').click();
+    assert.equal(board.maximised, 'a');
+    assert.deepEqual([icon('a'), button('a').getAttribute('aria-label')], ['restore', 'Restore A']);
+    assert.match(button('a').title, /^Restore/);
+    button('a').click();
+    assert.equal(board.maximised, null);
+    assert.equal(icon('a'), 'maximise');
+    assert.equal(button('a').querySelectorAll('svg').length, 1, 'one icon, redrawn in place');
+  });
+
+  it('a tile\'s state goes left of its title; alone, where it is told (a lone grid\'s sheet tab), and back with a second tile', () => {
+    const changes: Bands[] = [];
+    const board = new BandBoard(host, { onChange: (layout) => changes.push(layout) });
+    const state = dom.window.document.createElement('button');
+    state.className = 'dc-tile-state';
+    board.add({ ...tile('a'), state, about: 'Reads trades.csv' });
+    board.setLayout(rowOf(['a']));
+    const head = root('a').querySelector('.dc-tile-head')!;
+    assert.equal(head.firstElementChild, state, 'its state first');
+    assert.equal(state.nextElementSibling?.className, 'dc-tile-title');
+    assert.match(root('a').querySelector<HTMLElement>('.dc-tile-title')!.title, /^Reads trades\.csv\. Drag to move/);
+    const slot = dom.window.document.createElement('span');
+    const tabSlot = dom.window.document.createElement('span');
+    board.setAlone('a', slot, tabSlot);
+    assert.equal(state.parentElement, tabSlot, 'alone: in the slot it is given');
+    board.setAlone(null, slot, tabSlot);
+    assert.equal(head.firstElementChild, state, 'back first in its own header');
+    assert.equal(tabSlot.childElementCount, 0);
+  });
+
   it('never starts a drag from a title bar\'s button', () => {
     const { board } = sideBySide(['a', 'b']);
     const before = board.layout;

@@ -2,9 +2,10 @@
 // measure shown as something computed from it, a number taken to its bin -- each the calculated columns the chart's
 // presets are, added to the grid under a name no column of the grid has. One rule for the header menu's By Day/Week/…
 // and Show As, and for Python's grid.grain, grid.show_as and grid.bins (D6, D21); the screen's Bins opens the column
-// editor on the same expression for a person to name and change.
+// editor on the same expression for a person to name and change. A flow's Binning is the bins preset of each of several
+// columns (binning.ts: Python's grid.binning), named by the same rule (calc-presets.ts freeName).
 
-import { binColumns, grainColumn, GRID_SHOW_AS_KINDS, gridShowAsColumns, isGridRatio, type GridShowAsKind } from './calc-presets.ts';
+import { binColumns, freeName, grainColumn, GRID_SHOW_AS_KINDS, gridShowAsColumns, isGridRatio, type GridShowAsKind } from './calc-presets.ts';
 import { TIME_GRAINS, grainsOf, type Bins, type TimeGrain } from './chart-spec.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn } from './snapshot.ts';
@@ -25,9 +26,7 @@ export type GridPreset =
 export function presetCommands(s: CubeSnapshot, preset: GridPreset): GridCommand[] {
   const { level, base, make } = shaped(s, preset);
   const taken = new Set([...rowColumns(s).map((c) => c.name), ...(s.groupDerived ?? []).map((d) => d.name)]);
-  const fits = (name: string): boolean => make(name).every((d) => !taken.has(d.name));
-  let free = base;
-  for (let i = 2; !fits(free); i += 1) free = `${base}_${i}`;
+  const free = freeName(base, make, taken);
   const columns = make(free);
   const commands = columns.map((column): GridCommand => ({ kind: 'calculate', level, column }));
   if (preset.kind !== 'showAs') return commands;
@@ -101,3 +100,4 @@ export function readGridPreset(raw: unknown): GridPreset {
       throw new CubeRefusal(`a preset is 'grain', 'showAs' or 'bins', not ${JSON.stringify(o['kind'])}`);
   }
 }
+

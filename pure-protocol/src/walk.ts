@@ -60,6 +60,15 @@ export function transform(node: ValueSpecification, f: (n: ValueSpecification) =
   return f(withChildren(node, (c) => transform(c, f)));
 }
 
+/**
+ * A top-down rewrite: `f` sees each node before its children, and what it answers replaces the node whole (its children
+ * not visited) -- or, undefined, the node is kept and its children rewritten so. What a bottom-up transform cannot say:
+ * a variable put in place of its reads everywhere but under a lambda whose own parameter has its name. Nothing is mutated.
+ */
+export function rewrite(node: ValueSpecification, f: (n: ValueSpecification) => ValueSpecification | undefined): ValueSpecification {
+  return f(node) ?? withChildren(node, (c) => rewrite(c, f));
+}
+
 function withChildren(node: ValueSpecification, g: (n: ValueSpecification) => ValueSpecification): ValueSpecification {
   switch (node._type) {
     case 'lambda':

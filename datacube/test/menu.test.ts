@@ -66,13 +66,13 @@ describe('buildMenu', () => {
   });
 
   it('opens the filter editor UNSCOPED, as DataCube does', () => {
-    // Their entry is plain "Filters...". There is no per-column
+    // Their entry is plain "Filters…". There is no per-column
     // filter dialog, because the filter is one tree over the whole
     // cube rather than a set of per-column widgets to reconcile.
     const items = menuItems(buildMenu({ snapshot: CUBE, column: 'desk' }));
     assert.equal(
       items.find((i) => i.id === 'filter.column')?.label,
-      'Filters...',
+      'Filters…',
     );
     // Still offered with no column under the pointer.
     assert.ok(
@@ -121,18 +121,18 @@ describe('buildMenu', () => {
   // shortcuts -- the menu shorter
   it('ends with View ▸ -- groups all opened or closed, the controls switch, the shortcuts -- the order before it untouched', () => {
     // The right-click order stays as people know it (the user); the one switch for the controls -- hidden for the grid
-    // alone, and the only way back (the user, 2026-10-01: "right click only") -- in View ▸, after everything, Properties...
+    // alone, and the only way back (the user, 2026-10-01: "right click only") -- in View ▸, after everything, Properties…
     // included.
     const top = (ctx: Partial<Parameters<typeof buildMenu>[0]>) => buildMenu({ snapshot: CUBE, column: 'desk', ...ctx }).flatMap((g) => g.items);
     const shown = (items: readonly MenuItem[] | undefined) =>
       (items ?? []).map((i) => `${i.separated ? '| ' : ''}${i.id}:${i.label}${i.disabled ? ' [off]' : ''}`);
-    assert.deepEqual(top({}).slice(-2).map((i) => i.label), ['Properties...', 'View']);
+    assert.deepEqual(top({}).slice(-2).map((i) => i.label), ['Properties…', 'View']);
     assert.deepEqual(shown(top({}).at(-1)?.submenu), [
       'tree.expandAll:Expand All [off]', 'tree.collapseAll:Collapse All [off]', '| view.controls:Hide Controls',
-      'view.shortcuts:Keyboard Shortcuts...',
+      'view.shortcuts:Keyboard Shortcuts…',
     ], 'one level of groups: nothing beneath it to open; none opened: nothing to close');
     assert.deepEqual(shown(top({ snapshot: { ...CUBE, rows: ['region', 'desk'] }, hasExpanded: true, controlsHidden: true }).at(-1)?.submenu), [
-      'tree.expandAll:Expand All', 'tree.collapseAll:Collapse All', '| view.controls:Show Controls', 'view.shortcuts:Keyboard Shortcuts...',
+      'tree.expandAll:Expand All', 'tree.collapseAll:Collapse All', '| view.controls:Show Controls', 'view.shortcuts:Keyboard Shortcuts…',
     ]);
   });
 
@@ -151,6 +151,7 @@ describe('buildMenu', () => {
     assert.equal(both[4]?.submenu, sheets, 'Move to Sheet: the other sheets, then a new one');
     assert.equal(both[5]?.id, 'grid.remove');
     assert.deepEqual(tail(view({ sheets: 'locked' })), ['| Move to Sheet [off]'], 'locked: offered, disabled, nothing under it');
+    assert.equal(view({ sheets: 'locked' }).find((i) => i.label === 'Move to Sheet')?.hint, 'Edit Layout first', 'and says why');
     assert.deepEqual(tail(view({ canRemove: true })), ['| Remove from Page']);
     assert.deepEqual(tail(view({})), [], 'off a page: nothing of a tile');
   });
@@ -628,12 +629,23 @@ describe('the Pin and Sort entries report state, as upstream', () => {
     assert.equal(find(groups, 'Pin Right')?.disabled, true);
   });
 
-  it('offers the measure-first header flip, checked when on, only with a column pivot', () => {
+  it('shows a key only where one does what the entry does (shortcuts.ts): Undo, Redo, Copy Selected Cells, Properties…', () => {
+    const groups = buildMenu({ snapshot: CUBE, column: 'notional', hasSelection: true });
+    // menuItems: every entry, a submenu's too
+    const keyed = menuItems(groups).flatMap((i) => (i.shortcut !== undefined ? [`${i.label} ${i.shortcut}`] : []));
+    assert.deepEqual(keyed,
+      ['Undo Ctrl+Z', 'Redo Ctrl+Shift+Z', 'Copy Selected Cells Ctrl+C', 'Properties… Ctrl+E']);
+  });
+
+  it('offers the measure-first header flip, saying what it will do, only with a column pivot', () => {
+    // A switch says what it will do and flips -- a missing check mark is not clear (the user, 2026-10-24;
+    // docs/DATACUBE_UI_REVIEW_2026_10_24.md, the menus)
     const pivoted = { ...CUBE, pivotOn: ['region'] };
-    assert.equal(find(buildMenu({ snapshot: pivoted, measuresFirst: true }),
-      'Measures First in Column Headers')?.checked, true);
-    assert.equal(find(buildMenu({ snapshot: pivoted }),
-      'Measures First in Column Headers')?.checked, false);
+    const on = find(buildMenu({ snapshot: pivoted, measuresFirst: true }), 'Values First in Column Headers');
+    assert.equal(on?.id, 'pivot.measuresFirst');
+    assert.equal(on?.checked, undefined, 'no check mark');
+    assert.equal(find(buildMenu({ snapshot: pivoted, measuresFirst: true }), 'Measures First in Column Headers'), undefined);
+    assert.equal(find(buildMenu({ snapshot: pivoted }), 'Measures First in Column Headers')?.checked, undefined);
     assert.equal(find(buildMenu({ snapshot: { ...CUBE, pivotOn: [] } }),
       'Measures First in Column Headers')?.disabled, true);
   });
@@ -673,7 +685,7 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
     assert.deepEqual(dated.filter((i) => i.id === 'calc.grain').map((i) => i.grain), ['day', 'week', 'month', 'quarter', 'year']);
     assert.ok(!dated.some((i) => i.id === 'calc.bins'));
     const number = items({ snapshot: DATED, column: 'notional', extendable: true });
-    assert.ok(number.some((i) => i.id === 'calc.bins' && i.label === 'Bins of notional...'));
+    assert.ok(number.some((i) => i.id === 'calc.bins' && i.label === 'Bins of notional…'));
     assert.ok(!number.some((i) => i.id === 'calc.grain'));
     // a column a row-stage expression cannot see (a pivot's, a group-stage one) is not extendable
     assert.ok(!items({ snapshot: DATED, column: 'trade_date' }).some((i) => i.id === 'calc.grain'));
@@ -695,12 +707,12 @@ describe('the chart\'s presets in the grid\'s Extended Columns (docs/DATACUBE_CH
 describe('Create ▸ and Join ▸', () => {
   const labels = (items: readonly MenuItem[]) => items.map((i) => `${i.separated ? '| ' : ''}${i.label}`);
 
-  it('Create ▸ is the same everywhere: a data source, a copy of this grid, a chart, a text box; the host\'s a line apart', () => {
+  it('Create ▸ is the same everywhere: a data source, a copy of this grid, a chart, a timeseries, a text box; the host\'s a line apart', () => {
     const host: MenuItem[] = [{ id: 'host.createClass', label: 'Class\u2026' }, { id: 'host.createDataSpace', label: 'Data Space\u2026' }];
-    assert.deepEqual(labels(createItems({ source: true, host })), ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Text Box', '| Class\u2026', 'Data Space\u2026']);
-    assert.deepEqual(labels(createItems({ source: false, host: [] })), ['Copy of This Grid', 'Visualization', 'Text Box']);
-    assert.ok(createItems({ source: true, host, disabled: true }).slice(0, 4).every((i) => i.disabled), 'the grid\'s own off in Ad Hoc');
-    assert.ok(createItems({ source: true, host, disabled: true }).slice(4).every((i) => !i.disabled), 'the host\'s its own to say');
+    assert.deepEqual(labels(createItems({ source: true, host })), ['Data Source\u2026', 'Copy of This Grid', 'Visualization', 'Timeseries', 'Text Box', '| Class\u2026', 'Data Space\u2026']);
+    assert.deepEqual(labels(createItems({ source: false, host: [] })), ['Copy of This Grid', 'Visualization', 'Timeseries', 'Text Box']);
+    assert.ok(createItems({ source: true, host, disabled: true }).slice(0, 5).every((i) => i.disabled), 'the grid\'s own off in Ad Hoc');
+    assert.ok(createItems({ source: true, host, disabled: true }).slice(5).every((i) => !i.disabled), 'the host\'s its own to say');
     const create = buildMenu({ snapshot: CUBE, column: 'desk', canOpenSource: true, create: host }).flatMap((g) => g.items).find((i) => i.label === 'Create');
     assert.deepEqual(labels(create?.submenu ?? []), labels(createItems({ source: true, host })), 'the right-click\'s, the same');
   });
@@ -770,23 +782,22 @@ describe('Conditional Formatting ▸: data bars, colour scales, icon sets, one-c
   it("each a gesture carrying its choice; Data Bars a toggle; the column's icon set checked", () => {
     const none = { dataBar: false, scale: false, rules: 0 };
     assert.deepEqual(top({ snapshot: CUBE, column: 'notional', conditional: none }).map((i) => i.label),
-      ['Data Bars', 'Color Scales', 'Icon Sets', 'Highlight Rules', 'Clear Formatting from Column']);
-    assert.deepEqual(menuGesture(top({ snapshot: CUBE, column: 'notional', conditional: none })[0]!), { name: 'format.dataBar', args: { column: 'notional', on: true } });
-    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, dataBar: true } })[0]!.label, 'Remove Data Bars');
+      ['Add Heatmap', 'Add Data Bars', 'Color Scales', 'Icon Sets', 'Highlight Rules', 'Clear Formatting from Column']);
+    assert.deepEqual(menuGesture(top({ snapshot: CUBE, column: 'notional', conditional: none })[1]!), { name: 'format.dataBar', args: { column: 'notional', on: true } });
+    assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, dataBar: true } })[1]!.label, 'Remove Data Bars');
     const icons = sub({ snapshot: CUBE, column: 'notional', conditional: { ...none, iconSet: 'flags' } }, 'Icon Sets');
     assert.deepEqual(icons.map((i) => [i.label, Boolean(i.checked)]),
       [['Arrows', false], ['Traffic Lights', false], ['Symbols', false], ['Flags', true], ['No Icons', false]]);
     assert.deepEqual(menuGesture(icons.at(-1)!), { name: 'format.iconSet', args: { column: 'notional', set: null } });
     const rules = sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Highlight Rules');
     assert.deepEqual(menuGesture(rules[0]!)?.args, { column: 'notional', rule: { when: { op: 'top', count: 10 }, style: { foreground: '#006100', background: '#c6efce' } } });
-    // the heatmap is a colour scale, the grid's own: it leads Color Scales ▸, and No Color Scale takes either off (the user,
-    // 2026-10-24: one place)
-    const scales = (hasHeatmap: boolean) => sub({ snapshot: CUBE, column: 'notional', conditional: none, hasHeatmap }, 'Color Scales');
-    assert.deepEqual(scales(false).map((i) => `${i.separated ? '| ' : ''}${i.label}${i.disabled ? ' [off]' : ''}`),
-      ['Heatmap', 'Green - Yellow - Red', 'Red - Yellow - Green', 'Blue - White - Red', 'White - Orange', '| No Color Scale [off]']);
-    assert.deepEqual(menuGesture(scales(false)[0]!), { name: 'heatmap.add', args: { column: 'notional' } });
-    assert.deepEqual([scales(true)[0]!.disabled, scales(true).at(-1)!.disabled], [true, false]);
-    assert.deepEqual(menuGesture(scales(true).at(-1)!), { name: 'heatmap.remove', args: { column: 'notional' } });
+    // the heatmap first, one click, saying what it will do (the user, 2026-10-25: it was lost under Color Scales ▸); the
+    // colour scales' presets under Color Scales ▸, the heatmap's Remove taking any of them off
+    const heat = (hasHeatmap: boolean) => top({ snapshot: CUBE, column: 'notional', conditional: none, hasHeatmap })[0]!;
+    assert.deepEqual([heat(false).label, menuGesture(heat(false))], ['Add Heatmap', { name: 'heatmap.add', args: { column: 'notional' } }]);
+    assert.deepEqual([heat(true).label, menuGesture(heat(true))], ['Remove Heatmap', { name: 'heatmap.remove', args: { column: 'notional' } }]);
+    assert.deepEqual(sub({ snapshot: CUBE, column: 'notional', conditional: none }, 'Color Scales').map((i) => i.label),
+      ['Green - Yellow - Red', 'Red - Yellow - Green', 'Blue - White - Red', 'White - Orange']);
     // nothing to clear, nothing offered to clear; something, offered
     assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: none }).at(-1)?.disabled, true);
     assert.equal(top({ snapshot: CUBE, column: 'notional', conditional: { ...none, rules: 1 } }).at(-1)?.disabled, false);

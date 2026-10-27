@@ -1,7 +1,7 @@
 // `bazel run //site:verify`: the one-origin promise, end to end in Chromium, with no server at all --
 // a query built and saved in Legend Query (in this browser: query-store's page store, IndexedDB)
 // is listed in DataCube's Saved queries on the same origin, says it comes from this browser, and
-// opens as a grid with the rows it ran to in Query.
+// opens as a grid with the rows it ran to in Query -- and DataCube's flow example opens and runs there.
 //
 // A test (//site:verify_test) on the Chromium Bazel fetched; `bazel run //site:verify` runs the same by hand.
 //
@@ -248,7 +248,8 @@ try {
     }, undefined, { timeout: 60_000 });
     await r.goto(`${SITE}/datacube/demo/index.html`);
     await r.waitForSelector('.dc-row', { timeout: 120_000 });
-    await menuOf('Create', 'Blank Page');
+    // New Page, first in the page's ≡ (2026-10-25, the page's ≡ grouped by purpose: it was Create ▸ Blank Page)
+    await menuOf('New Page');
     await r.click('.dc-blank .dc-primary');
     await r.locator('.dc-picker-tab[data-section="remote"]').click();
     await r.fill('.dc-picker-url', `${ORIGIN}/remote/positions.csv`);
@@ -412,8 +413,7 @@ try {
   await maker.goto(`${SITE}/datacube/demo/index.html`);
   await maker.waitForSelector('.dc-row', { timeout: 120_000 });
   await maker.click('.dc-titlebar-menu');
-  await entry('Create').hover();
-  await entry('Blank Page').click();
+  await entry('New Page').click();
   await maker.click('.dc-blank .dc-primary');
   await maker.locator('.dc-picker .dc-picker-drop').waitFor({ state: 'visible', timeout: 15_000 });
   await maker.setInputFiles('.dc-picker-file', fills);
@@ -461,6 +461,36 @@ try {
   console.log(`Query: fills::domain::Fill opened by name at HEAD and run over its sample -- ${classRows} rows`);
   await reader.close();
   await maker.close();
+
+  // ---- A FLOW, under the site's path (docs/DATACUBE_FLOW_MODE_2026_10_24.md; added 2026-10-26, the flow mode published):
+  // its example opened from Open…'s examples -- the canvas's own chunks fetched under /legend-lite/ -- and run in a
+  // browser of its own: every box counted by the database in the page, its Output written as the browser's download
+  const flowing = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const flow = await flowing.newPage();
+    flow.on('pageerror', (e) => errors.push(`datacube (flow): ${e.message}`));
+    await flow.goto(`${SITE}/datacube/demo/index.html`);
+    // the page started: its first grid drawn
+    await flow.waitForSelector('.dc-row', { timeout: 120_000 });
+    await flow.click('.dc-titlebar-menu');
+    await flow.locator('.dc-menu .dc-menu-item', { has: flow.locator(':scope > .dc-menu-label:text-is("Open…")') }).click();
+    await flow.locator('#cubeswin .dc-open-example[data-example="prep-flow"]').click();
+    await flow.waitForFunction(() => [...document.querySelectorAll('.dc-flow-box')].filter((e) => e.offsetParent !== null).length === 8,
+      undefined, { timeout: 120_000 });
+    const [written] = await Promise.all([flow.waitForEvent('download', { timeout: 240_000 }), flow.locator('.dc-flow-run:visible').click()]);
+    await flow.waitForFunction(() => [...document.querySelectorAll('.dc-flow-run')].every((b) => /Run$/.test(b.textContent ?? '')),
+      undefined, { timeout: 240_000 });
+    const counts = await flow.locator('.dc-flow-box:visible').evaluateAll((els) => els.map((e) => e.querySelector('.dc-flow-count')?.textContent ?? ''));
+    if (counts.length !== 8 || !counts.every((c) => /^[\d,]+$/.test(c))) throw new Error(`the flow's boxes counted ${JSON.stringify(counts)}`);
+    const lines = (await readFile(await written.path(), 'utf8')).replace(/^\uFEFF/, '').trimEnd().split(/\r?\n/);
+    if (written.suggestedFilename() !== 'revenue by continent.csv' || lines[0] !== 'continent,units,revenue,cost,profit' || lines.length < 6) {
+      throw new Error(`the flow's Output wrote ${written.suggestedFilename()}: ${JSON.stringify(lines.slice(0, 2))}`);
+    }
+    console.log(`DataCube: the flow example opened from Open…'s examples and run -- its ${counts.length} boxes counted, `
+      + `${written.suggestedFilename()} written (${lines.length - 1} rows)`);
+  } finally {
+    await flowing.close();
+  }
 } catch (e) {
   failed = true;
   console.log(`FAIL: ${String(e.message ?? e).split('\n')[0]}`);
@@ -472,5 +502,5 @@ if (errors.length) {
   failed = true;
   console.log(`page errors: ${errors.join(' | ')}`);
 }
-console.log(failed ? '\n!!! the apps do not share their stores !!!' : '\n*** saved in Query, opened in DataCube; Studio publishes, Query and DataCube open it by name; a class made in DataCube, committed in Studio, read in Query: one origin, no server ***');
+console.log(failed ? '\n!!! the apps do not share their stores !!!' : '\n*** saved in Query, opened in DataCube; Studio publishes, Query and DataCube open it by name; a class made in DataCube, committed in Studio, read in Query; a flow run in DataCube: one origin, no server ***');
 process.exit(failed ? 1 : 0);

@@ -12,6 +12,8 @@ import {
   AS_OF_OPS, DEFAULT_PREFIX, JOIN_OPS, suggestedKeys, summaryWords, theirNames, type AsOfOp, type JoinCondition, type JoinHow,
   type JoinKindWord, type JoinOp, type JoinRow, type JoinSide, type JoinSummaryCounts,
 } from '../join.ts';
+import { isEveryPair, SIMILAR_WITHIN } from '../join-how.ts';
+import { closeMark } from './tile-icons.ts';
 
 /** Another grid of the page, as the window offers it. */
 export interface JoinCandidate {
@@ -36,11 +38,17 @@ export interface JoinDialogOptions {
    * Where the window starts (a right-click's Join ▸: the column clicked, or a quick join that would repeat rows of mine):
    * their grid, the key it starts on in place of a suggestion, and the form chosen.
    */
-  readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice };
+  readonly start?: { readonly their?: string; readonly row?: JoinRow; readonly form?: Choice; readonly how?: JoinHow;
+    /** The first row's comparison, in place of a suggestion's (a flow's Fuzzy Match: similar). */
+    readonly op?: JoinOp };
+  /** What the window is for, under its title (none: a new grid of the page's two); its button's word (none: Join). A
+   *  flow's Join box set again says so (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
+  readonly lead?: string;
+  readonly action?: string;
 }
 
 /** What the window's form offers, each a form of join.ts's `how`. */
-export type Choice = JoinKindWord | 'asOf' | 'semi' | 'anti' | 'append';
+export type Choice = JoinKindWord | 'asOf' | 'semi' | 'anti' | 'append' | 'cross';
 /**
  * Each form as its tile says it (the user, 2026-10-23: the window was messy beside Create a Class's): a short name, a
  * picture of what it keeps of the two (`picture`, below), and what it does, in a line.
@@ -54,8 +62,9 @@ const CHOICES: readonly { readonly value: Choice; readonly label: string; readon
   { value: 'semi', label: 'Mine with a match', says: 'The rows of mine that have a match: mine alone, each once.' },
   { value: 'anti', label: 'Mine with none', says: 'The rows of mine that have no match: mine alone, each once.' },
   { value: 'append', label: 'Append theirs', says: 'Their rows under mine, column by column: no condition.' },
+  { value: 'cross', label: 'Every pair', says: 'Each row of mine beside every row of theirs: no condition -- a small table\'s values on each of my rows (Alteryx\'s Append Fields).' },
 ];
-const OP_WORDS: Readonly<Record<JoinOp, string>> = { '==': '=', '!=': '≠', '<': '<', '<=': '≤', '>': '>', '>=': '≥' };
+const OP_WORDS: Readonly<Record<JoinOp, string>> = { '==': '=', '!=': '≠', '<': '<', '<=': '≤', '>': '>', '>=': '≥', '~': '≈ similar' };
 
 function el<K extends keyof HTMLElementTagNameMap>(doc: Document, tag: K, cls: string, parent?: Element, text?: string): HTMLElementTagNameMap[K] {
   const e = doc.createElement(tag);
@@ -87,6 +96,7 @@ const PICTURES: Readonly<Record<Choice, readonly { readonly d: string; readonly 
   semi: [{ d: BOTH, filled: true }, { d: MINE, filled: false }],
   anti: [{ d: MINE_ALONE, filled: true }, { d: MINE, filled: false }],
   append: [{ d: 'M8 2h14v6H8Z', filled: true }, { d: 'M8 10h14v6H8Z', filled: false }],
+  cross: [{ d: 'M3 3h11v12H3Z', filled: true }, { d: 'M16 3h11v12H16Z', filled: true }, { d: 'M3 9h24', filled: false }],
 };
 
 function picture(doc: Document, choice: Choice): SVGSVGElement {
@@ -132,8 +142,8 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     const head = el(doc, 'div', 'dc-picker-head', win);
     const titles = el(doc, 'div', 'dc-picker-titles', head);
     el(doc, 'h2', 'dc-picker-title', titles, 'Join').id = 'dc-join-title';
-    el(doc, 'p', 'dc-picker-subtitle', titles, `Combine ${o.mine} with another grid of the page: a new grid of the rows they make together.`);
-    const close = el(doc, 'button', 'dc-picker-close', head, '×');
+    el(doc, 'p', 'dc-picker-subtitle', titles, o.lead ?? `Combine ${o.mine} with another grid of the page: a new grid of the rows they make together.`);
+    const close = closeMark(el(doc, 'button', 'dc-picker-close', head, '×'));
     close.type = 'button';
     close.setAttribute('aria-label', 'Close');
     close.addEventListener('click', () => { if (!busy) finish(); });
@@ -236,7 +246,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
     cancel.type = 'button';
     cancel.addEventListener('click', () => { if (!busy) finish(); });
     el(doc, 'span', 'dc-save-spacer', foot).setAttribute('aria-hidden', 'true');
-    const primary = el(doc, 'button', 'dc-picker-button dc-primary', foot, 'Join');
+    const primary = el(doc, 'button', 'dc-picker-button dc-primary', foot, o.action ?? 'Join');
     primary.type = 'button';
     primary.disabled = true;
     const say = (text: string, kind: 'working' | 'failed' | 'ok' | ''): void => {
@@ -270,24 +280,40 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       if (row.left !== undefined) left.value = row.left;
       if (row.op !== undefined) op.value = row.op;
       if (row.right !== undefined) right.value = row.right;
+      // a similar row's edits apart: its own field, beside its comparison while it is similar
+      const within = el(doc, 'input', 'dc-picker-input dc-join-within', line);
+      within.type = 'number';
+      within.min = '0';
+      within.step = '1';
+      within.value = String(row.within ?? SIMILAR_WITHIN);
+      within.title = 'How many edits apart two texts may be: a letter added, taken away or changed is one';
+      within.setAttribute('aria-label', 'Edits apart at most');
+      const shown = (): void => { within.hidden = op.value !== '~'; };
+      shown();
+      op.addEventListener('change', shown);
+      within.addEventListener('input', changed);
       for (const s of [left, op, right]) s.addEventListener('change', changed);
       if (removable) {
-        const remove = el(doc, 'button', 'dc-picker-button dc-quiet dc-join-remove', line, '×');
+        const remove = closeMark(el(doc, 'button', 'dc-picker-button dc-quiet dc-join-remove', line, '×'));
         remove.type = 'button';
         remove.setAttribute('aria-label', 'Take this condition off');
         remove.addEventListener('click', () => { line.remove(); changed(); });
       }
     };
-    const readRow = (line: Element): Partial<JoinRow> => ({
-      left: (line.querySelector('.dc-join-left') as HTMLSelectElement).value,
-      op: (line.querySelector('.dc-join-op') as HTMLSelectElement).value as JoinOp,
-      right: (line.querySelector('.dc-join-right') as HTMLSelectElement).value,
-    });
+    const readRow = (line: Element): Partial<JoinRow> => {
+      const op = (line.querySelector('.dc-join-op') as HTMLSelectElement).value as JoinOp;
+      const within = Number((line.querySelector('.dc-join-within') as HTMLInputElement | null)?.value ?? SIMILAR_WITHIN);
+      return {
+        left: (line.querySelector('.dc-join-left') as HTMLSelectElement).value, op,
+        right: (line.querySelector('.dc-join-right') as HTMLSelectElement).value,
+        ...(op === '~' ? { within: Number.isInteger(within) && within >= 0 ? within : SIMILAR_WITHIN } : {}),
+      };
+    };
 
     /** The window's parts shown as the form chosen asks. */
     const shape = (): void => {
       const c = chosen;
-      condition.hidden = c === 'append';
+      condition.hidden = c === 'append' || c === 'cross';
       matchBlock.hidden = c !== 'asOf';
       columnsCard.hidden = c === 'semi' || c === 'anti' || c === 'append';
       pure.hidden = !pureOn.checked;
@@ -349,17 +375,26 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         });
       }
       rowsBox.replaceChildren();
+      // a join set again (a flow's Join box): its own condition, match, prefix and columns, while their grid is its own
+      const was = o.start?.how !== undefined && their.value === o.start.their ? o.start.how : undefined;
+      const wasRows = was !== undefined && was.form !== 'append' && 'rows' in was.on && was.on.rows.length > 0 ? was.on.rows : undefined;
       // the key it was opened on, while their grid is the one it was opened at; else one plain key; else a row to fill
       const given = o.start?.row !== undefined && their.value === o.start.their ? o.start.row : undefined;
-      rowLine(rowsBox, JOIN_OPS, given ?? (keys.length === 1 ? keys[0]!.row : { op: '==' }), true);
-      rowLine(matchLine, AS_OF_OPS, { op: '>=' }, false);
+      if (wasRows !== undefined) for (const r of wasRows) rowLine(rowsBox, JOIN_OPS, r, true);
+      else {
+        const first: Partial<JoinRow> = given ?? (keys.length === 1 ? keys[0]!.row : { op: '==' });
+        rowLine(rowsBox, JOIN_OPS, o.start?.op !== undefined ? { ...first, op: o.start.op } : first, true);
+      }
+      rowLine(matchLine, AS_OF_OPS, was?.form === 'asOf' ? was.match : { op: '>=' }, false);
+      if (was !== undefined && (was.form === 'join' || was.form === 'asOf')) prefix.value = was.prefix;
+      const kept = was !== undefined && (was.form === 'join' || was.form === 'asOf') ? was.keep : null;
       columnList.replaceChildren();
       for (const c of inputs.right.columns) {
         const label = el(doc, 'label', 'dc-join-column', columnList);
         const box = el(doc, 'input', '', label);
         box.type = 'checkbox';
         box.value = c.name;
-        box.checked = true;
+        box.checked = kept === null || kept.includes(c.name);
         el(doc, 'span', 'dc-join-column-name', label, c.name);
         el(doc, 'span', 'dc-join-column-out', label);
         el(doc, 'span', 'dc-join-column-type', label, c.type);
@@ -374,7 +409,9 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       const c = chosen;
       if (c === 'append') return { form: 'append' };
       let on: JoinCondition;
-      if (pureOn.checked) {
+      // every pair: no condition, their columns kept and prefixed as a join's are
+      if (c === 'cross') on = { rows: [] };
+      else if (pureOn.checked) {
         if (pure.value.trim() === '') return 'Write the condition, or take Pure off.';
         on = { lambda: await o.parse(pure.value) };
       } else {
@@ -392,7 +429,7 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
         if (!m.left || !m.right) return 'Choose the two columns the nearest row is found by.';
         return { form: 'asOf', match: { left: m.left, op: m.op as AsOfOp, right: m.right }, on, prefix: pre, keep };
       }
-      return { form: 'join', kind: c, on, prefix: pre, keep };
+      return { form: 'join', kind: c === 'cross' ? 'inner' : c, on, prefix: pre, keep };
     };
 
     let asked = 0;
@@ -464,7 +501,9 @@ export function joinDialog(doc: Document, o: JoinDialogOptions): Promise<boolean
       }
     })());
 
-    choose(o.start?.form ?? 'left');
+    const startHow = o.start?.how;
+    choose(o.start?.form ?? (startHow === undefined ? 'left' : isEveryPair(startHow) ? 'cross'
+      : startHow.form === 'join' ? startHow.kind : startHow.form));
     void load();
   });
 }

@@ -155,6 +155,16 @@ export function menu(text: string, label: string): void {
   item.click();
 }
 
+/** A page's + used as a hand uses it (2026-10-26: it offers a Sheet and a Flow): clicked, then its menu's `what`. */
+export function plus(host: Element | Document, what: 'Sheet' | 'Flow' = 'Sheet'): void {
+  (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+  const opened = [...(host.ownerDocument ?? (host as Document)).querySelectorAll('.dc-menu')].at(-1);
+  const item = [...(opened?.querySelectorAll<HTMLElement>('.dc-menu-item') ?? [])]
+    .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === what);
+  assert.ok(item, `the + offers no ${what}`);
+  item.click();
+}
+
 /** The chevron of the group row labelled `label`. */
 /** A group's label is its value, with its child count when the tree shows one: `EMEA (2)`. */
 export const groupRow = (label: string): HTMLElement | undefined => [...root.querySelectorAll<HTMLElement>('.dc-row')]

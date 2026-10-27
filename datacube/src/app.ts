@@ -44,12 +44,13 @@ import type { Dimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
 import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda } from './query.ts';
+import { classLambda, columnValuesLambda, DEFAULT_DRILL_LIMIT, drillConditions, drillLambda, levelLambda, pivotValuesLambda, pivotValuesOf, tooManyValues, unpinnedValuesLambda } from './query.ts';
 import { cellFilterValue, MAX_FILTER_VALUES, VALUE_COUNT_COLUMN } from './value-filter.ts';
+import { DATE_RANGE_LABELS, DATE_RANGES } from './date-ranges.ts';
 import { valueList } from './ui/value-list.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
-import { CubeRefusal, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
-import { columnKind, headerSorts, type GridDraft } from './grid-edits.ts';
+import { CubeRefusal, SECOND_COLUMN, isPivotTotalColumn, sameValue, type QuerySnapshot } from './snapshot.ts';
+import { columnKind, headerSorts, isMeasureLeaf, summaryOf, type GridDraft } from './grid-edits.ts';
 import { applyGridCommands, draftCommands, type GridCommand } from './grid-commands.ts';
 import {
   gridGesture, gridGestureGiven, type GestureArgs, type GestureGrid, type GridGestureArgs, type GridGestureName,
@@ -59,6 +60,9 @@ import type { QueryEngine, ResultWindow } from '../../engine-client/src/engine.t
 import { describePlane, type RemoteSource } from '../../engine-client/src/snap.ts';
 import type { HostSnap, SnapTarget } from './cube.ts';
 import { exportFileName, toClipboard, toEml } from './export.ts';
+// a flow's Output: small, over what the page has at start -- fetched lazily, it was a chunk of its own that split the
+// page's startup files (test/bundle-budget.test.ts, the flow mode review of 2026-10-26)
+import { outputCsv } from './flow-output.ts';
 import {
   ALERT_WINDOW,
   CODE_CHECK_WINDOW,
@@ -80,7 +84,7 @@ import type { CubePage, ChartSource, PageEdit, SpawnedGrid, SpawnOptions } from 
 import type { PageCommand, PageDraft } from './page-commands.ts';
 import type { PageState } from './page-state.ts';
 import {
-  PAGE_CUBE, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
+  PAGE_CUBE, cubesHeld, gridCopyOf, pageFile, startingViews, writePage, writePageOf, type ChartView, type GridCopy, type PageDocument, type PageViews,
 } from './page-document.ts';
 import { FormatterCache, headlineFormat, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
@@ -89,10 +93,12 @@ import {
   buildColumnModel,
   type LeafColumn,
 } from './grid/columns.ts';
-import { conditionWords } from './page-filters.ts';
+import { conditionWords, datesKept } from './page-filters.ts';
 import { shortcutsTable } from './ui/shortcuts.ts';
 import { shownColumns } from './shown-columns.ts';
+import { handedOn } from './box-columns.ts';
 import { freshConfiguration, gridCapped, newGridTree, writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import { pureFrom, pureInput, pureShown } from './pure-box.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import { treeHeaderText } from './treeview.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
@@ -132,7 +138,9 @@ import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
 import { binColumns, GRID_SHOW_AS_LABELS } from './calc-presets.ts';
 import { presetCommands, type GridPreset } from './grid-presets.ts';
 import { columnRef, nameProblem } from './calc.ts';
-import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
+import { CubeEditor, draftFor, type CubeDraft, type EditorTab } from './ui/editor.ts';
+import { AGGREGATES } from './ui/panel-column.ts';
+import type { StepEditor } from './flow-boxes.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import {
   buildMenu,
@@ -148,8 +156,10 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
+import { chromeIcon, paintState, stateButton, toolIcon, type ToolIcon } from './ui/tile-icons.ts';
 import { longPressMenus } from './ui/long-press.ts';
-import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
+import { makeWindow, raiseWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
+import { isTextEntry } from './focus.ts';
 import {
   PivotPanel,
   currentHeaderDrag,
@@ -159,7 +169,9 @@ import {
   ColumnsToolPanel,
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
-import { isVariant } from '../../engine-client/src/types.ts';
+import { familyOf, isFractional, isTemporal, isTimeOfDay, isVariant } from '../../engine-client/src/types.ts';
+import type { TextTool } from './text-tools.ts';
+import type { Profile } from './profile.ts';
 import { lazily } from './lazily.ts';
 
 
@@ -292,6 +304,19 @@ export interface CubeAppBaseOptions {
    * tile (plan F6, blocker #4). It must be positioned (relative or absolute). Default: the cube.
    */
   readonly windowHost?: HTMLElement;
+  /**
+   * Where its windows that SET it dock -- Properties, the Filter window, a calculated column's editor -- one at a time,
+   * filling it, rather than floating over `windowHost`: a flow's settings pane (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+   * §3.4). Every other window floats as before.
+   */
+  readonly dock?: HTMLElement;
+  /** A flow's box's New Box After (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL9): a gesture of its menu made in a new box
+   *  after it -- never on it -- by its page, named `label`. */
+  readonly onStepAfter?: (gesture: { readonly name: string; readonly args: GestureArgs }, label: string) => void;
+  /** A flow's Pure box set by its window (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): its rows `pure`'s
+   *  function of its input's, or (null) its input's as they are -- its page's to apply (setPure), the box then shown again
+   *  over its rows as they are. Whether the page took it. */
+  readonly onSetPure?: (pure: Lambda | null) => boolean;
   /** A cube in a tile (a page's grid): no title bar of its own; its columns panel folded. */
   readonly compact?: boolean;
   /** Its columns panel folded away at the start (default: when compact); open, a grid opened alone on its page. */
@@ -306,6 +331,8 @@ export interface CubeAppBaseOptions {
   readonly onNewGrid?: () => void;
   /** A grid on a page: its Create ▸ Text Box goes to the page, as `onNewGrid` does. */
   readonly onText?: () => void;
+  /** A grid on a page: its Create ▸ Timeseries goes to the page, as `onNewGrid` does. */
+  readonly onTimeseries?: () => void;
   /**
    * ANOTHER SOURCE, for New ▸ Source…: the host asks the person which (its source picker) and
    * answers what reads it, or undefined when they chose nothing. Absent: no New ▸ Source….
@@ -462,6 +489,13 @@ function timingText(view: CubeView, cols: number): string {
 }
 
 /**
+ * Views landed in this document, every cube's in one count: a status bar's readout says which it shows (`data-view`),
+ * so a script waiting for the next sees it change -- across a cube built in the place of another, whose own count would
+ * start again where the last one's did.
+ */
+let viewsLanded = 0;
+
+/**
  * What a cube tells whoever listens (`CubeApp#on`): a page, a pinned chart and the host can all
  * listen at once, where the options' callbacks had room for one (plan F6, blocker #5).
  */
@@ -481,10 +515,13 @@ export interface CubeEvents {
   readonly moved: readonly [];
 }
 
-/** The z-index windows start from, above the cube's own layers. */
-const WINDOW_Z_BASE = 20;
-/** The top of each window host's stack of windows (`CubeApp#raise`). */
-const windowStack = new WeakMap<HTMLElement, number>();
+/** The text tools' windows, by the tool each sets (text-tools.ts). */
+const TEXT_TOOL_WINDOWS: Readonly<Record<TextTool['kind'], string>> = { split: 'Text To Columns', regex: 'RegEx', cleanse: 'Data Cleansing' };
+/** The windows that set a cube -- Properties, the Filter window, a calculated column's editor -- which dock where a host
+ *  docks them (CubeAppOptions.dock); every other window floats. */
+const DOCKED = (key: string): boolean => key === 'Properties' || key === 'Filters' || key === 'Sample' || key === 'Unique' || key === 'Imputation' || key === 'Date Filter' || key === 'Test'
+  || key === 'Custom Filter' || key === 'Binning' || key === 'Generate Rows' || key === 'Pure' || key === 'Date Period' || key === 'Multi-Field Formula' || key === 'Transpose' || key === 'Select' || key === 'Summarize' || key === 'Find Replace'
+  || Object.values(TEXT_TOOL_WINDOWS).includes(key) || key.startsWith('column:');
 
 /**
  * Which cube on a document a keystroke from OUTSIDE every cube belongs to: the one last
@@ -619,8 +656,14 @@ export class CubeApp {
   /** Every id the board has held, kept when it goes (its last chart gone): a board made again gives none of them out
    *  again (the S3 audit's 3). */
   #boardHeld: readonly string[] = [];
-  /** The grid's part of its tile's header (`tileHead`). */
+  /** The grid's part of its tile's header (`tileHead`): its zones' way back, while they are folded. */
   readonly #tileHeadEl: HTMLElement;
+  /** Its state left of its tile's title (`tileState`): Live or Snapped, a click its snap menu. */
+  readonly #tileStateEl: HTMLButtonElement;
+  /** A move of its plane under way (`#movePlane`): its state's controls wait. */
+  #planeMoving = false;
+  /** What it reads and where its rows are, in words, at the start of its status bar's readout while it is in a tile. */
+  readonly #statusSourceEl: HTMLElement;
   /** Where the grid lives when there is no board. */
   #middle: HTMLElement | null = null;
   #newColumns = 0;
@@ -661,10 +704,12 @@ export class CubeApp {
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
-  /** Repaints the plane toggle, which is now the only plane badge. */
+  /** The view its status bar's readout last said, and its number among the views landed (`viewsLanded`): its
+   *  `data-view`, which a script waits on. */
+  #readoutView: CubeView | null = null;
+  #readoutViewNumber = 0;
+  /** Repaints the plane toggle of a grid alone (its title bar's); a grid in a tile says its plane in `#tileStateEl`. */
   #paintSnap: (() => void) | null = null;
-  /** Switch plane as the button does (a retry after signing in again); null with no toggle. */
-  #planeToggle: (() => void) | null = null;
   /** The Receipts window's body while it is open (`#paintReceipts`). */
   #receiptsBody: HTMLElement | null = null;
   /** Ad Hoc Analysis mode while it is on; the cube's own grid is hidden then. */
@@ -706,6 +751,17 @@ export class CubeApp {
     root.classList.add('dc-app');
     this.#tileHeadEl = this.#doc.createElement('span');
     this.#tileHeadEl.className = 'dc-tile-cube';
+    this.#tileStateEl = stateButton(this.#doc);
+    this.#statusSourceEl = this.#doc.createElement('div');
+    this.#statusSourceEl.className = 'dc-status-source';
+    this.#tileStateEl.addEventListener('click', () => {
+      const plane = this.#plane();
+      if (!plane.toggles || this.#planeMoving) return;
+      // a snapped grid goes live or takes a fresh copy; a live one snaps
+      this.#toggleMenu(this.#tileStateEl, () => [{ label: '', items: plane.snapped
+        ? [{ id: 'plane.live' as const, label: 'Go Live' }, { id: 'plane.snap' as const, label: 'Snap Again' }]
+        : [{ id: 'plane.snap' as const, label: 'Snap' }] }]);
+    });
     // a grid in a page's tile: the page has the title bar
     root.classList.toggle('dc-compact', this.#options.compact === true);
     this.#controlsHidden = this.#options.controlsHidden === true;
@@ -743,7 +799,9 @@ export class CubeApp {
     zoneBar.append(this.#zoneFold());
     const middle = this.#div(root, 'dc-app-middle');
     this.#middle = middle;
-    middle.append(this.#els.grid);
+    // what runs, as a thin bar along the grid's top edge while it runs (the user, 2026-10-25): it was a bordered box in
+    // the status bar, there and empty when nothing ran
+    middle.append(this.#progress, this.#els.grid);
     const side = this.#doc.createElement('div');
     side.className = 'dc-app-side';
     middle.append(side);
@@ -828,6 +886,7 @@ export class CubeApp {
       formats: this.#formats,
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
+      isMeasure: (leaf) => isMeasureLeaf({ snapshot: this.#shown, config: this.#config }, leaf),
       canGroup: (c) => this.#isDimension(c),
       onReorder: (order, added) => {
         // A COLUMN DRAGGED OUT OF THE PANEL INTO THE GRID IS A
@@ -1644,7 +1703,7 @@ export class CubeApp {
     this.#renderStatusBar(view, model.leaves.length);
     // The snapshot's row count is in the toggle's tooltip, and a
     // fresh snap changes it.
-    this.#paintSnap?.();
+    this.#paintPlane();
 
     const base = timingText(view, model.leaves.length);
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
@@ -1661,82 +1720,76 @@ export class CubeApp {
   }
 
   /**
-   * Their status bar: a 20px strip, right-aligned, carrying the row
-   * count in a monospaced face and the truncation warning in orange.
+   * Its status bar, a 20px strip: what you can do and what the grid shows at the left, what is true of it at the right
+   * (the user, 2026-10-25; docs/DATACUBE_UI_REVIEW_2026_10_24.md §5). The left: the grid's tools as icons --
+   * Properties, Filter, Add Column, Join -- then its rows or groups, then the selection's figures. The right: a chip
+   * only where there is something to say -- where its rows come from, a filter or a top N in force, the page's filter,
+   * a note, a cut result -- then what answered it (ⓘ) and the host's word.
    *
-   * Monospaced because the number changes as you expand the tree,
-   * and a proportional figure jitters its neighbours every time it
-   * does. The separators are theirs too -- a 1px by 12px neutral
-   * rule between groups rather than padding alone.
+   * Tabular figures (app.css): the count changes as the tree expands, and a proportional figure jitters its
+   * neighbours every time it does.
    */
   #renderStatusBar(view: CubeView, cols: number): void {
     // Ad Hoc owns the bar while it is on (`#renderAdHocStatus`)
     if (this.#adhoc) return;
     const doc = this.#doc;
     this.#statusCounted = statusCount(view);
-
-// WHAT YOU CAN DO ON THE LEFT, WHAT IS TRUE ON THE RIGHT.
-    //
-    // DataCube's own bar is `justify-between` with two link buttons
-    // at the left -- a settings icon and an underlined "Properties",
-    // then a filter icon and an underlined "Filter" -- and its
-    // readouts at the right. Ours had one link and every figure
-    // crowded after it.
-    //
-    // Both editors were reachable only through the grid's
-    // right-click menu, two levels down, and a person looking for
-    // them did not find them.
     const { left, right } = this.#statusFrame();
 
-    const properties = doc.createElement('button');
-    properties.type = 'button';
-    properties.className = 'dc-status-link dc-status-properties';
-    properties.textContent = '\u2699 Properties';
-    properties.title = 'The cube\u2019s settings (Ctrl+E)';
-    properties.addEventListener('click', () => this.openEditor());
-    left.append(properties);
+    // THE GRID'S TOOLS, as icons: both editors were reachable only through the right-click, two levels down, and a
+    // person looking for them did not find them; then they were underlined links, the one place the app looked like a
+    // 2005 web page. What it says is of the view shown, as its readout is -- not of a change still running (the
+    // 2026-10-25 audit: Top 10 beside the last query's rows, its x acting on what was not shown yet)
+    const filtered = view.snapshot.filter !== undefined;
+    const tools = doc.createElement('div');
+    tools.className = 'dc-status-tools';
+    tools.append(
+      this.#tool('properties', 'dc-status-properties', 'Properties', 'The grid’s properties (Ctrl+E)', () => this.openEditor()),
+      // a filter in force is state, not decoration: the funnel says so, and so does its chip
+      this.#tool('filter', `dc-status-filter${filtered ? ' dc-on' : ''}`, 'Filter',
+        filtered ? 'Filter: one is in force; click to edit it' : 'Filter the grid', () => this.openFilters()),
+      this.#tool('addColumn', 'dc-status-add-column', 'Add Column', 'Add a calculated column', () => this.openColumnEditor({})),
+    );
+    if (this.#options.joinMenu) tools.append(this.#joinTool());
+    left.append(tools, this.#statusSeparator());
 
-    // The filter SAYS whether one is in force. A cube showing a
-    // subset with nothing on screen to indicate it is how someone
-    // reads a filtered total as the whole book.
-    const filtered = this.#snapshot.filter !== undefined;
-    const filter = doc.createElement('button');
-    filter.type = 'button';
-    filter.className = filtered
-      ? 'dc-status-link dc-status-filter dc-on'
-      : 'dc-status-link dc-status-filter';
-    filter.textContent = filtered ? '⧨ Filter (on)' : '⧨ Filter';
-    filter.title = filtered
-      ? 'A filter is in force. Click to edit it.'
-      : 'Filter the cube';
-    filter.addEventListener('click', () => this.openFilters());
-    left.append(filter);
+    // WHAT THE LAST QUERY RETURNED, and what it cost: its own figures, nothing summed or guessed (the user, 2026-10-25:
+    // "just show stats/num rows of the last query"); for a script, the rows on screen and which view this is
+    const rows = this.#readout(left, timingText(view, cols));
+    rows.title = 'What the last query returned -- its rows and columns -- and how long it took';
+    rows.dataset['rows'] = String(view.rows.rowCount);
+    if (this.#readoutView !== view) {
+      this.#readoutView = view;
+      viewsLanded += 1;
+      this.#readoutViewNumber = viewsLanded;
+    }
+    rows.dataset['view'] = String(this.#readoutViewNumber);
+    const stats = doc.createElement('div');
+    stats.className = 'dc-status-stats';
+    left.append(stats);
+    this.#statsSlot = stats;
+    this.#renderSelectionStats();
+
+    // WHAT IS TRUE OF IT, each only while it is: where its rows come from (a grid in a tile -- its header shows its
+    // title and its state's icon alone), then what narrows them
+    if (this.#inTile) right.append(this.#statusSourceEl);
+    if (filtered) {
+      right.append(this.#chip('dc-status-filtered', 'Filtered', 'A filter is in force: click to edit it', () => this.openFilters()));
+    }
+    const top = view.snapshot.topN;
+    if (top !== undefined) {
+      const word = `${top.bottom ? 'Bottom' : 'Top'} ${top.n}`;
+      const by = labelFor(this.#config, top.by);
+      right.append(this.#chip('dc-status-topn', `${word} by ${by}`,
+        `Only the ${top.n} ${top.bottom ? 'smallest' : 'largest'} by ${by}`,
+        undefined, { label: `Clear ${word}`, act: () => void this.#gesture('filter.topNOff', {}, `clear ${word}`) }));
+    }
     // the page's filters on it (a dashboard's: setLens), in words -- each tile says what filters it
     if (this.#lensSaid !== undefined) {
-      const page = doc.createElement('span');
-      page.className = 'dc-status-page-filter';
-      page.textContent = `Page: ${this.#lensSaid}`;
-      page.title = 'The page\u2019s filters on this grid\u2019s class: set and taken off in the page\u2019s filter bar';
-      left.append(page);
+      right.append(this.#chip('dc-status-page-filter', `Page: ${this.#lensSaid}`,
+        'The page’s filters on this grid’s class: set and taken off in the page’s filter bar'));
     }
-
-    // THE RESULT, AND WHAT IT COST, in the one bar that is already
-    // about the result.
-    //
-    // This said "Rows: 29" while the same figure -- plus the column
-    // count and the elapsed time -- went to the host through
-    // `onStatus` and was rendered ABOVE the grid, in the strip that
-    // should say what you are looking at. Two readouts of one fact,
-    // the fuller one in the wrong place. The cube states it here
-    // itself, so a host gets a timing readout without wiring one,
-    // and `onStatus` still fires for hosts that want their own.
-    const rows = this.#readout(right, timingText(view, cols));
-    rows.title = 'Rows and columns in the result, and how long the '
-      + 'query took.';
-    this.#receiptChip(right, view);
-
     if (this.#note !== undefined) {
-      right.append(this.#statusSeparator());
       const note = doc.createElement('div');
       note.className = 'dc-status-note';
       note.setAttribute('role', 'status');
@@ -1747,32 +1800,108 @@ export class CubeApp {
       const away = doc.createElement('button');
       away.type = 'button';
       away.className = 'dc-status-note-close';
-      away.textContent = '×';
+      away.append(chromeIcon(doc, 'close'));
       away.setAttribute('aria-label', 'Put the note away');
       away.addEventListener('click', () => this.note(undefined));
       note.append(said, away);
       right.append(note);
     }
-
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
-      right.append(this.#statusSeparator());
       const warn = doc.createElement('div');
-      warn.className = 'dc-status-warning';
+      warn.className = 'dc-status-chip dc-status-warning';
       const cap = (this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString(UI_LOCALE);
       // a flat cube says how many there are in all (cube.ts `totalRows`): the first 1,000 of 48,213
       warn.textContent = view.totalRows !== undefined
-        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows (row limit)`
-        : `⚠ Results truncated to fit within row limit (${cap})`;
+        ? `⚠ Showing the first ${cap} of ${view.totalRows.toLocaleString(UI_LOCALE)} rows`
+        : `⚠ Truncated at ${cap} rows`;
+      warn.title = `The row limit (${cap}, in Properties) cut the result: what is not shown is in no total either`;
       right.append(warn);
     }
+    this.#receiptChip(right, view);
+    // the host's word, last (what runs is a bar on the grid's top edge: `#progress`)
+    this.#adoptHostStatus();
+  }
 
-    const stats = doc.createElement('div');
-    stats.className = 'dc-status-stats';
-    right.append(this.#statusSeparator(), stats);
-    this.#statsSlot = stats;
-    this.#renderSelectionStats();
+  /** One of the status bar's tools: its icon, its name (for a screen reader and a test), what it does on hover. */
+  #tool(icon: ToolIcon, className: string, label: string, tip: string, act: () => void): HTMLButtonElement {
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = `dc-status-tool ${className}`;
+    const said = this.#doc.createElement('span');
+    said.className = 'dc-status-tool-word';
+    said.textContent = label;
+    button.append(toolIcon(this.#doc, icon), said);
+    button.title = tip;
+    button.addEventListener('click', () => {
+      if (button.getAttribute('aria-disabled') !== 'true') act();
+    });
+    return button;
+  }
 
-    this.#statusTail(right);
+  /**
+   * Join, its host's (`joinMenu`): its right-click's Join ▸ on no column -- Join…, Join a Data Source… -- opened under
+   * it. Greyed, with the host's reason, where nothing can be joined: asked as the pointer or the focus reaches it,
+   * never at a paint -- the host builds its page's document to answer, and keeps what each entry asks until one is
+   * picked, which an open menu's entries need kept.
+   */
+  #joinTool(): HTMLButtonElement {
+    const tip = 'Join another table to this grid’s rows';
+    const ask = (): readonly MenuItem[] | null => {
+      const items = this.#options.joinMenu?.(undefined) ?? [];
+      // its answer to a pick is the host's (#onHostAction), as a right-click's Join ▸ is
+      this.#cellHost = items;
+      const why = items.every((i) => i.disabled === true)
+        ? items.find((i) => i.hint !== undefined)?.hint ?? 'Nothing on this page can be joined to it'
+        : undefined;
+      if (why === undefined) {
+        button.removeAttribute('aria-disabled');
+        button.title = tip;
+      } else {
+        button.setAttribute('aria-disabled', 'true');
+        button.title = `Join: ${why}`;
+      }
+      return why === undefined ? items : null;
+    };
+    const button = this.#tool('join', 'dc-status-join', 'Join', tip, () => {
+      const items = ask();
+      if (items !== null) this.#toggleMenu(button, () => [{ label: '', items: [...items] }]);
+    });
+    button.setAttribute('aria-haspopup', 'menu');
+    const peek = (): void => {
+      if (!this.#menu.open) ask();
+    };
+    button.addEventListener('pointerenter', peek);
+    button.addEventListener('focus', peek);
+    return button;
+  }
+
+  /**
+   * A chip at the right of the status bar: something true of the grid, in a word or two, the rest on hover. `act`: a
+   * click does it (the filter's opens the filter); `close`: a × that takes it away.
+   */
+  #chip(className: string, text: string, tip: string, act?: () => void,
+    close?: { readonly label: string; readonly act: () => void }): HTMLElement {
+    const doc = this.#doc;
+    let chip: HTMLElement = doc.createElement('span');
+    if (act) {
+      const button = doc.createElement('button');
+      button.type = 'button';
+      button.addEventListener('click', act);
+      chip = button;
+    }
+    chip.className = `dc-status-chip ${className}`;
+    chip.textContent = text;
+    chip.title = tip;
+    if (!close) return chip;
+    const away = doc.createElement('button');
+    away.type = 'button';
+    away.className = 'dc-status-chip-close';
+    away.append(chromeIcon(doc, 'close'));
+    away.setAttribute('aria-label', close.label);
+    away.title = close.label;
+    away.addEventListener('click', close.act);
+    chip.append(away);
+    return chip;
   }
 
   /**
@@ -1787,11 +1916,16 @@ export class CubeApp {
     chip.type = 'button';
     chip.className = `dc-status-receipt dc-receipt-${main.copy ? 'copy' : main.plane}`;
     const more = view.receipts.length > 1 ? ` (+${view.receipts.length - 1})` : '';
-    chip.textContent = `${receiptLabel(main)}${more}`;
+    // AN ⓘ, its words on hover (the user, 2026-10-25): "this tab (+1)" meant nothing to a person who had not read the
+    // receipts' design; its words stay its name, for a screen reader and a test
+    const said = this.#doc.createElement('span');
+    said.className = 'dc-status-tool-word';
+    said.textContent = `${receiptLabel(main)}${more}`;
+    chip.append(toolIcon(this.#doc, 'info'), said);
     chip.title = `${receiptLines(main).join('\n')}\n\nClick for every query's receipt`
       + (main.check ? ', and to check it with the server.' : '.');
     chip.addEventListener('click', () => this.openReceipts());
-    right.append(this.#statusSeparator(), chip);
+    right.append(chip);
   }
 
   /** Every receipt behind the view on screen, each checkable with its server where it can be. */
@@ -1875,23 +2009,13 @@ export class CubeApp {
     return { left, right };
   }
 
-  /** The row and column readout, at the start of the right side. */
-  #readout(right: HTMLElement, text: string): HTMLElement {
+  /** What the last query returned, after its tools (`timingText`). */
+  #readout(left: HTMLElement, text: string): HTMLElement {
     const rows = this.#doc.createElement('div');
     rows.className = 'dc-status-rows dc-status-timing';
     rows.textContent = text;
-    right.append(rows);
+    left.append(rows);
     return rows;
-  }
-
-  /**
-   * The end of every status bar: upstream's task progress (a bar while anything runs, what is
-   * running in its tooltip; the same element every rebuild, so a task that outlives a view
-   * keeps showing), then the host's own readout.
-   */
-  #statusTail(right: HTMLElement): void {
-    right.append(this.#statusSeparator(), this.#progress);
-    this.#adoptHostStatus();
   }
 
   /**
@@ -1900,9 +2024,9 @@ export class CubeApp {
    * it (P2-287), and the counts were the hidden cube's (P2-290).
    */
   #renderAdHocStatus(rows: number, cols: number, stale: boolean): void {
-    const { right } = this.#statusFrame();
-    this.#readout(right, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
-    this.#statusTail(right);
+    const { left } = this.#statusFrame();
+    this.#readout(left, `${rows.toLocaleString(UI_LOCALE)} rows \u00d7 ${cols} cols${stale ? ' (not refreshed)' : ''}`);
+    this.#adoptHostStatus();
   }
 
   /**
@@ -2330,6 +2454,7 @@ export class CubeApp {
       const measures = this.#modelMeasures();
       const groups = buildMenu({
         snapshot: this.#shown,
+        ...(this.#options.onStepAfter ? { stepAfter: true } : {}),
         ...(join.length > 0 && !this.#adhoc ? { join } : {}),
         create: this.#hostItems('create'),
         canOpenSource: this.#canOpenSource,
@@ -2448,6 +2573,11 @@ export class CubeApp {
     // layout, clipboard and export. The menu offers only what grid-edits.ts allows; a refusal is said, never thrown
     // away (#gesture).
     const gesture = menuGesture(item);
+    // New Box After (FL9): the gesture the page's, made in a box of its own after this one
+    if (gesture !== null && item.after === true) {
+      this.#options.onStepAfter?.(gesture, item.label);
+      return;
+    }
     if (gesture !== null) {
       void this.#gestureGiven(gesture.name, gesture.args, item.label);
       return;
@@ -2471,6 +2601,13 @@ export class CubeApp {
         return;
       case 'view.shortcuts':
         this.showShortcuts();
+        return;
+      // its tile's state menu: live again, or a copy snapped (afresh, when one is held)
+      case 'plane.live':
+        void this.#movePlane('live');
+        return;
+      case 'plane.snap':
+        void this.#movePlane('snap');
         return;
       case 'view.controls':
         this.setControlsHidden(!this.#controlsHidden);
@@ -2574,6 +2711,9 @@ export class CubeApp {
         return;
       case 'text.new':
         void this.newText();
+        return;
+      case 'timeseries.new':
+        void this.newTimeseries();
         return;
       case 'source.new':
         void this.newSource();
@@ -2714,6 +2854,12 @@ export class CubeApp {
    *  The refusal, the gesture's words or the commands', or null. */
   async #gesture<N extends GridGestureName>(name: N, args: GridGestureArgs[N], label: string): Promise<string | null> {
     return this.#applyMade(this.#gestured((g) => gridGesture(name, g, args)), label);
+  }
+
+  /** A gesture made on this grid as its menu's entry makes it, named `label` (a flow's New Box After, FL9: the box made
+   *  after another, its one step this). The refusal, or null. */
+  gesture(name: string, args: GestureArgs, label: string): Promise<string | null> {
+    return this.#gestureGiven(name, args, label);
   }
 
   /** A menu entry's gesture (ui/menu.ts menuGesture: named by the entry's id, given what the entry carries), made as a
@@ -3115,6 +3261,15 @@ export class CubeApp {
     (await this.#ensurePage())?.addText();
   }
 
+  /** Create ▸ Timeseries: a timeseries tile of this grid on the page, under it (page/cube-page.ts `addTimeseries`). */
+  async newTimeseries(): Promise<void> {
+    if (this.#options.onTimeseries) {
+      this.#options.onTimeseries();
+      return;
+    }
+    (await this.#ensurePage())?.addTimeseries();
+  }
+
   /** Another grid on the page, starting as this one is (page/cube-page.ts `addGrid`). */
   async newGrid(): Promise<void> {
     if (this.#options.onNewGrid) {
@@ -3162,6 +3317,7 @@ export class CubeApp {
       ...(this.#options.showColumnZone !== undefined ? { showColumnZone: this.#options.showColumnZone } : {}),
       ...(this.#options.openSource ? { openSource: this.#options.openSource } : {}),
       ...(spawned.onChart ? { onChart: spawned.onChart } : {}),
+      ...(spawned.onTimeseries ? { onTimeseries: spawned.onTimeseries } : {}),
       ...(spawned.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
       ...(spawned.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
       ...(spawned.onRemove ? { onRemove: spawned.onRemove } : {}),
@@ -3202,7 +3358,10 @@ export class CubeApp {
     body.append(...parts);
     const page = new CubePage({
       host,
-      grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl },
+      // a chart's options float where this cube's windows do
+      windowHost: this.#options.windowHost ?? root,
+      grid: { element: body, source: this.chartSource(), head: this.#tileHeadEl, state: this.#tileStateEl,
+        ...(this.tileAbout() !== undefined ? { about: this.tileAbout()! } : {}) },
       onChange: () => this.#pageChanged(),
       // its edits applied to its page's state by the page commands' one rule, told, the board put at what they make (P13)
       onPageEdit: (edit) => this.#pageEdit(edit),
@@ -3309,6 +3468,7 @@ export class CubeApp {
           ...(o.showColumnZone !== undefined ? { showColumnZone: o.showColumnZone } : {}),
           ...(o.openSource ? { openSource: o.openSource } : {}),
           ...(spawned?.onChart ? { onChart: spawned.onChart } : {}),
+          ...(spawned?.onTimeseries ? { onTimeseries: spawned.onTimeseries } : {}),
           ...(spawned?.onNewGrid ? { onNewGrid: spawned.onNewGrid } : {}),
           ...(spawned?.onNewSource ? { onNewSource: spawned.onNewSource } : {}),
           ...(spawned?.onRemove ? { onRemove: spawned.onRemove } : {}),
@@ -3344,7 +3504,7 @@ export class CubeApp {
   #boardSeen(page: CubePage, idsOf: (page: PageDocument) => string[]): PageDraft {
     const cube = this.cubeDocument('');
     const views = page.views((grid) => (grid === 'grid' ? PAGE_CUBE : grid));
-    const others = [...new Set(views.views.flatMap((v) => (v.cube === undefined ? [] : [v.cube])))].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
+    const others = [...cubesHeld(views.views)].filter((id) => id !== PAGE_CUBE).flatMap((id) => {
       const doc = page.documentOf(id);
       return doc ? [{ id, cube: doc }] : [];
     });
@@ -3383,12 +3543,12 @@ export class CubeApp {
 
   /**
    * What the cube shows around itself, as a saved page keeps it: the grid, each chart (its
-   * title, spec, and the mark it filters to), each text tile and the layout. A cube with no
-   * charts and no text tiles is a page of its grid alone, the whole board.
+   * title, spec, and the mark it filters to), each text tile, each timeseries tile and the layout. A cube with no
+   * charts, text tiles or timeseries is a page of its grid alone, the whole board.
    */
   pageViews(): PageViews {
     const page = this.#page?.page;
-    if (!page || page.charts + page.texts === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
+    if (!page || page.charts + page.texts + page.timeseries === 0) return startingViews({ id: 'grid', cube: PAGE_CUBE });
     return page.views();
   }
 
@@ -3518,7 +3678,7 @@ export class CubeApp {
   /** The board as an export carries it: each tile where it is, each chart as its picture; none without charts. */
   #exportPage(): ExportPage | undefined {
     const page = this.#page?.page;
-    if (page) return page.charts + page.texts > 0 ? page.exportPage() : undefined;
+    if (page) return page.charts + page.texts + page.timeseries > 0 ? page.exportPage() : undefined;
     // a grid on a page of its own: the page's, this grid its table
     return this.#options.exportPage?.();
   }
@@ -3635,7 +3795,7 @@ export class CubeApp {
   async #planeMoved(): Promise<void> {
     await this.#owner.refresh();
     this.#settlePlane();
-    this.#paintSnap?.();
+    this.#paintPlane();
     this.#emit('plane');
   }
 
@@ -3752,6 +3912,8 @@ export class CubeApp {
     });
     this.#adhoc = mode;
     this.#els.root.classList.add('dc-adhoc-on');
+    // what runs, along Ad Hoc's top edge while it is on: the grid's own is hidden with it (the 2026-10-25 audit)
+    host.prepend(this.#progress);
     middle.hidden = true;
     this.#els.zoneBar.hidden = true;
     await mode.refresh();
@@ -3769,6 +3931,7 @@ export class CubeApp {
       if (key.startsWith('Member Selection: ') || key === 'Ad Hoc Options') this.#closeWindow(key);
     }
     this.#els.root.classList.remove('dc-adhoc-on');
+    (this.#els.grid.parentElement as HTMLElement).prepend(this.#progress);
     (this.#els.grid.parentElement as HTMLElement).hidden = false;
     this.#applyChrome();
     // the cube's own status bar back
@@ -3820,12 +3983,13 @@ export class CubeApp {
       : undefined;
   }
 
-  openEditor(column?: string): void {
+  openEditor(column?: string, tab?: EditorTab): void {
     if (this.#cubeOnly()) return;
     const open = this.#editor;
     if (open && this.#open.has('Properties')) {
       this.#showOverlay('Properties', () => {});
       if (column !== undefined) open.focusColumn(column);
+      else if (tab !== undefined) open.setTab(tab);
       return;
     }
     this.#showOverlay('Properties', (host, close) => {
@@ -3839,12 +4003,658 @@ export class CubeApp {
           onUseDimension: (name) => this.#useDimension(name),
           onAdHoc: () => void this.enterAdHoc(),
           ...(column !== undefined ? { initialColumn: column } : {}),
+          ...(tab !== undefined ? { initialTab: tab } : {}),
         },
       );
     }, {
       // the rail of sections, and Column Properties' columns beside its form
       size: { width: 980, height: 660, minWidth: 640, minHeight: 400 },
     });
+  }
+
+  /**
+   * THE WINDOW THAT SETS A FLOW'S STEP (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.4, flow-boxes.ts TOOL_EDITORS): the
+   * Filter window, a new calculated column's editor, or Properties at the section the step is -- each the grid's own,
+   * docked where its host docks them.
+   */
+  openStep(editor: StepEditor): void {
+    switch (editor.window) {
+      case 'filters':
+        this.openFilters();
+        return;
+      case 'column':
+        this.openColumnEditor(editor.start ?? {});
+        return;
+      case 'properties':
+        this.openEditor(undefined, editor.tab);
+        return;
+      case 'sample':
+        void this.#openSample();
+        return;
+      case 'datetime':
+        void this.#openDate();
+        return;
+      case 'text':
+        void this.#openTextTool(editor.kind);
+        return;
+      case 'unique':
+        void this.#openUnique();
+        return;
+      case 'impute':
+        void this.#openImpute();
+        return;
+      case 'dateFilter':
+        void this.#openDateFilter();
+        return;
+      case 'customFilter':
+        void this.#openCustomFilter();
+        return;
+      case 'binning':
+        void this.#openBinning();
+        return;
+      case 'generateRows':
+        void this.#openGenerateRows();
+        return;
+      case 'pure':
+        void this.#openPure();
+        return;
+      case 'test':
+        void this.#openTest();
+        return;
+      case 'jsonParse':
+        this.#openJsonParse();
+        return;
+      case 'multiField':
+        void this.#openMultiField();
+        return;
+      case 'transpose':
+        void this.#openTranspose();
+        return;
+      case 'select':
+        void this.#openSelect();
+        return;
+      case 'summarize':
+        void this.#openSummarize();
+        return;
+      case 'findReplace':
+        void this.#openFindReplace();
+        return;
+      case 'countRecords':
+        void this.#countRecords();
+        return;
+      // a Join box's window is its page's (join-flow.ts flowJoin), over its two inputs: no grid's own
+      case 'join':
+        return;
+    }
+  }
+
+  /** A FLOW'S SAMPLE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): its first or last rows (its Top N, or of each group),
+   *  all but its first, or one of every N, in the order of a column -- row-sample.ts sampleCommands, the rule Python's
+   *  grid.sample asks -- in a window of its own (ui/sample-form.ts). Both fetched with the first. */
+  async #openSample(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ sampleForm }, { rowSampleOf, sampleCommands }] = await Promise.all([
+      lazily(() => import('./ui/sample-form.ts')), lazily(() => import('./row-sample.ts')),
+    ]);
+    const asked = async (commands: () => GridCommand[]): Promise<string | null> => {
+      try {
+        return await this.#apply(commands(), 'Sample');
+      } catch (e) {
+        if (e instanceof CubeRefusal) return e.message;
+        throw e;
+      }
+    };
+    const s = this.#snapshot;
+    // where it starts: its row sample, else its Top N said as one (its smallest first: bottom)
+    const top = s.topN;
+    const now = rowSampleOf(s) ?? (top === undefined ? undefined
+      : { kind: top.bottom === true ? 'first' as const : 'last' as const, n: top.n, by: top.by, groups: [] });
+    this.#showOverlay('Sample', (host, close) => sampleForm(host, {
+      columns: rowColumns(s).filter((c) => !(rowSampleOf(s)?.columns ?? []).includes(c.name)).map((c) => c.name),
+      now,
+      apply: (sample) => asked(() => sampleCommands(this.#snapshot, sample)),
+      clear: () => asked(() => sampleCommands(this.#snapshot, null)),
+      close,
+    }));
+  }
+
+  /** A FLOW'S DATETIME (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a date column taken to its period -- the grid's own
+   *  By Day/Week/... preset (grid-presets.ts), in a window of its own (ui/date-form.ts, fetched with the first). */
+  async #openDate(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ dateForm }, { dateToolCommands }] = await Promise.all([
+      lazily(() => import('./ui/date-form.ts')), lazily(() => import('./date-tools.ts')),
+    ]);
+    const asked = async (commands: () => GridCommand[]): Promise<string | null> => {
+      try {
+        return await this.#apply(commands(), 'Date Period');
+      } catch (e) {
+        if (e instanceof CubeRefusal) return e.message;
+        throw e;
+      }
+    };
+    this.#showOverlay('Date Period', (host, close) => dateForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type)).map((c) => c.name),
+      texts: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'text').map((c) => c.name),
+      apply: (column, grain) => asked(() => presetCommands(this.#snapshot, { kind: 'grain', column, grain })),
+      applyTool: (tool) => asked(() => dateToolCommands(tool)),
+      close,
+    }));
+  }
+
+  /**
+   * THE GRID'S PROFILE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M5, a flow's box's: profile.ts): each column of its rows at
+   * their finest level -- the rows the box after it reads (query.ts classLambda), the columns it shows -- its values and its different values
+   * counted, its smallest and largest, by the database: its columns typed first (none of its rows), then one row of
+   * aggregates. Refused in words for a pivoted grid, whose columns are its values.
+   */
+  async profile(): Promise<Profile> {
+    const s = this.#snapshot;
+    if (s.pivotOn.length > 0) throw new CubeRefusal('a pivoted grid\'s columns are its values: take its pivot off to profile it');
+    const { CORRELATED, columnsLambda, correlationLambda, correlationsOf, profileLambda, profileOf } = await lazily(() => import('./profile.ts'));
+    const rows = classLambda(s).body[0]!;
+    const typed = await this.#controller.runQuery(columnsLambda(rows), s);
+    // the columns it hands on: what the box after it reads (box-columns.ts), each said by the name it hands it on by
+    const on = handedOn(typed.rows.columns.map((c) => c.name), s, this.#config as unknown as Record<string, unknown>);
+    const columns = on.map((c) => ({ name: c.name, type: typed.rows.columns.find((t) => t.name === c.name)!.type }));
+    const answer = await this.#controller.runQuery(profileLambda(rows, columns), s);
+    const profile = profileOf(answer.rows, columns);
+    // its measures, how they move together (Alteryx's Pearson Correlation): a second row of aggregates -- an id's or a
+    // year's correlation, a dimension's, says nothing
+    const kinds = new Map(rowColumns(s).map((c) => [c.name, c.kind] as const));
+    const numbers = columns.map((c, i) => ({ c, as: on[i]!.as }))
+      .filter(({ c }) => familyOf(c.type) === 'numeric' && kinds.get(c.name) === 'measure').slice(0, CORRELATED);
+    const correlations = numbers.length < 2 || profile.rows < 2 ? undefined : correlationsOf(
+      (await this.#controller.runQuery(correlationLambda(rows, numbers.map(({ c }) => c.name)), s)).rows, numbers.map(({ as }) => as));
+    return { ...profile, columns: profile.columns.map((c, i) => ({ ...c, name: on[i]!.as })), ...(correlations !== undefined ? { correlations } : {}) };
+  }
+
+  /**
+   * THE QUERY THE GRID RAN LAST (a flow's box's Code, docs/DATACUBE_FLOW_MODE_2026_10_24.md M5 and FL12: each box's Pure
+   * shown), as the "Generated Pure & SQL" window shows it: the query this product built, as the compiler prints it, and
+   * the SQL the planner made of it and the database ran -- read, nothing run. Refused in words before its rows are read.
+   */
+  async code(): Promise<{ readonly pure: string; readonly sql: string }> {
+    const view = this.#view;
+    if (!view) throw new CubeRefusal('its rows are not read yet: its query is the one they are read by');
+    return { pure: await this.printQuery(view.query, 'PRETTY'), sql: view.sql };
+  }
+
+  /** Text onto the clipboard, by its host's (a flow's box's Code copied); refused in words where its host has none. */
+  async copyText(text: string): Promise<void> {
+    const write = this.#options.writeClipboard;
+    if (!write) throw new Error('this page has no clipboard to copy to');
+    await write(text);
+  }
+
+  /**
+   * THE GRID'S ROWS WRITTEN TO A FILE (a flow's Output, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row, in its sorts'
+   * order, the columns it hands on -- the rows the box after it reads -- streamed from the database a chunk at a time,
+   * written as CSV by the one writer Python's flow.run writes by too (flow-output.ts outputCsv), the file handed to the
+   * person as `name`. Refused in words for a pivoted grid, or a page with no way to hand a file over.
+   */
+  async writeOutput(name: string): Promise<void> {
+    const download = this.#options.download;
+    if (!download) throw new Error('this page has no way to hand a file over');
+    download(name, 'text/csv', await outputCsv(this.#snapshot, this.#config as unknown as Record<string, unknown>, this.#controller));
+  }
+
+  /**
+   * A CROSS TAB'S LOAD VALUES (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2): the values its rows hold now, asked of the
+   * database as its pivot asks them (query.ts pivotValuesLambda, its pins taken off), pinned -- its columns fixed, so the
+   * box after it reads them (the gesture pivot.pin, Python's grid.load_pivot_values); `pin` false, its values its rows'
+   * again. The refusal, in words, or null.
+   */
+  async pinPivotValues(pin: boolean): Promise<string | null> {
+    if (!pin) return this.#gesture('pivot.pin', { values: null }, 'Unfix Columns');
+    const { pivotValues: _pinned, ...s } = this.#snapshot;
+    let query: Lambda | null;
+    let answered: ResultTable;
+    try {
+      query = pivotValuesLambda(s);
+      if (query === null) return 'it pivots on no column: it has no values to load';
+      ({ rows: answered } = await this.#controller.runQuery(query, s));
+    } catch (e) {
+      if (e instanceof CubeRefusal) return e.message;
+      throw e;
+    }
+    const { values, more } = pivotValuesOf(s, answered);
+    if (more) return tooManyValues(s.pivotOn[0]!);
+    return this.#gesture('pivot.pin', { values }, 'Load Values');
+  }
+
+  /**
+   * A FLOW'S CUSTOM FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12, Alteryx's Filter, its Custom filter): the rows a
+   * condition written in Pure is true for -- parsed by the compiler, typed before it is set (a condition is a Boolean),
+   * its column and its filter (custom-filter.ts, the rule Python's grid.custom_filter asks) -- in a window of its own
+   * (ui/custom-filter-form.ts), the condition it has printed as the compiler prints it. Both fetched with the first.
+   */
+  async #openCustomFilter(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ customFilterForm }, { CUSTOM_FILTER_COLUMN, customFilterCommands, customFilterOf, customFilterProbe, customFilterText }] = await Promise.all([
+      lazily(() => import('./ui/custom-filter-form.ts')), lazily(() => import('./custom-filter.ts')),
+    ]);
+    const had = customFilterOf(this.#snapshot);
+    let start = '';
+    if (had !== undefined) {
+      // its condition as the compiler prints it, the lambda's braces off -- never opened blank on a condition it has (OK
+      // would set another: the review of 2026-10-26), the compiler's words said instead
+      let printed: string;
+      try {
+        printed = (await this.#controller.print(had.lambda)).trim();
+      } catch (e) {
+        this.#status(`its condition could not be printed: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        return;
+      }
+      start = printed.startsWith('{') && printed.endsWith('}') ? printed.slice(1, -1).trim() : printed;
+    }
+    this.#showOverlay('Custom Filter', (host, close) => customFilterForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name).filter((c) => c !== CUSTOM_FILTER_COLUMN),
+      condition: start,
+      apply: async (text) => {
+        let lambda: Lambda;
+        let type: string | undefined;
+        try {
+          lambda = await this.#check(this.#controller.parse(customFilterText(text)));
+          const probed = await this.#check(this.#controller.typed(customFilterProbe(this.#snapshot, lambda)));
+          type = probed.derived.find((d) => d.name === CUSTOM_FILTER_COLUMN)?.type;
+        } catch (e) {
+          // the compiler's refusal, in its words
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(customFilterCommands(this.#snapshot, lambda, type), 'Custom Filter');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /**
+   * A FLOW'S PURE BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12; pure-box.ts): its rows a function of its input's,
+   * written in Pure over `$input` -- in a window of its own (ui/pure-form.ts), its function as the compiler prints it --
+   * parsed and its rows typed as a relation by the compiler before its page sets it (setPure, the rule Python's grid.pure
+   * asks), its input's relation read back off its rows. Refused in words on a grid over no other grid's rows. The form
+   * fetched with the first.
+   */
+  async #openPure(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const source = this.#options.cubeSource;
+    const set = this.#options.onSetPure;
+    if (source?._type !== 'rows' || set === undefined) {
+      this.#status("a Pure box reads another box's rows: add it after a box of the flow", 'warn');
+      return;
+    }
+    const { pureForm } = await lazily(() => import('./ui/pure-form.ts'));
+    const had = source.pure;
+    // its input's rows: its own, or -- a Pure box already -- what stands where its function reads its input
+    const input = pureInput(source, this.#snapshot.source.query);
+    // its function as the compiler prints it -- never opened blank on a function it has (OK would set another: the
+    // review of 2026-10-26), the compiler's words said instead -- and its input's columns, or why there are none
+    let start = '';
+    if (had !== undefined) {
+      try {
+        start = pureShown(await this.#controller.print(had));
+      } catch (e) {
+        this.#status(`its Pure could not be printed: ${e instanceof Error ? e.message : String(e)}`, 'warn');
+        return;
+      }
+    }
+    let columns: readonly string[] = [];
+    let note: string | undefined;
+    try {
+      columns = had === undefined ? rowColumns(this.#snapshot).map((c) => c.name)
+        : (await this.#controller.relationColumns(input)).map((c) => c.name);
+    } catch (e) {
+      note = `its input's columns could not be typed: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    const told = (pure: Lambda | null): string | null => (set(pure) ? null : 'the page refused it');
+    this.#showOverlay('Pure', (host, close) => pureForm(host, {
+      columns,
+      ...(note !== undefined ? { note } : {}),
+      pure: start,
+      apply: async (text) => {
+        try {
+          // parsed, judged and its rows typed as a relation (pure-box.ts pureFrom): the compiler's words, or DataCube's
+          return told(await this.#check(pureFrom(text, input, {
+            parse: (t) => this.#controller.parse(t), columns: (r) => this.#controller.relationColumns(r),
+          })));
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          // the compiler's refusal, in its words
+          return e instanceof Error ? e.message : String(e);
+        }
+      },
+      ...(had !== undefined ? { remove: async () => told(null) } : {}),
+      close,
+    }));
+  }
+
+  /** A CROSS TAB'S VALUES ITS COLUMNS LACK (FL3): the values its rows hold now that its pinned values do not list, asked
+   *  of the database (query.ts unpinnedValuesLambda), each as the screen reads a cell -- none when it pins nothing. */
+  async lackingPivotValues(): Promise<readonly (FilterValue | null)[]> {
+    const s = this.#snapshot;
+    const query = unpinnedValuesLambda(s);
+    if (query === null) return [];
+    const { rows: answered } = await this.#controller.runQuery(query, s);
+    return pivotValuesOf(s, answered).values;
+  }
+
+  /** A FLOW'S JSON PARSE (Alteryx's): a JSON column's fields made columns of their own -- the column editor opened on its
+   *  fields (ui/json-fields.ts: each a calculated column the compiler checks), its box's first JSON column's; refused in
+   *  words when it has none. */
+  #openJsonParse(): void {
+    const json = rowColumns(this.#snapshot).find((c) => isVariant(c.type));
+    if (json === undefined) {
+      this.#status('its input has no JSON column: a JSON Parse reads the fields of one', 'warn');
+      return;
+    }
+    this.openColumnEditor({ json: json.name, level: 'dimension' });
+  }
+
+  /** A FLOW'S TEST (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, Alteryx's Test): its checks of its input's rows -- no
+   *  empty value, no value repeated, a number within bounds -- each counted by the database as the rows failing it
+   *  (checks.ts, the rule Python's grid.test asks), in a window of its own (ui/test-form.ts). Both fetched with the first. */
+  async #openTest(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ testForm }, { checkCommands, checksOf, testColumns }] = await Promise.all([
+      lazily(() => import('./ui/test-form.ts')), lazily(() => import('./checks.ts')),
+    ]);
+    const s = this.#snapshot;
+    const checks = checksOf(s);
+    // the columns it reads: its own (a test set again) left out
+    const own = new Set(checks === undefined ? [] : testColumns(checks));
+    const columns = rowColumns(s).filter((c) => !own.has(c.name));
+    this.#showOverlay('Test', (host, close) => testForm(host, {
+      columns: columns.map((c) => ({ name: c.name, number: familyOf(c.type) === 'numeric' })),
+      checks: checks ?? [],
+      apply: async (next) => {
+        try {
+          return await this.#apply(checkCommands(this.#snapshot, next), 'Test');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S DATE FILTER (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): a date column's rows in a range -- one
+   *  relative to when the query runs (the header menu's Date Range: date-ranges.ts) or the days between two -- in a window
+   *  of its own (ui/date-filter-form.ts), fetched with the first: the grid's own gesture (filter.dates, the rule Python's
+   *  grid.date_filter asks), its filter those dates alone. */
+  async #openDateFilter(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { dateFilterForm } = await lazily(() => import('./ui/date-filter-form.ts'));
+    const kept = datesKept(this.#snapshot.filter);
+    this.#showOverlay('Date Filter', (host, close) => dateFilterForm(host, {
+      // a time of day has no days to keep (date-ranges.ts refuses it): never offered
+      columns: rowColumns(this.#snapshot).filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => c.name),
+      ranges: DATE_RANGES.map((range) => ({ range, label: DATE_RANGE_LABELS[range] })),
+      ...(kept !== undefined ? { kept } : {}),
+      apply: (k) => this.#gesture('filter.dates', 'range' in k ? { column: k.column, range: k.range } : { column: k.column, from: k.from, to: k.to },
+        'Date Filter'),
+      close,
+    }));
+  }
+
+  /** A FLOW'S IMPUTATION (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): number columns' empties filled -- a value, or the
+   *  column's average, smallest or largest across every row, by the database (impute.ts, the rule Python's grid.impute
+   *  asks) -- in a window of its own (ui/impute-form.ts). Both fetched with the first. */
+  async #openImpute(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ imputeForm }, { imputeCommands }] = await Promise.all([
+      lazily(() => import('./ui/impute-form.ts')), lazily(() => import('./impute.ts')),
+    ]);
+    this.#showOverlay('Imputation', (host, close) => imputeForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'numeric').map((c) => c.name),
+      apply: async (imputation) => {
+        try {
+          return await this.#apply(imputeCommands(this.#snapshot, imputation), 'Imputation');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S BINNING (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's Multi-Field Binning): number columns each put
+   *  into bins of equal width over its range -- the grid's own bins preset, the database placing each value
+   *  (binning.ts, the rule Python's grid.binning asks) -- in a window of its own (ui/binning-form.ts). Both fetched with
+   *  the first. */
+  async #openBinning(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ binningForm }, { binningCommands }] = await Promise.all([
+      lazily(() => import('./ui/binning-form.ts')), lazily(() => import('./binning.ts')),
+    ]);
+    this.#showOverlay('Binning', (host, close) => binningForm(host, {
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'numeric').map((c) => c.name),
+      apply: async (binning) => {
+        try {
+          return await this.#apply(binningCommands(this.#snapshot, binning), 'Binning');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S GENERATE ROWS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3, Alteryx's): each row repeated for each number from
+   *  one to another, or each day between two dates -- an exploded column the database fills (generate-rows.ts, the rule
+   *  Python's grid.generate_rows asks) -- in a window of its own (ui/generate-rows-form.ts). Both fetched with the first. */
+  async #openGenerateRows(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ generateRowsForm }, { generateRowsCommands }] = await Promise.all([
+      lazily(() => import('./ui/generate-rows-form.ts')), lazily(() => import('./generate-rows.ts')),
+    ]);
+    const columns = rowColumns(this.#snapshot);
+    this.#showOverlay('Generate Rows', (host, close) => generateRowsForm(host, {
+      wholes: columns.filter((c) => familyOf(c.type) === 'numeric' && !isFractional(c.type)).map((c) => c.name),
+      dates: columns.filter((c) => isTemporal(c.type) && !isTimeOfDay(c.type)).map((c) => c.name),
+      apply: async (g) => {
+        try {
+          return await this.#apply(generateRowsCommands(this.#snapshot, g), 'Generate Rows');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S SELECT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column kept or left out, renamed and
+   *  retyped -- hidden, given a display name, which a flow's box hands on as the relation's rename, or made another type
+   *  by a calculated column of its conversion (select-columns.ts, the rule
+   *  Python's grid.select asks) -- in a window of its own (ui/select-form.ts). Both fetched with the first. */
+  async #openSelect(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ selectForm }, { selectCommands, selectionOf }] = await Promise.all([
+      lazily(() => import('./ui/select-form.ts')), lazily(() => import('./select-columns.ts')),
+    ]);
+    this.#showOverlay('Select', (host, close) => selectForm(host, {
+      columns: selectionOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
+      apply: async (selection) => {
+        try {
+          return await this.#apply(selectCommands(this.#snapshot, selection), 'Select');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S SUMMARIZE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1, Alteryx's): each column grouped by, aggregated or
+   *  left out -- the grid's row groups, its columns' kinds and Aggregations, the rest hidden (summarize.ts, the rule
+   *  Python's grid.summarize asks) -- in a window of its own (ui/summarize-form.ts). Both fetched with the first. */
+  async #openSummarize(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ summarizeForm }, { summarizeCommands }] = await Promise.all([
+      lazily(() => import('./ui/summarize-form.ts')), lazily(() => import('./summarize.ts')),
+    ]);
+    this.#showOverlay('Summarize', (host, close) => summarizeForm(host, {
+      columns: summaryOf(this.#snapshot, this.#config as unknown as Record<string, unknown>),
+      label: (fn) => AGGREGATES.find((a) => a.value === fn)!.label,
+      second: (fn) => SECOND_COLUMN[fn],
+      apply: async (summary) => {
+        try {
+          return await this.#apply(summarizeCommands(this.#snapshot, summary), 'Summarize');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S COUNT RECORDS (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4, Alteryx's): its rows counted, one step, no window
+   *  -- a column of one value grouped by, a 1 for each row summed, the rest hidden (count-records.ts, the rule Python's
+   *  grid.count_records asks). Fetched with the first; refused, said on its status bar. */
+  async #countRecords(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const { countRecordsCommands } = await lazily(() => import('./count-records.ts'));
+    let refused: string | null;
+    try {
+      refused = await this.#apply(countRecordsCommands(this.#snapshot), 'Count Records');
+    } catch (e) {
+      if (!(e instanceof CubeRefusal)) throw e;
+      refused = e.message;
+    }
+    if (refused !== null) this.note(`Count Records: ${refused}`);
+  }
+
+  /** A FLOW'S FIND REPLACE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, Alteryx's): a Join box's column replaced by the
+   *  column of theirs its Join found for it -- in place, theirs hidden (find-replace.ts, the rule Python's
+   *  page.find_replace asks) -- in a window of its own (ui/find-replace-form.ts), starting at its own, else at its
+   *  Join's key and the last of theirs. Both fetched with the first. */
+  async #openFindReplace(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ findReplaceForm }, { findReplaceCommands, findReplaceOf }] = await Promise.all([
+      lazily(() => import('./ui/find-replace-form.ts')), lazily(() => import('./find-replace.ts')),
+    ]);
+    const now = this.#snapshot.derived.map(findReplaceOf).find((r) => r !== undefined);
+    const source = this.#options.cubeSource;
+    const how = source?._type === 'join' ? source.how : undefined;
+    const key = how !== undefined && how.form !== 'append' && 'rows' in how.on ? how.on.rows[0]?.left : undefined;
+    const made = new Set(this.#snapshot.derived.filter((d) => findReplaceOf(d) !== undefined).map((d) => d.name));
+    this.#showOverlay('Find Replace', (host, close) => findReplaceForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name).filter((c) => !made.has(c)),
+      ...(now !== undefined ? { start: now } : key !== undefined ? { start: { column: key } } : {}),
+      apply: async (t) => {
+        try {
+          return await this.#apply(findReplaceCommands(this.#snapshot, t), 'Find Replace');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S TRANSPOSE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M4): columns made rows -- a Name and a Value for each, its
+   *  keys beside them (transpose.ts, the rule Python's grid.transpose asks) -- in a window of its own
+   *  (ui/transpose-form.ts). Both fetched with the first. */
+  async #openTranspose(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ transposeForm }, { transposeCommands }] = await Promise.all([
+      lazily(() => import('./ui/transpose-form.ts')), lazily(() => import('./transpose.ts')),
+    ]);
+    this.#showOverlay('Transpose', (host, close) => transposeForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, numeric: familyOf(c.type) === 'numeric' })),
+      apply: async (transpose) => {
+        try {
+          return await this.#apply(transposeCommands(this.#snapshot, transpose), 'Transpose');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S MULTI-FIELD FORMULA (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): one expression over several columns, each
+   *  one's value `$v` -- parsed by the compiler, a calculated column each (multi-field-columns.ts, the rule Python's
+   *  grid.multi_field asks) -- in a window of its own (ui/multi-field-form.ts). Both fetched with the first. */
+  async #openMultiField(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ multiFieldForm }, { multiFieldCommands, multiFieldText }] = await Promise.all([
+      lazily(() => import('./ui/multi-field-form.ts')), lazily(() => import('./multi-field-columns.ts')),
+    ]);
+    const family = (type: string | undefined): 'text' | 'numeric' | 'temporal' | 'other' => {
+      const f = familyOf(type);
+      return f === 'text' || f === 'numeric' ? f : isTemporal(type) ? 'temporal' : 'other';
+    };
+    this.#showOverlay('Multi-Field Formula', (host, close) => multiFieldForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => ({ name: c.name, family: family(c.type) })),
+      apply: async (columns, expression, suffix, inPlace) => {
+        let lambda: Lambda;
+        try {
+          lambda = await this.#check(this.#controller.parse(multiFieldText(expression)));
+        } catch (e) {
+          // the parser's refusal, as the column editor says it
+          return e instanceof Error ? e.message : String(e);
+        }
+        try {
+          return await this.#apply(multiFieldCommands(this.#snapshot, { columns, lambda, suffix, ...(inPlace ? { inPlace } : {}) }), 'Multi-Field Formula');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S UNIQUE (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): a row of each key, its first in an order -- a row
+   *  number per key, a filter keeping the first, the number hidden (unique.ts, the rule Python's grid.unique asks) -- in
+   *  a window of its own (ui/unique-form.ts); its duplicates are its filter's False port. Both fetched with the first. */
+  async #openUnique(): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ uniqueForm }, { uniqueCommands }] = await Promise.all([
+      lazily(() => import('./ui/unique-form.ts')), lazily(() => import('./unique.ts')),
+    ]);
+    this.#showOverlay('Unique', (host, close) => uniqueForm(host, {
+      columns: rowColumns(this.#snapshot).map((c) => c.name),
+      apply: async (unique) => {
+        try {
+          return await this.#apply(uniqueCommands(this.#snapshot, unique), 'Unique');
+        } catch (e) {
+          if (e instanceof CubeRefusal) return e.message;
+          throw e;
+        }
+      },
+      close,
+    }));
+  }
+
+  /** A FLOW'S TEXT TOOL (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3): Text To Columns, RegEx or Data Cleansing -- the
+   *  calculated columns text-tools.ts makes, added in one step, each as the column editor's Add adds one -- in a window
+   *  of its own (ui/text-tool-form.ts, fetched with the first). */
+  async #openTextTool(kind: TextTool['kind']): Promise<void> {
+    if (this.#cubeOnly()) return;
+    const [{ textToolForm }, { textToolCommands }] = await Promise.all([
+      lazily(() => import('./ui/text-tool-form.ts')), lazily(() => import('./text-tool-columns.ts')),
+    ]);
+    const label = TEXT_TOOL_WINDOWS[kind];
+    this.#showOverlay(label, (host, close) => textToolForm(host, {
+      kind,
+      columns: rowColumns(this.#snapshot).filter((c) => familyOf(c.type) === 'text').map((c) => c.name),
+      apply: (tool) => this.#apply(textToolCommands(tool), label),
+      close,
+    }));
   }
 
   /**
@@ -4156,7 +4966,7 @@ export class CubeApp {
         this.#closeWindow('Sign in');
         this.#status(`signed in again as ${expired.principal}`, 'ok');
         // what failed runs again: the view (going live, or the refused change) and every chart
-        if (this.#controller.snaps.isSnapped) this.#planeToggle?.();
+        if (this.#controller.snaps.isSnapped && this.#plane().toggles) void this.#movePlane('live');
         else {
           // the refused change run again: its commands on the grid as it is now (what was made since kept), told as they
           // land; one an undo was part of, as it was asked for -- no command says the undo (G13; the S1 audit's 8, 9)
@@ -4302,6 +5112,11 @@ export class CubeApp {
       this.#raise(open);
       return open;
     }
+    // a window that sets the cube, docked where its host says (a flow's settings pane): one there at a time
+    const dock = this.#options.dock !== undefined && DOCKED(key) ? this.#options.dock : undefined;
+    if (dock !== undefined) {
+      for (const [other, w] of [...this.#open]) if (other !== key && w.parentElement === dock) this.#closeWindow(other);
+    }
     const win = open ?? this.#doc.createElement('div');
     if (!open) {
       win.className = 'dc-app-overlay';
@@ -4310,7 +5125,7 @@ export class CubeApp {
       win.tabIndex = -1;
       // still this cube's, wherever it floats: its drags land here, its keys are this cube's
       win.dataset['dcCube'] = this.#els.root.dataset['dcCube'] ?? '';
-      const host = this.#options.windowHost ?? this.#els.root;
+      const host = dock ?? this.#options.windowHost ?? this.#els.root;
       // outside the cube it does not inherit the cube's type and colours, so it carries them
       if (host !== this.#els.root) win.classList.add('dc-app-floating');
       host.append(win);
@@ -4345,11 +5160,16 @@ export class CubeApp {
     const shut = this.#doc.createElement('button');
     shut.type = 'button';
     shut.className = 'dc-overlay-close';
-    shut.textContent = '\u00d7';
+    shut.append(chromeIcon(this.#doc, 'close'));
     shut.setAttribute('aria-label', `Close ${title}`);
     shut.addEventListener('click', close);
     head.append(h, shut);
     build(this.#div(win, 'dc-overlay-body'), close);
+    if (dock !== undefined) {
+      // docked: it fills its pane, which places it -- no drag, no size of its own, nothing to raise
+      win.classList.add('dc-docked');
+      return win;
+    }
 
     // Dragged by the header, resized from any edge, and REMEMBERED BY
     // TITLE: reopening Properties finds it where it was left, while
@@ -4373,12 +5193,9 @@ export class CubeApp {
 
   /** Put a window above every other. */
   #raise(win: HTMLElement): void {
-    // one stack per place windows float: several cubes sharing a `windowHost` share it too,
-    // so the window touched last is on top whichever cube opened it
-    const host = this.#options.windowHost ?? this.#els.root;
-    const top = (windowStack.get(host) ?? WINDOW_Z_BASE) + 1;
-    windowStack.set(host, top);
-    win.style.zIndex = String(top);
+    // one stack per place windows float (ui/window.ts raiseWindow): several cubes sharing a `windowHost` share it,
+    // and so do the page's charts' options, so the window touched last is on top whoever opened it
+    raiseWindow(win, this.#options.windowHost ?? this.#els.root);
   }
 
   /** Close one window, by its title. */
@@ -4490,7 +5307,7 @@ export class CubeApp {
     burger.className = 'dc-titlebar-menu';
     burger.setAttribute('aria-label', 'Menu');
     burger.setAttribute('aria-haspopup', 'menu');
-    burger.textContent = '\u2261';
+    burger.append(chromeIcon(doc, 'menu'));
     burger.addEventListener('click', () => {
       // A second press on the hamburger SHUTS it: the outside-press dismissal would close the
       // menu and the click that follows reopen it, so the button would appear to do nothing.
@@ -4538,71 +5355,111 @@ export class CubeApp {
     // no local store (the engine) is live with no snap on offer. Either
     // way it still states the plane, and a click does nothing -- a Live
     // that only answers with a refusal, or a Snap of a copy, was a lie.
+    const paint = (): void => {
+      const plane = this.#plane();
+      snap.textContent = plane.word;
+      snap.title = plane.tip;
+      snap.classList.toggle('dc-on', plane.snapped);
+      snap.classList.toggle('dc-fixed', !plane.toggles);
+      if (plane.toggles) snap.removeAttribute('aria-disabled');
+      else snap.setAttribute('aria-disabled', 'true');
+      snap.disabled = this.#planeMoving;
+    };
+    this.#paintSnap = paint;
+    if (this.#plane().toggles) {
+      snap.addEventListener('click', () => void this.#movePlane(this.#controller.snaps.isSnapped ? 'live' : 'snap'));
+    }
+    paint();
+    host.append(snap);
+    return host;
+  }
+
+  /**
+   * WHERE ITS ROWS ARE, as its pill and its tile's state say it: Snapped or Live, whether the person can move it, and the
+   * whole truth on hover -- WHEN a snap was frozen and HOW MANY rows it holds (rule 1 of snap mode: what you are looking
+   * at is never inferable).
+   *
+   * It moves only where both planes exist: a live source elsewhere (a warehouse, a remote file) and a store in this tab
+   * to snap into. Rows already held in the tab are a snap from the start; a plane with no local store (the engine) is
+   * live with no snap on offer -- a Live that only answers with a refusal, or a Snap of a copy, was a lie.
+   */
+  #plane(): { readonly snapped: boolean; readonly toggles: boolean; readonly word: string; readonly tip: string } {
     const held = this.#options.heldCopy;
     // the page's own store, or its host's (Python's page: hostSnap)
     const canSnap = (this.#options.runner === undefined && this.#options.snapTarget !== undefined)
       || (this.#options.runner !== undefined && this.#options.hostSnap !== undefined);
-    if (held !== undefined || !canSnap) {
-      snap.textContent = held !== undefined ? 'Snapped' : 'Live';
-      snap.classList.toggle('dc-on', held !== undefined);
-      snap.classList.add('dc-fixed');
-      snap.setAttribute('aria-disabled', 'true');
-      snap.title = held !== undefined
-        ? `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}` +
-          `${held.rowCount !== undefined ? `, ${held.rowCount.toLocaleString(UI_LOCALE)} rows` : ''}. ` +
-          'Nothing can change it while you work.'
-        : describePlane({ mode: 'live' }, { remote: false, toggles: false }).title;
-      host.append(snap);
-      this.#paintSnap = null;
-    } else {
-      const paint = (): void => {
-        const state = this.#controller.snaps.state;
-        snap.classList.toggle('dc-on', state.mode === 'snapped');
-        // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
-        const host = this.#options.runner !== undefined && this.#options.hostSnap !== undefined;
-        const remote = host || (this.#options.runner === undefined && this.#options.live !== undefined);
-        const described = describePlane(state, { remote, toggles: true,
-          ...(host ? { store: this.#options.hostSnap!.store } : {}) });
-        snap.textContent = described.text;
-        snap.title = described.title;
-      };
-      this.#paintSnap = paint;
-      this.#planeToggle = () => snap.click();
-      snap.addEventListener('click', () => {
-        // held while the page converges: the plane is the keeper's to put back, nothing moves
-        if (this.#held > 0) {
-          this.#status(CATCHING_UP, 'warn');
-          return;
-        }
-        snap.disabled = true;
-        // moved (its page tells it), or refused (nothing moved)
-        const done = (moved: boolean): void => {
-          snap.disabled = false;
-          this.#settlePlane();
-          paint();
-          if (moved) this.#emit('moved');
-          this.#emit('plane');
-        };
-        // The PLANE changes, the cube's state does not: freeze (or release)
-        // what is on screen, then the owner re-runs it -- not an undo step.
-        // The new plane holds only once it has ANSWERED: a refused re-run puts
-        // the old plane back, so the badge never names a plane the rows are
-        // not from (a dead warehouse left a dropped snap's rows under "Live").
-        const rerun = () => this.#owner.refresh();
-        // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
-        const work = this.#check(this.#controller.snaps.isSnapped
-          ? this.#controller.goLive(rerun)
-          : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun));
-        work.then(() => done(true), (e: unknown) => {
-          this.#status(e instanceof Error ? e.message : String(e), 'error');
-          done(false);
-        });
-      });
-      paint();
-      host.append(snap);
+    if (held !== undefined) {
+      return { snapped: true, toggles: false, word: 'Snapped', tip: `${held.label} — copied into this tab at ${held.takenAt.toLocaleTimeString(UI_LOCALE)}`
+        + `${held.rowCount !== undefined ? `, ${held.rowCount.toLocaleString(UI_LOCALE)} rows` : ''}. Nothing can change it while you work.` };
     }
-    return host;
+    if (!canSnap) return { snapped: false, toggles: false, word: 'Live', tip: describePlane({ mode: 'live' }, { remote: false, toggles: false }).title };
+    const state = this.#controller.snaps.state;
+    // Where the data is, when Live is a warehouse: the plane is a place (the wording every app shares)
+    const host = this.#options.runner !== undefined && this.#options.hostSnap !== undefined;
+    const remote = host || (this.#options.runner === undefined && this.#options.live !== undefined);
+    const described = describePlane(state, { remote, toggles: true, ...(host ? { store: this.#options.hostSnap!.store } : {}) });
+    return { snapped: state.mode === 'snapped', toggles: true, word: described.text, tip: described.title };
   }
+
+  /**
+   * THE PLANE MOVED BY THE PERSON: live again, or a copy snapped -- afresh, when one is held (Snap Again). Held while the
+   * page converges; the new plane holds only once it has ANSWERED: a refused re-run puts the old plane back, so the state
+   * never names a plane the rows are not from (a dead warehouse left a dropped snap's rows under "Live"). The PLANE
+   * changes, the cube's state does not: freeze (or release) what is on screen, then the owner re-runs it -- not an undo
+   * step.
+   */
+  async #movePlane(to: 'live' | 'snap'): Promise<void> {
+    if (this.#held > 0) {
+      this.#status(CATCHING_UP, 'warn');
+      return;
+    }
+    if (this.#planeMoving || !this.#plane().toggles) return;
+    if (to === 'live' && !this.#controller.snaps.isSnapped) return;
+    this.#planeMoving = true;
+    this.#paintPlane();
+    // moved (its page tells it), or refused (nothing moved)
+    const done = (moved: boolean): void => {
+      this.#planeMoving = false;
+      this.#settlePlane();
+      this.#paintPlane();
+      if (moved) this.#emit('moved');
+      this.#emit('plane');
+    };
+    const rerun = () => this.#owner.refresh();
+    // the copy into the tab comes before the re-run, which is when the owner turns busy: counted from the click
+    await this.#check(to === 'live'
+      ? this.#controller.goLive(rerun)
+      : this.#controller.snapAndRun(this.#owner.committed.snapshot, rerun)).then(() => done(true), (e: unknown) => {
+      this.#status(e instanceof Error ? e.message : String(e), 'error');
+      done(false);
+    });
+  }
+
+  /** Its plane said again: a grid alone's pill, and its tile's state. */
+  #paintPlane(): void {
+    this.#paintSnap?.();
+    this.#paintTileState();
+  }
+
+  /**
+   * ITS STATE LEFT OF ITS TILE'S TITLE (ui/tile-icons.ts; the user, 2026-10-25): Live quiet, Snapped accented, what it
+   * reads and when it was frozen on hover; a click, where its plane can move, opens its menu (Snap; or Go Live, Snap
+   * Again).
+   */
+  #paintTileState(): void {
+    const plane = this.#plane();
+    const source = this.#sourceName();
+    const tip = plane.snapped ? plane.tip.replace(/ Click to go live\.$/, ' Click to go live, or to snap again.')
+      : `${source !== undefined ? `Reads ${source}. ` : ''}${plane.tip}`;
+    paintState(this.#tileStateEl, plane.snapped ? 'snapped' : 'live', plane.word, tip, { menu: plane.toggles, off: !plane.toggles });
+    this.#tileStateEl.disabled = this.#planeMoving;
+    // and in its status bar, in words
+    const reads = this.#statusSourceEl;
+    reads.dataset['state'] = plane.snapped ? 'snapped' : 'live';
+    reads.textContent = source !== undefined ? `${source} \u00b7 ${plane.word}` : plane.word;
+    reads.title = plane.tip;
+  }
+
 
   /** What this grid reads, as a person names it: a file, a table, a copy in this tab. */
   #sourceName(): string | undefined {
@@ -4640,15 +5497,28 @@ export class CubeApp {
     return this.#tileHeadEl;
   }
 
+  /** Its state, for the left of its tile's title (or a lone grid's sheet tab): Live or Snapped. */
+  tileState(): HTMLElement {
+    return this.#tileStateEl;
+  }
+
+  /** What it reads, as its tile's title says on hover: "Reads trades.csv". */
+  tileAbout(): string | undefined {
+    const source = this.#sourceName();
+    return source !== undefined ? `Reads ${source}` : undefined;
+  }
+
   #paintTileHead(): void {
     const head = this.#tileHeadEl;
     head.replaceChildren();
+    this.#paintTileState();
     if (!this.#inTile) return;
-    const source = this.#sourceName();
-    if (source !== undefined) head.append(this.#sourceTag(source));
-    // no menu button of its own (the user, 2026-10-23): its right-click has all a grid's menu had
-    head.append(this.#snapPill());
-    // the zones' way back LAST: in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
+    // a grid alone become a tile (a second grid on its page): its status bar says its source from now, not at its next view
+    const readout = this.#els.stats.querySelector('.dc-status-readout');
+    if (readout && !this.#statusSourceEl.isConnected) readout.prepend(this.#statusSourceEl);
+    // its source is its title's hover and its status bar's words, its plane its state left of its title (the user,
+    // 2026-10-25); no menu button of its own (2026-10-23): its right-click has all a grid's menu had. The zones' way back:
+    // in a page's bar, a lone grid's header ends the strip, above the zone bar's own fold
     if (!this.#config.showDragZones) head.append(this.#zonesBack());
   }
 
@@ -4673,8 +5543,8 @@ export class CubeApp {
   /**
    * The hamburger's menu, built as it opens (Undo knows whether there is anything to undo):
    * Data...; Undo and Redo; the cube as a file (Save, Save As, Open, Share, Export, Email); View
-   * and Insert a level down; Settings. Where the planner runs is the status bar's readout. A host's entries go where their `section` says, File unless
-   * named; an empty group or submenu is not shown.
+   * and Insert a level down, the app's Settings… last in View, a line apart. Where the planner runs is the status bar's
+   * readout. A host's entries go where their `section` says, File unless named; an empty group or submenu is not shown.
    */
   /** A host's entries for one place (`MenuItem.section`, the file group unless named). */
   #hostItems(section: 'file' | 'view' | 'data' | 'create' | 'plane'): MenuItem[] {
@@ -4701,13 +5571,15 @@ export class CubeApp {
         { id: 'page.arrange' as const, label: 'Arrange\u2026', ...(this.#page.page.editing ? {} : { disabled: true }) },
         { id: 'page.undoLayout' as const, label: 'Undo Layout', ...(this.#page.page.canUndoLayout ? {} : { disabled: true }) },
         { id: 'page.redoLayout' as const, label: 'Redo Layout', ...(this.#page.page.canRedoLayout ? {} : { disabled: true }) },
-        { id: 'page.editLayout' as const, label: 'Edit Layout', checked: this.#page.page.editing },
+        // a switch says what it will do, and flips (the menus, docs/DATACUBE_UI_REVIEW_2026_10_24.md)
+        { id: 'page.editLayout' as const, label: this.#page.page.editing ? 'Done Editing Layout' : 'Edit Layout' },
       ] }] : []),
       { label: '', items: host('data') },
       { label: '', items: this.#undoItems() },
       { label: '', items: [...host('file'), ...this.#outputItems()] },
-      { label: '', items: [...submenu('View', [...this.#viewItems(), ...host('view')])] },
-      { label: '', items: [{ id: 'view.settings', label: 'Settings...' }] },
+      // HOW IT IS SHOWN, and the app's Settings… -- this browser's, not this grid's Properties (the user, 2026-10-25:
+      // under View, as the page's ≡ has them)
+      { label: '', items: submenu('View', [...this.#viewItems(), ...host('view'), { id: 'view.settings', label: 'Settings…', separated: true }]) },
     ];
     return groups.filter((g) => g.items.length > 0);
   }
@@ -4727,9 +5599,9 @@ export class CubeApp {
       // WHAT UNDO ACTS ON: Ad Hoc's session while it is on, never the hidden cube's history
       // (P2-284). Disabled rather than hidden when there is nothing to go back to: a shortcut
       // that silently does nothing cannot be told from one that is broken.
-      { id: 'view.undo', label: 'Undo',
+      { id: 'view.undo', label: 'Undo', shortcut: 'Ctrl+Z',
         ...((this.#adhoc ? this.#adhoc.session.canUndo : this.#owner.canUndo) ? {} : { disabled: true }) },
-      { id: 'view.redo', label: 'Redo',
+      { id: 'view.redo', label: 'Redo', shortcut: 'Ctrl+Shift+Z',
         ...((this.#adhoc ? this.#adhoc.session.canRedo : this.#owner.canRedo) ? {} : { disabled: true }) },
     ];
   }
@@ -4750,7 +5622,7 @@ export class CubeApp {
   #viewItems(): MenuItem[] {
     // The cube's own entries are not offered while Ad Hoc is on: they changed the hidden cube
     // and nothing visible (P2-289).
-    return [{ id: 'view.properties', label: 'Properties...', ...(this.#adhoc ? { disabled: true } : {}) }];
+    return [{ id: 'view.properties', label: 'Properties…', shortcut: 'Ctrl+E', ...(this.#adhoc ? { disabled: true } : {}) }];
   }
 
   /**
@@ -4915,27 +5787,6 @@ export class CubeApp {
 
 }
 
-/**
- * Whether the event landed in something the user types into.
- *
- * contenteditable counts: it is a text field that simply is not an
- * input element, and a check that only looked at tag names would
- * hand the cube's undo to someone mid-word.
- */
-function isTextEntry(target: EventTarget | null): boolean {
-  if (!target || typeof (target as Element).closest !== 'function') {
-    return false;
-  }
-  const el = target as HTMLElement;
-  const tag = el.tagName;
-  return (
-    tag === 'INPUT'
-    || tag === 'TEXTAREA'
-    || tag === 'SELECT'
-    || el.isContentEditable === true
-    || el.closest('[contenteditable="true"]') !== null
-  );
-}
 
 /** The selection statistics' numbers where their columns share no format. */
 const STATS_FORMAT: ColumnFormat = { kind: 'number', maximumFractionDigits: 2 };

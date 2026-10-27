@@ -56,6 +56,23 @@ public final class RowDecode {
                 throw new IllegalStateException("the row's object has no field for the plan's column '" + c.name()
                         + "' (it has " + row.fields().keySet() + "): the statement does not write the plan's columns");
             }
+            if (slotWord(c.slot()).equals("TAGGED")) {
+                // a tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its cell is the tag, the slot
+                // index; the value stands in that slot's column beside it, read with the slot's own type
+                Object tag = cell(node, tagOf(c));
+                if (tag == null) {
+                    out.add(null);
+                    continue;
+                }
+                ExecutionPlan.Column slot = taggedSlot(c, ((Number) tag).intValue());
+                Json.Node held = row.fields().get(slot.name());
+                if (held == null) {
+                    throw new IllegalStateException("the row's object has no field for the tagged column '"
+                            + c.name() + "'s slot " + slot.name() + " (it has " + row.fields().keySet() + ")");
+                }
+                out.add(presented(cell(held, slot), slot));
+                continue;
+            }
             out.add(cell(node, c));
         }
         return out;
@@ -84,6 +101,8 @@ public final class RowDecode {
             case "LITERAL" -> {
                 return LiteralText.parse(text(node, c));
             }
+            case "TAGGED" -> throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with"
+                    + " its row (its slot columns stand beside it), never alone");
             case "DECIMAL_TEXT" -> {
                 return decimalText(text(node, c));
             }
@@ -324,6 +343,53 @@ public final class RowDecode {
             throw new IllegalStateException("column '" + c.name() + "': its slot " + c.slot() + " is no MAP<key,value>");
         }
         return new ExecutionPlan.Column[] {any("key", parts.get(0).trim()), any("value", parts.get(1).trim())};
+    }
+
+    /** A tagged slot's value as its kind presents it: a DateTime at the written precision the kind carries
+     *  ({@code DateTime} the second, {@code DateTime(n)} n subsecond digits: {@link PureDateLiteral#presentedAt}),
+     *  every other kind as read. */
+    static @com.legend.base.Nullable Object presented(@com.legend.base.Nullable Object v, ExecutionPlan.Column slot) {
+        String kind = slot.type();
+        if (!(v instanceof PureDateLiteral d) || !kind.startsWith("DateTime")) {
+            return v;
+        }
+        int digits = kind.startsWith("DateTime(") ? Integer.parseInt(kind.substring("DateTime(".length(),
+                kind.length() - 1)) : 0;
+        return d.presentedAt(digits);
+    }
+
+    /** A tagged column's own cell, the tag: an integer, the slot index. */
+    static ExecutionPlan.Column tagOf(ExecutionPlan.Column c) {
+        return new ExecutionPlan.Column(c.name(), "Integer", c.multiplicity(), "INTEGER", null);
+    }
+
+    /** The result columns a statement answers for the plan's {@code columns}: each its own, plus a tagged column's
+     *  slot columns beside it (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a). */
+    static int physicalColumns(List<ExecutionPlan.Column> columns) {
+        int n = 0;
+        for (ExecutionPlan.Column c : columns) {
+            n += slotWord(c.slot()).equals("TAGGED") ? 1 + topLevel(inside(c, "TAGGED")).size() : 1;
+        }
+        return n;
+    }
+
+    /** Slot {@code index} of a tagged column ({@code TAGGED<kind slot, ...>}, docs/RESULTS_AND_RENDERERS_2026_10_22.md
+     *  §5a) as a column: the physical column {@link ExecutionPlan.Column#taggedSlotColumn} names, typed as the
+     *  slot's kind, in the slot's SQL type. */
+    static ExecutionPlan.Column taggedSlot(ExecutionPlan.Column c, int index) {
+        List<String> parts = topLevel(inside(c, "TAGGED"));
+        if (index < 0 || index >= parts.size()) {
+            throw new IllegalStateException("column '" + c.name() + "': its tag " + index + " names no slot of "
+                    + c.slot());
+        }
+        String f = parts.get(index).trim();
+        int space = f.indexOf(' ');
+        if (space <= 0) {
+            throw new IllegalStateException("column '" + c.name() + "': its slot " + c.slot()
+                    + " has an entry with no type: '" + f + "'");
+        }
+        return new ExecutionPlan.Column(ExecutionPlan.Column.taggedSlotColumn(c.name(), index),
+                f.substring(0, space), c.multiplicity(), f.substring(space + 1).trim(), null);
     }
 
     /** The fields of a struct column ({@code STRUCT<name slot, ...>}) as columns: each its name and its slot, its

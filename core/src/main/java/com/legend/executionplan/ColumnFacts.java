@@ -128,6 +128,17 @@ public final class ColumnFacts {
                 }
                 yield b.append('>').toString();
             }
+            // a tagged column's slots, each its Pure kind and its SQL type; the physical columns are named by
+            // SqlType.Tagged.slotColumn, which the runner's decode reads
+            // (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a)
+            case SqlType.Tagged tg -> {
+                StringBuilder b = new StringBuilder("TAGGED<");
+                for (int i = 0; i < tg.slots().size(); i++) {
+                    SqlType.Tagged.Slot s = tg.slots().get(i);
+                    b.append(i > 0 ? ", " : "").append(s.kind()).append(' ').append(slot(s.type()));
+                }
+                yield b.append('>').toString();
+            }
         };
     }
 

@@ -125,10 +125,13 @@ describe('top or bottom N: ranked by the database after the grouping', () => {
   it('each level ranks its parent\'s groups, ties kept, and keeps N; the grand total is not ranked', async () => {
     const level = await print(levelLambda(s, { level: 2, parent: ['EMEA'] }));
     assert.ok(level.includes('->groupBy(~[region, desk], ~[notional:x|$x.notional:y|$y->sum()])'
-      + '->extend(over([~notional->descending()]), ~[__all__topN:{p, w, r|$p->rank($w, $r)}])'
+      + '->extend(~[__all__topN_empty:x|$x.notional->isEmpty()])'
+      + '->extend(over([~__all__topN_empty->ascending(), ~notional->descending()]), ~[__all__topN:{p, w, r|$p->rank($w, $r)}])'
       + '->filter(x|$x.__all__topN <= 2)->sort('), level);
+    // the largest first, its empties last: led by whether it is empty (the correctness audit's 3, 2026-10-26); the smallest
+    // first puts them last as it is
     assert.doesNotMatch(await print(levelLambda(s, { level: 0, parent: [] })), /topN/, 'the grand total');
     assert.match(await print(levelLambda({ ...s, topN: { by: 'notional', n: 3, bottom: true } }, { level: 1, parent: [] })),
-      /~notional->ascending\(\).*<= 3/, 'the bottom: the smallest first');
+      /over\(\[~notional->ascending\(\)\]\).*<= 3/, 'the bottom: the smallest first');
   });
 });

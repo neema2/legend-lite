@@ -357,7 +357,8 @@ already plans on Deephaven and is checked on the server (K6). An exponential mov
 (legend-pure and legend-engine know only the simple moving average, a window's `average` over a frame), so the platform
 gains one, by the user's choice a name of its own rather than an overload of `average`, whose signature is upstream's
 verbatim and which is order-free where an EMA is not: `meta::legend::lite::ema(numbers:Number[*], alpha:Float[1]):
-Float[0..1]`, user-facing (`LITE_SURFACE`, its ceiling 4 -> 5, dated; census row; S105). It folds an ordered window's
+Float[0..1]`, user-facing (`LITE_SURFACE`, its ceiling 4 -> 5, dated, 8 with main's writes since the merge of
+2026-10-27; census row; register S112, S105 before that merge). It folds an ordered window's
 values in its order: the first, then `alpha * value + (1 - alpha) * so far`, a null skipped, a NaN carried, null with
 none -- a 20-period EMA is `alpha = 2 / 21`. The MIR gains `SqlAgg.Fn.EMA`, every dialect an arm: DuckDB folds the
 window's values as a list (`list_reduce` over `list(CAST(x AS DOUBLE)) OVER (...)`: a fold's accumulator is its list's

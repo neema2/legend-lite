@@ -1,6 +1,6 @@
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
-load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/guards:defs.bzl", "guards_package")
 
 # TeaVM as a build action (defs.bzl, teavm_wasm). The compiler's jars come from
 # @maven_teavm, build tooling that runs here and nowhere else.
@@ -9,16 +9,39 @@ load("//tools/junit:defs.bzl", "junit_test")
 # P1-22: it ran under the global --host_jvmopt=-Xmx3g before; the JVM default is a quarter of the RAM).
 legend_java_binary(
     name = "compile",
-    srcs = [
-        "SegmentOffsets.java",
-        "TeaVmCompile.java",
-    ],
+    srcs = ["TeaVmCompile.java"],
     jvm_flags = ["-Xmx2g"],
     main_class = "com.legend.tools.teavm.TeaVmCompile",
     visibility = ["//visibility:public"],
     deps = [
+        ":data_offsets",
         "@maven_teavm//:org_teavm_teavm_core",
         "@maven_teavm//:org_teavm_teavm_tooling",
+    ],
+)
+
+# PARK-40 (docs/PARKED_WORK_LEDGER.md, 2026-10-26): TeaVM 0.15.0 writes a data segment's offset unsigned where the
+# specification reads it signed, so a module whose string pool passes 1 MiB (the planner's, at the merge of main) fails
+# to load. JDK-only; :compile runs it over the module TeaVM wrote. It goes with the bump to TeaVM 0.16.0, with its test.
+legend_java_library(
+    name = "data_offsets",
+    srcs = ["WasmDataOffsets.java"],
+)
+
+# The fixer held to the specification's encoding, and PARK-40's anchor: MODULE.bazel still pins the TeaVM whose
+# offsets it corrects, so the bump turns this red and the fixer, this test and the ledger's row leave together.
+junit_test(
+    name = "data_offsets_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["test/WasmDataOffsetsTest.java"],
+    data = ["//:MODULE.bazel"],
+    jvm_flags = ["-Dteavm.module=$(rlocationpath //:MODULE.bazel)"],
+    select = ["--select-class=com.legend.tools.teavm.WasmDataOffsetsTest"],
+    deps = [
+        ":data_offsets",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
 
@@ -42,20 +65,6 @@ legend_java_library(
         "@maven_teavm//:org_teavm_teavm_core",
         "@maven_teavm//:org_teavm_teavm_jso",
     ],
-)
-
-# TeaVM 0.15.0's unsigned data-segment addresses rewritten as WebAssembly's signed LEB128 (SegmentOffsets.java,
-# 2026-10-23: the planner's module grew past 1 MiB of static data and its second segment read as negative)
-junit_test(
-    name = "segment_offsets_test",
-    memory_mb = 256,
-    size = "small",
-    srcs = [
-        "SegmentOffsets.java",
-        "SegmentOffsetsTest.java",
-    ],
-    select = ["--select-class=com.legend.tools.teavm.SegmentOffsetsTest"],
-    deps = ["@maven_test//:org_junit_jupiter_junit_jupiter_api"],
 )
 
 guards_package()

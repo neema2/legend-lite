@@ -60,12 +60,16 @@ async function check(name, fn) {
   }
 }
 
-/** The status line's text, to wait for it to change. */
-const statusNow = () => page.evaluate(() => document.querySelector('.dc-status-timing')?.textContent ?? '');
+/** The status bar's readout and the view it says (its `data-view`, counting landed views), to wait for it to change. */
+const statusNow = () => page.evaluate(() => {
+  const e = document.querySelector('.dc-status-timing');
+  return e ? `${e.textContent} #${e.dataset.view}` : '';
+});
 async function landed(before) {
   await page.waitForFunction((was) => {
-    const line = document.querySelector('.dc-status-timing')?.textContent ?? '';
-    return line !== was && /rows/.test(line) && document.querySelectorAll('.dc-row').length > 0;
+    const e = document.querySelector('.dc-status-timing');
+    const line = e ? `${e.textContent} #${e.dataset.view}` : '';
+    return line !== was && /rows|groups/.test(line) && document.querySelectorAll('.dc-row').length > 0;
   }, before, { timeout: 60_000 });
   await frames(page);
 }
@@ -110,13 +114,13 @@ async function showWin(id, label) {
 }
 /**
  * The source picker (src/ui/source-picker.ts), to open IN PLACE of the page, as a person does:
- * New ▸ Blank Page, then "Add a data source".
+ * New Page, then "Add a data source".
  */
 async function openPicker() {
   for (const other of ['cubeswin', 'querywin', 'sharewin']) {
     if (await page.locator(`#${other}`).isVisible()) await page.click(`#${other} .hostwin-close, #${other} .dc-picker-close`);
   }
-  await burger('Blank Page');
+  await burger('New Page');
   await page.locator('.dc-blank').waitFor({ state: 'visible' });
   await page.click('.dc-blank .dc-primary');
   await page.locator('.dc-picker').waitFor({ state: 'visible' });
@@ -173,6 +177,56 @@ async function openSaved(name) {
 const typed = () => readView(page);
 
 try {
+  // OPEN… ASKED BEFORE THE PAGE CAN OPEN FILES (2026-10-26, found clicking the published site): the menu offers it as soon
+  // as it is drawn, and the page's store answers only once the start's grid has landed. In a browser of its own, the
+  // store's database held open until the check lets it go: the start's grid lands, Open… is asked, nothing can show
+  // yet -- and once the store answers, the window opens. Each step waits on the page, never on a clock.
+  await check('Open… asked before the page can open files opens once it can, the ask not dropped', async () => {
+    const held = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+    try {
+      await held.addInitScript(() => {
+        let release;
+        const gate = new Promise((r) => { release = r; });
+        window.__releaseStore = release;
+        const open = IDBFactory.prototype.open;
+        IDBFactory.prototype.open = function (name, ...rest) {
+          const request = open.call(this, name, ...rest);
+          if (name !== 'datacube') return request;
+          // the page's store (cube-store.ts openCubeDatabase) told it is open only once released
+          let handler = null;
+          request.addEventListener('success', (e) => { void gate.then(() => handler?.call(request, e)); });
+          Object.defineProperty(request, 'onsuccess', { configurable: true, get: () => handler, set: (f) => { handler = f; } });
+          return request;
+        };
+      });
+      const p = await held.newPage();
+      p.on('pageerror', (e) => pageErrors.push(e.message));
+      await p.goto(`${URL_BASE}/demo/index.html`);
+      await p.waitForSelector('.dc-row', { timeout: 90_000 });
+      await p.click('.dc-titlebar-menu');
+      await p.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open…"))').first().click();
+      if (await p.locator('#cubeswin').count() !== 0) throw new Error('the window opened while the store was held: the check holds nothing');
+      // what acts on the page meanwhile is greyed, saying why -- never a click that does nothing
+      const save = async () => {
+        await p.click('.dc-titlebar-menu');
+        const item = p.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Save"))').first();
+        const said = { off: await item.getAttribute('aria-disabled'), why: await item.getAttribute('title') };
+        await p.keyboard.press('Escape');
+        return said;
+      };
+      const meanwhile = await save();
+      if (meanwhile.off !== 'true' || meanwhile.why !== 'The page is still starting') throw new Error(`Save while the store was held: ${JSON.stringify(meanwhile)}`);
+      await p.evaluate(() => window.__releaseStore());
+      await p.locator('#cubeswin').waitFor({ state: 'visible', timeout: 30_000 });
+      await p.click('#cubeswin .dc-picker-close');
+      const started = await save();
+      if (started.off === 'true') throw new Error(`Save once the page started: ${JSON.stringify(started)}`);
+      return 'asked while the store was held, Save greyed "The page is still starting"; opened once it answered, Save then offered';
+    } finally {
+      await held.close();
+    }
+  });
+
   await check('a cube over a file is saved, and the list shows it', async () => {
     await load();
     const before = await statusNow();
@@ -520,7 +574,7 @@ try {
   await check('New ▸ Data Source… on a blank page: its only grid, not capped; the next, beside it, capped', async () => {
     await load();
     page.once('dialog', (d) => { void d.accept(); });
-    await burger('Blank Page');
+    await burger('New Page');
     await page.locator('.dc-blank').waitFor({ state: 'visible' });
     // the picker's "add", the page empty: the grid it makes is the page's only one (cube-document.ts gridCapped)
     await addSample('trades', 200);
@@ -540,11 +594,11 @@ try {
     page.once('dialog', (d) => { void d.accept(); });
     await pickSample('trades', 300);
     await landed(before);
-    // alone on the page: its header in the page bar's strip
-    if (!(await page.locator('.dc-page-alone .dc-source-tag').count())) throw new Error('the lone grid\'s source is not in the bar');
+    // alone on the page: no header -- its state in its sheet's tab (the user, 2026-10-25)
+    if (!(await page.locator('.dc-sheet-state .dc-tile-state').count())) throw new Error('the lone grid\'s state is not in its sheet\'s tab');
     await addSample('dates', 120);
     await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
-    if (await page.locator('.dc-page-alone .dc-source-tag').count()) throw new Error('two grids, and a header still in the bar');
+    if (await page.locator('.dc-sheet-state .dc-tile-state').count()) throw new Error('two grids, and a lone grid\'s state still in the tab');
     await chartOf('grid-2');
     await page.locator('[data-tile^="chart-"]').first().waitFor({ timeout: 20_000 });
     // the first grid, removed as any other: its tile's x
@@ -587,8 +641,9 @@ try {
     await page.locator('[data-tile="grid-2"] .dc-row').first().waitFor({ timeout: 60_000 });
     const got = await views();
     if (got !== want) throw new Error(`reopened as ${got}, saved as ${want}`);
-    const heads = await page.locator('.dc-band-tile .dc-source-tag').allTextContents();
-    if (!(heads.some((h) => /trades/.test(h)) && heads.some((h) => /dates/.test(h)))) throw new Error(`headers: ${heads.join(' | ')}`);
+    // each grid's source in its status bar (its header shows its state and title)
+    const heads = await page.locator('.dc-band-tile .dc-status-source').allTextContents();
+    if (!(heads.some((h) => /trades/.test(h)) && heads.some((h) => /dates/.test(h)))) throw new Error(`status bars: ${heads.join(' | ')}`);
     await page.click('#cubeswin .dc-picker-close').catch(() => {});
     await unchanged();
     return `${heads.join(' and ')}; not marked as changed`;
@@ -616,11 +671,11 @@ try {
     await chart.waitFor({ timeout: 20_000 });
     const id = await chart.getAttribute('data-tile');
     // pinned through its pill's menu (Dynamic / Pinned / Frozen): a chart that keeps its grouping outlives its grid
-    await chart.locator('.dc-tile-actions .dc-titlebar-toggle').click();
-    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: /^Pinned \u2014 / }) }).first().click();
+    await chart.locator('.dc-tile-state').click();
+    await page.locator('.dc-menu .dc-menu-item', { has: page.locator(':scope > .dc-menu-label', { hasText: /^Pinned$/ }) }).first().click();
     await page.locator('[data-tile="grid-2"] .dc-tile-remove').click();
     await page.locator('[data-tile="grid-2"]').waitFor({ state: 'detached', timeout: 10_000 });
-    const pill = () => page.locator(`[data-tile="${id}"] .dc-tile-actions .dc-titlebar-toggle`).textContent();
+    const pill = () => page.locator(`[data-tile="${id}"] .dc-tile-state`).textContent();
     if ((await pill()) !== 'Detached') throw new Error(`the chart says ${await pill()}`);
     await saveAs('Kept grid');
     const doc = await page.evaluate(() => window.__dataPage.document('Kept grid'));
@@ -754,8 +809,8 @@ try {
       await landed(before);
       await shape();
       const want = await typed();
-      // Export > Page File (JSON), as a person keeps one -- then marked as written before: its cube version 1
-      const [download] = await Promise.all([page.waitForEvent('download'), burger('Page File (JSON)')]);
+      // Export Page File…, as a person keeps one -- then marked as written before: its cube version 1
+      const [download] = await Promise.all([page.waitForEvent('download'), burger('Export Page File…')]);
       const doc = JSON.parse(await readFile(await download.path(), 'utf8'));
       doc.cubes[0].cube.version = 1;
       const legacy = join(dir, 'legacy-version.page.json');

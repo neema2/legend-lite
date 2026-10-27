@@ -36,8 +36,15 @@ public final class CypherIslands {
     private CypherIslands() {
     }
 
-    /** The relation expression {@code island} means over {@code model}'s classes, names resolved. */
+    /** The relation expression {@code island} means over {@code model}'s classes, names resolved. A statement that
+     *  updates the graph is a program of statements, read where a query's statements are ({@link #statements}), and
+     *  refused here, inside an expression. */
     public static ValueSpecification desugar(SqlIsland island, ModelContext model) {
+        if (updates(island)) {
+            throw new com.legend.error.NotImplementedException(island.opening() + "...}#: a Cypher statement that"
+                    + " updates the graph is a statement of the query (its writes run in order, its rows last), not a"
+                    + " value inside an expression");
+        }
         return NameResolver.resolveQuery(translate(island, model));
     }
 
@@ -49,13 +56,34 @@ public final class CypherIslands {
                     com.legend.protocol.cypher.CypherParser.parse(island.sql());
             return CypherToPure.translate(statement, new Graph(model, graphOf(statement, model)));
         } catch (SqlTranslationException e) {
-            String message = island.opening() + "...}# at " + SqlIslands.position(island, e.line(), e.column()) + ": "
-                    + e.getMessage();
-            throw switch (e.kind()) {
-                case SYNTAX -> new com.legend.error.IslandSyntaxException(message);
-                case UNSUPPORTED -> new com.legend.error.NotImplementedException(message);
-                case INVALID -> new TypeInferenceException(message);
-            };
+            throw SqlIslands.refusal(island, e);
+        }
+    }
+
+    /** Whether {@code island} is a Cypher statement that updates the graph (CREATE, MERGE, SET, REMOVE, DELETE): a
+     *  program of statements ({@link #statements}). A statement that does not parse is none: its error is the
+     *  expression's reading's. */
+    public static boolean updates(SqlIsland island) {
+        if (!island.language().equals(SqlIsland.CYPHER)) {
+            return false;
+        }
+        try {
+            return CypherToPure.updates(com.legend.protocol.cypher.CypherParser.parse(island.sql()));
+        } catch (SqlTranslationException e) {
+            return false;
+        }
+    }
+
+    /** The statements a Cypher statement that updates the graph means (docs/WRITES_DESIGN_2026_10_18.md §5, graph
+     *  B): the staged rows' lets, the writes, the rows it returns last; names resolved. */
+    public static List<ValueSpecification> statements(SqlIsland island, ModelContext model) {
+        try {
+            com.legend.protocol.cypher.CypherAst.Statement statement =
+                    com.legend.protocol.cypher.CypherParser.parse(island.sql());
+            return CypherToPure.program(statement, new Graph(model, graphOf(statement, model))).stream()
+                    .map(NameResolver::resolveQuery).toList();
+        } catch (SqlTranslationException e) {
+            throw SqlIslands.refusal(island, e);
         }
     }
 
@@ -191,9 +219,33 @@ public final class CypherIslands {
 
         @Override
         public boolean open() {
+            return marked("Open");
+        }
+
+        /** Whether the graph carries the graph profile's {@code stereotype}. */
+        private boolean marked(String stereotype) {
             return graph != null && graph.stereotypes().stream().anyMatch(st -> com.legend.compiler.element.type
                     .PlatformTypes.isProfile(st.profileName(), com.legend.compiler.element.type.PlatformTypes
-                    .GRAPH_PROFILE) && "Open".equals(st.stereotypeName()));
+                    .GRAPH_PROFILE) && stereotype.equals(st.stereotypeName()));
+        }
+
+        @Override
+        public @com.legend.base.Nullable String nativeStore() {
+            if (graph == null || !marked("Native")) {
+                return null;
+            }
+            // (the native store's database is the graph's one element that is a database)
+            List<String> stores = graph.elements().stream().filter(e -> model.findDatabase(e).isPresent()).toList();
+            if (stores.size() != 1) {
+                throw new TypeInferenceException("the native graph " + graph.qualifiedName() + " lists its store, one"
+                        + " database, among its elements: it lists " + stores);
+            }
+            return stores.get(0);
+        }
+
+        @Override
+        public @com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+            return SqlIslands.primaryKey(model, database, table);
         }
 
         @Override
@@ -311,7 +363,10 @@ public final class CypherIslands {
                     continue;
                 }
                 for (Property p : tc.properties()) {
+                    // (a Variant is a value, as report reads it, never an end: an untyped pattern over a node holding
+                    // one read a class named Variant, 2026-10-18, the study's §12.94)
                     if (p instanceof Property.Stored s && s.type() instanceof Type.ClassType c
+                            && !com.legend.compiler.element.type.PlatformTypes.isVariant(c)
                             && edges.edgeAt(c.fqn()) == null && seen.add(s.name())) {
                         report(sink, s.name(), s.type(), s.multiplicity());
                     }

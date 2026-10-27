@@ -14,16 +14,17 @@
 
 import { columnConfig, mergeColumnOrder, withColumn, type CubeConfiguration } from './config.ts';
 import { availableDimensions, drillDown, drillUp, useDimension, type Dimension } from './dimensions.ts';
+import { familyOf, isDecimal } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { headerSortCommand, type SortedHeader } from './header-sort.ts';
 import {
-  CubeRefusal, isPivotTotalColumn, readTopN, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
+  CubeRefusal, isPivotTotalColumn, readTopN, rowColumns, sameValue, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterOperator, type FilterValue,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
 import { DATA_BAR, readColorScale, readIconSet, readRule, type FormatRuleGiven, type IconSetName } from './conditional.ts';
 import type { HeatmapSpec } from './style.ts';
 import { readFormatCode } from './format-code.ts';
-import { dateRangeConditions, type DateRange } from './date-ranges.ts';
+import { dateRangeConditions, datesBetweenConditions, type DateRange } from './date-ranges.ts';
 import { keptCondition, ownConditions } from './value-filter.ts';
 import { TREE_COLUMN } from './treeview.ts';
 
@@ -62,6 +63,7 @@ export type GridGestureArgs = {
   readonly 'filter.set': { readonly filter: FilterNode | null };
   readonly 'filter.values': { readonly column: string; readonly values: readonly (FilterValue | null)[] | null };
   readonly 'filter.dateRange': { readonly column: string; readonly range: DateRange };
+  readonly 'filter.dates': { readonly column: string; readonly range?: DateRange; readonly from?: string; readonly to?: string };
   readonly 'filter.topN': { readonly column: string; readonly n: number; readonly bottom?: boolean };
   readonly 'filter.topNOff': Nothing;
   readonly 'chart.refilter': { readonly remove: readonly FilterNode[]; readonly add: readonly FilterNode[] };
@@ -69,6 +71,7 @@ export type GridGestureArgs = {
   readonly 'pivot.clearVertical': Nothing;
   readonly 'pivot.horizontal': Column; readonly 'pivot.addHorizontal': Column; readonly 'pivot.removeHorizontal': Column;
   readonly 'pivot.clearHorizontal': Nothing;
+  readonly 'pivot.pin': { readonly values: readonly (FilterValue | null)[] | null };
   readonly 'zones.set': { readonly rows: readonly string[]; readonly columns: readonly string[] };
   readonly 'pivot.measuresFirst': Nothing; readonly 'pivot.exclude': Column; readonly 'pivot.include': Column;
   readonly 'column.hide': Column; readonly 'column.show': { readonly column: string; readonly visible: boolean };
@@ -277,6 +280,26 @@ const GESTURES = {
       return replaced(g.snapshot, column, dateRangeConditions(column, text(a, 'range', 'the date range') as DateRange));
     },
   },
+  // A DATE FILTER'S DATES (date-ranges.ts; a flow's Date Filter box, Python's grid.date_filter): its filter made the
+  // column's dates in a range relative to today, or the days from one to another (both kept), alone -- the box's one
+  // step, in place of every condition it had
+  'filter.dates': {
+    args: ['column', 'range?', 'from?', 'to?'],
+    make: (g, a) => {
+      const column = columnOf(a);
+      const days = a['from'] !== undefined || a['to'] !== undefined;
+      if ((a['range'] !== undefined) === days) {
+        throw new CubeRefusal('a Date Filter keeps a range of dates, or the days from one to another: one of them');
+      }
+      // its column's type: a date-time's every moment of both days (date-ranges.ts; the review of 2026-10-26's C5)
+      const type = rowColumns(g.snapshot).find((c) => c.name === column)?.type;
+      const add = days ? datesBetweenConditions(column, text(a, 'from', 'its first day'), text(a, 'to', 'its last day'), type)
+        : dateRangeConditions(column, text(a, 'range', 'the date range') as DateRange);
+      const had = g.snapshot.filter;
+      const remove = had === undefined ? [] : had.kind === 'and' ? had.children : [had];
+      return sameValue(remove, add) ? [] : [{ kind: 'refilter', remove, add }];
+    },
+  },
   // a chart's mark on the grid's filter -- the selection it had taken off, the one it has now on -- or a selection off
   'chart.refilter': {
     args: ['remove', 'add'],
@@ -292,6 +315,33 @@ const GESTURES = {
   'pivot.addHorizontal': { args: ['column'], make: (g, a) => zone('pivot', g.snapshot, added(columnOf(a))) },
   'pivot.removeHorizontal': { args: ['column'], make: (g, a) => zone('pivot', g.snapshot, removed(columnOf(a))) },
   'pivot.clearHorizontal': { args: [], make: () => [{ kind: 'pivot', columns: [] }] },
+  // A CROSS TAB'S LOAD VALUES (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2; Python's grid.pin_pivot): the values its rows
+  // hold now, as the database answered them, pinned -- its columns those from then on (grid-edits.ts pinPivot), each
+  // typed as its column is (a number answered as text, as a database's big integer is, a number; a Decimal's, its
+  // text); null, its values its
+  // rows' again. An empty value is refused in words: it names no column. The same values pinned again: nothing
+  'pivot.pin': {
+    args: ['values'],
+    make: (g, a) => {
+      const had = g.snapshot.pivotValues !== undefined && g.snapshot.pivotValues.length > 0 ? g.snapshot.pivotValues : null;
+      const given = a['values'];
+      if (given === null) return had === null ? [] : [{ kind: 'pinPivot', values: null }];
+      if (!Array.isArray(given)) throw new CubeRefusal(`a pivot's values are a list, or null, not ${JSON.stringify(given)}`);
+      const on = g.snapshot.pivotOn[0];
+      const type = rowColumns(g.snapshot).find((c) => c.name === on)?.type;
+      const values = (given as readonly unknown[]).map((v): FilterValue => {
+        if (v === null) throw new CubeRefusal(`its rows hold an empty '${on ?? ''}', which names no column: fill or filter its empty values first`);
+        // a number past what a double holds exactly kept as its text: its condition reads it as its column's type; a
+        // Decimal's text kept whole, every digit it has (a double rounds 12345678901234.567 and drops 12.10's zero: the
+        // review of 2026-10-26's B1)
+        const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+        const exact = familyOf(type) === 'numeric' && !isDecimal(type);
+        if (exact && Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n))) return n;
+        return v as FilterValue;
+      });
+      return sameValue(had, values) ? [] : [{ kind: 'pinPivot', values }];
+    },
+  },
   // a drag in the zones: the whole layout the drop leaves, one change (P2-103)
   'zones.set': {
     args: ['rows', 'columns'],

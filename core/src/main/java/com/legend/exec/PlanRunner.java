@@ -21,7 +21,9 @@ import java.util.Map;
  * server version the statement is written for, runs the target's session statements, binds each slot to its
  * parameter's value as the slot says (writing a value's type where the statement leaves it to the value, H2's), and
  * passes on the text the database writes, or its typed rows ({@link #rows}: each cell read by the session from the
- * driver by the plan's column, docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3, the plan path program's step 7).
+ * driver by the plan's column, docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3, the plan path program's step 7). A plan
+ * of several steps (a write plan, docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) runs them all on one session, in one
+ * transaction where one changes the database, its answer held until they have run.
  */
 public final class PlanRunner {
 
@@ -46,8 +48,11 @@ public final class PlanRunner {
                     + " rows is run by rows(...), which decodes them; run(...) writes a text");
             case ExecutionPlan.TdsResult tds -> throw new IllegalArgumentException("a plan whose answer is typed rows"
                     + " (a tabular result) is run by rows(...), which decodes them; run(...) writes a text");
-            case ExecutionPlan.Sequence sequence -> throw new com.legend.error.NotImplementedException("a plan of"
-                    + " several steps is not run yet: phase 2 of the execution plan program");
+            case ExecutionPlan.Sequence sequence -> sequence(sequence, checked, sessions, out);
+            case ExecutionPlan.Update update -> throw new IllegalStateException("a plan whose answer is an update: a"
+                    + " plan's answer is a result");
+            case ExecutionPlan.Check check -> throw new IllegalStateException("a plan whose answer is a check: a"
+                    + " plan's answer is a result");
         }
     }
 
@@ -83,23 +88,33 @@ public final class PlanRunner {
                     + " is run by run(...), which writes it; rows(...) decodes typed rows");
             case ExecutionPlan.TextResult text -> throw new IllegalArgumentException("a plan whose answer is a text"
                     + " is run by run(...), which writes it; rows(...) decodes typed rows");
-            case ExecutionPlan.Sequence sequence -> throw new com.legend.error.NotImplementedException("a plan of"
-                    + " several steps is not run yet: phase 2 of the execution plan program");
+            case ExecutionPlan.Sequence sequence -> throw new com.legend.error.NotImplementedException("a write"
+                    + " plan's typed rows are not run yet: step 1 of the result boundary program");
+            case ExecutionPlan.Update update -> throw new IllegalStateException("a plan whose answer is an update: a"
+                    + " plan's answer is a result");
+            case ExecutionPlan.Check check -> throw new IllegalStateException("a plan whose answer is a check: a"
+                    + " plan's answer is a result");
         };
     }
 
     private static void text(ExecutionPlan.TextResult text, Map<String, PlanParameters.Checked> checked,
             PlanSessions.Source sessions, Writer out) throws IOException {
+        send(text.sql(), checked, sessions, (st, statement, bound) -> writeText(text, st, statement, bound, out));
+    }
+
+    /** {@code text}'s statement, sent on {@code st} with {@code values} bound, its text written to {@code out}: a whole
+     *  text's one row; or one JSON object per row, the array's brackets and commas the runner's. */
+    private static void writeText(ExecutionPlan.TextResult text, Statements st, String statement,
+            List<PlanParameters.Checked> values, Writer out) throws IOException {
         switch (text.format()) {
             case CSV, JSON, TDS_TEXT -> {
                 boolean[] written = {false};
-                send(text.sql(), checked, sessions, (st, statement, bound) ->
-                        st.query(statement, text.sql().slots(), bound, row -> {
-                            if (!written[0]) {
-                                written[0] = true;
-                                out.write(row == null ? "" : row);
-                            }
-                        }));
+                st.query(statement, text.sql().slots(), values, row -> {
+                    if (!written[0]) {
+                        written[0] = true;
+                        out.write(row == null ? "" : row);
+                    }
+                });
                 if (!written[0]) {
                     throw new IllegalStateException("the plan's statement wrote no text: no row");
                 }
@@ -108,15 +123,14 @@ public final class PlanRunner {
                 // one JSON object per row: the array's brackets and commas are the runner's
                 out.write('[');
                 boolean[] first = {true};
-                send(text.sql(), checked, sessions, (st, statement, bound) ->
-                        st.query(statement, text.sql().slots(), bound, row -> {
-                            if (!first[0]) {
-                                out.write(',');
-                            }
-                            first[0] = false;
-                            out.write(row != null ? row : "null");
-                            out.flush();
-                        }));
+                st.query(statement, text.sql().slots(), values, row -> {
+                    if (!first[0]) {
+                        out.write(',');
+                    }
+                    first[0] = false;
+                    out.write(row != null ? row : "null");
+                    out.flush();
+                });
                 out.write(']');
             }
         }
@@ -210,6 +224,134 @@ public final class PlanRunner {
                 out.write(']');
             }
         }
+    }
+
+    /**
+     * A plan of several steps (main's write plans, docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged 2026-10-26):
+     * every step on one session, in order, through the session's own statements ({@link Statements}) as every other
+     * plan's are; where a step changes the database, all of them in one transaction ({@link Statements#inTransaction}:
+     * a caller's open one joined), each change's count kept under its name for the slots after it. Its answer is its
+     * one result step's text, held until the steps have all run (and their changes committed), then written to
+     * {@code out}.
+     */
+    private static void sequence(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked,
+            PlanSessions.Source sessions, Writer out) throws IOException {
+        ExecutionPlan.Target target = null;
+        int results = 0;
+        boolean changes = false;
+        for (ExecutionPlan.Node step : sequence.steps()) {
+            ExecutionPlan.Sql sql = switch (step) {
+                case ExecutionPlan.Update u -> {
+                    changes = true;
+                    if (u.count() != null && checked.containsKey(u.count())) {
+                        throw new IllegalStateException("a write's count is named '" + u.count() + "', as a declared"
+                                + " parameter is");
+                    }
+                    yield u.sql();
+                }
+                case ExecutionPlan.Check k -> k.sql();
+                case ExecutionPlan.TextResult t -> {
+                    results++;
+                    yield t.sql();
+                }
+                case ExecutionPlan.TdsResult t -> throw new com.legend.error.NotImplementedException("a write plan"
+                        + " whose answer is typed rows is not run yet: step 1 of the result boundary program");
+                case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
+                        + " inside a plan of several steps is not run yet");
+                case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
+                        + " plan's steps are one list");
+            };
+            nullTypes(sql);
+            if (target == null) {
+                target = sql.target();
+            } else if (!target.equals(sql.target())) {
+                throw new com.legend.error.NotImplementedException("a plan whose steps name different targets: its"
+                        + " steps run on one session, in one transaction");
+            }
+        }
+        if (results != 1) {
+            throw new IllegalStateException("a sequence of " + results + " result steps: a plan's answer is one");
+        }
+        ExecutionPlan.Target on = java.util.Objects.requireNonNull(target, "a sequence has a step");
+        try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
+            Statements st = session.statements();
+            st.check(on);
+            try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
+                for (String s : on.session()) {
+                    StatementOrigin.sent(s);
+                    st.execute(s);
+                }
+            }
+            java.io.StringWriter held = new java.io.StringWriter();
+            try {
+                st.inTransaction(() -> {
+                    try {
+                        steps(sequence, checked, st, held);
+                    } catch (IOException e) {
+                        throw new java.io.UncheckedIOException(e);
+                    }
+                    return null;
+                });
+            } catch (java.io.UncheckedIOException e) {
+                throw e.getCause();
+            }
+            out.write(held.toString());
+            out.flush();
+        }
+    }
+
+    /** The steps, each at its turn on {@code st}: a change's count bound under its name for the slots after it; a
+     *  check's rows read and dropped (the database computes what it may raise); the result's text to {@code held}. */
+    private static void steps(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked,
+            Statements st, Writer held) throws IOException {
+        Map<String, PlanParameters.Checked> values = new java.util.HashMap<>(checked);
+        for (ExecutionPlan.Node step : sequence.steps()) {
+            switch (step) {
+                case ExecutionPlan.Update u -> {
+                    String statement = statement(u.sql(), values);
+                    StatementOrigin.sent(statement);
+                    long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
+                    if (u.count() != null) {
+                        // (the database's count: a value it produced, bound where a later step reads it)
+                        values.put(u.count(), new PlanParameters.One(count));
+                    }
+                }
+                case ExecutionPlan.Check k -> {
+                    String statement = statement(k.sql(), values);
+                    StatementOrigin.sent(statement);
+                    st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
+                }
+                case ExecutionPlan.TextResult t -> {
+                    String statement = statement(t.sql(), values);
+                    StatementOrigin.sent(statement);
+                    writeText(t, st, statement, valuesOf(t.sql(), values), held);
+                }
+                case ExecutionPlan.TdsResult t -> throw new com.legend.error.NotImplementedException("a write plan"
+                        + " whose answer is typed rows is not run yet: step 1 of the result boundary program");
+                case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
+                        + " inside a plan of several steps is not run yet");
+                case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
+            }
+        }
+    }
+
+    /** Every null's type checked before any session is opened: a plan whose null is of no type is refused whole. */
+    private static void nullTypes(ExecutionPlan.Sql sql) {
+        for (ExecutionPlan.Slot slot : sql.slots()) {
+            if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
+                nullType(one, slot);
+            }
+        }
+    }
+
+    /** Each slot's value, in the statement's order. */
+    private static List<PlanParameters.Checked> valuesOf(ExecutionPlan.Sql sql,
+            Map<String, PlanParameters.Checked> checked) {
+        List<PlanParameters.Checked> values = new java.util.ArrayList<>(sql.slots().size());
+        for (int i = 0; i < sql.slots().size(); i++) {
+            values.add(value(checked, sql.slots().get(i), i + 1));
+        }
+        return values;
     }
 
     /**

@@ -35,9 +35,10 @@ import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-a
 import { chartPick, readEdits } from '../src/headless/page.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle, shown } from './cube-fixture.ts';
+import { GateEngine, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
 import { sameButIds } from './page-same.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
+import { element } from '../../pure-protocol/src/index.ts';
 
 // -- the page, as DataCube's app wires one another editor serves ----------------------------------------------------
 
@@ -125,6 +126,19 @@ const over = (name: string): GridMaker => (gridHost, spawned, start) => {
   return made;
 };
 
+/** A grid over grid `of`'s rows, read live: a flow's box after another (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2). */
+const overRows = (of: string): GridMaker => (gridHost, spawned, start) => {
+  const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
+    engine, planner: new StubPlanner(), compact: true, sourceLabel: 'desks.csv',
+    cubeSource: { _type: 'rows', name: 'desks.csv', input: { grid: of }, columns: SNAPSHOT.columns.map((c) => ({ name: c.name, type: c.type })) },
+    configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: 'desks.csv' },
+    ...(page ? { windowHost: page.root } : {}), ...spawned,
+    onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+  });
+  if (spawned.id !== undefined) cubes.set(spawned.id, made);
+  return made;
+};
+
 /** The statement a snap counts its rows by, here: the fixture's engine answers it with the fixture's two rows. */
 const COUNT = 'count the rows';
 class CountingGate extends GateEngine {
@@ -149,7 +163,7 @@ const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {
   if (spawned.id !== undefined) cubes.set(spawned.id, made);
   return made;
 };
-/** A page of a grid that can snap, `a`, beside one that cannot (so each pill is in its tile's header). */
+/** A page of a grid that can snap, `a`, beside one that cannot (so each state is left of its tile's title). */
 const snapGrid = async (): Promise<Record<string, string>> => {
   newPage();
   const a = pg().addGrid(snappable('trades.csv'));
@@ -157,7 +171,16 @@ const snapGrid = async (): Promise<Record<string, string>> => {
   await settle();
   return { a, b };
 };
-const toggle = (id: string): void => tile(id).querySelector<HTMLButtonElement>('.dc-titlebar-toggle')!.click();
+/** A grid's plane moved as a person moves it: its state's menu opened, Snap picked -- Go Live, when it is snapped. */
+const toggle = (id: string): void => {
+  const state = tile(id).querySelector<HTMLButtonElement>('.dc-tile-state')!;
+  const pick = state.dataset['state'] === 'snapped' ? 'Go Live' : 'Snap';
+  state.click();
+  const item = [...state.ownerDocument.querySelectorAll<HTMLElement>('.dc-menu [role^="menuitem"]')]
+    .find((i) => i.querySelector(':scope > .dc-menu-label')?.textContent === pick);
+  assert.ok(item, `its state offers ${pick}`);
+  item.click();
+};
 
 /** A grid over the class Trade (a page filter is on a class a grid reads): its source a class, its rows the fixture's. */
 const TRADE = 'trades::domain::Trade';
@@ -200,6 +223,66 @@ function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
   return page;
 }
 
+/** A grid over daily prices (a date, an instrument, a close): what a timeseries reads. Its engine answers every query
+ *  with the same two days of one instrument, its columns the grid's -- and a series' dates and values beside them, so
+ *  a timeseries' line is drawn and its legend has a chip to click (a grid reads the columns it asked for). */
+const PRICES: CubeSnapshot = {
+  source: { query: element('prices') },
+  columns: [{ name: 'symbol', type: 'String' }, { name: 'day', type: 'StrictDate' }, { name: 'close', type: 'Float' }],
+  derived: [], rows: [], pivotOn: [], sorts: [], epoch: 1,
+};
+class PricesGate extends GateEngine {
+  override async answer(_sql: string, epoch: number): Promise<ResultTable> {
+    return {
+      columns: [
+        { name: 'symbol', type: 'String', values: ['AAA', 'AAA'] },
+        { name: 'day', type: 'StrictDate', values: ['2024-01-02', '2024-01-03'] },
+        { name: 'close', type: 'Float', values: [100, 101] },
+        { name: '__ts_date', type: 'StrictDate', values: ['2024-01-02', '2024-01-03'] },
+        { name: '__ts_value', type: 'Float', values: [100, 101] },
+      ],
+      rowCount: 2, epoch, elapsedMs: 1,
+    };
+  }
+}
+const overPrices = (): GridMaker => (gridHost, spawned, start) => {
+  const made = new CubeApp(gridHost, start?.snapshot ?? PRICES, {
+    engine: new PricesGate(), planner: new StubPlanner(), compact: true, sourceLabel: 'prices.csv',
+    cubeSource: { ...file('prices.csv'), columns: PRICES.columns.map((c) => ({ name: c.name, type: c.type })) },
+    configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: 'prices.csv' },
+    ...(page ? { windowHost: page.root } : {}), ...spawned,
+    onCommand: (command) => { if (spawned.id !== undefined) channel?.edit({ grid: spawned.id, command }); },
+  });
+  if (spawned.id !== undefined) cubes.set(spawned.id, made);
+  return made;
+};
+/** A page of a grid of prices, `a`, and one over orders beside it. */
+async function pricesGrids(): Promise<{ a: string; b: string }> {
+  newPage();
+  const a = pg().addGrid(overPrices());
+  const b = pg().addGrid(over('orders.csv'), { near: a });
+  await settle();
+  return { a, b };
+}
+/** A timeseries tile of the prices, its viewer drawn (ui/timeseries-view.ts, a chunk of its own fetched with the first). */
+async function withTimeseries(): Promise<{ a: string; b: string; series: string }> {
+  const g = await pricesGrids();
+  gridMenuItem(g.a, 'Timeseries').click();
+  const bar = await shown<HTMLElement>(host, '[data-tile^="timeseries-"] .dc-ts-bar .dc-ts-range');
+  return { ...g, series: bar.closest<HTMLElement>('[data-tile]')!.dataset['tile']! };
+}
+
+/** A timeseries tile of one grid of prices, `a`, with a second grid of prices beside it, `c`, to read. */
+async function withTwoPrices(): Promise<{ a: string; c: string; series: string }> {
+  newPage();
+  const a = pg().addGrid(overPrices());
+  const c = pg().addGrid(overPrices(), { near: a });
+  await settle();
+  gridMenuItem(a, 'Timeseries').click();
+  const bar = await shown<HTMLElement>(host, '[data-tile^="timeseries-"] .dc-ts-bar .dc-ts-range');
+  return { a, c, series: bar.closest<HTMLElement>('[data-tile]')!.dataset['tile']! };
+}
+
 /** A page of two grids, `a` over trades, `b` over orders beside it. */
 async function twoGrids(): Promise<{ a: string; b: string }> {
   newPage();
@@ -223,6 +306,55 @@ async function editorOf(text: string): Promise<HTMLTextAreaElement> {
   return area;
 }
 const contextMenu = (el: Element): void => { el.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true })); };
+
+// -- a timeseries tile, as a person works it (ui/timeseries-view.ts): its toolbar, legend, series editor and settings --
+
+/** A timeseries tile's editor -- its series editor or its Settings -- a window of its own among the page's (the user,
+ *  2026-10-26: PR #73's design), while one is open; else nothing. */
+const tsEditor = (): HTMLElement => dom.window.document.querySelector<HTMLElement>('.dc-ts-window') ?? dom.window.document.createElement('div');
+/** A select of a timeseries tile -- its toolbar's, or its open editor's -- by its accessible name. */
+function tsSelect(series: string, name: string): HTMLSelectElement {
+  const s = tile(series).querySelector<HTMLSelectElement>(`select[aria-label="${name}"]`) ?? tsEditor().querySelector<HTMLSelectElement>(`select[aria-label="${name}"]`);
+  assert.ok(s, `${series} offers ${name}`);
+  return s;
+}
+/** A button of a timeseries tile -- its toolbar's, or its open editor's -- by what it says. */
+function tsButton(series: string, text: string): HTMLButtonElement {
+  const all = [...tile(series).querySelectorAll<HTMLButtonElement>('button'), ...tsEditor().querySelectorAll<HTMLButtonElement>('button')];
+  const b = all.find((x) => x.textContent === text);
+  assert.ok(b, `${series} offers ${text} (it offers ${all.map((x) => x.textContent).join(' | ')})`);
+  return b;
+}
+const choose = (s: HTMLSelectElement, value: string): void => {
+  s.value = value;
+  s.dispatchEvent(new dom.window.Event('change'));
+};
+const typed = (input: HTMLInputElement, value: string): void => {
+  input.value = value;
+  input.dispatchEvent(new dom.window.Event('input'));
+};
+/** Its first line's legend chip, once the database's answer is drawn. */
+const chipOf = (series: string): Promise<HTMLElement> => shown<HTMLElement>(tile(series), '.dc-ts-chip:not(.dc-ts-failed)');
+/** The series editor of its first line, opened as its chip's double-click opens it. */
+async function editorOfLine(series: string): Promise<void> {
+  (await chipOf(series)).dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true }));
+  await shown(dom.window.document, '.dc-ts-window .dc-ts-pop input[aria-label="Expression"]');
+}
+const expression = (_series: string): HTMLInputElement => tsEditor().querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Expression"]')!;
+/** A source row of its settings (open), by its place. */
+const sourceRow = (_series: string, i: number): HTMLElement => [...tsEditor().querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')]
+  .filter((r) => r.querySelector('.dc-ts-alias'))[i]!;
+
+/** Each sheet tab at its own place along the bar (jsdom lays nothing out): tab i from x = 100 + 100i, 80 wide. */
+function placeTabs(): void {
+  [...host.querySelectorAll<HTMLElement>('.dc-sheet-tab')].forEach((t, i) => {
+    const left = 100 + 100 * i;
+    t.getBoundingClientRect = () => ({ left, right: left + 80, top: 0, bottom: 20, x: left, y: 0, width: 80, height: 20, toJSON: () => ({}) });
+  });
+}
+const pointer = (el: Element, type: string, x: number, y: number): void => {
+  el.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, clientX: x, clientY: y, button: 0, bubbles: true }));
+};
 
 async function drawn(): Promise<void> {
   await new Promise((r) => setTimeout(r, 200));
@@ -283,11 +415,11 @@ async function chartOf(gridTile: string): Promise<string> {
 
 /** A chart's pill used as a hand does: Dynamic to Pinned (its grouping its own), or back -- picked from the menu it opens. */
 async function togglePill(chart: string): Promise<void> {
-  const pill = tile(chart).querySelector('.dc-tile-actions .dc-titlebar-toggle') as HTMLElement;
+  const pill = tile(chart).querySelector('.dc-tile-state') as HTMLElement;
   const to = pill.textContent === 'Dynamic' ? 'Pinned' : 'Dynamic';
   pill.click();
   const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
-    .find((e) => e.textContent?.startsWith(`${to} \u2014 `));
+    .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === to);
   if (!item) throw new Error(`the pill offers no ${to}`);
   item.click();
   await settle();
@@ -368,7 +500,7 @@ function dragOnto(id: string, onto: string, where: 'middle' | 'left' = 'middle')
 /** A grid's Column Properties for `column`, its Aggregation set to `fn`, and OK. */
 async function setAggregation(at: string, column: string, fn: string): Promise<void> {
   await headerMenu(at, column);
-  entry('Properties...').click();
+  entry('Properties…').click();
   await settle();
   const win = dom.window.document.querySelector<HTMLElement>('[data-window="Properties"]')!;
   const select = [...win.querySelectorAll('.dc-field')].find((f) => f.querySelector('.dc-field-label')?.textContent === 'Aggregation:')!
@@ -489,15 +621,41 @@ const filtered = async (): Promise<Record<string, string>> => {
 };
 const withSheet = async (): Promise<Record<string, string>> => {
   const g = await twoGrids();
-  (host.querySelector('.dc-sheet-add') as HTMLElement).click();
+  plus(host);
   await settle();
   return g;
+};
+
+/** A flow sheet with a box on it (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): the page's two grids, then a flow, shown,
+ *  and a grid added on it -- the box shown. */
+const withFlow = async (): Promise<Record<string, string>> => {
+  const g = await twoGrids();
+  pg().addFlow();
+  const box = pg().addGrid(over('desks.csv'));
+  await shown(host, `.dc-flow-box[data-tile="${box}"]`);
+  return { ...g, box };
+};
+
+/** A flow of three boxes (M2): its Input (`box`), another Input (`other`), and a box over `box`'s rows, live -- shown. */
+const withLinkedFlow = async (): Promise<Record<string, string>> => {
+  const g = await withFlow();
+  const other = pg().addGrid(over('orders.csv'));
+  const linked = pg().addGrid(overRows(g.box!), { near: g.box! });
+  await shown(host, `.dc-flow-box[data-tile="${linked}"]`);
+  await shown(host, '.dc-flow-inputs select');
+  return { ...g, other, linked };
+};
+/** The shown box's settings' Input picked: `value`, a box of the flow (`grid:<id>`) or `frozen`. */
+const pickInput = (value: string): void => {
+  const pick = host.querySelector<HTMLSelectElement>('.dc-flow-inputs select')!;
+  pick.value = value;
+  pick.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
 };
 
 const GESTURES: readonly Gesture[] = [
   // the page
   { name: 'a grid added', setUp: twoGrids, make: async ({ a }) => { pg().addGrid(over('desks.csv'), { near: a! }); } },
-  { name: 'a sheet added', setUp: twoGrids, make: () => (host.querySelector('.dc-sheet-add') as HTMLElement).click() },
+  { name: 'a sheet added', setUp: twoGrids, make: () => plus(host) },
   {
     name: 'a sheet renamed',
     setUp: withSheet,
@@ -509,7 +667,7 @@ const GESTURES: readonly Gesture[] = [
     },
   },
   { name: 'a sheet moved', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Move Left') },
-  { name: 'a sheet deleted', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Delete') },
+  { name: 'a sheet deleted', setUp: withSheet, make: () => tabMenu('Sheet 2', 'Delete Sheet') },
   { name: 'a tile renamed', setUp: twoGrids, make: ({ b }) => rename(b!, 'Orders') },
   { name: 'a chart added', setUp: twoGrids, make: async ({ a }) => { await chartOf(a!); } },
   { name: 'a chart frozen', setUp: withChart, make: ({ chart }) => togglePill(chart!) },
@@ -520,6 +678,201 @@ const GESTURES: readonly Gesture[] = [
   // a text tile (page-text.ts): Create ▸ Text Box, then its words edited in place (its drawing and editor a chunk of their
   // own, fetched with the first: the editor waited for)
   { name: 'a text box added', setUp: twoGrids, make: ({ a }) => gridMenuItem(a!, 'Text Box').click() },
+  // a flow sheet (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): Create ▸ Flow, and a box moved by its arrow key
+  { name: 'a flow added', setUp: twoGrids, make: () => { pg().addFlow(); } },
+  {
+    name: 'a box moved',
+    setUp: withFlow,
+    make: ({ box }) => {
+      host.querySelector<HTMLElement>(`.dc-flow-box[data-tile="${box!}"]`)!
+        .dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    },
+  },
+  // a flow's lines (M2): a box frozen, and linked to another box, from its settings' Input
+  { name: 'a box frozen', setUp: withLinkedFlow, make: () => pickInput('frozen') },
+  { name: 'a box linked to another', setUp: withLinkedFlow, make: ({ other }) => pickInput(`grid:${other!}`) },
+  // a timeseries tile (ui/timeseries-view.ts): Create ▸ Timeseries on a grid of prices -- its first series DataCube's
+  // rule over the grid's columns -- and a range picked in its toolbar (its viewer a chunk of its own, waited for)
+  {
+    name: 'a timeseries added',
+    setUp: pricesGrids,
+    make: async ({ a }) => {
+      gridMenuItem(a!, 'Timeseries').click();
+      await shown(host, '[data-tile^="timeseries-"] .dc-ts-bar');
+    },
+  },
+  {
+    name: 'a timeseries range picked in its toolbar',
+    setUp: withTimeseries,
+    make: ({ series }) => {
+      [...tile(series!).querySelectorAll<HTMLButtonElement>('.dc-ts-range')].find((b) => b.textContent === '1Y')!.click();
+    },
+  },
+  // every other change of a timeseries tile (the review's A8, docs/TIMESERIES_REVIEW_2026_10_25.md), made as a person
+  // makes it -- its toolbar, its legend, its series editor, its settings, its tile -- each told as the page's commands
+  // (setTimeseries: its spec by the tile's one rule, timeseries-edit.ts editTimeseries, which Python's Timeseries methods
+  // ask too: headless timeseriesEdit), and undone
+  { name: 'a timeseries frequency picked in its toolbar', setUp: withTimeseries, make: ({ series }) => choose(tsSelect(series!, 'Frequency'), 'week') },
+  // a first tile of many instruments' prices compares them rebased (timeseries-expr.ts firstPlot): its % change picked
+  { name: 'a timeseries compared as its % change in its toolbar', setUp: withTimeseries, make: ({ series }) => choose(tsSelect(series!, 'Compare'), 'percent') },
+  { name: 'a timeseries main pane put on a log scale in its toolbar', setUp: withTimeseries, make: ({ series }) => tsButton(series!, 'Log').click() },
+  { name: "a timeseries' statistics shown from its toolbar", setUp: withTimeseries, make: ({ series }) => tsButton(series!, 'Stats').click() },
+  // its header's state, a chart's words (the user, 2026-10-26): Frozen picked from the menu its state button opens --
+  // each grid's filter kept as it is now
+  {
+    name: 'a timeseries frozen from its header',
+    setUp: withTimeseries,
+    make: async ({ series }) => {
+      const pill = tile(series!).querySelector<HTMLButtonElement>('.dc-tile-state')!;
+      assert.equal(pill.textContent, 'Dynamic', 'a new timeseries follows its grid');
+      pill.click();
+      const item = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu .dc-menu-item')]
+        .find((e) => e.querySelector(':scope > .dc-menu-label')?.textContent === 'Frozen');
+      if (!item) throw new Error('its state button offers no Frozen');
+      item.click();
+      await settle();
+      assert.equal(tile(series!).querySelector('.dc-tile-state')!.textContent, 'Frozen', 'its state button says so');
+    },
+  },
+  { name: 'a timeseries line hidden from its legend', setUp: withTimeseries, make: async ({ series }) => { (await chipOf(series!)).click(); } },
+  {
+    name: 'a timeseries series added in its editor',
+    setUp: withTimeseries,
+    make: async ({ series }) => {
+      tsButton(series!, '+ Series').click();
+      await shown(dom.window.document, '.dc-ts-window .dc-ts-pop input[aria-label="Expression"]');
+      typed(expression(series!), 'mean(close, 5)');
+      tsButton(series!, 'OK').click();
+    },
+  },
+  {
+    name: 'a timeseries series edited in its editor',
+    setUp: withTimeseries,
+    make: async ({ series }) => {
+      await editorOfLine(series!);
+      typed(expression(series!), 'close * 2');
+      tsButton(series!, 'OK').click();
+    },
+  },
+  {
+    name: 'a timeseries series removed in its editor',
+    setUp: withTimeseries,
+    make: async ({ series }) => {
+      await editorOfLine(series!);
+      tsButton(series!, 'Remove').click();
+    },
+  },
+  {
+    name: "a timeseries source's instrument column changed in its settings",
+    setUp: withTimeseries,
+    make: ({ series }) => {
+      tsButton(series!, 'Settings').click();
+      choose(tsSelect(series!, 'Instrument column'), '');
+    },
+  },
+  {
+    name: 'a timeseries reading another grid, from its settings',
+    setUp: withTwoPrices,
+    make: ({ series, c }) => {
+      tsButton(series!, 'Settings').click();
+      choose(tsSelect(series!, 'Read another grid'), c!);
+    },
+  },
+  {
+    name: 'a timeseries letting a grid go, in its settings',
+    setUp: async () => {
+      const g = await withTwoPrices();
+      tsButton(g.series, 'Settings').click();
+      choose(tsSelect(g.series, 'Read another grid'), g.c);
+      await drawn();
+      return g;
+    },
+    make: ({ series }) => {
+      sourceRow(series!, 1).querySelector<HTMLButtonElement>('.dc-ts-close')!.click();
+    },
+  },
+  {
+    name: "a timeseries' legend turned off in its settings",
+    setUp: withTimeseries,
+    make: ({ series }) => {
+      tsButton(series!, 'Settings').click();
+      const legend = [...tsEditor().querySelectorAll<HTMLLabelElement>('.dc-ts-pop label.dc-ts-check')].find((l) => l.textContent === 'Legend')!;
+      legend.querySelector('input')!.click();
+    },
+  },
+  {
+    name: 'a timeseries level annotated in its settings',
+    setUp: withTimeseries,
+    make: ({ series }) => {
+      tsButton(series!, 'Settings').click();
+      choose(tsSelect(series!, 'Kind'), 'level');
+      tsEditor().querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
+      tsButton(series!, 'Add').click();
+    },
+  },
+  {
+    name: "a timeseries' annotation taken off in its settings",
+    setUp: async () => {
+      const g = await withTimeseries();
+      tsButton(g.series, 'Settings').click();
+      choose(tsSelect(g.series, 'Kind'), 'level');
+      tsEditor().querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
+      tsButton(g.series, 'Add').click();
+      await drawn();
+      return g;
+    },
+    make: () => {
+      const row = [...tsEditor().querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')].find((r) => r.textContent?.startsWith('Level 101'))!;
+      row.querySelector<HTMLButtonElement>('.dc-ts-close')!.click();
+    },
+  },
+  { name: 'a timeseries tile removed', setUp: withTimeseries, make: ({ series }) => removeTile(series!) },
+  {
+    name: 'a timeseries tile dragged onto another sheet',
+    setUp: async () => {
+      const g = await withTimeseries();
+      plus(host);
+      await settle();
+      // its own sheet shown again (a new sheet is shown as it is added), as a click on its tab shows it
+      const tab = tabOf('prices.csv');
+      tab.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 0 }));
+      tab.dispatchEvent(new dom.window.PointerEvent('pointerup', { bubbles: true, button: 0, clientX: 0 }));
+      await drawn();
+      return g;
+    },
+    make: async ({ series }) => {
+      placeTabs();
+      const head = tile(series!).querySelector<HTMLElement>('.dc-tile-head')!;
+      pointer(head, 'pointerdown', 600, 300);
+      pointer(head, 'pointermove', 240, 10);
+      pointer(head, 'pointerup', 240, 10);
+      await settle();
+    },
+  },
+  {
+    name: 'a timeseries change undone',
+    setUp: async () => {
+      const g = await withTimeseries();
+      choose(tsSelect(g.series, 'Frequency'), 'week');
+      await drawn();
+      return g;
+    },
+    make: () => pg().undo(),
+  },
+  {
+    // the review's G4: its grid removed, its cube kept for it; the tile removed, the cube let go; the removal undone,
+    // the tile back on that very cube -- its addTimeseries carrying the cube (`kept`), read by the host as sent
+    name: 'a timeseries tile removed after the grid it reads, undone',
+    setUp: async () => {
+      const g = await withTimeseries();
+      await removeTile(g.a);
+      await drawn();
+      await removeTile(g.series);
+      await drawn();
+      return g;
+    },
+    make: () => pg().undo(),
+  },
   {
     name: 'a text tile edited in place',
     setUp: async () => {
@@ -536,6 +889,34 @@ const GESTURES: readonly Gesture[] = [
       const area = await editorOf(text!);
       area.value = '# Q3\n\nBy **desk**';
       [...tile(text!).querySelectorAll('button')].find((b) => b.textContent === 'OK')!.click();
+    },
+  },
+  // a file opened on a text box (docs/DATACUBE_UI_REVIEW_2026_10_24.md §8): its right-click's Open Files…, picked through
+  // the file input a browser with no handles to give puts in the page; told once fingerprinted (its tab then drawn)
+  {
+    name: 'a file opened on a text box',
+    setUp: async () => {
+      const g = await twoGrids();
+      gridMenuItem(g.a, 'Text Box').click();
+      await settle();
+      const text = [...host.querySelectorAll<HTMLElement>('[data-tile^="text-"]')].at(-1)!.dataset['tile']!;
+      // a new one opens its editor, whose right-click is the browser's: put away first
+      await editorOf(text);
+      tile(text).querySelector('textarea')!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape' }));
+      for (let i = 0; i < 100 && !tile(text).querySelector('.dc-text-tile'); i++) await new Promise((r) => setTimeout(r, 5));
+      return { ...g, text };
+    },
+    make: async ({ text }) => {
+      escape();
+      contextMenu(tile(text!).querySelector('.dc-text-host')!);
+      entry('Open Files\u2026').click();
+      const input = await shown<HTMLInputElement>(dom.window.document, 'input.dc-file-input');
+      Object.defineProperty(input, 'files', { value: [new File(['# Plan'], 'plan.md')] });
+      input.dispatchEvent(new dom.window.Event('change'));
+      const tabbed = (): boolean => [...tile(text!).querySelectorAll('.dc-text-file-name')].some((t) => t.textContent === 'plan.md');
+      for (let i = 0; i < 200 && !tabbed(); i++) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
     },
   },
   {
@@ -892,11 +1273,36 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   modelKeep: { items: [], why: 'a model action needs a model home: page-commands.test.ts modelCommands' },
   // a cube opened again over its frames as they are now: told as a host's page opens (test/python-engine), and by Python
   rebuilt: { items: [], why: "opening a host's page whose frame changed in place: test/python-engine, python/tests/test_page.py" },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): a flow's Join box set again by the Join window, which reads its
+  // inputs over the tab's own database -- none in this harness (the tab's Join… is driven by the browser's)
+  setJoin: { items: [], why: "the Join window over a flow's boxes, in the tab's own database: demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  setOutput: { items: [], why: "an Output's settings (its file's name, Write no file) and the palette's Output: demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, a Test that stops a run): its settings' checkbox, on a flow's
+  // canvas -- none in this harness
+  setStops: { items: [], why: "a Test box's settings (Stop a run when a check fails): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2, a Cross Tab's columns fixed): a pivoted box's settings' Load
+  // values, on a flow's canvas -- none in this harness; the gesture pivot.pin tells it (grid-gestures.test.ts)
+  pinPivot: { items: [], why: "a Cross Tab box's settings (Load values, Unfix): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-26 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12, the Pure box): its window, docked in a flow's settings pane --
+  // none in this harness; Python's grid.pure asks headless gridPure for the same command
+  setPure: { items: [], why: "a Pure box's window (its Pure, Take Its Pure Off): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.
- *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place. */
-const GESTURES_AT_LEAST = 53;
+ *  2026-10-24 (BI parity P4, text tiles): 51 -> 53, a text box added and a text tile edited in place.
+ *  2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4): 53 -> 55, a flow added and a box moved.
+ *  2026-10-25 (M2, a flow's lines): 55 -> 57, a box frozen and a box linked to another.
+ *  2026-10-25 (the timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7, on its branch): 53 -> 55, a
+ *  timeseries added and its range picked in its toolbar.
+ *  2026-10-25 (the timeseries review's A8, docs/TIMESERIES_REVIEW_2026_10_25.md): 55 -> 73, every other change of a
+ *  timeseries tile -- its toolbar's, its legend's, its series editor's, its settings', its tile's -- an undo of one, and
+ *  the undo of a tile's removal after its grid's (G4).
+ *  2026-10-25 (§8 step 1, files in a text box, on main): 53 -> 54, a file opened on a text box.
+ *  2026-10-26 (main merged into both branches): the flow's 57 + 1 -> 58; the timeseries' 73 + 1 -> 74.
+ *  2026-10-26 (a timeseries' states, a chart's words: the user's ask): 74 -> 75, a timeseries frozen from its header.
+ *  2026-10-26 (the timeseries branch, PR #74, merged into the flow branch): 75 + the flow's 4 -> 79.
+ *  2026-10-26 (the flow mode review: the floor had not followed the list, 83 gestures): 79 -> 83. */
+const GESTURES_AT_LEAST = 83;
 
 describe('L2, L3: every gesture told as commands that replay to the page it made, and that the host reads', () => {
   it('the gestures and their gaps are one list', () => {

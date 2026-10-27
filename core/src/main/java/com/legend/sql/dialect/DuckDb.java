@@ -102,6 +102,32 @@ public final class DuckDb extends AnsiSqlRenderer {
         return strftimeText(fl);
     }
 
+    /** {@code strftime}, its format split after {@code %n} when more of it follows: DuckDB 1.5.5 writes nine fraction
+     *  digits ({@code %n}) with a wrong length when the format goes on -- six digits, the rest, then three bytes past
+     *  the text (measured 2026-10-26 on the 1.5.5 wheel: NULs on x64, {@code e\r\0]} on aarch64, where PR #78's arm
+     *  lane found the JSON wire's {@code "2024-03-10T03:00:00.000000+0000e\r\u0000"}); {@code %n} last is whole on
+     *  every timestamp kind. So {@code strftime(x, '...%n') || '+0000'}: the text after it a literal when it is text
+     *  alone, else its own strftime. */
+    private SqlWriter strftime(SqlWriter writer, java.util.List<SqlExpr> args) {
+        if (args.size() == 2 && args.get(1) instanceof SqlExpr.FormatLit fl) {
+            java.util.List<com.legend.sql.DateFmt> parts = fl.parts();
+            int nano = parts.indexOf(com.legend.sql.DateFmt.Part.SUBSEC_NANO);
+            if (nano >= 0 && nano < parts.size() - 1) {
+                java.util.List<com.legend.sql.DateFmt> tail = parts.subList(nano + 1, parts.size());
+                writer.append("(");
+                writer.function("strftime", java.util.List.of(args.get(0), new SqlExpr.FormatLit(parts.subList(0, nano + 1))));
+                writer.append(" || ");
+                if (tail.stream().allMatch(p -> p instanceof com.legend.sql.DateFmt.Text)) {
+                    writer.expr(new SqlExpr.FormatLit(tail), 0);
+                } else {
+                    writer.function("strftime", java.util.List.of(args.get(0), new SqlExpr.FormatLit(tail)));
+                }
+                return writer.append(")");
+            }
+        }
+        return writer.function("strftime", args);
+    }
+
     /** {@inheritDoc} DuckDB's: one giant INSERT cost most of a 61 s first query (its loader, the Appender, stages the
      *  rows as text, and one INSERT ... SELECT casts them). */
     @Override
@@ -610,7 +636,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case REPEAT_STR -> writer.function("repeat", c.args());
             case JARO_WINKLER -> writer.function("jaro_winkler_similarity", c.args());
             case LIST_LENGTH -> writer.function("len", c.args());
-            case STRFTIME -> writer.function("strftime", c.args());
+            case STRFTIME -> strftime(writer, c.args());
             case STRPTIME -> writer.function("strptime", c.args());
             case FLOOR_RAW -> writer.function("floor", c.args());
             case JSON_TYPE -> writer.function("json_type", c.args());
@@ -796,7 +822,7 @@ public final class DuckDb extends AnsiSqlRenderer {
     /** {@inheritDoc} DuckDB runs the standard spelling: the test-data generator's sessions prove it (the corpus's
      *  generator tests, ReservedNamesGenerationTest). */
     @Override
-    protected String tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+    protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
         return createTemporaryTableAs(ct);
     }
 
@@ -1175,5 +1201,27 @@ public final class DuckDb extends AnsiSqlRenderer {
     @Override
     public @com.legend.base.Nullable Integer resultColumnLimit() {
         return null;
+    }
+
+    /** {@inheritDoc} Measured on DuckDB 1.4 (2026-10-18, the writes' leg 2): the standard spellings, an alias written with
+     *  {@code AS}; each statement atomic on an error (a key or NOT NULL violation leaves the table as it was). */
+    @Override
+    protected SqlWriter insertSelect(com.legend.sql.SqlDml.InsertSelect is) {
+        return standardInsertSelect(is);
+    }
+
+    @Override
+    protected SqlWriter update(com.legend.sql.SqlDml.Update u) {
+        return standardUpdate(u);
+    }
+
+    @Override
+    protected SqlWriter deleteWhere(com.legend.sql.SqlDml.DeleteWhere dw) {
+        return standardDeleteWhere(dw);
+    }
+
+    @Override
+    protected SqlWriter merge(com.legend.sql.SqlDml.Merge m) {
+        return standardMerge(m);
     }
 }

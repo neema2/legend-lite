@@ -1095,8 +1095,10 @@ class Engine:
         except ValueError:
             return _said(400, 'an opened grid is JSON')
         if not isinstance(asked, dict) or not isinstance(asked.get('cube'), str) or not isinstance(asked.get('page'), str) \
-                or not isinstance(asked.get('gridsOnPage'), int):
-            return _said(400, 'an opened grid is {"cube": its document\'s text, "page", "gridsOnPage"}')
+                or not isinstance(asked.get('gridsOnPage'), int) \
+                or not isinstance(asked.get('document', ''), str) or not isinstance(asked.get('id', ''), str):
+            return _said(400, 'an opened grid is {"cube": its document\'s text, "page", "gridsOnPage", and its page\'s '
+                              '"document" and its cube\'s "id" there when it reads another grid\'s rows}')
         if self._headless is None:
             return _said(404, 'this engine opens no saved grid: legend-lite opens one with DataCube\'s own code, headless, '
                               'which this engine was not given')
@@ -1108,9 +1110,10 @@ class Engine:
         # one read of the frames (D15): DataCube's code reads them, and asks the engine, as they were when it began
         with self.frames.reading() as over:
             try:
+                # its page, given: a grid over another grid's rows opens over that grid as it is now (DataCube's rule)
                 made = _json.loads(headless.call('gridOpened', asked['cube'], over.hosted, asked['page'],
-                                                 asked['gridsOnPage']))
-                leaves = json.loads(headless.call('cubeLeaves', asked['cube']))
+                                                 asked['gridsOnPage'], {}, False, asked.get('document'), asked.get('id')))
+                leaves = json.loads(headless.call('cubeLeaves', asked['cube'], asked.get('document'), asked.get('id')))
             except Exception as refused:
                 # DataCube's refusal (a frame not served, a join that no longer joins), in its words, from V8
                 return _said(422, f'{type(refused).__name__}: {refused}')
@@ -1160,19 +1163,29 @@ class Engine:
         ``sides``), the sheet a join's grid goes on (``cube``'s alone; null, its first input's) -- answered by DataCube's own code, headless, in one
         read of the frames and the files and remote files this engine read in (D15), as page.join asks it: ``sides``
         (joinSides: each side's relation and columns, and what drifted), ``questions`` (joinQuestions: what it will do)
-        and ``cube`` (joinCube: the addGrid command of its grid, which the tab opens as a saved join of the page). Read
-        and written exactly (a condition's decimal keeps its digits); refused in DataCube's words."""
+        and ``cube`` (joinCube: the addGrid command of its grid, which the tab opens as a saved join of the page). And
+        ``together`` (joinTogether: ``{"op", "page", "grids"}``, the grids of a timeseries series that combines them over
+        one model of the tables they read -- docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.2 -- its query the tab's,
+        planned and run here by plan-and-run). Read and written exactly (a condition's decimal keeps its digits); refused
+        in DataCube's words."""
         try:
             asked = _json.loads(body)
         except ValueError:
             return _said(400, 'a join is JSON')
         shape = 'a join is {"op": "sides" | "questions" | "cube", "page": its document\'s text, "mine", "theirs", ' \
-                '"how" (but sides), "sheet" (cube)}'
-        if not isinstance(asked, dict) or asked.get('op') not in ('sides', 'questions', 'cube') \
-                or not all(isinstance(asked.get(k), str) for k in ('page', 'mine', 'theirs')):
+                '"how" (but sides), "sheet" (cube)}, or {"op": "together", "page", "grids": the grids\' ids}'
+        if not isinstance(asked, dict) or asked.get('op') not in ('sides', 'questions', 'cube', 'together'):
             return _said(400, shape)
         op = asked['op']
-        if (op != 'sides' and 'how' not in asked) or (op == 'cube' and not isinstance(asked.get('sheet', 0), (str, type(None)))):
+        if op == 'together':
+            grids = asked.get('grids')
+            if not isinstance(asked.get('page'), str) or not isinstance(grids, list) or not grids \
+                    or not all(isinstance(g, str) for g in grids):
+                return _said(400, shape)
+        elif not all(isinstance(asked.get(k), str) for k in ('page', 'mine', 'theirs')):
+            return _said(400, shape)
+        if (op not in ('sides', 'together') and 'how' not in asked) \
+                or (op == 'cube' and not isinstance(asked.get('sheet', 0), (str, type(None)))):
             return _said(400, shape)
         if self._headless is None:
             return _said(404, 'this engine makes no join: legend-lite makes one with DataCube\'s own code, headless, '
@@ -1182,12 +1195,16 @@ class Engine:
             headless = self._headless()
         except Exception as failure:
             return _said(422, f'{type(failure).__name__}: {failure}')
-        spec = {'page': asked['page'], 'mine': asked['mine'], 'theirs': asked['theirs']}
+        # a combination reads a snapped grid over its copy, which this engine holds (the review's P3: read live)
+        spec = {'page': asked['page'], 'grids': asked['grids'], 'copies': self.held_copies()} if op == 'together' \
+            else {'page': asked['page'], 'mine': asked['mine'], 'theirs': asked['theirs']}
         # one read of the frames (D15): DataCube's code reads them, and asks the engine, as they were when it began
         with self.frames.reading() as over:
             spec['host'] = over.hosted
             try:
-                if op == 'sides':
+                if op == 'together':
+                    said = headless.call('joinTogether', _json.dumps(spec))
+                elif op == 'sides':
                     said = headless.call('joinSides', _json.dumps(spec))
                 elif op == 'questions':
                     said = headless.call('joinQuestions', _json.dumps({**spec, 'how': asked['how']}))

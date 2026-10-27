@@ -32,6 +32,7 @@ import contextlib
 import copy
 import datetime
 import functools
+import hashlib
 import itertools
 import json
 import math
@@ -180,7 +181,7 @@ def _tagged(value: Any) -> Any:
 
 @_operations
 class Tile:
-    """A tile of a page (a grid, a chart or a text): its view in the page's document, by its id."""
+    """A tile of a page (a grid, a chart, a text or a timeseries): its view in the page's document, by its id."""
 
     _kind = ''
 
@@ -257,7 +258,117 @@ class Grid(Tile):
     def frames(self) -> list[str]:
         """The frames it reads, as DataCube says what a grid reads (cube-document.ts leavesOf, headless cubeLeaves;
         docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3): a frame's grid its one, a join's each of its leaves'."""
-        return _cube_frames(self._page._session, self._cube)
+        return _cube_frames(self._page._session, self._cube, self._page._doc, self._view['cube'])
+
+    def place(self, x: int, y: int) -> Grid:
+        """Its box moved to (``x``, ``y``) on its flow's canvas -- its top-left corner, in the canvas's units, neither
+        below zero -- as a box dragged there is moved (page-commands.ts placeBox; docs/DATACUBE_FLOW_MODE_2026_10_24.md
+        FL20). A grid on a board is placed by its layout: refused in DataCube's words."""
+        _ = self._view
+        self._page._apply_page([_commands.page_place_box(tile=self._id, x=x, y=y)])
+        return self
+
+    def output(self, name: str | None) -> Grid:
+        """This box writes its rows to the CSV file ``name`` -- a flow's Output (page-commands.ts setOutput;
+        docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every row, the columns it shows, each time its flow runs
+        (``flow.run(folder)``) -- or, None, no longer. A name with a folder in it, or not ending .csv, and a grid on a
+        board, refused in DataCube's words."""
+        given = None if name is None else {'format': 'csv', 'name': name}
+        self._page._apply_page([_commands.page_set_output(grid=self.id, output=given)])
+        return self
+
+    def stops_run(self, stops: bool = True) -> Grid:
+        """This Test box stops its flow's run when one of its checks fails -- no Output written, as the canvas's Run writes
+        none (page-commands.ts setStops; FL8's refuse) -- or, False, only warns. A Cross Tab whose columns are fixed stops
+        it so when a value of its rows has no column (FL3: ``failing``). A grid on a board refused in DataCube's words."""
+        self._page._apply_page([_commands.page_set_stops(grid=self.id, stops=stops)])
+        return self
+
+    @property
+    def failing(self) -> list[dict[str, Any]]:
+        """This Test's checks that fail, each ``{'check': words, 'rows': n, 'says': words}`` -- its row read as the canvas
+        reads it (DataCube's checks.ts failingChecks, headless gridFailing): ``n`` the rows that fail it (a count of rows's,
+        the rows its input has), ``says`` its failing as the canvas says it; none, every row passes. A Cross Tab whose
+        columns are fixed (``pin_pivot``) checks that every value of its rows has a column (FL3): failing, ``n`` its values
+        with none, ``says`` them. A grid that checks nothing is refused in DataCube's words."""
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridFailing', self._spec(engine, frames)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said['failing']
+
+    def relink(self, input: Grid, side: str = 'input', port: str | None = None) -> Grid:
+        """Its rows read live from grid ``input`` of its page from now on -- a line drawn on its flow from that box's
+        output (page-commands.ts setInput; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- its query as it is, the grid then
+        opened over ``input`` as it is now (what changed said, as a load says it). ``side``: a join's ``'left'`` or
+        ``'right'``, a Union's ``'more1'``, ``'more2'``, ... (its next, one past its last, an input added). ``port='false'``: a Filter's False, the rows its condition leaves out (FL7); ``port='left'`` or
+        ``'right'``: a Join's L or R, the rows of that input its condition pairs with no row of the other (live-inputs.ts
+        gridInput: an anti-join the database runs). Refused in DataCube's words: a grid that reads no other grid's rows,
+        one that would read its own, a False of a grid with no filter, an L or R of a grid that is no join."""
+        _ = self._view, input._view
+        given = {'grid': input._id, **({'port': port} if port is not None else {})}
+        with self._page._batch():
+            self._page._apply_page([_commands.page_set_input(grid=self._id, side=side, input=given)], 'a relink')
+            self._page._current(self._view['cube'], 3)
+        return self
+
+    def freeze(self, side: str = 'input') -> Grid:
+        """Its rows read from a copy of what its live input is now, from now on (page-commands.ts setInput with no input:
+        a box's Freeze, as a box taken off freezes the boxes that read it): an edit of that grid no longer reaches this
+        one. ``side``: a join's ``'left'`` or ``'right'``, a Union's ``'more1'``, .... Refused in DataCube's words when it
+        reads a copy already."""
+        _ = self._view
+        self._page._apply_page([_commands.page_set_input(grid=self._id, side=side, input=None)], 'a freeze')
+        return self
+
+    def take_off(self, side: str) -> Grid:
+        """A Union's input on ``side`` taken off, those after it each moved up one -- a line into its box deleted on the
+        canvas, as the canvas takes it off (headless pageGesture: page-gestures.ts takeOffCommands;
+        docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- the grid then opened over the inputs left. ``side``: ``'left'``,
+        ``'right'``, ``'more1'``, .... A join of two, whose input is frozen rather than taken off (``freeze``), refused in
+        DataCube's words."""
+        _ = self._view
+        page = self._page
+        said = json.loads(page._session.headless().call('pageGesture', 'flow.takeOff', _json.dumps(
+            {'page': page._doc, 'grid': self._id, 'side': side})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        with page._batch():
+            page._apply_page([_plain(c) for c in said['commands']], 'a take off')
+            page._current(self._view['cube'], 3)
+        return self
+
+    def rejoin(self, how: Mapping[str, Any]) -> Grid:
+        """Its join made again as ``how`` says (page.join's ``how``, read strictly) -- a flow's Join or Union box set
+        again, as its Join window's Apply sets it (page-commands.ts setJoin; docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) --
+        its inputs as they are, the grid then opened over them as it is now. Refused in DataCube's words: a grid that is
+        no join, the join it is already."""
+        _ = self._view
+        with self._page._batch():
+            self._page._apply_page([_commands.page_set_join(grid=self._id, how=dict(how))], 'a join')
+            self._page._current(self._view['cube'], 3)
+        return self
+
+    @property
+    def input(self) -> Grid | None:
+        """The grid of its page it reads live (a flow's box after another), or None: it reads a source of its own, or a
+        copy (frozen). A join reads two: see ``inputs``."""
+        inputs = self.inputs
+        if len(inputs) > 1:
+            raise ValueError('this grid is a join of two inputs: see inputs')
+        return next(iter(inputs.values()), None)
+
+    @property
+    def inputs(self) -> dict[str, Grid]:
+        """The grids of its page it reads live, by side -- ``'input'``, a join's ``'left'`` and ``'right'``, a Union's
+        ``'more1'``, ``'more2'``, ... after them (cube-document.ts inputSides) -- each one a live link of its source
+        (live-inputs.ts liveGrids); a side read from a copy is left out."""
+        source = self._cube['source']
+        given = {'rows': {'input': source.get('input')},
+                 'join': {'left': source.get('left'), 'right': source.get('right'),
+                          **{f'more{k}': i for k, i in enumerate(source.get('more', []), start=1)}}}.get(source['_type'], {})
+        return {side: self._page._tile(i['grid'], Grid) for side, i in given.items() if 'grid' in i}
 
     def _apply(self, commands: list[dict[str, Any]]) -> Grid:
         """The grid edited by commands, each the one DataCube's screen builds for the same edit (grid-commands.ts:
@@ -348,6 +459,17 @@ class Grid(Tile):
             tree = compiler.parse(engine.call('gridRelation', spec))
             return to_pandas(_engine_rows(self._page._session, tree, spec, over))
 
+    def _output(self) -> str:
+        """Its rows as a flow's Output writes them (``flow.run``): CSV text by the tab's own writer (headless gridOutput,
+        flow-output.ts) -- in its sorts' order, the columns it hands on under their names, each value as it is. A pivot
+        its rows decide refused in DataCube's words."""
+        engine, frames = self._headless()
+        with frames.reading():
+            said = _json.loads(engine.call('gridOutput', self._spec(engine, frames)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return said['csv']
+
     def export(self, kind: str = 'csv', to: str | Path | None = None) -> str | bytes | Path:
         """The grid as its Export menu exports it, by DataCube's own code (the screen's core, run headless): what it
         shows, with its formats, appearance and heatmaps -- ``'csv'`` (raw values), ``'excel'`` (a workbook, the tree
@@ -414,6 +536,24 @@ class Grid(Tile):
         """Pivoted on ``columns`` (the Columns zone): dimensions, as for ``group``; none, not pivoted."""
         return self._apply([_commands.grid_pivot(columns=list(columns))])
 
+    def pin_pivot(self, values: Sequence[Any] | None) -> Grid:
+        """Its pivot's values pinned -- a flow's Cross Tab with its columns fixed (FL2; the gesture ``pivot.pin``, the
+        rule its settings' Load values asks): its columns those values', whatever its rows hold, so a box after it reads
+        them (each value's column named by it: ``'EMEA'``, or ``'EMEA_notional'`` when it spreads several measures);
+        ``None``, its values its rows' each time it runs. Refused in DataCube's words: a pivot on no column, or on more
+        than one, an empty value, a value twice."""
+        return self._gesture('pivot.pin', {'values': None if values is None else list(values)})
+
+    def load_pivot_values(self) -> Grid:
+        """Its pivot's values pinned as its rows hold them now, asked of the database as its pivot asks them -- a
+        Cross Tab's Load values (DataCube's headless gridPivotValues, then ``pin_pivot``)."""
+        engine, frames = self._headless()
+        with frames.reading():
+            said = json.loads(engine.call('gridPivotValues', self._spec(engine, frames)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        return self.pin_pivot(said['values'])
+
     def add_pivot(self, column: str) -> Grid:
         """Pivoted on ``column`` too, last, as the menu's Add Horizontal Pivot adds it (the gesture
         ``pivot.addHorizontal``); pivoted on already, nothing changes."""
@@ -464,8 +604,8 @@ class Grid(Tile):
         return self._gesture('format.clear', {'column': column})
 
     def heatmap(self, column: str, on: bool = True) -> Grid:
-        """A heatmap on ``column`` -- or, ``on=False``, off -- as the menu's Conditional Formatting > Color Scales >
-        Heatmap and No Color Scale paint it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted
+        """A heatmap on ``column`` -- or, ``on=False``, off -- as the menu's Conditional Formatting > Heatmap and
+        Remove Heatmap paint it (the gestures ``heatmap.add`` and ``heatmap.remove``): on a pivoted
         column's measure, so every value's column under it has it; a pivot total's its own. The heatmap it has already, or none to take off, changes nothing."""
         return self._gesture('heatmap.add' if on else 'heatmap.remove', {'column': column})
 
@@ -558,6 +698,15 @@ class Grid(Tile):
         month" shows last month whenever it is opened."""
         return self._gesture('filter.dateRange', {'column': column, 'range': range})
 
+    def date_filter(self, column: str, range: str | None = None, *, start: str | None = None, end: str | None = None) -> Grid:
+        """Its filter made ``column``'s dates in ``range`` (``filter_date_range``'s ranges, relative to when the query
+        runs) or from ``start`` to ``end``, both kept, each a day as ``'2024-06-30'`` -- alone, in place of every condition
+        it had: a flow's Date Filter box (DataCube's grid-gestures.ts ``filter.dates``, its window's rule). Both or
+        neither, a day that is none, or a first day after the last, refused in DataCube's words."""
+        given = {'column': column, **({'range': range} if range is not None else {}),
+                 **({'from': start} if start is not None else {}), **({'to': end} if end is not None else {})}
+        return self._gesture('filter.dates', given)
+
     def top(self, n: int | None, by: str | None = None, *, bottom: bool = False) -> Grid:
         """The top ``n`` rows by ``by`` -- a grouped grid's groups at each level, each parent's own -- the largest first,
         or the smallest with ``bottom`` (the menu's Top 10 and Bottom 10; DataCube's snapshot.ts TopN): ties kept, the
@@ -615,8 +764,17 @@ class Grid(Tile):
         """Copy of Grid: another grid beside this one, on its sheet, a cube of its own over the same source, starting as
         this one is now -- its query and its settings, no group open (DataCube's code, headless gridCopied:
         cube-document.ts cubeCopied) -- titled by its number unless given one, as the screen adds it (an ``addGrid``
-        command). Its charts are not copied, as the screen copies none."""
+        command). Its charts are not copied, as the screen copies none. A flow's box is duplicated as its Duplicate does it
+        (headless pageGesture flow.duplicate: page-gestures.ts duplicateCommands): reading what it reads, after the box it
+        reads first."""
         page = self._page
+        if self.sheet.flow:
+            said = json.loads(page._session.headless().call('pageGesture', 'flow.duplicate', _json.dumps(
+                {'page': page._doc, 'tile': self._id, 'title': title})))
+            if 'problems' in said:
+                raise ValueError('; '.join(said['problems']))
+            applied = page._apply_page([_plain(c) for c in said['commands']], 'a title')
+            return page._tile(applied[0]['id'], Grid)
         said = json.loads(page._session.headless().call('gridCopied', _json.dumps(self._cube)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
@@ -772,6 +930,202 @@ class Grid(Tile):
         return self._preset({'kind': 'bins', 'column': column, 'bins': {
             **({'width': width} if width is not None else {}), **({'count': count} if count is not None else {})}})
 
+    def split(self, column: str, delimiter: str, parts: int | None = None, *, name: str | None = None, rows: bool = False) -> Grid:
+        """The text ``column`` split on ``delimiter`` into its first ``parts`` parts, a new column each -- a flow's Text
+        To Columns (DataCube's code: text-tool-columns.ts textToolCommands) -- named ``<name>_1`` ... ``<name>_<parts>``
+        (``name`` the column's own by default); a value with fewer parts has its last columns empty. ``rows``: into rows
+        instead -- one column, ``name``, each row once for each of its parts (an explode)."""
+        return self._preset({'kind': 'split', 'column': column, 'delimiter': delimiter,
+                             **({'parts': parts} if parts is not None else {}), 'name': column if name is None else name,
+                             **({'rows': True} if rows else {})})
+
+    def regex(self, column: str, pattern: str, mode: str = 'match', *, replacement: str | None = None,
+              name: str | None = None) -> Grid:
+        """A regular expression over the text ``column``, a new column -- a flow's RegEx: ``'match'``, whether its value
+        matches (true or false); ``'replace'``, its value with each match replaced by ``replacement``; ``'extract'``,
+        the first part it matches (empty where none does). Named ``name``, else ``<column>_matches``,
+        ``<column>_replaced`` or ``<column>_extracted``, as its window names it (text-tool-columns.ts regexName)."""
+        return self._preset({'kind': 'regex', 'column': column, 'pattern': pattern, 'mode': mode,
+                             **({'replacement': replacement} if replacement is not None else {}),
+                             **({'name': name} if name is not None else {})})
+
+    def cleanse(self, columns: Sequence[str], *, blanks: bool = False, punctuation: bool = False, spaces: bool = False,
+                trim: bool = True, case: str | None = None, in_place: bool | None = None) -> Grid:
+        """The text ``columns`` tidied, a ``<column>_clean`` each -- a flow's Data Cleansing: empty values made blank
+        (``blanks``), punctuation taken out, repeated spaces made one (``spaces``), the ends trimmed (``trim``), the
+        letters made ``'upper'`` or ``'lower'`` case. ``in_place``: each handed on by its own name, the column itself
+        hidden (Alteryx's in place: the box after it reads ``who``, cleansed) -- None, in place on a flow's box, as its
+        window starts, and not on a board's grid."""
+        return self._preset({'kind': 'cleanse', 'columns': list(columns), 'blanks': blanks, 'punctuation': punctuation,
+                             'spaces': spaces, 'trim': trim, **({'letterCase': case} if case is not None else {}),
+                             **({'inPlace': True} if self._in_place(in_place) else {})})
+
+    def _in_place(self, given: bool | None) -> bool:
+        """A tool's in place, given or -- None -- as its window starts (ui/text-tool-form.ts, impute-form.ts,
+        multi-field-form.ts): on a flow's box, in place; on a board's grid, beside its column (the review of 2026-10-26)."""
+        return self.sheet.flow if given is None else given
+
+    def unique(self, keys: Sequence[str], *, by: Any = None) -> Grid:
+        """A row of each key -- the columns ``keys`` -- its first in the order ``by`` (a column, rising, or ``(column,
+        'asc' | 'desc')``; the first key's own by default): a flow's Unique (DataCube's code: unique.ts uniqueCommands),
+        a row number per key, a filter keeping the first, the number hidden. Its duplicates -- every row after a key's
+        first -- are its False port: ``other.relink(this, port='false')``."""
+        return self._preset({'kind': 'unique', 'keys': list(keys),
+                             **({'by': _sort_given(by, 'an order')} if by is not None else {})})
+
+    def date_part(self, column: str, part: str, *, name: str | None = None) -> Grid:
+        """A part of the date ``column`` -- ``'year'``, ``'month'`` (its number), ``'day'`` (of the month), ``'week'`` (of
+        the year), ``'hour'`` -- a new column of whole numbers, named ``<column>_<part>`` (or ``name``): a flow's
+        DateTime (DataCube's code: date-tools.ts dateToolCommands)."""
+        return self._preset({'kind': 'datePart', 'column': column, 'part': part, **({'name': name} if name else {})})
+
+    def parse_date(self, column: str, format: str, *, name: str | None = None) -> Grid:
+        """The text ``column`` read as dates by ``format`` -- the engine's tokens, ``'yyyy-MM-dd'``, ``'dd/MM/yyyy'``,
+        ``'yyyy-MM-dd HH:mm:ss'`` (a time of day in it: date-times) -- a new column named ``<column>_date`` (or
+        ``name``): a flow's DateTime (DataCube's code: date-tools.ts dateToolCommands). A value the format cannot read
+        refuses the grid's rows, in the database's words: filter such text out first."""
+        # its name and whether it reads a time of day: the window's rule (date-tools.ts dateToolName, formatHasTime)
+        return self._preset({'kind': 'dateParse', 'column': column, 'format': format, **({'name': name} if name else {})})
+
+    def impute(self, columns: Sequence[str], *, fill: float | str = 'average', in_place: bool | None = None) -> Grid:
+        """The number ``columns``' empty values filled, a ``<column>_filled`` each -- a flow's Imputation (DataCube's code:
+        impute.ts imputeCommands): with ``fill``, a number, or the column's own ``'average'``, ``'smallest'`` or
+        ``'largest'`` across every row, which the database computes (a window column, hidden). A column that is no
+        number, or a whole-number column filled with a fraction, refused in DataCube's words. ``in_place``: each filled
+        column handed on by its own name, the column itself hidden, as Alteryx's Imputation does -- None, in place on a
+        flow's box, as its window starts, and not on a board's grid."""
+        return self._preset({'kind': 'impute', 'columns': list(columns), 'with': fill,
+                             **({'inPlace': True} if self._in_place(in_place) else {})})
+
+    def sample(self, mode: str | None, n: int | None = None, by: str | None = None, *, groups: Sequence[str] = (),
+               ranges: str | None = None, seed: int = 1) -> Grid:
+        """Its rows sampled -- a flow's Sample (DataCube's code: row-sample.ts sampleCommands), in the order of the column
+        ``by``: ``mode`` ``'first'`` or ``'last'`` ``n`` rows (its smallest or largest: of all the rows, the grid's Top N,
+        which keeps rows that tie; of each group of ``groups``, a row number per group), ``'skip'`` -- every row after
+        the first ``n`` -- ``'every'``, one row of every ``n``, or ``'records'``, the rows at the places ``ranges`` says
+        (``'1-10, 20, 30+'``: Alteryx's Select Records); either of all the rows or of each group -- or ``'random'``, about
+        ``n`` percent of all the rows, the same for the same ``seed`` (the database's hash of each row's number and the
+        seed). The database numbers the rows (a window column, hidden). ``None``: every row again, its sample taken off."""
+        if mode is None:
+            return self._preset({'kind': 'sample', 'mode': None})
+        if mode == 'random':
+            return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'seed': seed})
+        if mode == 'records':
+            return self._preset({'kind': 'sample', 'mode': mode, 'ranges': ranges, 'by': by, 'groups': list(groups)})
+        return self._preset({'kind': 'sample', 'mode': mode, 'n': n, 'by': by, 'groups': list(groups)})
+
+    def transpose(self, columns: Sequence[str], *, keys: Sequence[str] = (), name: str = 'Name', value: str = 'Value') -> Grid:
+        """Its ``columns`` made rows -- a flow's Transpose (DataCube's code: transpose.ts transposeCommands): each row once
+        for each of them, a ``name`` column saying which and a ``value`` column holding its value, the ``keys`` beside
+        them and every other column left out (hidden). The columns hold one kind of value -- numbers, text, dates --
+        else it is refused in DataCube's words: make them text first."""
+        return self._preset({'kind': 'transpose', 'columns': list(columns), 'keys': list(keys), 'name': name, 'value': value})
+
+    def select(self, keep: Sequence[str], *, rename: Mapping[str, str] | None = None,
+               retype: Mapping[str, str] | None = None, order: Sequence[str] | None = None) -> Grid:
+        """The columns it hands on, ``keep``, the names it hands some on by, ``rename`` (``{'region': 'area'}``), and the
+        types it makes some, ``retype`` (``{'code': 'Integer'}``: ``'String'``, ``'Integer'``, ``'Float'``, ``'Decimal'``,
+        ``'Boolean'`` or ``'Date'``, as its column can be made) -- a flow's Select (DataCube's code: select-columns.ts
+        selectCommands): every other column hidden, each renamed given its display name, which a box of a flow hands on
+        as the relation's ``rename`` (the box after it reads ``area``), each retyped a column of its conversion handed on
+        by its name. ``order``: the order it hands them on in, by their own names (its column order; those not named
+        after them), a retyped column in its place. Two columns handed on by one name, or a type a column cannot be made,
+        refused in DataCube's words."""
+        return self._preset({'kind': 'selectColumns', 'keep': list(keep), 'rename': dict(rename or {}),
+                             **({'retype': dict(retype)} if retype else {}), **({'order': list(order)} if order is not None else {})})
+
+    def summarize(self, group: Sequence[str], aggregate: Mapping[str, str | tuple[str, str]] | None = None) -> Grid:
+        """A row of each ``group`` of its rows, ``aggregate``'s columns beside it, each by its aggregate (``{'notional':
+        'average', 'trade_id': 'count'}``: ``'sum'``, ``'average'``, ``'count'``, ``'min'``, ``'max'``, ``'median'``,
+        ``'distinctCount'``, ``'joinStrings'``, ... as its column is offered them; an aggregate of two columns with its
+        second, ``{'px': ('wavg', 'qty')}``: a weighted average, its weight) -- a flow's Summarize (DataCube's code:
+        summarize.ts summarizeCommands): its grouping, each column's kind and Aggregation, every other column left out.
+        The database groups and aggregates."""
+        given = {c: ({'fn': a[0], 'by': a[1]} if isinstance(a, tuple) else a) for c, a in (aggregate or {}).items()}
+        return self._preset({'kind': 'summarize', 'group': list(group), 'aggregate': given})
+
+    def count_records(self, name: str = 'Count') -> Grid:
+        """How many rows it has -- one row, one column, ``name`` -- a flow's Count Records (DataCube's code:
+        count-records.ts countRecordsCommands): a column of one value grouped by and hidden, a 1 for each row summed,
+        every other column hidden, so the box after it reads the count alone. The database counts."""
+        return self._preset({'kind': 'countRecords', 'name': name})
+
+    def test(self, checks: Sequence[Mapping[str, Any]]) -> Grid:
+        """Checks of its rows -- a flow's Test (DataCube's code: checks.ts checkCommands): each
+        ``{'kind': 'notEmpty' | 'unique', 'column': c}``, ``{'kind': 'between', 'column': c, 'min': lo, 'max': hi}``
+        (a bound left out: none that side) or ``{'kind': 'rows', 'min': lo, 'max': hi}`` (its count of rows, whole
+        numbers, a smallest 1 at least) -- its one row then counting, by the database, the rows that fail each:
+        ``<column>_empty``, ``<column>_repeated``, ``<column>_outside``, beside ``Rows`` (``Rows_outside`` 1 when its
+        count is outside its bounds), every column it read hidden. A check of a column it has not, a bound of a column
+        that is no number, or bounds the wrong way round, refused in DataCube's words. Set again, its checks replace the
+        ones it had."""
+        return self._preset({'kind': 'test', 'checks': [dict(c) for c in checks]})
+
+    def generate_rows(self, name: str, start: int | str | None = None, end: int | str | None = None, *, step: int = 1,
+                      days: tuple[str, str] | None = None) -> Grid:
+        """Each row repeated once for each whole number from ``start`` to ``end`` (both kept; each a number, or the name of
+        a whole-number column of the row), by ``step`` -- or, ``days=(from_column, to_column)``, once for each day
+        between two of its date columns -- a new column ``name`` the number or the day: a flow's Generate Rows
+        (DataCube's code: generate-rows.ts; Alteryx's Generate Rows), the database's ``range`` exploded, a row whose
+        bound is empty repeated no time. Refused in DataCube's words: a bound that is no whole number, numbers the
+        wrong way round, a step below 1, a days' column that is no date, a name taken."""
+        if days is not None:
+            return self._preset({'kind': 'generateRows', 'name': name, 'days': {'from': days[0], 'to': days[1]}})
+        bound = lambda b: {'column': b} if isinstance(b, str) else b
+        return self._preset({'kind': 'generateRows', 'name': name, 'from': bound(start), 'to': bound(end),
+                             **({'step': step} if step != 1 else {})})
+
+    def binning(self, columns: Sequence[str], bins: int) -> Grid:
+        """Number ``columns`` each put into ``bins`` bins of equal width over its own range -- a flow's Binning (DataCube's
+        code: binning.ts binningCommands; Alteryx's Multi-Field Binning, its equal intervals): the grid's own bins preset
+        (``grid.bins``), the database finding each column's smallest and largest across every row and placing each
+        value, a column of each value's bin beside it (its lower edge: ``notional_bins``), its range and upper edge
+        hidden. Refused in DataCube's words: no column, one that is no number, a count of bins no whole number from 1."""
+        return self._preset({'kind': 'binning', 'columns': list(columns), 'bins': bins})
+
+    def custom_filter(self, condition: str) -> Grid:
+        """Its rows those a condition written in Pure is true for -- a flow's Custom Filter (DataCube's code:
+        custom-filter.ts customFilterCommands; Alteryx's Filter, its Custom filter): ``condition`` over ``$x``, the row
+        (``"$x.notional > 1000 && $x.region == 'EMEA'"``), parsed and typed by the compiler, its column (``CustomFilter``,
+        hidden) and the grid's filter keeping the rows it is true for, in place of every condition it had; the rows it
+        leaves out its False (``relink(..., port='false')``). Refused in the compiler's words, or DataCube's: a
+        condition that is no Boolean."""
+        _expression(condition)
+        return self._preset({'kind': 'customFilter', 'expression': condition})
+
+    def pure(self, pure: str | None) -> Grid:
+        """Its rows a function of its input's, written in Pure -- a flow's Pure box (docs/DATACUBE_FLOW_MODE_2026_10_24.md
+        FL12; DataCube's code: pure-box.ts, its page's setPure): an expression over ``$input``, its input's rows
+        (``"$input->filter(x|$x.notional > 1000000)->extend(~fee:x|$x.notional * 0.001)"``), or a lambda of one parameter as
+        written (``"rows|$rows->limit(5)"``) -- whatever no other tool says. The compiler parses it and types its rows as a
+        relation before the page sets it, and the grid opens over them: a box after it reads its rows, its columns as the
+        compiler types them. ``None``: its input's rows as they are again. Refused in the compiler's words, or DataCube's:
+        a grid that reads no other grid's rows, a function of more than one parameter, one that never reads its input."""
+        _ = self._view
+        if pure is not None:
+            _expression(pure)
+        engine, frames = self._headless()
+        with frames.reading():
+            said = _json.loads(engine.call('gridPure', self._spec(engine, frames), self._id, _json.dumps({'pure': pure})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        page = self._page
+        with page._batch():
+            page._apply_page([_plain(c) for c in said['commands']], 'a Pure box')
+            page._current(self._view['cube'], 3)
+        return self
+
+    def multi_field(self, columns: Sequence[str], expression: str, *, suffix: str = '_new', in_place: bool | None = None) -> Grid:
+        """One ``expression`` over each of ``columns`` -- a flow's Multi-Field Formula (DataCube's code:
+        multi-field-columns.ts multiFieldCommands): Pure over ``$v``, each column's value in turn (``'$v->toOne()->trim()'``, ``'$v->toOne() *
+        1.1'``; ``$x`` the row, for its other columns), a new column of each named ``<column><suffix>``. The compiler
+        parses and types each, and refuses one in its words: ``trim`` over a number column, say. ``in_place``: each new
+        column handed on by its column's name, the column itself hidden (Alteryx's "change existing fields") -- None, in
+        place on a flow's box, as its window starts, and not on a board's grid."""
+        _expression(expression)
+        return self._preset({'kind': 'multiField', 'columns': list(columns), 'expression': expression, 'suffix': suffix,
+                             **({'inPlace': True} if self._in_place(in_place) else {})})
+
     def dimension(self, name: str) -> Grid:
         """Grouped by the named dimension ``name``'s first level (its configuration's ``dimensions``: a name and its
         columns, coarsest first), as Properties' Dimensions tab's Group Rows by uses one (the gesture
@@ -885,6 +1239,13 @@ class Grid(Tile):
         cube = self._view['cube']
         return [c for c in self._page.charts if c._view['cube'] == cube]
 
+    def timeseries(self, *series: Any, title: str | None = None, **slots: Any) -> Timeseries:
+        """A timeseries tile of this grid alone, under it (``Page.timeseries`` with this grid its one source): its date
+        and instrument columns DataCube's to choose (``date=``, ``key=`` say them), ``series`` each an expression
+        (``'close[AAPL]'``, ``'volatility(close[AAPL], 63)'``); none: DataCube's first series of it."""
+        told = {k: slots.pop(k) for k in ('date', 'key', 'alias') if k in slots}
+        return self._page.timeseries({'grid': self, **told}, series, title=title, **slots)
+
     def update(self, frame: Any) -> None:
         """Another frame for this grid (one reading a single frame: ``frame``): a page showing it queries it again, and
         -- its columns changed -- opens again over them, every grid reading the frame with it (a snapped one reads its
@@ -979,7 +1340,8 @@ def _made(page: Page, cube: str, given: Mapping[str, Any], before: Mapping[str, 
     session = page._session
     engine, frames = session.headless(), session.frames
     with frames.reading():
-        made = _json.loads(engine.call('gridChart', _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube)),
+        made = _json.loads(engine.call('gridChart', _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube),
+                                                               page._doc),
                                        _json.dumps(given), None if before is None else _json.dumps(before)))
     if made['problems']:
         raise ValueError(' '.join(made['problems']))
@@ -1028,15 +1390,19 @@ def _engine_rows(session: Any, tree: Any, base: Mapping[str, Any], over: Any) ->
     raise ValueError(body.decode('utf-8', errors='replace'))
 
 
-def _cube_leaves(session: Any, cube: Mapping[str, Any]) -> list[dict[str, str]]:
+def _cube_leaves(session: Any, cube: Mapping[str, Any], page: Mapping[str, Any] | None = None,
+                 id: str | None = None) -> list[dict[str, str]]:
     """A cube's leaves as DataCube says what a cube reads (headless cubeLeaves: cube-document.ts leavesOf), in its order:
-    each ``{"_type", "name"}`` -- a frame's name its table in the frames' database."""
-    return json.loads(session.headless().call('cubeLeaves', _json.dumps(cube)))
+    each ``{"_type", "name"}`` -- a frame's name its table in the frames' database. ``page`` and ``id``, the page it is on
+    and its id there: a grid over another grid's rows reads what that grid reads (DataCube's rule, given the page)."""
+    return json.loads(session.headless().call('cubeLeaves', _json.dumps(cube), None if page is None else _json.dumps(page),
+                                              id))
 
 
-def _cube_frames(session: Any, cube: Mapping[str, Any]) -> list[str]:
+def _cube_frames(session: Any, cube: Mapping[str, Any], page: Mapping[str, Any] | None = None,
+                 id: str | None = None) -> list[str]:
     """The frames a cube reads, as DataCube says (its leaves), each once, in its order."""
-    return list(dict.fromkeys(leaf['name'] for leaf in _cube_leaves(session, cube) if leaf['_type'] == 'frame'))
+    return list(dict.fromkeys(leaf['name'] for leaf in _cube_leaves(session, cube, page, id) if leaf['_type'] == 'frame'))
 
 
 def _slots(grain: str | None, bins: Mapping[str, float] | None, tooltip: Sequence[Any] | None,
@@ -1140,7 +1506,7 @@ class Chart(Tile):
         engine, frames = session.headless(), session.frames
         with frames.reading():
             said = json.loads(engine.call('chartOwnGrid', _cube_spec(session, page._cube(cube), frames, engine,
-                                                                     page._snapped(cube)),
+                                                                     page._snapped(cube), page._doc),
                                           _json.dumps(page._doc), self._id))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
@@ -1256,9 +1622,10 @@ class Chart(Tile):
 
 @_operations
 class Text(Tile):
-    """A text tile: a page's title, a note beside a chart -- its words in DataCube's small Markdown (``# `` a heading,
-    ``**bold**``, ``*italic*``, ``- `` or ``1. `` a list, ``[words](https://...)`` a link; DataCube's page-text.ts),
-    drawn as text, never as HTML."""
+    """A text tile: a page's title, a note beside a chart -- its words in GitHub's Markdown, as DataCube's page-text.ts
+    reads it (``# `` a heading, ``**bold**``, ``*italic*``, ``~~struck~~``, ``- `` or ``1. `` a list, ``- [ ] `` a task,
+    ``> `` a quote, fenced code, a table, ``---`` a rule, ``[words](https://...)`` a link), drawn as text, never as
+    HTML -- and the files it shows beside them (``files``: Markdown, text, CSV, JSON), pointed to, never copied."""
 
     _kind = 'text'
 
@@ -1272,6 +1639,290 @@ class Text(Tile):
         # by the command the tile's editor sends (page-commands.ts setText), judged by DataCube in its words: blank, too
         # long, not text
         self._page._apply_page([_commands.page_set_text(tile=self._id, text=text)])
+
+    def place(self, x: int, y: int, *, width: int | None = None, height: int | None = None,
+              folded: bool | None = None) -> Text:
+        """Its note moved to (``x``, ``y``) on its flow's canvas, as a comment is dragged there (page-commands.ts
+        placeBox; docs/DATACUBE_FLOW_MODE_2026_10_24.md M7) -- a container's boxes with it, by as much, one step.
+        Given a ``width`` and a ``height``, it is a CONTAINER --
+        Alteryx's Tool Container: a frame round the boxes placed inside it, moved with it on the canvas -- ``folded`` to
+        its head or not; without, a container keeps its frame. A text tile on a board is placed by its layout, and a
+        frame is at least 200 by 100: refused in DataCube's words."""
+        _ = self._view
+        if (width is None) != (height is None):
+            raise ValueError('a container is a width and a height, both')
+        frame: dict[str, Any] | None = None
+        if width is not None:
+            frame = {'w': width, 'h': height, **({'collapsed': True} if folded else {})}
+        elif folded is not None:
+            raise ValueError('folded is a container\'s: give its width and height too')
+        # a container's boxes moved with it, as the canvas's drag moves them (headless pageGesture: flow.ts containerMoves)
+        page = self._page
+        said = json.loads(page._session.headless().call('pageGesture', 'flow.place', _json.dumps(
+            {'page': page._doc, 'tile': self._id, 'x': x, 'y': y, **({'frame': frame} if frame else {})})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        page._apply_page([_plain(c) for c in said['commands']])
+        return self
+
+    def unframe(self) -> Text:
+        """A container a comment again: its frame taken off, its place kept (placeBox with no frame)."""
+        sheet = next(s for s in self._page.to_dict()['sheets'] if any(b['tile'] == self._id for b in s['layout'].get('boxes', [])))
+        box = next(b for b in sheet['layout']['boxes'] if b['tile'] == self._id)
+        self._page._apply_page([_commands.page_place_box(tile=self._id, x=box['x'], y=box['y'], frame=None)])
+        return self
+
+    @property
+    def files(self) -> list[dict[str, Any]]:
+        """The files this text box shows beside its words, each its ``name``, ``size`` and ``sha256``: a page points to
+        its files, never copies them (DataCube's text-files.ts) -- the browser finds each where it was picked, or asks
+        for it again by its name."""
+        return [dict(f) for f in self._view.get('files', [])]
+
+    @files.setter
+    def files(self, files: Sequence[str | Path | Mapping[str, Any]]) -> None:
+        """Sets the files this text box shows: each a path, read here to fingerprint it, or a file as ``files`` gives
+        one -- by the command the screen sends when files are opened or dropped on it (page-commands.ts setTextFiles),
+        judged by DataCube in its words: a kind a text box does not show (Markdown, text, CSV, JSON), too many, the same
+        file twice."""
+        _ = self._view
+        # one path is no list: its letters would be read as paths (the 2026-10-25 audit)
+        if isinstance(files, (str, Path, Mapping)):
+            raise TypeError("a text box's files are a list: [path] for one")
+        given: list[dict[str, Any]] = []
+        for f in files:
+            if isinstance(f, Mapping):
+                # judged as given: a file missing one of the three, or carrying another, refused in DataCube's words
+                given.append(dict(f))
+                continue
+            path = Path(f)
+            if path.is_dir():
+                raise ValueError(f'{path} is a folder: a text box shows files')
+            # fingerprinted a piece at a time: a big file is never held whole (DataCube refuses it by its size)
+            digest = hashlib.sha256()
+            with path.open('rb') as handle:
+                for piece in iter(lambda: handle.read(1 << 20), b''):
+                    digest.update(piece)
+            given.append({'name': path.name, 'size': path.stat().st_size, 'sha256': digest.hexdigest()})
+        self._page._apply_page([_commands.page_set_text_files(tile=self._id, files=given)])
+
+
+def _series_told(expr: str, name: str | None, split: str | None, pane: int | None, axis: str | None,
+                 style: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A series as Python's plot and edit tell it: its expression's text (read by DataCube's parser) and the slots given."""
+    told = {'expr': expr, 'name': name, 'split': split, 'pane': pane, 'axis': axis, 'style': dict(style) if style is not None else None}
+    return {k: v for k, v in told.items() if v is not None}
+
+
+def _timeseries_sources(sources: Any) -> list[dict[str, Any]]:
+    """A timeseries' sources as ``Page.timeseries`` takes them -- a grid; a list of grids; or by alias, each a grid or a
+    mapping of its grid and what DataCube's defaults would otherwise choose (``date``, ``key``) -- as DataCube is told them
+    (headless timeseriesMade: each grid by its tile, the rest DataCube's to judge)."""
+    def one(alias: str | None, given: Any) -> dict[str, Any]:
+        if isinstance(given, Grid):
+            told: dict[str, Any] = {'grid': given._id}
+        elif isinstance(given, Mapping):
+            told = {k: (v._id if k == 'grid' and isinstance(v, Grid) else v) for k, v in given.items()}
+        else:
+            raise ValueError(f'a timeseries reads grids: {given!r} is not one')
+        return told if alias is None else {'alias': alias, **told}
+    # one source told as a mapping: its grid and its own slots alone (``{'grid': g, 'date': 'day'}``) -- a mapping with any
+    # other key is by alias, each value a grid or a source (the review's A10: an alias named ``grid`` misread it)
+    single = isinstance(sources, Mapping) and 'grid' in sources and set(sources) <= {'grid', 'alias', 'date', 'key'} \
+        and not any(isinstance(v, (Grid, Mapping)) for k, v in sources.items() if k != 'grid')
+    if isinstance(sources, (Grid, Mapping)) and not single:
+        if isinstance(sources, Grid):
+            return [one(None, sources)]
+        return [one(alias, given) for alias, given in sources.items()]
+    if isinstance(sources, Mapping):
+        return [one(None, sources)]
+    return [one(None, g) for g in sources]
+
+
+@_operations
+class Timeseries(Tile):
+    """A timeseries tile -- DataCube's timeseries viewer (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of any
+    number of the page's grids along one time axis, each an expression in gs-quant's vocabulary, PlotTool Pro's --
+    ``returns(px:close[SPX], 1, log)``, ``volatility($A, 63)``, ``correlation($A, $B, 126)``, ``$A / $B`` -- read by
+    DataCube's own parser; every figure the database's. Its spec is DataCube's page document's (``spec``); each change
+    is the command its viewer sends (page-commands.ts setTimeseries), judged by DataCube in its words."""
+
+    _kind = 'timeseries'
+
+    @property
+    def spec(self) -> dict[str, Any]:
+        """Its spec as the page keeps it (a copy): its sources, series, frequency, range, panes, annotations and view. Read
+        only: every change is one of the tile's changes below, by its one rule (the second audit's A-S2: a spec set whole
+        went past the rule, a series re-pointed at another grid without a word)."""
+        return copy.deepcopy(self._view['spec'])
+
+    @property
+    def series(self) -> list[dict[str, Any]]:
+        """Its series, each its id (``A``), its expression as DataCube keeps it, and how it is drawn."""
+        return copy.deepcopy(self._view['spec']['series'])
+
+    @property
+    def state(self) -> str:
+        """Its state, as its header's button says it, in a chart's words: ``'dynamic'`` (it follows its grids' filters and
+        the page's clicks) or ``'frozen'`` (each grid's filter as it was when it was frozen, kept with it) -- read off the
+        tile as DataCube writes it (timeseries-spec.ts tsStateOf). No ``'pinned'``: its grouping is always its own."""
+        return 'frozen' if 'kept' in self._view['spec']['sources'][0] else 'dynamic'
+
+    @state.setter
+    def state(self, state: str) -> None:
+        """The tile put in a state as its button puts it (timeseries-edit.ts editTimeseries): frozen, each source's grid's
+        filter as it is now kept; dynamic, following them again. Refused in DataCube's words: a state that is none."""
+        self._edit({'kind': 'state', 'state': state})
+
+    # Every change below is one of the tile's changes, made by its one rule -- timeseries-edit.ts editTimeseries, which
+    # its viewer's editors ask too (headless timeseriesEdit) -- and judged as a tile Python makes is: no rule of Python's
+    # own (the review's A2, docs/TIMESERIES_REVIEW_2026_10_25.md).
+
+    def plot(self, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
+             axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
+        """A series more, after its others: ``expr`` in DataCube's expression language, its id the next letter (``$B``
+        reads it), a line per value of ``split`` (a text column of the grid it reads first), drawn in ``pane`` (0 the
+        main one) on ``axis`` as ``style`` says -- what the viewer's + Series adds."""
+        return self._edit({'kind': 'plot', 'series': _series_told(expr, name, split, pane, axis, style)})
+
+    def edit(self, id: str, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
+             axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
+        """Series ``id`` written again, in place -- what the viewer's series editor's OK makes: its expression and how it is
+        drawn, each as told (None: none), hidden if it was. Refused when it has no series ``id``."""
+        return self._edit({'kind': 'plot', 'replace': True, 'series': {'id': id, **_series_told(expr, name, split, pane, axis, style)}})
+
+    def unplot(self, id: str) -> Timeseries:
+        """Series ``id`` taken off (refused in DataCube's words while another reads it)."""
+        return self._edit({'kind': 'unplot', 'id': id})
+
+    def hide(self, id: str) -> Timeseries:
+        """Series ``id`` left out of the drawing, its legend entry kept (its legend chip, clicked)."""
+        return self._edit({'kind': 'hide', 'id': id, 'hidden': True})
+
+    def show(self, id: str) -> Timeseries:
+        """Series ``id`` drawn again."""
+        return self._edit({'kind': 'hide', 'id': id, 'hidden': False})
+
+    def options(self, **slots: Any) -> Timeseries:
+        """Its other slots told -- ``grain`` (``'day'`` ... ``'year'``), ``range`` (``{'last': '1y'}``, ``{'from': ...,
+        'to': ...}``), ``view`` (``{'compare': 'rebase', 'stats': True}``), ``panes``, ``annotations`` -- each replacing
+        what it had, None taking it off: the words DataCube's reader takes."""
+        return self._edit({'kind': 'slots', 'slots': slots})
+
+    def annotate(self, annotation: Mapping[str, Any]) -> Timeseries:
+        """An annotation more: ``{'kind': 'level', 'value': 70, 'pane': 1, 'label': 'overbought'}``, ``{'kind': 'event',
+        'date': ..., 'label': ...}`` or ``{'kind': 'period', 'from': ..., 'to': ..., 'label': ...}`` -- Settings' Add."""
+        return self._edit({'kind': 'annotate', 'annotation': dict(annotation)})
+
+    def unannotate(self, index: int) -> Timeseries:
+        """Its annotation at ``index`` (0 its first) taken off."""
+        return self._edit({'kind': 'unannotate', 'index': index})
+
+    def source(self, alias: str, *, rename: str | None = None, date: str | None = None, key: Any = _KEEP) -> Timeseries:
+        """Source ``alias`` changed, as Settings changes it: called ``rename`` (every expression naming it follows), read
+        along ``date``, its instruments named by ``key`` (None: none)."""
+        told: dict[str, Any] = {'kind': 'source', 'alias': alias}
+        if rename is not None:
+            told['rename'] = rename
+        if date is not None:
+            told['date'] = date
+        if key is not _KEEP:
+            told['key'] = key
+        return self._edit(told)
+
+    def read(self, grid: Grid) -> Timeseries:
+        """Grid ``grid`` read as a source more, its alias, date and instrument column DataCube's rule's (Settings' Read
+        another grid)."""
+        if not isinstance(grid, Grid):
+            raise ValueError(f'a timeseries reads grids: {grid!r} is not one')
+        return self._edit({'kind': 'read', 'grid': grid._id})
+
+    def unread(self, alias: str) -> Timeseries:
+        """Source ``alias`` no longer read (refused while a series reads it, or when it is the only one)."""
+        return self._edit({'kind': 'unread', 'alias': alias})
+
+    def frame(self, series: str | None = None, *, start: str | None = None, end: str | None = None) -> Any:
+        """Series ``series`` (None: its first) as a pandas DataFrame, every figure the database's: its query written by
+        DataCube over the tables its grids read -- the viewer's own (headless timeseriesQuery: timeseries-query.ts), a
+        series of several grids over one model of their tables -- planned and run by the engine's plan-and-run where the
+        rows are (D16). Indexed by date, oldest first; a column per line: the series' name (else its id), or each value
+        of its split (``SPX``, ``NDX``); a band's ``lower`` and ``upper``; candles' ``open``, ``high``, ``low`` and
+        ``close``. ``start`` and ``end`` (ISO days): the dates it
+        keeps -- kept by the database after every value is computed over every date (a window's first values have their
+        history), and an index's base, a compare's, its first."""
+        import pandas as pd
+        from .frames import to_pandas
+        spec = self._view['spec']
+        if series is None:
+            if not spec['series']:
+                raise ValueError(f'{self!r} plots no series')
+            series = spec['series'][0]['id']
+        from . import compiler
+        page = self._page
+        session = page._session
+        engine, frames = session.headless(), session.frames
+        window = {k: v for k, v in (('from', start), ('to', end)) if v is not None}
+        asked = {'page': page._doc, 'tile': self._id, 'series': series, 'window': window}
+        with frames.reading() as over:
+            said = _json.loads(engine.call('timeseriesQuery', _json.dumps({
+                **asked, 'host': frames.hosted(), 'copies': session.held_copies()})))
+            if 'problems' in said:
+                raise ValueError('; '.join(said['problems']))
+            if 'grid' in said:
+                # a series of one grid, read as the grid is: over its base as every read of it is (its copy, snapped; a
+                # class's mapping; the page's filters on it) -- headless gridTimeseries, the tab's path through the
+                # grid's runner (the review's P1: read live over the grid's leaves, beside its every other read)
+                cube = said['grid']
+                spec = _cube_spec(session, page._cube(cube), frames, engine, page._snapped(cube), page._doc, cube)
+                said = _json.loads(engine.call('gridTimeseries', spec, _json.dumps(asked)))
+                if 'problems' in said:
+                    raise ValueError('; '.join(said['problems']))
+                rows = to_pandas(_engine_rows(session, compiler.parse(said['query']), spec, over))
+            else:
+                rows = to_pandas(_engine_rows(session, said['query'], said, over))
+        # what its rows say a reader should know -- several rows a date, no frequency to annualize by -- said as the
+        # screen says them, by its rule (headless timeseriesNotes; the second audit's P-3: the frame dropped them)
+        named = said['columns']
+        told = {k: [None if pd.isna(v) else v for v in rows[named[k]].tolist()]
+                for k in ('split', 'rows', 'perYear') if named[k] in rows.columns}
+        if 'rows' in told or 'perYear' in told:
+            notes = _json.loads(engine.call('timeseriesNotes', _json.dumps({**asked, 'columns': told})))
+            if 'problems' in notes:
+                raise ValueError('; '.join(notes['problems']))
+            for note in notes['notes']:
+                warnings.warn(note, stacklevel=2)
+        # its dates as the database kept them (the window's alone), each a timestamp, as pandas indexes a series
+        rows = rows.assign(**{named['date']: pd.to_datetime(rows[named['date']])})
+        if said['band']:
+            out = rows.set_index(named['date'])[[named['lower'], named['upper']]].rename(columns={named['lower']: 'lower', named['upper']: 'upper'})
+        elif said['candles']:
+            four = {named['open']: 'open', named['high']: 'high', named['low']: 'low', named['value']: 'close'}
+            if said['split'] is not None:
+                # a candle per instrument: its four prices, each a column per instrument
+                out = rows.rename(columns=four).pivot(index=named['date'], columns=named['split'], values=list(four.values()))
+                out.columns.names = [None, said['split']]
+            else:
+                out = rows.set_index(named['date'])[list(four)].rename(columns=four)
+        elif said['split'] is not None:
+            out = rows.pivot(index=named['date'], columns=named['split'], values=named['value'])
+            out.columns.name = said['split']
+        else:
+            out = rows.set_index(named['date'])[[named['value']]].rename(columns={named['value']: said['name'] or series})
+        out.index.name = 'date'
+        return out.sort_index()
+
+    def _edit(self, change: dict[str, Any]) -> Timeseries:
+        """``change`` (a timeseries-edit.ts TsChange) made by the tile's one rule, headless, and told as setTimeseries."""
+        _ = self._view
+        page = self._page
+        said = json.loads(page._session.headless().call('timeseriesEdit', _json.dumps(page._doc), self._id, _json.dumps(change)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        page._apply_page([_commands.page_set_timeseries(tile=self._id, spec=said['spec'])])
+        return self
+
+    def __repr__(self) -> str:
+        return f'<Timeseries {self._id}>'
 
 
 class Sheet:
@@ -1320,15 +1971,117 @@ class Sheet:
 
     @property
     def tiles(self) -> list[Tile]:
-        """Its tiles in reading order, a stack's in its tabs' order."""
+        """Its tiles in reading order, a stack's in its tabs' order (a flow's boxes, in the order they were added)."""
         return [self._page._tile_of(t) for t in self._page._tiles(self._doc['layout'])]
+
+    @property
+    def flow(self) -> bool:
+        """Whether it is a flow sheet (``page.flow()``): its boxes on a canvas, each a grid, placed by ``box.place``."""
+        return self._doc['layout']['kind'] == 'flow'
+
+    def tidy(self) -> Sheet:
+        """Its boxes placed by the flow's own rule, as the canvas's Tidy Up places them (headless pageGesture:
+        page-gestures.ts tidyCommands; docs/DATACUBE_FLOW_MODE_2026_10_24.md M7): each a column after the boxes it reads,
+        level with them -- one layout, or nothing when they are there already. A board's tiles are laid out in bands:
+        refused in DataCube's words."""
+        page = self._page
+        said = json.loads(page._session.headless().call('pageGesture', 'flow.tidy', _json.dumps(
+            {'page': page._doc, 'sheet': self.id})))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        commands = [_plain(c) for c in said['commands']]
+        if commands:
+            page._apply_page(commands, 'a tidy')
+        return self
+
+    def run(self, folder: str | Path) -> list[Path]:
+        """The flow run as the canvas's Run runs it, its Outputs written (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): each
+        box that writes a file (``grid.output(name)``) writes every one of its rows -- in its sorts' order, the columns it
+        hands on under the names it hands them on by, those the box after it reads -- to ``folder``/its name, as CSV, by
+        the tab's own writer (headless gridOutput: the same file, byte for byte). The files written, in the order of the
+        flow's boxes. A Test that stops a run (``grid.stops_run()``), failing, writes none: refused, its failing checks
+        said (FL8's refuse). A board has no Outputs: refused."""
+        layout = self._doc['layout']
+        if layout.get('kind') != 'flow':
+            raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
+        out = Path(folder)
+        # a Test that stops a run, failing (grid.stops_run; FL8's refuse): no Output written, said in its checks' words
+        failed = self._stopped()
+        if failed:
+            raise ValueError('; '.join(failed) + ': no Output written')
+        out.mkdir(parents=True, exist_ok=True)
+        written: list[Path] = []
+        for box in layout['boxes']:
+            target = box.get('output')
+            if target is None:
+                continue
+            path = out / target['name']
+            # the text as the tab writes it, its CRLFs and its BOM as they are
+            path.write_text(self._page._tile(box['tile'], Grid)._output(), encoding='utf-8', newline='')
+            written.append(path)
+        return written
+
+    def _stopped(self) -> list[str]:
+        """The boxes set to stop a run (``grid.stops_run()``) that fail -- a Test's checks, a fixed Cross Tab's values with
+        no column -- each in its words: what stops a run and a dry run alike (FL8's refuse)."""
+        stopping = [(box['tile'], self._page._tile(box['tile'], Grid).failing) for box in self._doc['layout']['boxes'] if box.get('stops')]
+        return [f"{tile} stops the run: " + ', '.join(c['says'] for c in f) for tile, f in stopping if f]
+
+    def dry_run(self) -> dict[str, Any]:
+        """The flow run as the canvas's Dry Run runs it (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): every box's rows counted
+        as the canvas counts them (its view's, the row cap's total when it cut them), the boxes that stop a run judged,
+        nothing written -- ``{'rows': {box: n}, 'would_write': [names], 'stopped': [words]}``, ``would_write`` the files
+        a run would write (none when a stopping box fails, each said in ``stopped``). A board has no Outputs: refused."""
+        layout = self._doc['layout']
+        if layout.get('kind') != 'flow':
+            raise ValueError(f'{self!r} is a board: a flow runs its Outputs')
+        grids = {v['id'] for v in self._page._doc['views'] if v.get('kind') == 'grid'}
+        rows: dict[str, int] = {}
+        for box in layout['boxes']:
+            if box['tile'] not in grids:
+                continue
+            view = self._page._tile(box['tile'], Grid).view()
+            rows[box['tile']] = view.total_rows if view.total_rows is not None else len(view.rows)
+        stopped = self._stopped()
+        writes = [] if stopped else [box['output']['name'] for box in layout['boxes'] if box.get('output') is not None]
+        return {'rows': rows, 'would_write': writes, 'stopped': stopped}
+
+    def grid(self, frame: Any = None, **given: Any) -> Grid:
+        """A grid on this sheet, as ``page.grid(..., sheet=this)`` adds one: on a flow, a box -- after ``input``, the box
+        it reads, when it is one of this flow's."""
+        if 'sheet' in given:
+            raise ValueError("a sheet's grid is on that sheet: it takes no sheet=")
+        return self._page.grid(frame, sheet=self, **given)
 
     def text(self, text: str, *, title: str | None = None) -> Text:
         """A text tile on this sheet, a band of its own at its bottom (``title``: its own; None, numbered), as the
-        menus' Create ▸ Text Box adds one (page-commands.ts addText) -- its words judged by DataCube, in its words."""
+        menus' Create ▸ Text Box adds one (page-commands.ts addText) -- its words judged by DataCube, in its words. On a
+        flow, a comment: a note on its canvas, placed as a box is (``tile.place(x, y)`` moves it)."""
         _ = self._doc
         applied = self._page._apply_page([_commands.page_add_text(sheet=self._id, text=text, title=title, columns=None)])
         return self._page._tile(applied[0]['id'], Text)
+
+    def timeseries(self, sources: Any, series: Sequence[Any] = (), *, title: str | None = None, near: Tile | None = None,
+                   **slots: Any) -> Timeseries:
+        """A timeseries tile on this sheet -- under ``near`` (a tile of this sheet), else a band of its own at its bottom
+        -- reading ``sources`` (a grid, grids, or grids by alias: ``{'px': prices, 'rates': rates}``; each grid's date
+        and instrument columns DataCube's to choose unless told: ``{'grid': rates, 'date': 'asof', 'key': 'tenor'}``),
+        plotting ``series`` (each an expression, ``'volatility(px:close[SPX], 63)'``, or a mapping of one and how it is
+        drawn), with its other ``slots`` (``grain``, ``range``, ``view``, ``panes``, ``annotations``) -- as Create ▸
+        Timeseries adds one (page-commands.ts addTimeseries), every word judged by DataCube."""
+        _ = self._doc
+        page = self._page
+        # no series: DataCube's first series of its first grid (its price-like value, a line per instrument)
+        given = {'sources': _timeseries_sources(sources), **({'series': list(series)} if series else {}),
+                 **{k: v for k, v in slots.items() if v is not None}}
+        said = json.loads(page._session.headless().call('timeseriesMade', _json.dumps(page._doc), _json.dumps(given)))
+        if 'problems' in said:
+            raise ValueError('; '.join(said['problems']))
+        if near is not None:
+            _ = near._view
+        applied = page._apply_page([_commands.page_add_timeseries(
+            sheet=self._id, near=near._id if near is not None else None, spec=said['spec'], title=title, columns=None)])
+        return page._tile(applied[0]['id'], Timeseries)
 
     def add(self, *tiles: Tile) -> Sheet:
         """Puts ``tiles`` on this sheet, each at its bottom, from the sheet it was on, as the screen's Move to Sheet
@@ -1400,7 +2153,7 @@ class Page:
     def __init__(self, name: str | None = None) -> None:
         from .datacube import _current
         self._session = _current()
-        # the page, started as DataCube starts a page (headless pageNew: page-document.ts newPage, the tab's Blank Page's
+        # the page, started as DataCube starts a page (headless pageNew: page-document.ts newPage, the tab's New Page's
         # too -- unnamed when no name is given, as the tab's, else named by DataCube's rule; no grid yet, its one sheet an
         # empty board: docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D11), and kept by its session's keeper from now on: the
         # one copy of it every editor -- this page, a tab or a notebook widget open on it -- writes, versioned
@@ -1626,15 +2379,31 @@ class Page:
         (``Sheet.text``)."""
         return (sheet if sheet is not None else self.sheets[0]).text(text, title=title)
 
+    @property
+    def timeseries_tiles(self) -> list[Timeseries]:
+        return [self._tile(v['id'], Timeseries) for v in self._doc['views'] if v['kind'] == 'timeseries']
+
+    def timeseries(self, sources: Any, series: Sequence[Any] = (), *, title: str | None = None,
+                   sheet: Sheet | None = None, **slots: Any) -> Timeseries:
+        """A timeseries tile reading ``sources`` and plotting ``series`` (``Sheet.timeseries``): on ``sheet``, a band of
+        its own at its bottom; None, under the first grid it reads, on that grid's sheet."""
+        if sheet is not None:
+            return sheet.timeseries(sources, series, title=title, **slots)
+        told = _timeseries_sources(sources)
+        first = next((self._tile(t['grid'], Grid) for t in told if 'grid' in t), None)
+        if first is None:
+            return self.sheets[0].timeseries(sources, series, title=title, **slots)
+        return first.sheet.timeseries(sources, series, title=title, near=first, **slots)
+
     # -- building ------------------------------------------------------------------------------------------------------
 
     def grid(self, frame: Any = None, *, file: str | Path | None = None, remote: str | None = None,
              cls: str | None = None, project: str | None = None, revision: str | None = None, query: str | None = None,
              warehouse: str | None = None, table: str | None = None, catalog: str | None = None,
-             name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
+             input: Grid | None = None, name: str | None = None, rows: Sequence[str] = (), columns: Sequence[str] = (),
              measures: Mapping[str, str] | Sequence[tuple[str, str]] | None = None, filter: Any = None,
              sort: Sequence[tuple[str, str]] = (), dimensions: Sequence[str] = (), title: str | None = None,
-             sheet: Sheet | None = None, snap: bool = False) -> Grid:
+             sheet: Sheet | None = None, snap: bool = False, port: str | None = None) -> Grid:
         """A grid over ``frame`` (a pandas or polars DataFrame, an Arrow table, or a function returning one), served
         under ``name`` (``frame``, ``frame_2``, ... unless given) -- or over a ``file`` (its path; ``name`` the file's
         name, its path's unless given), read in as the tab reads a file it is given (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
@@ -1644,7 +2413,11 @@ class Page:
         titles it: a class (``cls``, its name or its path), of the page's model at its pin unless ``revision`` names
         another, or of another ``project`` by its path at a ``revision`` (class-source.ts classAt, the tab's Add a Grid's
         rule); a saved query of this user's store, by its id (``query``); a warehouse table (``warehouse``, its address;
-        ``table``, ``schema.table``; ``catalog``), read under the session this host holds for that warehouse. Each query
+        ``table``, ``schema.table``; ``catalog``), read under the session this host holds for that warehouse -- or over
+        another grid's rows, ``input`` (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL20: a flow's box after another), read live:
+        an edit of ``input`` reaches this grid, which DataCube makes (headless rowsCube) on ``input``'s sheet unless
+        ``sheet`` is given -- ``port``, one of ``input``'s ports read instead (a Filter's ``'false'``, a Join's ``'left'``
+        or ``'right'``), as the canvas adds a box on one. Each query
         reads the frame as it is then; the grid's Snap keeps its rows as they are. A
         name served already is this grid's when it serves this same frame (two grids over one frame), and refused
         when it serves another: ``grid.update(frame)`` replaces a frame, every grid
@@ -1658,12 +2431,15 @@ class Page:
             raise ValueError(f'{sheet!r} is another page\'s')
         target = self.sheets[0] if sheet is None else sheet
         _ = target._doc
+        if input is not None and input._page is not self:
+            raise ValueError(f'{input!r} is another page\'s')
         if title is not None:
             title = _given_name(self._session, 'tile', title, 'a title')
         session = self._session
-        if sum(b is not None for b in (frame, file, remote, cls, query, warehouse)) != 1:
+        if sum(b is not None for b in (frame, file, remote, cls, query, warehouse, input)) != 1:
             raise ValueError('a grid is over a frame, a file (file=path), a remote file (remote=url), a class (cls=...), a '
-                             'saved query (query=id) or a warehouse table (warehouse=url, table=...): one of them')
+                             'saved query (query=id), a warehouse table (warehouse=url, table=...) or another grid\'s rows '
+                             '(input=grid): one of them')
         if remote is not None and name is not None:
             raise ValueError("a remote file is named after its URL: it takes no name")
         if (project is not None or revision is not None) and cls is None:
@@ -1673,6 +2449,12 @@ class Page:
         if name is not None and (cls is not None or query is not None or warehouse is not None):
             raise ValueError('a class, a saved query and a warehouse table are named as DataCube names them: they take no '
                              'name')
+        if name is not None and input is not None:
+            raise ValueError("another grid's rows are named as DataCube names them (as the grid it reads is called): they "
+                             'take no name')
+        if port is not None and input is None:
+            raise ValueError("port= is one of another grid's ports (a Filter's 'false', a Join's 'left' or 'right'): it goes "
+                             'with input=')
         # what DataCube reads a class, a saved query or a warehouse table by: the page's model, and what was named
         given = None if cls is None and query is None and warehouse is None else self._given_source(
             cls, project, revision, query, warehouse, table, catalog)
@@ -1700,14 +2482,30 @@ class Page:
         try:
             # its cube as DataCube makes a grid's over a frame, a file or a remote file: capped at the row limit when it is
             # not the page's only grid
-            cube = (self._source_cube(given, len(self._doc['cubes']) + 1) if given is not None
-                    else self._frame_cube(served, len(self._doc['cubes']) + 1)[0] if read is None
-                    else self._leaf_cube(read, len(self._doc['cubes']) + 1))
-            # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band at
-            # the bottom, told nothing yet
-            with self._batch(tell=False):
-                applied = self._apply_page([_commands.page_add_grid(document=cube, sheet=target.id, near=None, title=title,
-                                                                    columns=None)], 'a title')
+            if input is not None:
+                # over another grid's rows: its cube and the command that adds it are DataCube's (headless rowsCube), over
+                # what this host serves, on that grid's sheet unless one is named
+                engine, frames = session.headless(), session.frames
+                with frames.reading():
+                    made = _json.loads(engine.call('rowsCube', _json.dumps({
+                        'page': self._doc, 'input': input.id, 'host': frames.hosted(),
+                        'sheet': None if sheet is None else sheet.id, 'title': title,
+                        **({'port': port} if port is not None else {})})))
+                if 'problems' in made:
+                    raise ValueError('; '.join(made['problems']))
+                for note in made['notes']:
+                    warnings.warn(note, stacklevel=2)
+                with self._batch(tell=False):
+                    applied = self._apply_page([_plain(made['command'])], 'a title')
+            else:
+                cube = (self._source_cube(given, len(self._doc['cubes']) + 1) if given is not None
+                        else self._frame_cube(served, len(self._doc['cubes']) + 1)[0] if read is None
+                        else self._leaf_cube(read, len(self._doc['cubes']) + 1))
+                # on its sheet, as the screen adds a grid (page-commands.ts addGrid): its id after every one held, a band
+                # at the bottom, told nothing yet
+                with self._batch(tell=False):
+                    applied = self._apply_page([_commands.page_add_grid(document=cube, sheet=target.id, near=None,
+                                                                        title=title, columns=None)], 'a title')
             id = applied[0]['id']
             grid = self._tile(id, Grid)
             # set before it is placed, nothing told meanwhile: its query's parts as one, as DataCube sets them (a new
@@ -1755,7 +2553,7 @@ class Page:
         return grid
 
     def join(self, mine: Grid, theirs: Grid, how: Mapping[str, Any], *, title: str | None = None,
-             sheet: Sheet | None = None, snap: bool = False) -> Grid:
+             sheet: Sheet | None = None, snap: bool = False, live: bool | None = None) -> Grid:
         """A grid of ``mine`` joined with ``theirs`` (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17), as the tab's Join…
         makes one: each grid's rows at their finest level, as each is now, combined as ``how`` says -- DataCube's own
         join (join-how.ts), read strictly: ``{'form': 'join', 'kind': 'inner' | 'left' | 'right' | 'full', 'on':
@@ -1764,9 +2562,10 @@ class Page:
         'asOf', 'match': {...}, 'on': ..., 'prefix', 'keep'}`` or ``{'form': 'append'}``. Written by DataCube (headless
         joinCube) over the frames the two read, judged by the compiler -- a refusal in its words, the page as it was --
         and added beside ``mine`` on its sheet -- or at the bottom of ``sheet``, given -- by the page command every grid is
-        added by (DataCube's placement, the tab's Join…'s). Each input is kept
-        by value: the join does not follow later edits of the grids joined. ``snap``: the join read once, by its grid's
-        Snap (``grid.snap()``); refused, the page is as it was."""
+        added by (DataCube's placement, the tab's Join…'s). ``live``: each input read live, the grid as it is now, so an
+        edit of either reaches the join (a flow's Join box: docs/DATACUBE_FLOW_MODE_2026_10_24.md M2, FL6) -- None, live
+        when ``mine`` is a box of a flow; else each input kept by value, the join not following later edits of the grids
+        joined. ``snap``: the join read once, by its grid's Snap (``grid.snap()``); refused, the page is as it was."""
         for g in (mine, theirs):
             if g._page is not self:
                 raise ValueError(f'{g!r} is another page\'s')
@@ -1776,6 +2575,8 @@ class Page:
             _ = sheet._doc
         if title is not None:
             title = _given_name(self._session, 'tile', title, 'a title')
+        if live is None:
+            live = mine.sheet.flow
         session = self._session
         engine, frames = session.headless(), session.frames
         # the tables its leaves read, each grid read as the page has it, under the name it shows, and the join's grid placed
@@ -1784,7 +2585,7 @@ class Page:
         with frames.reading():
             made = _json.loads(engine.call('joinCube', _json.dumps({
                 'page': self._doc, 'mine': mine.id, 'theirs': theirs.id, 'how': how, 'host': frames.hosted(),
-                'sheet': None if sheet is None else sheet.id, 'title': title})))
+                'sheet': None if sheet is None else sheet.id, 'title': title, 'live': live})))
         for note in made['notes']:
             warnings.warn(note, stacklevel=2)
         was = (self._doc, set(self._ids), len(self._page_commands),
@@ -1807,10 +2608,73 @@ class Page:
         self._changed()
         return grid
 
+    def union(self, *grids: Grid, title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+        """The rows of every grid, one after another -- a flow's Union (Alteryx's, of any number), the Join window's
+        Append: ``join`` of the first two with ``{'form': 'append'}``, each grid after them one more input in turn
+        (page-commands.ts setJoin's ``more``), columns matched by name -- one a grid lacks empty in its rows. ``live`` as
+        ``join``'s: when not, each input after the first two frozen too (a copy of what it is now)."""
+        if len(grids) < 2:
+            raise ValueError(f'a union reads two grids or more, not {len(grids)}')
+        for g in grids:
+            if g._page is not self:
+                raise ValueError(f'{g!r} is another page\'s')
+        if live is None:
+            live = grids[0].sheet.flow
+        grid = self.join(grids[0], grids[1], {'form': 'append'}, title=title, sheet=sheet, live=live)
+        if len(grids) > 2:
+            more = [{'grid': g.id} for g in grids[2:]]
+            with self._batch():
+                self._apply_page([_commands.page_set_join(grid=grid.id, how={'form': 'append'}, more=more)], 'a union')
+                if not live:
+                    self._apply_page([_commands.page_set_input(grid=grid.id, side=f'more{k}', input=None)
+                                      for k in range(1, len(more) + 1)], 'a freeze')
+                self._current(grid._view['cube'], 3)
+        return grid
+
+    def append_fields(self, mine: Grid, theirs: Grid, *, prefix: str = 'their_', keep: Sequence[str] | None = None,
+                      title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+        """Each row of ``mine`` beside every row of ``theirs`` -- a flow's Append Fields (Alteryx's), the Join window's
+        Every pair: ``join`` with no condition, matching rows only (join-how.ts isEveryPair), their names that mine has
+        given ``prefix``, ``keep`` the columns of theirs kept (every one when None). A small table's values on each row of
+        a big one; its rows are the two counts multiplied."""
+        return self.join(mine, theirs, {'form': 'join', 'kind': 'inner', 'on': {'rows': []}, 'prefix': prefix,
+                                        'keep': None if keep is None else list(keep)}, title=title, sheet=sheet, live=live)
+
+    def fuzzy_match(self, mine: Grid, theirs: Grid, on: tuple[str, str], *, within: int | None = None, kind: str = 'inner',
+                    prefix: str = 'their_', title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+        """``mine`` joined with ``theirs`` where their text is alike -- a flow's Fuzzy Match (Alteryx's), the Join window's
+        similar comparison: ``on`` is my column and theirs, ``within`` how many edits apart they may be (a letter added,
+        taken away or changed is one: the database's ``levenshteinDistance``; None, the Join window's own, join-how.ts
+        SIMILAR_WITHIN), ``kind`` the join's (``'inner'``: the pairs alone; ``'left'``: every row of mine)."""
+        left, right = on
+        row = {'left': left, 'op': '~', 'right': right, **({'within': within} if within is not None else {})}
+        return self.join(mine, theirs, {'form': 'join', 'kind': kind, 'on': {'rows': [row]},
+                                        'prefix': prefix, 'keep': None}, title=title, sheet=sheet, live=live)
+
+    def find_replace(self, mine: Grid, theirs: Grid, column: str, find: str, replace: str, *, prefix: str = 'their_',
+                     title: str | None = None, sheet: Sheet | None = None, live: bool | None = None) -> Grid:
+        """Each row's ``column`` of ``mine`` found among ``theirs``' ``find`` and replaced by their ``replace`` -- a flow's
+        Find Replace (Alteryx's): every row of mine joined to theirs on ``column`` equal to ``find``, their ``replace``
+        alone brought over (page.join), then ``column`` handed on as their value where one was found, its own where none
+        was, theirs left out (DataCube's code: find-replace.ts findReplaceCommands). The database joins and chooses."""
+        joined = self.join(mine, theirs, {'form': 'join', 'kind': 'left', 'on': {'rows': [{'left': column, 'op': '==', 'right': find}]},
+                                          'prefix': prefix, 'keep': [replace]}, title=title, sheet=sheet, live=live)
+        # their column as the join brings it out: the last, prefixed where a column of mine has its name
+        brought = joined._cube['query']['columns'][-1]['name']
+        return joined._preset({'kind': 'findReplace', 'column': column, 'with': brought})
+
     def sheet(self, name: str | None = None) -> Sheet:
         """A new sheet after the last (``name``: its own; None, named after its first grid)."""
         # as the screen adds one -- what is not text refused by addSheet's reader, in DataCube's words (page-commands.ts addSheet): its id after every one the page has held
         applied = self._apply_page([_commands.page_add_sheet(name=name)], "a sheet's name")
+        return self._sheet(applied[0]['id'])
+
+    def flow(self, name: str | None = None) -> Sheet:
+        """A new flow sheet after the last (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4, FL20; ``name``: its own; None,
+        "Flow n"): a canvas of boxes, each a grid that does one step -- ``flow.grid(...)`` its first, ``flow.grid(input=box)``
+        each after another, ``box.place(x, y)`` where it sits -- as the screen's Create ▸ Flow adds one."""
+        # as the screen adds one (page-commands.ts addFlow): its id after every one the page has held
+        applied = self._apply_page([_commands.page_add_flow(name=name)], "a sheet's name")
         return self._sheet(applied[0]['id'])
 
     def stack(self, *tiles: Tile) -> None:
@@ -2027,7 +2891,7 @@ class Page:
         session = _current()
         frames, files = frames or {}, files or {}
         # what it reads, as DataCube says (headless cubeLeaves: each leaf's kind, its name, a file's hash, a remote URL)
-        leaves = [leaf for c in doc['cubes'] for leaf in _cube_leaves(session, c['cube'])]
+        leaves = [leaf for c in doc['cubes'] for leaf in _cube_leaves(session, c['cube'], doc, c['id'])]
         wanted = sorted({leaf['name'] for leaf in leaves if leaf['_type'] == 'frame'})
         missing = [n for n in wanted if n not in frames]
         if missing:
@@ -2209,7 +3073,7 @@ class Page:
 
     def _tile_of(self, id: str) -> Tile:
         view = next(v for v in self._doc['views'] if v['id'] == id)
-        return self._tile(id, {'grid': Grid, 'chart': Chart, 'text': Text}[view['kind']])
+        return self._tile(id, {'grid': Grid, 'chart': Chart, 'text': Text, 'timeseries': Timeseries}[view['kind']])
 
     def _sheet(self, id: str) -> Sheet:
         return self._tile(id, Sheet)
@@ -2220,7 +3084,7 @@ class Page:
         session = self._session
         session.register(frame, name)
         # every cube reading the frame reopened (a join of it among them), whichever changed: their commands written once
-        reading = [c['id'] for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'])]
+        reading = [c['id'] for c in self._doc['cubes'] if name in _cube_frames(self._session, c['cube'], self._doc, c['id'])]
         with self._batch():
             for id in reading:
                 self._reopened(id, 4)
@@ -2246,7 +3110,7 @@ class Page:
             return False
         held = next(c['cube'] for c in self._doc['cubes'] if c['id'] == id)
         label = held['source']['name']
-        said = self._opened_cube(held, given or {}, leave_out)
+        said = self._opened_cube(held, given or {}, leave_out, id)
         if isinstance(said, str):
             warnings.warn(said, stacklevel=stacklevel)
             if left is not None:
@@ -2269,15 +3133,16 @@ class Page:
         self._reopened(cube, stacklevel + 1)
 
     def _opened_cube(self, saved: dict[str, Any], given: Mapping[str, str],
-                     leave_out: bool = False) -> tuple[list[str], bool, dict[str, Any]] | str:
+                     leave_out: bool = False, id: str | None = None) -> tuple[list[str], bool, dict[str, Any]] | str:
         """A saved cube as DataCube opens it over the frames as they are now -- a frame's, a join's of frames (headless
         gridOpened, by the rule of the page's ``rebuilt`` command: cube-document.ts cubeOpenedAgain) -- what DataCube
         says of what changed, whether the page takes it (cubeTaken), and the source as it is now, which the page's
         ``rebuilt`` command carries -- or, ``leave_out`` and a source a page leaves out, DataCube's note of it."""
         engine, frames = self._session.headless(), self._session.frames
         with frames.reading():
+            # its page and its id there: a grid over another grid's rows opens over that grid as it is now (DataCube's rule)
             made = json.loads(engine.call('gridOpened', _json.dumps(saved), frames.hosted(), self.name,
-                                          len(self._doc['cubes']), dict(given), leave_out))
+                                          len(self._doc['cubes']), dict(given), leave_out, _json.dumps(self._doc), id))
         if 'leftOut' in made:
             return made['leftOut']
         return list(made['notes']), made['taken'], _plain(_json.loads(made['opened']))

@@ -89,6 +89,8 @@ final class UnqualifyPivotArgs extends SqlRewriter {
             case SqlExpr.CheckedChildValue cv -> cv;
             case SqlExpr.CheckedOne co -> co;
             case SqlExpr.CompactList cl -> cl;
+            case SqlExpr.Tagged tg -> tg.withChildren(
+                    tg.children().stream().map(UnqualifyPivotArgs::unqualify).toList());
             case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.Lambda l -> l;
             case SqlExpr.Star st -> st;

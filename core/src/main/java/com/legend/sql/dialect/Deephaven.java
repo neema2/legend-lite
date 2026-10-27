@@ -205,6 +205,8 @@ public final class Deephaven extends AnsiSqlRenderer {
                     + " yet");
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException("deferred relation-toString reached"
                     + " the renderer: the execution boundary resolves it first (id " + d.id() + ")");
+            case SqlExpr.Tagged t -> throw new DialectCapability("a mixed selection's winner (a tag and its typed slots:"
+                    + " a mixed max, min, greatest, least or mode) reached Deephaven: no shape yet");
             case SqlExpr.WindowCall w -> throw new DialectCapability("a window function (" + w.fn().fn()
                     + ") reached Deephaven: its updateBy shape is not built yet");
             case SqlExpr.Lambda l -> throw new DialectCapability("a lambda reached Deephaven: no list functions"

@@ -94,7 +94,9 @@ describe('a join source\'s how, read strictly', () => {
     refused(() => readJoinHow({ form: 'cross' }), /one of join, asOf, semi, anti, append/);
     refused(() => readJoinHow({ ...join(), kind: 'outer' }), /kind is one of inner, left, right, full/);
     refused(() => readJoinHow({ ...join(), extra: 1 }), /not extra/);
-    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '=', right: 'b' }] } }), /comparison is one of == != < <= > >=/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '=', right: 'b' }] } }), /comparison is one of == != < <= > >= ~/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '==', right: 'b', within: 1 }] } }), /only a ~ row is within some edits/);
+    refused(() => readJoinHow({ ...join(), on: { rows: [{ left: 'a', op: '~', right: 'b', within: -1 }] } }), /a whole number from 0/);
     refused(() => readJoinHow({ ...join(), on: { rows: [], lambda: {} } }), /rows or a lambda, one of them/);
     refused(() => readJoinHow({ ...join(), on: {} }), /rows or a lambda, one of them/);
     refused(() => readJoinHow({ ...join(), prefix: '' }), /prefix starts a column's name/);
@@ -120,6 +122,16 @@ describe('what a join becomes', () => {
     }
     assert.equal(pure(joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [] } }))),
       `${T}->join(${C}->rename(~id, ~c_id), JoinKind.LEFT, {a, b | true})`);
+  });
+
+  it('similar text (~, a Fuzzy Match): both a value, at most so many edits apart by the database\'s distance', () => {
+    const fuzzy = join({ kind: 'inner', on: { rows: [{ left: 'sym', op: '~', right: 'region', within: 1 }] } });
+    assert.equal(pure(joinRelation(TRADES, CUSTOMERS, fuzzy)),
+      `${T}->join(${C}->rename(~id, ~c_id), JoinKind.INNER, {a, b | (($a.sym->isNotEmpty() && $b.region->isNotEmpty()) && ($a.sym->toOne()->levenshteinDistance($b.region->toOne()) <= 1))})`);
+    assert.deepEqual(readJoinHow(JSON.parse(JSON.stringify(fuzzy))), fuzzy);
+    assert.equal(joinWords(fuzzy), 'matching rows only, on sym ≈ region (within 1)');
+    // not said: two edits
+    assert.match(pure(joinRelation(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'sym', op: '~', right: 'region' }] } }))), /<= 2\)/);
   });
 
   it('selects away their columns not kept, after the join (a key it joined on included)', () => {
@@ -180,8 +192,14 @@ describe('what a join becomes', () => {
       `${T}->extend(~[qty:{x | []->cast(@Float)}])->concatenate(#>{local::DB.more}#->extend(~[cust:{x | []->cast(@Integer)}, at:{x | []->cast(@DateTime)}])->select(~[id, cust, sym, at, qty]))`);
     // the same columns in the same order: neither side touched
     assert.equal(pure(joinRelation(TRADES, TRADES, { form: 'append' })), `${T}->concatenate(${T})`);
-    // a column of two types: written as it is, the compiler's concatenate to refuse
-    assert.match(pure(joinRelation(TRADES, side('bad', [['id', 'String']]), { form: 'append' })), /->concatenate\(#>\{local::DB\.bad\}#->extend/);
+    // a name of two types, refused in words: the compiler unites an Integer and a Float as the first's type, its rows'
+    // fractions under it (the correctness audit's 6, 2026-10-26); a precise type's plain one is its type
+    refused(() => joinRelation(TRADES, side('bad', [['id', 'String']]), { form: 'append' }),
+      /^'id' is Integer in trades and String in bad: a Union's column is of one type -- retype one of them with a Select first$/);
+    refused(() => joinRelation(TRADES, side('more', [['id', 'Integer']]), { form: 'append' }, [side('floats', [['id', 'Float']])]),
+      /'id' is Integer in trades and Float in floats/);
+    assert.equal(pure(joinRelation(side('a', [['s', 'meta::pure::precisePrimitives::Varchar']]), side('b', [['s', 'String']]), { form: 'append' })),
+      '#>{local::DB.a}#->concatenate(#>{local::DB.b}#)');
   });
 });
 
@@ -198,6 +216,8 @@ describe('what it will do, before it is applied', () => {
   it('asks no repeated keys of a condition that is not equal keys alone', () => {
     assert.equal(joinSummary(TRADES, CUSTOMERS, join({ on: { rows: [{ left: 'cust', op: '<', right: 'id' }] } })).repeated, undefined);
     assert.equal(joinSummary(TRADES, CUSTOMERS, join({ on: { rows: [] } })).repeated, undefined);
+    // every pair (an Append Fields): their rows asked of the database, never mine's quotient
+    assert.deepEqual(Object.keys(joinSummary(TRADES, CUSTOMERS, join({ kind: 'inner', on: { rows: [] } }))), ['mine', 'matched', 'joined', 'theirs']);
   });
 
   it('as of: my rows, and those with a nearest row (the match and the condition both)', () => {
@@ -219,7 +239,13 @@ describe('a join in words', () => {
     assert.equal(joinTitle({ form: 'append' }, 'trades', 'more'), 'trades + more');
     assert.equal(joinTitle({ form: 'anti', on: { rows: [] } }, 'trades', 'customers'), 'trades without customers');
     assert.equal(joinWords(join()), 'all of mine, on cust = id');
-    assert.equal(joinWords(join({ kind: 'inner', on: { rows: [] } })), 'matching rows only, on every pair');
+    // every row with every row (an Append Fields): said so; all of mine on no condition still a join's words
+    assert.equal(joinWords(join({ kind: 'inner', on: { rows: [] } })), 'each row with every row of theirs');
+    assert.equal(joinWords(join({ kind: 'left', on: { rows: [] } })), 'all of mine, on every pair');
+    assert.deepEqual(summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 5, matched: 5, joined: 20, theirs: 4 }),
+      ['Each of my 5 rows beside each of the 4 rows of theirs: 20 rows.']);
+    assert.deepEqual(summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 0, matched: 0, joined: 0, theirs: 3 }), ['I have no rows: none after it.']);
+    assert.throws(() => summaryWords(join({ kind: 'inner', on: { rows: [] } }), { mine: 5, matched: 5, joined: 20 }), /was not asked how many rows they have/);
     assert.equal(joinWords({ form: 'asOf', match: { left: 'at', op: '>=', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), 'nearest at >= at');
   });
 
