@@ -867,6 +867,12 @@ the chain's batch 11,508 characters where the twelve hand-written layers were 12
 (`//datacube:desk_model_test`). The market lane's check is now independent of the model: every option's price and greeks
 on the server against the textbook's computed in the test (the normal distribution integrated, a put by its own formula).
 Other screens' batches changed only by helpers (`deskLimits`' breach and warning tests, a pip size, a markout's sign).
+Found by the live desk run, fixed: a grid's base is stored by writing its plan's last view as a select (B1), and a plan
+now ending in the helpers' `dropColumns` had no stored form -- the TCA, limits and FX tabs empty. The view a last
+`dropColumns` reads is stored, its helpers with it, the drop after it (`DeephavenWire.stored`); `desk_model_test` now
+asks for every screen's stored form, the check that needs no server. Measured on the pinned server: the whole corpus
+4,191 of 4,195 planned, as before; the desk's ten tabs drawn and ticking (the options desk drawn in 7.0 s, 6.8 before);
+the market, cube, board, flat, query and walkthrough lanes passed.
 
 Not done (the user's call, 2026-10-27): **4A**, the options' settlements and implied volatilities said to be data (the
 exchange's settlement, the vol desk's marks -- `market.groovy` makes them up and prices the settlement with a Black and
