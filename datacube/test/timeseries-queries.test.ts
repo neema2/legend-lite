@@ -990,6 +990,23 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
     }), 'time', 1e-9);
   });
 
+  // the platform step (the user, 2026-10-28): a person's own Pure puts two series on one calendar as the tile's align
+  // does -- Pure's own join, then the library's fills -- and answers as the tile does
+  it('a person\'s own Pure: two calendars joined and CCC filled by step and by time, as the tile\'s align', async () => {
+    const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
+    const days = 'meta::pure::functions::date::DurationUnit.DAYS';
+    const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')->select(~[day, close])->rename(~close, ~a)
+      ->join(${source}->filter(x|$x.symbol == 'CCC')->select(~[day, close])->rename(~day, ~cday)->rename(~close, ~c),
+        meta::pure::functions::relation::JoinKind.LEFT, {l,r|$l.day == $r.cday})
+      ->extend(~[ln:x|'one', ta:x|dateDiff(%1970-01-01, $x.day->toOne(), ${days}), tc:x|if($x.cday->isEmpty(), |[], |dateDiff(%1970-01-01, $x.cday->toOne(), ${days}))])
+      ->datacube::ts::fillStep(~ln, ~day, ~c, ~c, ~cs)
+      ->datacube::ts::fillTime(~ln, ~day, ~c, ~tc, ~ta, ~c, ~ct)
+      ->extend(~[step:x|$x.a->toOne() - $x.cs->toOne(), time:x|if($x.ct->isEmpty(), |[], |$x.a->toOne() - $x.ct->toOne())])
+      ->sort([~day->ascending()])`)), 0);
+    close(values(t, 'step').map(num), (await line(aligned('step'))).values, 'step, as the tile\'s', 1e-9);
+    close(values(t, 'time').map(num), (await line(aligned('time'))).values, 'time, as the tile\'s', 1e-9);
+  });
+
   it('nan and zero: every date, none where CCC has none -- or 0 there', async () => {
     close((await line(aligned('nan'))).values, AAA.map((v, i) => (i % 3 === 0 ? v - CCC[i]! : null)), 'nan', 1e-9);
     close((await line(aligned('zero'))).values, AAA.map((v, i) => (i % 3 === 0 ? v - CCC[i]! : v)), 'zero', 1e-9);
