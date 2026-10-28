@@ -35,7 +35,7 @@ Enum datacube::ts::Returns
 
 Enum datacube::ts::FilterOperator
 {
-  less_than, greater_than, l_equals, g_equals, equals, not_equals, empty
+  empty, less_than, greater_than, l_equals, g_equals, equals, not_equals
 }
 
 Enum datacube::ts::ThresholdType
@@ -1238,11 +1238,11 @@ function datacube::ts::halfLifePeriod<T,L,D,V,O>(t: Relation<T>[1], line: ColSpe
 
 // The excess returns over a rate (gs-quant's excess_returns of a number): x less the rate accrued on it period by
 // period, actual/360 -- er_j = er_j-1 + x_j - x_j-1 (1 + rate f_j), summed: x_j - rate × Σ x_k-1 f_k to date, f a
-// period's days over 360: the difference of its time (a number, each row's: days, or seconds, from a day -- its last
-// observation's) from the one before, over perDay of them a day (1; 86400).
-function datacube::ts::excessReturns<T,L,D,V,N,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], time: ColSpec<N⊆T>[1], perDay: Integer[1], rate: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+// period's days over 360: the difference of its time (a number, each row's: its last observation's, counted in
+// timeUnit -- DAYS or SECONDS) from the one before, over the timeUnits a day has (the database's dateDiff: 1; 86400).
+function datacube::ts::excessReturns<T,L,D,V,N,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], time: ColSpec<N⊆T>[1], timeUnit: meta::pure::functions::date::DurationUnit[1], rate: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend(over($line, [$date->ascending()]), ~ac:{p,f,r|$p->lag($r)->read($value)->toOne() * ((($r->read($time)->toOne() - $p->lag($r)->read($time)->toOne()) / $perDay) / 360)})
+  $t->extend(over($line, [$date->ascending()]), ~ac:{p,f,r|$p->lag($r)->read($value)->toOne() * ((($r->read($time)->toOne() - $p->lag($r)->read($time)->toOne()) / dateDiff(%1970-01-01, %1970-01-02, $timeUnit)) / 360)})
     ->extend(over($line, [$date->ascending()], rows(unbounded(), 0)), ~tot:{p,f,r|$r.ac}:y|$y->plus())
     ->extend(~o:x|$x->read($value)->toOne() - ($rate * if($x.tot->isEmpty(), |0.0, |$x.tot->toOne())))
     ->without(~[ac, tot])->rename(~o, $out)
@@ -1335,11 +1335,11 @@ function datacube::ts::seasonallyAdjusted<T,L,D,V,P,O>(t: Relation<T>[1], line: 
 
 // The total return of a price with a yield a year accrued day by day (gs-quant's total_return of a number): its first
 // value, then each period's growth compounded -- its price over the one before, plus the yield over the days since (the
-// difference of its time -- a number, each row's: days, or seconds, from a day -- from the one before, over perDay of
-// them a day: 1; 86400) over 365; none where the price is none.
-function datacube::ts::totalReturn<T,L,D,P,N,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], time: ColSpec<N⊆T>[1], perDay: Integer[1], yield: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+// difference of its time -- a number, each row's, counted in timeUnit -- from the one before, over the timeUnits a day
+// has: 1; 86400) over 365; none where the price is none.
+function datacube::ts::totalReturn<T,L,D,P,N,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], price: ColSpec<P⊆T>[1], time: ColSpec<N⊆T>[1], timeUnit: meta::pure::functions::date::DurationUnit[1], yield: Number[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
-  $t->extend(over($line, [$date->ascending()]), ~g:{p,f,r|($r->read($price)->toOne() / $p->lag($r)->read($price)->toOne()) + ($yield * ((($r->read($time)->toOne() - $p->lag($r)->read($time)->toOne()) / $perDay) / 365))})
+  $t->extend(over($line, [$date->ascending()]), ~g:{p,f,r|($r->read($price)->toOne() / $p->lag($r)->read($price)->toOne()) + ($yield * ((($r->read($time)->toOne() - $p->lag($r)->read($time)->toOne()) / dateDiff(%1970-01-01, %1970-01-02, $timeUnit)) / 365))})
     ->datacube::ts::windowProduct(over($line, [$date->ascending()], rows(unbounded(), 0)), ~g, ~pr)
     ->datacube::ts::first($line, $date, $price, ~f0)
     ->extend(~o:x|if($x->read($price)->isEmpty(), |[], |$x.f0->toOne() * $x.pr->toOne()))
@@ -1379,17 +1379,17 @@ function datacube::ts::weightedSum<T,Z,V,W,O>(t: Relation<T>[1], by: ColSpecArra
 // A basket of members held in weights from 100 (gs-quant's backtesting basket_series, its costs none): units fixed
 // between rebalances, set at each to the basket's then in its weights. Each date's rebalance period its own (Rebalance.daily),
 // or the weeks or the months (weekly, monthly) from the line's first date -- a rebalance the first date on or after
-// each, a month's day kept or its last where it has none -- a week's days counted by time (a number, each row's: days,
-// or seconds, from a day -- its last observation's) over perDay of them a day (1; 86400). Within a period, 1 + Σ weight × (price / its price at the period's first date − 1); into it, the
+// each, a month's day kept or its last where it has none -- a week's days counted by time (a number, each row's: its
+// last observation's, counted in timeUnit) over the timeUnits a day has (1; 86400). Within a period, 1 + Σ weight × (price / its price at the period's first date − 1); into it, the
 // period before's growth to its first date; the basket 100 times those compounded, times its growth within -- none from
 // a date some member's price is none on. One row a line and date.
-function datacube::ts::basket<T,L,D,N,M,P,W,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], member: ColSpec<M⊆T>[1], price: ColSpec<P⊆T>[1], weight: ColSpec<W⊆T>[1], members: Integer[1], rebalance: datacube::ts::Rebalance[1], perDay: Integer[1], out: ColSpec<O>[1]): Relation<L+D+O>[1]
+function datacube::ts::basket<T,L,D,N,M,P,W,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], date: ColSpec<D⊆T>[1], time: ColSpec<N⊆T>[1], member: ColSpec<M⊆T>[1], price: ColSpec<P⊆T>[1], weight: ColSpec<W⊆T>[1], members: Integer[1], rebalance: datacube::ts::Rebalance[1], timeUnit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<L+D+O>[1]
 {
   $t->extend(~[l:r|$r->read($line), d:r|$r->read($date), tm:r|$r->read($time), m:r|$r->read($member), px:r|$r->read($price), wt:r|$r->read($weight)])
     ->extend(over(~l), ~[d0:{p,f,r|$r.d}:y|$y->min(), t0:{p,f,r|$r.tm}:y|$y->min()])
     ->extend(~mo:x|((($x.d->toOne()->year() - $x.d0->toOne()->year()) * 12) + ($x.d->toOne()->monthNumber() - $x.d0->toOne()->monthNumber())))
     ->extend(~k:x|if($rebalance == datacube::ts::Rebalance.daily, |$x.tm->toOne(),
-      |if($rebalance == datacube::ts::Rebalance.weekly, |floor((($x.tm->toOne() - $x.t0->toOne()) / $perDay) / 7),
+      |if($rebalance == datacube::ts::Rebalance.weekly, |floor((($x.tm->toOne() - $x.t0->toOne()) / dateDiff(%1970-01-01, %1970-01-02, $timeUnit)) / 7),
         |$x.mo->toOne() - if($x.d->toOne() < $x.d0->toOne()->adjust($x.mo->toOne(), meta::pure::functions::date::DurationUnit.MONTHS), |1, |0))))
     ->extend(over(~[l, k]), ~fd:{p,f,r|$r.d}:y|$y->min())
     ->extend(over(~[l, m, k]), ~bs:{p,f,r|if($r.d == $r.fd, |$r.px, |[])}:y|$y->max())
@@ -1407,14 +1407,14 @@ function datacube::ts::basket<T,L,D,N,M,P,W,O>(t: Relation<T>[1], line: ColSpec<
 // THE TILE'S TABLES AND VIEWS (the focused Pure audit, 2026-10-28: their maths the library's, as the catalog's is).
 
 // The periods a year a line's dates are (gs-quant's econometrics._get_annualization_factor): the average days between
-// them -- its time's span over their count less one, its time counted in perDay a day (1 of days, 86400 of seconds) --
+// them -- its time's span over their count less one, its time counted in timeUnit (a day 1 of DAYS, 86400 of SECONDS) --
 // bucketed: under 2.1 days, 252; 6 to 8, 52; 14 to 17, 26; 25 to 35, 12; 85 to 97, 4; 360 to 386, 1; else, or under two
 // dates, none.
-function datacube::ts::periodsPerYear<T,L,N,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], time: ColSpec<N⊆T>[1], perDay: Integer[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+function datacube::ts::periodsPerYear<T,L,N,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], time: ColSpec<N⊆T>[1], timeUnit: meta::pure::functions::date::DurationUnit[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->extend(~[l:r|$r->read($line), tm:r|$r->read($time)])
     ->extend(over(~l), ~[hi:{p,f,r|$r.tm}:y|$y->max(), lo:{p,f,r|$r.tm}:y|$y->min(), n:{p,f,r|$r.tm}:y|$y->count()])
-    ->extend(~g:x|if($x.n->toOne() < 2, |[], |(($x.hi->toOne() - $x.lo->toOne()) / $perDay) / ($x.n->toOne() - 1)))
+    ->extend(~g:x|if($x.n->toOne() < 2, |[], |(($x.hi->toOne() - $x.lo->toOne()) / dateDiff(%1970-01-01, %1970-01-02, $timeUnit)) / ($x.n->toOne() - 1)))
     ->extend(~o:x|if($x.g->isEmpty(), |[],
       |if(($x.g->toOne() >= 1.0) && ($x.g->toOne() < 2.1), |252,
       |if(($x.g->toOne() >= 6.0) && ($x.g->toOne() < 8.0), |52,

@@ -945,10 +945,33 @@ js_run_binary(
     tool = ":test_imports_tool",
 )
 
+# THE LIBRARY'S OPTIONS (the user, 2026-10-28: one source): each enumeration of datacube::ts, read from the library's
+# text, written as src/generated/library-enums.ts for the catalog and the writer, diff-tested below
+js_binary(
+    name = "library_enums_tool",
+    entry_point = "tools/library-enums.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "library_enums",
+    srcs = ["src/pure-library-text.ts"],
+    outs = ["library_enums_generated.ts"],
+    args = [
+        "$(rootpath src/pure-library-text.ts)",
+        package_name() + "/library_enums_generated.ts",
+    ],
+    tool = ":library_enums_tool",
+)
+
 write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
     files = {
+        "src/generated/library-enums.ts": ":library_enums",
         "src/generated/offer-facts.ts": ":offer_facts",
         "test_imports.bzl": ":test_imports",
     },
