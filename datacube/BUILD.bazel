@@ -601,6 +601,8 @@ _HEADLESS_TESTS = [
     "remote",
     # a page's saved queries run on an execution context of their data space (docs/ONE_CONNECTION_DESK_2026_10_28.md D2)
     "run-on",
+    # what a runtime runs on, read from the model's elements (docs/ONE_CONNECTION_DESK_2026_10_28.md step 5)
+    "runtime-connections",
     "runner",
     "sample",
     "saved-documents",

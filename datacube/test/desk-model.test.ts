@@ -11,6 +11,7 @@ import { describe, it } from 'node:test';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { DESK_MODEL, IN_TAB, ON_DEEPHAVEN } from '../demo/deephaven/market/model.ts';
 import * as screens from '../demo/deephaven/market/screens.ts';
+import { engineOf, runtimeConnections } from '../src/runtime-connections.ts';
 import { plannerFor } from './catalog-builder.ts';
 
 const corpus = readFileSync(runfileFromEnv('TRADING_MODEL'), 'utf8');
@@ -35,6 +36,15 @@ async function opsOf(text: string): Promise<{ readonly ops: readonly Record<stri
 }
 
 describe('the trading desk\'s model', () => {
+  it('its contexts run on the tab and on the Deephaven server its environments name, read from its elements', async () => {
+    // the model's elements as DataCube reads them (lite's own grammarToJson: its Deephaven connection lite's own JSON)
+    const elements = await planner.modelElements(model);
+    assert.deepEqual(engineOf(IN_TAB.runtime, runtimeConnections(elements, IN_TAB.runtime)), { kind: 'tab' });
+    assert.deepEqual(engineOf(ON_DEEPHAVEN.runtime, runtimeConnections(elements, ON_DEEPHAVEN.runtime)), {
+      kind: 'deephaven', server: { host: 'localhost', port: 10000, useTls: true, keyVaultReference: 'deephaven.psk' },
+    });
+  });
+
   it('every source a screen reads is a function of the desk\'s model, its arguments the only text the screens write', () => {
     assert.ok(sources.length >= 20, `the screens' sources: ${sources.map(([n]) => n).join(', ')}`);
     for (const [name, text] of sources) {
