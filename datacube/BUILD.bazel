@@ -958,13 +958,41 @@ js_binary(
 
 js_run_binary(
     name = "library_enums",
-    srcs = ["src/pure-library-text.ts"],
+    srcs = ["src/pure/datacube_ts.pure"],
     outs = ["library_enums_generated.ts"],
     args = [
-        "$(rootpath src/pure-library-text.ts)",
+        "$(rootpath src/pure/datacube_ts.pure)",
         package_name() + "/library_enums_generated.ts",
     ],
     tool = ":library_enums_tool",
+)
+
+# THE LIBRARY, A PURE FILE (the platform step's B, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md): src/pure/datacube_ts.pure
+# the source, which the platform loads as it is; the page's module of it (src/pure-library-text.ts) written from it,
+# diff-tested below
+exports_files(
+    ["src/pure/datacube_ts.pure"],
+    visibility = ["//visibility:public"],
+)
+
+js_binary(
+    name = "library_text_tool",
+    entry_point = "tools/library-text.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "library_text",
+    srcs = ["src/pure/datacube_ts.pure"],
+    outs = ["library_text_generated.ts"],
+    args = [
+        "$(rootpath src/pure/datacube_ts.pure)",
+        package_name() + "/library_text_generated.ts",
+    ],
+    tool = ":library_text_tool",
 )
 
 write_source_files(
@@ -972,6 +1000,7 @@ write_source_files(
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
     files = {
         "src/generated/library-enums.ts": ":library_enums",
+        "src/pure-library-text.ts": ":library_text",
         "src/generated/offer-facts.ts": ":offer_facts",
         "test_imports.bzl": ":test_imports",
     },
