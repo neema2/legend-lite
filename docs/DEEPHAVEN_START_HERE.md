@@ -204,7 +204,7 @@ about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointe
    ~2 h, 16g ~4 h).
 9. **Run On's switch crashes the page's renderer, intermittently** (found 2026-10-28 in this container, not on the
    Mac): `//datacube:deephaven_desk_test`'s Run On (the saved desk on Deephaven, switched to the tab's DuckDB and
-   back) failed "Target crashed" in 3 of 7 runs before D5 and 3 of 5 since. Not memory: the renderer at 1.5-1.8 GB,
+   back) failed "Target crashed" in 3 of 11 runs before D5 and 4 of 5 since -- it got worse with D5. Not memory: the renderer at 1.5-1.8 GB,
    no kernel or cgroup kill (`/proc/vmstat` oom_kill 0). The browser's own output (the lane's `browser.log` since
    2026-10-28) says `Received signal 11 SEGV_ACCERR`, in a worker thread's JIT code (frames 3-12 generated code, the
    thread started by libc), the faulting address a 4 GB-aligned base plus ~980 MB -- the shape of V8's pointer cage,
