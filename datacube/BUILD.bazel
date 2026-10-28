@@ -2313,6 +2313,59 @@ browser_test(
     },
 )
 
+# THE MARKET WORLD'S FEED, MISBEHAVING (docs/DEEPHAVEN_START_HERE.md, the desk under load, 5): the world's feed pointed
+# at a fake one on the loopback (test/deephaven/fake-feed.mjs) that sends each message in parts, one that is not JSON and
+# a price that is not a number, then goes quiet in the middle of a message; read as the market lane reads the world.
+esbuild_bundle(
+    name = "deephaven_feed_page",
+    testonly = True,
+    srcs = [
+        "demo/deephaven/market/model.ts",
+        "test/deephaven/feed-page.ts",
+        "//engine-client:engine_client",
+    ],
+    outs = ["test/deephaven/feed.js"],
+    args = [
+        "test/deephaven/feed-page.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        # the planner's runtime, served beside the page
+        "--external:./wasm-gc-module-runtime.js",
+        "--outfile=test/deephaven/feed.js",
+    ],
+)
+
+browser_test(
+    name = "deephaven_feed_test",
+    size = "medium",
+    tags = ["manual"],
+    data = [
+        "demo/deephaven/market/environments.mjs",
+        "demo/deephaven/market/environments.pure",
+        "demo/deephaven/market/market.pure",
+        "demo/deephaven/site.mjs",
+        "test/deephaven/fake-feed.mjs",
+        "test/deephaven/feed.mjs",
+        ":deephaven_feed_page",
+        ":deephaven_market_fixture",
+        ":deephaven_market_fixture_executable",
+        ":node_modules/playwright",
+        "//scripts/corpus:trading_model",
+        "//wasm:planner",
+    ],
+    entry_point = "test/deephaven/feed.mjs",
+    env = {
+        "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
+        "FEED_PAGE": "$(rlocationpath :deephaven_feed_page)",
+        "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
+        "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
+        "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+        "PLANNER": "$(rlocationpaths //wasm:planner)",
+    },
+)
+
 # THE STRESS CORPUS ON DEEPHAVEN, AGAINST THE ORACLE (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, task 15): the pinned
 # Deephaven holding the corpus's tables (test/deephaven/corpus/, test only: lite writes no rows into Deephaven yet), every
 # corpus test's plan on a Deephaven runtime sent to it from the page (:deephaven_corpus_cases), and the answers

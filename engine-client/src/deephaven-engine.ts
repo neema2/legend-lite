@@ -152,11 +152,12 @@ export class DeephavenEngine implements QueryEngine {
    */
   static async open(server: DeephavenServer, planner: DeephavenPlanner,
     options: DeephavenEngineOptions = {}): Promise<DeephavenEngine> {
-    // a session the server forgot ends the live side as a server gone does: each reader's host signs in again
+    // a session the server forgot ends the live side as a server gone does: each reader's host signs in again -- while
+    // it is the engine's session (one a reconnect let go of is forgotten as it closes, and is no server gone)
     let ended: (why: string) => void = () => { /* no engine yet */ };
-    const engine = new DeephavenEngine(server, planner, options, await DeephavenSession.open(server, planner,
-      { ...options, onForgotten: (why) => ended(why) }));
-    ended = (why) => engine.#ended(why);
+    const session = await DeephavenSession.open(server, planner, { ...options, onForgotten: (why) => ended(why) });
+    const engine = new DeephavenEngine(server, planner, options, session);
+    ended = (why) => { if (engine.#session === session) engine.#ended(why); };
     engine.#liveClient().catch(() => { /* said by the follow that needs it */ });
     return engine;
   }
@@ -332,7 +333,10 @@ export class DeephavenEngine implements QueryEngine {
 
   #liveClient(): Promise<LiveClient> {
     if (this.#live === null) {
-      const opening = LiveClient.open(this.#server, (why) => this.#ended(why), this.#options.loadLive);
+      // its end is the server gone while it is the engine's live reader: one a reconnect let go of ends as it closes
+      const opening: Promise<LiveClient> = LiveClient.open(this.#server, (why) => {
+        if (this.#live === opening) this.#ended(why);
+      }, this.#options.loadLive);
       this.#live = opening;
       // one that failed to open is opened again by the next follow that needs it, never kept failing
       opening.catch(() => { if (this.#live === opening) this.#live = null; });
@@ -349,8 +353,11 @@ export class DeephavenEngine implements QueryEngine {
    * nothing is followed until each reader's next `follow`. Throws while the server does not answer.
    */
   async reconnect(): Promise<void> {
+    // its end is the server gone while it is the engine's session (as `open`'s)
+    let ended: (why: string) => void = () => { /* not the engine's yet */ };
     const session = await DeephavenSession.open(this.#server, this.#planner,
-      { ...this.#options, onForgotten: (why) => this.#ended(why) });
+      { ...this.#options, onForgotten: (why) => ended(why) });
+    ended = (why) => { if (this.#session === session) this.#ended(why); };
     const old = this.#session;
     for (const f of this.#whole.values()) stopFollowing(f);
     this.#whole.clear();
@@ -641,6 +648,9 @@ export class DeephavenReader implements QueryEngine {
     const f: Following = { table: null, window: w, stop: null, stopped: false };
     this.#windows.set(plan.sql, f);
     const shown = waitFor(w);
+    // refused before it is awaited (its result not made, or a reconnect let it go): said by the throw below, and by
+    // the await at the end otherwise -- never a rejection no one handles
+    shown.catch(() => undefined);
     const session = this.#core.session();
     const counts = this.#core.counts;
     let kept: KeptResult;

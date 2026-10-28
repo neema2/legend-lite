@@ -40,13 +40,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let browser;
 try {
-  // the browser's own fatal lines (a renderer that crashes says why there, nowhere else)
-  browser = await chromium.launch({ logger: {
-    isEnabled: (name) => name === 'browser',
-    log: (_name, _severity, message) => {
-      if (/FATAL|Check failed|crash|Received signal|OOM|out of memory|V8 error|Fatal/i.test(String(message))) console.log(`[browser] ${String(message).slice(0, 400)}`);
+  // the browser's own lines, every one, to browser.log in the outputs, and its fatal ones here (a renderer that
+  // crashes says why there, nowhere else: 2026-10-28, the renderer crashed at Run On's switch with nothing said here)
+  const { appendFileSync } = await import('node:fs');
+  browser = await chromium.launch({
+    args: ['--enable-logging=stderr', '--v=0'],
+    logger: {
+      isEnabled: () => true,
+      log: (name, severity, message) => {
+        appendFileSync(join(outputs, 'browser.log'), `${new Date().toISOString()} ${name} ${severity} ${String(message)}\n`);
+        if (/FATAL|Check failed|crash|Received signal|OOM|out of memory|V8 error|Fatal/i.test(String(message))) console.log(`[browser] ${String(message).slice(0, 400)}`);
+      },
     },
-  } });
+  });
   const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1680, height: 1050 } })).newPage();
   page.on('pageerror', (e) => fail(`page error: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[page ${m.type()}] ${m.text().slice(0, 300)}`); });
@@ -420,6 +426,37 @@ try {
   } catch (e) {
     await page.screenshot({ path: join(outputs, 'desk-run-on-failed.png') }).catch(() => undefined);
     fail(`Run On: ${e?.message ?? e} (the menu showed ${JSON.stringify(menuSeen)})`);
+  }
+
+  // THE SERVER RESTARTED (docs/DEEPHAVEN_START_HERE.md, the desk under load, 4): Deephaven keeps no session across one,
+  // and its world starts again. The page signs in again once -- every grid's end the same sign-in, and a session or
+  // live connection it let go of ending as it closes is no server gone -- and its tab shown is drawn and ticks again,
+  // nothing thrown (a page error fails the lane, above)
+  try {
+    const signedIn = (await counts()).reconnects;
+    server.restart();
+    const restarted = await server.next('on restarting');
+    if (!restarted.restarted) fail(`the fixture answered ${JSON.stringify(restarted)}`);
+    const restarting = Date.now();
+    await until(async () => (await counts()).reconnects > signedIn, 'signed in again after the restart', 240_000);
+    const drawn = await firstTabDrawn(180_000);
+    const before = new Map((await shownTiles(page)).map((t) => [t.id, t.shows]));
+    const ticked = await until(async () => (await shownTiles(page))
+      .filter((t) => before.has(t.id) && before.get(t.id) !== t.shows).map((t) => t.id).join(', '),
+    'the first tab ticking after the restart', 60_000).catch(() => '');
+    const backAt = ((Date.now() - restarting) / 1000).toFixed(1);
+    // a while longer: no sign-in after the one, each grid ticking from it
+    await sleep(15_000);
+    const signIns = (await counts()).reconnects - signedIn;
+    await page.screenshot({ path: join(outputs, 'desk-restarted.png') });
+    if (drawn && ticked !== '' && signIns === 1) {
+      ok(`restarted: the page signed in again once and its first tab drawn and ticking in ${backAt} s (${ticked} changed)`);
+    } else {
+      fail(`restarted: ${signIns} sign-ins, the first tab ${drawn ? 'drawn' : 'not drawn'}, ${ticked === '' ? 'not ticking' : `${ticked} changed`}`);
+    }
+  } catch (e) {
+    await page.screenshot({ path: join(outputs, 'desk-restart-failed.png') }).catch(() => undefined);
+    fail(`restarted: ${e?.message ?? e}`);
   }
 } catch (e) {
   fail(String(e?.stack ?? e));

@@ -833,14 +833,23 @@ class Newsroom {
  * CRYPTO FROM COINBASE EXCHANGE'S PUBLIC FEED (DH28): its ticker channel as quotes, its matches as trades (the
  * aggressor the maker's other side). Live from the first message to a close or an error; the world simulates crypto
  * whenever it is not, from the last price it had, and asks again a minute later.
+ *
+ * <p>One socket at a time (docs/DEEPHAVEN_START_HERE.md, the desk under load, 5: after a laptop's sleep the feed had
+ * opened a socket a minute, never closing one, and every socket's message parts went into one buffer, spliced): asked
+ * again, the socket before is let go first, and only the socket asked last is read, each socket's parts its own. A
+ * message it cannot read -- or the world cannot place (`World.drain`) -- is skipped and counted, never the feed refused
+ * nor the beat lost, and the world's crypto status says how many.
  */
 @CompileStatic
 class CoinbaseFeed implements WebSocket.Listener {
     final URI url
     final List<String> products
     final ConcurrentLinkedQueue<Map> messages = new ConcurrentLinkedQueue<>()
-    final StringBuilder partial = new StringBuilder()
     final com.fasterxml.jackson.databind.ObjectMapper json = new com.fasterxml.jackson.databind.ObjectMapper()
+    /** each socket's message so far, while its parts arrive: the socket read now's only */
+    final Map<WebSocket, StringBuilder> partial = new java.util.concurrent.ConcurrentHashMap<>()
+    /** the messages skipped: unreadable, or not placed in the world */
+    final AtomicLong skipped = new AtomicLong()
     volatile String state = 'connecting'
     volatile String detail = ''
     volatile long lastMessageMs = 0L
@@ -851,16 +860,24 @@ class CoinbaseFeed implements WebSocket.Listener {
         this.products = products
     }
 
-    void connect() {
+    synchronized void connect() {
         state = 'connecting'
         detail = url.toString()
+        // the socket before let go: one socket at a time, its parts with it
+        WebSocket before = socket
+        socket = null
+        if (before != null) {
+            partial.remove(before)
+            before.abort()
+        }
         try {
             HttpClient client = HttpClient.newBuilder().proxy(java.net.ProxySelector.getDefault())
                     .connectTimeout(Duration.ofSeconds(5)).build()
-            socket = client.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(5)).buildAsync(url, this)
+            WebSocket opened = client.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(5)).buildAsync(url, this)
                     .get(8, TimeUnit.SECONDS)
+            socket = opened
             String ids = products.collect { '"' + it + '"' }.join(',')
-            socket.sendText('{"type":"subscribe","product_ids":[' + ids + '],"channels":["ticker","matches"]}', true)
+            opened.sendText('{"type":"subscribe","product_ids":[' + ids + '],"channels":["ticker","matches"]}', true)
         } catch (Throwable e) {
             refused(e.toString())
         }
@@ -871,12 +888,26 @@ class CoinbaseFeed implements WebSocket.Listener {
         detail = why.length() > 200 ? why.substring(0, 200) : why
     }
 
+    /** One message skipped (unreadable, or not placed in the world): counted, the feed read on. */
+    void skip() {
+        skipped.incrementAndGet()
+    }
+
     @Override
     CompletionStage<?> onText(WebSocket ws, CharSequence data, boolean last) {
-        partial.append(data)
+        // a socket let go of is read no more (its subscription answered only after it is the one asked)
+        if (ws != socket) return null
+        StringBuilder parts = partial.get(ws)
+        if (parts == null) {
+            parts = new StringBuilder()
+            partial.put(ws, parts)
+        }
+        parts.append(data)
         if (last) {
+            String text = parts.toString()
+            parts.setLength(0)
             try {
-                Map m = json.readValue(partial.toString(), Map)
+                Map m = json.readValue(text, Map)
                 if (m.get('type') == 'ticker' || m.get('type') == 'match' || m.get('type') == 'last_match') {
                     messages.add(m)
                     lastMessageMs = System.currentTimeMillis()
@@ -886,20 +917,23 @@ class CoinbaseFeed implements WebSocket.Listener {
                     refused('the feed said: ' + m.get('message') + ' ' + m.get('reason'))
                 }
             } catch (Throwable e) {
-                refused('unreadable: ' + e)
+                skip()
             }
-            partial.setLength(0)
         }
         ws.request(1)
         return null
     }
 
     @Override
-    void onError(WebSocket ws, Throwable error) { refused(error.toString()) }
+    void onError(WebSocket ws, Throwable error) {
+        partial.remove(ws)
+        if (ws == socket) refused(error.toString())
+    }
 
     @Override
     CompletionStage<?> onClose(WebSocket ws, int code, String reason) {
-        refused('closed ' + code + ' ' + reason)
+        partial.remove(ws)
+        if (ws == socket) refused('closed ' + code + ' ' + reason)
         return null
     }
 }
@@ -1065,31 +1099,47 @@ class World {
     void drain(Rows rows, boolean live) {
         for (Map m; (m = feed.messages.poll()) != null; ) {
             if (!live) continue
-            Name n = bySym.get((String) m.get('product_id'))
-            if (n == null) continue
-            Instant ts = m.get('time') != null ? Instant.parse((String) m.get('time')) : Instant.now()
-            if (m.get('type') == 'ticker') {
-                if (m.get('best_bid') == null || m.get('best_ask') == null) continue
-                n.bid = Double.parseDouble((String) m.get('best_bid'))
-                n.ask = Double.parseDouble((String) m.get('best_ask'))
-                n.bidSize = Double.parseDouble((String) m.get('best_bid_size'))
-                n.askSize = Double.parseDouble((String) m.get('best_ask_size'))
-                n.mid = (n.bid + n.ask) / 2
-                n.quoted = true
-                rows.quote(n, ts, 'CBX')
-            } else {
-                double px = Double.parseDouble((String) m.get('price'))
-                // the side the feed names is the maker's: the aggressor took the other
-                String side = m.get('side') == 'sell' ? 'B' : 'S'
-                rows.trade(seq.incrementAndGet(), ts, n, px, Double.parseDouble((String) m.get('size')), side, 'CBX', false)
-                n.mid = px
+            // a message the world cannot place (a field missing or not a number) skipped and counted: never the beat lost,
+            // the equities' rows with it
+            try {
+                place(m, rows)
+            } catch (RuntimeException e) {
+                feed.skip()
             }
+        }
+    }
+
+    /** One feed message as a row: every field read before the name takes any, so one that fails changes nothing. */
+    void place(Map m, Rows rows) {
+        Name n = bySym.get((String) m.get('product_id'))
+        if (n == null) return
+        Instant ts = m.get('time') != null ? Instant.parse((String) m.get('time')) : Instant.now()
+        if (m.get('type') == 'ticker') {
+            if (m.get('best_bid') == null || m.get('best_ask') == null) return
+            double bid = Double.parseDouble((String) m.get('best_bid'))
+            double ask = Double.parseDouble((String) m.get('best_ask'))
+            double bidSize = Double.parseDouble((String) m.get('best_bid_size'))
+            double askSize = Double.parseDouble((String) m.get('best_ask_size'))
+            n.bid = bid
+            n.ask = ask
+            n.bidSize = bidSize
+            n.askSize = askSize
+            n.mid = (bid + ask) / 2
+            n.quoted = true
+            rows.quote(n, ts, 'CBX')
+        } else {
+            double px = Double.parseDouble((String) m.get('price'))
+            double size = Double.parseDouble((String) m.get('size'))
+            // the side the feed names is the maker's: the aggressor took the other
+            String side = m.get('side') == 'sell' ? 'B' : 'S'
+            rows.trade(seq.incrementAndGet(), ts, n, px, size, side, 'CBX', false)
+            n.mid = px
         }
     }
 
     void say(boolean live) {
         String crypto = feed == null ? 'simulated|the feed is off (MARKET_FEED=off)'
-                : live ? 'live|' + feed.detail
+                : live ? 'live|' + feed.detail + (feed.skipped.get() == 0L ? '' : ' (' + feed.skipped.get() + ' messages skipped)')
                 : feed.state == 'connecting' ? 'simulated|connecting to ' + feed.detail
                 : 'simulated|the feed was refused: ' + feed.detail
         String filed = filings == null
