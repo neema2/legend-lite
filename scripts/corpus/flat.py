@@ -147,6 +147,8 @@ def check_partial(rows: list[dict]) -> list[str]:
 EXPANDED: dict[str, list[dict]] = {}
 # One (generated, base) pair per expansion ring, in order.
 EXPANSION_LAYERS: list[tuple[dict, dict]] = []
+# What spines.check() found when all_tables last ran; build.py reports it with the seed's checks.
+SPINE_PROBLEMS: list[str] = []
 
 
 def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
@@ -183,6 +185,17 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     EXPANSION_LAYERS.clear()
     EXPANSION_LAYERS.extend(layers)
     tables.update(expanded)
+    # SPINES (the improvement plan's Phase 2): the fewest links that give every chain a deep,
+    # dense or tree generator reads paths that arrive at a value. After the expansion, whose
+    # tables the chains run through. The views are computed once before it, so the generators
+    # it asks for their chains see the tables they will see at build time, and again after it,
+    # since they read what it links.
+    import spines
+    for name, v in c.views.items():
+        tables[name] = views.build(c, v, tables)
+    before = dict(tables)
+    spines.build(c, tables)
+    SPINE_PROBLEMS[:] = spines.check(c, before, tables)
     # Views are computed for the ORACLE only. They are not physical tables: nothing seeds
     # them, no DDL creates them, and the engine inlines the GROUP BY. Emitting one as
     # ###Data would create a real table that shadows the view and silently stop testing

@@ -195,6 +195,10 @@ class Spec:
     # every service before Phase 1 has.
     params: list = field(default_factory=list)
     cases: list = field(default_factory=list)
+    # The declared family an EMPTY or HOLLOW expected result belongs to (emptiness.FAMILIES), or
+    # None: the build fails on an empty or hollow result outside one (the improvement plan's
+    # Phase 2, rule 4), and on a declared one that has rows.
+    emptiness: str | None = None
 
     @property
     def short(self) -> str:

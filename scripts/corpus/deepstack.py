@@ -206,8 +206,52 @@ def _null_free(c: model.Corpus, cls: str, prop: str, tables) -> bool:
     return not any(r.get(col) is None for r in tables.get(tbl, []))
 
 
-def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
-    specs: list[Spec] = []
+def _rows_of(c: model.Corpus, cls: str, as_of, tables) -> list[dict]:
+    """The rows all() sees: the store filter and milestoning applied, as the oracle does."""
+    import oracle
+
+    probe = Spec("x", "x", "x", cls)
+    probe.as_of = as_of
+    return oracle._milestoned(c, probe, oracle._mapping_filtered(
+        c, cls, oracle._rows_for(c, cls, tables), tables))
+
+
+def _as_of(c: model.Corpus, root: str):
+    probe = Spec("x", "x", "x", root)
+    try:
+        _query.apply_temporal(c, probe)
+        return probe.as_of
+    except Exception:
+        return None
+
+
+def _legs(c: model.Corpus, root: str, chains):
+    """The deepest chains, each landing on a scalar: deepest first, so a stack takes the longest
+    reach the model actually has rather than whatever sorts first."""
+    legs = []
+    for path, tgt in chains:
+        if not _navigable(c, root, path):
+            continue
+        leaf = _scalar_leaf(c, tgt, "string") or _scalar_leaf(c, tgt, "int")
+        if leaf is None:
+            continue
+        legs.append((path + [leaf], len(path)))
+        if len(legs) >= 4:
+            break
+    return legs
+
+
+def _roots(c: model.Corpus, seeded: set[str], tables):
+    """[(root, identifiers, chains, legs, as_of, rows)], in the order the variants take them.
+
+    A root whose all() sees fewer than two rows goes LAST (the improvement plan's Phase 2). The
+    first 400 navigable roots get the deep variants, and ranked by reach alone they were mostly
+    subtypes of a taxonomy whose ~filter selects nothing: 360 of the 400 DSDeep roots had no
+    rows at all, so their services asserted the ~filter and nothing deeper -- what the
+    taxonomy service over the same subtype already asserts. Ranked so, every deep root has rows
+    for the four hops to start from, and seed spines (spines.py) give each chain paths that
+    arrive.
+    """
     reachable = model.mapping_closure(c, "stress::AllMapping") | {"stress::AllMapping"}
     roots = []
     for cls, table in sorted(c.main_table.items()):
@@ -222,43 +266,69 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
         idents = [a for a in stacks._identifiers(c, cls) if (cls, a) not in c.ends]
         if not idents:
             continue
-        ident = idents[0]
         # Roots with NO navigable chain are kept: they are 1838 of the 2009, and the LOCAL
         # and AGG variants are exactly for them. Dropping them here is what limited the first
         # version of this generator to 45 services.
         chains = _reach(c, cls, seeded)
         depth = max((len(p) for p, _ in chains), default=0)
-        roots.append((len(chains), depth, cls, idents, chains))
-    deep_used = 0
-    roots.sort(key=lambda r: (-r[1], -r[0], r[2]))
-    roots = roots[:MAX_ROOTS]
+        as_of = _as_of(c, cls)
+        rows = len(_rows_of(c, cls, as_of, tables))
+        roots.append((rows < 2, -depth, -len(chains), cls, idents, chains, as_of, rows))
+    roots.sort(key=lambda r: r[:4])
+    return [(cls, idents, chains, _legs(c, cls, chains), as_of, rows)
+            for _f, _d, _n, cls, idents, chains, as_of, rows in roots[:MAX_ROOTS]]
 
-    for _n, _d, root, idents, chains in roots:
+
+def _deep_roots(roots):
+    """The roots that get the deep variants: the first DEEP_ROOTS with a leg, and rows."""
+    out = []
+    for r in roots:
+        if r[3] and r[5] >= 2 and len(out) < DEEP_ROOTS:
+            out.append(r[0])
+    return set(out)
+
+
+def spine_targets(c: model.Corpus, seeded: set[str], tables) -> list:
+    """The chain each deep root's variants filter on and fetch: its deepest leg. spines.py gives
+    every one complete paths, to two values, before the services are generated."""
+    import spines
+
+    roots = _roots(c, seeded, tables)
+    deep = _deep_roots(roots)
+    return [spines.Target(root, tuple(legs[0][0]), as_of, f"DSDeep_{_query.short_name(c, root)}")
+            for root, _i, _ch, legs, as_of, _r in roots if root in deep]
+
+
+def invariance_groups(specs: list[Spec]) -> list[list[Spec]]:
+    """Each DSDeep and its DSPost: the same reach and the same comparisons, placed before the
+    projection on the model path and after it on the alias. They must return the same rows."""
+    by = {s.short: s for s in specs}
+    return [[s, by["DSPost_" + s.short[len("DSDeep_"):]]] for s in specs
+            if s.short.startswith("DSDeep_") and "DSPost_" + s.short[len("DSDeep_"):] in by]
+
+
+def build(c: model.Corpus, seeded: set[str], tables) -> list[Spec]:
+    import selective
+
+    specs: list[Spec] = []
+    roots = _roots(c, seeded, tables)
+    deep = _deep_roots(roots)
+
+    for root, idents, chains, legs, as_of, nrows in roots:
         ident = idents[0]
         key_sort = [(a, False) for a in idents]
-        as_of = None
-        probe = Spec("x", "x", "x", root)
-        try:
-            _query.apply_temporal(c, probe)
-            as_of = probe.as_of
-        except Exception:
-            as_of = None
         is_sub = root in c.classes and bool(c.classes[root].supertype)
+        # A root whose all() sees nothing gets no variant: each would expect no rows, and
+        # assert only the ~filter, which the taxonomy service over the same subtype asserts.
+        if nrows == 0:
+            continue
 
-        # The deepest chains, each landing on a scalar. Deepest first, so a stack takes the
-        # longest reach the model actually has rather than whatever sorts first.
-        legs = []
-        for path, tgt in chains:
-            if not _navigable(c, root, path):
-                continue
-            leaf = _scalar_leaf(c, tgt, "string") or _scalar_leaf(c, tgt, "int")
-            if leaf is None:
-                continue
-            legs.append((path + [leaf], len(path)))
-            if len(legs) >= 4:
-                break
-
-        local_str = _scalar_leaf(c, root, "string", skip=set(idents))
+        # A local column some row of the root holds a value in: a comparison over a column
+        # that is absent in every row keeps nothing, whatever its comparand.
+        cols = c.columns.get(root, {})
+        mine = _rows_of(c, root, as_of, tables)
+        held = lambda prop: any(r.get(cols.get(prop)) is not None for r in mine)
+        local_str = _scalar_leaf(c, root, "string", skip=set(idents), ok=held)
         local_num = _scalar_leaf(c, root, "int", skip=set(idents))
 
         def base(tag, doc):
@@ -268,7 +338,7 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
             return s
 
         # ---- LOCAL and AGG: for every root, including the ones that cannot navigate ----
-        if local_str_0 := _scalar_leaf(c, root, "string", skip=set(idents)):
+        if local_str_0 := local_str:
             lo = base("Local", f"A filter, a computed column, a composite sort and a limit "
                                f"stacked on {root} -- which cannot navigate anywhere, "
                                f"because its ends are inherited and F49 makes those "
@@ -286,6 +356,7 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
             lo.filters = [Pred([local_str_0], ">", " ")]
             lo.sort = key_sort
             lo.limit = 25
+            selective.tune(c, lo, tables)
             specs.append(lo)
 
             # groupBy on a local key. Never an enum-typed one: F14 is a defect in exactly
@@ -305,12 +376,12 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
                 ag.group_by = [local_str_0]
                 ag.aggs = [("n", ident, "count"), ("total", n1, "sum")]
                 ag.sort = [(local_str_0, False)]
+                selective.tune(c, ag, tables)
                 specs.append(ag)
 
-
-        if not legs or deep_used >= DEEP_ROOTS:
+        if root not in deep:
             continue
-        deep_used += 1
+        short = _query.short_name(c, root)
         deep_alias = stacks._alias(legs[0][0][:-1], legs[0][0][-1])
 
         # ---- DEEP: filter on a NAVIGATED column, not a local one ----
@@ -324,11 +395,19 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
                          f"scripts/corpus/deepstack.py.")
         d.projections = ([Proj(a, [a]) for a in idents]
                          + [Proj(stacks._alias(p[:-1], p[-1]), p) for p, _ in legs])
+        # The local conjunct is PROJECTED too, so DSPost can apply it after the projection and
+        # the pair stays an invariance: same rows, the predicates placed differently.
+        local_alias = (local_str if local_str and local_str not in {p.alias for p in d.projections}
+                       else None)
         d.filters = [Pred(list(legs[0][0]), ">", " ")]
-        if local_str:
+        if local_alias:
+            d.projections.append(Proj(local_alias, [local_str]))
             d.filters.append(Pred([local_str], ">", " "))
         d.sort = key_sort
         d.limit = 25
+        # Comparands chosen from the data (selective.py), keyed on the ROOT so DSPost below
+        # takes the same ones; then a limit below the size of the result.
+        selective.tune(c, d, tables, key=short)
         specs.append(d)
 
         # ---- POST: the same reach, filtered AFTER project instead of before ----
@@ -343,11 +422,12 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
                           f"engine has to decide whether the predicate can be pushed back "
                           f"down; the two services must agree. Generated by "
                           f"scripts/corpus/deepstack.py.")
-        pf.projections = ([Proj(a, [a]) for a in idents]
-                          + [Proj(stacks._alias(p[:-1], p[-1]), p) for p, _ in legs])
-        pf.post_filters = [Pred([deep_alias], ">", " ")]
+        pf.projections = [Proj(p.alias, list(p.path)) for p in d.projections]
+        pf.post_filters = [Pred([deep_alias], d.filters[0].op, d.filters[0].value)]
+        if local_alias:
+            pf.post_filters.append(Pred([local_alias], d.filters[1].op, d.filters[1].value))
         pf.sort = key_sort
-        pf.limit = 25
+        pf.limit = d.limit
         specs.append(pf)
 
         # ---- GROUP: aggregate over a NAVIGATED key ----
@@ -374,6 +454,7 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
             if local_num:
                 g.aggs.append(("total", local_num, "sum"))
             g.sort = [(deep_alias, False)]
+            selective.tune(c, g, tables)
             specs.append(g)
 
         # ---- QUAL: a derived or qualified property at the END of a chain ----
@@ -395,6 +476,7 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
                     Proj(f"{qual[0]}Q", [qual[0]], None, [_arg_for(p) for p in qual[1]]))
             q.sort = key_sort
             q.limit = 25
+            selective.tune(c, q, tables)
             specs.append(q)
 
         # ---- TREE: a graphFetch three levels deep ----
@@ -463,6 +545,7 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
             s.filters = [Pred(list(legs[0][0]), ">", " ")]
             s.sort = key_sort
             s.limit = 25
+            selective.tune(c, s, tables)
             specs.append(s)
 
     return specs

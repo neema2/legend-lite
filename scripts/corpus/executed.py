@@ -444,7 +444,7 @@ def base_specs(c: model.Corpus):
         return _BASE_SPECS[id(c)]
     tables = flat.all_tables(c)
     seeded = literals.walked(tables)
-    _BASE_SPECS[id(c)] = (query.load() + list(battery.SPECS) + stacks.build(c, seeded)
+    _BASE_SPECS[id(c)] = (query.load() + list(battery.SPECS) + stacks.build(c, seeded, tables)
             + graphs.build(c, seeded, tables) + aggregates.build(c, seeded, tables)
             + hier.specs(c) + combos.specs(c)
             + tomany.build(c, seeded, tables)

@@ -233,7 +233,28 @@ def _unique_aliases(projections: list[Proj]) -> list[Proj]:
     return out
 
 
-def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
+def build(c: model.Corpus, seeded: set[str], tables) -> list[Spec]:
+    """The dense services, each filter comparing against a value of its column and each limit
+    cutting rows (the improvement plan's Phase 2, selective.py)."""
+    import selective
+
+    specs = _build(c, seeded)
+    for spec in specs:
+        selective.tune(c, spec, tables)
+    return specs
+
+
+def spine_targets(c: model.Corpus, seeded: set[str], tables) -> list:
+    """Every navigated column a dense service projects: spines.py gives each paths that arrive,
+    so a service that reads four chains reads four values."""
+    import spines
+
+    return [spines.Target(s.root, tuple(p.path), s.as_of, s.short, filtered=False)
+            for s in _build(c, seeded)
+            for p in s.projections if len(p.path) > 1 and not p.agg and not p.func]
+
+
+def _build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
     """Generated services must DIFFER from one another, not merely exist.
 
     The first version of this emitted four services whose navigation was identical --
@@ -346,6 +367,9 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
             # while the oracle read `!=` as SQL does (F28, withdrawn 2026-10-23). The rule is
             # pinned by CB_NotEqualsNull and its two companions and by the typed services
             # (literals.py); these keep to `>`, the split aggregates.py makes around F6.
+            #
+            # Written as the guard; build() then compares against a value of the column
+            # instead, so the filter also drops some present rows (selective.py, decision D5).
             spec.filters = [Pred([scalar], ">", " ")]
             features.add("queryFilter")
         query.apply_temporal(c, spec)

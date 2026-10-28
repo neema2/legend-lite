@@ -26,6 +26,7 @@ carries several independent assertions and a defect in any one of them reddens t
 """
 from __future__ import annotations
 
+import emptiness
 from query import DateArg, Pred, Proj, Spec
 
 PREFIX = "stress::F"
@@ -1425,6 +1426,8 @@ def _market_data_specs():
                          Proj("revisedValue", ["revisedValue"]),
                          Proj("revisionReason", ["revisionReason"])]
         b.sort = ("seriesId", False)
+        if proc == "2024-05-01":
+            b.emptiness = emptiness.BEFORE_FIRST_VERSION
         out.append(b)
 
     return out
@@ -1787,6 +1790,8 @@ def _schedule_specs():
         s = Spec(f"stress::SC{n}_ScheduleAsOf", f"/stress/sc{n}", doc,
                  "schedule::TierVersion")
         s.as_of = as_of
+        if as_of == "2023-06-01":
+            s.emptiness = emptiness.BEFORE_FIRST_VERSION
         s.projections = [Proj("tierId", ["tierId"]),
                          Proj("tierName", ["tierName"]),
                          Proj("minNotional", ["minNotional"]),
@@ -2095,6 +2100,8 @@ def _project_link_specs():
         r = Spec(f"stress::PL{6 + n}_RatingsAsOf", f"/stress/pl{6 + n}", doc,
                  "core_ratings::RatingVersion")
         r.as_of = as_of
+        if as_of == "2023-06-01":
+            r.emptiness = emptiness.BEFORE_FIRST_VERSION
         r.projections = [Proj("entityId", ["entityId"]),
                          Proj("rating", ["rating"]),
                          Proj("agency", ["agency"])]

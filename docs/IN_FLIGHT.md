@@ -3247,3 +3247,10 @@ Status lives in the plan's Progress table (rule 0b.16).
   - `tools/engine-runner/` (the Bazel program's): an ERROR line from `TestableMain` carries the exception's causes
     (`<- caused by: ...`), because a suite that fails to start ("Error initializing test suite session") names its
     reason only in a cause, and a quarantine entry needs the reason. Only `run.py` reads the detail, and it echoes it.
+- **Phase 2 (started 2026-10-27): data that reaches the bottom of deep queries.** Inside the owned files only: a new
+  seed pass `scripts/corpus/spines.py`, called from `flat.all_tables` after the expansion; `deepstack.py`,
+  `stacks.py`, `spread.py` and `graphs.py`; an emptiness check in `build.py`; every generated file; both `MIN_PASS`.
+  Most expected results change (the plan's D2).
+- **Cross-area, Phase 2 (announced 2026-10-27, before it lands):**
+  - `repro/datediff-hours-off-boundary/README.md`: its "where it shows" list loses the two `DSLocal_` services,
+    which now pass on the engine (their F58 quarantine entries are removed in `quarantine.py`).

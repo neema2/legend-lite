@@ -23,6 +23,7 @@ from pathlib import Path
 
 import battery
 import emit
+import emptiness
 import flat
 import functest
 import model
@@ -174,16 +175,22 @@ def generate() -> dict[Path, str]:
                 + flat.check_partial(TABLES["TRADE_FLAT_PARTIAL"])
                 + partition.check(c, {k: TABLES[k] for k in
                                       ('TRADE_EQ', 'TRADE_RATES', 'TRADE_FX')},
-                                  TABLES))
+                                  TABLES)
+                # the seed spines (spines.py) kept every adversarial shape and moved no
+                # derived table
+                + flat.SPINE_PROBLEMS)
     if problems:
         raise SystemExit("seed is invalid:\n  " + "\n  ".join(problems[:10]))
 
     specs = query.load()
+    # (spec, test, expected rows) for every test written: emptiness.check() reads them at the end
+    results = []
 
     out = []
     for spec in specs:
         rows = oracle.evaluate(c, spec, TABLES)      # raises Fanout, never guesses
         expected = oracle.as_json_rows(c, spec, rows)
+        results.append((spec, "expected_rows", expected))
         nulls = sum(1 for r in expected for v in r.values() if v is None)
         note = (f"{len(expected)} rows x {len(spec.projections)} columns, "
                 f"{nulls} NULL cells from orphan/absent foreign keys")
@@ -195,24 +202,13 @@ def generate() -> dict[Path, str]:
     # If they do not, the fixture is wrong — the denormalization does not carry the same
     # facts — and shipping both would produce two tests that disagree for a reason that
     # has nothing to do with the engine.
-    key = lambda rs: sorted(json.dumps(r, sort_keys=True, default=str) for r in rs)
     typed = literals.build()
-    for group in battery.INVARIANCE_GROUPS + literals.invariance_groups(typed):
-        inv = [(s.short, key(_expect(c, s, TABLES))) for s in group]
-        base_name, base = inv[0]
-        for name, rows in inv[1:]:
-            if rows != base:
-                only_a = [r for r in base if r not in rows][:2]
-                only_b = [r for r in rows if r not in base][:2]
-                raise SystemExit(
-                    f"invariance FAILS in the fixture itself "
-                    f"({base_name} vs {name}):\n"
-                    f"  {base_name}-only: {only_a}\n  {name}-only: {only_b}")
+    _invariant(c, TABLES, battery.INVARIANCE_GROUPS + literals.invariance_groups(typed))
 
     # Dense services generated FROM the model — they deepen as the model does, rather
     # than needing a new hand-written service per domain.
     seeded_now = literals.walked(TABLES)
-    generated = stacks.build(c, seeded_now)
+    generated = stacks.build(c, seeded_now, TABLES)
     # Graph-fetch INSTANCES over the same model. battery.py's G0-G3 remain the properties
     # -- nested to-one navigation, a union with an empty leg, the enum that raises on one
     # execution path, %latest -- and these are the shapes those properties should hold
@@ -246,10 +242,13 @@ def generate() -> dict[Path, str]:
     # cannot describe different corpora. base_specs is everything except these.
     import executed as _executed          # `executed` is a local further down this function
     generated += spread.build(c, seeded_now, _executed.base_specs(c))
+    # Each DSDeep and its DSPost: the same comparisons placed before and after the projection.
+    _invariant(c, TABLES, deepstack.invariance_groups(generated))
     fan = []
     canonical = []
     for spec in list(battery.SPECS) + generated:
         expected = _expect(c, spec, TABLES)
+        results.append((spec, "expected_rows", expected))
         zeros = sum(1 for r in expected for k, v in r.items()
                     if any(p.agg for p in spec.projections if p.alias == k) and v == 0)
         note = (f"{len(expected)} rows; {zeros} of the aggregate cells are ZERO -- an "
@@ -270,9 +269,13 @@ def generate() -> dict[Path, str]:
     # Binding transformer or join chain keeps its class compile-only rather than producing
     # a service whose expectations would have to come from the engine under test.
     hier_specs = hier.specs(c)
-    hier_svc = [emit.service(s, _expect(c, s, TABLES),
-                             f"{len(s.projections)} columns over the hier:: feature mapping.")
-                for s in hier_specs]
+    hier_svc = []
+    for s in hier_specs:
+        expected = _expect(c, s, TABLES)
+        emptiness.declare_subtype(c, s, expected)
+        results.append((s, "expected_rows", expected))
+        hier_svc.append(emit.service(
+            s, expected, f"{len(s.projections)} columns over the hier:: feature mapping."))
     hier_data = "\n\n".join(
         emit.store_data_element(c, TABLES, db, elem)
         for db, (_m, _r, _c, elem) in sorted(hier.BINDINGS.items()))
@@ -306,10 +309,13 @@ def generate() -> dict[Path, str]:
     if problems:
         raise SystemExit("combination matrix is incomplete:\n  " + "\n  ".join(problems))
     combo_specs = combos.specs(c)
-    combo_svc = [emit.service(s, _expect(c, s, TABLES),
-                              f"{len(s.projections) - 1} combination cells, each a distinct "
-                              f"(reach, transform, nullability, host) stacking.")
-                 for s in combo_specs]
+    combo_svc = []
+    for s in combo_specs:
+        expected = _expect(c, s, TABLES)
+        results.append((s, "expected_rows", expected))
+        combo_svc.append(emit.service(
+            s, expected, f"{len(s.projections) - 1} combination cells, each a distinct "
+                         f"(reach, transform, nullability, host) stacking."))
     combo_text = (combos.runtime_text() + "\n"
                   + emit.store_data_element(c, TABLES, combos.DB, combos.DATA) + "\n\n"
                   + "###Service\n" + "\n\n".join(combo_svc) + "\n")
@@ -317,6 +323,7 @@ def generate() -> dict[Path, str]:
     typed_svc = []
     for s in typed:
         expected = literals.cases(c, s, TABLES)
+        results.extend((s, tid, rs) for tid, _p, rs in expected)
         rows = expected[0][2]
         nulls = sum(1 for _t, _p, rs in expected for r in rs for v in r.values() if v is None)
         typed_svc.append(emit.service(
@@ -324,10 +331,35 @@ def generate() -> dict[Path, str]:
             f"{' / '.join(str(len(rs)) for _t, _p, rs in expected)} rows; {nulls} absent cells."))
     typed_text = TYPED_HEADER + "\n###Service\n" + "\n\n".join(typed_svc) + "\n"
 
+    # Rule 4 of the improvement plan: an empty or hollow expected result only in a declared
+    # emptiness family (emptiness.py).
+    problems = emptiness.check(results)
+    if problems:
+        raise SystemExit(f"{len(problems)} expected results are empty or hollow outside a "
+                         f"declared family:\n  " + "\n  ".join(problems))
+
     return {DATA_FILE: data, SERVICES_FILE: services, FANOUT_FILE: fanout, CANONICAL_FILE: canonical_text,
             FUNCTEST_FILE: functest.render(c, TABLES),
             EXTERNAL_DATA_FILE: external, HIER_FILE: hier_text,
             COMBO_FILE: combo_text, TYPED_FILE: typed_text}
+
+
+def _invariant(c, tables, groups) -> None:
+    """The services of each group must expect the same rows; if not, the fixture is wrong -- the
+    two shapes do not carry the same facts -- and shipping both would produce two tests that
+    disagree for a reason that has nothing to do with the engine."""
+    key = lambda rs: sorted(json.dumps(r, sort_keys=True, default=str) for r in rs)
+    for group in groups:
+        inv = [(s.short, key(_expect(c, s, tables))) for s in group]
+        base_name, base = inv[0]
+        for name, rows in inv[1:]:
+            if rows != base:
+                only_a = [r for r in base if r not in rows][:2]
+                only_b = [r for r in rows if r not in base][:2]
+                raise SystemExit(
+                    f"invariance FAILS in the fixture itself "
+                    f"({base_name} vs {name}):\n"
+                    f"  {base_name}-only: {only_a}\n  {name}-only: {only_b}")
 
 
 def _id_collisions() -> list[str]:

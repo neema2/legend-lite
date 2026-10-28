@@ -238,8 +238,9 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
         return ps
 
     # A string-typed leaf the template already projects, for the filter. `> ' '` keeps the
-    # non-null rows and drops the nulls -- a real predicate -- and agrees with the engine
-    # over NULL where `!=` does not (F28).
+    # non-null rows and drops the nulls -- a real predicate -- and, like every ordered
+    # comparison, is false over an absent value (oracle._cmp). The chosen variants compare
+    # against a value of the column instead (selective.py, in _build).
     def _is(kind, p):
         """The DECLARED type of the property a projection lands on.
 
@@ -455,4 +456,10 @@ def _build(c: model.Corpus, seeded: set[str], existing, tables=None) -> list[Spe
         fs = sorted(feats)
         covered_p.update(itertools.combinations(fs, 2))
         covered_t.update(itertools.combinations(fs, 3))
+    # The `> ' '` guards compare against a value of the column, and each limit cuts (the
+    # improvement plan's Phase 2, selective.py). After the cover is chosen: the features a
+    # candidate closes do not depend on its comparand.
+    import selective
+    for s in chosen:
+        selective.tune(c, s, tables)
     return chosen

@@ -1924,7 +1924,9 @@ counting boundaries", and `DateDiff` computes `ChronoUnit.between`. legend-engin
 (SQL `DATEDIFF`: 164), as did this repository's corpus oracle until 2026-10-05; legend-lite answers 163. legend-pure's
 PCT cases all start on a unit boundary, where the two rules agree, so no PCT test catches the engine. Five stress
 services show it (their expectations now follow Pure; legend-engine's are in `ENGINE_QUARANTINE`, and `run.py`
-confirmed all five failing on 4.145.0 on 2026-10-21). First noted as a seed disagreement (`docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`);
+confirmed all five failing on 4.145.0 on 2026-10-21). Three since 2026-10-27: the stress corpus plan's Phase 2 gave
+the two `DSLocal_` services a real comparand and a limit that cuts, and neither keeps a row the rules disagree on now,
+so both pass on the engine. First noted as a seed disagreement (`docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`);
 found decisive 2026-10-05 when the cross-engine differential first ran (Bazel workplan P3-18). Repro:
 `repro/datediff-hours-off-boundary/`. Upstream: a PCT case starting off the boundary would pin it for every engine.
 

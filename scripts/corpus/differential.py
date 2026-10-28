@@ -150,7 +150,7 @@ def main() -> None:
     # to evaluate and nothing for legend-lite to generate SQL against.
     # The walking generators' view of the seed, as build.py hands it them (literals.FIXTURE_TABLES): with every
     # seeded table these specs would reach the typed-values pack and no longer be the services emitted.
-    generated = stacks.build(c, literals.walked(TABLES))
+    generated = stacks.build(c, literals.walked(TABLES), TABLES)
     # Services legend-lite cannot even load the model for (Measure) are out of scope on
     # this side; run.py still asserts them against legend-engine.
     lite_blind = {

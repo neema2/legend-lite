@@ -278,8 +278,11 @@ HANGS = {
 # a boundary. The oracle followed the engine until 2026-10-05; these five services' expectations moved with it.
 # Confirmed by run.py on 2026-10-21 (legend-engine 4.145.0): all five fail on the engine.
 # repro/datediff-hours-off-boundary/
-for _svc in ("stress::MO2_Confirmations", "stress::DSLocal_MiddleofficeConfirmation", "stress::REGX_All",
-             "stress::REGX_LiquidityCoverageReport", "stress::DSLocal_RegulatorySubmission"):
+# DSLocal_MiddleofficeConfirmation and DSLocal_RegulatorySubmission left on 2026-10-27 (the stress corpus plan's
+# Phase 2): their filters now compare against a real value and their limits cut, so neither keeps a row on which the
+# two readings differ, and both pass on the engine (run.py, legend-engine 4.145.0). F58 stays witnessed by the three
+# below.
+for _svc in ("stress::MO2_Confirmations", "stress::REGX_All", "stress::REGX_LiquidityCoverageReport"):
     ENGINE_QUARANTINE[_svc] = ("F58", "dateDiff HOURS counts boundaries in SQL; Pure measures elapsed time")
 
 ENGINE_QUARANTINE["stress::F32_TradeRollupEverything"] = (

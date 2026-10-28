@@ -112,18 +112,30 @@ def _is_fixture(cls: str) -> bool:
     return cls.startswith(("combo::", "hier::"))
 
 
+def _chosen(c: model.Corpus, seeded: set[str],
+            tables: dict[str, list[dict]]) -> list[tuple[str, str, list[str]]]:
+    """(root, identifier, to-many properties) per qualifying root, richest first."""
+    ends = {k: v for k, v in usable_ends(c, tables, seeded).items() if not _is_fixture(k)}
+    ranked = sorted(ends, key=lambda cls: (-len(ends[cls]), cls))[:MAX_ROOTS]
+    return [(root, ident, ends[root][:MAX_AGGS]) for root in ranked
+            if (ident := _identifier(c, root)) is not None]
+
+
+def counted(c: model.Corpus, seeded: set[str],
+            tables: dict[str, list[dict]]) -> list[tuple[str, str]]:
+    """(root, to-many property) of every count build() takes over these tables. spines.py reads
+    it from the seed before its pass and never moves the last child of one of those parents
+    away: before it did, three services here lost their ends (2026-10-27). A spine's CLONE is a
+    new parent with no children, so it can still: AA_SalesPersonCounts left when two sales
+    persons were cloned for chains through them, and one has no sales credit."""
+    return [(root, prop) for root, _ident, props in _chosen(c, seeded, tables) for prop in props]
+
+
 def build(c: model.Corpus, seeded: set[str],
           tables: dict[str, list[dict]]) -> list[Spec]:
     """One aggregate service per qualifying root, richest first."""
-    ends = {k: v for k, v in usable_ends(c, tables, seeded).items() if not _is_fixture(k)}
-    ranked = sorted(ends, key=lambda cls: (-len(ends[cls]), cls))[:MAX_ROOTS]
-
     specs, seen = [], set()
-    for n, root in enumerate(ranked):
-        ident = _identifier(c, root)
-        if ident is None:
-            continue
-        props = ends[root][:MAX_AGGS]
+    for root, ident, props in _chosen(c, seeded, tables):
         projections = [Proj(ident, [ident])]
         for prop in props:
             projections.append(Proj(f"{prop}Count", [prop], agg="count"))

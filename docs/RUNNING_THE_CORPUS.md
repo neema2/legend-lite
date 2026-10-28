@@ -53,8 +53,11 @@ is generated, change the generator in `scripts/corpus/`, not its output.
 
 `build.py` also runs every consistency check before it writes anything — a class whose
 mapping the runtime cannot resolve, a duplicate set id, a seeded value too wide for its
-column, a service that sorts on an unprojected alias. It prints them all and writes nothing
-if any fires. A clean build ends with `wrote` or `no changes`.
+column, a service that sorts on an unprojected alias, a seed spine that lost an adversarial
+shape or emptied a to-many a service counts, and an expected result that is empty or
+hollow outside a declared emptiness family
+(`emptiness.py`). It prints them all and writes nothing if any fires. A clean build ends with
+`wrote` or `no changes`.
 
 The whole corpus takes **88 minutes** with `--jobs 4` on a 20-core Windows desk (measured
 2026-10-21 at 4,735 testables). The run's last line is the summary, which on that day read:
@@ -91,11 +94,16 @@ The services fall into two layers, and the split is deliberate.
 
 **Bare projections**, one per subtype set, ~1830 of them. A wrong `~filter` fails by returning
 the WHOLE table rather than by erroring, and a bare projection over the subtype is the only
-thing that makes that visible. These are the control.
+thing that makes that visible. These are the control. About 570 expect no rows: the seed holds
+no row of that subtype, and the empty answer is the assertion (`emptiness.py`'s families).
 
 **Stacked queries** from `scripts/corpus/deepstack.py`, ~2440 of them: four-hop chains
 filtered on a NAVIGATED column, `groupBy` on a joined key, `graphFetch` three and four levels
-deep, subtype roots navigating inherited edges, qualified properties taking arguments.
+deep, subtype roots navigating inherited edges, qualified properties taking arguments. Since the
+improvement plan's Phase 2 (2026-10-27) every one of them reaches a value: the deep variants root
+only at classes the seed holds rows of, a seed pass (`spines.py`) relinks or clones the fewest
+rows that give each chain complete paths to two distinct values, and each filter compares
+against a value of its column (`selective.py`) instead of the `> ' '` guard, which a tenth keep.
 
 A stacked query is only interpretable if a simple one over the same rows passes, which is why
 the bare ones were kept rather than upgraded. The same split already pays around F6
@@ -103,9 +111,9 @@ the bare ones were kept rather than upgraded. The same split already pays around
 
 One pair is a true INVARIANCE. `DSDeep_X` filters on a model path before `project`, where the
 predicate can be pushed into the WHERE beside the join; `DSPost_X` applies the identical
-predicate to the projected ALIAS afterwards. All 400 pairs carry identical expectations,
-each computed independently from the seed -- so if the engine ever places one of them wrongly,
-exactly one side of the pair fails and names itself.
+predicates to the projected ALIASES afterwards. Each pair's expectations are computed
+independently from the seed and `build.py` requires them equal -- so if the engine ever places
+one of them wrongly, exactly one side of the pair fails and names itself.
 
 ## Reading a failure
 

@@ -18,6 +18,7 @@ failure mode is returning everything.
 """
 from __future__ import annotations
 
+import emptiness
 import model
 import query
 from query import Proj, Spec
@@ -1027,5 +1028,11 @@ def build(c: model.Corpus, seeded: set[str], tables=None) -> list[Spec]:
                 spec.projections.append(Proj(alias, list(path), agg, list(args)))
             spec.sort = (ident, False)
             query.apply_temporal(c, spec)
+            # The empty half is declared, so the build can tell it from a chain the seed broke
+            # (emptiness.py): the seed holds no row of this subtype, and an empty answer is
+            # what proves its ~filter is not returning the whole table.
+            if tables is not None:
+                import oracle
+                emptiness.declare_subtype(c, spec, oracle.evaluate(c, spec, tables))
             specs.append(spec)
     return specs

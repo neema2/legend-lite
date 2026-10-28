@@ -39,6 +39,7 @@ quietly absent.
 """
 from __future__ import annotations
 
+import emptiness
 import model
 from query import Proj, Spec
 
@@ -1084,6 +1085,9 @@ def predicate_specs(c: model.Corpus) -> list[Spec]:
         spec.filters = [Pred([prop], op, value)]
         spec.sort = ("rootId", False)
         spec.mapping, spec.runtime = MAPPING, RUNTIME
+        if name == "EqualsNull":
+            # no row holds the comparand, and the absent one is not equal to it
+            spec.emptiness = emptiness.EXCLUDES_ALL
         spec.connection, spec.data_element = CONN_ID, DATA
         out.append(spec)
     return out
