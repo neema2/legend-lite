@@ -202,6 +202,15 @@ about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointe
    *Fixed 2026-10-28* (`desk.mjs`): the heap is half the machine's memory, 4g to 16g, unless `DESK_HEAP` says, and the
    launcher says at start about how long a show runs on it at the world's defaults (from 1's rates: 4g ~44 min, 8g
    ~2 h, 16g ~4 h).
+9. **Run On's switch crashes the page's renderer, intermittently** (found 2026-10-28 in this container, not on the
+   Mac): `//datacube:deephaven_desk_test`'s Run On (the saved desk on Deephaven, switched to the tab's DuckDB and
+   back) failed "Target crashed" in 3 of 7 runs before D5 and 3 of 5 since. Not memory: the renderer at 1.5-1.8 GB,
+   no kernel or cgroup kill (`/proc/vmstat` oom_kill 0). The browser's own output (the lane's `browser.log` since
+   2026-10-28) says `Received signal 11 SEGV_ACCERR`, in a worker thread's JIT code (frames 3-12 generated code, the
+   thread started by libc), the faulting address a 4 GB-aligned base plus ~980 MB -- the shape of V8's pointer cage,
+   so a heap access, not a WebAssembly bounds trap. When: as the tab's DuckDB starts its market (the switch to the
+   tab) or just after. Not chased further: a browser engine fault on that path; the next step is the same switch in a
+   smaller page (DuckDB started beside a Deephaven reader), then a Chromium bug with the trace.
 
 ## Gaps measured (2026-10-24)
 
