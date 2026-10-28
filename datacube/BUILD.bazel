@@ -200,6 +200,7 @@ _NEXT_LINK_FILE = "src/share/link-%s.ts" % _NEXT_LINK_VERSION
 _EXTRA_ENV = {
     "warehouse-session-http": {"SQLAPI_PAGE": "$(rlocationpath //warehouse:sqlapi_page_dir)"},
     "desk-model": {
+        "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
         "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
         "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
     },
@@ -279,6 +280,7 @@ _EXTRA_DATA = {
     # screens that name its functions, with the page's writers they import (:src: the generated list follows a test's
     # imports under src/ only, not through demo/)
     "desk-model": [
+        "demo/deephaven/market/environments.pure",
         "demo/deephaven/market/market.pure",
         "demo/deephaven/market/model.ts",
         "demo/deephaven/market/screens.ts",
@@ -597,6 +599,8 @@ _HEADLESS_TESTS = [
     "query",
     "relation-type",
     "remote",
+    # a page's saved queries run on an execution context of their data space (docs/ONE_CONNECTION_DESK_2026_10_28.md D2)
+    "run-on",
     "runner",
     "sample",
     "saved-documents",
@@ -1707,6 +1711,14 @@ copy_file(
     out = "demo/market.pure",
 )
 
+# the desk's environments: its data space's contexts, the tab's DuckDB and a Deephaven server on this machine
+# (docs/ONE_CONNECTION_DESK_2026_10_28.md D2)
+copy_file(
+    name = "site_environments",
+    src = "demo/deephaven/market/environments.pure",
+    out = "demo/environments.pure",
+)
+
 # Everything a browser fetches: pages, styles, models, bundles, runtimes.
 filegroup(
     name = "site",
@@ -1721,6 +1733,7 @@ filegroup(
     ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [
         ":planner_worker",
         ":projects",
+        ":site_environments",
         ":site_market_model",
         ":site_trading_model",
         ":vendor",
@@ -2272,6 +2285,8 @@ browser_test(
     size = "medium",
     tags = ["manual"],
     data = [
+        "demo/deephaven/market/environments.mjs",
+        "demo/deephaven/market/environments.pure",
         "demo/deephaven/market/market.pure",
         "demo/deephaven/site.mjs",
         "test/deephaven/market.mjs",
@@ -2284,6 +2299,7 @@ browser_test(
     ],
     entry_point = "test/deephaven/market.mjs",
     env = {
+        "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
         "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
         "MARKET_PAGE": "$(rlocationpath :deephaven_market_page)",
         "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
@@ -2302,6 +2318,7 @@ genrule(
     name = "deephaven_corpus_cases",
     testonly = True,
     srcs = [
+        "demo/deephaven/market/environments.pure",
         "demo/deephaven/market/market.pure",
         "test/deephaven/desk-rows.csv",
     ],
@@ -2312,7 +2329,8 @@ genrule(
         "test/deephaven/cases/tables.json",
     ],
     cmd = "$(location //core:stress_deephaven) cases $(RULEDIR)/test/deephaven/cases" +
-          " $(location demo/deephaven/market/market.pure) $(location test/deephaven/desk-rows.csv) > /dev/null",
+          " $(location demo/deephaven/market/market.pure) $(location demo/deephaven/market/environments.pure)" +
+          " $(location test/deephaven/desk-rows.csv) > /dev/null",
     tags = ["manual"],
     tools = ["//core:stress_deephaven"],
 )
@@ -2393,7 +2411,10 @@ browser_test(
 # named.
 _DEEPHAVEN_DESK_DATA = _HARNESS_HELPERS + [
     "demo/deephaven/market/desk-site.mjs",
-    # the desk's own model, served beside the page: the screens' functions, the options' and the runtime
+    # the desk's environments, served beside the page as this site's copy (its server's port: desk-site.mjs)
+    "demo/deephaven/market/environments.mjs",
+    "demo/deephaven/market/environments.pure",
+    # the desk's own model, served beside the page: the screens' functions and the options'
     "demo/deephaven/market/market.pure",
     "demo/deephaven/site.mjs",
     # named itself: SITE is its runfiles path
@@ -2406,6 +2427,7 @@ _DEEPHAVEN_DESK_DATA = _HARNESS_HELPERS + [
 ]
 
 _DEEPHAVEN_DESK_ENV = _SITE_ENV | {
+    "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
     "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
     "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
     "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",

@@ -16,7 +16,20 @@ import { PlanAndRun, PlanThenRun, localHost, type PlanAndRunHost, type QueryRunn
 import { ServerBases, type ServerBaseRunner } from '../../../src/server-base.ts';
 import type { MarketConfig } from '../../page-config.ts';
 import { fetched, openDesk, type Market } from './desk.ts';
-import { MARKET_CONNECTION, MARKET_LIVE, MARKET_MODEL, MARKET_RUNTIME } from './model.ts';
+import { DESK_MODEL, ON_DEEPHAVEN } from './model.ts';
+
+/**
+ * The bases' own connection at `host`:`port` over TLS, its store `store` (src/server-base.ts `connectionOf`: their
+ * Database in a model of their own, never the page's). Step 5 of docs/ONE_CONNECTION_DESK_2026_10_28.md reads the
+ * server from the desk's Deephaven connection; until then the config's address, as the engine's.
+ */
+const basesConnection = (host: string, port: number) => (store: string): string => `RelationalDatabaseConnection bases::Deephaven
+{
+  store: ${store};
+  type: Deephaven;
+  specification: Deephaven { host: '${host}'; port: ${port}; useTls: true; };
+  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+}`;
 
 /**
  * The market `config` names, opened: its model fetched and held by the page's module (`planner`, the tab's own when it
@@ -26,9 +39,11 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
   const at = new URL(config.url);
   const host = at.hostname;
   const port = Number(at.port);
-  const [corpus, desk] = await Promise.all([fetched('the trading model', config.model), fetched("the desk's model", config.deskModel)]);
-  const model = MARKET_MODEL(corpus, desk, host, port);
-  const market = planner.withModel(model, MARKET_RUNTIME);
+  const [corpus, desk, environments] = await Promise.all([fetched('the trading model', config.model),
+    fetched("the desk's model", config.deskModel), fetched("the desk's environments", config.environments)]);
+  // the desk on its Deephaven context (environments.pure: the server's connections), the model the project's
+  const model = DESK_MODEL(corpus, desk, environments);
+  const market = planner.withModel(model, ON_DEEPHAVEN.runtime);
   // the server signed in to while the module holds the model: neither waits for the other
   const holding = market.warmUp();
   let engine: DeephavenEngine;
@@ -47,7 +62,7 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
   (window as unknown as { __market?: unknown }).__market = { counts: () => engine.counts };
   // each source's base on the server, in a model of its own: the page's module holds the trading model once
   const bases = new ServerBases(market, engine, {
-    model, connection: 'market::Live', stores: ['store::DB'], connectionOf: MARKET_CONNECTION(host, port),
+    model, connection: 'bases::Deephaven', stores: ['store::DB'], connectionOf: basesConnection(host, port),
   });
 
   /** The connection back, after the server went (a restart): tried each second until it answers, once for every grid. */
@@ -154,13 +169,14 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
   return openDesk({
     modelUrl: config.model,
     deskModelUrl: config.deskModel,
-    connections: MARKET_LIVE(host, port),
+    environmentsUrl: config.environments,
+    context: ON_DEEPHAVEN,
     where: 'the market world',
     start: () => Promise.resolve({ model, planner: market }),
     ready: true,
     // a model this host does not hold is refused here, never run on the tab's database
     rows: (text) => {
-      if (text !== model) throw new Error(`${MARKET_RUNTIME} runs on the market's server over the trading model this page holds; this query's project names another model`);
+      if (text !== model) throw new Error(`${ON_DEEPHAVEN.runtime} runs on the market's server over the trading model this page holds; this query's project names another model`);
       return rowsOnServer();
     },
     once: async (plan) => {

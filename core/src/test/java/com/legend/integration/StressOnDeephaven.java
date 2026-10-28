@@ -65,12 +65,14 @@ final class StressOnDeephaven {
     public static void main(String[] args) throws Exception {
         if (args.length == 2 && args[0].equals("cases")) {
             cases(Path.of(args[1]), null, null);
-        } else if (args.length == 4 && args[0].equals("cases")) {
-            cases(Path.of(args[1]), Files.readString(Path.of(args[2])), Files.readString(Path.of(args[3])));
+        } else if (args.length == 5 && args[0].equals("cases")) {
+            cases(Path.of(args[1]), Files.readString(Path.of(args[2])) + "\n" + Files.readString(Path.of(args[3])),
+                    Files.readString(Path.of(args[4])));
         } else if (args.length == 4 && args[0].equals("judge")) {
             System.exit(judge(Path.of(args[1]), Path.of(args[2]), Path.of(args[3])));
         } else {
-            throw new IllegalArgumentException("usage: cases OUT [DESK_MODEL DESK_ROWS] | judge CASES RESULTS OUT");
+            throw new IllegalArgumentException(
+                    "usage: cases OUT [DESK_MODEL DESK_ENVIRONMENTS DESK_ROWS] | judge CASES RESULTS OUT");
         }
     }
 
@@ -82,7 +84,6 @@ final class StressOnDeephaven {
         List<Compiler.ModelSource> sources = new ArrayList<>(StressCorpus.sources(List.of()));
         if (desk != null) {
             sources.add(new Compiler.ModelSource("market.pure", desk));
-            sources.add(new Compiler.ModelSource("connections.pure", DESK_CONNECTIONS));
         }
         var module = Compiler.parseSources(sources);
         ModelContext ctx = Compiler.buildModel(module.model());
@@ -191,26 +192,9 @@ final class StressOnDeephaven {
             "optionChain(0.05)", "optionBook(0.05)", "fxRates()", "fxCrosses()", "rfqs()", "rfqsAnswered()",
             "markouts()");
 
-    /** The runtime the desk's model declares (market.pure), and its connections: the environment's, here the tab's
-     *  (datacube/demo/deephaven/market/model.ts MARKET_TAB) -- each target's twin binds the corpus's store itself. */
-    static final String DESK_RUNTIME = "market::LiveRuntime";
-    static final String DESK_CONNECTIONS = """
-            ###Connection
-            RelationalDatabaseConnection market::Live
-            {
-              store: store::DB;
-              type: DuckDB;
-              specification: DuckDB { };
-              auth: Test;
-            }
-            RelationalDatabaseConnection market::Status
-            {
-              store: market::World;
-              type: DuckDB;
-              specification: DuckDB { };
-              auth: Test;
-            }
-            """;
+    /** The runtime of the desk's data space each target's twin is made from (its mappings): its "In this tab" context's
+     *  (datacube/demo/deephaven/market/environments.pure) -- each twin binds the corpus's store itself. */
+    static final String DESK_RUNTIME = "market::InTabRuntime";
 
     /** Each screen's case (above): its plan on Deephaven and DuckDB's rows over `rows` as its expectation. */
     private static List<Object> deskCases(ModelContext ctx, List<Protocol.PRelationalCsvTable> rows) throws Exception {

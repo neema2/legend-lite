@@ -120,5 +120,5 @@ write input tables through the public API.
 | Step | State |
 |---|---|
 | 1 | landed (2026-10-28): the three words written and read as JSON of lite's own; lite's `grammarToJson/model`; the tab's planner reads a project's elements there, so the desk reads its whole model (its corpus-only reading deleted, one cache of the whole model's elements kept: 2.3 MB of Pure). Checks: //core:core_tests (27 of 27), //datacube:verify_live_desk_test, //datacube:deephaven_desk_test, typecheck and bundle budget green. Left: Python's `model_elements` (`python/legend_lite/compiler.py`, still legend-engine's route: its test needs the native library built) |
-| 2 | in progress (2026-10-28) |
-| 3-7 | not started |
+| 2-3 | landed (2026-10-28): `environments.pure` (the connection pairs, `market::InTabRuntime` and `market::DeephavenRuntime`, the data space `market::TradingDesk`), the runtime out of `market.pure`, `model.ts`'s connection strings deleted (`DESK_MODEL`, `IN_TAB`, `ON_DEEPHAVEN`); the desk's saved queries name the data space, and the page the context it runs on as legend's `executionKey` on each (`src/run-on.ts`: `runOn`, `runningOn`) -- the desk example written on its host's context, a grid on the desk's other context refused by name; the corpus lane's desk cases and the market lane read the file, a test's server's copy at its port (`environments.mjs`). Every screen plans on both contexts, the same columns (`//datacube:desk_model_test`) |
+| 4-7 | not started |

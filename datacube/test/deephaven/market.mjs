@@ -10,6 +10,7 @@ import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { runfileFromEnv, runfileNamed } from '../../../tools/js/runfiles.mts';
 import { startDeephaven } from '../../demo/deephaven/site.mjs';
+import { environmentsAt } from '../../demo/deephaven/market/environments.mjs';
 
 // a small world, quick to check: 50 names, 2,000 quotes and 400 trades a second, half an hour of morning on a tape of
 // at most 100,000 prints; the feed's address refuses at once
@@ -41,8 +42,11 @@ const files = {
   '/classes.wasm': ['application/wasm', readFileSync(runfileNamed('PLANNER', 'classes.wasm'))],
   // the one trading model (//scripts/corpus:trading_model), which the page holds
   '/trading-model.pure': ['text/plain; charset=utf-8', readFileSync(runfileFromEnv('TRADING_MODEL'))],
-  // the desk's own model: its runtime, the options' functions and the screens'
+  // the desk's own model: the options' functions and the screens'
   '/market.pure': ['text/plain; charset=utf-8', readFileSync(runfileFromEnv('MARKET_PURE'))],
+  // the desk's environments, this test's copy: its Deephaven context at this server's port (desk-site.mjs)
+  '/environments.pure': ['text/plain; charset=utf-8',
+    environmentsAt(readFileSync(runfileFromEnv('ENVIRONMENTS_PURE'), 'utf8'), new URL(config.url))],
   '/config.json': ['application/json', JSON.stringify({ url: config.url, psk: config.psk, names: NAMES, trades: TRADES, morning: MORNING, news: 12 })],
 };
 // the page's own origin, not the server's, served for real on the loopback (test/deephaven/deephaven.mjs says why)

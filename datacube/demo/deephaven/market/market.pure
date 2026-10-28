@@ -2,9 +2,9 @@
 // project, after the one trading model (the stress corpus's classes, store and mappings, //scripts/corpus:trading_model).
 // What every screen of the desk shows is a function here, over the corpus's classes through stress::AllMapping: the
 // desk's saved queries name them (market/screens.ts), and DataCube adds a person's groups, filters and sorts after them.
-// Each call is inlined where it is made, so a screen's plan is the plan its body would have written by hand. The
-// connections are the environment's, the third file (market/model.ts: a Deephaven server's address and key, or the
-// tab's own DuckDB). PROGRAMS, not the platform's: the database computes every value they define, live.
+// Each call is inlined where it is made, so a screen's plan is the plan its body would have written by hand. Where it
+// runs is the third file's (environments.pure: the tab's DuckDB, a Deephaven server -- the data space's execution
+// contexts). PROGRAMS, not the platform's: the database computes every value they define, live.
 
 ###Relational
 // the world's own status table, outside the corpus: what each part of the market world is (simulated, live, connecting)
@@ -422,11 +422,4 @@ function market::screens::markouts(): Relation<(exec:String[1], at:DateTime[1], 
       m1:x|$x.sign * (($x.p1->toOne() - $x.px) / $x.px) * 10000.0, m5:x|$x.sign * (($x.p5->toOne() - $x.px) / $x.px) * 10000.0,
       m30:x|$x.sign * (($x.p30->toOne() - $x.px) / $x.px) * 10000.0,
       commissionBps:x|($x.commission->toOne() / $x.notional) * 10000.0])
-}
-
-###Runtime
-Runtime market::LiveRuntime
-{
-  mappings: [ stress::AllMapping ];
-  connections: [ store::DB: [ live: market::Live ], market::World: [ status: market::Status ] ];
 }

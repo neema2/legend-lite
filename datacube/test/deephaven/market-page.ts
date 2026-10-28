@@ -1,6 +1,6 @@
 // THE MARKET WORLD, CHECKED (//datacube:deephaven_market_test; docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K2, DH28,
 // DH34): the page holds the one trading model (the stress corpus's, served beside it) with the WebAssembly planner, plans
-// each question as a query over the corpus's own classes through stress::AllMapping on the market's runtime, sends it
+// each question as a query over the corpus's own classes through stress::AllMapping on the desk's Deephaven runtime, sends it
 // straight to the pinned Deephaven running the market world (demo/deephaven/market/market.groovy, which publishes the
 // corpus's tables), and reads the rows as DataCube's engine reads them (followedTable). Its feed points at an address
 // that refuses it, so the world must say so and simulate crypto in its place. Every check runs here; the driver
@@ -10,7 +10,7 @@ import { DeephavenSession, type DeephavenServer } from '../../../engine-client/s
 import { LiveClient, type Followed, type FollowedRows } from '../../../engine-client/src/deephaven-live.ts';
 import { followedTable } from '../../../engine-client/src/deephaven-rows.ts';
 import { relationColumns, type Plan } from '../../../engine-client/src/relation-type.ts';
-import { MARKET_MODEL, MARKET_RUNTIME } from '../../demo/deephaven/market/model.ts';
+import { DESK_MODEL, ON_DEEPHAVEN } from '../../demo/deephaven/market/model.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
 import { load } from './wasm-gc-module-runtime.js';
 
@@ -51,9 +51,10 @@ try {
     url: config.url,
     signIn: { type: 'io.deephaven.authentication.psk.PskAuthenticationHandler', token: config.psk },
   };
-  const at = new URL(config.url);
-  const [corpus, desk] = await Promise.all(['trading-model.pure', 'market.pure'].map(async (f) => (await fetch(f)).text()));
-  const model = MARKET_MODEL(corpus!, desk!, at.hostname, Number(at.port));
+  // the desk's model, its environments this test's copy: the Deephaven context at this server
+  const [corpus, desk, environments] = await Promise.all(['trading-model.pure', 'market.pure', 'environments.pure']
+    .map(async (f) => (await fetch(f)).text()));
+  const model = DESK_MODEL(corpus!, desk!, environments!);
   const teavm = await load('classes.wasm', { stackDeobfuscator: { enabled: false } });
   const exports = teavm.exports as {
     holdModelOrError(model: string): string;
@@ -67,7 +68,7 @@ try {
   const session = await DeephavenSession.open(server, async (op, args) => exports.deephavenOrError(op, JSON.stringify(args)));
   const live = await LiveClient.open(server, (why) => { verdict.setupError ??= `the live reader ended: ${why}`; });
   const planned = (query: string): Plan => {
-    const plan = exports.planHeldOrError(handle, query, MARKET_RUNTIME);
+    const plan = exports.planHeldOrError(handle, query, ON_DEEPHAVEN.runtime);
     if (!plan.startsWith('OK\n')) throw new Error(`the planner refused ${query}: ${plan.replace(/\n/g, ' | ')}`);
     const body = JSON.parse(plan.slice(3)) as { sql: string; type: unknown };
     return { sql: body.sql, columns: relationColumns(body.type) };

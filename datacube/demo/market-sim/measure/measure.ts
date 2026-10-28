@@ -21,7 +21,7 @@ import { LitePlanner } from '../../../src/lite-planner.ts';
 import { layoutTiles, pageToJson, readPage, type ChartView, type GridView, type PageDocument, type PageView } from '../../../src/page-document.ts';
 import { levelWithValues } from '../../../src/plan.ts';
 import { savedQueryOpened } from '../../../src/saved-queries.ts';
-import { MARKET_RUNTIME, MARKET_TAB_MODEL } from '../../deephaven/market/model.ts';
+import { DESK_MODEL, IN_TAB } from '../../deephaven/market/model.ts';
 import { DESK } from '../../deephaven/market/screens.ts';
 import { openLiveMarket, type LiveMarket } from '../live-market.ts';
 
@@ -118,10 +118,11 @@ function tasksIn(from: number, to: number): Record<string, { n: number; meanMs: 
 
 async function main(): Promise<void> {
   const t0 = performance.now();
-  const [corpus, desk] = await Promise.all(['./trading-model.pure', './market.pure'].map(async (f) => (await fetch(f)).text()));
-  const model = MARKET_TAB_MODEL(corpus!, desk!);
+  const [corpus, desk, environments] = await Promise.all(['./trading-model.pure', './market.pure', './environments.pure']
+    .map(async (f) => (await fetch(f)).text()));
+  const model = DESK_MODEL(corpus!, desk!, environments!);
   const planner = new LitePlanner({
-    assetBaseUrl: new URL('./vendor/', location.href).href, model, runtime: MARKET_RUNTIME,
+    assetBaseUrl: new URL('./vendor/', location.href).href, model, runtime: IN_TAB.runtime,
     workerUrl: new URL('./planner-worker.js', location.href).href,
   });
   say('the planner warming up');

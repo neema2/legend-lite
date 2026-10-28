@@ -3,7 +3,8 @@
 // opens over the market world run in this tab: the market's tables in the tab's own DuckDB, the world (L2) writing them,
 // every grid of the desk its own live reader (L1), following what its views read and ticking when those rows change --
 // the desk's engine the tab where the Deephaven host's is the server (deephaven/market/host.ts). The same saved page,
-// the same model and screens: only the connections differ (model.ts MARKET_TAB: the runtime's two connections on DuckDB).
+// the same model and screens, on the data space's other context: "In this tab" (environments.pure: the runtime's two
+// connections on DuckDB).
 //
 // LAZY: nothing is fetched or started with the page. The market starts when the desk is opened from Open…'s Examples, or
 // when a saved page of it first asks for its rows: the trading model fetched and held by a module of its own, its tables
@@ -20,7 +21,7 @@ import type { Planner } from '../../src/cube.ts';
 import type { LitePlanner } from '../../src/lite-planner.ts';
 import { PlanThenRun } from '../../src/runner.ts';
 import { fetched, openDesk, type Market, type Started } from '../deephaven/market/desk.ts';
-import { MARKET_RUNTIME, MARKET_TAB, MARKET_TAB_MODEL } from '../deephaven/market/model.ts';
+import { DESK_MODEL, IN_TAB } from '../deephaven/market/model.ts';
 import type { LiveMarket } from './live-market.ts';
 import type { MarketSettings } from './market.ts';
 
@@ -29,9 +30,11 @@ export interface LocalMarketOptions {
   readonly planner: LitePlanner;
   /** The tab's DuckDB: the market's tables are made in it, the writer and each reader a connection of it. */
   readonly duck: DuckDbInTab;
-  /** Where the page serves the trading model and the desk's own (the site's trading-model.pure and market.pure). */
+  /** Where the page serves the trading model, the desk's own and its environments (the site's trading-model.pure,
+   *  market.pure and environments.pure). */
   readonly model: string;
   readonly deskModel: string;
+  readonly environments: string;
   /** The world's size and pace (market.ts MarketSettings). */
   readonly settings?: MarketSettings;
   /**
@@ -61,9 +64,10 @@ const ABOUT = 'A trading floor on one page, a tab a screen, every figure compute
 export function openLocalMarket(o: LocalMarketOptions): Market {
   let started: Promise<Running> | undefined;
   const start = (): Promise<Running> => (started ??= (async () => {
-    const [corpus, desk] = await Promise.all([fetched('the trading model', o.model), fetched("the desk's model", o.deskModel)]);
-    const model = MARKET_TAB_MODEL(corpus, desk);
-    const planner = o.planner.withModel(model, MARKET_RUNTIME);
+    const [corpus, desk, environments] = await Promise.all([fetched('the trading model', o.model),
+      fetched("the desk's model", o.deskModel), fetched("the desk's environments", o.environments)]);
+    const model = DESK_MODEL(corpus, desk, environments);
+    const planner = o.planner.withModel(model, IN_TAB.runtime);
     await planner.warmUp();
     // the world's code a chunk of its own, fetched with the market, not with the page
     const { openLiveMarket } = await import('./live-market.ts');
@@ -81,7 +85,7 @@ export function openLocalMarket(o: LocalMarketOptions): Market {
   /** The market's module, for a query of `text`: a model this host does not hold is refused, never run elsewhere. */
   const held = async (text: string): Promise<LitePlanner> => {
     const s = await start();
-    if (text !== s.model) throw new Error(`${MARKET_RUNTIME} runs on the market in this tab over the trading model it holds; this query's project names another model`);
+    if (text !== s.model) throw new Error(`${IN_TAB.runtime} runs on the market in this tab over the trading model it holds; this query's project names another model`);
     return s.planner;
   };
 
@@ -139,7 +143,8 @@ export function openLocalMarket(o: LocalMarketOptions): Market {
   return openDesk({
     modelUrl: o.model,
     deskModelUrl: o.deskModel,
-    connections: MARKET_TAB(),
+    environmentsUrl: o.environments,
+    context: IN_TAB,
     where: 'the market in this tab',
     example: { label: LABEL, about: ABOUT },
     start,
@@ -172,6 +177,7 @@ export function openLocalMarketHere(planner: LitePlanner, duck: DuckDbInTab): Ma
     duck,
     model: new URL('./trading-model.pure', location.href).href,
     deskModel: new URL('./market.pure', location.href).href,
+    environments: new URL('./environments.pure', location.href).href,
     settings: { ...(names === undefined ? {} : { names }), ...(address.get('market-feed') === 'off' ? { feed: 'off' } : {}) },
     ...(tape === undefined ? {} : { tape }),
   });

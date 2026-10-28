@@ -20,7 +20,7 @@ export interface LiveMarketOptions {
   readonly connect: () => Promise<DuckDbEngine>;
   /** The planner, over `model`: each table's statements, and every statement the live engine runs. */
   readonly planner: HostOperationsSource & SeedSource;
-  /** The model the tables are declared by: the corpus and the market's own part (model.ts MARKET_TAB_MODEL). */
+  /** The model the tables are declared by: the corpus, the desk's own and its environments (model.ts DESK_MODEL). */
   readonly model: string;
   /** The world's size and pace. */
   readonly settings?: MarketSettings;

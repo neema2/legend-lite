@@ -3,9 +3,10 @@
 // different saved pages similar to our chart pages"): each screen a DataCube page -- its grids and charts, a sheet (a
 // tab) per view of the desk -- written by DataCube's own writers (writeCube, writePageOf), as the example pages are
 // (src/examples/). Every grid's source is a saved query over the one trading model's classes (the stress corpus's),
-// read through stress::AllMapping on the market world's runtime; the server computes every value, ticking. Since
-// 2026-10-25 they are the trading desk's tabs (DESK, below: one page, a tab a screen), which DataCube's app opens first
-// under Open…'s Examples (host.ts); the host of their own (traders.ts), which opened each as a page, went 2026-10-26.
+// read through stress::AllMapping on an environment of the desk's data space; the database computes every value,
+// ticking. Since 2026-10-25 they are the trading desk's tabs (DESK, below: one page, a tab a screen), which DataCube's
+// app opens first under Open…'s Examples (desk.ts); the host of their own (traders.ts), which opened each as a page,
+// went 2026-10-26.
 
 import { element } from '../../../../pure-protocol/src/index.ts';
 import { CHART_VERSION, DEFAULT_OPTIONS, candleMeasures, type ChartOptions, type ChartSpec } from '../../../src/chart-spec.ts';
@@ -18,10 +19,7 @@ import {
 } from '../../../src/page-document.ts';
 import type { ColumnSpec, CubeSnapshot, FilterNode } from '../../../src/snapshot.ts';
 import { TreeState } from '../../../src/tree.ts';
-import { MARKET_RUNTIME } from './model.ts';
-
-/** The mapping every screen's source reads the corpus's classes through. */
-export const MARKET_MAPPING = 'stress::AllMapping';
+import { DESK_SPACE } from './model.ts';
 
 /** A source's columns as the compiler types them: the host's planner, asked. */
 export type SourceTypes = (text: string) => Promise<readonly ColumnSpec[]>;
@@ -82,18 +80,20 @@ export const WATCHLIST_START = 'market::screens::largestNames(5)';
 
 // ---------------------------------------------------------------- writing a page
 
-/** The project every screen's saved query belongs to: the one trading model and the market's part (host.ts). */
+/** The project every screen's saved query belongs to: the one trading model, the desk's own and its environments
+ *  (desk.ts). */
 export const MARKET_PROJECT = { groupId: 'org.finos.legend.lite.demo', artifactId: 'trader-screens', versionId: 'local' } as const;
 
-/** The source as a saved page writes it down: the query it is, its text, on the market's runtime, a saved query of the
- *  demo's own project -- and its columns, never its rows: they are the server's. */
+/** The source as a saved page writes it down: the query it is, its text, over the desk's data space (on the context the
+ *  page runs on: src/run-on.ts, the data space's default until one is written), a saved query of the demo's own project
+ *  -- and its columns, never its rows: they are the database's. */
 export function marketSource(name: string, content: string, columns: readonly ColumnSpec[]): QuerySource {
   return {
     _type: 'savedQuery',
     name,
     query: {
       name, ...MARKET_PROJECT,
-      executionContext: { _type: 'explicitExecutionContext', mapping: MARKET_MAPPING, runtime: MARKET_RUNTIME },
+      executionContext: { _type: 'dataSpaceExecutionContext', dataSpacePath: DESK_SPACE },
       content,
     },
     columns: columns.map((c) => ({ name: c.name, type: c.type })),

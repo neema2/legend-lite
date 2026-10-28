@@ -1,0 +1,76 @@
+// THE TRADING DESK'S ENVIRONMENTS (docs/ONE_CONNECTION_DESK_2026_10_28.md D2): the third file of the desk's project,
+// after the one trading model and the desk's own (market.pure). Each environment is a pair of connections -- the
+// corpus's store `store::DB` and the world's status store `market::World` -- a runtime binding them, and an execution
+// context of the desk's data space. A saved desk page names the data space and the context it runs on, and DataCube's
+// Run on switches between them: the same queries, planned on the other runtime, on the engine its connections name.
+// Another environment is another context here, its own named connections: no address is typed in or substituted.
+
+###Connection
+// IN THIS TAB: the tab's own DuckDB, the market's tables made in it and kept live by the Market data source
+RelationalDatabaseConnection market::InTab
+{
+  store: store::DB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+RelationalDatabaseConnection market::InTabStatus
+{
+  store: market::World;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+// DEEPHAVEN: a Deephaven server on this machine at Deephaven's own port, over TLS (its browser protocol is HTTP/2), its
+// key the vault's -- never in the model
+RelationalDatabaseConnection market::Deephaven
+{
+  store: store::DB;
+  type: Deephaven;
+  specification: Deephaven { host: 'localhost'; port: 10000; useTls: true; };
+  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+}
+RelationalDatabaseConnection market::DeephavenStatus
+{
+  store: market::World;
+  type: Deephaven;
+  specification: Deephaven { host: 'localhost'; port: 10000; useTls: true; };
+  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+}
+
+###Runtime
+Runtime market::InTabRuntime
+{
+  mappings: [ stress::AllMapping ];
+  connections: [ store::DB: [ live: market::InTab ], market::World: [ status: market::InTabStatus ] ];
+}
+
+Runtime market::DeephavenRuntime
+{
+  mappings: [ stress::AllMapping ];
+  connections: [ store::DB: [ live: market::Deephaven ], market::World: [ status: market::DeephavenStatus ] ];
+}
+
+###DataSpace
+DataSpace market::TradingDesk
+{
+  executionContexts:
+  [
+    {
+      name: 'In this tab';
+      title: 'In this tab (DuckDB)';
+      mapping: stress::AllMapping;
+      defaultRuntime: market::InTabRuntime;
+    },
+    {
+      name: 'Deephaven';
+      title: 'Deephaven (localhost:10000)';
+      mapping: stress::AllMapping;
+      defaultRuntime: market::DeephavenRuntime;
+    }
+  ];
+  defaultExecutionContext: 'In this tab';
+  title: 'Trading desk';
+  description: 'A trading floor on one page: the market, the bank\'s books, its orders, options and FX, live.';
+}
