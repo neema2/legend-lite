@@ -124,9 +124,10 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
    NOT NULL can only be checked by reading rows (Deephaven's schema says nothing of it, and a live table may gain a
    null later).
 
-## Open: the desk under load (measured on the user's Mac, 2026-10-27/28)
+## The desk under load (measured on the user's Mac, 2026-10-27/28)
 
-From a debugging and stress-testing session: the desk held open in headless pinned Chromium, `jcmd GC.class_histogram`
+What the roadmap's last item works from (docs/ONE_CONNECTION_DESK_2026_10_28.md: the demo runs without leaks, its bugs
+fixed) -- found in a debugging and stress-testing session: the desk held open in headless pinned Chromium, `jcmd GC.class_histogram`
 live sets, GC logs, JFR and Deephaven's UpdatePerformanceLog. Measured on `6adeaf49` unless noted; `589dcd96` checked
 for where the code moved. On `589dcd96` the desk opens in 3.1 s, its tabs fill in 0.3-1.5 s, ticks reach the screen in
 about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointers below were checked against

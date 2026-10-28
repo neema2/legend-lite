@@ -144,6 +144,12 @@ to other sessions, memory); Deephaven in the Database source (a server's tables 
 created on a server through platform scripts (the Java executor's Deephaven sender, L3s); DH16 for tables other programs
 publish (docs/DEEPHAVEN_START_HERE.md, open decision 5).
 
+**Last: the demo runs without leaks, its bugs fixed** (the user, 2026-10-28) -- the desk left open for hours on
+Deephaven without its memory growing or its cycles slowing, and the bugs a long run finds fixed: the server keeps a row
+of every trade in about a hundred operations, a history cap costs the Stock tab's EMA, `restart` does not resume the
+page, the Coinbase feed splices messages after a sleep. What was measured, and the unpushed feed fix of 2026-10-26:
+docs/DEEPHAVEN_START_HERE.md, "the desk under load".
+
 ## 4. The licence
 
 The later tracks stand on the licence questions' ground (docs/DEEPHAVEN_START_HERE.md, open decisions 1 and 2): making
