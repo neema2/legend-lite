@@ -153,6 +153,13 @@ holds nulls loses the guards the lowering writes); tables are found by their que
 application's fields and a Python server's tables not tried); no check of the server's version at sign-in (42.7 only is
 tested); and this branch carries the MongoDB line's commits, which are not on `main` either.
 
+## Now: one connection (the user, 2026-10-28)
+
+The desk the same on DuckDB and Deephaven but for one connection, every table made and every row written by the
+platform, the market simulator alone a program of its own: **docs/ONE_CONNECTION_DESK_2026_10_28.md** (its decisions
+D1, lite's connection words as JSON with the drop-in surface still refusing, and D2, versioned connections with explicit
+overrides; its seven steps and their status).
+
 ## Next, as proposed to the user (2026-10-24; not yet chosen)
 
 Settle 1-3, then **make it real for one desk**: the person's own sign-in, a real Deephaven with its real tables through
