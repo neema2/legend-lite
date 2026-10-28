@@ -1,0 +1,111 @@
+// F66: an XStore association mapping no longer compiles once its class has a milestoned property.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/xstore-milestoned-property/base.pure \
+//       --testable=demo::XStoreProbe
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/xstore-milestoned-property/base.pure \
+//       scripts/corpus/repro/xstore-milestoned-property/milestoned.pure --testable=demo::XStoreProbe
+//
+// On legend-engine 4.145.0 this file alone compiles and its service passes. With milestoned.pure -- which adds
+// only a processing-temporal class and an association from demo::Trade to it, mapped nowhere -- the model fails
+// to compile: "Error in 'demo::M': Size must be 1 but was 0" (an IllegalStateException from getOnly, at
+// PropertyMappingBuilder.visit(XStorePropertyMapping)). To find the class mappings an XStore property joins, the
+// compiler searches the class's `_originalMilestonedProperties()` if it has any and its
+// `_propertiesFromAssociations()` only otherwise, so once Trade has one milestoned property the XStore end
+// `legalEntity` is not among the candidates. The stress corpus met it when Phase 3 of its improvement plan gave
+// trading::Trade a milestoned association: external::EntityMapping, the XStore mapping on Trade, stopped
+// compiling, and with it every service in the corpus.
+Class demo::Trade
+{
+  tradeId: String[1];
+}
+
+Class demo::LegalEntity
+{
+  entityId: String[1];
+  name: String[1];
+}
+
+Association demo::Trade_LegalEntity
+{
+  entityTrades: demo::Trade[*];
+  legalEntity: demo::LegalEntity[0..1];
+}
+
+###Relational
+Database demo::TradeDB
+(
+  Table TRADE (TRADE_ID VARCHAR(8) PRIMARY KEY, ENTITY_ID VARCHAR(8))
+)
+
+Database demo::EntityDB
+(
+  Table ENTITY (ENTITY_ID VARCHAR(8) PRIMARY KEY, NAME VARCHAR(20))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Trade: Relational
+  {
+    ~primaryKey ( [demo::TradeDB]TRADE.TRADE_ID )
+    ~mainTable [demo::TradeDB]TRADE
+    tradeId: [demo::TradeDB]TRADE.TRADE_ID,
+    +entityRef: String[0..1]: [demo::TradeDB]TRADE.ENTITY_ID
+  }
+  demo::LegalEntity: Relational
+  {
+    ~primaryKey ( [demo::EntityDB]ENTITY.ENTITY_ID )
+    ~mainTable [demo::EntityDB]ENTITY
+    entityId: [demo::EntityDB]ENTITY.ENTITY_ID,
+    name: [demo::EntityDB]ENTITY.NAME
+  }
+  demo::Trade_LegalEntity: XStore
+  {
+    legalEntity: $this.entityRef == $that.entityId,
+    entityTrades: $this.entityId == $that.entityRef
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::TradeConn { store: demo::TradeDB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+RelationalDatabaseConnection demo::EntityConn { store: demo::EntityDB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ demo::TradeDB: [ trades: demo::TradeConn ], demo::EntityDB: [ entities: demo::EntityConn ] ];
+}
+
+###Data
+Data demo::TradeSeed
+{
+  Relational
+  #{
+    default.TRADE:
+      'TRADE_ID,ENTITY_ID\n' +
+      'T1,E1\n' +
+      'T2,E2\n';
+  }#
+}
+
+Data demo::EntitySeed
+{
+  Relational
+  #{
+    default.ENTITY:
+      'ENTITY_ID,NAME\n' +
+      'E1,Acme\n' +
+      'E2,Beta\n';
+  }#
+}
+
+###Service
+Service demo::XStoreProbe
+{
+  pattern: '/demo/xstore';
+  documentation: '';
+  execution: Single { query: |demo::Trade.all()->graphFetch(#{demo::Trade{tradeId,legalEntity{name}}}#)->serialize(#{demo::Trade{tradeId,legalEntity{name}}}#); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ XStoreProbe_suite: { data: [ connections: [ trades: Reference #{ demo::TradeSeed }#, entities: Reference #{ demo::EntitySeed }# ] ]
+    tests: [ t: { asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"tradeId":"T1","legalEntity":{"name":"Acme"}},{"tradeId":"T2","legalEntity":{"name":"Beta"}}]}'; }#; }# ] } ] } ]
+}

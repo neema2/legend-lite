@@ -51,7 +51,11 @@ MAPPING = "stress::AllMapping"
 # every seeded table. Walked, the pack displaced roots under their caps (five DS*_CustodiedCrypto
 # Holding services went), changed seventeen dense services reaching it from a trade, and carried
 # StrictTime and Byte into their trees and stacks. Its services are these, written deliberately.
-FIXTURE_TABLES = frozenset({"TYPED_VALUE"})
+# The intraday milestoning pack's tables (8113-intraday.pure, Phase 3) are apart for the same reason:
+# walked, its milestoned classes and navigations would be dated at %latest by generators that know
+# no other date, and its services are intraday.py's.
+FIXTURE_TABLES = frozenset({"TYPED_VALUE", "BOOK_LIMIT_PT", "BOOK_STATUS_PT", "MARK_REVISION_BI",
+                            "LIMIT_CHECK", "VALUATION_RUN"})
 
 
 def walked(tables: dict[str, list[dict]]) -> set[str]:

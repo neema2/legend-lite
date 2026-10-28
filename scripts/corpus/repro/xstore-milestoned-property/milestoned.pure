@@ -1,0 +1,13 @@
+###Pure
+// F66's trigger, added to base.pure: a milestoned class and an association to it from demo::Trade. Neither is
+// mapped; the association alone gives Trade a milestoned property, and demo::M's XStore mapping stops compiling.
+Class <<temporal.processingtemporal>> demo::Limit
+{
+  limitId: String[1];
+}
+
+Association demo::Trade_Limit
+{
+  limitedTrades: demo::Trade[*];
+  limit: demo::Limit[0..1];
+}

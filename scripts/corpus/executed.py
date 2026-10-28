@@ -349,6 +349,7 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
         [n for k in c.class_filter if k in ks
          for n in [c.class_filter[k]] if n in c.multigrain])
     _query_features(specs, quarantined, add)
+    _milestoning_features(c, specs, quarantined, add)
     return out
 
 
@@ -386,6 +387,62 @@ def _query_features(specs, quarantined: set[str], add) -> None:
     add("Q1  filter not", tree(query.Not))
     add("Q1  filter in", [s.short for s in live
                           if any(a.op == "in" for a in query.atoms(getattr(s, "filters", [])))])
+
+
+def _milestoning_features(c: model.Corpus, specs, quarantined: set[str], add) -> None:
+    """Milestoning at time of day (the improvement plan's Phase 3, intraday.py), executed when a
+    passing service carries it -- held here so a change that stops executing one fails the build
+    (the plan's rule 6)."""
+    live = [s for s in specs if s.name not in quarantined]
+
+    def temporal(cls):
+        k = c.classes.get(cls)
+        return k.temporal if k else None
+
+    def steps(s):
+        paths = [p.path for p in s.projections] + [a.path for a in query.atoms(s.filters)]
+
+        def keys(tree):
+            return [k for k, v in (tree or {}).items()] + [x for v in (tree or {}).values()
+                                                           if isinstance(v, dict) for x in keys(v)]
+        return [st for path in paths for st in path] + keys(s.graph)
+
+    def root_dates(s):
+        dates = s.as_of if isinstance(s.as_of, list) else [s.as_of]
+        v = s.versions
+        return [d for d in dates + ([v.start, v.end] if v is not None else []) if d is not None]
+
+    def hop_dates(s):
+        return [d for st in steps(s) if isinstance(st, query.Hop) for d in (st.dates or ())]
+
+    def propagates(s):
+        """A temporal root read at a date, navigating into a temporal class with no date of its own."""
+        if temporal(s.root) is None or s.as_of is None or s.versions is not None:
+            return False
+        for path in [p.path for p in s.projections] + [[k] for k in (s.graph or {})]:
+            end = c.ends.get((s.root, path[0])) if path else None
+            if end is not None and temporal(end.target) and not isinstance(path[0], query.Hop):
+                return True
+        return False
+
+    def hit(pred):
+        return [s.short for s in live if pred(s)]
+
+    add("M3  processing-temporal root", hit(lambda s: temporal(s.root) == "processingtemporal"))
+    add("M3  DateTime milestoning date",
+        hit(lambda s: any(isinstance(d, query.DateTimeArg) for d in root_dates(s) + hop_dates(s))))
+    add("M3  milestoning date parameter",
+        hit(lambda s: any(isinstance(d, query.Param) for d in root_dates(s) + hop_dates(s))))
+    add("M3  allVersions", hit(lambda s: s.versions is not None and s.versions.start is None))
+    add("M3  allVersionsInRange", hit(lambda s: s.versions is not None
+                                      and s.versions.start is not None))
+    add("M3  dated navigation", hit(lambda s: any(isinstance(st, query.Hop) and st.dates
+                                                  and st.versions is None for st in steps(s))))
+    add("M3  milestoning date from the row",
+        hit(lambda s: any(isinstance(d, query.PathArg) for d in hop_dates(s))))
+    add("M3  navigation AllVersions", hit(lambda s: any(isinstance(st, query.Hop) and st.versions
+                                                        for st in steps(s))))
+    add("M3  date propagation", hit(propagates))
 
 
 def _has_chain(dyn) -> bool:
@@ -455,15 +512,16 @@ def base_specs(c: model.Corpus):
 def all_specs(c: model.Corpus):
     """Every spec the corpus emits, from every generator."""
     import flat
+    import intraday
     import literals
     import spread
 
     base = base_specs(c)
     tables = flat.all_tables(c)
     seeded = literals.walked(tables)
-    # The typed services after spread's, which must not see them: spread measures what the
-    # walking generators leave uncovered (literals.FIXTURE_TABLES says why the pack is apart).
-    return base + spread.build(c, seeded, base) + literals.build()
+    # The typed and intraday services after spread's, which must not see them: spread measures what
+    # the walking generators leave uncovered (literals.FIXTURE_TABLES says why the packs are apart).
+    return base + spread.build(c, seeded, base) + literals.build() + intraday.build()
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.
@@ -488,6 +546,12 @@ BASELINE = {
     "Q1  parameter [1]", "Q1  parameter [0..1]", "Q1  parameter [*]", "Q1  Decimal literal",
     "Q1  DateTime literal", "Q1  enumeration literal", "Q1  filter or", "Q1  filter not",
     "Q1  filter in",
+    # 2026-10-28, the improvement plan's Phase 3 (intraday.py): milestoning at time of day, each
+    # executed by passing services on legend-engine 4.145.0.
+    "M3  processing-temporal root", "M3  DateTime milestoning date",
+    "M3  milestoning date parameter", "M3  allVersions", "M3  allVersionsInRange",
+    "M3  dated navigation", "M3  milestoning date from the row", "M3  navigation AllVersions",
+    "M3  date propagation",
 }
 
 

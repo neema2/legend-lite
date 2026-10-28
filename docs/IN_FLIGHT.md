@@ -3254,3 +3254,12 @@ Status lives in the plan's Progress table (rule 0b.16).
 - **Cross-area, Phase 2 (announced 2026-10-27, before it lands):**
   - `repro/datediff-hours-off-boundary/README.md`: its "where it shows" list loses the two `DSLocal_` services,
     which now pass on the engine (their F58 quarantine entries are removed in `quarantine.py`).
+- **Phase 3 (started 2026-10-28): milestoning at time of day.** Inside the owned files only: a hand-written pack
+  `8113-intraday.pure` (its store included by `store::DB` in `30-store.pure`, its mapping by `89-all-mapping.pure`),
+  its seed in `seed.py`, a generator `scripts/corpus/intraday.py` writing a new generated file
+  `99-intraday-services.pure` (`core/stress.bzl`'s `STRESS_GENERATED` and the layout JSON), the oracle's
+  milestoning, `executed.py`'s ratchet, `quarantine.py`, three repros under `scripts/corpus/repro/`, F66 and F67 in
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 3 (announced 2026-10-28, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (twelve to thirteen), as
+    Phase 1's did.

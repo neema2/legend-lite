@@ -1691,7 +1691,22 @@ inequality is the discriminator.
 `->count()` over the identical end returns six rows, so it is `isEmpty` specifically rather
 than aggregates in general.
 
-Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`.
+**Reached through milestoning (2026-10-28, the improvement plan's Phase 3).** A milestoned
+to-many navigated over a range of versions, `$x.limitAllVersionsInRange(a, b)->isEmpty()`,
+duplicates the same way: the range adds `IN_Z <= b and OUT_Z > a` to the association's
+equality, so the join is no longer a single key equality. `$x.limitAllVersions->isEmpty()`, the
+same join without the range, is right, and so is `count()` over the range:
+
+| join | `isEmpty()` |
+| --- | --- |
+| `DESK.LIMIT_ID = LIMIT_PT.LIMIT_ID` (every version) | correct |
+| the same `and LIMIT_PT.IN_Z <= b and LIMIT_PT.OUT_Z > a` (versions in a range) | duplicates |
+
+Pinned by `stress::ITN_NoLimitInRange` (quarantined); `ITN_LimitVersionsInRange` counts the
+same range and passes.
+
+Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`,
+`scripts/corpus/repro/milestoned-range-isempty/`.
 
 ## F52 — Both ends of a `{target}` self-join return the same set
 
@@ -2036,3 +2051,37 @@ them on legend-engine 4.145.0, and so does `!$x.grade->in($p)` with an enumerati
 parameter's: whatever maps it to its codes loses the `or ... is null` arm the literal gets. A row whose code has no
 mapping entry is kept either way. Pinned by `stress::TP_Grade_Ne_Root`, `TP_Grade_Ne_Hop` and `TM_Grade_NotIn_Hop`
 (quarantined) beside their literal twins, which pass. Repro: `scripts/corpus/repro/enum-parameter-negation/`.
+
+## F66 — An XStore association mapping does not compile once its class has a milestoned property
+
+Found 2026-10-28 by the improvement plan's Phase 3. Its first version gave `trading::Trade` a milestoned
+association (to a processing-temporal book limit), and legend-engine 4.145.0 stopped compiling the corpus:
+`Error in 'external::EntityMapping': Size must be 1 but was 0`, an `IllegalStateException` from `getOnly()` at
+`PropertyMappingBuilder.visit(XStorePropertyMapping)`. `external::EntityMapping` maps the XStore association between
+Trade and `external::LegalEntity`; the new association was not in it, and mapped nowhere at all it does the same.
+To find the class mappings an XStore property joins, the compiler takes as candidates the class's
+`_originalMilestonedProperties()` when it has any, and its `_propertiesFromAssociations()` only otherwise
+(`PropertyMappingBuilder.java`, line 180). Once Trade has one milestoned property, the XStore end `legalEntity` is
+not a candidate, no class mapping is found, and the mapping fails; since one mapping's failure stops the model
+compiling, every service fails with it. Either of two milestoned associations on Trade was enough, and with both
+removed the corpus compiled. The corpus now navigates milestoned classes from classes of their own
+(`intraday::LimitCheck`, `intraday::ValuationRun`), so no service pins it. Repro:
+`scripts/corpus/repro/xstore-milestoned-property/` (`base.pure` alone compiles and its XStore graph fetch passes;
+with `milestoned.pure`, an unmapped processing-temporal class and an association to it, it does not compile).
+
+## F67 — A connection's `timezone` never reaches a service test
+
+Not a wrong answer: a limit on what a service test can show, found 2026-10-28 by the improvement plan's Phase 3,
+which probed a connection with `timezone` before writing any service that depends on one (the plan asked for a
+probe because legend-engine #5341 reverted its time-zone fixes). Read through a connection declaring `timezone:
+'America/New_York';`, a TIMESTAMP the database holds as `2024-06-03 08:00:00` comes back as
+`2024-06-03T08:00:00.000000000+0000` on legend-engine 4.145.0, as it does with no time zone, and a DateTime literal
+is compared unconverted: `$x.updatedAt < %2024-06-04T00:00:00` keeps a row at 23:30 New York time, 03:30 UTC on the
+4th. The engine's DuckDB SQL generator converts a literal into the zone it is given
+(`duckdbExtension.pure`, `convertDateToSqlStringDuckDB`), but the service test runner replaces the connection with
+one built from the store and its test data alone, and `RelationalConnectionFactory.buildH2TestConnection` and
+`buildDuckDBTestConnection` copy no `timeZone`. So whatever the setting does on a real connection, a service test
+cannot observe it, and the corpus writes no service that depends on a connection's time zone. A zoned TIMESTAMP
+column, the plan's other time-zone probe, has no type in the pinned grammar (`RelationalDataType` has `TIMESTAMP`
+and `DATE` only) and waits for the bump (the plan's D3). Repro: `scripts/corpus/repro/connection-timezone-test/`
+(`Utc` passes; `NewYorkRead` and `NewYorkLiteral` return the unconverted answers).

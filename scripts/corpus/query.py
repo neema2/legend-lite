@@ -61,6 +61,41 @@ class Param:
     to_one: bool = False
 
 
+@dataclass(frozen=True)
+class PathArg:
+    """A milestoning date read from the row the query is on: `$x.createdTime`. A path from the
+    ROOT, whatever hop it dates (the improvement plan's Phase 3)."""
+    path: tuple
+
+
+class Hop(str):
+    """A milestoned property in a path, navigated with its date(s): `bookLimit(%2024-06-03T09:21:00)`.
+
+    Held as the property's NAME, so the model resolves it as any step, and carrying what the text
+    and the oracle need (the improvement plan's Phase 3):
+      dates     the property's date arguments: a DateTimeArg, a DateArg, a Param or a PathArg, one
+                per milestoning dimension (processing first, for a bitemporal target). None for the
+                no-argument form, which takes the date the navigation leaves from.
+      versions  None; 'all' for the generated `<name>AllVersions`; or 'range' for
+                `<name>AllVersionsInRange(start, end)`, with `dates` the two bounds.
+    """
+
+    def __new__(cls, name: str, dates=None, versions: str | None = None):
+        s = super().__new__(cls, name)
+        s.dates = None if dates is None else tuple(dates)
+        s.versions = versions
+        return s
+
+
+@dataclass(frozen=True)
+class Versions:
+    """A root that reads more than one version: `.allVersions()` when `start` is None, else
+    `->getAllVersionsInRange(start, end)` -- the function form, since the pinned engine's grammar
+    refuses `.allVersionsInRange(...)` on a class (DomainParseTreeWalker.allOrFunction)."""
+    start: object = None
+    end: object = None
+
+
 @dataclass
 class Pred:
     path: list[str]
@@ -125,7 +160,9 @@ class Spec:
     doc: str
     root: str            # trading::Trade
     # Business date for a <<temporal.businesstemporal>> root: an ISO date, or the literal
-    # 'latest'. None for a non-temporal class, where all() takes no argument.
+    # 'latest'. None for a non-temporal class, where all() takes no argument. A list of two for a
+    # bitemporal root (processing first). Since Phase 3 a date may also be a DateTimeArg or a Param,
+    # and `versions` (below) replaces all() with every version, or the versions in a range.
     as_of: str | None = None
     projections: list[Proj] = field(default_factory=list)
     filters: list[Pred] = field(default_factory=list)
@@ -199,6 +236,9 @@ class Spec:
     # None: the build fails on an empty or hollow result outside one (the improvement plan's
     # Phase 2, rule 4), and on a declared one that has rows.
     emptiness: str | None = None
+    # A temporal root read at more than one version (Versions): every version, or those in a range.
+    # None reads the version(s) in force at `as_of`.
+    versions: object | None = None
 
     @property
     def short(self) -> str:

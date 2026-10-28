@@ -42,6 +42,8 @@ Database store::DB
     // Not a linked project: the typed-values pack's own store (8112-typedvalues.pure), included the same
     // way so this connection seeds it and the join from TRADE below sees both tables.
     include typedvalues::TypedStore
+    // The intraday milestoning pack's store (8113-intraday.pure), included the same way.
+    include intraday::IntradayStore
 
     // ---- taxonomy edges, added by scripts/corpus/add_taxonomy_edges.py ----
     // Every taxonomy table carries BOOK_ID and joined to nothing; these are

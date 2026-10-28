@@ -36,6 +36,7 @@ Mapping stress::AllMapping
     include backoffice::BackOfficeMapping
     include projectlink::ProjectLinkMapping
     include typedvalues::TypedValueMapping
+    include intraday::IntradayMapping
     include marketevents::MarketeventsMapping
     include clientlifecycle::ClientlifecycleMapping
     include bookclosure::BookclosureMapping

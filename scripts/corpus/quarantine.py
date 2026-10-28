@@ -79,6 +79,14 @@ ENGINE_QUARANTINE["stress::MD7_UnrevisedPrintsEq"] = (
 ENGINE_QUARANTINE["stress::CV6_PillarEmptiness"] = (
     "F51", "isEmpty() over a to-many reached by a non-key join returns one row per joined row")
 
+# F51 through milestoning (the improvement plan's Phase 3): `bookLimitAllVersionsInRange(a, b)` adds
+# the range's `IN_Z <= b and OUT_Z > a` to the join, so it is not a single key equality, and each
+# check comes back once per version of its book's limit in the range. `bookLimitAllVersions`, the
+# same join without the range, is right, and so is count() over the range (ITN_LimitVersionsInRange).
+# Minimized in repro/milestoned-range-isempty/.
+ENGINE_QUARANTINE["stress::ITN_NoLimitInRange"] = (
+    "F51", "isEmpty() over a milestoned range of versions returns one row per version")
+
 # F52: both ends of a {target} self-join return the same set. `shorterPillars` and
 # `longerPillars` are opposite directions of one inequality and the engine answers the
 # forward one for both. Nothing in the model distinguishes the ends, which is why the oracle

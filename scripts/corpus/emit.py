@@ -352,6 +352,8 @@ def _literal(v) -> str:
         return format(v, "f") + "D"
     if isinstance(v, query.Param):
         return f"${v.name}->toOne()" if v.to_one else f"${v.name}"
+    if isinstance(v, query.PathArg):
+        return f"${VAR}.{_path(v.path)}"
     if isinstance(v, list):
         return "[" + ", ".join(_literal(x) for x in v) + "]"
     return repr(v)
@@ -371,7 +373,7 @@ def _condition(f) -> str:
         return "!" + (inner if inner.startswith("(") else f"({inner})")
     if isinstance(f, query.ParamEmpty):
         return f"${f.name}->isEmpty()"
-    path = f"${VAR}.{'.'.join(f.path)}"
+    path = f"${VAR}.{_path(f.path)}"
     # `is`/`not` are the BARE boolean forms -- `$x.flag` and `!$x.flag` -- with no
     # comparison. They exist because comparing a boolean to a boolean literal with `==`
     # is the one filter shape the engine cannot lower: `$x.isFinal == false` over a
@@ -389,21 +391,63 @@ def _condition(f) -> str:
     return f"({path} {f.op} {_literal(f.value)})"
 
 
+def _date(d) -> str:
+    """A milestoning date: `%latest`, a typed literal, a parameter, a path, or a plain ISO date."""
+    import query
+
+    if d == "latest":
+        return "%latest"
+    if isinstance(d, (query.DateArg, query.DateTimeArg, query.Param, query.PathArg)):
+        return _literal(d)
+    return "%" + d
+
+
 def _as_of(spec: Spec) -> str:
-    """A temporal root takes one date, or TWO for a bitemporal class: all(%B, %P)."""
+    """A temporal root takes one date, or TWO for a bitemporal class: all(%P, %B)."""
     if spec.as_of is None:
         return ""
     dates = spec.as_of if isinstance(spec.as_of, list) else [spec.as_of]
-    return ", ".join("%latest" if d == "latest" else "%" + d for d in dates)
+    return ", ".join(_date(d) for d in dates)
+
+
+def _root(spec: Spec) -> str:
+    """The query's source: `Class.all(...)`, or every version, or the versions in a range."""
+    v = spec.versions
+    if v is None:
+        return f"{spec.root}.all({_as_of(spec)})"
+    if v.start is None:
+        return f"{spec.root}.allVersions()"
+    return f"{spec.root}->getAllVersionsInRange({_date(v.start)}, {_date(v.end)})"
+
+
+def _step(step) -> str:
+    """One step of a path: a property, or a milestoned one with its date(s) (query.Hop)."""
+    import query
+
+    if not isinstance(step, query.Hop):
+        return step
+    # Pure's grammar takes %latest in a property's arguments only when every one is %latest
+    # (M3ParserGrammar's functionExpressionLatestMilestoningDateParameter), and one unparseable service
+    # stops the whole corpus loading on the engine, so a mixed form is refused here.
+    if step.dates and "latest" in step.dates and set(step.dates) != {"latest"}:
+        raise ValueError(f"{step}: %latest beside another date is not Pure: {step.dates!r}")
+    if step.versions == "all":
+        return f"{step}AllVersions"
+    name = f"{step}AllVersionsInRange" if step.versions == "range" else str(step)
+    return name if step.dates is None else f"{name}({', '.join(_date(d) for d in step.dates)})"
+
+
+def _path(path) -> str:
+    return ".".join(_step(s) for s in path)
 
 
 def _tree(node: dict, indent: str) -> str:
     parts = []
     for name, sub in node.items():
         if sub is None:
-            parts.append(f"{indent}{name}")
+            parts.append(f"{indent}{_step(name)}")
         else:
-            parts.append(f"{indent}{name}\n{indent}{{\n"
+            parts.append(f"{indent}{_step(name)}\n{indent}{{\n"
                          + _tree(sub, indent + "  ") + f"\n{indent}}}")
     return ",\n".join(parts)
 
@@ -413,9 +457,11 @@ def graph_text(spec: Spec) -> str:
     two must agree or the serializer emits a shape the fetch never populated."""
     tree = ("#{\n  " + spec.root + "\n  {\n" + _tree(spec.graph, "    ")
             + "\n  }\n}#")
-    return (f"    query: |{spec.root}.all({_as_of(spec)})\n"
+    params = ", ".join(f"{n}: {t}[{m}]" for n, t, m in spec.params)
+    return (f"    query: {{{params}|{_root(spec)}\n" if spec.params
+            else f"    query: |{_root(spec)}\n") + (
             f"        ->graphFetch({tree})\n"
-            f"        ->serialize({tree});")
+            f"        ->serialize({tree})" + ("};" if spec.params else ";"))
 
 
 def query_text(spec: Spec) -> str:
@@ -434,8 +480,8 @@ def query_text(spec: Spec) -> str:
     keys are identical.
     """
     params = ", ".join(f"{n}: {t}[{m}]" for n, t, m in spec.params)
-    lines = [f"    query: {{{params}|{spec.root}.all({_as_of(spec)})" if spec.params
-             else f"    query: |{spec.root}.all({_as_of(spec)})"]
+    lines = [f"    query: {{{params}|{_root(spec)}" if spec.params
+             else f"    query: |{_root(spec)}"]
     if spec.filters:
         conds = " && ".join(_condition(f) for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
@@ -443,7 +489,7 @@ def query_text(spec: Spec) -> str:
         if p.func:
             inner = ", ".join(_literal(a) for a in p.args)
             return f"${VAR}->{p.func}({inner})"
-        return (f"${VAR}.{'.'.join(p.path)}"
+        return (f"${VAR}.{_path(p.path)}"
                 + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
                 + (f"->{p.agg}()" if p.agg else ""))
 

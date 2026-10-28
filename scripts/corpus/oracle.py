@@ -43,7 +43,7 @@ from datetime import datetime as _datetime
 import re
 
 from model import Corpus
-from query import And, Not, Or, Param, ParamEmpty, Pred, Spec
+from query import And, DateTimeArg, Hop, Not, Or, Param, ParamEmpty, PathArg, Pred, Spec
 
 def _timestamp(v: str) -> str:
     """Legend renders a DateTime column as ISO-8601 with nanoseconds and a numeric UTC
@@ -269,7 +269,10 @@ def _xstore_value(c: Corpus, data, row, root: str, path: list[str]):
     return landed.get(col), True
 
 
-def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None):
+def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None, dated=None):
+    # Into a milestoned class: each hop narrowed to the version in force at its date (Phase 3).
+    if not func and _is_dated(c, root, path):
+        return _dated_value(c, data, row, root, path, dated)
     if len(path) == 2 and (root, path[0]) in XSTORE_LINKS:
         v, handled = _xstore_value(c, data, row, root, path)
         if handled:
@@ -2273,14 +2276,39 @@ def _reverse_hops(c: Corpus, root: str, path: list[str]) -> set[int]:
     return out
 
 
-def _agg(c: Corpus, data, row, root: str, proj):
+def _steps(c: Corpus, root: str, path) -> list[tuple[str, str]]:
+    """(class, step) for each step of an association path, as far as it resolves."""
+    out, cls = [], root
+    for step in path:
+        out.append((cls, step))
+        end = c.ends.get((cls, step))
+        if end is None:
+            break
+        cls = end.target
+    return out
+
+
+def _agg(c: Corpus, data, row, root: str, proj, params: dict | None = None):
     hops, _target = c.resolve_assoc(root, proj.path)
     landed = walk_many(c, data, row, hops, _reverse_hops(c, root, proj.path))
     # A navigation onto a MILESTONED class carries a date, and the date has to narrow the
     # landed rows the same way it narrows a temporal root. Without this the count is of every
     # version ever recorded rather than of the one in force -- a number that looks like an
     # answer and is not.
-    if proj.args and c.classes.get(_target) is not None \
+    last = proj.path[-1]
+    if isinstance(last, Hop):
+        # Phase 3's forms: `<end>AllVersions` (every version, nothing narrows),
+        # `<end>AllVersionsInRange(start, end)`, or `<end>(date...)` with typed or bound dates.
+        if any(c.classes.get(e.target) is not None and c.classes[e.target].temporal
+               for e in (c.ends.get((cls, s)) for cls, s in _steps(c, root, proj.path[:-1]))
+               if e is not None):
+            raise Unsupported(f"{proj.alias}: only the last hop of an aggregate path may be dated")
+        bound = [_bind_date(c, data, row, root, d, params) for d in (last.dates or ())]
+        if last.versions == "range":
+            landed = _range_rows(c, _target, landed, *bound)
+        elif last.versions is None:
+            landed = _milestone_rows(c, _target, landed, bound)
+    elif proj.args and c.classes.get(_target) is not None \
             and c.classes[_target].temporal is not None:
         landed = _milestone_rows(c, _target, landed, list(proj.args))
     if proj.agg == "count":
@@ -2373,6 +2401,27 @@ def _mapping_filtered(c: Corpus, root: str, rows: list[dict],
     return rows
 
 
+# The milestoning dimensions a temporal stereotype carries, in the order all() and a milestoned
+# property take their dates: PROCESSING FIRST for a bitemporal class.
+_DIMENSIONS = {"businesstemporal": ["business"],
+               "processingtemporal": ["processing"],
+               "bitemporal": ["processing", "business"]}
+
+
+def _instant(v) -> _datetime:
+    """A DATE or TIMESTAMP cell, an infinity date, or a milestoning date, as an instant. A date with
+    no time of day is its midnight: probed on the pinned engine before any service was written
+    (the improvement plan's Phase 3) -- `all(%2024-06-04)` over TIMESTAMP processing columns reads
+    the version in force at 2024-06-04 00:00:00, so a version superseded exactly at midnight is the
+    old one on the 3rd and the new one on the 4th."""
+    s = str(v).replace("T", " ")
+    if len(s) == 10:
+        return _datetime(int(s[:4]), int(s[5:7]), int(s[8:10]))
+    whole, _, frac = s.partition(".")
+    t = _datetime.strptime(whole, "%Y-%m-%d %H:%M:%S")
+    return t.replace(microsecond=int((frac + "000000")[:6])) if frac.strip("0") else t
+
+
 def _milestone_rows(c: Corpus, cls: str, rows: list[dict], dates) -> list[dict]:
     """The business/processing predicate for `cls`, applied to `rows` at `dates`.
 
@@ -2380,15 +2429,18 @@ def _milestone_rows(c: Corpus, cls: str, rows: list[dict], dates) -> list[dict]:
     date -- the engine refuses the undated form outright -- and the oracle was applying the
     predicate only at the ROOT, so a navigated to-many returned every version ever recorded.
     Two versions of a rating came back where the engine correctly returned the one in force.
+
+    Each version is [FROM, THRU), compared as instants (_instant), so a TIMESTAMP milestone meets a
+    DateTime at its second and a StrictDate at its midnight. A DateTime against a DATE column is
+    refused: no service asks it and the pinned engine was not probed on it. `latest` selects the
+    versions whose THRU is the table's declared infinity date, a DateTime one included.
     """
     klass = c.classes.get(cls)
     temporal = klass.temporal if klass else None
     if temporal is None:
         return rows
     table = c.tables.get(c.main_table.get(cls, ""))
-    wanted = {"businesstemporal": ["business"],
-              "processingtemporal": ["processing"],
-              "bitemporal": ["processing", "business"]}.get(temporal)
+    wanted = _DIMENSIONS.get(temporal)
     if table is None or wanted is None:
         raise Unsupported(f"{cls}: {temporal} milestoning is not modelled")
     if len(dates) != len(wanted) or any(d is None for d in dates):
@@ -2400,15 +2452,158 @@ def _milestone_rows(c: Corpus, cls: str, rows: list[dict], dates) -> list[dict]:
             raise Unsupported(f"{cls} is {temporal} but {table.name} declares no "
                               f"{kind} milestoning columns")
         if at == "latest":
-            rows = [r for r in rows if r.get(ms.thru) == INFINITY]
-        else:
+            infinity = _instant(ms.infinity or INFINITY)
             rows = [r for r in rows
-                    if r.get(ms.frm) is not None and r.get(ms.frm) <= at
-                    and (r.get(ms.thru) is None or at < r.get(ms.thru))]
+                    if r.get(ms.thru) is not None and _instant(r[ms.thru]) == infinity]
+            continue
+        if table.columns[ms.frm].kind == "date" and len(str(at)) != 10:
+            raise Unsupported(f"{cls}: the {kind} date {at!r} has a time of day and "
+                              f"{table.name}.{ms.frm} is a DATE")
+        t = _instant(at)
+        rows = [r for r in rows
+                if r.get(ms.frm) is not None and _instant(r[ms.frm]) <= t
+                and (r.get(ms.thru) is None or t < _instant(r[ms.thru]))]
     return rows
 
 
-def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
+def _range_rows(c: Corpus, cls: str, rows: list[dict], start, end) -> list[dict]:
+    """Every version that overlaps [start, end]: FROM <= end and THRU > start. Inclusive at the
+    end, which is what legend-engine's own range tests assert (`from_z <= '2015-09-01' and
+    thru_z > '2015-01-01'`, testTemporalRangeQuery.pure) and what the Phase 3 probe confirmed at a
+    time of day. Pure defines a range only for a class milestoned in ONE dimension."""
+    temporal = c.classes[cls].temporal
+    if temporal not in ("businesstemporal", "processingtemporal"):
+        raise Unsupported(f"{cls} is {temporal}; a range of versions is defined for one dimension")
+    table = c.tables[c.main_table[cls]]
+    ms = table.milestone(_DIMENSIONS[temporal][0])
+    lo, hi = _instant(start), _instant(end)
+    return [r for r in rows
+            if r.get(ms.frm) is not None and _instant(r[ms.frm]) <= hi
+            and (r.get(ms.thru) is None or _instant(r[ms.thru]) > lo)]
+
+
+def _bind_date(c: Corpus, data, row, root: str, d, params: dict | None):
+    """A milestoning date as the test binds it: a literal as written, a parameter's value, or a
+    value read from the root row (query.PathArg)."""
+    if isinstance(d, Param):
+        if params is None or params.get(d.name) is None:
+            raise Unsupported(f"milestoning date ${d.name} has no value in this test")
+        return params[d.name]
+    if isinstance(d, PathArg):
+        v = _value(c, data, row, root, list(d.path))
+        if v is None:
+            raise Unsupported(f"milestoning date $x.{'.'.join(d.path)} is absent on a row, and "
+                              f"Pure's toOne() would fail there")
+        return v
+    return d
+
+
+class _Dated:
+    """What a milestoned navigation needs from the query around it: the test's parameters, and the
+    dates the root was read at, which a milestoned property with no argument of its own takes
+    (date propagation). `root_dates` is None when the root is not temporal or was read at every
+    version, where there is no single date to propagate."""
+
+    def __init__(self, root_temporal: str | None, root_dates, params: dict | None):
+        self.root_temporal, self.root_dates, self.params = root_temporal, root_dates, params
+
+
+_CROSSES: dict[tuple, bool] = {}
+
+
+def _is_dated(c: Corpus, root: str, path) -> bool:
+    """Whether a path navigates INTO a milestoned class, or carries a dated step (query.Hop)."""
+    if any(isinstance(s, Hop) for s in path):
+        return True
+    key = (root, tuple(str(s) for s in path))
+    hit = _CROSSES.get(key)
+    if hit is None:
+        hit, cls = False, root
+        for step in path[:-1]:
+            end = c.ends.get((cls, step))
+            if end is None:
+                break
+            cls = end.target
+            if c.classes.get(cls) is not None and c.classes[cls].temporal is not None:
+                hit = True
+                break
+        _CROSSES[key] = hit
+    return hit
+
+
+def _hop_dates(c: Corpus, data, row, root: str, step, src_temporal, context, dated: _Dated,
+               target: str):
+    """The dates a milestoned hop into `target` is read at: its own, or the ones it propagates."""
+    if isinstance(step, Hop) and step.versions is not None:
+        raise Fanout(f"{target} is navigated at every version ({step}AllVersions...), which is "
+                     f"to-many; only an aggregate over it is modelled")
+    if isinstance(step, Hop) and step.dates is not None:
+        return [_bind_date(c, data, row, root, d, dated.params) for d in step.dates]
+    # No argument: the property takes the date the navigation leaves from. Pure generates that
+    # form only between classes milestoned the same way; anything else needs an explicit date.
+    if context is None or src_temporal != c.classes[target].temporal:
+        raise Unsupported(f"{step} into {target} has no date of its own and leaves from "
+                          f"{src_temporal or 'a non-temporal class'}, so none propagates")
+    return context
+
+
+def _dated_value(c: Corpus, data, row, root: str, path, dated: _Dated | None):
+    """The value at the end of a path that navigates into milestoned classes.
+
+    Every version of a milestoned target shares the join key, so walk() -- which indexes the target
+    on it -- would refuse the hop as a fan-out. Here each hop's candidate rows are narrowed to the
+    version(s) in force at the hop's date before the hop is taken, which is what the engine's join
+    condition does (`... and IN_Z <= t and OUT_Z > t`), and what makes the navigation to-one.
+    """
+    dated = dated or _Dated(None, None, None)
+    cls, table, cur = root, c.main_table[root], row
+    temporal = c.classes[root].temporal if root in c.classes else None
+    context = dated.root_dates
+    for step in path[:-1]:
+        end = c.ends.get((cls, step))
+        if end is None or end.join is None:
+            raise Unsupported(f"{cls}.{step}: only association hops are modelled on a dated path")
+        if end.to_many:
+            raise Fanout(f"{cls}.{step} is to-many; a dated projection over it would fan out")
+        tgt, fc, tc = c.joins[end.join].other(table)
+        if not fc:
+            raise Unsupported(f"{cls}.{step} crosses a general join; not modelled on a dated path")
+        target_temporal = c.classes[end.target].temporal if end.target in c.classes else None
+        landed = []
+        if cur is not None and cur.get(fc) is not None:
+            landed = [x for x in data[tgt] if x.get(tc) == cur.get(fc)]
+        if target_temporal is not None:
+            context = _hop_dates(c, data, row, root, step, temporal, context, dated, end.target)
+            landed = _milestone_rows(c, end.target, landed, context)
+        elif isinstance(step, Hop):
+            raise Unsupported(f"{cls}.{step} is dated but {end.target} is not milestoned")
+        else:
+            context = None      # a non-temporal class carries no date onward
+        if len(landed) > 1:
+            raise Fanout(f"{cls}.{step} lands on {len(landed)} versions of {end.target} at "
+                         f"{context!r}; the navigation would fan out")
+        cur = landed[0] if landed else None
+        cls, table, temporal = end.target, tgt, target_temporal
+    col = c.columns.get(cls, {}).get(path[-1])
+    if col is None:
+        raise Unsupported(f"{cls}.{path[-1]} is not a mapped column")
+    raw = None if cur is None else cur.get(col)
+    mapping = c.enum_props.get((cls, path[-1]))
+    return c.enum_maps[mapping].get(raw) if mapping and raw is not None else raw
+
+
+def _root_dates(c: Corpus, spec: Spec, params: dict | None) -> list | None:
+    """The root's milestoning dates as this test binds them, or None (not temporal, or read at
+    more than one version)."""
+    if spec.as_of is None or spec.versions is not None:
+        return None
+    dates = spec.as_of if isinstance(spec.as_of, list) else [spec.as_of]
+    return [d if not isinstance(d, Param) else _bind_date(c, None, None, spec.root, d, params)
+            for d in dates]
+
+
+def _milestoned(c: Corpus, spec: Spec, rows: list[dict],
+                params: dict | None = None) -> list[dict]:
     """Apply the business-milestoning predicate for a temporal root.
 
     The interval is [FROM, THRU) — inclusive at the start, EXCLUSIVE at the end. That
@@ -2421,46 +2616,62 @@ def _milestoned(c: Corpus, spec: Spec, rows: list[dict]) -> list[dict]:
     table = c.tables[c.main_table[spec.root]]
 
     if temporal is None:
-        if spec.as_of is not None:
+        if spec.as_of is not None or spec.versions is not None:
             raise Fanout(f"{spec.short}: as-of date given for non-temporal {spec.root}")
         return rows
+    # Every version (`.allVersions()`), or every version overlapping a range
+    # (`->getAllVersionsInRange(start, end)`): no date is in force, so nothing narrows by one.
+    if spec.versions is not None:
+        v = spec.versions
+        if v.start is None:
+            return rows
+        return _range_rows(c, spec.root, rows,
+                           _bind_date(c, None, None, spec.root, v.start, params),
+                           _bind_date(c, None, None, spec.root, v.end, params))
     # PROCESSING FIRST for a bitemporal class: all(processingDate, businessDate).
     # Verified against legend-engine's own bitemporal fixture, not assumed. Getting it
     # backwards is silent, not an error -- with the two dates swapped every query still
     # returns rows, just the wrong ones, and a fixture whose two dates happen to be equal
     # passes either way. The corpus deliberately uses DIFFERENT dates so the order is
     # observable.
-    wanted = {"businesstemporal": ["business"],
-              "processingtemporal": ["processing"],
-              "bitemporal": ["processing", "business"]}.get(temporal)
+    wanted = _DIMENSIONS.get(temporal)
     if wanted is None:
         raise Fanout(f"{spec.short}: {temporal} milestoning is not modelled")
 
-    dates = spec.as_of if isinstance(spec.as_of, list) else [spec.as_of]
-    if len(dates) != len(wanted) or any(d is None for d in dates):
+    dates = _root_dates(c, spec, params)
+    if dates is None or len(dates) != len(wanted) or any(d is None for d in dates):
         raise Fanout(f"{spec.short}: {spec.root} is {temporal}, so all() needs "
-                     f"{len(wanted)} date(s) ({', '.join(wanted)}), got {dates!r}")
-
-    for kind, at in zip(wanted, dates):
-        ms = table.milestone(kind)
-        if ms is None:
-            raise Fanout(f"{spec.short}: {spec.root} is {temporal} but {table.name} "
-                         f"declares no {kind} milestoning columns")
-        # Each dimension narrows independently and the predicates AND together, which is
-        # the whole content of bitemporality: "what did we BELIEVE on P about date B".
-        if at == "latest":
-            rows = [r for r in rows if r.get(ms.thru) == INFINITY]
-        else:
-            rows = [r for r in rows
-                    if r.get(ms.frm) is not None and r.get(ms.frm) <= at
-                    and (r.get(ms.thru) is None or at < r.get(ms.thru))]
-    return rows
+                     f"{len(wanted)} date(s) ({', '.join(wanted)}), got {spec.as_of!r}")
+    # Each dimension narrows independently and the predicates AND together, which is the whole
+    # content of bitemporality: "what did we BELIEVE on P about date B".
+    try:
+        return _milestone_rows(c, spec.root, rows, dates)
+    except Unsupported as e:
+        raise Fanout(f"{spec.short}: {e}") from e
 
 
-def _graph(c: Corpus, data, row, cls: str, tree: dict) -> dict:
+def _graph_key(name, dates) -> str:
+    """The key a graph fetch serializes a milestoned property under: its name with the date(s) it
+    was read at written in, `bookLimit(2024-06-03T09:21:00+0000)`, whether the tree gave the date
+    or the property took its parent's (`status { state }` under a root read at 09:35 is keyed
+    `status(2024-06-03T09:35:00+0000)`). Observed on the pinned engine in Phase 3, the explicit
+    form by a probe and the propagated one by the first run of ITG_LimitStatus. Only a DateTime
+    was observed, so only that is written."""
+    if isinstance(name, Hop) and name.versions is not None:
+        raise Unsupported(f"graph key for {name}: a versions property is to-many")
+    if not all(isinstance(d, DateTimeArg) for d in dates):
+        raise Unsupported(f"graph key for {name} at {dates!r}: only a DateTime was observed")
+    return f"{name}({', '.join(d.replace(' ', 'T') + '+0000' for d in dates)})"
+
+
+def _graph(c: Corpus, data, row, cls: str, tree: dict, dated: _Dated | None = None,
+           context=None) -> dict:
     """Build one nested object. A to-one navigation that finds nothing yields null for the
     WHOLE sub-object, not an object full of nulls — which is the tree-shaped version of
-    the distinction F8 showed a flat projection cannot make."""
+    the distinction F8 showed a flat projection cannot make.
+
+    A navigation into a milestoned class lands on the version in force at its date, its own or
+    the one `context` (the dates `cls` was read at) propagates."""
     out = {}
     for name, sub in tree.items():
         if sub is None:
@@ -2486,16 +2697,34 @@ def _graph(c: Corpus, data, row, cls: str, tree: dict) -> dict:
             raise Fanout(f"{cls}.{name} is not an association")
         if end.to_many:
             raise Fanout(f"{cls}.{name} is to-many; graph-fetch arrays are not modelled")
+        target = c.classes.get(end.target)
+        if (target is not None and target.temporal is not None) or isinstance(name, Hop):
+            tgt, fc, tc = c.joins[end.join].other(c.main_table[cls])
+            dates = _hop_dates(c, data, row, cls, name, c.classes[cls].temporal
+                               if cls in c.classes else None, context,
+                               dated or _Dated(None, None, None), end.target)
+            landed = _milestone_rows(c, end.target,
+                                     [x for x in data[tgt] if row.get(fc) is not None
+                                      and x.get(tc) == row.get(fc)], dates)
+            if len(landed) > 1:
+                raise Fanout(f"{cls}.{name} lands on {len(landed)} versions at {dates!r}")
+            out[_graph_key(name, dates)] = (None if not landed else
+                                            _graph(c, data, landed[0], end.target, sub, dated,
+                                                   dates))
+            continue
         hops, _ = c.resolve_assoc(cls, [name])
         landed = walk(c, data, row, hops)
-        out[name] = None if landed is None else _graph(c, data, landed, end.target, sub)
+        out[name] = (None if landed is None
+                     else _graph(c, data, landed, end.target, sub, dated, None))
     return out
 
 
-def evaluate_graph(c: Corpus, spec: Spec, data: dict[str, list[dict]]) -> list[dict]:
+def evaluate_graph(c: Corpus, spec: Spec, data: dict[str, list[dict]],
+                   params: dict | None = None) -> list[dict]:
     base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
-    base = _milestoned(c, spec, base)
-    return [_graph(c, data, r, spec.root, spec.graph) for r in base]
+    base = _milestoned(c, spec, base, params)
+    dated = _dated_for(c, spec, params)
+    return [_graph(c, data, r, spec.root, spec.graph, dated, dated.root_dates) for r in base]
 
 
 def _group(spec: Spec, rows: list[dict]) -> list[dict]:
@@ -2551,7 +2780,8 @@ def _bound(value, params: dict | None):
     return params[value.name]
 
 
-def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None) -> bool:
+def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None,
+          dated: _Dated | None = None) -> bool:
     """One query predicate, or a tree of them. `is`/`not` are the bare boolean forms; `in`,
     `isEmpty` and `isNotEmpty` test membership and absence; everything else compares, as
     legend-pure defines a comparison over an absent value (_cmp). So `!` is plain negation:
@@ -2564,14 +2794,14 @@ def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None) -> boo
     optional boolean is refused rather than guessed at.
     """
     if isinstance(f, And):
-        return all(_pred(c, data, row, root, x, params) for x in f.items)
+        return all(_pred(c, data, row, root, x, params, dated) for x in f.items)
     if isinstance(f, Or):
-        return any(_pred(c, data, row, root, x, params) for x in f.items)
+        return any(_pred(c, data, row, root, x, params, dated) for x in f.items)
     if isinstance(f, Not):
-        return not _pred(c, data, row, root, f.item, params)
+        return not _pred(c, data, row, root, f.item, params, dated)
     if isinstance(f, ParamEmpty):
         return params is None or params.get(f.name) is None
-    v = _value(c, data, row, root, f.path)
+    v = _value(c, data, row, root, f.path, dated=dated)
     if f.op in ("is", "not"):
         if v is None:
             raise Unsupported(
@@ -2590,10 +2820,15 @@ def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None) -> boo
     return _cmp(f.op, v, _bound(f.value, params))
 
 
+def _dated_for(c: Corpus, spec: Spec, params: dict | None) -> _Dated:
+    root = c.classes.get(spec.root)
+    return _Dated(root.temporal if root else None, _root_dates(c, spec, params), params)
+
+
 def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
              params: dict | None = None) -> list[dict]:
     if spec.graph is not None:
-        return evaluate_graph(c, spec, data)
+        return evaluate_graph(c, spec, data, params)
     """Returns the rows the service must produce, as alias -> python value."""
     plain = [p for p in spec.projections if p.agg is None and not p.func
              and not (len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS)]
@@ -2602,12 +2837,13 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
                      f"association, which would fan the row set out")
 
     base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
-    base = _milestoned(c, spec, base)
+    base = _milestoned(c, spec, base, params)
+    dated = _dated_for(c, spec, params)
     kept = [r for r in base
-            if all(_pred(c, data, r, spec.root, f, params) for f in spec.filters)]
+            if all(_pred(c, data, r, spec.root, f, params, dated) for f in spec.filters)]
 
-    out = [{p.alias: (_agg(c, data, r, spec.root, p) if p.agg
-                      else _value(c, data, r, spec.root, p.path, p.args, p.func))
+    out = [{p.alias: (_agg(c, data, r, spec.root, p, params) if p.agg
+                      else _value(c, data, r, spec.root, p.path, p.args, p.func, dated))
             for p in spec.projections}
            for r in kept]
 

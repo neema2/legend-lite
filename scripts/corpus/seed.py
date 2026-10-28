@@ -21025,6 +21025,139 @@ def _typed_values() -> list[dict]:
 TYPED_VALUE = _typed_values()
 
 
+# ---- intraday milestoning (8113-intraday.pure; docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 3) ----
+#
+# Processing time at time of day. Every version is [IN_Z, OUT_Z), and a book's versions never overlap
+# (check() proves it), so a book has at most one limit and one status in force at any instant:
+#
+#   * BK-CASH-US is cut at 09:21:00, raised at 09:45:30, and reset exactly at midnight: three versions in
+#     one day, and the midnight a StrictDate means
+#   * BK-VOL-01's first limit is recorded at 09:35:00 on the 3rd and changed at 09:13:00 on the 7th
+#   * BK-CASH-EU's limit is withdrawn at 09:52:00 on the 6th with no successor, so it is absent at %latest
+#   * BK-EQ has no limit from 12:00 to 13:00; BK-FX changes in the last second of a day; BK-RATES never
+#     changes; BK-LEGACY and BK-CREDIT never had one
+#
+# The limit checks run on both sides of those instants and exactly at them, so "the limit in force when
+# the check ran" meets every boundary; one check names no book (A2) and one a book that does not exist
+# (A1). The status halts BK-CASH-US between two limit changes and reopens it at the instant of the second,
+# so a limit and its status read at one instant meet a boundary on one side and not the other. Marks are
+# published at 17:30, made official minutes later, and restated at midnight; one lives for one second.
+# The valuation runs read them as believed when they ran, for the date they value.
+_INF_TS = "9999-12-31 00:00:00"
+
+
+def _limit(book, in_z, out_z, amount, ccy, rev, by):
+    return dict(BOOK_ID=book, IN_Z=in_z, OUT_Z=out_z, LIMIT_AMOUNT=amount, CURRENCY=ccy,
+                REVISION=rev, APPROVED_BY=by)
+
+
+BOOK_LIMIT_PT = [
+    _limit("BK-CASH-US", "2024-05-31 18:00:00", "2024-06-03 09:21:00", 5000000.0, "USD", 1, "M. Okafor"),
+    _limit("BK-CASH-US", "2024-06-03 09:21:00", "2024-06-03 09:45:30", 4000000.0, "USD", 2, "M. Okafor"),
+    _limit("BK-CASH-US", "2024-06-03 09:45:30", "2024-06-04 00:00:00", 6500000.0, "USD", 3, None),
+    _limit("BK-CASH-US", "2024-06-04 00:00:00", _INF_TS, 5500000.0, "USD", 4, "overnight batch"),
+    _limit("BK-VOL-01", "2024-06-03 09:35:00", "2024-06-07 09:13:00", 2000000.0, "USD", 1, "J. Lindqvist"),
+    _limit("BK-VOL-01", "2024-06-07 09:13:00", _INF_TS, 2500000.0, "USD", 2, "J. Lindqvist"),
+    _limit("BK-CASH-EU", "2024-06-05 09:35:00", "2024-06-06 09:52:00", 3000000.0, "EUR", 1, None),
+    _limit("BK-EQ", "2024-06-03 00:00:00", "2024-06-03 12:00:00", 1000000.0, "USD", 1, "A. O'Brien"),
+    _limit("BK-EQ", "2024-06-03 13:00:00", _INF_TS, 1200000.0, "USD", 2, "A. O'Brien"),
+    _limit("BK-FX", "2024-06-02 23:59:59", "2024-06-03 23:59:59", 8000000.0, "USD", 1, "fx-risk"),
+    _limit("BK-FX", "2024-06-03 23:59:59", _INF_TS, 9000000.0, "USD", 2, "fx-risk"),
+    _limit("BK-RATES", "2024-01-02 07:00:00", _INF_TS, 25000000.0, "EUR", 1, "rates-risk"),
+]
+
+
+def _status(book, in_z, out_z, state, reason):
+    return dict(BOOK_ID=book, IN_Z=in_z, OUT_Z=out_z, STATE=state, REASON=reason)
+
+
+BOOK_STATUS_PT = [
+    _status("BK-CASH-US", "2024-05-01 00:00:00", "2024-06-03 09:30:00", "OPEN", None),
+    _status("BK-CASH-US", "2024-06-03 09:30:00", "2024-06-03 09:45:30", "HALTED", "limit review"),
+    _status("BK-CASH-US", "2024-06-03 09:45:30", _INF_TS, "OPEN", "review cleared"),
+    _status("BK-VOL-01", "2024-06-01 08:00:00", _INF_TS, "OPEN", None),
+    _status("BK-CASH-EU", "2024-06-05 00:00:00", "2024-06-06 09:52:00", "OPEN", None),
+    _status("BK-CASH-EU", "2024-06-06 09:52:00", _INF_TS, "CLOSED", "desk wound down"),
+    _status("BK-EQ", "2024-06-03 06:00:00", _INF_TS, "OPEN", None),
+    _status("BK-FX", "2024-06-03 23:00:00", "2024-06-04 00:00:00", "HALTED", "end-of-day roll"),
+    _status("BK-FX", "2024-06-04 00:00:00", _INF_TS, "OPEN", None),
+]
+
+
+def _mark(instr, frm, thru, in_z, out_z, price, source):
+    return dict(INSTRUMENT_ID=instr, FROM_Z=frm, THRU_Z=thru, IN_Z=in_z, OUT_Z=out_z, PRICE=price,
+                SOURCE=source)
+
+
+MARK_REVISION_BI = [
+    _mark("INST-AAPL", _iso(2024, 6, 3), _iso(2024, 6, 4), "2024-06-03 17:30:00", "2024-06-03 18:05:00",
+          190.1, "PRELIM"),
+    _mark("INST-AAPL", _iso(2024, 6, 3), _iso(2024, 6, 4), "2024-06-03 18:05:00", "2024-06-04 00:00:00",
+          190.25, "OFFICIAL"),
+    _mark("INST-AAPL", _iso(2024, 6, 3), _iso(2024, 6, 4), "2024-06-04 00:00:00", _INF_TS,
+          190.2, "RESTATED"),
+    _mark("INST-AAPL", _iso(2024, 6, 4), INFINITY, "2024-06-04 17:30:00", _INF_TS, 192.0, "OFFICIAL"),
+    _mark("INST-MSFT", _iso(2024, 6, 3), _iso(2024, 6, 4), "2024-06-03 17:45:00", _INF_TS,
+          415.5, "OFFICIAL"),
+    _mark("INST-MSFT", _iso(2024, 6, 4), INFINITY, "2024-06-04 17:45:00", "2024-06-04 17:45:01",
+          416.0, "PRELIM"),
+    _mark("INST-MSFT", _iso(2024, 6, 4), INFINITY, "2024-06-04 17:45:01", _INF_TS, 416.1, "OFFICIAL"),
+    _mark("INST-NESN", _iso(2024, 6, 3), INFINITY, "2024-06-03 08:00:00", _INF_TS, 98.4, None),
+    _mark("INST-GILT30", _iso(2024, 6, 3), INFINITY, "2024-06-03 23:59:59", _INF_TS, 98.75, "OFFICIAL"),
+    _mark("INST-HSBA", _iso(2024, 6, 5), INFINITY, "2024-06-05 16:30:00", _INF_TS, 6.85, "OFFICIAL"),
+]
+
+
+def _check(n, book, at, amount):
+    return dict(CHECK_ID=f"CHK-{n:02d}", BOOK_ID=book, CHECKED_AT=at, REQUESTED_AMOUNT=amount)
+
+
+# The limit in force at each check, by the history above, is noted beside it.
+LIMIT_CHECK = [
+    _check(1, "BK-CASH-US", "2024-06-03 09:07:00", 1200000.0),     # 5.0M
+    _check(2, "BK-CASH-US", "2024-06-03 09:20:59", 4500000.0),     # 5.0M, a second before the cut
+    _check(3, "BK-CASH-US", "2024-06-03 09:21:00", 4500000.0),     # 4.0M, at the cut
+    _check(4, "BK-VOL-01", "2024-06-03 09:34:59", 1000000.0),      # none yet
+    _check(5, "BK-VOL-01", "2024-06-03 09:35:00", 1000000.0),      # 2.0M, recorded at that instant
+    _check(6, "BK-CASH-US", "2024-06-03 09:45:30", 6000000.0),     # 6.5M, raised at that instant
+    _check(7, "BK-CASH-US", "2024-06-03 23:59:59", 6000000.0),     # 6.5M, the last second before reset
+    _check(8, "BK-CASH-US", "2024-06-04 00:00:00", 6000000.0),     # 5.5M, reset at midnight
+    _check(9, "BK-CASH-EU", "2024-06-05 09:31:00", 800000.0),      # none yet
+    _check(10, "BK-CASH-EU", "2024-06-05 09:38:00", 800000.0),     # 3.0M
+    _check(11, "BK-CASH-EU", "2024-06-06 09:52:00", 800000.0),     # none: withdrawn at that instant
+    _check(12, "BK-EQ", "2024-06-03 12:30:00", 500000.0),          # none: in the gap
+    _check(13, "BK-EQ", "2024-06-03 13:00:00", 500000.0),          # 1.2M
+    _check(14, "BK-FX", "2024-06-03 23:59:59", 8500000.0),         # 9.0M, changed at that instant
+    _check(15, "BK-LEGACY", "2024-06-03 10:00:00", 100000.0),      # none ever
+    _check(16, None, "2024-06-03 10:00:00", 100000.0),             # no book (A2)
+    _check(17, "BK-GONE", "2024-06-03 10:00:00", 100000.0),        # a book that does not exist (A1)
+    _check(18, "BK-VOL-01", "2024-06-07 09:13:00", 2200000.0),     # 2.5M, changed at that instant
+    _check(19, "BK-RATES", "2024-06-05 12:00:00", 30000000.0),     # 25.0M
+]
+
+
+def _run(n, instr, day, at):
+    return dict(RUN_ID=f"RUN-{n:02d}", INSTRUMENT_ID=instr, VALUATION_DATE=day, RUN_AT=at)
+
+
+# The mark each run reads, as believed when it ran, for the date it values.
+VALUATION_RUN = [
+    _run(1, "INST-AAPL", _iso(2024, 6, 3), "2024-06-03 18:04:59"),    # PRELIM
+    _run(2, "INST-AAPL", _iso(2024, 6, 3), "2024-06-03 18:05:00"),    # OFFICIAL
+    _run(3, "INST-AAPL", _iso(2024, 6, 3), "2024-06-04 00:00:00"),    # RESTATED, at midnight
+    _run(4, "INST-AAPL", _iso(2024, 6, 4), "2024-06-04 17:29:59"),    # none yet for the 4th
+    _run(5, "INST-AAPL", _iso(2024, 6, 4), "2024-06-04 17:30:00"),    # the 4th's
+    _run(6, "INST-MSFT", _iso(2024, 6, 4), "2024-06-04 17:45:00"),    # PRELIM, for one second
+    _run(7, "INST-MSFT", _iso(2024, 6, 4), "2024-06-04 17:45:01"),    # OFFICIAL
+    _run(8, "INST-MSFT", _iso(2024, 6, 3), "2024-06-05 09:00:00"),    # the 3rd's, read later
+    _run(9, "INST-GILT30", _iso(2024, 6, 3), "2024-06-03 23:59:58"),  # none yet
+    _run(10, "INST-GILT30", _iso(2024, 6, 5), "2024-06-05 08:00:00"),  # the 3rd's, still in force
+    _run(11, "INST-HSBA", _iso(2024, 6, 4), "2024-06-05 17:00:00"),   # none for the 4th
+    _run(12, "INST-SAP", _iso(2024, 6, 3), "2024-06-03 20:00:00"),    # no marks at all
+    _run(13, "INST-NESN", _iso(2024, 6, 7), "2024-06-07 08:00:00"),   # the 3rd's, still in force
+]
+
+
 # The books the ~100 TAXONOMY tables reference. Every taxonomy row carries a BOOK_ID, and
 # until now not one of those ids existed in BOOK -- the two sets were disjoint, so the
 # taxonomies were 1811 classes joined to nothing. That is what made 88% of the corpus's
@@ -21060,6 +21193,11 @@ BOOK += [
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,
     "TYPED_VALUE": TYPED_VALUE,
+    "BOOK_LIMIT_PT": BOOK_LIMIT_PT,
+    "BOOK_STATUS_PT": BOOK_STATUS_PT,
+    "MARK_REVISION_BI": MARK_REVISION_BI,
+    "LIMIT_CHECK": LIMIT_CHECK,
+    "VALUATION_RUN": VALUATION_RUN,
     "CFX_CURRENCY_PAIR": CFX_CURRENCY_PAIR,
     "CFX_FIXING_SOURCE": CFX_FIXING_SOURCE,
     "CFX_RATE": CFX_RATE,
@@ -21405,6 +21543,59 @@ def check(c: Corpus) -> list[str]:
     venues = {r["EXECUTION_VENUE"] for r in TRADE}
     has("A12 CASE_SENSITIVE venue codes",
         any(v.lower() in {o.lower() for o in venues - {v}} for v in venues))
+    bad += _check_intraday(has)
+    return bad
+
+
+def _check_intraday(has) -> list[str]:
+    """A19, the intraday milestoning pack (Phase 3): each key's versions are well formed and never
+    overlap, so a navigation at any instant lands on at most one, and each shape the services ask
+    about is present."""
+    bad = []
+    keyed = {"BOOK_LIMIT_PT": (BOOK_LIMIT_PT, ("BOOK_ID",)),
+             "BOOK_STATUS_PT": (BOOK_STATUS_PT, ("BOOK_ID",)),
+             "MARK_REVISION_BI": (MARK_REVISION_BI, ("INSTRUMENT_ID", "FROM_Z"))}
+    chains = {}
+    for name, (rows, key) in keyed.items():
+        for r in rows:
+            if not r["IN_Z"] < r["OUT_Z"]:
+                bad.append(f"{name} {[r[k] for k in key]}: IN_Z {r['IN_Z']} is not before "
+                           f"OUT_Z {r['OUT_Z']}")
+            chains.setdefault(name, {}).setdefault(tuple(r[k] for k in key), []).append(r)
+        for k, vs in chains[name].items():
+            vs.sort(key=lambda r: r["IN_Z"])
+            for a, b in zip(vs, vs[1:]):
+                if b["IN_Z"] < a["OUT_Z"]:
+                    bad.append(f"{name} {k}: versions overlap between {b['IN_Z']} and {a['OUT_Z']}; "
+                               f"a navigation would land on two")
+    limits = chains["BOOK_LIMIT_PT"].values()
+    pairs = [(a, b) for vs in limits for a, b in zip(vs, vs[1:])]
+    has("A19 INTRADAY a limit superseded twice within one day",
+        any(sum(1 for r in vs if r["OUT_Z"][:10] == d and not r["OUT_Z"].endswith("00:00:00")) >= 2
+            for vs in limits for d in {r["OUT_Z"][:10] for r in vs}))
+    has("A19 INTRADAY a limit superseded exactly at midnight",
+        any(a["OUT_Z"] == b["IN_Z"] and a["OUT_Z"].endswith(" 00:00:00") for a, b in pairs))
+    has("A19 INTRADAY a gap between two versions of a limit",
+        any(b["IN_Z"] > a["OUT_Z"] for a, b in pairs))
+    has("A19 INTRADAY a limit withdrawn with no successor",
+        any(vs[-1]["OUT_Z"] != _INF_TS for vs in limits))
+    has("A19 INTRADAY a book with no limit at all",
+        bool({b["BOOK_ID"] for b in BOOK} - {r["BOOK_ID"] for r in BOOK_LIMIT_PT}))
+    has("A19 INTRADAY a limit check at the instant its book's limit is recorded",
+        any((r["BOOK_ID"], r["CHECKED_AT"]) in {(v["BOOK_ID"], v["IN_Z"]) for v in BOOK_LIMIT_PT}
+            for r in LIMIT_CHECK))
+    has("A19 INTRADAY a limit check at the instant its book's limit is withdrawn",
+        any((r["BOOK_ID"], r["CHECKED_AT"]) in {(vs[-1]["BOOK_ID"], vs[-1]["OUT_Z"]) for vs in limits}
+            for r in LIMIT_CHECK))
+    has("A19 INTRADAY a limit check with no book, and one whose book does not exist",
+        any(r["BOOK_ID"] is None for r in LIMIT_CHECK)
+        and any(r["BOOK_ID"] and r["BOOK_ID"] not in {b["BOOK_ID"] for b in BOOK} for r in LIMIT_CHECK))
+    has("A19 INTRADAY a valuation run before any mark of its instrument is believed",
+        any(not any(m["INSTRUMENT_ID"] == r["INSTRUMENT_ID"] and m["IN_Z"] <= r["RUN_AT"]
+                    for m in MARK_REVISION_BI) for r in VALUATION_RUN))
+    has("A19 INTRADAY a mark corrected within the day it was published",
+        any(a["OUT_Z"][:10] == a["IN_Z"][:10] and a["OUT_Z"] == b["IN_Z"]
+            for vs in chains["MARK_REVISION_BI"].values() for a, b in zip(vs, vs[1:])))
     return bad
 
 
