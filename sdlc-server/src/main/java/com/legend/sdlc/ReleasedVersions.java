@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * THE VERSIONS A SITE RELEASES (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): a read-only layer of the model home, each
@@ -21,14 +22,73 @@ import java.util.Set;
  *
  * <p>A version's files are kept as the site gives them -- a file may hold many elements, as a site's do -- and its
  * entities read from them by the model home's grammar at lite's dialect (D1: a file holding lite's own connection words
- * is an entity like any other). A version's hash is its files' (each path and text, in order): what a workspace started
- * from it records, so a version changed under the same number is said by name.
+ * is an entity like any other) when first asked for, then kept: a page reading a version's files alone (its model's
+ * text, {@code modelText}) never pays for them (measured 2026-10-28 in the page's WebAssembly: the trader screens'
+ * 2.3 MB read in 2.7 s, every open, before this). A version's hash is its files' (each path and text, in order): what a
+ * workspace started from it records, so a version changed under the same number is said by name.
  */
 public final class ReleasedVersions implements ArtifactSource {
     /** A file of a version: its path in the release and its Pure text. */
     public record File(String path, String pureCode) {}
 
     private record Version(Release release, String hash) {}
+
+    /** A version's entities, read from its files when first asked for and kept. */
+    private static final class Entities implements Supplier<String> {
+        private final Sdlc.Grammar grammar;
+        private final String version;
+        private final List<File> files;
+        /** kept once read: two readers at once read it twice at worst (no lock: the page's WebAssembly has none), and
+         *  keep equal text */
+        private volatile @Nullable String read;
+
+        Entities(Sdlc.Grammar grammar, String version, List<File> files) {
+            this.grammar = grammar;
+            this.version = version;
+            this.files = files;
+        }
+
+        @Override
+        public String get() {
+            String kept = read;
+            if (kept == null) {
+                kept = read();
+                read = kept;
+            }
+            return kept;
+        }
+
+        /** Each file's elements as entities, in order: refused, by name, for a file the grammar cannot read or an
+         *  element no SDLC stores. */
+        private String read() {
+            List<Object> entities = new ArrayList<>();
+            for (File f : files) {
+                List<Json.Node> elements;
+                try {
+                    elements = Json.parseObject(grammar.modelJson(f.pureCode())).getArr("elements").items();
+                } catch (RuntimeException e) {
+                    throw new IllegalArgumentException(version + ": " + f.path() + " is not read: "
+                            + (e.getMessage() == null ? e.getClass().getName() : e.getMessage()), e);
+                }
+                for (Json.Node n : elements) {
+                    Json.Obj element = (Json.Obj) n;
+                    String type = String.valueOf(element.getStringOr("_type", null));
+                    if (type.equals("sectionIndex")) continue;
+                    String classifierPath = Classifiers.of(type);
+                    if (classifierPath == null) {
+                        throw new IllegalArgumentException(version + ": " + f.path() + " holds an element of type " + type
+                                + ", which no SDLC stores");
+                    }
+                    LinkedHashMap<String, Json.Node> entity = new LinkedHashMap<>();
+                    entity.put("path", Json.str(element.getStringOr("package", null) + "::" + element.getStringOr("name", null)));
+                    entity.put("classifierPath", Json.str(classifierPath));
+                    entity.put("content", element);
+                    entities.add(new Json.Obj(entity));
+                }
+            }
+            return Json.toCompact(entities);
+        }
+    }
 
     private final Sdlc.Grammar grammar;
     /** Each version, by {@code group:artifact:version}, in the order released. */
@@ -43,37 +103,14 @@ public final class ReleasedVersions implements ArtifactSource {
     }
 
     /**
-     * Version {@code versionId} of {@code groupId:artifactId} released with {@code files}: its entities read from them.
-     * Refused, by name, for a file the grammar cannot read or an element no SDLC stores; released again with other
-     * files, the latest is kept (the site was updated: what it serves now is the version).
+     * Version {@code versionId} of {@code groupId:artifactId} released with {@code files}, its entities read from them
+     * when first asked for (refused then, by name, for a file the grammar cannot read or an element no SDLC stores);
+     * released again with other files, the latest is kept (the site was updated: what it serves now is the version).
      */
     public void add(String groupId, String artifactId, String versionId, List<File> files) {
-        List<Object> entities = new ArrayList<>();
         List<Object> texts = new ArrayList<>();
         StringBuilder all = new StringBuilder();
         for (File f : files) {
-            List<Json.Node> elements;
-            try {
-                elements = Json.parseObject(grammar.modelJson(f.pureCode())).getArr("elements").items();
-            } catch (RuntimeException e) {
-                throw new IllegalArgumentException("version " + versionId + " of " + groupId + ":" + artifactId + ": "
-                        + f.path() + " is not read: " + (e.getMessage() == null ? e.getClass().getName() : e.getMessage()), e);
-            }
-            for (Json.Node n : elements) {
-                Json.Obj element = (Json.Obj) n;
-                String type = String.valueOf(element.getStringOr("_type", null));
-                if (type.equals("sectionIndex")) continue;
-                String classifierPath = Classifiers.of(type);
-                if (classifierPath == null) {
-                    throw new IllegalArgumentException("version " + versionId + " of " + groupId + ":" + artifactId + ": "
-                            + f.path() + " holds an element of type " + type + ", which no SDLC stores");
-                }
-                LinkedHashMap<String, Json.Node> entity = new LinkedHashMap<>();
-                entity.put("path", Json.str(element.getStringOr("package", null) + "::" + element.getStringOr("name", null)));
-                entity.put("classifierPath", Json.str(classifierPath));
-                entity.put("content", element);
-                entities.add(new Json.Obj(entity));
-            }
             LinkedHashMap<String, Object> text = new LinkedHashMap<>();
             text.put("path", f.path());
             text.put("pureCode", f.pureCode());
@@ -81,8 +118,8 @@ public final class ReleasedVersions implements ArtifactSource {
             all.append(f.path()).append('\0').append(f.pureCode()).append('\0');
         }
         String hash = Sha1.hex(Sha1.digest(all.toString().getBytes(StandardCharsets.UTF_8)));
-        versions.put(key(groupId, artifactId, versionId),
-                new Version(new Release(List.of(), Json.toCompact(entities), Json.toCompact(texts)), hash));
+        Entities entities = new Entities(grammar, "version " + versionId + " of " + groupId + ":" + artifactId, List.copyOf(files));
+        versions.put(key(groupId, artifactId, versionId), new Version(new Release(List.of(), entities, Json.toCompact(texts)), hash));
     }
 
     /** Whether {@code group:artifact:version} is a version released here. */

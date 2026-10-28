@@ -3,6 +3,7 @@ package com.legend.depot;
 import com.legend.base.Nullable;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Where Depot-lite reads published versions from (design S22) -- upstream Depot's artifact repository,
@@ -23,9 +24,16 @@ public interface ArtifactSource {
 
     /**
      * A published version: what it declares it depends on, its entities (upstream's {@code Entity[]} JSON)
-     * and its files (lite's {@code [{path, pureCode}]} JSON).
+     * and its files (lite's {@code [{path, pureCode}]} JSON). Its entities are made when first asked for: a site's
+     * released version reads them from its files then (docs/ONE_CONNECTION_DESK_2026_10_28.md D5), which a reader of
+     * its files alone never pays (measured 2026-10-28: the trader screens' 2.3 MB, 2.7 s of a page's open).
      */
-    record Release(List<Dependency> dependencies, String entitiesJson, String filesJson) {}
+    record Release(List<Dependency> dependencies, Supplier<String> entities, String filesJson) {
+        /** Its entities, made now if they were not yet; a version whose files cannot be read is refused here. */
+        public String entitiesJson() {
+            return entities.get();
+        }
+    }
 
     List<Project> projects();
 

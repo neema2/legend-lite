@@ -1283,7 +1283,8 @@ public final class Sdlc {
                 Map<String, String> files = entityFiles(git.readTree(git.readCommit(commit).tree()));
                 List<Object> texts = new ArrayList<>();
                 for (Map.Entry<String, String> f : files.entrySet()) texts.add(map("path", f.getKey(), "pureCode", git.readBlob(f.getValue())));
-                return new Release(declaredOf(config(commit)), Json.toCompact(entities(files, false)), Json.toCompact(texts));
+                String entities = Json.toCompact(entities(files, false));
+                return new Release(declaredOf(config(commit)), () -> entities, Json.toCompact(texts));
             }
         };
     }

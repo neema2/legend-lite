@@ -66,11 +66,19 @@ class ReleasedVersionsTest {
     }
 
     @Test
-    void aFileItCannotReadIsRefusedByName() {
+    void aVersionsFilesAreReadWithoutItsEntities_aFileItCannotReadRefusedByNameWhenTheyAreAskedFor() {
         ReleasedVersions r = new ReleasedVersions(new CoreGrammar());
-        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, () ->
-                r.add("demo", "bad", "1.0.0", List.of(new ReleasedVersions.File("bad.pure", "Class demo::X { ]"))));
-        assertTrue(e.getMessage().contains("bad.pure is not read"), e.getMessage());
+        r.add("demo", "bad", "1.0.0", List.of(new ReleasedVersions.File("bad.pure", "Class demo::X { ]")));
+        ArtifactSource.Release v = r.release("demo", "bad", "1.0.0");
+        // its files and its hash, as the site gives them: a page reading its model's text never parses it
+        assertEquals("bad.pure", ((Json.Obj) ((Json.Arr) Json.parse(v.filesJson())).items().get(0)).getString("path"));
+        assertTrue(r.hash("demo", "bad", "1.0.0") != null);
+        IllegalArgumentException e = assertThrows(IllegalArgumentException.class, v::entitiesJson);
+        assertTrue(e.getMessage().contains("version 1.0.0 of demo:bad: bad.pure is not read"), e.getMessage());
+        // Depot answers the entities with the refusal, by name
+        Depot.Response entities = new Depot(r, () -> 0L).handle("GET", "/projects/demo/bad/versions/1.0.0", null);
+        assertEquals(500, entities.status(), entities.body());
+        assertTrue(entities.body().contains("bad.pure is not read"), entities.body());
     }
 
     @Test
