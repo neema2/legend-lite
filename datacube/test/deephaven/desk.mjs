@@ -188,8 +188,13 @@ try {
       const g = await rowsOf('nw-wordTable');
       return every(g, 'headline', (h) => /dividend/i.test(String(h))) ? g : null;
     }, 'the keyword pane at "dividend"');
-    await sleep(1000);
-    const headlines = await page.locator('[data-tile="nw-wordFeed"] .dc-feed-headline').allTextContents();
+    // the pane's cards drawn from those rows: waited for, not a second's sleep -- its feed redraws after its grid (the
+    // 2026-10-28 run read the cards a second after the grid and found the keyword before's, buybacks, still drawn)
+    const cards = page.locator('[data-tile="nw-wordFeed"] .dc-feed-headline');
+    const headlines = await until(async () => {
+      const shown = await cards.allTextContents();
+      return shown.length > 0 && shown.every((h) => /dividend/i.test(h)) ? shown : null;
+    }, 'the keyword pane\'s cards at "dividend"').catch(() => cards.allTextContents());
     const kept = JSON.stringify((await viewOf('nw-wordFeed')).selection ?? null);
     if (headlines.length > 0 && headlines.every((h) => /dividend/i.test(h)) && kept.includes('dividend')) {
       ok(`News: a keyword typed into a pane: "dividend", ${typed.rows.length} stories, each card with it, kept with the page`);
