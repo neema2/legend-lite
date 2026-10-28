@@ -1160,6 +1160,9 @@ date independently of the engine, which is what this corpus does.
 
 `repro/dayofyear-is-dayofmonth/` asserts 155 and currently fails.
 
+**Still so at 4.145.0, in a query too (2026-10-28, the improvement plan's Phase 4 adjudication).**
+`$x.d->map(v|$v->dayOfYear())` answers 3 for 2024-06-03 and 9 for 2024-06-09, where Pure answers 155 and 161.
+
 ## F36 — Five functions are in `getSupportedFunctions()` and cannot be executed
 
 Probing each registered function in a real property mapping turns up five that are listed and
@@ -1239,6 +1242,14 @@ the behaviour is a compatibility decision, but the current state is that one fun
 means two different things depending on where the planner decides to evaluate it, and
 nothing in the model says which one a given query will get.
 
+**At 4.145.0 a query's `substring` is Pure's; a property mapping's is still SQL's (2026-10-28, the improvement plan's
+Phase 4 adjudication).** `pureToSQLQuery.pure` now carries `processSubstr` ("Pure indexes are 0-based with an
+exclusive end; SQL's are 1-based with a length"), so `$x.s->map(v|$v->substring(1, 3))` answers `'lp'` for 'alpha',
+as Pure does. A relational property mapping's `substring(T.S, 2, 4)` is still passed through and answers `'lpha'`, so
+`F37_SubstringSql` stays quarantined. The corpus's oracle had its own error here, found by the same adjudication: it
+read substring as one-based with an exclusive end (`'lp'` for `(2, 4)`), agreeing with neither; it now reads
+legend-pure's definition.
+
 ## F38 — `firstDayOfWeek` returns a DateTime through a StrictDate property
 
 Four properties, all declared `StrictDate[0..1]`, all computed from one DATE column by the
@@ -1275,6 +1286,12 @@ has run.
 
 Related to F24, where the same DateTime differs between TDS projection and graph fetch. Both
 say the same thing: serialization follows the execution path, not the declared type.
+
+**Still so at 4.145.0, in a query too (2026-10-28, the improvement plan's Phase 4 adjudication).** Projected in a
+query, `$x.d->map(v|$v->adjust(5, DurationUnit.DAYS))` and `$x.d->map(v|$v->firstDayOfWeek())` over a DATE column
+render `2024-06-08T00:00:00.000000000+0000` and `2024-06-03T00:00:00.000000000+0000`; the values are right (a Sunday's
+week starts on the Monday before). `today()` renders the same way. `adjust` over a TIMESTAMP is a DateTime and
+renders as one, so it agrees with Pure.
 
 ## F39 — `startsWith`/`endsWith`/`contains` are false for every row when the pattern is a column
 
@@ -1430,6 +1447,12 @@ The seed's third parent owns no children for exactly that reason. Every aggregat
 collection function differs between an empty and a populated collection, and F6 lives only
 there — a probe with three well-populated parents would have found none of it.
 
+**At 4.145.0, four more are not applied (2026-10-28, the improvement plan's Phase 4 adjudication).** The probe had
+recorded `greatest`, `least`, `and` and `or` as disagreeing. Each returns one row per CHILD, as `first` and `sortBy`
+do, so the parents with children are not reduced at all, and the parent with none gets NULL where Pure's
+`greatest([])` is empty, `and([])` true (a fold from `true`) and `or([])` false. `count`, `map(...)->sum()` and
+`joinStrings` still answer 1, NULL and NULL over the empty parent (F6).
+
 `repro/collection-over-tomany/`.
 
 ## F44 — The projection spelling decides which database the query runs on
@@ -1584,6 +1607,11 @@ Found by `scripts/corpus/probe_functions.py`, which compares every registered fu
 result against an independently computed one. These three cannot agree with the oracle by
 construction — they read the clock — but the probe still runs them, and the SHAPE of the
 disagreement is what surfaced this.
+
+**Still so at 4.145.0, in a query too (2026-10-28, the improvement plan's Phase 4 adjudication).** Projected in a
+query, each of the three is the same reflected object, its offset the zone of the machine running the engine
+(`-04:00` for October's first day and `-05:00` for January's, in New York). `today()` is a string, but a DateTime
+one (`2026-10-28T00:00:00.000000000+0000`), where its declared type is StrictDate (F38's shape).
 
 ## F49 — An inherited association cannot be navigated from a subtype set
 
@@ -2085,3 +2113,36 @@ cannot observe it, and the corpus writes no service that depends on a connection
 column, the plan's other time-zone probe, has no type in the pinned grammar (`RelationalDataType` has `TIMESTAMP`
 and `DATE` only) and waits for the bump (the plan's D3). Repro: `scripts/corpus/repro/connection-timezone-test/`
 (`Utc` passes; `NewYorkRead` and `NewYorkLiteral` return the unconverted answers).
+
+## F68 — A function reached through `map` over an absent value is applied to SQL's NULL
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4, adjudicating the functions the
+probes recorded as disagreeing. legend-pure's `map` over an empty collection is empty, so `$x.s->map(v|f($v))` is
+absent for a row whose `s` is absent, whatever `f` is. legend-engine 4.145.0 lowers the `map` over a to-one property
+to `f` applied to the column, so wherever `f`'s SQL answers a NULL argument with a value, the absent row gets that
+value: `$x.s->map(v|$v + 'z')` gives `'z'` (DuckDB's `concat` reads NULL as ''), and a filter
+`$x.s->map(v|$v + 'z') == 'z'` keeps the row, where Pure's `[] == 'z'` is false; `map(v|$v->regexpIndexOf('p'))`
+gives `-1` (the lowering's `CASE WHEN regexp_matches(...) ... ELSE -1`); and `map(v|$v->hashCode())->isEmpty()` is
+false, the hash of a NULL being a number. A function whose SQL propagates the NULL (`length`, `toUpper`) gives the
+right answer. `->toOne()->f()` lowers identically, where Pure would raise. Repro:
+`scripts/corpus/repro/map-over-absent/` (`Length` passes; `Append`, `AppendFilter`, `IndexOf` and `HashIsEmpty` fail).
+
+## F69 — On DuckDB, `regexpIndexOf` reports where the matched text first occurs, not where the match is
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 adjudication. legend-engine defines
+`regexpIndexOf(string, regexp)` as the zero-based position at which the pattern first matches, so `'abab'` with
+`'b$'` is 3. legend-engine 4.145.0's DuckDB SQL has no `regexp_instr` to call: it extracts the matched text (`'b'`)
+and finds it with `strpos`, which answers the first `'b'`, at 1. Whenever the text a pattern matches also occurs
+before the match, the position is too early. The lowering's own comment names the gap (`duckdbExtension.pure`,
+`transformRegexpIndexOf`: "that differs from the true match position when the same text occurs earlier in the
+string"), so this records it with a repro rather than discovers it. Repro:
+`scripts/corpus/repro/regexpindexof-text-position/` (`FirstMatch` passes; `AnchoredMatch` answers 1).
+
+## F70 — `regexpExtract` that matches nothing returns the empty string, not nothing
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 adjudication. legend-engine's
+`regexpExtract(string, regexp, extractAll):String[*]` returns nothing when the pattern does not match, so
+`'alpha'->regexpExtract('b.', false)->isEmpty()` is true. legend-engine 4.145.0's DuckDB SQL is `regexp_extract`,
+which answers `''` for no match, so `isEmpty()` is false, a filter on it drops the row, and a projected
+`->first()` is `''` where Pure has nothing. A match is right (`'abab'` gives `'ba'`). Repro:
+`scripts/corpus/repro/regexpextract-no-match/` (`Matches` passes; `NoMatchIsEmpty` and `NoMatchFilter` fail).

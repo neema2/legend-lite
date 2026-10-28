@@ -31,7 +31,6 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -220,10 +219,17 @@ CASES = [
     # String[3] for regexpCount, String[4] for regexpIndexOf, String[5] for regexpExtract --
     # and the shorter overloads, which are registered, cannot reach them (F46). The trailing
     # argument is the regex flags.
+    #
+    # regexpIndexOf's third argument is the GROUP and regexpExtract's are extractAll and the
+    # group, as legend-engine's Pure signatures name them. Until 2026-10-28 both asked for group 1
+    # of a pattern with no group, which Pure answers with -1 and nothing, and the probe compared
+    # that with the whole match (the improvement plan's Phase 4 adjudication).
     ("regexpLike", "Boolean", "regexpLike(T.S, 'ph', 'i')", ["alpha", "ph"]),
     ("regexpCount", "Integer", "regexpCount(T.S, 'a', 'i')", ["alpha", "a"]),
-    ("regexpIndexOf", "Integer", "regexpIndexOf(T.S, 'ph', 1, 'i')", ["alpha", "ph"]),
-    ("regexpExtract", "String", "regexpExtract(T.S, 'ph', 1, 1, 'i')", ["alpha", "ph"]),
+    ("regexpIndexOf", "Integer", "regexpIndexOf(T.S, 'ph', 0, 'CASE_SENSITIVE')",
+     ["alpha", "ph", 0]),
+    ("regexpExtract", "String", "regexpExtract(T.S, 'ph', 'false', 0, 'CASE_SENSITIVE')",
+     ["alpha", "ph", False, 0]),
     # regexpReplace has no arity that works: three arguments hits the same index error and
     # four is refused as well. Left at the natural spelling so the failure is recorded
     # against the function rather than hidden by omission.
@@ -340,15 +346,8 @@ def attempt(cases) -> tuple[str, str]:
     """Run one probe. Returns (outcome, detail) where outcome is 'ok' or a function name."""
     work = Path(tempfile.mkdtemp())
     tmp = work / "probe.pure"
-    tmp.write_text(build(cases))
-    cp = (runner.RUNNER / "cp.txt").read_text().strip()
-    env = dict(os.environ, JAVA_HOME=runner.JAVA_HOME)
-    r = subprocess.run(
-        [f"{runner.JAVA_HOME}/bin/java", "-cp",
-         f"{runner.RUNNER}/target/classes:{cp}", "perf.TestableMain",
-         str(tmp), "--testable=probe::Svc", f"--dump={work}"],
-        capture_output=True, text=True, env=env, cwd=runner.RUNNER, timeout=3600)
-    out = r.stdout + r.stderr
+    tmp.write_text(build(cases), encoding="utf-8")
+    _status, out = runner.launch([str(tmp), "--testable=probe::Svc", f"--dump={work}"], work)
     m = re.search(r"The function '(\w+)'.{0,80}?is not supported yet", out, re.S)
     if m:
         return m.group(1), "not supported yet"
@@ -451,15 +450,22 @@ def compare(cases, actual: str) -> list:
         rows = json.loads(actual[actual.index("["):])
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"  could not parse the engine result: {exc}")
-        return []
+        return [], []
     got = rows[0]
     agree, differ, nooracle = 0, [], []
     for i, (name, _ret, _expr, args) in enumerate(cases):
         engine = got.get(f"f{i}")
+        if name in SHAPE:
+            # a value no two calls share: what is compared is its shape
+            if SHAPE[name](engine):
+                agree += 1
+            else:
+                differ.append((name, engine, "a value of its shape"))
+            continue
         try:
             mine = oracle._dynafunction(name, args)
         except Exception as exc:                        # Unsupported, or a real bug in mine
-            nooracle.append((name, type(exc).__name__))
+            nooracle.append((name, f"{type(exc).__name__}: {str(exc)[:80]}"))
             continue
         if _same(engine, mine):
             agree += 1
@@ -474,10 +480,32 @@ def compare(cases, actual: str) -> list:
         print("  which; each needs a person to adjudicate against the dialect's own rules:")
         for name, engine, mine in differ:
             print(f"    {name:<22} engine={engine!r:<28} oracle={mine!r}")
-    return differ
+    return differ, nooracle
 
 
-EVIDENCE = Path(__file__).resolve().parents[2] / "docs/FUNCTIONS_EXECUTED.tsv"
+# Functions whose every call answers differently (a fresh GUID), compared by the shape of the value
+# rather than the value. Before 2026-10-28 generateGuid was compared with the oracle's own fresh GUID
+# and recorded as disagreeing (the improvement plan's Phase 4 adjudication).
+SHAPE = {
+    "generateGuid": lambda v: isinstance(v, str) and re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", v) is not None,
+}
+
+
+# The checkout's copy: `bazel run` names the workspace, and the file is a draft the probes refresh (the Bazel workplan's
+# G-13), never an output of the build.
+EVIDENCE = (Path(os.environ["BUILD_WORKSPACE_DIRECTORY"]) if os.environ.get("BUILD_WORKSPACE_DIRECTORY")
+            else Path(__file__).resolve().parents[2]) / "docs/FUNCTIONS_EXECUTED.tsv"
+
+# The disagreements the improvement plan's Phase 4 adjudicated (2026-10-28), each the ENGINE's, by finding: the
+# evidence names the side that is wrong. A disagreement not listed is unadjudicated, and a person must decide it
+# before the function goes into a service.
+ADJUDICATED = {
+    "adjust": "the engine's: F38, a StrictDate rendered as a DateTime",
+    "dayOfYear": "the engine's: F35, DuckDB's day() is the day of the month",
+    "firstDayOfWeek": "the engine's: F38, a StrictDate rendered as a DateTime",
+    "substring": "the engine's: F37, a property mapping's substring is SQL's (a query's is Pure's)",
+}
 
 # Functions that WERE run, diagnosed, written up, and then removed from the case list because
 # leaving them in fails the whole probe. Recorded here so they are not reported as untouched:
@@ -517,7 +545,7 @@ def merge_evidence(probe: str, agreeing, failing=()) -> None:
                             + ["\t".join(r) for r in sorted(set(rows))]) + "\n")
 
 
-def record(ran, rejected, differ=()) -> None:
+def record(ran, rejected, differ=(), nooracle=()) -> None:
     """Write the evidence file the function scoreboard reads.
 
     Written from what actually ran rather than maintained by hand, for the same reason the
@@ -531,13 +559,25 @@ def record(ran, rejected, differ=()) -> None:
     """
     import combos
 
-    names = {name for name, _r, _e, _a in ran} - set(differ)
-    for x in set(combos._UNARY.values()) | set(combos._BINARY.values()):
-        names.add(x)
-    for fn, _lit in combos._LITERAL_ARG.values():
-        names.add(fn)
+    unjudged = dict(nooracle)
+    names = {name for name, _r, _e, _a in ran} - set(differ) - set(unjudged)
+    # Only the transforms a matrix cell USES: until 2026-10-28 every function the matrix could
+    # spell was added, `substring` among them, which XFORM leaves out (F37), so a function the
+    # probe found disagreeing was counted as agreeing too.
+    used = {x for xs in combos.XFORM.values() for x in xs}
+    for key, fn in list(combos._UNARY.items()) + list(combos._BINARY.items()):
+        if key in used:
+            names.add(fn)
+    for key, (fn, _lit) in combos._LITERAL_ARG.items():
+        if key in used:
+            names.add(fn)
     fails = [(n, f"REFUSED: {why}") for n, why in rejected]
-    fails += [(n, "DISAGREES with the oracle") for n in differ]
+    fails += [(n, "DISAGREES with the oracle" + (f" -- {ADJUDICATED[n]}" if n in ADJUDICATED else ""))
+              for n in differ]
+    # Ran, and the oracle has no value to compare: a clock, an identity, an unspecified hash. Not
+    # agreement, which is what the probe recorded for them before 2026-10-28.
+    fails += [(n, f"RUNS; no oracle value -- {why}") for n, why in sorted(unjudged.items())
+              if n not in names]
     fails += sorted(DIAGNOSED.items())
     merge_evidence("scalar", sorted(names), fails)
     print(f"\n  {len(names)} functions executed and agreeing, "
@@ -551,12 +591,13 @@ def main() -> None:
     time. Removing the named function and retrying walks the whole list in as many rounds as
     there are refusals, which is far fewer than one round per function.
     """
-    cases, rejected, differ = list(CASES), [], []
+    cases, rejected, differ, nooracle = list(CASES), [], [], []
     for _round in range(len(CASES)):
         outcome, detail = attempt(cases)
         if outcome == "ok":
             print(f"{len(cases)} functions EXECUTE in a relational property mapping.")
-            differ = [d[0] for d in compare(cases, detail)]
+            found, nooracle = compare(cases, detail)
+            differ = [d[0] for d in found]
             break
         if outcome == "ERROR":
             print(f"  unattributed failure, bisecting: {detail[:110]}", flush=True)
@@ -582,7 +623,7 @@ def main() -> None:
     else:
         print("every case was rejected")
 
-    record(cases, rejected, differ)
+    record(cases, rejected, differ, nooracle)
 
     if rejected:
         print(f"\n{len(rejected)} of {len(CASES)} registered functions do NOT execute here.")

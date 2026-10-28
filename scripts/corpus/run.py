@@ -132,6 +132,38 @@ def _read_report(path: Path) -> list[tuple[str, Result]]:
     return rows
 
 
+def _launcher() -> tuple[str, dict[str, str]]:
+    """The engine runner in this binary's runfiles, and the environment it runs in."""
+    launcher = _RUNFILES.Rlocation(os.environ["ENGINE_RUNNER"])
+    if not launcher or not Path(launcher).exists():
+        raise SystemExit(f"the engine runner is not in the runfiles: {os.environ['ENGINE_RUNNER']}")
+    return launcher, dict(os.environ, **_RUNFILES.EnvVars())
+
+
+def _start(launcher: str, env: dict[str, str], heap: str, args: list[str], argfile: Path, log: Path,
+           timeout: float) -> int | None:
+    """One JVM of the runner over `args`, its output into `log`; its exit status, or None past `timeout`. The one
+    place a corpus script starts Java (the Bazel workplan's D18). The arguments go one per line through `argfile`
+    (TestableMain's @<file>), since the corpus's paths and a batch's names overflow Windows' 32,767-character command
+    line."""
+    argfile.write_text("".join(f"{a}\n" for a in args), encoding="utf-8")
+    with open(log, "w", encoding="utf-8") as fh:
+        try:
+            return subprocess.run([launcher, f"--jvm_flag=-Xmx{heap}", f"@{argfile}"],
+                                  stdout=fh, stderr=subprocess.STDOUT, env=env, timeout=timeout).returncode
+        except subprocess.TimeoutExpired:
+            return None
+
+
+def launch(args: list[str], work: Path, timeout: float = 3600, heap: str = "2g") -> tuple[int | None, str]:
+    """One JVM of the engine runner over `args` for a probe (P7-03: the probes start Java only through this): its exit
+    status, None past `timeout`, and everything it printed. The arguments and the log are kept in `work`."""
+    launcher, env = _launcher()
+    log = work / "launch.log"
+    status = _start(launcher, env, heap, args, work / "launch.args", log, timeout)
+    return status, log.read_text(encoding="utf-8", errors="replace")
+
+
 class Engine:
     """The runner, one JVM per batch."""
 
@@ -142,25 +174,14 @@ class Engine:
 
     @staticmethod
     def from_runfiles(args, files: list[Path], work: Path) -> "Engine":
-        launcher = _RUNFILES.Rlocation(os.environ["ENGINE_RUNNER"])
-        if not launcher or not Path(launcher).exists():
-            raise SystemExit(f"the engine runner is not in the runfiles: {os.environ['ENGINE_RUNNER']}")
+        launcher, env = _launcher()
         extra = ([f"--rows={_typed(args.rows).absolute()}"] if args.rows else []) \
             + [f"--data={_typed(d).absolute()}" for d in args.data]
-        return Engine(launcher, dict(os.environ, **_RUNFILES.EnvVars()), files, work, args.limit, args.heap, extra)
+        return Engine(launcher, env, files, work, args.limit, args.heap, extra)
 
     def launch(self, args: list[str], argfile: Path, log: Path, timeout: float) -> int | None:
-        """One JVM of the runner over `args`, its output into `log`; its exit status, or None past `timeout`. The one
-        place a corpus script starts Java (the Bazel workplan's D18): the probes move onto it in P7-03. The arguments
-        go one per line through `argfile` (TestableMain's @<file>), since the corpus's paths and a batch's names
-        overflow Windows' 32,767-character command line."""
-        argfile.write_text("".join(f"{a}\n" for a in args), encoding="utf-8")
-        with open(log, "w", encoding="utf-8") as fh:
-            try:
-                return subprocess.run([self.launcher, f"--jvm_flag=-Xmx{self.heap}", f"@{argfile}"],
-                                      stdout=fh, stderr=subprocess.STDOUT, env=self.env, timeout=timeout).returncode
-            except subprocess.TimeoutExpired:
-                return None
+        """One JVM of the runner over `args` (`_start`)."""
+        return _start(self.launcher, self.env, self.heap, args, argfile, log, timeout)
 
     def batch(self, number: int, names: list[str]) -> dict[str, list[Result]]:
         """`names` in one JVM, started again after a testable that hangs or kills it, until each has a verdict.

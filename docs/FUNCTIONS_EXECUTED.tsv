@@ -3,10 +3,10 @@ CYMinus2	scalar	REFUSED: not in the DynaFunctionRegistry
 CYMinus3	scalar	REFUSED: not in the DynaFunctionRegistry
 abs	scalar	ok
 acos	scalar	ok
-add	collection	an.execution.stores.relational.result.SQLExecut …
-adjust	scalar	DISAGREES with the oracle
+add	collection	 casts. Candidate functions: list_concat([ANY[]...]) -> ANY[
+adjust	scalar	DISAGREES with the oracle -- the engine's: F38, a StrictDate rendered as a DateTime
 aggregate	relation	ok
-and	collection	DISAGREES with the oracle
+and	collection	DISAGREES with the oracle -- the engine's: F43, not applied over a to-many (a row per child)
 and	scalar	ok
 annualized	scalar	REFUSED: not in the DynaFunctionRegistry
 asOfJoin	relation	RUNS; not asserted -- ties in this seed make the expectation unfalsifiable
@@ -30,10 +30,10 @@ cme	scalar	REFUSED: not in the DynaFunctionRegistry
 coalesce	scalar	ok
 columnProjectionsFromRoot	remaining	refused: the function does not exist: meta::relational::func
 concat	scalar	ok
-concatenate	collection	Caused by: Execution error at (resource:/core_relational/rel
+concatenate	collection	ite session for 'Svc_suite' <- caused by: Execution error at
 concatenate	relation	ok
 concatenate	tds	ERROR
-contains	collection	Caused by: Assert failure at (resource:/core_relational/rela
+contains	collection	lizing test suite session for 'Svc_suite' <- caused by: Asse
 contains	scalar	ok
 convertTimeZone	scalar	REFUSED: not supported yet
 corr	aggregate	ok
@@ -41,11 +41,11 @@ cos	scalar	ok
 cosh	scalar	ok
 cot	scalar	ok
 count	aggregate	ok
-count	collection	DISAGREES with the oracle
+count	collection	DISAGREES with the oracle -- the engine's: F6, an aggregate over an empty to-many
 covarPopulation	aggregate	ok
 covarSample	aggregate	ok
 cumulativeDistribution	relation	ok
-currentUserId	scalar	DISAGREES with the oracle
+currentUserId	scalar	RUNS; no oracle value -- Unsupported: dynafunction 'currentUserId' is deliberately NOT implemented: the identity runni
 cw	scalar	REFUSED: not in the DynaFunctionRegistry
 cw_fm	scalar	REFUSED: not in the DynaFunctionRegistry
 date	scalar	ok
@@ -54,15 +54,15 @@ datePart	scalar	ok
 dayOfMonth	scalar	ok
 dayOfWeek	scalar	ok
 dayOfWeekNumber	scalar	ok
-dayOfYear	scalar	DISAGREES with the oracle
+dayOfYear	scalar	DISAGREES with the oracle -- the engine's: F35, DuckDB's day() is the day of the month
 decodeBase64	scalar	ok
 denseRank	relation	ok
 distinct	aggregate	ok
-distinct	collection	Caused by: Assert failure at (resource:/core_relational/rela
+distinct	collection	bselect" >>>>> }}}}} $$$$$ 0 VS: '[2 col_C/[2 col_C/[2 @kids
 distinct	relation	ok
 distinct	tds	ok
 divide	scalar	ok
-drop	collection	Caused by: Assert failure at (resource:/core_relational/rela
+drop	collection	"subselect" >>>>> }}}}} $$$$$ 0 VS: '[2 col_C/[2 col_C/[2 @k
 drop	relation	ok
 drop	tds	ok
 encodeBase64	scalar	ok
@@ -75,19 +75,18 @@ exp	scalar	ok
 extend	relation	ok
 extend	tds	ok
 extractEnumValue	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
-filter	collection	gine.plan.execution.stores.relational.result.SQ …
+filter	collection	or use "ANY_VALUE(K)" if the exact value of "K" is not impor
 filter	relation	ok
 filter	tds	ok
 first	aggregate	ok
-first	collection	DISAGREES with the oracle
+first	collection	DISAGREES with the oracle -- the engine's: F43, not applied over a to-many (a row per child)
 first	relation	F41 -- returns the whole relation instead of the first row
 firstDayOfMonth	scalar	ok
 firstDayOfQuarter	scalar	ok
-firstDayOfThisMonth	scalar	DISAGREES with the oracle
-firstDayOfThisQuarter	scalar	DISAGREES with the oracle
-firstDayOfThisYear	scalar	DISAGREES with the oracle
-firstDayOfWeek	scalar	DISAGREES with the oracle
-firstDayOfWeek	scalar	ok
+firstDayOfThisMonth	scalar	RUNS; no oracle value -- Unsupported: dynafunction 'firstDayOfThisMonth' is deliberately NOT implemented: reads the cl
+firstDayOfThisQuarter	scalar	RUNS; no oracle value -- Unsupported: dynafunction 'firstDayOfThisQuarter' is deliberately NOT implemented: reads the 
+firstDayOfThisYear	scalar	RUNS; no oracle value -- Unsupported: dynafunction 'firstDayOfThisYear' is deliberately NOT implemented: reads the clo
+firstDayOfWeek	scalar	DISAGREES with the oracle -- the engine's: F38, a StrictDate rendered as a DateTime
 firstDayOfYear	scalar	ok
 firstHourOfDay	scalar	ok
 firstMillisecondOfSecond	scalar	ok
@@ -98,7 +97,7 @@ flatten	remaining	refused: Collection element must have a multiplicity [1] - C
 floor	scalar	ok
 formatDate	scalar	ok
 fromJson	scalar	REFUSED: not in the DynaFunctionRegistry
-generateGuid	scalar	DISAGREES with the oracle
+generateGuid	scalar	ok
 get	remaining	ok
 getAll	remaining	refused: Can't find property 'getAll' in class 'meta::pure::
 getAllForEachDate	remaining	refused: Can't find property 'all' in class 'meta::pure::met
@@ -108,18 +107,18 @@ graphFetch	remaining	refused: java.lang.RuntimeException: PURE_TDSOBJECT format 
 graphFetchChecked	remaining	refused: java.lang.RuntimeException: PURE_TDSOBJECT format n
 greaterThan	scalar	ok
 greaterThanEqual	scalar	ok
-greatest	collection	DISAGREES with the oracle
+greatest	collection	DISAGREES with the oracle -- the engine's: F43, not applied over a to-many (a row per child)
 greatest	scalar	ok
 groupBy	relation	ok
 groupBy	tds	ok
 groupByWithWindowSubset	remaining	refused: Error in 'rem::S_groupByWithWindowSubset': class or
 hash	scalar	REFUSED: not in the DynaFunctionRegistry
-hashCode	scalar	DISAGREES with the oracle
+hashCode	scalar	RUNS; no oracle value -- Unsupported: dynafunction 'hashCode' is deliberately NOT implemented: the engine returns a 64
 hour	scalar	ok
 if	scalar	ok
-in	collection	Caused by: Assert failure at (resource:/core_relational/rela
+in	collection	lizing test suite session for 'Svc_suite' <- caused by: Asse
 indexOf	scalar	ok
-init	collection	d.engine.plan.execution.stores.relational.resul …
+init	collection	unctions: len(VARCHAR) -> BIGINT len(BIT) -> BIGINT len(ANY[
 isAlphaNumeric	scalar	ok
 isDistinct	aggregate	ok
 isEmpty	collection	ok
@@ -132,20 +131,20 @@ jaroWinklerSimilarity	scalar	ok
 join	relation	ok
 join	tds	ok
 joinStrings	aggregate	ok
-joinStrings	collection	DISAGREES with the oracle
+joinStrings	collection	DISAGREES with the oracle -- the engine's: F6, an aggregate over an empty to-many
 keys	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 last	aggregate	ok
-last	collection	ct(STRUCT, BIGINT) -> ANY at org.finos.legend.e …
+last	collection	cit type casts. Candidate functions: array_extract(ANY[], BI
 last	relation	F42 -- generates SQL that builds a list of mixed types, whic
 lateral	relation	REFUSED: Can't find variable class for variable 'r' in the graph
-least	collection	DISAGREES with the oracle
+least	collection	DISAGREES with the oracle -- the engine's: F43, not applied over a to-many (a row per child)
 least	scalar	ok
 left	scalar	ok
 length	scalar	ok
 lessThan	scalar	ok
 lessThanEqual	scalar	ok
 levenshteinDistance	scalar	ok
-limit	collection	Caused by: Assert failure at (resource:/core_relational/rela
+limit	collection	subselect" >>>>> }}}}} $$$$$ 0 VS: '[2 col_C/[2 col_C/[2 @ki
 limit	relation	ok
 limit	tds	ok
 list	remaining	ok
@@ -153,7 +152,7 @@ log	scalar	ok
 log10	scalar	ok
 lpad	scalar	ok
 ltrim	scalar	ok
-map	collection	DISAGREES with the oracle
+map	collection	DISAGREES with the oracle -- the engine's: F6, an aggregate over an empty to-many
 matches	scalar	ok
 max	aggregate	ok
 max	scalar	REFUSED: two-arg form has only the aggregate lowering (F45)
@@ -172,13 +171,13 @@ mostRecentDayOfWeek	scalar	REFUSED: not supported yet
 mtd	scalar	REFUSED: not in the DynaFunctionRegistry
 newMap	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 not	scalar	ok
-now	scalar	DISAGREES with the oracle
+now	scalar	RUNS; no oracle value -- Unsupported: dynafunction 'now' is deliberately NOT implemented: reads the clock, and the cor
 nth	relation	ok
 ntile	relation	ok
 objectReferenceIn	remaining	refused: Error initializing test suite session for 'S_object
 offset	relation	REFUSED: registered signature names a function that does not exist (F36)
 olapGroupBy	tds	ERROR
-or	collection	DISAGREES with the oracle
+or	collection	DISAGREES with the oracle -- the engine's: F43, not applied over a to-many (a row per child)
 or	scalar	ok
 p12mtd	scalar	REFUSED: not in the DynaFunctionRegistry
 p12wa	scalar	REFUSED: not in the DynaFunctionRegistry
@@ -187,7 +186,7 @@ p4wa	scalar	REFUSED: not in the DynaFunctionRegistry
 p4wtd	scalar	REFUSED: not in the DynaFunctionRegistry
 p52wa	scalar	REFUSED: not in the DynaFunctionRegistry
 p52wtd	scalar	REFUSED: not in the DynaFunctionRegistry
-paginated	collection	Caused by: Assert failure at (resource:/platform/pure/essent
+paginated	collection	ror initializing test suite session for 'Svc_suite' <- cause
 paginated	tds	ok
 parseBoolean	scalar	REFUSED: not supported yet
 parseDate	scalar	REFUSED: not supported yet
@@ -225,13 +224,13 @@ range	remaining	ok
 rank	relation	ok
 reduce	relation	REFUSED: NPE reaching for a generic type during compilation
 regexpCount	scalar	ok
-regexpExtract	scalar	DISAGREES with the oracle
-regexpIndexOf	scalar	DISAGREES with the oracle
+regexpExtract	scalar	ok
+regexpIndexOf	scalar	ok
 regexpLike	scalar	ok
-regexpReplace	scalar	REFUSED: unattributed: Caused by: Execution error at (resource:/core_relational_duckdb/relati
+regexpReplace	scalar	REFUSED: unattributed: by: Execution error at (resource:/core_relational_duckdb/relational/sq
 rem	scalar	ok
 removeDuplicates	aggregate	not in DynaFunctionRegistry
-removeDuplicates	collection	inos.legend.engine.plan.execution.stores.relati …
+removeDuplicates	collection	Candidate functions: array_distinct(ANY[]) -> ANY[] LINE 2: 
 rename	relation	ok
 renameColumns	tds	ok
 repeatString	scalar	ok
@@ -239,7 +238,7 @@ replace	scalar	ok
 reportEndDay	scalar	REFUSED: not in the DynaFunctionRegistry
 restrict	tds	ok
 reverse	aggregate	not in DynaFunctionRegistry
-reverse	collection	 at org.finos.legend.engine.plan.execution.stor …
+reverse	collection	cutionResult.<init>(SQLExecutionResult.java:135) at org.fino
 reverseString	scalar	ok
 right	scalar	ok
 round	scalar	ok
@@ -254,16 +253,16 @@ sign	scalar	ok
 sin	scalar	ok
 sinh	scalar	ok
 size	aggregate	ok
-size	collection	gine.plan.execution.stores.relational.result.SQ …
+size	collection	or use "ANY_VALUE(K)" if the exact value of "K" is not impor
 size	relation	REFUSED: a scalar-returning service cannot be asserted by the framework
-slice	collection	Caused by: Assert failure at (resource:/core_relational/rela
+slice	collection	select" >>>>> }}}}} $$$$$ 0 VS: '[2 col_C/[2 col_C/[2 @kids(
 slice	relation	ok
 slice	tds	ok
 sort	aggregate	not in DynaFunctionRegistry
-sort	collection	ort("c_0".V) as "f0" from P as "root" left oute …
+sort	collection	idate functions: array_sort(ANY[]) -> ANY[] array_sort(ANY[]
 sort	relation	ok
 sort	tds	ok
-sortBy	collection	DISAGREES with the oracle
+sortBy	collection	DISAGREES with the oracle -- the engine's: F43, not applied over a to-many (a row per child)
 sortByReversed	collection	EngineException: Error in 'col::Svc': Can't find variable cl
 splitPart	scalar	ok
 sqrt	scalar	ok
@@ -271,12 +270,11 @@ startsWith	scalar	ok
 stdDevPopulation	aggregate	ok
 stdDevSample	aggregate	ok
 subType	remaining	refused: Error initializing test suite session for 'S_subTyp
-substring	scalar	DISAGREES with the oracle
-substring	scalar	ok
+substring	scalar	DISAGREES with the oracle -- the engine's: F37, a property mapping's substring is SQL's (a query's is Pure's)
 sum	aggregate	ok
 tableToTDS	remaining	refused: no matching signature: tableToTDS
-tail	collection	 at org.finos.legend.engine.plan.execution.stor …
-take	collection	Caused by: Assert failure at (resource:/core_relational/rela
+tail	collection	cutionResult.<init>(SQLExecutionResult.java:135) at org.fino
+take	collection	"subselect" >>>>> }}}}} $$$$$ 0 VS: '[2 col_C/[2 col_C/[2 @k
 take	relation	ok
 take	tds	ok
 tan	scalar	ok
@@ -296,9 +294,9 @@ toOneMany	scalar	REFUSED: not in the DynaFunctionRegistry
 toString	scalar	ok
 toUpper	scalar	ok
 toVariant	scalar	ok
-today	scalar	DISAGREES with the oracle
+today	scalar	RUNS; no oracle value -- Unsupported: dynafunction 'today' is deliberately NOT implemented: reads the clock, and the c
 trim	scalar	ok
-union	collection	engine.plan.execution.stores.relational.result. …
+union	collection	or use "ANY_VALUE(K)" if the exact value of "K" is not impor
 values	remaining	refused: java.lang.RuntimeException: java.sql.SQLException: 
 variance	scalar	REFUSED: lowers to a list function, invalid in a grouped select (F40)
 variancePopulation	aggregate	ok

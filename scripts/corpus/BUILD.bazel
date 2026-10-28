@@ -357,6 +357,27 @@ py_binary(
     deps = [":run_lib"],
 )
 
+# The function probes (the Bazel workplan's P7-03, for the two the stress corpus plan's Phase 4 re-runs): each puts
+# functions in front of the engine at the pin through run.py's launcher, compares with the oracle, and refreshes its
+# rows of docs/FUNCTIONS_EXECUTED.tsv in the checkout. Tools, built when run.
+[py_binary(
+    name = probe,
+    testonly = True,
+    # the collection probe records its rows through the scalar probe's merge
+    srcs = [
+        "probe_collection.py",
+        "probe_functions.py",
+    ],
+    data = _ENGINE_DATA,
+    env = _ENGINE_ENV,
+    main = probe + ".py",
+    tags = ["manual"],
+    deps = [":run_lib"],
+) for probe in [
+    "probe_collection",
+    "probe_functions",
+]]
+
 # 4,735 testables, every eighth to a shard, in batches of 200, one JVM at a time per shard. Measured 2026-10-21 on a
 # Windows desk with four JVMs at once: about 3 s a testable (graph fetch up to 17 s) and 40 s to parse and compile the
 # corpus, so a shard takes about half of the enormous test's hour. Each JVM holds the compiled corpus (-Xmx6g, about
@@ -416,6 +437,8 @@ build_test(
     name = "tools_build_test",
     targets = [
         ":changed",
+        ":probe_collection",
+        ":probe_functions",
         ":run",
     ],
 )

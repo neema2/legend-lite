@@ -3267,3 +3267,17 @@ Status lives in the plan's Progress table (rule 0b.16).
   - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
     `99-typed-services.pure` and `99-intraday-services.pure`, the services Phases 1 and 3 generate, so the trading
     model stays classes, stores and mappings. Without it 396 services (about 670 KB) came into the model.
+- **Phase 4 (started 2026-10-28): the function vocabulary.** It lands in stages, each committed when green. First the
+  23 functions `docs/FUNCTIONS_EXECUTED.tsv` records as disagreeing with the oracle are adjudicated, each an oracle
+  fix or an upstream finding, before any goes into a service. Inside the owned files: the oracle, the probes
+  (`probe_functions.py` and `probe_collection.py` start the engine through `run.py`'s one launcher, the plan's
+  P7-03 shape) and their manual `py_binary`s in `scripts/corpus/BUILD.bazel`, a generator `scripts/corpus/vocab.py`
+  writing a new generated file `99-vocab-services.pure` (`core/stress.bzl`'s `STRESS_GENERATED` and the layout
+  JSON), `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and
+  both `MIN_PASS`.
+- **Cross-area, Phase 4 (announced 2026-10-28, before it lands):**
+  - `docs/FUNCTIONS_EXECUTED.tsv` (the function scoreboard's evidence, read by `//scripts/corpus:functions_gate`):
+    the scalar and collection probes' rows, refreshed at the pin.
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (thirteen to fourteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-vocab-services.pure`.
