@@ -23,7 +23,8 @@ from pathlib import Path
 # The generated files a page needs none of: the services and their test data. The runtimes and connections some
 # hand-written files name live in 96-98, which stay.
 SERVICES_AND_DATA = {"92-services.pure", "93-testdata.pure", "94-canonical-services.pure", "94-fanout-services.pure",
-                     "95-function-tests.pure", "99-trader-services.pure"}
+                     "95-function-tests.pure", "99-intraday-services.pure", "99-trader-services.pure",
+                     "99-typed-services.pure"}
 SECTIONS = ("model.pure", "store.pure", "mapping.pure")
 
 

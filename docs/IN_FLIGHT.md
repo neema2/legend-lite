@@ -3263,3 +3263,7 @@ Status lives in the plan's Progress table (rule 0b.16).
 - **Cross-area, Phase 3 (announced 2026-10-28, before it lands):**
   - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (twelve to thirteen), as
     Phase 1's did.
+- **Cross-area, the rebase onto `main` (2026-10-28):**
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-typed-services.pure` and `99-intraday-services.pure`, the services Phases 1 and 3 generate, so the trading
+    model stays classes, stores and mappings. Without it 396 services (about 670 KB) came into the model.
