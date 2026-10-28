@@ -117,8 +117,11 @@ interface Entry {
 // 2026-10-26 (lazy tabs, the user: "if we need lazy tab loading then we should do that"): L1_GRID 5 -> 6 -- a saved
 // page's saved query on live rows is typed before its grid's first view (CubeAppOptions.prepares), and where it reads
 // otherwise than saved the grid starts there (#first): the start the eager open would have made, before any view.
+// 2026-10-28 (docs/ONE_CONNECTION_DESK_2026_10_28.md step 4, Run On ▸): L1_REACH 6 -> 7 -- the page on screen opened
+// again with its saved queries on another context of their data space (openSaved, `switching`), as Open… opens a page:
+// no command switches a context yet.
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 6, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
+  L1_GRID: 6, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 7, L1_PLANE: 3, L1_HOST: 8,
   L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
@@ -196,6 +199,8 @@ const L1_REACH: Record<string, Entry> = {
   'datacube-app.ts:openInPlace:inPlace': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:open:openSaved': { items: [], why: "N1, D1: the Open… window's page, of this tab's own; and openLive's `open`, the page its other editor serves opened whole as its keeper has it (replacing)", count: 2 },
   'datacube-app.ts:openText:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
+  // added 2026-10-28 (docs/ONE_CONNECTION_DESK_2026_10_28.md step 4, Run On ▸): no command switches a context yet
+  'datacube-app.ts:runOnChosen:openSaved': { items: [], why: "N1, D1: Run On ▸, the page on screen opened again with its saved queries on another context of their data space -- a page of this tab's own; on a page another editor serves, that one left as it is, as Open… leaves it" },
   'datacube-app.ts:examplesList:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is: a page link's, and an example the address names (#example=, the trading desk: 2026-10-25)", count: 2 },
   'datacube-app.ts:openDataCube:blankPage': { items: [], why: "N1, D1: New ▸ Blank Page, a new page of this tab's own (newPage, D11), the page another editor serves left as it is; and a start that opened nothing, said -- never once the page its other editor serves is open (the S7 audit's H-1)", count: 3 },

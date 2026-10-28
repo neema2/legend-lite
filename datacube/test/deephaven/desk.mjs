@@ -360,7 +360,8 @@ try {
     }
   };
   let menuSeen = null;
-  // MEASURING (2026-10-28, a renderer crash on the switch): each Chromium renderer's resident memory, in MB, largest first
+  // MEASURED at each switch (2026-10-28: the page's renderer crashed in 3 of 7 runs during a switch, at ~1.5 GB and no
+  // kernel kill, not since the browser's fatal lines were logged, above): each renderer's resident memory, in MB
   const { execSync } = await import('node:child_process');
   const renderers = () => execSync('ps -eo rss,args').toString().split('\n').filter((l) => l.includes('--type=renderer'))
     .map((l) => Math.round(Number.parseInt(l.trim(), 10) / 1024)).sort((a, b) => b - a);
@@ -380,8 +381,6 @@ try {
     const onDeephaven = JSON.stringify(before) === JSON.stringify([['In this tab (DuckDB)', 'false'], [deephaven, 'true']]);
     await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("In this tab (DuckDB)"))').first().click();
     const switching = Date.now();
-    const peak = setInterval(() => { try { console.log(`[measure] switching: renderers ${JSON.stringify(renderers())} MB`); } catch { /* gone */ } }, 2000);
-    setTimeout(() => clearInterval(peak), 60_000);
     // the page opened again on the tab's context: its market started in the tab (market-sim/local-host.ts `__market`),
     // then its first tab drawn from it
     const worldRowsNow = () => page.evaluate(() => {
