@@ -449,6 +449,9 @@ legend_java_library(
             "src/test/java/com/legend/exec/MongoDbDifferentialTest.java",
             "src/test/java/com/legend/FixtureAsidePostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
+            # DataCube's timeseries library on every in-process database is :timeseries_library_test's alone: it reads
+            # DataCube's Pure file (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B)
+            "src/test/java/com/legend/integration/TimeseriesLibraryTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
@@ -906,6 +909,29 @@ junit_test(
     data = _SQL_PARITY_DATA,
     jvm_flags = _SQL_PARITY_FLAGS,
     select = ["--select-class=com.legend.integration.SqlParityTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# DATACUBE'S TIMESERIES LIBRARY ON THE PLATFORM (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B):
+# datacube::ts, DataCube's Pure file as it is -- a program, input to the compiler (docs/WORLD_MAP.md), read here as a
+# test's input as the linked projects' files are -- type-checks whole, and a person's Pure calling it answers as
+# arithmetic on every in-process database (a calendar period's as-of join where the dialect writes one)
+junit_test(
+    name = "timeseries_library_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TimeseriesLibraryTest.java"],
+    data = ["//datacube:src/pure/datacube_ts.pure"],
+    jvm_flags = ["-Ddatacube.library=$(rlocationpath //datacube:src/pure/datacube_ts.pure)"],
+    select = ["--select-class=com.legend.integration.TimeseriesLibraryTest"],
     runtime_deps = [":drivers"],
     deps = [
         ":core",

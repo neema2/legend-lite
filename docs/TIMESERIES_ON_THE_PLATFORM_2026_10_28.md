@@ -7,15 +7,16 @@ on PR #77. This note says what each item is, what is decided, and what waits on 
 ## 1. Where things are
 
 - **The maths is the database's**, every figure through DataCube's Pure library `datacube::ts`
-  (`datacube/src/pure-library-text.ts`, ~1,700 lines, ~110 functions, generic over relations: S112).
+  (`datacube/src/pure-library-text.ts`, ~1,700 lines, ~110 functions, generic over relations: S112; since step B the
+  Pure file `datacube/src/pure/datacube_ts.pure`, the TypeScript module written from it).
 - **The assembly is TypeScript's**: `timeseries-expr.ts` parses the formula language (gs-quant's shorthand,
   `returns(px:close[SPX], 1, log)`), and `timeseries-query.ts` (~2,700 lines) writes the Pure each formula is -- the
   library calls, the periods of a frequency, and the joins and windows that put two series on one set of dates
   (`align`: intersect, step, time, zero). Python and the screen both reach it through DataCube's code (headless).
 - **So the platform cannot do what the tile does** without TypeScript: a person's Pure can call every library function,
   but combining two series under an alignment, or writing a formula, means writing what the TypeScript writes.
-- **The library reaches the planner only through TypeScript**: its text is a TypeScript string, sent with each query
-  that calls it.
+- **The library reached the planner only through TypeScript** (until step B): its text was a TypeScript string, sent
+  with each query that calls it.
 
 ## 2. The four items
 
@@ -41,10 +42,11 @@ on PR #77. This note says what each item is, what is decided, and what waits on 
   §5.6 of the design note). The merge itself is a join: a person's Pure writes it with Pure's own `join` and fills the
   rest by name, and answers as the tile's `align` does (`timeseries-queries.test.ts`, "two calendars joined"). The
   writer's merge stays composition (which rows meet which), C's to write.
-- **B. The library as a Pure file.** `datacube/src/pure/datacube_ts.pure` the source; the TypeScript text module and the
-  enumerations table generated from it; Java and Python load the same file as a library source
-  (`Runner.registerLibrarySource` takes any package but `meta::pure::functions::`). A person's Pure on the platform then
-  names `datacube::ts` with no TypeScript in the path.
+- **B. The library as a Pure file (done, §4).** `datacube/src/pure/datacube_ts.pure` the source; the TypeScript text
+  module (`pure-library-text.ts`) and the enumerations table generated from it, each diff-tested. The platform takes it
+  as a `###Pure` section after a model's own, as the page sends it; nothing of the platform's own changes. A person's
+  Pure on the platform then names `datacube::ts` with no TypeScript in the path: `//core:timeseries_library_test`
+  compiles the file whole and runs a person's Pure over it on every in-process database (DuckDB, H2, SQLite).
 - **C. `#Quant{...}#`.** An island, as `#SQL{...}#` is (`SpecParser`'s island switch, `protocol/sql/SqlToPure`): the
   formula language parsed in Java and written as a Pure relation expression of library calls -- what
   `timeseries-query.ts` writes today. Its sources named in the island (`#Quant{ px = $prices(date: day, key: symbol);
@@ -52,8 +54,11 @@ on PR #77. This note says what each item is, what is decided, and what waits on 
   query-suite case planned both ways, the same SQL's answers required, before the TypeScript writer is deleted.
 - **D. The writer thin.** The tile sends `#Quant{...}#` and reads the answer; Python the same; `timeseries-query.ts`
   keeps what is the screen's alone (the points cut to a limit, the columns a drawing reads).
-- **E. The rest of the list.** The library on a second database (H2 or Postgres, the query suite's figures); the SQL's
-  size; a semantics register row for an enumeration's value equalling its name's string (S6); "B" (a series written in
+- **E. The rest of the list.** The library on a second database (H2 or Postgres, the query suite's figures). B's test
+  found the first gap: a calendar period back (`lagPeriod`, and every `*Period` function on it) is an `asOfJoin`, and
+  H2's and SQLite's dialects write none -- refused by name, never answered wrong; the portable rewrite (`AsOfAsPick`, a
+  left join keeping each row's latest match) is Trino's alone, so giving it to them is a dialect change of its own. The
+  SQL's size; a semantics register row for an enumeration's value equalling its name's string (S6); "B" (a series written in
   Pure, which C makes the same thing); brushing a period to filter.
 
 ## 4. Done on the branch
@@ -61,7 +66,11 @@ on PR #77. This note says what each item is, what is decided, and what waits on 
 Items 1 and 4 (§2), held by `timeseries_queries_test` (every number unchanged), the typecheck and
 `//datacube:update_generated`'s diff tests. `FilterOperator`'s values reordered (`empty` first) so the screen's order is
 the library's. Step A (§3): the fills and their pieces, the writer on them with every alignment number unchanged
-(163 tests), and a person's own Pure answering as the tile's step and time.
+(163 tests), and a person's own Pure answering as the tile's step and time. Step B (§3): the library a Pure file, the page's module and the
+enumerations written from it (the text byte for byte as before); `//core:timeseries_library_test` (the core lane)
+compiles it whole and runs a person's Pure on DuckDB, H2 and SQLite -- a mean, returns simple and log, volatility, a
+month's number and the three fills answer as arithmetic on all three; a week's returns on DuckDB, refused by name on the
+other two (step E).
 
 ## 5. What waits on the user
 
