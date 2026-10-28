@@ -851,38 +851,35 @@ function merged(sh: Shared, a: Aligned, b: Aligned): Merged {
  */
 function fill(w: Writer, values: readonly string[], ord: string, how: Exclude<TsAlign, 'intersect'>): void {
   if (how === 'nan' || values.length === 0) return;
-  const fresh = (what: string): string => w.fresh(what);
-  const R = Writer.read;
-  // each column replaced under its own name: the merged one kept under another
-  const replace = (c: string, body: (raw: string) => ValueSpecification): void => {
-    const raw = fresh('al_raw');
-    w.rel = w.rel.rename(c, raw);
-    w.rel = w.rel.extend([derive(c, row(body(raw)))]);
+  // each column replaced under its own name by the library's (its alignment functions, the platform step, 2026-10-28):
+  // the merged one kept under another
+  const replaced = (made: readonly (readonly [string, string])[]): void => {
+    for (const [v, filled] of made) w.rel = w.rel.rename(v, w.fresh('al_raw')).rename(filled, v);
   };
   if (how === 'zero') {
-    for (const v of values) replace(v, (raw) => when(fn('isEmpty', col(raw)), lit.integer(0), col(raw)));
+    replaced(values.map((v) => [v, w.libraryOfRow('fillZero', 'al_zero', [colSpec(v)])] as const));
     return;
   }
-  const valued = w.row('al_vp', when(fn('isNotEmpty', col(values[0]!)), col(PERIOD), none()));
-  const lastP = w.window('al_lastp', 'max', R(valued), 'running');
-  const at = (p: string, c: string): string => w.window('al_v', 'max', R(w.row('al_at', when(fn('equal', col(PERIOD), col(p)), col(c), none()))), 'all', p);
+  // its last and next valued periods, each once for all its columns (each window a level more the database plans
+  // through), its first column saying where it has a row: a part's columns are one row's
+  const line = colSpec(w.part);
+  const order = colSpec(PERIOD);
+  const marker = colSpec(values[0]!);
+  const lastP = w.libraryOfRow('lastValued', 'al_lastp', [line, order, marker]);
+  const at = (p: string, c: string): string => w.libraryOfRow('valueAt', 'al_v', [line, order, colSpec(p), colSpec(c)]);
   // its carried columns (the rows a value was one of, its periods a year) where it has a row alone: a date filled took
   // none of its rows -- each merge filling every one before it grew the query faster than its parts
   if (how === 'step') {
-    const firstP = w.window('al_firstp', 'min', R(valued), 'all');
+    const firstP = w.libraryOfRow('firstValued', 'al_firstp', [line, order, marker]);
     const made = values.map((v) => [v, at(lastP, v), at(firstP, v)] as const);
-    for (const [v, last, first] of made) replace(v, () => when(fn('isEmpty', col(last)), col(first), col(last)));
+    replaced(made.map(([v, last, first]) => [v, w.libraryOfRow('orElse', 'al_step', [colSpec(last), colSpec(first)])] as const));
   } else {
-    const nextP = w.window('al_nextp', 'min', R(valued), 'rest');
+    const nextP = w.libraryOfRow('nextValued', 'al_nextp', [line, order, marker]);
     const t0 = at(lastP, ord);
     const t1 = at(nextP, ord);
     const made = values.map((v) => [v, at(lastP, v), at(nextP, v)] as const);
-    for (const [v, a, b] of made) {
-      // inside its values alone, at one of its own dates its own value: the library's (linearAt), each column replaced
-      // under its own name
-      const between = w.libraryOfRow('linearAt', 'al_lin', [colSpec(t0), colSpec(a), colSpec(t1), colSpec(b), colSpec(ORD)]);
-      w.rel = w.rel.rename(v, fresh('al_raw')).rename(between, v);
-    }
+    // inside its values alone, at one of its own dates its own value: the library's (linearAt)
+    replaced(made.map(([v, a, b]) => [v, w.libraryOfRow('linearAt', 'al_lin', [colSpec(t0), colSpec(a), colSpec(t1), colSpec(b), colSpec(ORD)])] as const));
   }
 }
 

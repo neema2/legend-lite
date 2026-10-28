@@ -522,6 +522,32 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     assert.deepEqual(values(t, 'di').map(num), DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000));
   });
 
+  // the platform step (the user, 2026-10-28: "do timeseries RIGHT and EXPERT on platform"): the alignment the tile wrote
+  // as joins and windows, the library's functions -- a column with gaps put onto every date by step, zero and time
+  it('a person\'s own Pure: a column with gaps put onto every date by step, zero and time, by name', async () => {
+    const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
+    const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
+      ->extend(~[t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS), g:x|if($x.close < 103, |$x.close, |[])])
+      ->datacube::ts::fillStep(~symbol, ~day, ~g, ~g, ~st)
+      ->datacube::ts::fillZero(~g, ~z)
+      ->datacube::ts::fillTime(~symbol, ~day, ~g, ~t, ~t, ~g, ~tm)
+      ->sort([~day->ascending()])`)), 0);
+    const g = AAA.map((v) => (v < 103 ? v : null));
+    const has = g.map((v, i) => (v === null ? -1 : i)).filter((i) => i >= 0);
+    assert.ok(has.length >= 3 && has.length < g.length && has[0]! > 0, 'gaps to fill, before the first one too');
+    const lastAt = (i: number): number | undefined => [...has].reverse().find((j) => j <= i);
+    const nextAt = (i: number): number | undefined => has.find((j) => j >= i);
+    close(values(t, 'st').map(num), g.map((_, i) => g[lastAt(i) ?? has[0]!]!), 'step: its last value, before its first its first', 0);
+    close(values(t, 'z').map(num), g.map((v) => v ?? 0), 'zero', 0);
+    const at = DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000);
+    close(values(t, 'tm').map(num), g.map((_, i) => {
+      const a = lastAt(i);
+      const b = nextAt(i);
+      if (a === undefined || b === undefined) return null;
+      return a === b ? g[a]! : g[a]! + ((g[b]! - g[a]!) * (at[i]! - at[a]!)) / (at[b]! - at[a]!);
+    }), 'time: linear between its values before and after, none outside them', 1e-9);
+  });
+
   // the second audit's N8: its monthly form compared two nones (40 weekdays are two months); a frequency's own periods a
   // year read weekly here, where there are figures to compare (monthly by twelve: the Q3 test's)
   it('volatility at a weekly frequency annualizes by 52', async () => {

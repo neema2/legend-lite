@@ -1479,6 +1479,77 @@ function datacube::ts::linearAt<T,A,B,P,Q,X,O>(t: Relation<T>[1], x0: ColSpec<A�
     ->rename(~o, $out)
 }
 
+// ALIGNMENT (the user, 2026-10-28, "do timeseries RIGHT and EXPERT on platform": what the tile wrote as joins and windows
+// to put two series on one set of dates, functions a person's own Pure calls): a part's values put onto every date of
+// its line, as gs-quant's align puts a series. A part is the rows one series has; its marker the column whose value
+// says a date is the part's (its first: a part's columns are one row's), so each of its columns is put onto the same
+// dates.
+
+// The period of its line a part last has a value at, at or before each date (a running maximum of its periods); none
+// before its first.
+function datacube::ts::lastValued<T,L,P,M,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], order: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$order->ascending()], rows(unbounded(), 0)), ~o:{p,f,r|if($r->read($marker)->isNotEmpty(), |$r->read($order), |[])}:y|$y->max())
+    ->rename(~o, $out)
+}
+
+// The period of its line a part first has a value at, on every date of it.
+function datacube::ts::firstValued<T,L,P,M,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], order: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$order->ascending()], rows(unbounded(), unbounded())), ~o:{p,f,r|if($r->read($marker)->isNotEmpty(), |$r->read($order), |[])}:y|$y->min())
+    ->rename(~o, $out)
+}
+
+// The period of its line a part next has a value at, at or after each date; none after its last.
+function datacube::ts::nextValued<T,L,P,M,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], order: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(over($line, [$order->ascending()], rows(0, unbounded())), ~o:{p,f,r|if($r->read($marker)->isNotEmpty(), |$r->read($order), |[])}:y|$y->min())
+    ->rename(~o, $out)
+}
+
+// A column's value at the period another column names (lastValued's, firstValued's, nextValued's), on each date of the
+// line; none where it names none.
+function datacube::ts::valueAt<T,L,P,Q,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], order: ColSpec<P⊆T>[1], at: ColSpec<Q⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~[l:r|$r->read($line), q:r|$r->read($at)])
+    ->extend(over(~[l, q], [$order->ascending()], rows(unbounded(), unbounded())), ~o:{p,f,r|if($r->read($order) == $r.q, |$r->read($value), |[])}:y|$y->max())
+    ->without(~[l, q])->rename(~o, $out)
+}
+
+// A column where it has a value, else another (a step's last value, else its first).
+function datacube::ts::orElse<T,V,W,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], otherwise: ColSpec<W⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:r|if($r->read($value)->isEmpty(), |$r->read($otherwise), |$r->read($value)))->rename(~o, $out)
+}
+
+// A part's column, 0 where it has none (gs-quant's align 'zero').
+function datacube::ts::fillZero<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:r|if($r->read($value)->isEmpty(), |0, |$r->read($value)))->rename(~o, $out)
+}
+
+// A part's column on every date of its line by step (gs-quant's align 'step', pandas' ffill then bfill): each date its
+// value at the period it last has one at, before its first its first.
+function datacube::ts::fillStep<T,L,P,M,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], order: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::lastValued($line, $order, $marker, ~lp)->datacube::ts::firstValued($line, $order, $marker, ~fp)
+    ->datacube::ts::valueAt($line, $order, ~lp, $value, ~a)->datacube::ts::valueAt($line, $order, ~fp, $value, ~b)
+    ->datacube::ts::orElse(~a, ~b, ~o)
+    ->without(~[lp, fp, a, b])->rename(~o, $out)
+}
+
+// A part's column on every date of its line by time (gs-quant's align 'time', pandas' interpolate by time with
+// limit_area 'inside'): linear in time between its values at the periods before and after (linearAt) -- time the part's
+// own (its rows' time), at the row's -- none outside them.
+function datacube::ts::fillTime<T,L,P,M,N,X,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], order: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], time: ColSpec<N⊆T>[1], at: ColSpec<X⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->datacube::ts::lastValued($line, $order, $marker, ~lp)->datacube::ts::nextValued($line, $order, $marker, ~np)
+    ->datacube::ts::valueAt($line, $order, ~lp, $time, ~t0)->datacube::ts::valueAt($line, $order, ~np, $time, ~t1)
+    ->datacube::ts::valueAt($line, $order, ~lp, $value, ~a)->datacube::ts::valueAt($line, $order, ~np, $value, ~b)
+    ->datacube::ts::linearAt(~t0, ~a, ~t1, ~b, $at, ~o)
+    ->without(~[lp, np, t0, t1, a, b])->rename(~o, $out)
+}
+
 // The correlation of each pair of lines (by: the two columns that name them) over the rows they share: of the pairs
 // where both have a value, their correlation -- none where a side does not vary (DuckDB's corr says NaN there,
 // Postgres' none) -- and how many pairs; a row a pair of lines (the statistics panel's Correlations tab).
