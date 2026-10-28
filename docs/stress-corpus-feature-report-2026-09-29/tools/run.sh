@@ -77,6 +77,7 @@ export PMCD_JSON="$WORK/stress-pmcd.json"
 "$PY" complexity.py "$WORK/analysis.json" "$WORK/profile.json" "$WORK/complexity.json"
 "$PY" literal_sites.py
 "$PY" filter_values.py "$WORK/expectations.tsv" "$WORK/stress-suites-pass.txt" ${ENGINE_PASS[@]+"${ENGINE_PASS[@]}"}
+"$PY" milestoned_time.py "$WORK/expectations.tsv" "$WORK/stress-suites-pass.txt" ${ENGINE_PASS[@]+"${ENGINE_PASS[@]}"}
 "$PY" unused_joins.py
 "$PY" matrix.py "$ENGINE/docs/emit/emit.md" "$WORK/emit_models.json" "$WORK/profile.json" "$WORK/matrix.json"
 PMCD_JSON="$WORK/emit_all.json" "$PY" emit_analyze.py "$WORK/emit_all.pure.ranges.json" "$WORK/emit_analysis.json"

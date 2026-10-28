@@ -2,7 +2,7 @@
 
 Proposed 2026-10-19. The user took the five decisions on 2026-10-21 ([Decisions](#decisions)), and Phase 0 started
 that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done on 2026-10-23, on `stress_test/corpus`.
-Phase 2 started and was done on 2026-10-27.
+Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28.
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -529,6 +529,150 @@ Report §3 (Milestoning) and §10 item 3. Every milestoned query today is day-gr
 - **Done when:** the DateTime and time-of-day rows reach their targets, a processing-only class is tested, and
   all-versions-query is covered.
 
+**The probes, first (2026-10-28, legend-engine 4.145.0, Windows x64).** Before any service, 41 probe services over
+a scratch model (a processing-temporal class with `TIMESTAMP` columns and a DateTime infinity date, a bitemporal one
+with `DATE` business and `TIMESTAMP` processing columns, a non-temporal class navigating to both) asked what the
+pinned engine does. It does what the oracle now computes, with four exceptions:
+
+- A version is `[in, out)` at a time of day: at the instant of a change the new version answers. A StrictDate where
+  the columns are `TIMESTAMP`s reads as its midnight. `%latest` selects the DateTime infinity date. `all($p)` takes a
+  DateTime, a StrictDate or a Date parameter. A milestoned property takes a DateTime literal, a parameter, or a date
+  read from the row (`$x.limit($x.updatedAt->toOne())`). A property with no date of its own takes its parent's
+  (date propagation). Sub-second boundaries hold. `allVersions()` reads every version, and on a navigation its count
+  and `isEmpty()` are right.
+- **`Class.allVersionsInRange(...)` does not parse.** The engine's grammar refuses it on a class
+  (`DomainParseTreeWalker.allOrFunction`: "is not supported"). The function form, `Class->getAllVersionsInRange(a,
+  b)`, runs: a version overlaps when it starts at or before the end and ends after the start, as legend-engine's
+  own range tests assert. The property form, `$x.limitAllVersionsInRange(a, b)`, parses and runs.
+- **A connection's `timezone` cannot be tested** (F67). The service test runner rebuilds the connection from the
+  store and its test data, and the zone is not copied, so a DuckDB connection declaring `America/New_York` reads and
+  compares exactly as one declaring none. No service depends on a time zone.
+- **A zoned timestamp column has no type at the pin.** `RelationalDataType` has `TIMESTAMP` and `DATE` only. It waits
+  for the bump (D3).
+- A graph fetch keys a dated milestoned property with its date: `limit(2024-06-03T09:30:00+0000)`. The first run
+  showed a propagated one keyed the same way, with the date it took.
+
+**What was built (2026-10-28).**
+
+- `8113-intraday.pure`, a hand-written pack with its own store (included by `store::DB`) and mapping (included from
+  `stress::AllMapping`):
+  - `intraday::BookLimit` and `intraday::BookStatus`, milestoned on processing time alone, over `TIMESTAMP` columns
+    with a DateTime infinity date.
+  - `intraday::MarkRevision`, bitemporal: business time a `DATE` and processing time a `TIMESTAMP`.
+  - Two classes that are not milestoned and navigate to them: `intraday::LimitCheck`, a pre-trade limit check
+    (`$x.bookLimit($x.checkedAt)`, the limit in force when it ran), and `intraday::ValuationRun`
+    (`$x.mark($x.runAt, $x.valuationDate)`, both dates from the row).
+  - `BookLimit.status`, processing-temporal to processing-temporal, where a date propagates.
+  - The plan had a bitemporal table with `TIMESTAMP` processing columns and a processing-only class. This has both,
+    and a second processing-only class for propagation.
+- The navigations start at the pack's own classes, not at `trading::Trade`. The first version gave Trade the two
+  milestoned associations, and the engine stopped compiling the corpus: a milestoned property on a class breaks
+  the compile of an XStore mapping on it, and `external::EntityMapping` is one (F66).
+- `seed.py`, five tables. Book limits change at 14 instants:
+  - twice within one day and once exactly at midnight;
+  - in the last second of a day;
+  - with an hour's gap, and withdrawn with no successor;
+  - one book never had a limit.
+  
+  Limit checks run a second before a change, at it, in the gap, after the withdrawal, and against no book (A2) and a
+  missing book (A1). Marks are published at 17:30, made official minutes later and restated at midnight, and one
+  lives for one second. `seed.check()` holds each shape (A19) and proves that no key's versions overlap, so every
+  navigation is to-one.
+- The oracle (`oracle.py`, `query.py`, `emit.py`):
+  - Milestones are compared as instants. A DateTime against a `DATE` column is refused, since it was not probed.
+  - `%latest` reads the table's own infinity date.
+  - All-versions roots and version ranges.
+  - Root dates bound from parameters.
+  - A navigation into a milestoned class takes each hop's date: literal, parameter, read from the row, or
+    propagated, as `query.Hop` carries it. Before, a hop onto versioned rows was refused as a fan-out.
+  - Aggregates over `AllVersions` and `AllVersionsInRange` ends.
+  - Graph trees with dated properties.
+  - The emitter refuses `%latest` beside another date in a property's arguments. Pure's grammar takes it there only
+    when every argument is `%latest` (M3's `functionExpressionLatestMilestoningDateParameter`). One such service
+    stopped the whole corpus loading on the engine.
+- `intraday.py` writes `99-intraday-services.pure` (`STRESS_GENERATED`), 90 services:
+
+  | Family | Services | What they read |
+  |---|---|---|
+  | `ITL_` / `ITP_` | 27 / 14 | the book limits one second before and at every change instant; at each, the same instant as a DateTime parameter |
+  | `ITS_` / `ITD_` | 4 | StrictDates (literal and parameter) and a Date parameter beside the DateTime they mean |
+  | `ITL_Latest`, `ITL_Year2099` | 2 | `%latest`, and a far instant that must agree |
+  | `ITV_` / `ITR_` | 7 | `allVersions()`, and four ranges as literals and one as parameters |
+  | `ITN_` | 14 | dated navigations from checks and runs |
+  | `ITX_` | 7 | date propagation, beside the same navigation dated explicitly |
+  | `ITM_` | 13 | the bitemporal marks |
+  | `ITG_` | 2 | graph fetch with a dated property, and with a propagated one |
+
+  Each literal and its parameter twin, each StrictDate and the DateTime it means, and each propagated date and the
+  explicit one join the invariance check. `intraday.check()` fails the build when a reading a second before a change
+  equals the reading at it, or when fewer than 20 services read at a time of day.
+- The pack is hidden from the generators that walk the model (`literals.FIXTURE_TABLES`): regenerating changed no
+  existing service, only the data element.
+- `executed.py` holds nine features (rule 6), each executed by passing services:
+  - a processing-temporal root
+  - a DateTime milestoning date
+  - a milestoning date parameter
+  - `allVersions()`
+  - `getAllVersionsInRange`
+  - a dated navigation
+  - a date read from the row
+  - an `AllVersions` navigation
+  - date propagation
+- One empty expected result, `ITM_BeforeFirst`, is declared before the first version (rule 4).
+
+**Found on the way.**
+
+- **F66:** a class with a milestoned property breaks the compile of any XStore association mapping on it. To find an
+  XStore end's class mappings, `PropertyMappingBuilder` searches the class's `_originalMilestonedProperties()` when
+  it has any, and `_propertiesFromAssociations()` only otherwise. A compile failure, so one service cannot pin it;
+  the repro is `scripts/corpus/repro/xstore-milestoned-property/`.
+- **F51 through milestoning:** `isEmpty()` over `$x.bookLimitAllVersionsInRange(a, b)` returns each check once per
+  version in the range. The range adds `IN_Z`/`OUT_Z` predicates to the join, so it is not a single key equality.
+  `bookLimitAllVersions->isEmpty()` and `count()` over the range are right. `ITN_NoLimitInRange` is quarantined
+  under F51; the repro is `scripts/corpus/repro/milestoned-range-isempty/`.
+- **F67:** a connection's `timezone` never reaches a service test (above); the repro is
+  `scripts/corpus/repro/connection-timezone-test/`.
+
+**The engine verdict (2026-10-28, legend-engine 4.145.0, Windows x64).** The whole corpus (`bazel run
+//scripts/corpus:run -- --jobs 4`, 89 minutes): 5,094 pass, 57 known-fail (quarantined), 1 not run (F15, which
+hangs), 0 unexpected, of 5,152 testables. Of the 90 new services 89 pass, and `ITN_NoLimitInRange` is known-fail
+under F51. Every service that passed after Phase 2 passes.
+
+**The measures** (the report's `tools/run.sh` at the pin, given the engine's pass list; "on the engine" means a service
+that passes there with a populated expected result):
+
+- DateTime literals: 66 services on the engine (target 40), of 68 in the corpus; 16 before, all Phase 1's typed
+  literals. Lite: 64.
+- Milestoned queries at a time of day: 72 on the engine (target 20), of 74; none before. A milestoning date counts
+  when it is a DateTime literal, a parameter some test binds to a DateTime, or a DateTime read from the row.
+  Milestoned queries of any grain: 100 on the engine, of 105 (16 and 19 before). Lite: 54 at a time of day, 81 in
+  all.
+- A processing-only class is tested: `BookLimit` and `BookStatus`. The EMIT row processing-temporal counts 91
+  services on the engine.
+- EMIT 45 of 109 on the engine (43 before) and 39 in lite (37): all-versions-query (4 services on the engine) and
+  all-versions-in-range-query (5) are covered now.
+- PCT names 66 of 321, as before: `getAll` and `getAllVersions` were counted already, and `getAllVersionsInRange` is
+  not a PCT function. Literal types stay at 8 of 12: Phase 3's literals are DateTimes and StrictDates, which Phase 1
+  had brought in.
+- Phase 2's measures hold: filters against a value 2,042 (2,025 on the engine), and the deepest level populated in
+  2,347 of 2,360 navigating queries.
+- The measure needed one tool on `stress_test/report`: `tools/milestoned_time.py` (new) counts, for every service,
+  whether it carries a DateTime literal, passes a milestoning date (to `all()`, to `getAllVersionsInRange`, to a
+  milestoned property, in a lambda or a graph fetch tree), and whether that date is at a time of day; overall, among
+  lite's passes and among the engine's. `run.sh` runs it.
+
+**Lite.** On DuckDB 4,939 tests pass (4,869 before), and on H2 4,910 (4,840). 70 of the 90 new services pass on
+both databases, and no test that passed before fails. Both `MIN_PASS` ratchets rose by 70, each with a dated note.
+The 20 that fail are Phase 1's parameter bucket: every service taking a parameter (`ITP_`, `ITSP_`, `ITD_`,
+`ITRP_`, `ITXP_`, `ITMP_`, `ITN_LimitParam0921`) fails with `store resolution left getAll(...) unresolved`. No
+new bucket. Lite answers F51's shape correctly (`ITN_NoLimitInRange` passes), and it differs from Pure deliberately
+on none of these services, so `docs/SEMANTICS_REGISTER.md` gains no row.
+
+**Not done.**
+
+- The connection time zone and the zoned timestamp column, for the reasons above.
+- `.allVersionsInRange(...)` on a class root, which the pinned grammar refuses. The function form stands in.
+
 ### Phase 4: the function vocabulary (about 8 days, about 400 services)
 
 Report §4.1 and §10 item 8. The oracle computes 256 of the 262 function names in legend-engine's SQL registry, and 166
@@ -692,7 +836,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 0 | 2026-10-21 | — | 0 | none added; F27's entry removed (fixed upstream); F60's 3 unexpected settled by D6 (a) | none | EMIT 43 of 109 on the engine, 37 in lite; PCT 64 of 321 |
 | 1 | 2026-10-23 | — | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 2 | 2026-10-27 | — | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
-| 3 | — | — | — | — | — | — |
+| 3 | 2026-10-28 | — | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
 | 4 | — | — | — | — | — | — |
 | 5 | — | — | — | — | — | — |
 | 6 | — | — | — | — | — | — |

@@ -725,6 +725,7 @@ On Windows, run both from Git Bash with `BAZEL_SH` set to Git's `bash.exe` and `
 | `complexity.py` | size and combination distributions | 4.4, 4.5, 7, 8, 9 |
 | `literal_sites.py` | where each literal type appears in the queries | 4.2 |
 | `filter_values.py` | what each comparison in a query's filter compares against: a value, the `' '` guard, or a parameter | 4.1, 4.2 |
+| `milestoned_time.py` | the services with a DateTime literal, the milestoned ones, and those milestoned at a time of day | 3, 4.2 |
 | `unused_joins.py` | joins no mapping, view or filter references | 8 |
 | `matrix.py` | the EMIT feature matrix; its "declared" column is hand-entered from `analyze.py`'s output | 3 |
 
