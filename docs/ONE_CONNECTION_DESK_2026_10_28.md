@@ -70,6 +70,22 @@ server: `desk.mjs` (a hand tool) and `//datacube:deephaven_desk_test` start one 
 with Deephaven on a laptop runs it with the demo's app and a local certificate, opens the same saved desk page, and picks
 **Run on → Deephaven**.
 
+**D5. A project is found in one place, the model home; a site's released versions are a read-only layer of it, loaded
+from files (the user, 2026-10-28: "nothing is in prod yet so if that helps us delete projects[] ... that is fine
+too").** DataCube and the Query app found a project two ways: a config's `projects[]` (a name and a list of files the
+site serves: the trading demo, the desk) or the model home's Depot by name. `projects[]` goes. The page's model home (its
+SDLC and Depot, lite's own rules in the page's WebAssembly) holds two layers: the versions the site releases, loaded
+from its files at every open and never written to the browser's storage, so a site's update is never shadowed by an old
+copy; and the person's own work in IndexedDB (workspaces, commits, versions of their own). Every client reads every
+project through the Depot API it already speaks (`modelText`: a version's Pure files and their dependencies), so no new
+API. Editing a released version (Create a Class…, Deephaven at another address…) starts a workspace from it, as Studio
+does. Two rules: a released version is immutable (a workspace records the hash of the version it came from, and a
+version changed under the same number is said by name: the publisher bumps it); and a person's version never takes a
+released version's coordinates. The model home makes entities of a file at lite's dialect (D1), so a file holding
+lite's own connections (environments.pure) is an entity like any other. The same Java serves a server's model home, so
+a server loads its released versions from a folder the same way. The demos' configs and saved pages are rewritten to
+it: nothing of `projects[]` is kept for compatibility.
+
 ## 2. What differs today
 
 | Piece | DuckDB in the tab | Deephaven | After this plan |
@@ -91,7 +107,8 @@ Each ends in a deletion where it can. Sizes are estimates, not measures.
    connection strings deleted. *Small.*
 3. **Saved pages by the data space, with a saved default context and the switch (D2)** -- the desk's saved queries name
    the data space and its context; DataCube opens a page on its saved context and offers the others. *Small to medium.*
-4. **The Run on menu, and "Deephaven at another address…" (D2).** *Small to medium.*
+4. **The Run on menu (D2)** -- after step 5 (an engine for every context first); "Deephaven at another address…" with
+   the model home (D5, below). *Small to medium.*
 5. **The engine by the connection's type, inside DataCube; a sign-in for Deephaven (D2)** -- the hosts' engine wiring
    moved into the app, `boot.ts`'s guess and the desk's hosts deleted (the example and the project stay the desk's).
    *Medium: the largest.*
@@ -100,6 +117,10 @@ Each ends in a deletion where it can. Sizes are estimates, not measures.
    host's start of the simulator deleted. *Medium.*
 7. **The tests** -- the in-tab desk lane on the simulated source; the Deephaven desk lane by the Deephaven context, its
    port from a test copy of `environments.pure`. *Small.*
+
+**Then: the project in a model home (D5)** -- the page's model home loading released versions from files, `projects[]`
+deleted (DataCube, the Query app, their configs and demos), the model home's entities at lite's dialect, workspaces
+from a released version; "Deephaven at another address…" lands with it. *About 2-3 days.*
 
 **Later, separate tracks:** lite's writes to Deephaven (the Market data source writing into a Deephaven server's
 tables, which retires the Groovy app: a writer, input tables, measured first -- write rate, a created table's visibility
