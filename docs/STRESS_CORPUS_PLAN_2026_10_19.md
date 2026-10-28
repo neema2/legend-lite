@@ -2,7 +2,7 @@
 
 Proposed 2026-10-19. The user took the five decisions on 2026-10-21 ([Decisions](#decisions)), and Phase 0 started
 that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done on 2026-10-23, on `stress_test/corpus`.
-Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28.
+Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28, and Phase 4 started that day.
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -696,6 +696,51 @@ ran them on small seeds of their own. No corpus service uses them, so gate 10 ne
 - **Done when:** the platform-function and PCT rows reach their targets, and window, olap, TDS-join and relation-API
   services pass on the engine.
 
+Phase 4 lands in stages, each committed on `stress_test/corpus` when it is green.
+
+**Stage 1: the 23 disagreements, adjudicated (2026-10-28, `ce86f115d`).** Before any went into a service, each
+was put in front of the pinned engine again, twice: in a property mapping, by the probes, and in a query, where this
+phase's services use them. Each answer was set beside the function's definition in legend-pure, or in legend-engine's Pure where the
+function is legend-engine's. Each disagreement turned out to be an oracle or probe fix, the engine's error under a
+finding, or both:
+
+| Function | What disagreed | Verdict |
+|---|---|---|
+| `substring` | the oracle read one-based with an exclusive end (`'lp'` for `('alpha', 2, 4)`) | oracle fix: legend-pure's zero-based, exclusive end (`'ph'`), as `77-substring-paths.pure` always asserted. At the pin a query's `substring` is Pure's (`pureToSQLQuery`'s new `processSubstr`); a property mapping's is still SQL's, so F37 stands there |
+| `regexpIndexOf` | the oracle read one-based with 0 for a miss; the probe asked for group 1 of a pattern with no group | oracle and probe fix: zero-based, -1 for a miss (legend-engine's definition), which the engine answers. And the engine's: F69 (DuckDB finds the matched text's first occurrence, not the match) and F68 (-1 for an absent value through `map`) |
+| `regexpExtract` | the probe asked for group 1 of a pattern with no group; the oracle ignored `extractAll` and the group | probe and oracle fix. And the engine's: F70 (no match is `''`, not nothing) |
+| `currentUserId` | the oracle answered the OS user | oracle fix: refused. legend-engine leaves the value unspecified (its PCT asserts only that there is one), the engine's relational answer is the database's `CURRENT_USER` (`'duckdb'` in a service test), and a Bazel action must not read an identity |
+| `generateGuid` | the probe compared two fresh GUIDs | probe fix: compared by shape, which agrees |
+| `hashCode` | the oracle refused (an unspecified value), and the probe counted "no oracle value" as agreement | probe fix: "RUNS; no oracle value". And the engine's: F68 (a hash for an absent value through `map`) |
+| `now`, `today` | the probe compared two readings of the clock | probe fix: "RUNS; no oracle value". `today()` renders a StrictDate as a DateTime (F48's addendum) |
+| `firstDayOfThisMonth`, `...Quarter`, `...Year` | as above | the engine's: F48, a reflected `ZonedDateTime`, confirmed in a query at the pin |
+| `dayOfYear` | 3 for 2024-06-03 | the engine's: F35, confirmed in a query at the pin |
+| `adjust`, `firstDayOfWeek` | a DateTime string for a StrictDate | the engine's: F38; the values agree, and `adjust` over a DateTime agrees outright |
+| `count`, `map`, `joinStrings` over a to-many | 1, NULL, NULL over an empty one | the engine's: F6 |
+| `first`, `sortBy`, `greatest`, `least`, `and`, `or` over a to-many | one row per child | the engine's: F43, not applied; the last four join F43 at the pin |
+
+- **The probes run again** (the Bazel workplan's P7-03, for these two). `probe_functions.py` and `probe_collection.py`
+  start the engine through one `run.launch()` and are manual `py_binary`s, `bazel run
+  //scripts/corpus:probe_functions` and `:probe_collection`, which refresh their rows of
+  `docs/FUNCTIONS_EXECUTED.tsv` in the checkout. The other fourteen probes still name the Maven-era runner.
+- **Their bookkeeping, fixed.** The scalar probe counted "no oracle value" as agreement, and credited every transform
+  `combos.py` could spell, used or not: `substring`, which `combos.XFORM` leaves out for F37, was recorded as
+  disagreeing and agreeing at once. Each disagreement the adjudication settled is recorded with its side and finding
+  (`ADJUDICATED` in each probe).
+- **Found on the way:** F68, F69 and F70, each minimized under `scripts/corpus/repro/` (`map-over-absent`,
+  `regexpindexof-text-position`, `regexpextract-no-match`). F35, F37, F38, F43 and F48 gained dated addenda for the
+  pin.
+- No generated service uses any of the four functions whose oracle changed, so regenerating the corpus changed no
+  file, and lite's ratchets did not move.
+- **The engine verdict (2026-10-28, legend-engine 4.145.0, Windows x64).** The whole corpus (`bazel run
+  //scripts/corpus:run -- --jobs 4`, 93 minutes, the first run through the refactored launcher): 5,094 pass, 57
+  known-fail (quarantined), 1 not run (F15, which hangs), 0 unexpected, of 5,152 testables, as after Phase 3.
+- **Lite and the gate.** With the corpus unchanged, lite passes 4,939 tests on DuckDB and 4,910 on H2, as after
+  Phase 3. `bazel test --lockfile_mode=error //gates:local //:generated //scripts/corpus:all //core:stress_suites
+  //core:stress_suites_h2 //core:corpus_differential_test`: 394 pass and 2 are skipped. 57 fail on this desk alone,
+  none depending on a changed file: 54 diff tests (the `update_*` ones and `pins_test`) that `fc.exe` cannot open
+  here, each pair identical ignoring CR, and 3 datacube browser tests that time out.
+
 ### Phase 5: M2M (about 5 days, about 40 services)
 
 Report §7 (M2M) and §10 item 4. The corpus has 5 M2M class mappings, and lite runs none of them.
@@ -837,7 +882,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 1 | 2026-10-23 | — | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 2 | 2026-10-27 | — | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 3 | 2026-10-28 | — | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
-| 4 | — | — | — | — | — | — |
+| 4 | 2026-10-28 | — | stage 1 (`ce86f115d`): 0 | none added; F68, F69, F70 found, each with a repro | none | stage 1: the 23 disagreements adjudicated |
 | 5 | — | — | — | — | — | — |
 | 6 | — | — | — | — | — | — |
 | 7 | — | — | — | — | — | — |
