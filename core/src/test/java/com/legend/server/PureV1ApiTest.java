@@ -260,6 +260,40 @@ class PureV1ApiTest {
         assertEquals(brokenText.json(), PureV1Api.compile(PureV1Api.grammarToJsonModel(broken, true).json()).json());
     }
 
+    /**
+     * lite's own {@code grammarToJson/model} (docs/ONE_CONNECTION_DESK_2026_10_28.md D1, 2026-10-28): a model holding
+     * lite's own Pure -- a Deephaven connection -- read whole where E2 refuses it, and compiled from that JSON as from
+     * its text; the engine's text answered byte for byte as E2 answers it, with and without source information.
+     */
+    @Test
+    void liteModelRoute_readsLitesOwnPure_andTheEnginesAsE2Does() {
+        String deephaven = model + """
+
+                ###Connection
+                RelationalDatabaseConnection trades::h2::Live
+                {
+                  store: trades::h2::DB;
+                  type: Deephaven;
+                  specification: Deephaven { host: 'localhost'; port: 10000; useTls: true; };
+                  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+                }
+                """;
+        String e2 = "/api/pure/v1/grammar/grammarToJson/model";
+        String lite = "/api/lite/v1/grammar/grammarToJson/model";
+        PureV1Api.Answer refused = PureV1Api.route(e2, "returnSourceInformation=false", deephaven, NO_RUN);
+        assertEquals(400, refused.status(), refused.json());
+        assertTrue(refused.json().contains("Deephaven"), refused.json());
+        PureV1Api.Answer read = PureV1Api.route(lite, "returnSourceInformation=false", deephaven, NO_RUN);
+        assertEquals(200, read.status(), read.json());
+        assertTrue(read.json().contains("\"_type\":\"deephaven\""), read.json());
+        // the JSON a model of lite's own, compiled as its text is
+        assertEquals(PureV1Api.compile(Json.toCompact(Map.of("_type", "text", "code", deephaven))).json(), PureV1Api.compile(
+                PureV1Api.route(lite, "", deephaven, NO_RUN).json()).json());
+        for (String query : List.of("returnSourceInformation=false", "")) {
+            assertEquals(PureV1Api.route(e2, query, model, NO_RUN).json(), PureV1Api.route(lite, query, model, NO_RUN).json());
+        }
+    }
+
     @Test
     void aModelContextOfAnotherKind_isRefusedByName() {
         PureV1Api.Answer a = PureV1Api.compile("{\"_type\":\"pointer\",\"sdlcInfo\":{}}");

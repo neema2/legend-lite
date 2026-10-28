@@ -222,7 +222,8 @@ fn-ref service query (`query: my::funcs::peopleQuery;`).
   the spec island is now `specification: SQLite { };` — spelled EXACTLY
   like the engine's DuckDB extension pattern (`SQLite { (path:'...')* }`,
   `PSQLiteSpec`), so a future engine SQLite extension finds our text
-  conformant. The emitter refuses it loudly (no engine wire shape).
+  conformant. Its JSON is lite's own since 2026-10-28 (the user, docs/ONE_CONNECTION_DESK_2026_10_28.md D1; the emitter
+  refused it until then): `{"_type": "sqlite", "path"}`, on lite's surfaces; legend-engine's routes still refuse it.
 
 ## 10. PURE-DIALECT-diagram — 1 row
 
@@ -357,8 +358,12 @@ as they are).
 
 - **Surfaces:** LEGEND_LITE reads all three (the product surface); LEGEND_ENGINE refuses each by name at its token,
   `type: Deephaven` in the engine's own words ("Unknown database type 'Deephaven'"), as SQLite's.
-- **JSON:** none, as SQLite's specification: legend-engine's protocol has no field for either word, so the emitter
-  refuses each by name.
+- **JSON:** lite's own (the user, 2026-10-28, docs/ONE_CONNECTION_DESK_2026_10_28.md D1; until then none, the emitter
+  refusing each by name): `{"_type": "deephaven", "host", "port", "useTls"}` and `{"_type": "preSharedKey",
+  "keyVaultReference"}`, written as legend's extensions write theirs and read back the same, on lite's surfaces (lite's
+  own `grammarToJson/model`; a model given as JSON). Backward compatibility still refuses: legend-engine's
+  `grammarToJson/model` parses at the engine's dialect and refuses each in the engine's words, its `jsonToGrammar/model`
+  has no rule to print either and says so by name.
 - **DECISION:** DECIDED: **KEEP** (the user, 2026-10-22: Deephaven is just another backend, and its connection is
   modelled as its own, as Snowflake's is). A row is added only with a test that exercises the construct, and pinned in
   both census tests in the same change.

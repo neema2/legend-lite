@@ -96,5 +96,5 @@ the email to Deephaven gains a line: legend-lite would create and write input ta
 
 | Step | State |
 |---|---|
-| 1 | in progress (2026-10-28) |
+| 1 | landed (2026-10-28): the three words written and read as JSON of lite's own; lite's `grammarToJson/model`; the tab's planner reads a project's elements there, so the desk reads its whole model (its corpus-only reading deleted, one cache of the whole model's elements kept: 2.3 MB of Pure). Left: Python's `model_elements` (`python/legend_lite/compiler.py`, still legend-engine's route: its test needs the native library built) |
 | 2-7 | not started |

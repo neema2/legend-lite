@@ -25,9 +25,10 @@ import java.util.function.Supplier;
  * (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md; the user's ruling of 2026-09-27: lite's
  * client surface is upstream's APIs and nothing of its own). Each call is a pure function
  * of its request -- text in, a status and JSON out -- so it is tested without HTTP;
- * {@code LegendHttpServer} only carries it, through {@link #route}. Two routes are legend-lite's own, beside them --
+ * {@code LegendHttpServer} only carries it, through {@link #route}. Some routes are legend-lite's own, beside them --
  * {@code /api/lite/v1/compilation/compile} (every error where legend-engine's answers the first: the user's decision
- * of 2026-10-10, docs/PROTOCOL_PROGRAM_2026_10_05.md leg 6) and the model routes {@code /api/lite/v1/model/...}
+ * of 2026-10-10, docs/PROTOCOL_PROGRAM_2026_10_05.md leg 6), {@code /api/lite/v1/grammar/grammarToJson/model} (a model
+ * as JSON at lite's dialect: {@link #liteGrammarToJsonModel}) and the model routes {@code /api/lite/v1/model/...}
  * (DataCube's Create a Class…, an Association…, a Data Space…: {@link #modelChanges}) -- routed by the same dispatcher, so each host that
  * calls {@link #route} answers them (lite's server, the tab, Python's library).
  *
@@ -138,6 +139,7 @@ public final class PureV1Api {
             case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models);
             case "/api/pure/v1/execution/execute" -> execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
+            case "/api/lite/v1/grammar/grammarToJson/model" -> liteGrammarToJsonModel(body, sourceInformation);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
@@ -182,6 +184,17 @@ public final class PureV1Api {
     /** E2: a model's text to its PMCD JSON. */
     public static Answer grammarToJsonModel(String text, boolean returnSourceInformation) {
         return answer(400, "PARSER", () -> PmcdParser.parseDocument(text, returnSourceInformation));
+    }
+
+    /**
+     * legend-lite's own {@code /api/lite/v1/grammar/grammarToJson/model} (docs/ONE_CONNECTION_DESK_2026_10_28.md D1, the
+     * user, 2026-10-28): E2's conversion at lite's dialect -- the engine's text and lite's declared extensions
+     * ({@link PmcdParser#parseLiteDocument}), lite's own words (a Deephaven or SQLite datasource, a PreSharedKey
+     * sign-in) in JSON of lite's own, the JSON E2 answers for any text E2 reads. A planner of lite's reads a project's
+     * elements here; E2 stays legend-engine's exactly, refusing lite's words in the engine's own message.
+     */
+    public static Answer liteGrammarToJsonModel(String text, boolean returnSourceInformation) {
+        return answer(400, "PARSER", () -> PmcdParser.parseLiteDocument(text, returnSourceInformation));
     }
 
     // ---------------------------------------------------------------------

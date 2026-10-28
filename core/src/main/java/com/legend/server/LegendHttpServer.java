@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
  * - POST /lsp - Handle LSP JSON-RPC messages (diagnostics, completions, etc.)
  * - POST /api/pure/v1/... - legend-engine's own pure/v1 API
  * - POST /api/lite/v1/compilation/compile - a model's every compile error (lite's own)
+ * - POST /api/lite/v1/grammar/grammarToJson/model - a model as JSON at lite's dialect (lite's own)
  * - POST /engine/diagram - a class diagram from a Pure model
  * - GET /health - Health check
  *

@@ -143,7 +143,20 @@ public final class PmcdParser {
      * engine's parser then records none (its span builder answers null; CorpusSweepTest's claim 1c).
      */
     public static String parseDocument(String source, boolean sourceInformation) {
-        String json = parseDocument(source);
+        return spans(parseDocument(source), sourceInformation);
+    }
+
+    /**
+     * {@link #parseDocument(String, boolean)} at lite's dialect: the engine's text and lite's declared extensions (a
+     * SQLite, MariaDB, MySQL or Deephaven connection, a PreSharedKey sign-in, ...), the same JSON for any text the
+     * engine's dialect reads; lite's own words in JSON of lite's own (docs/ONE_CONNECTION_DESK_2026_10_28.md D1: lite's
+     * {@code grammarToJson/model}, PureV1Api).
+     */
+    public static String parseLiteDocument(String source, boolean sourceInformation) {
+        return spans(ProtocolEmitter.emit(parse(source, Dialect.LEGEND_LITE).model()), sourceInformation);
+    }
+
+    private static String spans(String json, boolean sourceInformation) {
         return sourceInformation ? json : com.legend.protocol.SourceInformation.withoutSpans(json);
     }
 

@@ -7,6 +7,7 @@ import com.legend.door.ModelFromText;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
+import com.legend.protocol.ModelReader;
 import com.legend.protocol.ProtocolEmitter;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * specification and {@code PreSharedKey} authentication, each a DECLARED lite extension
  * (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN-deephaven-backend). lite's dialect reads them; legend-engine's refuses
  * each by name, at its token; the model holds them as written (D9: the connector decides what opens); and, as
- * SQLite's, they have no legend-engine JSON.
+ * SQLite's, their JSON is lite's own, which legend-engine's routes refuse (docs/ONE_CONNECTION_DESK_2026_10_28.md D1).
  */
 class DeephavenConnectionTest {
 
@@ -110,16 +111,40 @@ class DeephavenConnectionTest {
                 Dialect.LEGEND_LITE, "not 70000");
     }
 
-    /** Each word refused by name when its records are written as legend-engine's JSON (the records, not the model:
-     *  the model door's own check is not in the way). */
+    /**
+     * Its JSON is lite's own (docs/ONE_CONNECTION_DESK_2026_10_28.md D1, the user, 2026-10-28; until then it had none,
+     * each word refused by name): written at lite's dialect as a legend extension's is, a {@code _type} of its own, and
+     * read back to the same records; legend-engine's routes refuse it still -- its grammar in the engine's own words,
+     * its printer by name.
+     */
     @Test
-    void itHasNoLegendEngineJson() {
-        var spec = PmcdParser.parse(connection("Postgres", SPEC, "Test"), Dialect.LEGEND_LITE).model();
-        IllegalStateException s = assertThrows(IllegalStateException.class, () -> ProtocolEmitter.emit(spec));
-        assertEquals("Deephaven datasource specs have no engine wire shape (lite backend)", s.getMessage());
-        var auth = PmcdParser.parse(connection("Postgres", "Static { host: 'h'; port: 5432; name: 'n'; }", AUTH),
-                Dialect.LEGEND_LITE).model();
-        IllegalStateException a = assertThrows(IllegalStateException.class, () -> ProtocolEmitter.emit(auth));
-        assertEquals("PreSharedKey authentication has no engine wire shape (lite backend)", a.getMessage());
+    void itsJsonIsLitesOwn_andLegendEnginesRoutesStillRefuseIt() {
+        String bare = PmcdParser.parseLiteDocument(TEXT, false);
+        assertTrue(bare.contains("{\"_type\":\"deephaven\",\"host\":\"dh.internal\",\"port\":10000,\"useTls\":true}"),
+                bare);
+        assertTrue(bare.contains("{\"_type\":\"preSharedKey\",\"keyVaultReference\":\"deephaven.psk\"}"), bare);
+        // read back: the same records, written again the same
+        String json = PmcdParser.parseLiteDocument(TEXT, true);
+        assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)));
+        assertEquals(ProtocolEmitter.emit(PmcdParser.parse(TEXT, Dialect.LEGEND_LITE).model()), json);
+        // legend-engine's grammarToJson: its dialect, its message
+        var e2 = com.legend.server.PureV1Api.grammarToJsonModel(TEXT, false);
+        assertEquals(400, e2.status(), e2.json());
+        assertTrue(e2.json().contains("Deephaven"), e2.json());
+        // legend-engine's jsonToGrammar: no rule to print lite's words, said by name
+        var printed = com.legend.server.PureV1Api.jsonToGrammarModel(json, null);
+        assertEquals(500, printed.status(), printed.json());
+        assertTrue(printed.json().contains("no composer rule for"), printed.json());
+    }
+
+    /** SQLite's datasource likewise (docs/ONE_CONNECTION_DESK_2026_10_28.md D1). */
+    @Test
+    void sqlitesJsonIsLitesOwnToo() {
+        String text = connection("SQLite", "SQLite { path: 'books.db'; }", "Test");
+        String json = PmcdParser.parseLiteDocument(text, false);
+        assertTrue(json.contains("{\"_type\":\"sqlite\",\"path\":\"books.db\"}"), json);
+        assertEquals(PmcdParser.parseLiteDocument(text, true),
+                ProtocolEmitter.emit(ModelReader.read(PmcdParser.parseLiteDocument(text, true))));
+        assertEquals(400, com.legend.server.PureV1Api.grammarToJsonModel(text, false).status());
     }
 }

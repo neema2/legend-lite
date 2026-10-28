@@ -579,9 +579,13 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     return lambda(query.parameters, fn('from', body, element(mapping), element(this.#options.runtime)));
   }
 
-  /** A model's elements, as the compiler reads its text (E2, `grammar/grammarToJson/model`): data spaces, enumerations. */
+  /**
+   * A model's elements, as the compiler reads its text: data spaces, enumerations, classes. At lite's dialect -- lite's
+   * own `grammarToJson/model`, E2's conversion with lite's own words (a Deephaven or SQLite connection) in JSON of lite's
+   * own (docs/ONE_CONNECTION_DESK_2026_10_28.md D1) -- since a model this planner holds is lite's: E2 refuses them.
+   */
   async modelElements(text: string): Promise<unknown[]> {
-    const json = await this.#pureV1('/api/pure/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text, text);
+    const json = await this.#pureV1('/api/lite/v1/grammar/grammarToJson/model', 'returnSourceInformation=false', text, text);
     const elements = (JSON.parse(json) as { elements?: unknown }).elements;
     if (!Array.isArray(elements)) throw new PlanError('the model came back without elements', text);
     return elements;

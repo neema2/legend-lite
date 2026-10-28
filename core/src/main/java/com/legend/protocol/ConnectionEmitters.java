@@ -88,11 +88,16 @@ final class ConnectionEmitters {
                 srcInfo(b, a2.sourceInformation());
                 b.append('}');
             }
-            case Protocol.PPreSharedKey k ->
-                    // lite's own (docs/DEEPHAVEN_PLAN_2026_10_22.md §4); not
-                    // the engine's PSK island, which carries the key
-                    throw new IllegalStateException("PreSharedKey authentication"
-                            + " has no engine wire shape (lite backend)");
+            case Protocol.PPreSharedKey k -> {
+                // lite's own (docs/DEEPHAVEN_PLAN_2026_10_22.md §4; not the engine's PSK island, which carries the
+                // key), written as legend's extensions are: a _type of its own (docs/ONE_CONNECTION_DESK_2026_10_28.md
+                // D1, the user: legend-engine's routes still refuse it -- its grammar and its printer)
+                b.append("{\"_type\":\"preSharedKey\",\"keyVaultReference\":");
+                str(b, k.keyVaultReference());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, k.sourceInformation());
+                b.append('}');
+            }
             case Protocol.PMiddleTierUserNamePassword m -> {
                 b.append("{\"_type\":\"middleTierUserNamePassword\","
                         + "\"sourceInformation\":");
@@ -195,15 +200,28 @@ final class ConnectionEmitters {
                 srcInfo(b, dd.sourceInformation());
                 b.append('}');
             }
-            case Protocol.PSQLiteSpec sq ->
-                    // a LITE backend with NO engine wire shape — refusing
-                    // loudly beats inventing a _type the engine never reads
-                    throw new IllegalStateException("SQLite datasource specs"
-                            + " have no engine wire shape (lite backend)");
-            case Protocol.PDeephavenSpec dh ->
-                    // lite's own, as SQLite (docs/DEEPHAVEN_PLAN_2026_10_22.md §4)
-                    throw new IllegalStateException("Deephaven datasource specs"
-                            + " have no engine wire shape (lite backend)");
+            case Protocol.PSQLiteSpec sq -> {
+                // a lite backend, its _type its own as DuckDB's extension's is (docs/ONE_CONNECTION_DESK_2026_10_28.md
+                // D1): the engine has none, and its routes refuse the word
+                b.append("{\"_type\":\"sqlite\"");
+                if (sq.path() != null) {
+                    b.append(",\"path\":");
+                    str(b, sq.path());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, sq.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PDeephavenSpec dh -> {
+                // lite's own, as SQLite (docs/DEEPHAVEN_PLAN_2026_10_22.md §4; ONE_CONNECTION_DESK D1)
+                b.append("{\"_type\":\"deephaven\",\"host\":");
+                str(b, dh.host());
+                b.append(",\"port\":").append(dh.port());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, dh.sourceInformation());
+                b.append(",\"useTls\":").append(dh.useTls());
+                b.append('}');
+            }
             case Protocol.PH2EmbeddedSpec eh -> {
                 b.append("{\"_type\":\"h2Embedded\",\"autoServerMode\":")
                         .append(eh.autoServerMode());

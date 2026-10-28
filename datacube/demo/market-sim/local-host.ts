@@ -75,7 +75,7 @@ export function openLocalMarket(o: LocalMarketOptions): Market {
     // For the browser harness ONLY (test/market/live-desk.mjs): the market's counts -- the world's rows written and the
     // engine's emits -- which no page shows. Not product code.
     (window as unknown as { __market?: unknown }).__market = { counts: () => ({ world: market.world.counts, live: market.live.counts }) };
-    return { corpus, model, planner, market };
+    return { model, planner, market };
   })());
 
   /** The market's module, for a query of `text`: a model this host does not hold is refused, never run elsewhere. */

@@ -23,6 +23,10 @@ final class DatasourceReader {
             Map.entry("h2Local", w -> new Protocol.PH2Local(w.optStr("testDataSetupCsv"),
                     w.optStrings("testDataSetupSqls"), w.span())),
             Map.entry("duckDB", w -> new Protocol.PDuckDBSpec(w.optStr("path"), w.span())),
+            // lite's own backends (docs/ONE_CONNECTION_DESK_2026_10_28.md D1): what lite's emitter writes for them
+            Map.entry("sqlite", w -> new Protocol.PSQLiteSpec(w.optStr("path"), w.span())),
+            Map.entry("deephaven", w -> new Protocol.PDeephavenSpec(w.str("host"), w.lng("port"), w.bool("useTls"),
+                    w.span())),
             Map.entry("h2Embedded", w -> new Protocol.PH2EmbeddedSpec(w.str("databaseName"), w.str("directory"),
                     w.bool("autoServerMode"), w.span())),
             Map.entry("static", w -> new Protocol.PStaticSpec(w.str("databaseName"), w.str("host"), w.lng("port"),

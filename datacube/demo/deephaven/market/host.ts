@@ -156,7 +156,7 @@ export async function openMarket(config: MarketConfig, planner: LitePlanner): Pr
     deskModelUrl: config.deskModel,
     connections: MARKET_LIVE(host, port),
     where: 'the market world',
-    start: () => Promise.resolve({ corpus, model, planner: market }),
+    start: () => Promise.resolve({ model, planner: market }),
     ready: true,
     // a model this host does not hold is refused here, never run on the tab's database
     rows: (text) => {

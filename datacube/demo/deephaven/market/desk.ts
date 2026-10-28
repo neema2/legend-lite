@@ -4,9 +4,6 @@
 //
 //   * THE PROJECT the desk's saved queries belong to (screens.ts `marketSource`): the one trading model, the desk's own
 //     and the connections -- the engine's, a file of the page's own -- so a saved query of it opens as any does;
-//   * ITS ELEMENTS: the trading model's, read once (the desk's own and the connections declare no data space and no
-//     enumeration, all the app reads them for; and the drop-in surface the app reads them through refuses lite's own
-//     Pure, a Deephaven connection);
 //   * THE ONE BRANCH: a grid over the market's runtime is the engine's, its rows the market's; every other grid's rows
 //     stay the tab's;
 //   * THE DESK, first under Open…'s Examples: one page, a sheet per screen (screens.ts), written from the sources'
@@ -30,10 +27,9 @@ export interface Market {
   readonly examples: readonly ExamplePage[];
 }
 
-/** The market's engine started: the trading model's text, the whole model's (the corpus, the desk's own, the
- *  connections), and the module that holds it. */
+/** The market's engine started: the whole model's text (the corpus, the desk's own, the connections), and the module
+ *  that holds it. */
 export interface Started {
-  readonly corpus: string;
   readonly model: string;
   readonly planner: LitePlanner;
 }
@@ -73,16 +69,17 @@ export function openDesk(engine: DeskEngine): Market {
     over: (services) => {
       const { engine: tab, queries } = services;
       if (queries === undefined) throw new Error('the market\'s screens are saved queries: this page reads none');
-      /** The model's elements, read once: the trading model's (above). */
+      /** The model's elements, read once (2.3 MB of Pure: every saved query of the project asks for them), at lite's
+       *  dialect, the whole model's -- its connections lite's own words (docs/ONE_CONNECTION_DESK_2026_10_28.md D1). */
       let elements: Promise<unknown[]> | undefined;
-      const read = (): Promise<unknown[]> => {
-        elements ??= engine.start().then((s) => tab.reading.elements(s.corpus));
+      const read = (model: string): Promise<unknown[]> => {
+        elements ??= tab.reading.elements(model);
         elements.catch(() => { elements = undefined; });
         return elements;
       };
       // read now where the engine has started (eager about knowledge: docs/TENETS.md) -- the first saved query opened
       // waited for it
-      if (engine.ready) void read().catch(() => undefined);
+      if (engine.ready) void engine.start().then((s) => read(s.model)).catch(() => undefined);
       return {
         ...services,
         engine: {
@@ -90,7 +87,7 @@ export function openDesk(engine: DeskEngine): Market {
           reading: {
             parse: (text) => tab.reading.parse(text),
             // the market's project's model ends in its connections, the engine's own file: any other is the tab's
-            elements: (text) => (text.endsWith(engine.connections) ? read() : tab.reading.elements(text)),
+            elements: (text) => (text.endsWith(engine.connections) ? read(text) : tab.reading.elements(text)),
           },
           // THE ONE BRANCH: the market's runtime runs on the market's engine
           rows: (text, runtime, how) => (runtime === MARKET_RUNTIME ? engine.rows(text) : tab.rows(text, runtime, how)),

@@ -207,7 +207,9 @@ final class ConnectionReader {
                     w.optStr("kerberosRemoteServiceName"), w.optBool("kerberosUseCanonicalHostname"),
                     w.optStr("serverPrincipal"), w.span())),
             Map.entry("gcpWorkloadIdentityFederation", w -> new Protocol.PGcpWifAuth(
-                    w.optStrings("additionalGcpScopes"), w.str("serviceAccountEmail"), w.span())));
+                    w.optStrings("additionalGcpScopes"), w.str("serviceAccountEmail"), w.span())),
+            // lite's own (docs/ONE_CONNECTION_DESK_2026_10_28.md D1): a key's vault reference, never the key
+            Map.entry("preSharedKey", w -> new Protocol.PPreSharedKey(w.str("keyVaultReference"), w.span())));
 
     static Protocol.PAuthStrategy authStrategy(Json.Node node) {
         Wire w = Wire.of(node, "authentication strategy");
