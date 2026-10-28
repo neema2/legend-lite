@@ -460,6 +460,8 @@ export interface BrowserService {
   writeSettings(values: Record<string, unknown>): void;
   /** This page's address, which a share link opens; absent where no one else can open it, and no link is offered. */
   readonly address?: () => string;
+  /** Opens `url` in a tab of its own; absent where the page is not a tab of its own (a notebook's view). */
+  readonly openTab?: (url: string) => void;
   /** The page's own tab's title (its name, and whether it changed); absent where the page is not a tab of its own. */
   readonly title?: { readonly base: string; set(text: string): void };
 }

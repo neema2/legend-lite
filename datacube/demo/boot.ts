@@ -80,10 +80,19 @@ type Start =
   | { readonly kind: 'link' }
   | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
   /** An example page by its id (`#example=trading-desk`): opened as Open…'s Examples open it. */
-  | { readonly kind: 'example'; readonly id: string };
+  | { readonly kind: 'example'; readonly id: string }
+  /** A saved page by its id, with the context its saved queries over a data space run on where one is named
+   *  (`#open=<id>&space=<path>&context=<name>`: Open With ▸, src/app/open-with-menu.ts). */
+  | { readonly kind: 'open'; readonly id: string; readonly with?: { readonly dataSpace: string; readonly context: string } };
 
 async function startOf(where: Location): Promise<Start> {
   if (where.hash.startsWith('#example=')) return { kind: 'example', id: decodeURIComponent(where.hash.slice('#example='.length)) };
+  if (where.hash.startsWith('#open=')) {
+    const p = new URLSearchParams(where.hash.slice(1));
+    const dataSpace = p.get('space');
+    const context = p.get('context');
+    return { kind: 'open', id: p.get('open') ?? '', ...(dataSpace && context ? { with: { dataSpace, context } } : {}) };
+  }
   if (where.hash.startsWith('#key=')) {
     const p = new URLSearchParams(where.hash.slice(1));
     const table = p.get('table');

@@ -298,7 +298,7 @@ try {
   await page.fill('.dc-save-input', NAME);
   await page.locator('.dc-save-foot .dc-primary').click();
   await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 });
-  // the market in the tab sized as the in-tab lane sizes it (demo/verify-live-desk.mjs): Run On, below, starts it
+  // the market in the tab sized as the in-tab lane sizes it (demo/verify-live-desk.mjs): Open With, below, starts it
   await page.goto(`${site.url}/demo/index.html?market-names=40&market-tape=5000&market-feed=off`);
   await page.locator('.dc-row').first().waitFor({ timeout: 120_000 });
   await menu('Open\u2026');
@@ -347,89 +347,89 @@ try {
     }
   }
 
-  // RUN ON (docs/ONE_CONNECTION_DESK_2026_10_28.md D2, step 4): the saved desk switched to its data space's other
-  // context -- the tab's DuckDB, its market started in the tab -- and back: the same page, every grid planned on the
-  // context's runtime and run where its connections say, the menu's check moving with it
-  const runOnEntries = async () => {
-    await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Run On"))').first().hover();
-    const entries = await page.evaluate(() => [...document.querySelectorAll('.dc-menu-item[aria-checked]')]
+  // OPEN WITH (docs/ONE_CONNECTION_DESK_2026_10_28.md D2, as the user revised it 2026-10-28: "an Open for a saved Page
+  // that has a parameter"): the saved desk, open here on Deephaven, opened again in a tab of its own on its data space's
+  // other context -- the tab's DuckDB, its market started in that tab -- this tab left as it is, still ticking on the
+  // server; the other not changed by its context (a parameter of its opening), its menu's check on the tab's context
+  const openWithEntries = async (p) => {
+    await p.click('.dc-titlebar-menu');
+    await p.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open With"))').first().hover();
+    return p.evaluate(() => [...document.querySelectorAll('.dc-menu-item[aria-checked]')]
       .map((e) => [e.querySelector('.dc-menu-label')?.textContent?.trim(), e.getAttribute('aria-checked')]));
-    return entries;
   };
-  /** The first tab's tiles, all drawn (a grid with rows), within `ms`. */
-  const firstTabDrawn = async (ms) => {
-    await page.locator('.dc-sheet-tab').first().click();
+  /** `p`'s first tab's tiles, all drawn (a grid with rows), within `ms`. */
+  const firstTabDrawn = async (p, ms) => {
+    await p.locator('.dc-sheet-tab').first().click();
     const end = Date.now() + ms;
     for (;;) {
-      const tiles = await shownTiles(page);
+      const tiles = await shownTiles(p);
       if (tiles.length > 0 && tiles.every((t) => (t.kind === 'grid' ? t.rows > 0 : t.drawn))) return true;
       if (Date.now() > end) return false;
       await sleep(250);
     }
   };
-  let menuSeen = null;
-  // MEASURED at each switch (2026-10-28: the page's renderer crashed in 3 of 7 runs during a switch, at ~1.5 GB and no
-  // kernel kill, not since the browser's fatal lines were logged, above): each renderer's resident memory, in MB
+  /** Whether what `p`'s tab shown shows changes within `ms`, nothing touched. */
+  const ticks = async (p, ms) => {
+    const before = new Map((await shownTiles(p)).map((t) => [t.id, t.shows]));
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      await sleep(1000);
+      if ((await shownTiles(p)).some((t) => before.has(t.id) && before.get(t.id) !== t.shows)) return true;
+    }
+    return false;
+  };
+  // MEASURED at each opening: each renderer's resident memory, in MB (the switch Run On made in place crashed the
+  // page's renderer -- docs/DEEPHAVEN_START_HERE.md, the desk under load, 9 -- which Open With's own tab replaces)
   const { execSync } = await import('node:child_process');
   const renderers = () => execSync('ps -eo rss,args').toString().split('\n').filter((l) => l.includes('--type=renderer'))
     .map((l) => Math.round(Number.parseInt(l.trim(), 10) / 1024)).sort((a, b) => b - a);
-  const heap = async () => {
-    const cdp = await page.context().newCDPSession(page);
-    const used = (await cdp.send('Runtime.getHeapUsage')).usedSize;
-    await cdp.detach();
-    return Math.round(used / 1048576);
-  };
-  console.log(`[measure] before Run On: renderers ${JSON.stringify(renderers())} MB, the page's heap ${await heap()} MB`);
+  let seen = null;
+  console.log(`[measure] before Open With: renderers ${JSON.stringify(renderers())} MB`);
+  let other;
   try {
     // the Deephaven context's title names its server: this test's, at its own port (environments.mjs)
-    const before = await runOnEntries();
+    const before = await openWithEntries(page);
     const deephaven = before.find(([label]) => label?.startsWith('Deephaven ('))?.[0];
-    menuSeen = await page.evaluate(() => [...document.querySelectorAll('.dc-menu-item')].filter((e) => e.getBoundingClientRect().width > 0)
-      .map((e) => `${e.querySelector('.dc-menu-label')?.textContent?.trim()}${e.getAttribute('aria-checked') ? `[${e.getAttribute('aria-checked')}]` : ''}`));
     const onDeephaven = JSON.stringify(before) === JSON.stringify([['In this tab (DuckDB)', 'false'], [deephaven, 'true']]);
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("In this tab (DuckDB)"))').first().click();
-    const switching = Date.now();
-    // the page opened again on the tab's context: its market started in the tab (market-sim/local-host.ts `__market`),
-    // then its first tab drawn from it
-    const worldRowsNow = () => page.evaluate(() => {
+    [other] = await Promise.all([
+      page.context().waitForEvent('page', { timeout: 30_000 }),
+      page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("In this tab (DuckDB)"))').first().click(),
+    ]);
+    const opening = Date.now();
+    other.on('pageerror', (e) => fail(`page error, the tab Open With opened: ${e.message}`));
+    other.on('console', (m) => { if (m.type() === 'error') console.log(`[other page ${m.type()}] ${m.text().slice(0, 300)}`); });
+    // its market started in that tab (market-sim/local-host.ts `__market`), then its first tab drawn from it
+    const worldRows = await until(() => other.evaluate(() => {
       const c = window.__market?.counts?.();
       return c === undefined ? 0 : Object.values(c.world.rows ?? {}).reduce((a, b) => a + Number(b), 0);
-    });
-    const worldRows = await until(worldRowsNow, 'the market in the tab writing', 180_000).catch(() => 0);
-    const inTab = worldRows > 0 && await firstTabDrawn(180_000);
-    const tabAt = ((Date.now() - switching) / 1000).toFixed(1);
-    console.log(`[measure] on the tab: renderers ${JSON.stringify(renderers())} MB, the page's heap ${await heap()} MB`);
-    const after = await runOnEntries();
+    }), 'the market in the other tab writing', 180_000).catch(() => 0);
+    const drawn = worldRows > 0 && await firstTabDrawn(other, 180_000);
+    const openedAt = ((Date.now() - opening) / 1000).toFixed(1);
+    console.log(`[measure] the other tab open: renderers ${JSON.stringify(renderers())} MB`);
+    const otherTicks = drawn && await ticks(other, 30_000);
+    // a parameter of the opening: not changed by it; its menu checks the tab's context
+    const changed = await other.evaluate(() => document.title.startsWith('•'));
+    const after = await openWithEntries(other);
+    await other.keyboard.press('Escape');
+    await other.screenshot({ path: join(outputs, 'desk-open-with-tab.png') });
+    const address = other.url();
+    // this tab left as it is: on Deephaven, still ticking
     await page.keyboard.press('Escape');
-    const changed = await page.evaluate(() => document.title.startsWith('\u2022'));
-    await page.screenshot({ path: join(outputs, 'desk-run-on-tab.png') });
-    await page.click('.dc-titlebar-menu');
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Run On"))').first().hover();
-    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("${deephaven}"))`).first().click();
-    const back = Date.now();
-    // read from the server again (a result the session keeps alive is read, not sent again: deephaven.ts keepAlive)
-    const sent = (await counts()).queries;
-    // the page opened again on the server: its grids' queries read from it, its first tab drawn from them
-    await until(async () => (await counts()).queries > sent, 'queries read from the server again', 180_000).catch(() => undefined);
-    const onServer = await firstTabDrawn(180_000);
-    const backAt = ((Date.now() - back) / 1000).toFixed(1);
-    console.log(`[measure] back on Deephaven: renderers ${JSON.stringify(renderers())} MB, the page's heap ${await heap()} MB`);
-    const sentAfter = (await counts()).queries;
-    const backEntries = await runOnEntries();
-    await page.keyboard.press('Escape');
-    const said = await page.evaluate(() => [...document.querySelectorAll('#cubelib .dc-lib-status, .dc-status')].map((e) => e.textContent?.trim()).filter(Boolean));
-    menuSeen = { backEntries, said, counts: await counts() };
-    if (onDeephaven && inTab && worldRows > 0 && JSON.stringify(after) === JSON.stringify([['In this tab (DuckDB)', 'true'], [deephaven, 'false']])
-      && changed && onServer && sentAfter > sent && JSON.stringify(menuSeen.backEntries) === JSON.stringify(before)) {
-      ok(`Run On: the saved desk on Deephaven, switched to the tab's DuckDB (its first tab drawn in ${tabAt} s, the market in the tab writing ${worldRows.toLocaleString('en-US')} rows, the page changed until saved) and back to Deephaven (${backAt} s, ${sentAfter - sent} queries read from the server)`);
+    const stillTicks = await ticks(page, 30_000);
+    seen = { before, after, address, changed, counts: await counts() };
+    if (onDeephaven && drawn && otherTicks && !changed && stillTicks && address.includes('#open=')
+      && JSON.stringify(after) === JSON.stringify([['In this tab (DuckDB)', 'true'], [deephaven, 'false']])) {
+      ok(`Open With: the saved desk on Deephaven opened again in a tab of its own on the tab's DuckDB (its first tab drawn in ${openedAt} s and ticking, the market there writing ${worldRows.toLocaleString('en-US')} rows, the page not changed by its context), this tab still ticking on Deephaven`);
     } else {
-      fail(`Run On: before ${JSON.stringify(before)}; in the tab ${inTab ? 'drawn' : 'not drawn'} (${worldRows} rows written), after ${JSON.stringify(after)}, changed ${changed}; back on Deephaven ${onServer ? 'drawn' : 'not drawn'}, ${sentAfter - sent} queries read (${JSON.stringify(menuSeen)})`);
+      fail(`Open With: ${JSON.stringify(seen)}; the other tab ${drawn ? 'drawn' : 'not drawn'} (${worldRows} rows written), ${otherTicks ? 'ticking' : 'not ticking'}; this tab ${stillTicks ? 'ticking' : 'not ticking'}`);
     }
   } catch (e) {
-    await page.screenshot({ path: join(outputs, 'desk-run-on-failed.png') }).catch(() => undefined);
-    fail(`Run On: ${e?.message ?? e} (the menu showed ${JSON.stringify(menuSeen)})`);
+    await page.screenshot({ path: join(outputs, 'desk-open-with-failed.png') }).catch(() => undefined);
+    fail(`Open With: ${e?.message ?? e} (seen ${JSON.stringify(seen)})`);
+  } finally {
+    await other?.close().catch(() => undefined);
   }
+  console.log(`[measure] after Open With: renderers ${JSON.stringify(renderers())} MB`);
 
   // THE SERVER RESTARTED (docs/DEEPHAVEN_START_HERE.md, the desk under load, 4): Deephaven keeps no session across one,
   // and its world starts again. The page signs in again once -- every grid's end the same sign-in, and a session or
@@ -442,7 +442,7 @@ try {
     if (!restarted.restarted) fail(`the fixture answered ${JSON.stringify(restarted)}`);
     const restarting = Date.now();
     await until(async () => (await counts()).reconnects > signedIn, 'signed in again after the restart', 240_000);
-    const drawn = await firstTabDrawn(180_000);
+    const drawn = await firstTabDrawn(page, 180_000);
     const before = new Map((await shownTiles(page)).map((t) => [t.id, t.shows]));
     const ticked = await until(async () => (await shownTiles(page))
       .filter((t) => before.has(t.id) && before.get(t.id) !== t.shows).map((t) => t.id).join(', '),

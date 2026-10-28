@@ -624,7 +624,7 @@ export function pageDefinitionText(page: PageDocument): string {
   // the protocol's writer puts keys in one order: a page read back compares equal
   return protocolJson({
     cubes: page.cubes.map((c) => definitionText(c.cube)),
-    // where each saved query runs: a context switched (Run On, run-on.ts), the page has changed
+    // where each saved query runs: a context written (run-on.ts), the page has changed
     contexts: page.cubes.map((c) => (c.cube.source._type === 'savedQuery' ? c.cube.source.query.executionContext ?? null : null)),
     views: page.views,
     sheets: page.sheets,

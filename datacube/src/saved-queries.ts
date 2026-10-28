@@ -131,8 +131,8 @@ export interface QueryReading {
 }
 
 /** A saved query read: the runtime and mapping it runs on and the model's enumerations (`how`), and its one expression
- *  with each parameter's saved value (`source`); over a data space, the data space and its contexts (Run on: the
- *  contexts a page's queries over it can be switched to, docs/ONE_CONNECTION_DESK_2026_10_28.md D2). */
+ *  with each parameter's saved value (`source`); over a data space, the data space and its contexts (Open With ▸: the
+ *  contexts a saved page over it can be opened on, docs/ONE_CONNECTION_DESK_2026_10_28.md D2). */
 export interface SavedQueryRead {
   readonly runtime: string;
   readonly how: ModelOptions;

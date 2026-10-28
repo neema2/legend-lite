@@ -208,6 +208,9 @@ export interface SourcesOf {
   readonly ask: (content: readonly (string | HTMLElement)[] | undefined) => void;
   /** Told when a saved query is read through a data space (`dataSpaces`). */
   readonly readDataSpace?: () => void;
+  /** The context this tab runs a data space's saved queries on, where the page was opened with one (Open With ▸: the
+   *  address's `#open=…&space=…&context=…`) -- a parameter of the opening: each query is read on it, and kept as saved. */
+  readonly openedWith?: { readonly dataSpace: string; readonly context: string };
 }
 
 /** The page's sources: what each grid reads, and opening one. */
@@ -223,7 +226,7 @@ export interface PageSources {
   /** The files on the page now: each grid's, one per table it reads from a file (a join's leaves' among them). */
   filesNow(): GridFile[];
   /** The data spaces this page's saved queries were read through, by path, each with its contexts as its model declares
-   *  them (Run on: docs/ONE_CONNECTION_DESK_2026_10_28.md D2) -- knowledge read with the queries, never asked for. */
+   *  them (Open With ▸: docs/ONE_CONNECTION_DESK_2026_10_28.md D2) -- knowledge read with the queries, never asked for. */
   dataSpaces(): ReadonlyMap<string, DataSpaceRead>;
   /** Where a grid whose rows are not in the tab already snaps: copies of its own in the tab's database (§18.3); none
    *  where the page has no database of its own. */
@@ -403,6 +406,14 @@ export function pageSources(d: SourcesOf): PageSources {
   const readSpace = (space: DataSpaceRead): void => {
     dataSpacesRead.set(space.path, space);
     d.readDataSpace?.();
+  };
+  /** A saved query as this tab reads it: over the data space the page was opened with a context for (`openedWith`), on
+   *  that context; any other as saved. What a grid keeps, and the page saves, is the query as saved. */
+  const asOpened = <Q extends Pick<Query, 'executionContext'>>(q: Q): Q => {
+    const w = d.openedWith;
+    const at = q.executionContext;
+    if (w === undefined || at?._type !== 'dataSpaceExecutionContext' || at.dataSpacePath !== w.dataSpace) return q;
+    return { ...q, executionContext: { ...at, executionKey: w.context } };
   };
   /** The rows' own planner let go (a runner holds no model in the page; a live grid's own rows go with its grid). */
   const letGo = (rows: GridRows): void => { rows.planner?.dispose?.(); };
@@ -1144,7 +1155,7 @@ export function pageSources(d: SourcesOf): PageSources {
     const model = await modelOf(q);
     // rules 1-4, the one rule (saved-queries.ts savedQueryOpened), typed over its rows where the host reads them
     let rows: GridRows | undefined;
-    const { runtime, how, source, dataSpace } = await savedQueryOpened(q, model, reading, (at, options) => {
+    const { runtime, how, source, dataSpace } = await savedQueryOpened(asOpened(q), model, reading, (at, options) => {
       rows = services.engine.rows(model, at, options);
       return typer(rows);
     });
@@ -1176,7 +1187,7 @@ export function pageSources(d: SourcesOf): PageSources {
     const q = src.query;
     const model = await modelOf(q);
     const { savedQueryRead, savedQueryTyped } = await savedQueries();
-    const read = await savedQueryRead(q, model, services.engine.reading);
+    const read = await savedQueryRead(asOpened(q), model, services.engine.reading);
     if (read.dataSpace) readSpace(read.dataSpace);
     const rows = services.engine.rows(model, read.runtime, read.how);
     if (rows.live === undefined || src.columns.length === 0) {

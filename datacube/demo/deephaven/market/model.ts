@@ -8,7 +8,7 @@
 //      server, each an execution context of the data space `market::TradingDesk`.
 // A page plans the corpus's classes (marketdata::MarketTrade, products::Instrument, ...) through stress::AllMapping, and
 // the desk's saved queries name the screens' functions (screens.ts) and the data space; the page names the context it
-// runs on (Run on).
+// runs on (Open With ▸).
 
 /** The desk's model: its three files' text, joined as a project's files are (the corpus, the desk's own, the
  *  environments). */

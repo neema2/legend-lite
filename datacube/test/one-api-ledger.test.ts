@@ -120,8 +120,11 @@ interface Entry {
 // 2026-10-28 (docs/ONE_CONNECTION_DESK_2026_10_28.md step 4, Run On ▸): L1_REACH 6 -> 7 -- the page on screen opened
 // again with its saved queries on another context of their data space (openSaved, `switching`), as Open… opens a page:
 // no command switches a context yet.
+// 2026-10-28 (the user: "Open With is only for Saved things - its basically an Open for a saved Page that has a
+// parameter"): L1_REACH 7 -> 6 -- Run On ▸'s switch of the page on screen deleted; Open With ▸ opens the saved page in a
+// tab of its own (`#open=…`), the address's start (openDataCube's own entry).
 const CEILINGS: Record<string, number> = {
-  L1_GRID: 6, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 7, L1_PLANE: 3, L1_HOST: 8,
+  L1_GRID: 6, L1_THEN: 3, L1_ROUTES: 6, L1_REACH: 6, L1_PLANE: 3, L1_HOST: 8,
   L8_KINDS: 1, L8_SOURCES: 0, L8_UNASKED: 0, MARKERS: 0, UNCHECKED: 0,
 };
 
@@ -199,10 +202,8 @@ const L1_REACH: Record<string, Entry> = {
   'datacube-app.ts:openInPlace:inPlace': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
   'datacube-app.ts:open:openSaved': { items: [], why: "N1, D1: the Open… window's page, of this tab's own; and openLive's `open`, the page its other editor serves opened whole as its keeper has it (replacing)", count: 2 },
   'datacube-app.ts:openText:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  // added 2026-10-28 (docs/ONE_CONNECTION_DESK_2026_10_28.md step 4, Run On ▸): no command switches a context yet
-  'datacube-app.ts:runOnChosen:openSaved': { items: [], why: "N1, D1: Run On ▸, the page on screen opened again with its saved queries on another context of their data space -- a page of this tab's own; on a page another editor serves, that one left as it is, as Open… leaves it" },
   'datacube-app.ts:examplesList:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is" },
-  'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is: a page link's, and an example the address names (#example=, the trading desk: 2026-10-25)", count: 2 },
+  'datacube-app.ts:openDataCube:openSaved': { items: [], why: "N1, D1: a page of this tab's own -- on a page another editor serves, that one left as it is: a page link's, an example the address names (#example=, the trading desk: 2026-10-25), and a saved page it names (#open=, Open With ▸: 2026-10-28)", count: 3 },
   'datacube-app.ts:openDataCube:blankPage': { items: [], why: "N1, D1: New ▸ Blank Page, a new page of this tab's own (newPage, D11), the page another editor serves left as it is; and a start that opened nothing, said -- never once the page its other editor serves is open (the S7 audit's H-1)", count: 3 },
 };
 
@@ -826,7 +827,9 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:openDataCube:live': { count: 2, other: `${NATURE} a page another editor serves is followed; the tab's own page has no other editor` },
   'src/app/datacube-app.ts:leaveServed:live': { other: `${NATURE} leaving a page another editor serves` },
   'src/app/datacube-app.ts:saveTo:pages': { other: `${BOTH} saved where the host keeps pages; Python's page.save() by the same rule (pageSaving)`, ability: 'pages' },
-  'src/app/datacube-app.ts:openDataCube:pages': { count: 3, other: `${BOTH} the saved pages' window, Open… and Save where the host keeps pages`, ability: 'pages' },
+  'src/app/datacube-app.ts:openDataCube:pages': { count: 4, other: `${BOTH} the saved pages' window, Open… and Save where the host keeps pages, and a saved page the address opens (#open=, Open With ▸: 2026-10-28)`, ability: 'pages' },
+  // added 2026-10-28 (docs/ONE_CONNECTION_DESK_2026_10_28.md D2, Open With ▸)
+  'src/app/datacube-app.ts:opener:address': { other: `${NATURE} Open With ▸ opens the saved page in a tab of its own, at this page's address; Python's view of a page is no tab of its own, and offers none` },
   'src/app/datacube-app.ts:copyShareLink:address': { other: `${NATURE} a link needs an address others can open` },
   'src/app/datacube-app.ts:makeClass:modelHome': { count: 2, other: `${BOTH} Create a Class… where the host has a model home and a writer (the tab's, Python's)`, ability: 'model' },
   'src/app/datacube-app.ts:modelActions:modelHome': { count: 2, other: `${BOTH} the model actions where the host has a model home and a writer`, ability: 'model' },

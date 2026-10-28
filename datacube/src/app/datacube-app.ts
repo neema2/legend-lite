@@ -53,7 +53,7 @@ import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
 import { EXAMPLE_PAGES, type ExamplePage } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
-import type { RunOnChoice } from './run-on-menu.ts';
+import type { OpenWithChoice } from './open-with-menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
@@ -96,7 +96,10 @@ export type AppStart =
   | { readonly kind: 'live' }
   /** An example page by its id (the address's `#example=<id>`), opened as Open…'s Examples open it: the host's own
    *  (`OpenDataCube.examples`: the market's trading desk) or the app's. */
-  | { readonly kind: 'example'; readonly id: string };
+  | { readonly kind: 'example'; readonly id: string }
+  /** A saved page by its id (the address's `#open=<id>`: Open With ▸, open-with-menu.ts), its saved queries over a data
+   *  space on the context `with` names where it names one -- a parameter of this opening, never an edit of the page. */
+  | { readonly kind: 'open'; readonly id: string; readonly with?: { readonly dataSpace: string; readonly context: string } };
 
 
 /** The app open on its host: what takes it down (a notebook's cell re-run, its view closed). */
@@ -449,7 +452,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (item.id === 'host.saveAs') saveCube?.(true);
     if (item.id === 'host.share') void copyShareLink?.();
     if (item.id === 'host.query') windows.toggle(windows.query);
-    if (item.id?.startsWith('host.runOn.')) runOnChosen?.(Number(item.id.slice('host.runOn.'.length)));
+    if (item.id?.startsWith('host.openWith.')) openWithChosen?.(Number(item.id.slice('host.openWith.'.length)));
     if (item.id === CREATE_ASSOCIATION.id) createAssociation?.();
     if (item.id === CREATE_DATA_SPACE.id) createDataSpace?.();
     // A NAVIGATION, not a switch: the same page loads again with the chosen ?planner= (a cube
@@ -518,11 +521,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   /** A timeseries series of several grids, opened together over one model of their tables (set with the page's
    *  sources, below). */
   let togetherOf: ((cubes: readonly string[]) => Promise<TsTogether>) | undefined;
-  /** RUN ON ▸ (docs/ONE_CONNECTION_DESK_2026_10_28.md D2): its entries, once the page's sources are made, and the
-   *  context the entry `host.runOn.<n>` names, switched to. */
-  let runOnItems: (() => MenuItem[]) | undefined;
-  let runOnChosen: ((n: number) => void) | undefined;
-  let runOnCode: typeof import('./run-on-menu.ts') | undefined;
+  /** OPEN WITH ▸ (docs/ONE_CONNECTION_DESK_2026_10_28.md D2): its entries, once the page's sources are made, and the
+   *  saved page opened in a tab of its own on the context the entry `host.openWith.<n>` names. */
+  let openWithItems: (() => MenuItem[]) | undefined;
+  let openWithChosen: ((n: number) => void) | undefined;
+  let openWithCode: typeof import('./open-with-menu.ts') | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
   /** The page as this tab keeps it -- a newer writer's fields and its model with the board's -- once its sources are set
@@ -594,7 +597,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const, ...whileStarting(copyShareLink) }] : []),
       { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
       // where the page's saved queries run: each data space they name, its contexts
-      ...(runOnItems?.() ?? []),
+      ...(openWithItems?.() ?? []),
       // THE PAGE'S MODEL, under its Create ▸: its associations and its data space, once the page has a model home
       ...(createDataSpace ? [CREATE_ASSOCIATION, CREATE_DATA_SPACE] : []),
       // The planes, as entries rather than a control: the bar is
@@ -715,10 +718,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // THE PAGE'S SOURCES (src/app/sources.ts): each kind opened through the services, a grid's file and planners kept
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
-      // Run On ▸'s code, fetched with the first saved query read over a data space
+      // Open With ▸'s code, fetched with the first saved query read over a data space
       readDataSpace: () => {
-        void lazily(() => import('./run-on-menu.ts')).then((m) => { runOnCode = m; }, () => { /* offered at the next read */ });
+        void lazily(() => import('./open-with-menu.ts')).then((m) => { openWithCode = m; }, () => { /* offered at the next read */ });
       },
+      // a saved page opened with a context (`#open=…&context=…`): its saved queries over the data space read on it
+      ...(start.kind === 'open' && start.with ? { openedWith: start.with } : {}),
     });
     // the grids of a timeseries series of several, over one model of the tables they read: the tab's own (its database's),
     // or -- a page Python serves -- the host's, by the same rule (join.json together); its query then planned and run
@@ -800,26 +805,31 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     }, empty);
     pageKept = (name) => pageNow(name);
     /**
-     * RUN ON ▸ (docs/ONE_CONNECTION_DESK_2026_10_28.md D2; run-on-menu.ts, a chunk fetched with the first saved query read
-     * over a data space): another context chosen, the page opens again as it is, its saved queries over that data space
-     * on the context chosen -- planned on its runtime and run where its connections say. The page is changed until
-     * saved: Save keeps the context it runs on. A context the page cannot reach (a server whose key this page's vault
-     * lacks) is said by its grids, and the menu offers the others.
+     * OPEN WITH ▸ (docs/ONE_CONNECTION_DESK_2026_10_28.md D2, as the user revised it 2026-10-28; open-with-menu.ts, a
+     * chunk fetched with the first saved query read over a data space): a saved page -- only a saved one -- opened again
+     * as saved, in a tab of its own, its saved queries over the data space on the context chosen: planned on its runtime
+     * and run where its connections say. This tab is left as it is; a context a page cannot reach (a server whose key
+     * this page's vault lacks) is said by that tab's grids. Not offered where the page is not a tab of its own.
      */
-    let runOnChoices: readonly RunOnChoice[] = [];
-    runOnItems = () => {
-      const now = runOnCode && sources.dataSpaces().size > 0 ? pageNow(page.title) : undefined;
-      if (runOnCode === undefined || now === undefined) return [];
-      const { items, choices } = runOnCode.runOnEntries(now, sources.dataSpaces());
-      runOnChoices = choices;
+    let openWithChoices: readonly OpenWithChoice[] = [];
+    /** Where Open With ▸ opens a tab: this page's address and the browser's tabs -- none where the page is no tab of its
+     *  own (a notebook's view: the ledger's L12, by nature). */
+    const opener = (): { readonly address: string; readonly openTab: (url: string) => void } | undefined => {
+      const { address, openTab } = services.browser;
+      return address && openTab ? { address: address(), openTab } : undefined;
+    };
+    openWithItems = () => {
+      if (openWithCode === undefined || page.record === undefined || opener() === undefined || sources.dataSpaces().size === 0) return [];
+      const { items, choices } = openWithCode.openWithEntries(sources.dataSpaces());
+      openWithChoices = choices;
       return items;
     };
-    runOnChosen = (n) => {
-      const choice = runOnChoices[n];
-      const now = pageNow(page.title);
-      if (runOnCode === undefined || choice === undefined || now === undefined) return;
-      void openSaved(readSaved(pageToJson(runOnCode.runningOnChoice(now, choice))), page.record, false, [], [], true)
-        .catch((e: unknown) => library?.say(`could not run on ${choice.title}: ${e instanceof Error ? e.message : String(e)}`, 'warn'));
+    openWithChosen = (n) => {
+      const choice = openWithChoices[n];
+      const id = page.record;
+      const tab = opener();
+      if (openWithCode === undefined || choice === undefined || id === undefined || tab === undefined) return;
+      tab.openTab(openWithCode.openWithAddress(tab.address, id, choice));
     };
     // For the browser harness ONLY (test/python-engine/python-engine.mjs, two tabs on one page): the page's hash as its
     // keeper computes it (page-hash.ts, W17), to compare with Python's. Not product code.
@@ -1025,10 +1035,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * Opened.taken), by their ids. `held`: every id the page has held where its other editor keeps it (B12).
      */
     async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false,
-      held: readonly string[] = [], unread: string[] = [], switching = false): Promise<readonly string[]> {
-      // `switching`: the page on screen opened again on another context (Run on) -- nothing of the person's is lost, so
-      // nothing is asked, and it stays changed from what was saved until it is saved
-      const before = current;
+      held: readonly string[] = [], unread: string[] = []): Promise<readonly string[]> {
       // a page, or a cube saved alone before pages: the page it opens as (page-document.ts savedPage, Python's Page.open's)
       const given = savedPage(saved);
       // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
@@ -1037,7 +1044,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const opened = replacing ? { page: given, notes: [] } : openedLive(given);
       const doc = opened.page;
       // `replacing`: the page's other editor replaced it -- nothing of the person's is asked about
-      if (!replacing && !switching && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return [];
+      if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return [];
       // LATEST WINS (P2-330), as an open in place: each source is a wait (a file asked for, a sign-in), and an open
       // overtaken meanwhile lands nothing -- what it read is dropped
       const newest = opens.start();
@@ -1134,8 +1141,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // The baseline is the page as it LANDED (normalized by its first refresh); a page opened with parts left out is
       // changed from the start.
       const landed = savedForm(doc.name);
-      const baseline = switching ? before.baseline : landed?.definition;
-      current = { ...current, ...(baseline !== undefined ? { baseline } : {}), lost: notes.filter((n) => n.startsWith('left out')) };
+      current = { ...current, ...(landed ? { baseline: landed.definition } : {}), lost: notes.filter((n) => n.startsWith('left out')) };
       onCubeView?.();
       library?.sync();
       library?.say(notes.length === 0
@@ -1921,6 +1927,16 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (start.kind === 'live') {
       const why = await openLive().catch((e: unknown) => (e instanceof Error ? e.message : String(e)));
       if (why !== undefined) failedStart(new Error(why));
+    }
+    // A SAVED PAGE THE ADDRESS NAMES (`#open=<id>`: Open With ▸), opened as Open… opens it -- its saved queries over a
+    // data space on the context the address names (the page's sources read them so: `openedWith`, above)
+    if (start.kind === 'open') {
+      try {
+        if (!pages) throw new Error('this page keeps no saved pages to open');
+        await openSaved(readSaved((await pages.store.get(start.id)).content), start.id);
+      } catch (e) {
+        failedStart(e);
+      }
     }
     // AN EXAMPLE THE ADDRESS NAMES (`#example=<id>`), opened as Open…'s Examples open it; one not here is said
     if (start.kind === 'example') {

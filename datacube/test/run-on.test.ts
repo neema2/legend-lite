@@ -1,12 +1,13 @@
-// Run on (src/run-on.ts; docs/ONE_CONNECTION_DESK_2026_10_28.md D2): a page's saved queries over a data space run on
-// the execution context named -- legend's executionKey on each one -- and only those; what a page runs on, read back.
+// A page on a context (src/run-on.ts; docs/ONE_CONNECTION_DESK_2026_10_28.md D2): a page's saved queries over a data
+// space written on the execution context named -- legend's executionKey on each one -- and only those; and Open With ▸
+// (src/app/open-with-menu.ts): a saved page opened again, in a tab of its own, on another context.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { runOnEntries, runningOnChoice } from '../src/app/run-on-menu.ts';
+import { openWithAddress, openWithEntries } from '../src/app/open-with-menu.ts';
 import type { PageDocument } from '../src/page-document.ts';
-import { runOn, runningOn } from '../src/run-on.ts';
+import { runOn } from '../src/run-on.ts';
 import type { DataSpaceRead } from '../src/saved-queries.ts';
 
 const query = (name: string, executionContext: unknown): unknown => ({
@@ -46,14 +47,6 @@ describe('run on', () => {
     assert.deepEqual(contextOf(page, 0), { _type: 'dataSpaceExecutionContext', dataSpacePath: 'market::TradingDesk' });
   });
 
-  it('says what each data space runs on: its default as null, two contexts as both', () => {
-    assert.deepEqual(runningOn(page), new Map([
-      ['market::TradingDesk', new Set([null, 'In this tab'])],
-      ['risk::Book', new Set(['Prod'])],
-    ]));
-    assert.deepEqual(runningOn(runOn(page, 'market::TradingDesk', 'Deephaven')).get('market::TradingDesk'), new Set(['Deephaven']));
-  });
-
   it('refuses a context with no name', () => {
     assert.throws(() => runOn(page, 'market::TradingDesk', ''), /an execution context of market::TradingDesk is named/);
   });
@@ -65,24 +58,24 @@ const DESK: DataSpaceRead = {
   contexts: [{ name: 'In this tab', title: 'In this tab (DuckDB)' }, { name: 'Deephaven', title: 'Deephaven (localhost:10000)' }],
 };
 
-describe('Run On ▸', () => {
-  it("offers the data space's contexts, the one its queries run on checked; another chosen, the page runs on it", () => {
-    const desk = runOn(page, 'market::TradingDesk', 'In this tab');
-    const { items, choices } = runOnEntries(desk, new Map([['market::TradingDesk', DESK]]));
-    // one data space read here (risk::Book's queries were never read: nothing offered for it)
+describe('Open With ▸', () => {
+  it("offers the data space's contexts, the one this tab reads it on checked; each opens the saved page on it", () => {
+    const { items, choices } = openWithEntries(new Map([['market::TradingDesk', DESK]]));
     assert.equal(items.length, 1);
-    assert.equal(items[0]!.label, 'Run On');
+    assert.equal(items[0]!.label, 'Open With');
     assert.deepEqual(items[0]!.submenu?.map((i) => [i.id, i.label, i.checked ?? false]), [
-      ['host.runOn.0', 'In this tab (DuckDB)', true],
-      ['host.runOn.1', 'Deephaven (localhost:10000)', false],
+      ['host.openWith.0', 'In this tab (DuckDB)', true],
+      ['host.openWith.1', 'Deephaven (localhost:10000)', false],
     ]);
-    const moved = runningOnChoice(desk, choices[1]!);
-    assert.deepEqual(runningOn(moved).get('market::TradingDesk'), new Set(['Deephaven']));
+    // the saved page's own address, its fragment the opening's: the page's id and the context, by name
+    assert.equal(openWithAddress('https://site.example/datacube/demo/index.html?planner=local#p1.old', 'page 7', choices[1]!),
+      'https://site.example/datacube/demo/index.html?planner=local#open=page%207&space=market%3A%3ATradingDesk&context=Deephaven');
   });
 
-  it("a query naming no context runs on the data space's default, and is checked so", () => {
-    const { items } = runOnEntries(page, new Map([['market::TradingDesk', DESK]]));
-    // the page's two desk queries: one on the default, one on 'In this tab' -- both the same context
-    assert.deepEqual(items[0]!.submenu?.map((i) => i.checked ?? false), [true, false]);
+  it('names each data space where the page read several', () => {
+    const book: DataSpaceRead = { path: 'risk::Book', title: 'Risk book', context: 'Prod', defaultContext: 'Prod', contexts: [{ name: 'Prod', title: 'Prod' }] };
+    const { items, choices } = openWithEntries(new Map([['market::TradingDesk', DESK], ['risk::Book', book]]));
+    assert.deepEqual(items.map((i) => i.label), ['Open Trading desk With', 'Open Risk book With']);
+    assert.deepEqual(choices.map((c) => `${c.dataSpace} ${c.context}`), ['market::TradingDesk In this tab', 'market::TradingDesk Deephaven', 'risk::Book Prod']);
   });
 });

@@ -130,6 +130,8 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
     browser: {
       ...browserBasics,
       address: () => o.location.href,
+      // a tab of its own, sharing nothing with this one (Open With ▸: a saved page opened again on another context)
+      openTab: (url) => { window.open(url, '_blank', 'noopener'); },
       title: tabTitle(),
     },
   };
