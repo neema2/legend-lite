@@ -69,13 +69,14 @@ bazel run //tools/engine-runner:testable -- "$WORK/emit_all.pure" --pmcd-json="$
 # 4. The measures.
 cd "$HERE"
 "$PY" expectations.py "$STRESS" "$WORK/expectations.tsv"
-"$PY" deep_populated.py "$STRESS" "$WORK/stress-suites-pass.txt"
+"$PY" deep_populated.py "$STRESS" "$WORK/stress-suites-pass.txt" ${ENGINE_PASS[@]+"${ENGINE_PASS[@]}"}
 export PMCD_JSON="$WORK/stress-pmcd.json"
 "$PY" analyze.py "$WORK/expectations.tsv" "$WORK/stress-suites-pass.txt" "$WORK/analysis.json"
 "$PY" profile.py "$WORK/expectations.tsv" "$WORK/stress-suites-pass.txt" "$WORK/profile.json" ${ENGINE_PASS[@]+"${ENGINE_PASS[@]}"}
 "$PY" coverage.py "$WORK/pct_functions.tsv" "$WORK/coverage.json"
 "$PY" complexity.py "$WORK/analysis.json" "$WORK/profile.json" "$WORK/complexity.json"
 "$PY" literal_sites.py
+"$PY" filter_values.py "$WORK/expectations.tsv" "$WORK/stress-suites-pass.txt" ${ENGINE_PASS[@]+"${ENGINE_PASS[@]}"}
 "$PY" unused_joins.py
 "$PY" matrix.py "$ENGINE/docs/emit/emit.md" "$WORK/emit_models.json" "$WORK/profile.json" "$WORK/matrix.json"
 PMCD_JSON="$WORK/emit_all.json" "$PY" emit_analyze.py "$WORK/emit_all.pure.ranges.json" "$WORK/emit_analysis.json"

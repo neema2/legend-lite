@@ -1,6 +1,9 @@
 """For every query that navigates: is the DEEPEST navigated value ever non-null in the expectation?
 
-Usage: deep_populated.py <stress dir> <stress-suites-pass.txt>
+Usage: deep_populated.py <stress dir> <stress-suites-pass.txt> [<engine pass list>]
+
+Given legend-engine's pass list, also counts the populated ones that pass on the engine (the improvement plan judges
+on legend-engine: docs/STRESS_CORPUS_PLAN_2026_10_19.md).
 
 TDS: the projected columns whose path has the most hops -- any non-null cell in any row?
 graph: the deepest OBJECT level the tree asks for -- any non-null object there?
@@ -14,6 +17,8 @@ import sys
 
 STRESS, PASS = sys.argv[1:3]
 passed = {l.split(' / ')[0] for l in open(PASS, encoding='utf-8', errors='replace') if ' / ' in l}
+engine = ({l.split(' / ')[0] for l in open(sys.argv[3], encoding='utf-8', errors='replace') if ' / ' in l}
+          if len(sys.argv) > 3 else None)
 
 
 def unescape(s):
@@ -99,6 +104,8 @@ for f in glob.glob(os.path.join(STRESS, '*.pure')):
             key = 'tds %d hops' % asked
         res[verdict] += 1
         by_depth[key][verdict] += 1
+        if verdict == 'deepest level populated' and engine is not None and svc in engine:
+            by_depth[key]['populated, passing on the engine'] += 1
         if verdict == 'deepest level populated':
             examples[key].append((svc, os.path.basename(f), t.count('\n', 0, m.start()) + 1,
                                   'PASS' if svc in passed else 'not passing'))
@@ -106,5 +113,7 @@ for f in glob.glob(os.path.join(STRESS, '*.pure')):
 print('navigating queries with an expectation:', sum(res.values()), dict(res))
 for k in sorted(by_depth, key=lambda k: (k.split()[0], -int(k.split()[1]))):
     c = by_depth[k]
-    print('  %-16s populated %4d   never %4d   no rows %4d   e.g. %s' % (
-        k, c['deepest level populated'], c['deepest level never populated'], c['no rows'], [e[0].split("::")[1] for e in examples[k]] if k in ("tds 4 hops", "graph 4 levels") else ""))
+    print('  %-16s populated %4d   never %4d   no rows %4d%s   e.g. %s' % (
+        k, c['deepest level populated'], c['deepest level never populated'], c['no rows'],
+        '' if engine is None else '   populated and passing on the engine %4d' % c['populated, passing on the engine'],
+        [e[0].split("::")[1] for e in examples[k]][:16] if k in ("tds 4 hops", "graph 4 levels") else ""))

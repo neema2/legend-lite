@@ -718,12 +718,13 @@ On Windows, run both from Git Bash with `BAZEL_SH` set to Git's `bash.exe` and `
 | `emit_concat.py`, `emit_analyze.py` | the EMIT models parsed as one document and measured like the corpus | 4.2, 4.3, 6, 7 |
 | `pct_inventory.py` | the PCT function names, by category | 4.1 |
 | `expectations.py` | each expected result classified as populated, hollow or empty | 3 (tested), 4.6 |
-| `deep_populated.py` | whether the deepest navigated value is ever populated | 4.6 |
+| `deep_populated.py` | whether the deepest navigated value is ever populated (and, given the engine's pass list, how many of those pass there) | 4.6 |
 | `analyze.py` | the element census: services, parameters, literals, classes, constraints, mappings, stores | 2, 4, 5, 7, 8, 9 |
 | `profile.py` | each service's reach through its mapping, in EMIT's taxonomy plus query shape | 3, 4.5 |
 | `coverage.py` | function coverage against PCT, literals per context, service-test shapes | 4.1, 4.2, 6 |
 | `complexity.py` | size and combination distributions | 4.4, 4.5, 7, 8, 9 |
 | `literal_sites.py` | where each literal type appears in the queries | 4.2 |
+| `filter_values.py` | what each comparison in a query's filter compares against: a value, the `' '` guard, or a parameter | 4.1, 4.2 |
 | `unused_joins.py` | joins no mapping, view or filter references | 8 |
 | `matrix.py` | the EMIT feature matrix; its "declared" column is hand-entered from `analyze.py`'s output | 3 |
 

@@ -2,6 +2,7 @@
 
 Proposed 2026-10-19. The user took the five decisions on 2026-10-21 ([Decisions](#decisions)), and Phase 0 started
 that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done on 2026-10-23, on `stress_test/corpus`.
+Phase 2 started and was done on 2026-10-27.
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -374,6 +375,139 @@ check no navigated value.
 - **The engine run is a full one,** because the seed changed.
 - **Done when:** the three §4.6 rows and the deep-filter row reach their targets.
 
+**What was built (2026-10-27).**
+
+**The cause, traced first.** It was not depth. 394 of the 400 `DSDeep` services expected no rows, and of 397
+four-level trees 16 had an object at the bottom.
+
+- 360 of the `DSDeep` roots were taxonomy subtypes the seed holds no row of. Ranked by reach alone, the first 400
+  navigable roots were mostly those, and each of their services asserted the `~filter` and nothing deeper, which the
+  taxonomy service over the same subtype already asserts.
+- Of the chains that did start from rows, 362 broke at one hop, business unit to legal entity. `BUSINESS_UNIT`, an
+  extension table the expansion derives from `DESK`, has two rows: `BU-EQ` with no legal entity (A2) and `BU-CR` with
+  `LE-0001-GONE` (A1). Both breaks are deliberate, and there was no third row whose chain held.
+- Chains through a trade's order broke at once: `TRADE.ORDER_ID` is absent in every row.
+- Every hop these chains cross is a foreign key into a primary key, a self-join's included, so two moves cover them.
+
+**The pieces.**
+
+- **`spines.py`, a new seed pass.** The plan placed it in `seed.py`. It is called from `flat.all_tables` instead,
+  after the expansion, because the chains run through expanded tables.
+  - Its targets are the 722 chains the generators read, each generator exposing its own (`spine_targets`):
+    `deepstack.py` 400, `stacks.py`'s dense services 206, `graphs.py`'s trees 116.
+  - Two moves. RELINK points a row's foreign key at another parent that completes the chain. CLONE copies a row under
+    a new key (`-SP1`), linked onward, for a parent to point at, where every row of a table is load-bearing.
+  - Each chain wants three complete paths (`WANT`), not the plan's two, and two distinct values where the data has
+    them. A filter that keeps between a fifth and four fifths leaves a limit only what it kept, and a limit needs two
+    rows to cut.
+  - Chains are taken most constrained first, and the links of a satisfied chain's witnesses are frozen: a later move
+    may point such a key only at a parent that gives the witnessed chain the same value. The first version had no
+    freeze, and re-pointed one business unit's legal entity 5,818 times, each chain wanting its own value through the
+    same row.
+  - Result: 508 relinks and 11 clones (`DESK` 3, `BUSINESS_UNIT` 3, `SALES_PERSON` 2, `BOOK`, `PORTFOLIO` and
+    `CLIENT_COVERAGE` 1 each), in 65 tables.
+  - 668 of the 722 chains can be spined. Of the rest, 43 dense chains end on a derived property, 9 chains cross a
+    join with a general condition, and 2 trees cross a join into a column that is not the target's key.
+  - Of the 668, 30 `DSDeep` chains and 6 dense ones reach 2 of 3 paths, 2 dense ones none, and 6 trees 0, 1 or 2;
+    every other chain has its three. The populated rows below count what the services then expect, which is what
+    matters.
+- **What the pass never does,** each proved in the build by `spines.check()` (reported with the seed's checks):
+  - remove an absent (A2) or dangling (A1, A11) key, or the last parent with no children (A3), that the seed placed;
+  - touch a primary key, invent a leaf value, add a row to the root of the chain it is completing, or edit a column a
+    derived table reads (`TRADE_FLAT`, the partitions, the pre-aggregate: `check()` recomputes them from the spined
+    tables);
+  - move a parent's last child away over a to-many a service counts: a battery service, or one of `aggregates.py`'s
+    (`aggregates.counted`, read from the seed before the pass). The first full engine run found this. The pass had
+    moved trader TRD-001's one daily P&L to TRD-002, so `F5_TraderChildCounts` expected 0 for TRD-001 and met F6 (a
+    count over an empty to-many is 1). And three aggregate services had left the corpus, since `aggregates.py` takes
+    only ends whose every parent has children. Two are back. `AA_SalesPersonCounts` stays out: a clone is a new
+    parent with no children, and one of the two sales-person clones has no sales credit. Holding every parent to a
+    child instead left 49 `DSDeep` chains short of three paths, against 30.
+- **`selective.py` (D5).**
+  - A `> ' '` guard becomes a comparison against a value of its own column under `>`, `>=`, `<`, `<=` or `==`,
+    keeping between a fifth and four fifths of the rows whose value is present. Each still drops the absent rows, as
+    the guard did. A tenth stay as written (`kept()`, by a hash of the service's name), for the guard's test of an
+    outer join's NULL.
+  - Of the 2,116 generated services with a filter, 1,716 compare against values only, 249 keep their guard as the
+    kept tenth, and 151 keep one because no comparand leaves the result populated. Guards fall from 2,166 to 417.
+  - A limit after a sort becomes about half the rows the query returns without it, moved down past a tie the oracle
+    refuses. 1,614 queries carry a limit. 116 still read `limit(25)`, where the result has fewer than two rows or no
+    smaller limit keeps it populated.
+- **`deepstack.py`.**
+  - The deep variants root only at classes whose `all()` sees rows. A root with fewer than two rows ranks last, and
+    a root with none gets no variant. So 105 roots' `DSDeep`, `DSPost`, `DSGroup`, `DSSub` and `DSTree` services
+    were replaced by 105 others.
+  - `DSDeep` projects its local column. `DSPost` takes `DSDeep`'s comparands and limit, so each pair is now a
+    checked invariance (`deepstack.invariance_groups`, through `build.py`'s `_invariant`). Before, the two carried
+    different conjuncts, and nothing compared them.
+- **`emptiness.py` (rule 4).** A spec states its family (`Spec.emptiness`). `build.py` fails on an empty or hollow
+  expected result outside a family, and on a declared one that has rows, so a declaration cannot outlive its reason.
+  Its classification is the report's own (`tools/expectations.py`). The families:
+  - an empty subtype (`taxonomy.py` and `hier.py`'s bare projections);
+  - before the first version (`MD6_RevisionAsOf`, `SC2_ScheduleAsOf`, `PL8_RatingsAsOf`);
+  - excludes everything (`CB_EqualsNull`).
+
+  The plan's fourth family, `isEmpty` ends, has no member: `tomany.py` projects its test as a column, so those
+  services expect rows of booleans.
+- **Rule 6.** Phase 2 makes no feature newly executable: filters against values, limits and four-hop navigation all
+  ran before. So `executed.py` gains no predicate, and the new properties are held by `emptiness.check()` and
+  `spines.check()` instead. (`executed.base_specs` does not include `deepstack.py`'s services, and that is left as
+  it was.)
+- **`quarantine.py`.** F58's two `DSLocal_` entries are removed and nothing is added. `DSLocal_MiddleofficeConfirmation`
+  and `DSLocal_RegulatorySubmission` now filter on a real value with a limit that cuts, so neither keeps a row on
+  which the two `dateDiff` readings differ, and both pass on the engine. F58 stays witnessed by `MO2_Confirmations`
+  and the two `REGX_` services. One file outside the owned ones changed:
+  `repro/datediff-hours-off-boundary/README.md`'s list of where F58 shows, announced in `docs/IN_FLIGHT.md`.
+
+**The engine verdict (2026-10-27, legend-engine 4.145.0, Windows x64).** The whole corpus ran three times, since the
+seed changed (rule 3):
+
+- First run: 5,000 pass, 56 known-fail, 1 not run (F15), and 3 unexpected, of 5,060 testables. One was a regression
+  (`F5_TraderChildCounts`, above). The other two were `DSLocal_` services that F58 no longer caught.
+- After the counted-to-many rule: 5,003 pass, 0 unexpected.
+- After the aggregate ends were added to that rule (`bazel run //scripts/corpus:run -- --jobs 4`, 77 minutes): 5,005
+  pass, 56 known-fail (quarantined), 1 not run (F15, which hangs), 0 unexpected, of 5,062 testables.
+  `F5_TraderChildCounts` passes, `F3_DeskChildCounts` stays known-fail under F6, and the two aggregate services that
+  came back, `AA_BusinessUnitCounts` and `AA_MTDPnLCounts`, pass.
+
+No pass of Phase 1's is lost: every service that passed then and is still in the corpus passes. 527 services left the
+corpus and 547 came in, and all 547 pass on the engine. 525 of those that left are the replaced deep roots' variants. The other two are
+`DSLocal_Portfolio`, which filtered on a column absent in every row and expected nothing (a deep variant's local
+column must now hold a value), and `AA_SalesPersonCounts`.
+
+**The measures** (the report's `tools/run.sh` at the pin, given the engine's pass list; "on the engine" means a service
+that passes there with a populated expected result):
+
+- Filters comparing against a real value: 2,040 comparisons in 1,920 services, and 2,023 in 1,908 on the engine
+  (target 1,500). The report counted 14. With `tools/filter_values.py`, Phase 1's corpus has 198 comparisons in 170
+  services (181 on the engine), most of them Phase 1's typed literals. Guards (`> ' '`) fall from 2,166 to 417, in
+  401 services. Comparisons against a parameter stay at 119, 101 on the engine.
+- Four-join projections with a value at the bottom: 1,553 of 1,553, every one passing on the engine (target 1,400;
+  10 before).
+- Four-level graph fetch trees populated at the bottom: 397 of 397, every one passing on the engine (target 360; 16
+  before).
+- Empty expected results: 572 of 5,082 tests, each in a declared family (target at most 900; 2,200 of 5,062 before).
+  None is hollow, against 280 before. The 572 are 568 empty subtypes (566 `taxonomy.py`, 2 `hier.py`), 3 before the
+  first version and `CB_EqualsNull`.
+- Navigating queries with an expectation: the deepest level is populated in 2,327 of 2,340.
+- EMIT 43 of 109 on the engine and 37 in lite, and PCT names 66 of 321, as before: Phase 2 changes data and
+  comparands, not features.
+- The measure needed tools on `stress_test/report`. `tools/filter_values.py` is new: for each comparison in a
+  query's filter, whether it compares against a value, the `' '` guard or a parameter, counted overall, among lite's
+  passes and among the engine's. `deep_populated.py` takes the engine's pass list too, and `run.sh` passes it to both.
+
+**Lite.** On DuckDB 4,869 tests pass (4,849 before); on H2 4,840 (4,820). 527 passing tests left the corpus with
+their services, the 547 that came in pass on both databases, and no test that passed and is still in the corpus
+fails. Both `MIN_PASS` ratchets rose by 20, each with a dated note. `//scripts/corpus:all` and
+`//core:corpus_differential_test` pass.
+
+**Not done.**
+
+- The wrong-rows tool (`tools/wrongrows/`) was not re-run. Its damaged data follows the seed, as the Risks note says,
+  and it needs engine runs in rows mode.
+- The 54 chains `spines.py` cannot reach are listed above. They are dense chains ending on a derived property, chains
+  across a general-condition join, and two trees across a non-key join.
+
 ### Phase 3: milestoning at time of day (about 4 days, about 50 services; after Phase 1)
 
 Report §3 (Milestoning) and §10 item 3. Every milestoned query today is day-grained.
@@ -557,7 +691,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 |---|---|---|---|---|---|---|
 | 0 | 2026-10-21 | — | 0 | none added; F27's entry removed (fixed upstream); F60's 3 unexpected settled by D6 (a) | none | EMIT 43 of 109 on the engine, 37 in lite; PCT 64 of 321 |
 | 1 | 2026-10-23 | — | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
-| 2 | — | — | — | — | — | — |
+| 2 | 2026-10-27 | — | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 3 | — | — | — | — | — | — |
 | 4 | — | — | — | — | — | — |
 | 5 | — | — | — | — | — | — |
