@@ -130,7 +130,22 @@ Each ends in a deletion where it can. Sizes are estimates, not measures.
      market server named in the config) goes.
 6. **The Market data source (D3)** -- in the source picker; its tables from the model (`tables.ts`'s copies deleted);
    simulated and the crypto exchange first, a URL and a file next; the desk example configured "simulated", the desk
-   host's start of the simulator deleted. *Medium.*
+   host's start of the simulator deleted. *Medium.* **As proposed (2026-10-28, waiting on the user)** -- D3 left three
+   things open, each proposed here:
+   - **Where a page keeps it:** a page-level list, `markets`, each one a market the page fills live in the tab: the
+     project and the runtime whose stores it fills (the desk's `market::InTabRuntime`), and a feed for each part --
+     prices, news, reference data, the bank's books -- `simulated`, `coinbase` (prices: the crypto names from
+     Coinbase's public feed, the equities simulated, as today), later `url` and `file`. Saved with the page; the desk
+     example writes every part `simulated`. A page with a market serves its runtime live in the tab (services
+     `local.live.serve`, step 5), started when a grid on it first reads its rows.
+   - **What the picker's Market data opens:** the projects whose model has a store a market fills (today the trader
+     screens), the feeds chosen per part, Simulated by default; Open adds the market to the page and a grid over its
+     tape (the store's `MARKET_TRADE` through the data space's tab context) -- the person then adds the rest as for any
+     source. Until D5 the project is the page's own (the desk's files); after it, any in the model home.
+   - **Where its code lives:** DataCube's own, `src/market/` (the world, its parts and the live binding moved from
+     `demo/market-sim/`, about 2,300 lines), a chunk fetched with the first market a page opens. Its tables' columns are
+     read from the model's store (the Database's columns and types: `tables.ts`'s column lists deleted); how each is
+     written -- appended, upserted by its key, written once -- stays the feed's own knowledge.
 7. **The tests** -- the in-tab desk lane on the simulated source; the Deephaven desk lane by the Deephaven context, its
    port from a test copy of `environments.pure`. *Small.*
 

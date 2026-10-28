@@ -55,6 +55,7 @@ import type { PlanAndRun, QueryRunner } from '../runner.ts';
 import { SAMPLES, sampleById, sampleFileName, type Sample } from '../samples.ts';
 import { sameValue, type CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
+import type { DataSpaceRead } from '../saved-queries.ts';
 import type { TreeState } from '../tree.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
 import { formatOf, modelLanded, tableNameOf } from '../upload.ts';
@@ -205,6 +206,8 @@ export interface SourcesOf {
   readonly taken: readonly string[];
   /** Ask the person in the saved pages' window (a file to choose, a click to allow); undefined: nothing to ask now. */
   readonly ask: (content: readonly (string | HTMLElement)[] | undefined) => void;
+  /** Told when a saved query is read through a data space (`dataSpaces`). */
+  readonly readDataSpace?: () => void;
 }
 
 /** The page's sources: what each grid reads, and opening one. */
@@ -219,6 +222,9 @@ export interface PageSources {
   reads(id: string): CubeSource | undefined;
   /** The files on the page now: each grid's, one per table it reads from a file (a join's leaves' among them). */
   filesNow(): GridFile[];
+  /** The data spaces this page's saved queries were read through, by path, each with its contexts as its model declares
+   *  them (Run on: docs/ONE_CONNECTION_DESK_2026_10_28.md D2) -- knowledge read with the queries, never asked for. */
+  dataSpaces(): ReadonlyMap<string, DataSpaceRead>;
   /** Where a grid whose rows are not in the tab already snaps: copies of its own in the tab's database (§18.3); none
    *  where the page has no database of its own. */
   snapTarget(): SnapTarget | undefined;
@@ -392,6 +398,12 @@ export function pageSources(d: SourcesOf): PageSources {
     (rows.runner ? { runner: rows.runner, ...(rows.live ? { ticking: rows.live } : {}) } : { planner: rows.planner, engine: rows.engine });
   /** What types a source's columns: the rows' planner, or the host's runner (both answer lambdaRelationType). */
   const typer = (rows: GridRows): Planner | QueryRunner => rows.runner ?? rows.planner;
+  /** The data spaces the page's saved queries were read through, by path (`dataSpaces`). */
+  const dataSpacesRead = new Map<string, DataSpaceRead>();
+  const readSpace = (space: DataSpaceRead): void => {
+    dataSpacesRead.set(space.path, space);
+    d.readDataSpace?.();
+  };
   /** The rows' own planner let go (a runner holds no model in the page; a live grid's own rows go with its grid). */
   const letGo = (rows: GridRows): void => { rows.planner?.dispose?.(); };
 
@@ -1137,11 +1149,12 @@ export function pageSources(d: SourcesOf): PageSources {
     const model = await modelOf(q);
     // rules 1-4, the one rule (saved-queries.ts savedQueryOpened), typed over its rows where the host reads them
     let rows: GridRows | undefined;
-    const { runtime, how, source } = await savedQueryOpened(q, model, reading, (at, options) => {
+    const { runtime, how, source, dataSpace } = await savedQueryOpened(q, model, reading, (at, options) => {
       rows = services.engine.rows(model, at, options);
       return typer(rows);
     });
     if (rows === undefined) throw new Error('unreachable: a saved query is typed over its rows');
+    if (dataSpace) readSpace(dataSpace);
     // in the tab, a project brings its own rows: its Data elements' tables, in a database of the version's own inside
     // the tab's DuckDB (C5, engine-client's project-data.ts) -- another version may be on the page beside it, in its
     // own. On Python, Python runs a project's model in its own (the host's runner); so does a host whose runner reads a
@@ -1169,6 +1182,7 @@ export function pageSources(d: SourcesOf): PageSources {
     const model = await modelOf(q);
     const { savedQueryRead, savedQueryTyped } = await savedQueries();
     const read = await savedQueryRead(q, model, services.engine.reading);
+    if (read.dataSpace) readSpace(read.dataSpace);
     const rows = services.engine.rows(model, read.runtime, read.how);
     if (rows.live === undefined || src.columns.length === 0) {
       letGo(rows);
@@ -1445,6 +1459,7 @@ export function pageSources(d: SourcesOf): PageSources {
       return place ? readsOf(place) : undefined;
     },
     filesNow,
+    dataSpaces: () => dataSpacesRead,
     snapTarget: () => (local ? snapInto(local) : undefined),
     reserve: (names) => { for (const t of names) reserved.add(t); },
     // the files read for grids not made yet go when each is made or let go (madeGrid, discard), not with an opening: a

@@ -4,8 +4,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { runOnEntries, runningOnChoice } from '../src/app/run-on-menu.ts';
 import type { PageDocument } from '../src/page-document.ts';
 import { runOn, runningOn } from '../src/run-on.ts';
+import type { DataSpaceRead } from '../src/saved-queries.ts';
 
 const query = (name: string, executionContext: unknown): unknown => ({
   id: name,
@@ -54,5 +56,33 @@ describe('run on', () => {
 
   it('refuses a context with no name', () => {
     assert.throws(() => runOn(page, 'market::TradingDesk', ''), /an execution context of market::TradingDesk is named/);
+  });
+});
+
+/** The desk's data space as a saved query's read gives it (saved-queries.ts DataSpaceRead). */
+const DESK: DataSpaceRead = {
+  path: 'market::TradingDesk', title: 'Trading desk', context: 'In this tab', defaultContext: 'In this tab',
+  contexts: [{ name: 'In this tab', title: 'In this tab (DuckDB)' }, { name: 'Deephaven', title: 'Deephaven (localhost:10000)' }],
+};
+
+describe('Run On ▸', () => {
+  it("offers the data space's contexts, the one its queries run on checked; another chosen, the page runs on it", () => {
+    const desk = runOn(page, 'market::TradingDesk', 'In this tab');
+    const { items, choices } = runOnEntries(desk, new Map([['market::TradingDesk', DESK]]));
+    // one data space read here (risk::Book's queries were never read: nothing offered for it)
+    assert.equal(items.length, 1);
+    assert.equal(items[0]!.label, 'Run On');
+    assert.deepEqual(items[0]!.submenu?.map((i) => [i.id, i.label, i.checked ?? false]), [
+      ['host.runOn.0', 'In this tab (DuckDB)', true],
+      ['host.runOn.1', 'Deephaven (localhost:10000)', false],
+    ]);
+    const moved = runningOnChoice(desk, choices[1]!);
+    assert.deepEqual(runningOn(moved).get('market::TradingDesk'), new Set(['Deephaven']));
+  });
+
+  it("a query naming no context runs on the data space's default, and is checked so", () => {
+    const { items } = runOnEntries(page, new Map([['market::TradingDesk', DESK]]));
+    // the page's two desk queries: one on the default, one on 'In this tab' -- both the same context
+    assert.deepEqual(items[0]!.submenu?.map((i) => i.checked ?? false), [true, false]);
   });
 });

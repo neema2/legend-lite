@@ -443,8 +443,15 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  named, its world and engine fetched only when the desk is opened. One startup file more and no module added: the
  *  market's lazy chunk reaches engine-client's arrow-ipc.ts, so esbuild split it from the sample's startup chunk, its
  *  bytes in a file of their own -- measured +410. Signed off by the user 2026-10-27 ("I think raise it"), D9). Measured
- *  418,739. */
-const BUDGET = 419_000;
+ *  418,739.
+ *  419,000 -> 419,500 (2026-10-28, docs/ONE_CONNECTION_DESK_2026_10_28.md steps 4-5: where a grid's rows run chosen by
+ *  its runtime's connections, and Run On ▸. Audited by module: the engine choice (runtime-engines.ts), the Deephaven
+ *  grids, the live grids and Run On's menu (app/run-on-menu.ts, run-on.ts) are chunks fetched when a model names them
+ *  or a saved query over a data space is read; what stays at startup is the stub that dispatches a grid's rows and the
+ *  switch's hooks (services/browser.ts tabEngines, sources.ts dataSpaces, datacube-app.ts runOnItems and openSaved's
+ *  `switching`); the desk's market guess deleted from boot.ts. 37 startup files as before. Within the user's sign-off,
+ *  D9). Measured 419,288. */
+const BUDGET = 419_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -616,8 +623,10 @@ const BUDGET = 419_000;
  *  396,140.
  *  396,500 -> 405,000 (2026-10-27, main (PRs #73-#78) merged into the Deephaven line: the line's own steps there,
  *  344,000 -> 347,000 -> 347,500 -> 349,500 -> 351,500 -> 352,500 -- the grid-only page's note of the same date; main
- *  +52,934 and the line +8,559 from their base, measured; signed off by the user 2026-10-27, D9). Measured 404,641. */
-const ENGINE_BUDGET = 405_000;
+ *  +52,934 and the line +8,559 from their base, measured; signed off by the user 2026-10-27, D9). Measured 404,641.
+ *  405,000 -> 405,500 (2026-10-28, docs/ONE_CONNECTION_DESK_2026_10_28.md steps 4-5 -- the grid-only page's note of the
+ *  same date: Run On's hooks in the app and the sources, its menu a chunk). Measured 405,081. */
+const ENGINE_BUDGET = 405_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -911,8 +920,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  424,000 -> 433,000 (2026-10-27, main (PRs #73-#78) merged into the Deephaven line: the line's own steps there,
  *  363,000 -> 366,000 -> 366,500 -> 367,000 -> 369,000 -> 371,000 -> 371,500 -> 372,500 -- the grid-only page's note of
  *  the same date; the module is the engine page's code and 28,189 of styles; signed off by the user 2026-10-27, D9).
- *  Measured 432,678. */
-const WIDGET_BUDGET = 433_000;
+ *  Measured 432,678.
+ *  433,000 -> 433,500 (2026-10-28, docs/ONE_CONNECTION_DESK_2026_10_28.md steps 4-5 -- the grid-only page's note of the
+ *  same date). Measured 433,125. */
+const WIDGET_BUDGET = 433_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

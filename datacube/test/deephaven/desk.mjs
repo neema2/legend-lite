@@ -40,7 +40,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let browser;
 try {
-  browser = await chromium.launch();
+  // the browser's own fatal lines (a renderer that crashes says why there, nowhere else)
+  browser = await chromium.launch({ logger: {
+    isEnabled: (name) => name === 'browser',
+    log: (_name, _severity, message) => {
+      if (/FATAL|Check failed|crash|Received signal|OOM|out of memory|V8 error|Fatal/i.test(String(message))) console.log(`[browser] ${String(message).slice(0, 400)}`);
+    },
+  } });
   const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1680, height: 1050 } })).newPage();
   page.on('pageerror', (e) => fail(`page error: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[page ${m.type()}] ${m.text().slice(0, 300)}`); });
@@ -283,7 +289,8 @@ try {
   await page.fill('.dc-save-input', NAME);
   await page.locator('.dc-save-foot .dc-primary').click();
   await page.locator('.dc-save').waitFor({ state: 'detached', timeout: 30_000 });
-  await page.goto(`${site.url}/demo/index.html`);
+  // the market in the tab sized as the in-tab lane sizes it (demo/verify-live-desk.mjs): Run On, below, starts it
+  await page.goto(`${site.url}/demo/index.html?market-names=40&market-tape=5000&market-feed=off`);
   await page.locator('.dc-row').first().waitFor({ timeout: 120_000 });
   await menu('Open\u2026');
   const row = page.locator('#cubelib .dc-lib-row', { hasText: NAME });
@@ -329,6 +336,91 @@ try {
     } else {
       fail(`“${NAME}” opened again: first tab ${drawn ? 'drawn' : 'not drawn'}, ${ticked ? 'ticking' : 'not ticking'}; Crypto ${cryptoDrawn ? 'drawn' : 'not drawn'}`);
     }
+  }
+
+  // RUN ON (docs/ONE_CONNECTION_DESK_2026_10_28.md D2, step 4): the saved desk switched to its data space's other
+  // context -- the tab's DuckDB, its market started in the tab -- and back: the same page, every grid planned on the
+  // context's runtime and run where its connections say, the menu's check moving with it
+  const runOnEntries = async () => {
+    await page.click('.dc-titlebar-menu');
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Run On"))').first().hover();
+    const entries = await page.evaluate(() => [...document.querySelectorAll('.dc-menu-item[aria-checked]')]
+      .map((e) => [e.querySelector('.dc-menu-label')?.textContent?.trim(), e.getAttribute('aria-checked')]));
+    return entries;
+  };
+  /** The first tab's tiles, all drawn (a grid with rows), within `ms`. */
+  const firstTabDrawn = async (ms) => {
+    await page.locator('.dc-sheet-tab').first().click();
+    const end = Date.now() + ms;
+    for (;;) {
+      const tiles = await shownTiles(page);
+      if (tiles.length > 0 && tiles.every((t) => (t.kind === 'grid' ? t.rows > 0 : t.drawn))) return true;
+      if (Date.now() > end) return false;
+      await sleep(250);
+    }
+  };
+  let menuSeen = null;
+  // MEASURING (2026-10-28, a renderer crash on the switch): each Chromium renderer's resident memory, in MB, largest first
+  const { execSync } = await import('node:child_process');
+  const renderers = () => execSync('ps -eo rss,args').toString().split('\n').filter((l) => l.includes('--type=renderer'))
+    .map((l) => Math.round(Number.parseInt(l.trim(), 10) / 1024)).sort((a, b) => b - a);
+  const heap = async () => {
+    const cdp = await page.context().newCDPSession(page);
+    const used = (await cdp.send('Runtime.getHeapUsage')).usedSize;
+    await cdp.detach();
+    return Math.round(used / 1048576);
+  };
+  console.log(`[measure] before Run On: renderers ${JSON.stringify(renderers())} MB, the page's heap ${await heap()} MB`);
+  try {
+    // the Deephaven context's title names its server: this test's, at its own port (environments.mjs)
+    const before = await runOnEntries();
+    const deephaven = before.find(([label]) => label?.startsWith('Deephaven ('))?.[0];
+    menuSeen = await page.evaluate(() => [...document.querySelectorAll('.dc-menu-item')].filter((e) => e.getBoundingClientRect().width > 0)
+      .map((e) => `${e.querySelector('.dc-menu-label')?.textContent?.trim()}${e.getAttribute('aria-checked') ? `[${e.getAttribute('aria-checked')}]` : ''}`));
+    const onDeephaven = JSON.stringify(before) === JSON.stringify([['In this tab (DuckDB)', 'false'], [deephaven, 'true']]);
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("In this tab (DuckDB)"))').first().click();
+    const switching = Date.now();
+    const peak = setInterval(() => { try { console.log(`[measure] switching: renderers ${JSON.stringify(renderers())} MB`); } catch { /* gone */ } }, 2000);
+    setTimeout(() => clearInterval(peak), 60_000);
+    // the page opened again on the tab's context: its market started in the tab (market-sim/local-host.ts `__market`),
+    // then its first tab drawn from it
+    const worldRowsNow = () => page.evaluate(() => {
+      const c = window.__market?.counts?.();
+      return c === undefined ? 0 : Object.values(c.world.rows ?? {}).reduce((a, b) => a + Number(b), 0);
+    });
+    const worldRows = await until(worldRowsNow, 'the market in the tab writing', 180_000).catch(() => 0);
+    const inTab = worldRows > 0 && await firstTabDrawn(180_000);
+    const tabAt = ((Date.now() - switching) / 1000).toFixed(1);
+    console.log(`[measure] on the tab: renderers ${JSON.stringify(renderers())} MB, the page's heap ${await heap()} MB`);
+    const after = await runOnEntries();
+    await page.keyboard.press('Escape');
+    const changed = await page.evaluate(() => document.title.startsWith('\u2022'));
+    await page.screenshot({ path: join(outputs, 'desk-run-on-tab.png') });
+    await page.click('.dc-titlebar-menu');
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Run On"))').first().hover();
+    await page.locator(`.dc-menu-item:has(> .dc-menu-label:text-is("${deephaven}"))`).first().click();
+    const back = Date.now();
+    // read from the server again (a result the session keeps alive is read, not sent again: deephaven.ts keepAlive)
+    const sent = (await counts()).queries;
+    // the page opened again on the server: its grids' queries read from it, its first tab drawn from them
+    await until(async () => (await counts()).queries > sent, 'queries read from the server again', 180_000).catch(() => undefined);
+    const onServer = await firstTabDrawn(180_000);
+    const backAt = ((Date.now() - back) / 1000).toFixed(1);
+    console.log(`[measure] back on Deephaven: renderers ${JSON.stringify(renderers())} MB, the page's heap ${await heap()} MB`);
+    const sentAfter = (await counts()).queries;
+    const backEntries = await runOnEntries();
+    await page.keyboard.press('Escape');
+    const said = await page.evaluate(() => [...document.querySelectorAll('#cubelib .dc-lib-status, .dc-status')].map((e) => e.textContent?.trim()).filter(Boolean));
+    menuSeen = { backEntries, said, counts: await counts() };
+    if (onDeephaven && inTab && worldRows > 0 && JSON.stringify(after) === JSON.stringify([['In this tab (DuckDB)', 'true'], [deephaven, 'false']])
+      && changed && onServer && sentAfter > sent && JSON.stringify(menuSeen.backEntries) === JSON.stringify(before)) {
+      ok(`Run On: the saved desk on Deephaven, switched to the tab's DuckDB (its first tab drawn in ${tabAt} s, the market in the tab writing ${worldRows.toLocaleString('en-US')} rows, the page changed until saved) and back to Deephaven (${backAt} s, ${sentAfter - sent} queries read from the server)`);
+    } else {
+      fail(`Run On: before ${JSON.stringify(before)}; in the tab ${inTab ? 'drawn' : 'not drawn'} (${worldRows} rows written), after ${JSON.stringify(after)}, changed ${changed}; back on Deephaven ${onServer ? 'drawn' : 'not drawn'}, ${sentAfter - sent} queries read (${JSON.stringify(menuSeen)})`);
+    }
+  } catch (e) {
+    await page.screenshot({ path: join(outputs, 'desk-run-on-failed.png') }).catch(() => undefined);
+    fail(`Run On: ${e?.message ?? e} (the menu showed ${JSON.stringify(menuSeen)})`);
   }
 } catch (e) {
   fail(String(e?.stack ?? e));

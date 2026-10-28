@@ -53,6 +53,7 @@ import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
 import { EXAMPLE_PAGES, type ExamplePage } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
+import type { RunOnChoice } from './run-on-menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
@@ -448,6 +449,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     if (item.id === 'host.saveAs') saveCube?.(true);
     if (item.id === 'host.share') void copyShareLink?.();
     if (item.id === 'host.query') windows.toggle(windows.query);
+    if (item.id?.startsWith('host.runOn.')) runOnChosen?.(Number(item.id.slice('host.runOn.'.length)));
     if (item.id === CREATE_ASSOCIATION.id) createAssociation?.();
     if (item.id === CREATE_DATA_SPACE.id) createDataSpace?.();
     // A NAVIGATION, not a switch: the same page loads again with the chosen ?planner= (a cube
@@ -516,6 +518,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   /** A timeseries series of several grids, opened together over one model of their tables (set with the page's
    *  sources, below). */
   let togetherOf: ((cubes: readonly string[]) => Promise<TsTogether>) | undefined;
+  /** RUN ON ▸ (docs/ONE_CONNECTION_DESK_2026_10_28.md D2): its entries, once the page's sources are made, and the
+   *  context the entry `host.runOn.<n>` names, switched to. */
+  let runOnItems: (() => MenuItem[]) | undefined;
+  let runOnChosen: ((n: number) => void) | undefined;
+  let runOnCode: typeof import('./run-on-menu.ts') | undefined;
   /** The page's model now (where its classes are), once the page can make them. */
   let pageModelNow: (() => PageModelRef | undefined) | undefined;
   /** The page as this tab keeps it -- a newer writer's fields and its model with the board's -- once its sources are set
@@ -586,6 +593,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // the page's settings in a link: never a row of data (src/share/link.ts)
       ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const, ...whileStarting(copyShareLink) }] : []),
       { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
+      // where the page's saved queries run: each data space they name, its contexts
+      ...(runOnItems?.() ?? []),
       // THE PAGE'S MODEL, under its Create ▸: its associations and its data space, once the page has a model home
       ...(createDataSpace ? [CREATE_ASSOCIATION, CREATE_DATA_SPACE] : []),
       // The planes, as entries rather than a control: the bar is
@@ -706,6 +715,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // THE PAGE'S SOURCES (src/app/sources.ts): each kind opened through the services, a grid's file and planners kept
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
+      // Run On ▸'s code, fetched with the first saved query read over a data space
+      readDataSpace: () => {
+        void lazily(() => import('./run-on-menu.ts')).then((m) => { runOnCode = m; }, () => { /* offered at the next read */ });
+      },
     });
     // the grids of a timeseries series of several, over one model of the tables they read: the tab's own (its database's),
     // or -- a page Python serves -- the host's, by the same rule (join.json together); its query then planned and run
@@ -786,6 +799,28 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       ...(current.cubeUnknown ? { cubes: current.cubeUnknown } : {}),
     }, empty);
     pageKept = (name) => pageNow(name);
+    /**
+     * RUN ON ▸ (docs/ONE_CONNECTION_DESK_2026_10_28.md D2; run-on-menu.ts, a chunk fetched with the first saved query read
+     * over a data space): another context chosen, the page opens again as it is, its saved queries over that data space
+     * on the context chosen -- planned on its runtime and run where its connections say. The page is changed until
+     * saved: Save keeps the context it runs on. A context the page cannot reach (a server whose key this page's vault
+     * lacks) is said by its grids, and the menu offers the others.
+     */
+    let runOnChoices: readonly RunOnChoice[] = [];
+    runOnItems = () => {
+      const now = runOnCode && sources.dataSpaces().size > 0 ? pageNow(page.title) : undefined;
+      if (runOnCode === undefined || now === undefined) return [];
+      const { items, choices } = runOnCode.runOnEntries(now, sources.dataSpaces());
+      runOnChoices = choices;
+      return items;
+    };
+    runOnChosen = (n) => {
+      const choice = runOnChoices[n];
+      const now = pageNow(page.title);
+      if (runOnCode === undefined || choice === undefined || now === undefined) return;
+      void openSaved(readSaved(pageToJson(runOnCode.runningOnChoice(now, choice))), page.record, false, [], [], true)
+        .catch((e: unknown) => library?.say(`could not run on ${choice.title}: ${e instanceof Error ? e.message : String(e)}`, 'warn'));
+    };
     // For the browser harness ONLY (test/python-engine/python-engine.mjs, two tabs on one page): the page's hash as its
     // keeper computes it (page-hash.ts, W17), to compare with Python's. Not product code.
     Object.defineProperty(window, '__dataPageHash', {
@@ -990,7 +1025,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * Opened.taken), by their ids. `held`: every id the page has held where its other editor keeps it (B12).
      */
     async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false,
-      held: readonly string[] = [], unread: string[] = []): Promise<readonly string[]> {
+      held: readonly string[] = [], unread: string[] = [], switching = false): Promise<readonly string[]> {
+      // `switching`: the page on screen opened again on another context (Run on) -- nothing of the person's is lost, so
+      // nothing is asked, and it stays changed from what was saved until it is saved
+      const before = current;
       // a page, or a cube saved alone before pages: the page it opens as (page-document.ts savedPage, Python's Page.open's)
       const given = savedPage(saved);
       // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
@@ -999,7 +1037,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const opened = replacing ? { page: given, notes: [] } : openedLive(given);
       const doc = opened.page;
       // `replacing`: the page's other editor replaced it -- nothing of the person's is asked about
-      if (!replacing && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return [];
+      if (!replacing && !switching && dirty() && !window.confirm(`The page has unsaved changes. Open "${doc.name}" anyway?`)) return [];
       // LATEST WINS (P2-330), as an open in place: each source is a wait (a file asked for, a sign-in), and an open
       // overtaken meanwhile lands nothing -- what it read is dropped
       const newest = opens.start();
@@ -1096,7 +1134,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // The baseline is the page as it LANDED (normalized by its first refresh); a page opened with parts left out is
       // changed from the start.
       const landed = savedForm(doc.name);
-      current = { ...current, ...(landed ? { baseline: landed.definition } : {}), lost: notes.filter((n) => n.startsWith('left out')) };
+      const baseline = switching ? before.baseline : landed?.definition;
+      current = { ...current, ...(baseline !== undefined ? { baseline } : {}), lost: notes.filter((n) => n.startsWith('left out')) };
       onCubeView?.();
       library?.sync();
       library?.say(notes.length === 0

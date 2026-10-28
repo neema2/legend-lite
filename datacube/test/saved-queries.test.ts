@@ -10,7 +10,7 @@ import { openDatabase, plannerOptions } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import {
-  contextOf, enumerationsOf, enumsAsStrings, projectOf, sourceOf, unusable, type ModelElement,
+  contextOf, enumerationsOf, enumsAsStrings, projectOf, savedQueryRead, sourceOf, unusable, type ModelElement,
 } from '../src/saved-queries.ts';
 import type { Query } from '../../query-store/src/wire.ts';
 import { sourceColumns } from '../src/source-columns.ts';
@@ -88,6 +88,19 @@ describe('a saved query as a source: each fixture, as the README says it runs', 
     const got = await rows(planner, source);
     assert.equal(got.length, 5);
     assert.ok(got.every((r) => r[1] === 'SELL'), JSON.stringify(got));
+  });
+
+  it('a data space context: the read carries the data space, its title and its contexts (Run On)', async () => {
+    const read = await savedQueryRead(record('data-space-context'), MODEL,
+      { elements: async () => elements, parse: (text) => parser.parse(text) });
+    assert.deepEqual(read.dataSpace, {
+      path: 'demo::trading::TradingDataSpace', title: 'Trading', context: 'Production', defaultContext: 'Production',
+      contexts: [{ name: 'Production', title: 'Production' }],
+    });
+    // an explicit context names none
+    const explicit = await savedQueryRead(record('explicit-context'), MODEL,
+      { elements: async () => elements, parse: (text) => parser.parse(text) });
+    assert.equal(explicit.dataSpace, undefined);
   });
 
   it('a parameter: its saved value bound first, 6 rows', async () => {

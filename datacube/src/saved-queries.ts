@@ -36,8 +36,10 @@ export interface ModelElement {
   readonly package?: string;
   readonly name?: string;
   readonly defaultExecutionContext?: string;
+  readonly title?: string;
   readonly executionContexts?: readonly {
     readonly name: string;
+    readonly title?: string;
     readonly mapping?: { readonly path: string };
     readonly defaultRuntime?: { readonly path: string };
   }[];
@@ -129,11 +131,24 @@ export interface QueryReading {
 }
 
 /** A saved query read: the runtime and mapping it runs on and the model's enumerations (`how`), and its one expression
- *  with each parameter's saved value (`source`). */
+ *  with each parameter's saved value (`source`); over a data space, the data space and its contexts (Run on: the
+ *  contexts a page's queries over it can be switched to, docs/ONE_CONNECTION_DESK_2026_10_28.md D2). */
 export interface SavedQueryRead {
   readonly runtime: string;
   readonly how: ModelOptions;
   readonly source: ValueSpecification;
+  readonly dataSpace?: DataSpaceRead;
+}
+
+/** A data space a saved query runs through: its path and title, the context the query runs on, and every context it
+ *  has, each by its name and title, in the order the model declares them. */
+export interface DataSpaceRead {
+  readonly path: string;
+  readonly title: string;
+  readonly context: string;
+  /** The context a query naming none runs on. */
+  readonly defaultContext: string;
+  readonly contexts: readonly { readonly name: string; readonly title: string }[];
 }
 
 /**
@@ -168,7 +183,16 @@ export async function savedQueryRead(
   }
   // its rows its project's own (C5): a host that plans and runs them reads them there, never its own tables (F28)
   const how: ModelOptions = { mapping: context.mapping, enumerations: [...enumerationsOf(elements)], project: true };
-  return { runtime: context.runtime, how, source: sourceOf(parsed, values) };
+  const space = context.dataSpace === undefined ? undefined
+    : elements.find((e) => e._type === 'dataSpace' && pathOf(e) === context.dataSpace!.path);
+  const dataSpace: DataSpaceRead | undefined = context.dataSpace === undefined || space === undefined ? undefined : {
+    path: context.dataSpace.path,
+    title: space.title ?? context.dataSpace.path,
+    context: context.dataSpace.context,
+    defaultContext: space.defaultExecutionContext ?? context.dataSpace.context,
+    contexts: (space.executionContexts ?? []).map((c) => ({ name: c.name, title: c.title ?? c.name })),
+  };
+  return { runtime: context.runtime, how, source: sourceOf(parsed, values), ...(dataSpace ? { dataSpace } : {}) };
 }
 
 /** Rule 4 of a saved query (savedQueryOpened), by the compiler (`typer`): an enumeration column read as its value's
