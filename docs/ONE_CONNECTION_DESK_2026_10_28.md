@@ -1,4 +1,4 @@
-# One connection: the trading desk the same on DuckDB and Deephaven (2026-10-28)
+# One connection: the trading desk the same on DuckDB and Deephaven (2026-10-28, revision 2)
 
 ## 0. The goal (the user, 2026-10-28)
 
@@ -27,74 +27,98 @@ read lite's words in a model's text already (their model is lite's product surfa
 alike; a client of legend-engine's never sends them. If legend-engine ships an extension with one of these `_type`s,
 lite's aligns to it (as the SQLite grammar was spelled for: OWN_CORPUS_DECISIONS §9).
 
-**D2. Connections are versioned model files; a tool may override one, explicitly.** A project holds its connections as
-its own files, stored and versioned in the model home (backward compatible: a runtime names a connection, the compiler
-checks it). A tool or a deployment may run a runtime on another connection -- the static site's on the tab's DuckDB, a
-desk's on its Deephaven server -- through the compiler's execution overlay (`PureModelContext.withExecutionOverlay`: a
-runtime and its connection laid over the compiled model as a view, never recompiled; what the service tests, the
-module's plans and the cross-engine lane already run on). Four rules:
+**D2. Environments are execution contexts of a data space; a saved page names the data space, its context a default
+it can switch (the user, 2026-10-28: "option C yes with option to switch").** It is legend's own way of choosing what a
+query runs against, and the compiler checks all of it. The desk's model gains one file, `environments.pure`: a
+connection pair for each environment (the store `store::DB` and the world's `market::World`) -- `market::InTab` and
+`market::InTabStatus` on the tab's DuckDB, `market::Deephaven` and `market::DeephavenStatus` on a Deephaven server
+(`localhost:10000`, TLS, its key by vault reference: `PreSharedKey { keyVaultReference: 'deephaven.psk'; }`) -- a
+runtime for each (`market::InTabRuntime`, `market::DeephavenRuntime`, both over `stress::AllMapping`), and a data space
+`market::TradingDesk` whose execution contexts are "In this tab" (the default) and "Deephaven". More environments are
+more contexts, each its own named connection (legend's prod and UAT). No address is typed in or substituted: another
+server is another context.
 
-1. **Explicit, never a fallback** (AGENTS.md invariant 4): an override is named and shown on the page ("on Deephaven,
-   the deployment's connection"); never "the project's connection failed, so the tab's".
-2. **A page saves the project's runtime**, never an override: the override is the session's or the deployment's.
-3. **Only the deployment or the person supplies one** -- never a page's content or an address's parameter (a link could
-   send a person's queries to a server of its choosing). Credentials stay key-vault references.
-4. **A screen run under an override is in the cross-engine check**: the targets differ in recorded edge cases
-   (docs/SEMANTICS_REGISTER.md); the check is what makes a swap safe.
+- **A saved page** (its grids' saved queries) names the data space and the context it was saved on; opening it runs on
+  that context where this page can reach it, and the **Run on** menu switches to another of the data space's contexts
+  (switching plans the same queries on the other runtime: the model is held already). A context the page cannot reach
+  (Deephaven on a static site with no server) is said, the switch offered -- never a silent fallback (AGENTS.md
+  invariant 4).
+- **Run on → "Deephaven at another address…"** writes a connection pair, a runtime and a context into the person's copy
+  of the project, as "Create a Class…" writes a class (the model writer): versioned and checked, never a typed-in
+  override.
+- **The engine is the connection's**: DataCube runs a runtime on the engine its connection's type names -- the tab's
+  DuckDB (live where a writer keeps the tables live) or a Deephaven server at the connection's address -- and asks the
+  person to sign in where the connection's key is a vault reference this page does not hold (as the warehouse source
+  asks; a key is never in a page's address). The engine wiring in the desk's hosts (`market/host.ts`,
+  `market-sim/local-host.ts`) and `boot.ts`'s guess from the config move into DataCube.
+- **A screen run on another context is in the cross-engine check** (`//datacube:deephaven_corpus_test`'s desk pass): the
+  targets differ in recorded edge cases (docs/SEMANTICS_REGISTER.md).
 
-Add, never shadow (the overlay's own rule): an override is a named twin of the project's runtime (its mappings, the
-override's connection), so nothing the model declares is silently redefined.
+**D3. Market data is a source of DataCube's, its feeds configured per part (the user, 2026-10-28).** In the source
+picker, beside Files: **Market data**. It makes the market's tables in the tab's DuckDB from the model's store (the
+platform's DDL) and keeps them filled live, each part from a feed the person chooses -- the prices (simulated; a live
+crypto exchange, Coinbase's public feed; a market data source at a URL, a stream of rows in the model's columns; a file
+replayed by its time column), the news (simulated, a URL, a file), the reference data and the bank's books (simulated,
+a file). "Simulated" is every part simulated: the desk example's configuration, saved with its page. A feed refused (the
+exchange unreachable) is said, the simulated one offered -- no quiet fallback. Later the same feeds write into a
+Deephaven server's tables (with lite's writes to Deephaven: below).
+
+**D4. Production: Deephaven is a remote database (the user, 2026-10-28).** A person connects to a Deephaven server as to
+any remote database and reads the tables configured there; creating tables and views on that server through the
+platform is a separate track (scripts using lite's executor), not DataCube's. The demo and the tests stand in for that
+server: `desk.mjs` (a hand tool) and `//datacube:deephaven_desk_test` start one with the market's Groovy app; a person
+with Deephaven on a laptop runs it with the demo's app and a local certificate, opens the same saved desk page, and picks
+**Run on → Deephaven**.
 
 ## 2. What differs today
 
-| Piece | DuckDB in the tab | Deephaven | Its platform home |
+| Piece | DuckDB in the tab | Deephaven | After this plan |
 |---|---|---|---|
-| Connections (`market/model.ts`) | `MARKET_TAB` | `MARKET_LIVE` | the project's files (D2), the one swap |
-| Engine wiring (`market-sim/local-host.ts`, `market/host.ts`, `boot.ts`'s branch) | lazy start, live readers | sign-in, bases, warming, reconnection | the app runs a runtime on the engine its connection names (D2's overlays) |
-| Making the tables | the platform (the planner's DDL from the store) | `market.groovy` | the target's DDL (DH15's input tables), run by the session |
-| Writing rows | the platform (the planner's inserts and upserts, Arrow appends) | `market.groovy`, in the server | a Deephaven writer: rows to an input table, appended or upserted by key |
-| The simulator | TypeScript (`market-sim/`, about 2,000 lines) | Groovy (2,300 lines, a second copy) | one, the TypeScript, through the platform's writer |
-| Table shapes (`market-sim/tables.ts`) | the store's columns, copied | copied again in the Groovy | read from the model |
-| Address and key (`page-config.ts` `market`) | none | the server and a test key | the connection's specification and a key-vault reference (open decision 3: sign-in) |
-
-The simulator already writes through one seam (`market.ts` `MarketSink(table, count, rows)`): on DuckDB the live
-engine's append and upsert; given a Deephaven writer, the same simulator feeds Deephaven and `market.groovy` goes.
+| Connections (`market/model.ts`) | `MARKET_TAB` | `MARKET_LIVE` | `environments.pure`: both, a context each (D2) |
+| The saved queries' context (`screens.ts`) | `market::LiveRuntime`, pinned | the same name, other connections | the data space, its saved default context (D2) |
+| Engine wiring (`market-sim/local-host.ts`, `market/host.ts`, `boot.ts`) | lazy start, live readers | sign-in, bases, warming, reconnection | DataCube's, by the connection's type (D2) |
+| Making the tables | the platform (the planner's DDL), started by the desk's host | the server's Groovy app | the Market data source (D3); the server as configured (D4) |
+| Writing rows | the TypeScript simulator, started by the desk's host | the server's Groovy app | the Market data source's feeds (D3); the server as configured (D4) |
+| Table shapes (`market-sim/tables.ts`) | the store's columns, copied | copied in the Groovy | read from the model (D3) |
 
 ## 3. The steps, in order
 
 Each ends in a deletion where it can. Sizes are estimates, not measures.
 
-1. **Lite's connection words as JSON (D1)** -- the emitter and the reader, lite's own route, the tab's planner reading
-   a project's elements there; `desk.ts` reads the whole model, its corpus-only reading deleted. *About 2-3 days.*
-2. **Connections as the project's files (D2)** -- the desk's connections written as `.pure` files of its project (not
-   TypeScript strings), the model home making entities of them at lite's dialect. *Small.*
-3. **The app runs a runtime on its connection's engine; overrides by overlay (D2)** -- a Deephaven connection the
-   Deephaven engine, a DuckDB one the tab's (live where the tables are live), each override named and shown; the two
-   hosts' engine wiring moved into the app, `boot.ts`'s branch deleted. *About 2-3 days.*
-4. **Deephaven's tables made by the platform** -- the session runs the target's DDL for the store's tables (input
-   tables, keyed by the declared primary key). *Small to medium.*
-5. **A Deephaven writer** -- a batch of rows to the server, added to an input table (appended; upserted by key). A
-   browser cannot stream a gRPC call to the server, so the batch goes as Deephaven's own web client uploads one.
-   **Measured first**: the Groovy world writes about 8,000 quotes a second inside the server; in 250 ms cycles over the
-   network that is about 2,000 rows a write. Open: a bounded stream (the tape) -- input tables are not trimmed; a day's
-   tape kept, or old rows deleted by key. *Medium to large: the risk is here.*
-6. **One simulator** -- the TypeScript world writes through the platform's writer to either engine; for a shared
-   Deephaven server it runs once, as a Node program (the same code), not in each person's tab; `market.groovy` deleted.
-   *Medium.*
-7. **The shapes from the model; DH16 strict for tables other programs publish** (docs/DEEPHAVEN_START_HERE.md, open
-   decision 5: moot for the desk once the platform makes its tables). *Small each.*
+1. **Lite's connection words as JSON (D1).** Landed.
+2. **The environments and the data space (D2)** -- `environments.pure` (the connection pairs, the runtimes, the data
+   space with "In this tab" and "Deephaven" on `localhost:10000`), the runtime out of `market.pure`, `model.ts`'s
+   connection strings deleted. *Small.*
+3. **Saved pages by the data space, with a saved default context and the switch (D2)** -- the desk's saved queries name
+   the data space and its context; DataCube opens a page on its saved context and offers the others. *Small to medium.*
+4. **The Run on menu, and "Deephaven at another address…" (D2).** *Small to medium.*
+5. **The engine by the connection's type, inside DataCube; a sign-in for Deephaven (D2)** -- the hosts' engine wiring
+   moved into the app, `boot.ts`'s guess and the desk's hosts deleted (the example and the project stay the desk's).
+   *Medium: the largest.*
+6. **The Market data source (D3)** -- in the source picker; its tables from the model (`tables.ts`'s copies deleted);
+   simulated and the crypto exchange first, a URL and a file next; the desk example configured "simulated", the desk
+   host's start of the simulator deleted. *Medium.*
+7. **The tests** -- the in-tab desk lane on the simulated source; the Deephaven desk lane by the Deephaven context, its
+   port from a test copy of `environments.pure`. *Small.*
+
+**Later, separate tracks:** lite's writes to Deephaven (the Market data source writing into a Deephaven server's
+tables, which retires the Groovy app: a writer, input tables, measured first -- write rate, a created table's visibility
+to other sessions, memory); Deephaven in the Database source (a server's tables listed, opened live); tables and views
+created on a server through platform scripts (the Java executor's Deephaven sender, L3s); DH16 for tables other programs
+publish (docs/DEEPHAVEN_START_HERE.md, open decision 5).
 
 ## 4. The licence
 
-Steps 4 and 5 are the licence questions' own ground (docs/DEEPHAVEN_START_HERE.md, open decisions 1 and 2): making
+The later tracks stand on the licence questions' ground (docs/DEEPHAVEN_START_HERE.md, open decisions 1 and 2): making
 input tables is section 4's ("no third party may define or change the schema of input tables": internal use is
 unlimited), and the upload and input-table calls are more message definitions written from Deephaven's `.proto` files
-(the Derivative Work question). Building on this branch is unaffected -- nothing of it lands before the answer -- and
-the email to Deephaven gains a line: legend-lite would create and write input tables through the public API.
+(the Derivative Work question). Steps 2-7 add neither. The email to Deephaven gains a line: legend-lite would create and
+write input tables through the public API.
 
 ## 5. Status
 
 | Step | State |
 |---|---|
 | 1 | landed (2026-10-28): the three words written and read as JSON of lite's own; lite's `grammarToJson/model`; the tab's planner reads a project's elements there, so the desk reads its whole model (its corpus-only reading deleted, one cache of the whole model's elements kept: 2.3 MB of Pure). Checks: //core:core_tests (27 of 27), //datacube:verify_live_desk_test, //datacube:deephaven_desk_test, typecheck and bundle budget green. Left: Python's `model_elements` (`python/legend_lite/compiler.py`, still legend-engine's route: its test needs the native library built) |
-| 2-7 | not started |
+| 2 | in progress (2026-10-28) |
+| 3-7 | not started |
