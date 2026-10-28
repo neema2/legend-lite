@@ -124,6 +124,64 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
    NOT NULL can only be checked by reading rows (Deephaven's schema says nothing of it, and a live table may gain a
    null later).
 
+## Open: the desk under load (measured on the user's Mac, 2026-10-27/28)
+
+From a debugging and stress-testing session: the desk held open in headless pinned Chromium, `jcmd GC.class_histogram`
+live sets, GC logs, JFR and Deephaven's UpdatePerformanceLog. Measured on `6adeaf49` unless noted; `589dcd96` checked
+for where the code moved. On `589dcd96` the desk opens in 3.1 s, its tabs fill in 0.3-1.5 s, ticks reach the screen in
+about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointers below were checked against
+`589dcd96` (2026-10-28).
+
+1. **Memory grows with every trade: the desk's main limit.** The tape (`MARKET_TRADE`) is unbounded by default
+   (`market.groovy`: `MARKET_HISTORY` 0, every trade kept), and 108 server operations behind the desk keep a row for
+   each trade: 26 where, 20 View, 15 aj plus 15 aj right-side states, 9 by, 8 naturalJoin, 5 UpdateView, 2 sorts,
+   2 Select. That is about 860-960 bytes per trade, about 39 MB/min at 800 trades/s, ~64% of it `long[]`. At
+   `DESK_HEAP` 4g, GC degrades from ~40 min (live heap ~2.6 GB): pauses go from 2-5 s to 18-37 s per 5 min, the update
+   cycle's p50 from 30 to 170 ms. The server then limps on rather than crashing, and the page shows no warning.
+   `MARKET_NAMES=2000 MARKET_TRADES=4000` hits the same wall in ~5 min (61% of the time in GC by minute 16, cycles
+   1.2-1.5 s). A 12g heap runs for a few hours.
+2. **A history cap is expensive because of the Stock tab's EMA.** `market.pure:140`,
+   `extend(over(~ticker, ~seq->ascending(), rows(unbounded(), 0)), ~[ema: ...->ema($alpha)])`, is computed for every
+   ticker over the whole tape, though the Stock tab shows one name. On a ring (`MARKET_HISTORY`), each removal
+   recomputes that ticker's whole EMA (`BucketedPartitionedUpdateByManager` at 210% of a thread, feeding a Select with
+   ~2.03 M rows modified/s). `MARKET_HISTORY=1000000`: CPU 52% -> 235%, cycle p50 29 -> 220-280 ms (over the 250 ms
+   budget). `MARKET_HISTORY=200000`: CPU 80-90%, cycle p50 ~41 ms, live heap ~1.1-1.3 GB, but only ~4 min of tape.
+   Suggested: compute it for the picked name only, or an operator that removals do not recompute. **No cap becomes the
+   default until this is fixed** (the user, 2026-10-28) -- see 5 for a commit that would make one.
+3. **Residual growth even when capped:** ~9-12 MB/min with the browser parked on one tab, `long[]` plus a growing
+   number of `LongSegmentedSortedArray`. Likely the as-of joins' right sides on the 1 s / 5 s / 30 s marks (`t7__pt1`,
+   `t10__pt5`, `t13__pt30`); not confirmed.
+4. **`restart` does not resume the page** (reproduced 2 of 2 on `6adeaf49`). The page signs in again
+   (`counts().reconnects` 0 -> 4), then nothing ticks for minutes; it throws an uncaught "the window is no longer
+   followed" (`deephaven-engine.ts` `stopFollowing`), and `#status` stays 'local', not bad. A reload works. The code is
+   now `datacube/src/deephaven-grids.ts:163-237`, the same per-grid `reconnected().then(grid.refresh)` pattern; not
+   retested on `589dcd96`. Suspect: one reconnect per ended grid, each resetting every reader and undoing the grids
+   already refreshed. (Read on `589dcd96`, not run: the reconnect is shared by every grid of a server only while it
+   runs -- `Server.#reconnecting` is cleared when it settles -- so a grid whose end arrives after that starts another,
+   and `DeephavenEngine.reconnect` resets every reader and stops every shared following, `deephaven-engine.ts:351`.)
+5. **The Coinbase feed splices messages after a sleep** (`market.groovy` `CoinbaseFeed`, line 838). `connect()` opens a
+   new WebSocket every minute the feed looks quiet and never closes the old one; every socket shares one `partial`
+   `StringBuilder` (line 842), so messages get spliced (timestamps like '2026-10-26T20:35:24.1est_4Z'). A splice that
+   fails to parse sets the feed to 'refused', which opens yet another socket: 26 sockets on the Mac after real sleeps.
+   Beat failures (NPE, NumberFormatException) drop the whole beat, equities included. Reproduced by SIGSTOP of the
+   server JVM for 90 s (1 of 2 tries); `restart` clears it. **A fix exists, unpushed:** session
+   `session_01UxtBX84d8QYAbp2ccEjL44` ("Fix desk demo: Coinbase reconnect splices messages, OOM", 2026-10-26) has two
+   commits on this branch's then-head, waiting on the user's choice of where to push them (its own branch
+   `claude/friendly-shannon-ecn7p8` holds only `main`'s head; nothing of it is on the remote, checked 2026-10-28):
+   `d9ebe018` (one socket at a time, a buffer per socket, a bad message skipped and counted rather than failing the
+   beat, the world row's crypto status saying why, and a new `//datacube:deephaven_feed_test` with a fake feed that
+   splits, interleaves and corrupts messages: 4 of 6 checks fail on the old code, 6 of 6 pass) and `7f8b0ab0` (the
+   hand tool keeps the latest 200,000 trades unless `MARKET_HISTORY` is set, its heap 1 GB). The second contradicts 2
+   above: take `d9ebe018`, not `7f8b0ab0`, until the EMA is fixed.
+6. **Each open desk page holds ~0.5 GB of server state**, and keeps it ~5 min after the page closes (the session
+   timeout), so a reload briefly doubles it.
+7. **Minor:** `market.groovy`'s 148 `list as String[]` conversions each throw and catch a `GroovyRuntimeException`
+   (~88/s; `toArray(new String[0])` avoids it). Allocation runs at ~540 MB/s, 60% of it `DoubleSparseArraySource`
+   previous-value blocks under `SelectColumnLayer`: short pauses, but a tuning target.
+8. **Ops:** mkcert works on macOS: install it with Homebrew from the account that owns `/opt/homebrew`, then run
+   `mkcert -install` from the demo's account, and the launcher needs no certificate accept. The desk launcher's 4g
+   default (`DESK_HEAP`, `desk.mjs:27`) makes a long show fail: a larger default, or a warning when the heap nears full.
+
 ## Gaps measured (2026-10-24)
 
 Seventy-four Pure queries of a trading desk's kind, each planned with this branch's planner on a DuckDB runtime and on a
