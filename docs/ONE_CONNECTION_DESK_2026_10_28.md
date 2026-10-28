@@ -111,7 +111,23 @@ Each ends in a deletion where it can. Sizes are estimates, not measures.
    the model home (D5, below). *Small to medium.*
 5. **The engine by the connection's type, inside DataCube; a sign-in for Deephaven (D2)** -- the hosts' engine wiring
    moved into the app, `boot.ts`'s guess and the desk's hosts deleted (the example and the project stay the desk's).
-   *Medium: the largest.*
+   *Medium: the largest.* As designed (2026-10-28):
+   - **Knowledge, not a question.** DataCube reads a project's elements before it asks for a grid's rows (a saved query's
+     data space, a class's tree), and the elements hold every runtime (each store's connection, by name) and every
+     connection (its database type, its datasource, its sign-in: lite's own words as JSON since D1). A reader of them
+     (`runtimeConnections`) says what a runtime runs on; `rows(model, runtime)` stays as it is, its answer decided by
+     the model's elements already read -- no new planner call.
+   - **Deephaven:** the grids of a runtime whose connections are a Deephaven server's run there -- the Deephaven host's
+     wiring (a reader each, the server's bases, warming the sheets not shown, reconnection) moved into DataCube, one
+     engine for each server, its key by the connection's vault reference from the page's vault (the deployment's
+     config; a sign-in prompt after).
+   - **The tab's DuckDB:** as before -- planned and run in the tab, a project's own rows in a database of its own (C5)
+     -- unless a source has made the store's tables live in the tab (the Market data source, step 6; until then the
+     desk's simulator), whose grids then follow the live engine (the in-tab host's wiring, a reader each, resting while
+     unseen, moved likewise).
+   - **The desk's hosts** keep only what is the desk's: its project, its example (written on the deployment's context:
+     the config's, else the data space's default) and, until step 6, starting the simulator. `boot.ts`'s guess (a
+     market server named in the config) goes.
 6. **The Market data source (D3)** -- in the source picker; its tables from the model (`tables.ts`'s copies deleted);
    simulated and the crypto exchange first, a URL and a file next; the desk example configured "simulated", the desk
    host's start of the simulator deleted. *Medium.*
