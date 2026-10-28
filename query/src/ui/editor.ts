@@ -94,10 +94,10 @@ export function renderEditor(root: HTMLElement, app: AppContext, session: Sessio
   const drawSetup = (): void => {
     const src = session.query.source;
     const rows: Child[] = [];
-    // the project's version, for a project opened by name (Depot): HEAD -- the line's snapshot -- or a release.
-    // Choosing one reopens this source at that version (by-name.ts loads it the first time).
+    // the project's version (every project is opened by name from the model home's Depot: D5): HEAD -- the line's
+    // snapshot -- or a release. Choosing one reopens this source at that version (by-name.ts loads it the first time).
     const p = session.project.config;
-    if (app.versions && p.models.length === 0) {
+    if (app.versions) {
       const label = h('label', null, 'Version');
       const field = h('div', { class: 'q-field' }, label, select(p.versionId, [{ value: p.versionId, label: versionLabel(p.versionId) }], () => undefined, { 'aria-label': 'Version' }));
       rows.push(field);

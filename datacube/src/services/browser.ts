@@ -24,7 +24,6 @@ import { forgetUpload, ingestFile, mountRemoteView } from '../upload.ts';
 import { browserBasics, tabTitle } from './browser-basics.ts';
 import { browserPages } from './browser-pages.ts';
 import type {
-  ConfiguredProject,
   DatabaseService,
   GridRows,
   ModelHomeService,
@@ -61,8 +60,9 @@ export interface TabConfig {
   readonly warehouse: string;
   readonly queryStore: string;
   readonly user: string;
-  readonly projects: readonly ConfiguredProject[];
-  readonly depot?: { readonly sdlc: string };
+  /** The model home: where every project is found (docs/ONE_CONNECTION_DESK_2026_10_28.md D5), the site's released
+   *  versions in its `releases` folder. */
+  readonly depot?: { readonly sdlc: string; readonly releases?: string };
   /** Where the page's WebAssembly is served (page-config.ts `vendor`). */
   readonly vendor: string;
   /** The page's vault: a server's key by the vault reference its connection names (page-config.ts `vault`). */
@@ -83,7 +83,7 @@ export interface BrowserServicesOptions {
  *  started it (its session set up, its extensions the site's). */
 export async function browserServices(o: BrowserServicesOptions): Promise<Services> {
   const { config } = o;
-  const modelHome = o.config.depot ? depotHome(o.config.depot.sdlc, o.config.vendor, o.location) : undefined;
+  const modelHome = o.config.depot ? depotHome(o.config.depot, o.config.vendor, o.location) : undefined;
   // THE STORES' RULES: the saved queries' and the saved pages', one WebAssembly module (`vendor/queries/`), fetched
   // once, at the first call of either store (a load that failed is tried again at the next)
   let stores: Promise<QueriesModule> | undefined;
@@ -223,12 +223,6 @@ function queryService(config: TabConfig, load: () => Promise<QueriesModule>): Qu
         return () => { stopped = true; stop(); };
       },
     }),
-    projects: config.projects,
-    fetchText: async (url) => {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error(`${url} answered ${r.status}`);
-      return r.text();
-    },
   };
 }
 
@@ -243,11 +237,13 @@ function hostOf(url: string): string {
 
 /** The model home a depot names (the page's own SDLC and Depot, or servers), opened once -- loaded only when first
  *  asked for: the grid-only page's budget does not carry it. */
-function depotHome(sdlc: string, vendor: string, location: { readonly href: string }): ModelHomeService {
+function depotHome(depot: { readonly sdlc: string; readonly releases?: string }, vendor: string,
+  location: { readonly href: string }): ModelHomeService {
   let home: ReturnType<ModelHomeService['connect']> | undefined;
   return {
     connect: () => (home ??= lazily(() => import('../../../depot-client/src/model-home.ts'))
-      .then(({ connectModelHome }) => connectModelHome({ sdlc, vendor }))),
+      .then(({ connectModelHome }) => connectModelHome({ sdlc: depot.sdlc, vendor,
+        ...(depot.releases === undefined ? {} : { releases: depot.releases }) }))),
     // beside this page, as the one site lays the apps out (<site>/datacube/demo/, <site>/studio/demo/), wherever the site
     // is served -- under a path on GitHub Pages; at the root, where `..` stops, as before
     studio: (project, workspace) => new URL(

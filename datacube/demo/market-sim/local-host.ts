@@ -61,20 +61,12 @@ export function marketInTab(o: MarketInTabOptions): (model: () => Promise<string
 
 /**
  * The trading desk as DataCube's page opens it where it plans in the tab (demo/boot.ts; one chunk, fetched beside
- * DuckDB's start): its files beside the page, written on the context the deployment names (`contexts`: config.json),
- * its market in this tab.
+ * DuckDB's start): its project from the model home, written on the context the deployment names (`contexts`:
+ * config.json), its market in this tab.
  */
 export function openDeskHere(services: Services, planner: LitePlanner, duck: DuckDbInTab,
   contexts: Readonly<Record<string, string>>): Desk {
-  return openDesk(services, {
-    files: {
-      model: new URL('./trading-model.pure', location.href).href,
-      deskModel: new URL('./market.pure', location.href).href,
-      environments: new URL('./environments.pure', location.href).href,
-    },
-    contexts,
-    inTab: marketHere(planner, duck),
-  });
+  return openDesk(services, { contexts, inTab: marketHere(planner, duck) });
 }
 
 /** The market in this tab as DataCube's page serves it: the world sized by the page's address where it says

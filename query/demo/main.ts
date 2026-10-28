@@ -16,13 +16,12 @@ import {
 } from '../../engine-client/src/warehouse.ts';
 import { connectModelHome } from '../../depot-client/src/model-home.ts';
 import { loadByName, versionsOf } from '../src/app/by-name.ts';
-import { AppContext, gavOf, type AppConfig, type CubeRows, type LoadedProject } from '../src/app/context.ts';
+import { AppContext, type AppConfig, type CubeRows, type LoadedProject } from '../src/app/context.ts';
 import { App } from '../src/app/app.ts';
 import { BrowserEngine } from '../../engine-client/src/legend/browser-engine.ts';
 import { HttpEngine, RoutedEngine, type Engine, type Grammar, type QueryStore } from '../src/backend/engine.ts';
 import { BrowserRecords, LOCAL_API, loadQueriesModule, QueryStoreClient, wasmQueryServer } from '../../query-store/src/index.ts';
 import { WasmGrammar, WorkerPort } from '../../engine-client/src/legend/wasm-grammar.ts';
-import { ModelGraph } from '../src/model/graph.ts';
 import { h, mount } from '../src/ui/dom.ts';
 
 async function text(url: string): Promise<string> {
@@ -85,25 +84,25 @@ async function boot(): Promise<void> {
   if (!planner && !http) throw new Error('queries run in the browser, which needs the planner (config.planner)');
   const grammar: Grammar = planner ?? http!;
 
+  // THE MODEL HOME (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): every project is found there -- the site's released
+  // versions (the demo's trading model) opened now, read through its Depot as any version is; the rest listed by name
+  // (what Studio publishes), each loaded when opened
+  if (!config.depot) throw new Error('Legend Query finds its projects in a model home: config.json names none (`depot`)');
+  starting('Opening the model home');
+  const home = await connectModelHome({ ...config.depot, vendor });
+  const { depot } = home;
   starting('Loading the models');
-  const projects: LoadedProject[] = await Promise.all(config.projects.map(async (p) => {
-    const code = (await Promise.all(p.models.map(text))).join('\n');
-    return { config: p, gav: gavOf(p), context: { _type: 'text', code }, graph: new ModelGraph(await grammar.modelJson(code)) };
+  const projects: LoadedProject[] = await Promise.all(home.released.map(async (r) => {
+    const loaded = await loadByName(depot, grammar, r.groupId, r.artifactId, r.versionId);
+    return { ...loaded, config: { ...loaded.config, title: r.title } };
   }));
-  // projects by name (design Phase 3): what this origin's Depot has -- what Studio publishes -- listed, each loaded when opened
-  let byName: { load: NonNullable<AppContext["byName"]>; versions: NonNullable<AppContext["versions"]> } | undefined;
-  let depotProjects: AppContext["depotProjects"] = [];
+  const byName: { load: NonNullable<AppContext["byName"]>; versions: NonNullable<AppContext["versions"]> } = {
+    load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v),
+    versions: (g: string, a: string) => versionsOf(depot, g, a),
+  };
+  const depotProjects: AppContext["depotProjects"] = (await depot.projects()).map((p) => ({ groupId: p.groupId, artifactId: p.artifactId }));
   /** Where a project's own rows go: its database in this tab's DuckDB, once started (set below; none on the warehouse). */
   let tabProjects: AppContext['tabProjects'];
-  if (config.depot) {
-    starting('Listing the projects in Depot');
-    const { depot } = await connectModelHome({ ...config.depot, vendor });
-    byName = {
-      load: (g: string, a: string, v: string) => loadByName(depot, grammar, g, a, v),
-      versions: (g: string, a: string) => versionsOf(depot, g, a),
-    };
-    depotProjects = (await depot.projects()).map((p) => ({ groupId: p.groupId, artifactId: p.artifactId }));
-  }
 
   let engine: Engine;
   let cubeRows: CubeRows;
@@ -157,8 +156,8 @@ async function boot(): Promise<void> {
     }).fetch);
   }
   const ctx = new AppContext(config, engine, store, planner, projects, user, cubeRows);
-  ctx.byName = byName?.load;
-  ctx.versions = byName?.versions;
+  ctx.byName = byName.load;
+  ctx.versions = byName.versions;
   ctx.depotProjects = depotProjects;
   ctx.tabProjects = tabProjects;
   // warm the planner on the first model while the person looks at the landing page

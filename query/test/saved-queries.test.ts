@@ -16,7 +16,7 @@ import { runfileNamed } from '../../tools/js/runfiles.mts';
 
 const { context, graph } = await demoModel();
 const project = {
-  config: { groupId: 'demo', artifactId: 'trading', versionId: '0.0.0', models: [] },
+  config: { groupId: 'demo', artifactId: 'trading', versionId: '0.0.0' },
   gav: 'demo:trading:0.0.0', context, graph,
 } as LoadedProject;
 

@@ -86,6 +86,18 @@ public final class Sdlc {
         this.clock = clock;
     }
 
+    /** The versions the model home's site releases, by {@code group:artifact:version} ({@link ReleasedVersions}): none
+     *  until told. */
+    private java.util.function.Predicate<String> released = gav -> false;
+
+    /**
+     * The versions the site releases (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): a person's version is never made at
+     * one's coordinates -- the two layers never answer for the same version.
+     */
+    public void releasedAt(java.util.function.Predicate<String> released) {
+        this.released = released;
+    }
+
     /** A refusal: its status, legend-sdlc's words, and (a JSON error) details. */
     private static final class Refusal extends RuntimeException {
         final int status;
@@ -1109,6 +1121,10 @@ public final class Sdlc {
             default -> new int[] {latest[0], latest[1], latest[2] + 1};
         };
         String v = versionText(next);
+        if (released.test(p + ":" + v)) {
+            throw new Refusal("Version " + v + " of project " + p + " is a version this model home's site releases: "
+                    + "a version of one's own takes other coordinates", 409);
+        }
         String revision = string(cmd, "revisionId");
         String commit = revision == null ? line : revision;
         if (revision != null && (!COMMIT_ID.matcher(revision).matches() || !git.isCommit(revision) || !isAncestor(revision, line))) {

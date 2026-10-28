@@ -8,19 +8,7 @@
     "worker": "./planner-worker.js"
   },
   "depot": {
-    "sdlc": "page"
-  },
-  "projects": [
-    {
-      "groupId": "demo",
-      "artifactId": "trading",
-      "versionId": "0.0.0",
-      "title": "Trading demo",
-      "models": [
-        "./models/trading.pure",
-        "./models/runtime-duckdb.pure",
-        "./models/trading-data.pure"
-      ]
-    }
-  ]
+    "sdlc": "page",
+    "releases": "./releases/"
+  }
 }

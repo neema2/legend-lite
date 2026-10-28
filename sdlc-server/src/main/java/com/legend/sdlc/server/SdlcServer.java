@@ -1,5 +1,6 @@
 package com.legend.sdlc.server;
 
+import com.legend.sdlc.ReleasedVersions;
 import com.legend.sdlc.Sdlc;
 import com.legend.sdlc.Storage;
 import com.legend.sdlc.grammar.CoreGrammar;
@@ -28,7 +29,11 @@ import java.util.regex.Pattern;
  * plus each {@code --allow-origin}. CORS answers only those origins, never {@code *}. A request without an
  * {@code Origin} (a test, a script, curl) is not a browser's and is served.
  *
- * <pre>bazel run //sdlc-server:server -- --port 6100 --repo DIR [--user id[:Name]] [--allow-origin URL]...</pre>
+ * <pre>bazel run //sdlc-server:server -- --port 6100 --repo DIR [--releases DIR] [--user id[:Name]] [--allow-origin URL]...</pre>
+ *
+ * <p>{@code --releases DIR}: the versions the site releases (docs/ONE_CONNECTION_DESK_2026_10_28.md D5), read from the
+ * folder at every start as the page reads its own -- {@code DIR/index.json} names each version and its files -- and
+ * never written to the repository.
  */
 public final class SdlcServer {
     public static final String ROOT = "/sdlc/api";
@@ -134,9 +139,27 @@ public final class SdlcServer {
         }
     }
 
+    /**
+     * The site's released versions in {@code dir} (D5): {@code index.json} -- {@code {"versions": [{"groupId",
+     * "artifactId", "versionId", "files": ["path/in/dir.pure", ...]}]}} -- each version's files read from the folder.
+     */
+    static void readReleases(Path dir, ReleasedVersions into) throws IOException {
+        com.legend.json.Json.Obj index = com.legend.json.Json.parseObject(java.nio.file.Files.readString(dir.resolve("index.json")));
+        for (com.legend.json.Json.Node n : index.getArr("versions").items()) {
+            com.legend.json.Json.Obj v = (com.legend.json.Json.Obj) n;
+            List<ReleasedVersions.File> files = new ArrayList<>();
+            for (com.legend.json.Json.Node f : v.getArr("files").items()) {
+                String path = ((com.legend.json.Json.Str) f).value();
+                files.add(new ReleasedVersions.File(path, java.nio.file.Files.readString(dir.resolve(path))));
+            }
+            into.add(v.getString("groupId"), v.getString("artifactId"), v.getString("versionId"), files);
+        }
+    }
+
     public static void main(String[] args) throws IOException {
         int port = 6100;
         Path repo = null;
+        Path releases = null;
         String userId = "local";
         String userName = "Local User";
         List<String> origins = new ArrayList<>();
@@ -144,6 +167,7 @@ public final class SdlcServer {
             switch (args[i]) {
                 case "--port" -> port = Integer.parseInt(args[++i]);
                 case "--repo" -> repo = Path.of(args[++i]);
+                case "--releases" -> releases = Path.of(args[++i]);
                 case "--user" -> {
                     String u = args[++i];
                     int colon = u.indexOf(':');
@@ -152,16 +176,19 @@ public final class SdlcServer {
                 }
                 case "--allow-origin" -> origins.add(args[++i]);
                 default -> throw new IllegalArgumentException("unknown argument: " + args[i]
-                        + " (usage: --port N --repo DIR [--user id[:Name]] [--allow-origin URL]...)");
+                        + " (usage: --port N --repo DIR [--releases DIR] [--user id[:Name]] [--allow-origin URL]...)");
             }
         }
         if (repo == null) throw new IllegalArgumentException("--repo DIR is required: where the projects' git repository lives");
         GitStorage repository = new GitStorage(repo);
         Sdlc sdlc = new Sdlc(repository, userId, userName, new CoreGrammar(), System::currentTimeMillis).backendType("git");
+        ReleasedVersions released = new ReleasedVersions(new CoreGrammar());
+        if (releases != null) readReleases(releases, released);
+        sdlc.releasedAt(released::holds);
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
         SdlcServer home = new SdlcServer(sdlc, repository, port, origins);
         server.createContext(ROOT + "/", home.handler());
-        server.createContext(DEPOT_ROOT + "/", home.depotHandler(new com.legend.depot.Depot(sdlc.artifacts(), System::currentTimeMillis)));
+        server.createContext(DEPOT_ROOT + "/", home.depotHandler(new com.legend.depot.Depot(released.over(sdlc.artifacts()), System::currentTimeMillis)));
         server.createContext("/health", exchange -> {
             try (exchange) {
                 send(exchange, 200, "{\"status\":\"ok\"}");

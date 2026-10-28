@@ -3,6 +3,7 @@ package com.legend.sdlc.page;
 import com.legend.depot.Depot;
 import com.legend.json.Json;
 import com.legend.sdlc.MemoryStorage;
+import com.legend.sdlc.ReleasedVersions;
 import com.legend.sdlc.Sdlc;
 import com.legend.sdlc.grammar.CoreGrammar;
 
@@ -19,19 +20,47 @@ public final class SdlcPage {
     private SdlcPage() {}
 
     private static MemoryStorage storage = new MemoryStorage();
+    /** The versions the page's site releases (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): told at every open
+     *  ({@link #release}), never in the storage the page persists -- kept across {@link #reset}. */
+    private static final ReleasedVersions RELEASED = new ReleasedVersions(new CoreGrammar());
     private static Sdlc sdlc = make("local", "Local User");
-    /** Depot-lite over the page's own versions: the same rules as the server's Depot, the same source. */
-    private static Depot depot = new Depot(sdlc.artifacts(), System::currentTimeMillis);
+    /** Depot-lite over the site's released versions and the page's own: the same rules as the server's Depot. */
+    private static Depot depot = depotOver(sdlc);
 
     private static Sdlc make(String userId, String name) {
-        return new Sdlc(storage, userId, name, new CoreGrammar(), System::currentTimeMillis);
+        Sdlc made = new Sdlc(storage, userId, name, new CoreGrammar(), System::currentTimeMillis);
+        made.releasedAt(RELEASED::holds);
+        return made;
+    }
+
+    private static Depot depotOver(Sdlc over) {
+        return new Depot(RELEASED.over(over.artifacts()), System::currentTimeMillis);
     }
 
     /** Who the page's user is (there is no sign-in here); keeps what is loaded. */
     @org.teavm.jso.JSExport
     public static void start(String userId, String name) {
         sdlc = make(userId, name);
-        depot = new Depot(sdlc.artifacts(), System::currentTimeMillis);
+        depot = depotOver(sdlc);
+    }
+
+    /**
+     * A version the page's site releases, its files {@code [{"path","pureCode"}]}: held in memory, never persisted
+     * (D5). Answers {@code ""}, or why it is refused (a file the grammar cannot read, an element no SDLC stores).
+     */
+    @org.teavm.jso.JSExport
+    public static String release(String groupId, String artifactId, String versionId, String filesJson) {
+        try {
+            List<ReleasedVersions.File> files = new ArrayList<>();
+            for (Json.Node n : ((Json.Arr) Json.parse(filesJson)).items()) {
+                Json.Obj f = (Json.Obj) n;
+                files.add(new ReleasedVersions.File(String.valueOf(f.getStringOr("path", "")), String.valueOf(f.getStringOr("pureCode", ""))));
+            }
+            RELEASED.add(groupId, artifactId, versionId, files);
+            return "";
+        } catch (RuntimeException e) {
+            return e.getMessage() == null ? e.getClass().getName() : e.getMessage();
+        }
     }
 
     /** One Depot request under its API root ({@code /projects/g/a/versions}), answered as {@link #handle}'s. */
@@ -52,7 +81,7 @@ public final class SdlcPage {
     public static void reset() {
         storage = new MemoryStorage();
         sdlc = make("local", "Local User");
-        depot = new Depot(sdlc.artifacts(), System::currentTimeMillis);
+        depot = depotOver(sdlc);
     }
 
     /**

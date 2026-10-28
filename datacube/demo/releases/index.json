@@ -1,0 +1,18 @@
+{
+  "versions": [
+    {
+      "groupId": "demo",
+      "artifactId": "trading",
+      "versionId": "0.0.0",
+      "title": "Trading demo",
+      "files": ["trading/trading.pure", "trading/runtime-duckdb.pure", "trading/trading-data.pure"]
+    },
+    {
+      "groupId": "org.finos.legend.lite.demo",
+      "artifactId": "trader-screens",
+      "versionId": "local",
+      "title": "The trader screens",
+      "files": ["trader-screens/trading-model.pure", "trader-screens/market.pure", "trader-screens/environments.pure"]
+    }
+  ]
+}

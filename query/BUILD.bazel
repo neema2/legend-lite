@@ -173,6 +173,9 @@ filegroup(
         "demo/*.css",
         "demo/models/*.pure",
         "demo/models/*.sql",
+        # the versions each config's model home releases (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): an index each,
+        # naming the models beside them
+        "demo/releases*/index.json",
         "src/**/*.css",
     ]) + [":bundle", ":planner_worker", ":vendor", ":cube_styles"],
 )

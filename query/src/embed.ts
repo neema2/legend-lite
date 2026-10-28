@@ -41,7 +41,7 @@ export interface EmbedOptions {
 }
 
 /** The host's model as the builder's one project: it has no coordinates of its own (it is a workspace, not a version). */
-const WORKSPACE: ProjectConfig = { groupId: 'workspace', artifactId: 'workspace', versionId: 'workspace', title: 'Workspace', models: [] };
+const WORKSPACE: ProjectConfig = { groupId: 'workspace', artifactId: 'workspace', versionId: 'workspace', title: 'Workspace' };
 
 export function openBuilder(root: HTMLElement, o: EmbedOptions): EditorHandle {
   const project: LoadedProject = {
@@ -49,7 +49,7 @@ export function openBuilder(root: HTMLElement, o: EmbedOptions): EditorHandle {
   };
   // the one client over a store that is not there: the embedded header has none of the store's actions
   const noStore = new QueryStoreClient('embedded', () => Promise.reject(new Error('an embedded query builder keeps its query in its host, not a query store')));
-  const app = new AppContext({ execution: o.execution, projects: [] }, o.engine, noStore, o.planner, [project], o.user, o.cubeRows);
+  const app = new AppContext({ execution: o.execution }, o.engine, noStore, o.planner, [project], o.user, o.cubeRows);
   return renderEditor(root, app, sessionOf(project, o.start), o.host);
 }
 

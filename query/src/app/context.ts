@@ -9,13 +9,12 @@ import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar
 import type { PureModelContextText } from '../backend/wire.ts';
 import type { ModelGraph } from '../model/graph.ts';
 
+/** A project version the app has opened, by its coordinates and the title it is shown by. */
 export interface ProjectConfig {
   readonly groupId: string;
   readonly artifactId: string;
   readonly versionId: string;
   readonly title?: string;
-  /** Model files (Pure grammar), relative to the page. */
-  readonly models: readonly string[];
 }
 
 /**
@@ -42,12 +41,12 @@ export interface AppConfig {
   readonly execution: ExecutionConfig;
   /** legend-lite's planner in the tab (grammar, typing, SQL), its module from `vendor`; required unless a server answers. */
   readonly planner?: { readonly worker: string };
-  /** Projects whose model is files served with the page (the demo's own trading model). */
-  readonly projects: readonly ProjectConfig[];
   /**
-   * Where projects are opened by name (design Phase 3): a Depot -- `{ "sdlc": "page" }` is the one this origin's
-   * pages share (Studio publishes into it), or a model home's server. Each project there opens at its project line's
-   * snapshot (Depot's `master-SNAPSHOT`, upstream Query's HEAD), with its dependencies.
+   * THE MODEL HOME, where every project is found (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): `{ "sdlc": "page" }` is
+   * the one this origin's pages share (Studio publishes into it), or a model home's server; `releases` the folder of
+   * the versions the site releases (the demo's trading model), opened at the start. Any other project opens by name, at
+   * its project line's snapshot (Depot's `master-SNAPSHOT`, upstream Query's HEAD), with its dependencies. Absent: the
+   * app opens no project (an embedded builder brings its host's).
    */
   readonly depot?: Omit<ModelHomeConfig, 'vendor'>;
   /**

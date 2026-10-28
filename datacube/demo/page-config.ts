@@ -23,12 +23,12 @@ export interface PageConfig {
   readonly queryStore: string;
   /** Who this page's caller is to the browser's own store ("Mine only"): Legend Query's in-browser user. */
   readonly user: string;
-  /** The projects a saved query can belong to, as the Query app's config.json names them. */
-  readonly projects: readonly ProjectConfig[];
   /**
-   * Where a saved query's project is opened by name when `projects[]` has none (design Phase 3): a Depot --
-   * `"sdlc": "page"`, the one this origin's pages share (what Studio publishes), or a model home's server. Its rows
-   * are its own: the model's Data elements, loaded into this tab's DuckDB (plan A2). Absent: none.
+   * THE MODEL HOME, where every project is found (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): `"sdlc": "page"`, the one
+   * this origin's pages share (what Studio publishes), or a model home's server; and `"releases"`, the folder of the
+   * versions the site releases (its `index.json` and their files, relative to config.json), loaded at every open and
+   * never kept in the browser's storage. A saved query's project opens by name from it; its rows are its own: the
+   * model's Data elements, loaded into this tab's DuckDB (plan A2). Absent: none, and no saved query opens.
    */
   readonly depot?: DepotConfig;
   /**
@@ -53,43 +53,13 @@ export interface PageConfig {
 export interface DepotConfig {
   /** `"page"` (the page's own SDLC, its module from the page's `vendor`), or a model home's server. */
   readonly sdlc: string;
-}
-
-/**
- * A project: what a saved query's `groupId:artifactId:versionId` compiles against (`models`, Pure
- * text joined in order; its rows its Data elements', C5). URLs relative to config.json.
- */
-export interface ProjectConfig {
-  readonly groupId: string;
-  readonly artifactId: string;
-  readonly versionId: string;
-  readonly title: string;
-  readonly models: readonly string[];
+  /** The site's releases folder (D5), as a URL resolved against config.json. */
+  readonly releases?: string;
 }
 
 const EMPTY: PageConfig = {
-  legendLite: '', legendEngine: '', warehouse: '', queryStore: '', user: '', projects: [], vendor: './vendor/', vault: {}, contexts: {},
+  legendLite: '', legendEngine: '', warehouse: '', queryStore: '', user: '', vendor: './vendor/', vault: {}, contexts: {},
 };
-
-const texts = (v: unknown): string[] => (Array.isArray(v) ? v.map(text).filter((t) => t !== '') : []);
-
-/** The well-formed entries of `projects[]`: a malformed one is left out, not guessed at. */
-function projects(v: unknown, base: string): ProjectConfig[] {
-  if (!Array.isArray(v)) return [];
-  return v.flatMap((p: unknown) => {
-    if (typeof p !== 'object' || p === null) return [];
-    const o = p as Record<string, unknown>;
-    const [groupId, artifactId, versionId] = [text(o['groupId']), text(o['artifactId']), text(o['versionId'])];
-    const models = texts(o['models']);
-    if (!groupId || !artifactId || !versionId || models.length === 0) return [];
-    const at = (u: string): string => new URL(u, base).href;
-    return [{
-      groupId, artifactId, versionId,
-      title: text(o['title']) || `${groupId}:${artifactId}`,
-      models: models.map(at),
-    }];
-  });
-}
 
 
 /** A JSON object of texts (`vault`, `contexts`): an entry whose value is not a text is left out, not guessed at. */
@@ -98,13 +68,14 @@ function textsByName(v: unknown): Record<string, string> {
   return Object.fromEntries(Object.entries(v).map(([k, t]) => [k, text(t)] as const).filter(([, t]) => t !== ''));
 }
 
-/** `depot`, when it names an SDLC (`"page"` or a URL). */
-function depot(v: unknown): DepotConfig | undefined {
+/** `depot`, when it names an SDLC (`"page"` or a URL), and its releases folder resolved against config.json. */
+function depot(v: unknown, base: string): DepotConfig | undefined {
   if (typeof v !== 'object' || v === null) return undefined;
   const o = v as Record<string, unknown>;
   const sdlc = text(o['sdlc']);
   if (!sdlc) return undefined;
-  return { sdlc };
+  const releases = text(o['releases']);
+  return { sdlc, ...(releases ? { releases: new URL(releases, base).href } : {}) };
 }
 
 function text(v: unknown): string {
@@ -124,10 +95,10 @@ export async function pageConfig(location: Location = window.location): Promise<
     const r = await fetch(url, { cache: 'no-cache' });
     if (r.ok) {
       const raw = await r.json() as Record<string, unknown>;
-      const byName = depot(raw['depot']);
+      const byName = depot(raw['depot'], url.href);
       file = {
         legendLite: text(raw['legendLite']), legendEngine: text(raw['legendEngine']), warehouse: text(raw['warehouse']),
-        queryStore: text(raw['queryStore']), user: text(raw['user']), projects: projects(raw['projects'], url.href),
+        queryStore: text(raw['queryStore']), user: text(raw['user']),
         vendor: text(raw['vendor']) || EMPTY.vendor,
         vault: textsByName(raw['vault']), contexts: textsByName(raw['contexts']),
         ...(byName ? { depot: byName } : {}),
@@ -143,7 +114,6 @@ export async function pageConfig(location: Location = window.location): Promise<
     warehouse: text(q.get('warehouse')) || file.warehouse,
     queryStore: text(q.get('queryStore')) || file.queryStore,
     user: file.user,
-    projects: file.projects,
     vendor: file.vendor,
     vault: file.vault,
     contexts: file.contexts,

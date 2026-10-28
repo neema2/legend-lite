@@ -400,28 +400,14 @@ export interface LivePage {
 
 // ------------------------------------------------------------------------------------------------------- the queries
 
-/**
- * A project a saved query can belong to, as the host's configuration names it: what it compiles against (`models`,
- * Pure text joined in order). Its rows are its Data elements', in a database of its own where the host runs it (C5).
- */
-export interface ConfiguredProject {
-  readonly groupId: string;
-  readonly artifactId: string;
-  readonly versionId: string;
-  readonly title: string;
-  readonly models: readonly string[];
-}
-
-/** Where saved queries are (upstream's query store API), and the projects the host configured for them. */
+/** Where saved queries are (upstream's query store API). Their projects are the model home's
+ *  (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): `ModelHomeService`. */
 export interface QueryService {
   readonly store: () => Promise<QueryReader>;
   /** Said where they are: "in this browser", "on host:port". */
   readonly where: string;
   /** Told when another app on the host saves one (the browser's own store), when the host can say. */
   readonly watch?: (changed: () => void) => () => void;
-  readonly projects: readonly ConfiguredProject[];
-  /** A file of a configured project (a model, a seed), by its URL. */
-  fetchText(url: string): Promise<string>;
 }
 
 // ----------------------------------------------------------------------------------------------------- the model home

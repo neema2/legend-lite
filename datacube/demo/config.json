@@ -4,21 +4,9 @@
   "warehouse": "",
   "queryStore": "",
   "user": "me",
-  "projects": [
-    {
-      "groupId": "demo",
-      "artifactId": "trading",
-      "versionId": "0.0.0",
-      "title": "Trading demo",
-      "models": [
-        "./projects/trading/trading.pure",
-        "./projects/trading/runtime-duckdb.pure",
-        "./projects/trading/trading-data.pure"
-      ]
-    }
-  ],
   "depot": {
-    "sdlc": "page"
+    "sdlc": "page",
+    "releases": "./releases/"
   },
   "vendor": "./vendor/"
 }

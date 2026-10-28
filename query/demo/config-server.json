@@ -1,14 +1,14 @@
 {
   "vendor": "./vendor/",
-  "execution": { "kind": "server", "engine": "http://localhost:8090/api" },
-  "planner": { "worker": "./planner-worker.js" },
-  "projects": [
-    {
-      "groupId": "demo",
-      "artifactId": "trading",
-      "versionId": "0.0.0",
-      "title": "Trading demo",
-      "models": ["./models/trading.pure", "./models/runtime-h2.pure"]
-    }
-  ]
+  "execution": {
+    "kind": "server",
+    "engine": "http://localhost:8090/api"
+  },
+  "planner": {
+    "worker": "./planner-worker.js"
+  },
+  "depot": {
+    "sdlc": "page",
+    "releases": "./releases-server/"
+  }
 }

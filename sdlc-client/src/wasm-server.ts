@@ -20,7 +20,20 @@ export interface SdlcModule {
     handle(method: string, target: string, body: string): string;
     handleDepot(method: string, target: string, body: string): string;
     changes(): string;
+    /** A version the site releases, its files `[{path, pureCode}]` (D5): held in memory, never persisted; `""`, or why
+     *  it is refused. */
+    release(groupId: string, artifactId: string, versionId: string, filesJson: string): string;
   };
+}
+
+/** A version a site releases (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): its coordinates and its files' text. */
+export interface ReleasedVersion {
+  readonly groupId: string;
+  readonly artifactId: string;
+  readonly versionId: string;
+  /** How the site names it to a person (its index's `title`): the apps' own, never the module's. */
+  readonly title?: string;
+  readonly files: readonly { readonly path: string; readonly pureCode: string }[];
 }
 
 /** One persisted record of the module's: its key and text. */
@@ -46,8 +59,15 @@ export interface WasmSdlc {
  * The page's SDLC over a loaded module: what `records` holds is loaded into it first, and every call's
  * changes are written back before the call answers (so a reload sees a save that was answered).
  */
-export async function wasmSdlcServer(module: SdlcModule, records: Records, user: { userId: string; name: string }): Promise<WasmSdlc> {
+export async function wasmSdlcServer(module: SdlcModule, records: Records, user: { userId: string; name: string },
+  released: readonly ReleasedVersion[] = []): Promise<WasmSdlc> {
   const e = module.exports;
+  // THE SITE'S RELEASED VERSIONS (D5): told to the module at every open, before anything reads it -- held in its memory
+  // beside the person's own, never written to the browser's storage, so a site's update is never shadowed by a copy
+  for (const v of released) {
+    const refused = e.release(v.groupId, v.artifactId, v.versionId, JSON.stringify(v.files));
+    if (refused !== '') throw new Error(`the site's version ${v.versionId} of ${v.groupId}:${v.artifactId} is not read: ${refused}`);
+  }
   /** The stamp of the records the module holds: every write moves it (see `one`). */
   let held: Kept | undefined;
   /** The module's memory made what the records hold, exactly. */

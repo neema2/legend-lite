@@ -118,7 +118,7 @@ function tasksIn(from: number, to: number): Record<string, { n: number; meanMs: 
 
 async function main(): Promise<void> {
   const t0 = performance.now();
-  const [corpus, desk, environments] = await Promise.all(['./trading-model.pure', './market.pure', './environments.pure']
+  const [corpus, desk, environments] = await Promise.all(['./releases/trader-screens/trading-model.pure', './releases/trader-screens/market.pure', './releases/trader-screens/environments.pure']
     .map(async (f) => (await fetch(f)).text()));
   const model = DESK_MODEL(corpus!, desk!, environments!);
   const planner = new LitePlanner({

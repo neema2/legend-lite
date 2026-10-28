@@ -465,6 +465,8 @@ function pythonModelHome(link: PythonLink, where: string, apps: readonly string[
       client: new SdlcClient(`${link.baseUrl}/sdlc/api`, withToken),
       depot: new DepotClient(`${link.baseUrl}/depot/api`, withToken),
       where: `this user's folder (${where})`,
+      // Python releases no versions of a site's: its projects are the user's own
+      released: [],
     }))),
   };
 }
@@ -644,7 +646,7 @@ function pythonPages(link: PythonLink, offers: PythonOffers): PageService {
 /**
  * Saved queries on Python's page (C5): the store Python keeps (`ll.home()/queries`, its `/api/pure/v1/query`, B5),
  * read as the tab reads its own -- its code fetched the first time it is asked for. A query's project opens by name
- * from Python's Depot; Python has no deployment projects of its own.
+ * from Python's Depot, as every page's does (docs/ONE_CONNECTION_DESK_2026_10_28.md D5).
  */
 function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
   let store: Promise<QueryReader> | undefined;
@@ -652,8 +654,6 @@ function pythonQueries(link: PythonLink, offers: PythonOffers): QueryService {
     store: () => (store ??= lazily(() => import('../../../query-store/src/index.ts'))
       .then((m) => new m.QueryStoreClient(`${link.baseUrl}/api`, tokened(link)))),
     where: `in ${offers.pages.where}`,
-    projects: [],
-    fetchText: (url) => Promise.reject(new Error(`${url}: a page on Python reads no deployment's files`)),
   };
 }
 

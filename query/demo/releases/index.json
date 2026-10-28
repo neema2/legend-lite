@@ -1,0 +1,15 @@
+{
+  "versions": [
+    {
+      "groupId": "demo",
+      "artifactId": "trading",
+      "versionId": "0.0.0",
+      "title": "Trading demo",
+      "files": [
+        "../models/trading.pure",
+        "../models/runtime-duckdb.pure",
+        "../models/trading-data.pure"
+      ]
+    }
+  ]
+}

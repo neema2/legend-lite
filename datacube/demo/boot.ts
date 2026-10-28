@@ -378,7 +378,9 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   // the desk where the page plans in the tab (its model's elements read as lite reads them): its files beside the page,
   // written on the context the deployment names (config.json `contexts`), its market in this tab started only when a
   // grid on the tab's context reads its rows
-  const desk = planner instanceof LitePlanner ? (await deskCode).openDeskHere(tab, planner, duck, config.contexts) : undefined;
+  // (its project the site's, in the model home: a deployment with none offers no desk)
+  const desk = planner instanceof LitePlanner && tab.modelHome !== undefined
+    ? (await deskCode).openDeskHere(tab, planner, duck, config.contexts) : undefined;
   const services: Services = desk?.services ?? tab;
 
   /** The sample cube's opening view. */

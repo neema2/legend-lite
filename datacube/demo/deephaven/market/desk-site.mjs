@@ -26,9 +26,8 @@ export async function serveDesk(config, port = 0) {
   const configJson = JSON.stringify({
     ...own, vault: { 'deephaven.psk': config.psk }, contexts: { 'market::TradingDesk': 'Deephaven' },
   });
-  const model = readFileSync(runfileFromEnv('TRADING_MODEL'));
-  // the desk's own model: the screens' functions and the options' (market.pure)
-  const deskModel = readFileSync(runfileFromEnv('MARKET_PURE'));
+  // the desk's environments as this site releases them: its Deephaven context at this test's server
+  // (docs/ONE_CONNECTION_DESK_2026_10_28.md D5: the trader screens' version, in the site's releases folder)
   const environments = environmentsAt(readFileSync(runfileFromEnv('ENVIRONMENTS_PURE'), 'utf8'), new URL(config.url));
   const site = await serve(root, {
     port,
@@ -39,17 +38,7 @@ export async function serveDesk(config, port = 0) {
         res.end(configJson);
         return true;
       }
-      if (url.pathname === '/demo/trading-model.pure') { // portable: an HTTP route, never a file's path
-        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
-        res.end(model);
-        return true;
-      }
-      if (url.pathname === '/demo/market.pure') { // portable: an HTTP route, never a file's path
-        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
-        res.end(deskModel);
-        return true;
-      }
-      if (url.pathname === '/demo/environments.pure') { // portable: an HTTP route, never a file's path
+      if (url.pathname === '/demo/releases/trader-screens/environments.pure') { // portable: an HTTP route, never a file's path
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-cache' });
         res.end(environments);
         return true;

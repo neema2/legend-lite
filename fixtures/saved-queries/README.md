@@ -7,8 +7,9 @@ as a source. Both test against this directory, so the reading cannot drift from 
 
 The records compile against the demo project `demo:trading:0.0.0`, whose model is
 `query/demo/models/trading.pure` plus a runtime (`runtime-duckdb.pure` or `runtime-h2.pure`). A
-record carries no model: a consumer maps its `groupId:artifactId:versionId` to model text from its
-own configuration (`projects[].models` in both apps' `config.json`).
+record carries no model: a consumer opens its `groupId:artifactId:versionId` from its model home's Depot,
+where the site releases the demo project (both apps' `config.json` `depot.releases`, its `index.json` naming the
+files: docs/ONE_CONNECTION_DESK_2026_10_28.md D5).
 
 How to read one:
 

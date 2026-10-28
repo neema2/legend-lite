@@ -17,7 +17,7 @@ export async function loadByName(depot: DepotClient, grammar: Grammar, groupId: 
   versionId: string): Promise<LoadedProject> {
   const code = await modelText(depot, groupId, artifactId, versionId);
   const pmcd = await grammar.modelJson(code);
-  const config: ProjectConfig = { groupId, artifactId, versionId, title: artifactId, models: [] };
+  const config: ProjectConfig = { groupId, artifactId, versionId, title: artifactId };
   return { config, gav: gavOf(config), context: { _type: 'text', code }, graph: new ModelGraph(pmcd) };
 }
 

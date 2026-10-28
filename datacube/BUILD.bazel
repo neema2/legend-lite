@@ -1673,8 +1673,10 @@ copy_to_directory(
     },
 )
 
-# The projects a saved query compiles against (config.json `projects[]`): the Query app's trading
-# demo, its model and its Data rows served as they are there, never copied into this package.
+# THE VERSIONS THE SITE RELEASES (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): the model home's read-only layer, loaded
+# from these files at every open (config.json `depot.releases`, demo/releases/index.json naming each version's files)
+# and never kept in the browser's storage -- every project a saved query or a page opens is found there. The Query
+# app's trading demo, its model and its Data rows served as they are there, never copied into this package.
 copy_to_directory(
     name = "projects",
     srcs = [
@@ -1682,7 +1684,7 @@ copy_to_directory(
         "//query:demo/models/trading-data.pure",
         "//query:demo/models/trading.pure",
     ],
-    out = "demo/projects/trading",
+    out = "demo/releases/trading",
     root_paths = ["query/demo/models"],
 )
 
@@ -1700,18 +1702,18 @@ copy_to_directory(
 )
 
 # THE TRADING DESK'S PROJECT (demo/deephaven/market/desk.ts; docs/DUCKDB_LIVE_2026_10_25.md L3,
-# docs/ONE_CONNECTION_DESK_2026_10_28.md): its files served beside the page -- the one trading model, the desk's own and
-# its environments -- fetched only when the desk or a saved page of it is opened.
+# docs/ONE_CONNECTION_DESK_2026_10_28.md D5): a version the site releases -- the one trading model, the desk's own and
+# its environments -- read with the others when the model home opens.
 copy_file(
     name = "site_trading_model",
     src = "//scripts/corpus:trading_model",
-    out = "demo/trading-model.pure",
+    out = "demo/releases/trader-screens/trading-model.pure",
 )
 
 copy_file(
     name = "site_market_model",
     src = "demo/deephaven/market/market.pure",
-    out = "demo/market.pure",
+    out = "demo/releases/trader-screens/market.pure",
 )
 
 # the desk's environments: its data space's contexts, the tab's DuckDB and a Deephaven server on this machine
@@ -1719,7 +1721,7 @@ copy_file(
 copy_file(
     name = "site_environments",
     src = "demo/deephaven/market/environments.pure",
-    out = "demo/environments.pure",
+    out = "demo/releases/trader-screens/environments.pure",
 )
 
 # Everything a browser fetches: pages, styles, models, bundles, runtimes.
@@ -1733,7 +1735,7 @@ filegroup(
         "demo/*.json",
         "demo/*.pure",
         "src/**/*.css",
-    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [
+    ]) + ["demo/releases/index.json"] + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [
         ":planner_worker",
         ":projects",
         ":site_environments",

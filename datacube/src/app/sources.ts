@@ -60,7 +60,7 @@ import type { TreeState } from '../tree.ts';
 import { pickSource, type DatabaseSession, type PickerSections, type RemoteCredentials, type SectionId } from '../ui/source-picker.ts';
 import { formatOf, modelLanded, tableNameOf } from '../upload.ts';
 import type { GridStartOpened, JoinRead, JoinSourcesHost } from './join-sources.ts';
-import type { ConfiguredProject, GridRows, LiveGrid, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
+import type { GridRows, LiveGrid, LocalEngine, QueryService, Services, WarehouseService } from './services.ts';
 import { lazily } from '../lazily.ts';
 
 // saved queries' code, fetched the first time it is needed -- the Saved queries section, a query link -- as charts
@@ -1121,23 +1121,18 @@ export function pageSources(d: SourcesOf): PageSources {
     }
     return p;
   };
-  const projectFor = (q: Pick<Query, 'groupId' | 'artifactId' | 'versionId'>): ConfiguredProject | undefined =>
-    queries?.projects.find((p) => p.groupId === q.groupId && p.artifactId === q.artifactId && p.versionId === q.versionId);
-
   async function openedQuery(store: QueryReader, id: string): Promise<OpenedQuery> {
     return openedRecord(await store.get(id));
   }
 
-  /** A saved query's project's model text, fetched once: the page's own project (config.json projects[]), else the
-   *  version opened by name from Depot (design Phase 3). */
+  /** A saved query's project's model text, fetched once: its version, by name, from the model home's Depot -- where
+   *  every project is found, the site's released versions among them (docs/ONE_CONNECTION_DESK_2026_10_28.md D5). */
   async function modelOf(q: SavedQueryRecord): Promise<string> {
     if (!queries) throw new Error(`“${q.name}” is a saved query: this page reads none`);
     const { projectOf } = await savedQueries();
-    const project = projectFor(q);
-    if (!project && !modelHome) throw new Error(`“${q.name}” belongs to ${projectOf(q)}, which this page has no model for (config.json projects[], or a depot)`);
-    return once(projectModels, projectOf(q), async () => (project
-      ? (await Promise.all(project.models.map((url) => queries.fetchText(url)))).join('\n')
-      : (await lazily(() => import('../../../depot-client/src/model-text.ts'))).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
+    if (!modelHome) throw new Error(`“${q.name}” belongs to ${projectOf(q)}, and this page reaches no model home to open it from (config.json \`depot\`)`);
+    return once(projectModels, projectOf(q), async () => (await lazily(() => import('../../../depot-client/src/model-text.ts')))
+      .modelText((await modelHome.connect()).depot, q.groupId, q.artifactId, q.versionId));
   }
 
   /** A saved query's record -- from a store, or as a share link carries it -- as a cube's source. */
@@ -1424,18 +1419,15 @@ export function pageSources(d: SourcesOf): PageSources {
           showCurrentUserQueriesOnly: mineOnly,
           sortByOption: 'SORT_BY_UPDATE',
           limit: 50,
-        })).map((q) => {
-          const project = projectFor(q);
-          return {
-            id: q.id,
-            name: q.name,
-            ...(q.owner ? { owner: q.owner } : {}),
-            ...(q.lastUpdatedAt ? { modified: new Date(q.lastUpdatedAt).toLocaleDateString(UI_LOCALE) } : {}),
-            project: project?.title ?? `${q.groupId}:${q.artifactId}:${q.versionId}`,
-            // with a depot, a project not in config.json opens by name (openedRecord)
-            ...(project || modelHome ? {} : { unusable: 'This page has no model for its project' }),
-          };
-        }),
+        })).map((q) => ({
+          id: q.id,
+          name: q.name,
+          ...(q.owner ? { owner: q.owner } : {}),
+          ...(q.lastUpdatedAt ? { modified: new Date(q.lastUpdatedAt).toLocaleDateString(UI_LOCALE) } : {}),
+          project: `${q.groupId}:${q.artifactId}:${q.versionId}`,
+          // its project opened by name from the model home (openedRecord): a page that reaches none opens no saved query
+          ...(modelHome ? {} : { unusable: 'This page reaches no model home to open its project from' }),
+        })),
         open: async (id) => act({ kind: 'saved', query: await openedQuery(await queries.store(), id) }),
         // a link to this page that opens the query as its source (query-store/src/share.ts), where the page has an
         // address others can open

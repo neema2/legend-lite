@@ -4,7 +4,8 @@
 //
 //   * THE PROJECT the desk's saved queries belong to (screens.ts `marketSource`): the one trading model, the desk's own
 //     and its environments (environments.pure: the data space market::TradingDesk, a context for the tab's DuckDB and
-//     one for a Deephaven server), served beside the page, so a saved query of it opens as any does;
+//     one for a Deephaven server) -- a version the site releases, found in the model home as every project is
+//     (docs/ONE_CONNECTION_DESK_2026_10_28.md D5: the site's releases folder), so a saved query of it opens as any does;
 //   * THE MARKET IN THIS TAB, until the Market data source (step 6): the stores of the data space's tab context made live
 //     in the tab's DuckDB, a world simulated in it writing them (market-sim/local-host.ts) -- started when a grid on
 //     that context first reads its rows;
@@ -16,24 +17,16 @@ import type { Services } from '../../../src/app/services.ts';
 import type { ExamplePage } from '../../../src/examples/catalog.ts';
 import type { LiveSource } from '../../../src/live-in-tab.ts';
 import { runOn } from '../../../src/run-on.ts';
-import { DESK_MODEL, DESK_SPACE, IN_TAB, ON_DEEPHAVEN } from './model.ts';
+import { DESK_SPACE, IN_TAB, ON_DEEPHAVEN } from './model.ts';
 import { DESK, MARKET_PROJECT, type MarketValues, type SourceTypes } from './screens.ts';
 
-/** The desk opened: the tab's services with its project and its market added, and its example. */
+/** The desk opened: the tab's services with its market added, and its example. */
 export interface Desk {
   readonly services: Services;
   readonly examples: readonly ExamplePage[];
 }
 
-/** Where the page serves the project's files: the trading model, the desk's own and its environments. */
-export interface DeskFiles {
-  readonly model: string;
-  readonly deskModel: string;
-  readonly environments: string;
-}
-
 export interface DeskOptions {
-  readonly files: DeskFiles;
   /** The execution context the deployment runs each data space on, by its path (config.json `contexts`): the desk's
    *  absent, its data space's default. */
   readonly contexts: Readonly<Record<string, string>>;
@@ -56,24 +49,19 @@ const WORDS: Readonly<Record<string, Pick<ExamplePage, 'label' | 'about'>>> = {
 
 /** The desk over the tab's `services`. */
 export function openDesk(services: Services, o: DeskOptions): Desk {
-  const { queries } = services;
+  const { queries, modelHome } = services;
   if (queries === undefined) throw new Error('the trading desk\'s screens are saved queries: this page reads none');
-  /** The project's model: its files, fetched once, joined as its project joins them. */
-  let fetching: Promise<string> | undefined;
-  const model = (): Promise<string> => (fetching ??= Promise.all([fetched('the trading model', o.files.model),
-    fetched("the desk's model", o.files.deskModel), fetched("the desk's environments", o.files.environments)])
-    .then(([corpus, desk, environments]) => DESK_MODEL(corpus, desk, environments)));
+  if (modelHome === undefined) throw new Error('the trading desk\'s project is found in the model home: this page reaches none (config.json `depot`)');
+  /** The project's model: its version's text, read once from the model home's Depot, as its saved queries read it. */
+  let reading: Promise<string> | undefined;
+  const model = (): Promise<string> => (reading ??= Promise.all([import('../../../../depot-client/src/model-text.ts'), modelHome.connect()])
+    .then(([{ modelText }, home]) => modelText(home.depot, MARKET_PROJECT.groupId, MARKET_PROJECT.artifactId, MARKET_PROJECT.versionId)));
   if (o.inTab !== undefined) services.engine.local?.live.serve(o.inTab(model));
   const context = o.contexts[DESK_SPACE];
   const words = WORDS[context ?? IN_TAB.name];
   if (words === undefined) throw new Error(`the trading desk has no context '${context}' (${DESK_SPACE}): its contexts are ${Object.keys(WORDS).join(', ')}`);
   return {
-    services: {
-      ...services,
-      // its files in the order the model joins them: the corpus, the desk's own, the environments
-      queries: { ...queries, projects: [...queries.projects, { ...MARKET_PROJECT, title: 'The trader screens',
-        models: [o.files.model, o.files.deskModel, o.files.environments] }] },
-    },
+    services,
     examples: [{ ...DESK, ...words, build: () => written(services, model, context) }],
   };
 }
@@ -114,11 +102,4 @@ function contextOf(elements: readonly unknown[], context: string | undefined): {
   const runtime = space.executionContexts?.find((c) => c.name === name)?.defaultRuntime?.path;
   if (name === undefined || runtime === undefined) throw new Error(`${DESK_SPACE} has no execution context '${name ?? ''}' with a runtime`);
   return { name, runtime };
-}
-
-/** A model file's text, fetched: refused, in words, when the page does not serve it. */
-export async function fetched(what: string, url: string): Promise<string> {
-  const answered = await fetch(url);
-  if (!answered.ok) throw new Error(`${what} (${url}) answered ${answered.status}`);
-  return answered.text();
 }

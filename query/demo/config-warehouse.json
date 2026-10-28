@@ -1,14 +1,17 @@
 {
   "vendor": "./vendor/",
-  "execution": { "kind": "warehouse", "url": "http://127.0.0.1:9090", "seed": ["./models/trading-seed.sql"] },
-  "planner": { "worker": "./planner-worker.js" },
-  "projects": [
-    {
-      "groupId": "demo",
-      "artifactId": "trading",
-      "versionId": "0.0.0",
-      "title": "Trading demo",
-      "models": ["./models/trading.pure", "./models/runtime-duckdb.pure"]
-    }
-  ]
+  "execution": {
+    "kind": "warehouse",
+    "url": "http://127.0.0.1:9090",
+    "seed": [
+      "./models/trading-seed.sql"
+    ]
+  },
+  "planner": {
+    "worker": "./planner-worker.js"
+  },
+  "depot": {
+    "sdlc": "page",
+    "releases": "./releases-warehouse/"
+  }
 }
