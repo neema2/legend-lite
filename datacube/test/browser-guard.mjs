@@ -1,7 +1,7 @@
 // The browser tests' guard (tools/browser/pinned-chromium.mjs): a page in a browser test cannot reach
 // extensions.duckdb.org, so a page that still downloads a DuckDB extension from there fails its test instead of passing
 // while that site is up. This fails when a launch stops being guarded -- a Playwright upgrade the guard's wrapper no
-// longer reaches, or the guard changed: both of Playwright's launches must meet an unknown host. (A desk with no
+// longer reaches, or the guard changed: each of Playwright's launches must meet an unknown host. (A desk with no
 // network passes it unguarded; CI and a connected desk do not.)
 
 // first: points Playwright at the Chromium Bazel fetched, and guards its launches
@@ -34,5 +34,10 @@ await unreachable('chromium.launch()', async () => {
 await unreachable('chromium.launchPersistentContext()', async () => {
   const context = await chromium.launchPersistentContext(join(process.env.TEST_TMPDIR ?? '.', 'profile'));
   return { page: await context.newPage(), close: () => context.close() };
+});
+await unreachable('chromium.launchServer()', async () => {
+  const server = await chromium.launchServer();
+  const browser = await chromium.connect(server.wsEndpoint());
+  return { page: await browser.newPage(), close: async () => { await browser.close(); await server.close(); } };
 });
 if (failed) process.exit(1);

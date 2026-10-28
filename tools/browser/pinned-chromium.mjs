@@ -73,6 +73,9 @@ export function hermetic(chromium) {
   const persistent = chromium.launchPersistentContext.bind(chromium);
   chromium.launchPersistentContext = (dir, options = {}) =>
     persistent(dir, { ...options, args: [...(options.args ?? []), ...guard] });
+  // a browser served to connect to (a harness that reads the browser process's own output: the desk lane)
+  const server = chromium.launchServer.bind(chromium);
+  chromium.launchServer = (options = {}) => server({ ...options, args: [...(options.args ?? []), ...guard] });
   chromium.__hermetic = true;
   return chromium;
 }

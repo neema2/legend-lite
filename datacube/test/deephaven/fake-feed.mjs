@@ -55,6 +55,8 @@ export async function fakeFeed({ everyMs = 250 } = {}) {
     open.add(conn);
     state.most = Math.max(state.most, open.size);
     const gone = () => { open.delete(conn); clearInterval(conn.timer); };
+    // the client's close: an http server's socket is half open (allowHalfOpen), so its end is said by 'end' alone
+    socket.on('end', () => { gone(); socket.end(); });
     socket.on('close', gone);
     socket.on('error', gone);
     const send = (text, parts = 1) => {

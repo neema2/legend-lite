@@ -164,7 +164,7 @@ class Rows {
     Table quotes() {
         int k = qId.size()
         return TableTools.newTable(
-                TableTools.stringCol('QUOTE_ID', qId as String[]),
+                TableTools.stringCol('QUOTE_ID', qId.toArray(new String[0])),
                 TableTools.instantCol('QUOTE_TIME', qTs as Instant[]),
                 TableTools.doubleCol('BID', qBid as double[]),
                 TableTools.doubleCol('ASK', qAsk as double[]),
@@ -175,26 +175,26 @@ class Rows {
                 TableTools.doubleCol('HIGH_PRICE', qHigh as double[]),
                 TableTools.doubleCol('LOW_PRICE', qLow as double[]),
                 TableTools.doubleCol('CLOSE_PRICE', qClose as double[]),
-                TableTools.stringCol('SOURCE', qSource as String[]),
+                TableTools.stringCol('SOURCE', qSource.toArray(new String[0])),
                 TableTools.col('IS_DELAYED', ([Boolean.FALSE] * k) as Boolean[]),
                 TableTools.stringCol('SNAPSHOT_ID', new String[k]),
-                TableTools.stringCol('INSTRUMENT_ID', qInstrument as String[]),
+                TableTools.stringCol('INSTRUMENT_ID', qInstrument.toArray(new String[0])),
                 TableTools.doubleCol('BID_SIZE', qBidSize as double[]),
                 TableTools.doubleCol('ASK_SIZE', qAskSize as double[]))
     }
 
     Table trades() {
         return TableTools.newTable(
-                TableTools.stringCol('PRINT_ID', tId as String[]),
+                TableTools.stringCol('PRINT_ID', tId.toArray(new String[0])),
                 TableTools.intCol('SEQUENCE_NUMBER', tSeq as int[]),
                 TableTools.instantCol('PRINT_TIME', tTs as Instant[]),
                 TableTools.doubleCol('PRICE', tPx as double[]),
                 TableTools.doubleCol('QUANTITY', tSz as double[]),
-                TableTools.stringCol('AGGRESSOR_SIDE', tSide as String[]),
-                TableTools.stringCol('VENUE', tVenue as String[]),
-                TableTools.stringCol('TRADE_CONDITION', tCondition as String[]),
+                TableTools.stringCol('AGGRESSOR_SIDE', tSide.toArray(new String[0])),
+                TableTools.stringCol('VENUE', tVenue.toArray(new String[0])),
+                TableTools.stringCol('TRADE_CONDITION', tCondition.toArray(new String[0])),
                 TableTools.col('IS_OFF_EXCHANGE', tOff as Boolean[]),
-                TableTools.stringCol('INSTRUMENT_ID', tInstrument as String[]))
+                TableTools.stringCol('INSTRUMENT_ID', tInstrument.toArray(new String[0])))
     }
 }
 
@@ -810,18 +810,18 @@ class Newsroom {
     /** The stories so far as NEWS_STORY's rows, in its order; the newsroom's buffer emptied. */
     Table table() {
         Table t = TableTools.newTable(
-                TableTools.stringCol('STORY_ID', id as String[]),
+                TableTools.stringCol('STORY_ID', id.toArray(new String[0])),
                 TableTools.instantCol('PUBLISH_TIME', ts as Instant[]),
-                TableTools.stringCol('HEADLINE', headline as String[]),
-                TableTools.stringCol('BODY', body as String[]),
-                TableTools.stringCol('SOURCE', source as String[]),
-                TableTools.stringCol('CATEGORY', category as String[]),
-                TableTools.stringCol('URGENCY', urgency as String[]),
+                TableTools.stringCol('HEADLINE', headline.toArray(new String[0])),
+                TableTools.stringCol('BODY', body.toArray(new String[0])),
+                TableTools.stringCol('SOURCE', source.toArray(new String[0])),
+                TableTools.stringCol('CATEGORY', category.toArray(new String[0])),
+                TableTools.stringCol('URGENCY', urgency.toArray(new String[0])),
                 TableTools.doubleCol('SENTIMENT', sentiment as double[]),
-                TableTools.stringCol('TICKERS', tickers as String[]),
-                TableTools.stringCol('REGION', region as String[]),
-                TableTools.stringCol('INSTRUMENT_ID', instrument as String[]),
-                TableTools.stringCol('SECTOR_ID', sector as String[]))
+                TableTools.stringCol('TICKERS', tickers.toArray(new String[0])),
+                TableTools.stringCol('REGION', region.toArray(new String[0])),
+                TableTools.stringCol('INSTRUMENT_ID', instrument.toArray(new String[0])),
+                TableTools.stringCol('SECTOR_ID', sector.toArray(new String[0])))
         [id, headline, body, source, category, urgency, tickers, region, instrument, sector].each { ((List) it).clear() }
         ts.clear()
         sentiment.clear()
@@ -1545,64 +1545,64 @@ class OrderRows {
     Table orders() {
         int k = orderId.size()
         return TableTools.newTable(
-                TableTools.stringCol('ORDER_ID', orderId as String[]),
+                TableTools.stringCol('ORDER_ID', orderId.toArray(new String[0])),
                 TableTools.col('ORDER_DATE', orderDate as java.time.LocalDate[]),
-                TableTools.stringCol('SIDE', side as String[]),
+                TableTools.stringCol('SIDE', side.toArray(new String[0])),
                 TableTools.doubleCol('QUANTITY', quantity as double[]),
                 TableTools.doubleCol('FILLED_QUANTITY', filled as double[]),
                 TableTools.doubleCol('REMAINING_QUANTITY', remaining as double[]),
                 TableTools.doubleCol('LIMIT_PRICE', limit as double[]),
                 TableTools.doubleCol('STOP_PRICE', ([NULL_DOUBLE] * k) as double[]),
-                TableTools.stringCol('TIME_IN_FORCE', tif as String[]),
-                TableTools.stringCol('STATUS', status as String[]),
+                TableTools.stringCol('TIME_IN_FORCE', tif.toArray(new String[0])),
+                TableTools.stringCol('STATUS', status.toArray(new String[0])),
                 TableTools.intCol('PRIORITY', priority as int[]),
                 TableTools.instantCol('CREATED_TIME', created as Instant[]),
                 TableTools.instantCol('LAST_MODIFIED_TIME', modified as Instant[]),
                 TableTools.col('EXPIRY_DATE', new java.time.LocalDate[k]),
                 TableTools.col('IS_ALGO_ORDER', algo as Boolean[]),
-                TableTools.stringCol('ALGO_STRATEGY', strategy as String[]),
-                TableTools.stringCol('INSTRUMENT_ID', instrument as String[]),
-                TableTools.stringCol('TRADER_ID', trader as String[]),
-                TableTools.stringCol('BOOK_ID', book as String[]))
+                TableTools.stringCol('ALGO_STRATEGY', strategy.toArray(new String[0])),
+                TableTools.stringCol('INSTRUMENT_ID', instrument.toArray(new String[0])),
+                TableTools.stringCol('TRADER_ID', trader.toArray(new String[0])),
+                TableTools.stringCol('BOOK_ID', book.toArray(new String[0])))
     }
 
     Table executions() {
         int k = execId.size()
         return TableTools.newTable(
-                TableTools.stringCol('EXECUTION_ID', execId as String[]),
+                TableTools.stringCol('EXECUTION_ID', execId.toArray(new String[0])),
                 TableTools.instantCol('EXECUTION_TIME', execTime as Instant[]),
                 TableTools.doubleCol('FILLED_QUANTITY', execQty as double[]),
                 TableTools.doubleCol('FILL_PRICE', execPx as double[]),
-                TableTools.stringCol('VENUE', execVenue as String[]),
-                TableTools.stringCol('BROKER', execBroker as String[]),
+                TableTools.stringCol('VENUE', execVenue.toArray(new String[0])),
+                TableTools.stringCol('BROKER', execBroker.toArray(new String[0])),
                 TableTools.doubleCol('COMMISSION', execCommission as double[]),
-                TableTools.stringCol('FILL_TYPE', execType as String[]),
-                TableTools.stringCol('EXECUTION_ALGO', execAlgo as String[]),
+                TableTools.stringCol('FILL_TYPE', execType.toArray(new String[0])),
+                TableTools.stringCol('EXECUTION_ALGO', execAlgo.toArray(new String[0])),
                 TableTools.doubleCol('ARRIVAL_PRICE', execArrival as double[]),
                 // the source keeps no slippage or impact of its own: the screens compute them, the database does
                 TableTools.doubleCol('SLIPPAGE', ([NULL_DOUBLE] * k) as double[]),
                 TableTools.doubleCol('MARKET_IMPACT', ([NULL_DOUBLE] * k) as double[]),
                 TableTools.col('IS_PARTIAL_FILL', execPartial as Boolean[]),
                 TableTools.intCol('SEQUENCE_NUMBER', execSeq as int[]),
-                TableTools.stringCol('LAST_MARKET', execMarket as String[]),
-                TableTools.stringCol('ORDER_ID', execOrder as String[]))
+                TableTools.stringCol('LAST_MARKET', execMarket.toArray(new String[0])),
+                TableTools.stringCol('ORDER_ID', execOrder.toArray(new String[0])))
     }
 
     Table routes() {
         return TableTools.newTable(
-                TableTools.stringCol('ROUTE_ID', routeId as String[]),
+                TableTools.stringCol('ROUTE_ID', routeId.toArray(new String[0])),
                 TableTools.instantCol('ROUTE_DATE', routeTime as Instant[]),
-                TableTools.stringCol('DESTINATION', routeDest as String[]),
+                TableTools.stringCol('DESTINATION', routeDest.toArray(new String[0])),
                 TableTools.doubleCol('ROUTE_QUANTITY', routeQty as double[]),
                 TableTools.doubleCol('ROUTED_PRICE', routePx as double[]),
-                TableTools.stringCol('STATUS', routeStatus as String[]),
-                TableTools.stringCol('ROUTE_TYPE', routeType as String[]),
+                TableTools.stringCol('STATUS', routeStatus.toArray(new String[0])),
+                TableTools.stringCol('ROUTE_TYPE', routeType.toArray(new String[0])),
                 TableTools.intCol('PRIORITY', routePriority as int[]),
                 TableTools.intCol('LATENCY_MS', routeLatency as int[]),
                 TableTools.col('IS_SMART_ROUTED', routeSmart as Boolean[]),
-                TableTools.stringCol('REJECT_REASON', routeReject as String[]),
-                TableTools.stringCol('BROKER', routeBroker as String[]),
-                TableTools.stringCol('ORDER_ID', routeOrder as String[]))
+                TableTools.stringCol('REJECT_REASON', routeReject.toArray(new String[0])),
+                TableTools.stringCol('BROKER', routeBroker.toArray(new String[0])),
+                TableTools.stringCol('ORDER_ID', routeOrder.toArray(new String[0])))
     }
 }
 
@@ -1631,20 +1631,20 @@ class RateRows {
     Table rates() {
         int k = id.size()
         return TableTools.newTable(
-                TableTools.stringCol('RATE_ID', id as String[]),
-                TableTools.stringCol('CURRENCY_PAIR', pair as String[]),
+                TableTools.stringCol('RATE_ID', id.toArray(new String[0])),
+                TableTools.stringCol('CURRENCY_PAIR', pair.toArray(new String[0])),
                 TableTools.doubleCol('SPOT_RATE', spot as double[]),
                 TableTools.doubleCol('BID_RATE', bid as double[]),
                 TableTools.doubleCol('ASK_RATE', ask as double[]),
                 TableTools.instantCol('RATE_DATE', at as Instant[]),
-                TableTools.stringCol('SOURCE', (['SIM'] * k) as String[]),
+                TableTools.stringCol('SOURCE', (['SIM'] * k).toArray(new String[0])),
                 TableTools.doubleCol('MID_RATE', spot as double[]),
                 TableTools.doubleCol('DAILY_CHANGE', change as double[]),
                 TableTools.doubleCol('DAILY_CHANGE_PCT', changePct as double[]),
                 TableTools.col('IS_OFFICIAL', ([Boolean.FALSE] * k) as Boolean[]),
                 TableTools.stringCol('FIXING_TIME', new String[k]),
                 TableTools.stringCol('SNAPSHOT_ID', new String[k]),
-                TableTools.stringCol('BASE_CURRENCY_CODE', base as String[]))
+                TableTools.stringCol('BASE_CURRENCY_CODE', base.toArray(new String[0])))
     }
 }
 
@@ -1677,19 +1677,19 @@ class RfqRows {
 
     Table rfqs() {
         return TableTools.newTable(
-                TableTools.stringCol('RFQ_ID', id as String[]),
+                TableTools.stringCol('RFQ_ID', id.toArray(new String[0])),
                 TableTools.instantCol('REQUEST_TIME', asked as Instant[]),
-                TableTools.stringCol('CURRENCY_PAIR', pair as String[]),
-                TableTools.stringCol('SIDE', side as String[]),
+                TableTools.stringCol('CURRENCY_PAIR', pair.toArray(new String[0])),
+                TableTools.stringCol('SIDE', side.toArray(new String[0])),
                 TableTools.doubleCol('NOTIONAL', notional as double[]),
-                TableTools.stringCol('TENOR', tenor as String[]),
+                TableTools.stringCol('TENOR', tenor.toArray(new String[0])),
                 TableTools.doubleCol('QUOTED_RATE', rate as double[]),
                 TableTools.doubleCol('SPREAD_BPS', spread as double[]),
-                TableTools.stringCol('STATUS', status as String[]),
+                TableTools.stringCol('STATUS', status.toArray(new String[0])),
                 TableTools.intCol('RESPONSE_TIME_MS', response as int[]),
                 TableTools.col('IS_HIT', hit as Boolean[]),
-                TableTools.stringCol('COUNTERPARTY_ID', client as String[]),
-                TableTools.stringCol('TRADER_ID', dealer as String[]))
+                TableTools.stringCol('COUNTERPARTY_ID', client.toArray(new String[0])),
+                TableTools.stringCol('TRADER_ID', dealer.toArray(new String[0])))
     }
 }
 
@@ -1876,7 +1876,7 @@ INSTRUMENT = TableTools.newTable(
         TableTools.col('LISTING_DATE', new java.time.LocalDate[nn]),
         TableTools.col('MATURITY_DATE', new java.time.LocalDate[nn]),
         TableTools.doubleCol('NOTIONAL_AMOUNT', ([io.deephaven.util.QueryConstants.NULL_DOUBLE] * nn) as double[]),
-        TableTools.stringCol('CURRENCY', (['USD'] * nn) as String[]),
+        TableTools.stringCol('CURRENCY', (['USD'] * nn).toArray(new String[0])),
         TableTools.stringCol('DESCRIPTION', names.collect { it.sector } as String[]),
         TableTools.col('ISSUE_DATE', new java.time.LocalDate[nn]),
         TableTools.stringCol('EQUITY_ID', names.collect { it.equityId } as String[]),
@@ -1887,7 +1887,7 @@ INSTRUMENT = TableTools.newTable(
         TableTools.stringCol('CDS_ID', nulls(nn)),
         TableTools.stringCol('STRUCTURED_PRODUCT_ID', nulls(nn)),
         TableTools.stringCol('ETF_ID', nulls(nn)),
-        TableTools.stringCol('CURRENCY_CODE', (['USD'] * nn) as String[]),
+        TableTools.stringCol('CURRENCY_CODE', (['USD'] * nn).toArray(new String[0])),
         TableTools.stringCol('EXCHANGE_MIC', names.collect { it.exchange } as String[]),
         TableTools.stringCol('SECTOR_ID', names.collect { it.sectorId } as String[]))
 
@@ -1896,7 +1896,7 @@ EQUITY = TableTools.newTable(
         TableTools.stringCol('EQUITY_ID', equities.collect { it.equityId } as String[]),
         TableTools.stringCol('TICKER', equities.collect { it.sym } as String[]),
         TableTools.stringCol('COMPANY_NAME', equities.collect { it.name + ' Inc.' } as String[]),
-        TableTools.stringCol('SHARE_CLASS', (['COMMON'] * ne) as String[]),
+        TableTools.stringCol('SHARE_CLASS', (['COMMON'] * ne).toArray(new String[0])),
         TableTools.doubleCol('MARKET_CAP', equities.collect { it.shares * it.prevClose } as double[]),
         TableTools.doubleCol('SHARES_OUTSTANDING', equities.collect { (double) it.shares } as double[]),
         // the facts the simulation does not move, from a draw of their own: a yield to 4%, an earnings multiple
@@ -2032,7 +2032,7 @@ DESKS.eachWithIndex { d, i ->
 }
 int nt = traderIds.size()
 TRADER = TableTools.newTable(
-        TableTools.stringCol('TRADER_ID', traderIds as String[]),
+        TableTools.stringCol('TRADER_ID', traderIds.toArray(new String[0])),
         TableTools.stringCol('FIRST_NAME', (0..<nt).collect { FIRST[it] } as String[]),
         TableTools.stringCol('LAST_NAME', (0..<nt).collect { LAST[it] } as String[]),
         TableTools.stringCol('BADGE', (0..<nt).collect { String.format('B%05d', 41000 + it * 37) } as String[]),
@@ -2041,7 +2041,7 @@ TRADER = TableTools.newTable(
         TableTools.stringCol('SENIORITY', (0..<nt).collect { SENIORITY[it % 3] } as String[]),
         TableTools.col('IS_ACTIVE', ([Boolean.TRUE] * nt) as Boolean[]),
         TableTools.stringCol('SPECIALIZATION', (0..<nt).collect { DESKS[it.intdiv(3)].name } as String[]),
-        TableTools.stringCol('LICENSE', (['Series 7'] * nt) as String[]),
+        TableTools.stringCol('LICENSE', (['Series 7'] * nt).toArray(new String[0])),
         TableTools.doubleCol('MAX_NOTIONAL', (0..<nt).collect { [5e7d, 2e7d, 1e7d][it % 3] } as double[]),
         TableTools.doubleCol('PNL_YTD', (0..<nt).collect { Math.round(bank.nextGaussian() * 2e6d) as double } as double[]),
         TableTools.stringCol('PHONE', new String[nt]),
@@ -2099,7 +2099,7 @@ OPTION = TableTools.newTable(
         TableTools.doubleCol('GAMMA', ([NULL_D] * no) as double[]),
         TableTools.doubleCol('THETA', ([NULL_D] * no) as double[]),
         TableTools.doubleCol('VEGA', ([NULL_D] * no) as double[]),
-        TableTools.stringCol('EXERCISE_STYLE', (['AMERICAN'] * no) as String[]),
+        TableTools.stringCol('EXERCISE_STYLE', (['AMERICAN'] * no).toArray(new String[0])),
         TableTools.col('IS_IN_THE_MONEY', optionRows.collect { it.itm } as Boolean[]),
         TableTools.doubleCol('UNDERLYING_PRICE', optionRows.collect { ((Name) it.underlying).prevClose } as double[]),
         TableTools.intCol('CONTRACT_SIZE', ([100] * no) as int[]),
@@ -2112,21 +2112,21 @@ INSTRUMENT = TableTools.merge(INSTRUMENT, TableTools.newTable(
         TableTools.stringCol('TICKER', optionRows.collect { it.ticker } as String[]),
         TableTools.stringCol('NAME', optionRows.collect { ((Name) it.underlying).sym + ' ' + it.expiry + ' ' + it.strike + ' ' + it.type } as String[]),
         TableTools.stringCol('ISIN', nulls(no)), TableTools.stringCol('CUSIP', nulls(no)), TableTools.stringCol('SEDOL', nulls(no)),
-        TableTools.stringCol('ASSET_CLASS', (['OPTION'] * no) as String[]),
-        TableTools.stringCol('PRODUCT_TYPE', (['LISTED_OPTION'] * no) as String[]),
+        TableTools.stringCol('ASSET_CLASS', (['OPTION'] * no).toArray(new String[0])),
+        TableTools.stringCol('PRODUCT_TYPE', (['LISTED_OPTION'] * no).toArray(new String[0])),
         TableTools.col('IS_ACTIVE', ([Boolean.TRUE] * no) as Boolean[]),
         TableTools.col('LISTING_DATE', new java.time.LocalDate[no]),
         TableTools.col('MATURITY_DATE', optionRows.collect { it.expiry } as java.time.LocalDate[]),
         TableTools.doubleCol('NOTIONAL_AMOUNT', ([NULL_D] * no) as double[]),
-        TableTools.stringCol('CURRENCY', (['USD'] * no) as String[]),
+        TableTools.stringCol('CURRENCY', (['USD'] * no).toArray(new String[0])),
         TableTools.stringCol('DESCRIPTION', optionRows.collect { ((Name) it.underlying).sector } as String[]),
         TableTools.col('ISSUE_DATE', new java.time.LocalDate[no]),
         TableTools.stringCol('EQUITY_ID', nulls(no)), TableTools.stringCol('BOND_ID', nulls(no)),
         TableTools.stringCol('FUTURE_ID', nulls(no)), TableTools.stringCol('FX_FORWARD_ID', nulls(no)),
         TableTools.stringCol('SWAP_ID', nulls(no)), TableTools.stringCol('CDS_ID', nulls(no)),
         TableTools.stringCol('STRUCTURED_PRODUCT_ID', nulls(no)), TableTools.stringCol('ETF_ID', nulls(no)),
-        TableTools.stringCol('CURRENCY_CODE', (['USD'] * no) as String[]),
-        TableTools.stringCol('EXCHANGE_MIC', (['XCBO'] * no) as String[]),
+        TableTools.stringCol('CURRENCY_CODE', (['USD'] * no).toArray(new String[0])),
+        TableTools.stringCol('EXCHANGE_MIC', (['XCBO'] * no).toArray(new String[0])),
         TableTools.stringCol('SECTOR_ID', optionRows.collect { ((Name) it.underlying).sectorId } as String[])))
 
 // each book's positions at the prior close: an equity book holds names of its desk's sectors (a market maker small
@@ -2159,7 +2159,7 @@ POSITION = TableTools.newTable(
         TableTools.doubleCol('MARKET_VALUE', positionRows.collect { it.qty * it.px * it.unit } as double[]),
         TableTools.doubleCol('UNREALIZED_PN_L', positionRows.collect { it.qty * (it.px - it.cost) * it.unit } as double[]),
         TableTools.doubleCol('REALIZED_PN_L', positionRows.collect { Math.round(bank.nextGaussian() * 2e4d) as double } as double[]),
-        TableTools.stringCol('CURRENCY', (['USD'] * np) as String[]),
+        TableTools.stringCol('CURRENCY', (['USD'] * np).toArray(new String[0])),
         TableTools.col('POSITION_DATE', ([yesterday] * np) as java.time.LocalDate[]),
         TableTools.stringCol('DIRECTION', positionRows.collect { it.qty >= 0 ? 'LONG' : 'SHORT' } as String[]),
         TableTools.doubleCol('COST_BASIS', positionRows.collect { it.qty * it.cost * it.unit } as double[]),
@@ -2178,12 +2178,12 @@ int nb = BOOKS.size()
 BOOK = TableTools.newTable(
         TableTools.stringCol('BOOK_ID', BOOKS.collect { it.id } as String[]),
         TableTools.stringCol('NAME', BOOKS.collect { it.name } as String[]),
-        TableTools.stringCol('BOOK_TYPE', (['TRADING'] * nb) as String[]),
-        TableTools.stringCol('CURRENCY', (['USD'] * nb) as String[]),
+        TableTools.stringCol('BOOK_TYPE', (['TRADING'] * nb).toArray(new String[0])),
+        TableTools.stringCol('CURRENCY', (['USD'] * nb).toArray(new String[0])),
         TableTools.col('IS_ACTIVE', ([Boolean.TRUE] * nb) as Boolean[]),
         TableTools.col('OPEN_DATE', ([java.time.LocalDate.of(2020, 1, 2)] * nb) as java.time.LocalDate[]),
         TableTools.col('CLOSE_DATE', new java.time.LocalDate[nb]),
-        TableTools.stringCol('LEGAL_ENTITY', (['LE-US'] * nb) as String[]),
+        TableTools.stringCol('LEGAL_ENTITY', (['LE-US'] * nb).toArray(new String[0])),
         TableTools.stringCol('STRATEGY', BOOKS.collect { it.strategy } as String[]),
         TableTools.doubleCol('PNL_YTD', BOOKS.collect { Math.round(bank.nextGaussian() * 3e6d) as double } as double[]),
         TableTools.intCol('POSITION_COUNT', BOOKS.collect { b -> positionRows.count { it.book == b.id } } as int[]),
@@ -2196,18 +2196,18 @@ int nd = DESKS.size()
 DESK = TableTools.newTable(
         TableTools.stringCol('DESK_ID', DESKS.collect { it.id } as String[]),
         TableTools.stringCol('NAME', DESKS.collect { it.name } as String[]),
-        TableTools.stringCol('DESK_TYPE', (['TRADING'] * nd) as String[]),
+        TableTools.stringCol('DESK_TYPE', (['TRADING'] * nd).toArray(new String[0])),
         TableTools.stringCol('ASSET_CLASS', DESKS.collect { it.asset } as String[]),
-        TableTools.stringCol('REGION', (['AMER'] * nd) as String[]),
+        TableTools.stringCol('REGION', (['AMER'] * nd).toArray(new String[0])),
         TableTools.col('IS_ACTIVE', ([Boolean.TRUE] * nd) as Boolean[]),
         TableTools.stringCol('HEAD_TRADER', DESKS.collect { deskTraders[it.id][0] } as String[]),
         TableTools.stringCol('COST_CENTER', (0..<nd).collect { 'CC-' + (110 + it) } as String[]),
-        TableTools.stringCol('FLOOR', (['7'] * nd) as String[]),
-        TableTools.stringCol('BUILDING', (['200 Market Street'] * nd) as String[]),
+        TableTools.stringCol('FLOOR', (['7'] * nd).toArray(new String[0])),
+        TableTools.stringCol('BUILDING', (['200 Market Street'] * nd).toArray(new String[0])),
         TableTools.stringCol('PHONE', new String[nd]),
         TableTools.doubleCol('RISK_LIMIT', DESKS.collect { Math.round(deskGross[it.id] * 1.5d / 1e6d) * 1e6d } as double[]),
         TableTools.doubleCol('PNL_TARGET', DESKS.collect { Math.round(deskGross[it.id] * 0.0005d / 1e3d) * 1e3d } as double[]),
-        TableTools.stringCol('BUSINESS_UNIT_ID', (['BU-MARKETS'] * nd) as String[]))
+        TableTools.stringCol('BUSINESS_UNIT_ID', (['BU-MARKETS'] * nd).toArray(new String[0])))
 
 // each desk's limits: its day's loss, set by how far its book moves in a day (a quarter of a percent of an equity desk's
 // gross, about a bad day's; crypto's and options' moves are wider), so a bad day breaches it; and its gross notional,
@@ -2228,11 +2228,11 @@ RISK_LIMIT = TableTools.newTable(
         // the source's utilisation is its end of day's: the screens compute it live
         TableTools.doubleCol('CURRENT_UTILIZATION', ([NULL_D] * nl) as double[]),
         TableTools.doubleCol('UTILIZATION_PCT', ([NULL_D] * nl) as double[]),
-        TableTools.stringCol('CURRENCY', (['USD'] * nl) as String[]),
+        TableTools.stringCol('CURRENCY', (['USD'] * nl).toArray(new String[0])),
         TableTools.col('EFFECTIVE_DATE', ([java.time.LocalDate.of(2026, 1, 2)] * nl) as java.time.LocalDate[]),
         TableTools.col('EXPIRY_DATE', new java.time.LocalDate[nl]),
-        TableTools.stringCol('STATUS', (['ACTIVE'] * nl) as String[]),
-        TableTools.stringCol('APPROVED_BY', (['CRO'] * nl) as String[]),
+        TableTools.stringCol('STATUS', (['ACTIVE'] * nl).toArray(new String[0])),
+        TableTools.stringCol('APPROVED_BY', (['CRO'] * nl).toArray(new String[0])),
         TableTools.col('APPROVAL_DATE', ([java.time.LocalDate.of(2025, 12, 15)] * nl) as java.time.LocalDate[]),
         TableTools.doubleCol('WARNING_THRESHOLD', ([0.8d] * nl) as double[]),
         TableTools.doubleCol('HARD_LIMIT', limitRows.collect { it.amount * 1.2d } as double[]),
@@ -2250,7 +2250,7 @@ CLIENTS = [['Aurora Capital', 'HEDGE_FUND', 'T1'], ['Bluewater Partners', 'HEDGE
 int nc = CLIENTS.size()
 clientIds = (0..<nc).collect { String.format('CP-%03d', it + 1) }
 COUNTERPARTY = TableTools.newTable(
-        TableTools.stringCol('COUNTERPARTY_ID', clientIds as String[]),
+        TableTools.stringCol('COUNTERPARTY_ID', clientIds.toArray(new String[0])),
         TableTools.stringCol('LEGAL_NAME', CLIENTS.collect { it[0] + ' Ltd' } as String[]),
         TableTools.stringCol('SHORT_NAME', CLIENTS.collect { it[0] } as String[]),
         TableTools.stringCol('LEI', (0..<nc).collect { String.format('5493%016d', 7_000_000_000L + it * 7919L) } as String[]),
@@ -2260,7 +2260,7 @@ COUNTERPARTY = TableTools.newTable(
         TableTools.col('IS_ACTIVE', ([Boolean.TRUE] * nc) as Boolean[]),
         TableTools.col('ONBOARD_DATE', (0..<nc).collect { java.time.LocalDate.of(2015 + it % 10, 1 + it % 12, 1) } as java.time.LocalDate[]),
         TableTools.stringCol('CREDIT_RATING', (0..<nc).collect { ['AA', 'A', 'BBB'][it % 3] } as String[]),
-        TableTools.stringCol('RATING_AGENCY', (['S&P'] * nc) as String[]),
+        TableTools.stringCol('RATING_AGENCY', (['S&P'] * nc).toArray(new String[0])),
         TableTools.stringCol('TIER', CLIENTS.collect { it[2] } as String[]),
         TableTools.stringCol('PARENT_ENTITY_ID', nulls(nc)),
         TableTools.stringCol('INDUSTRY', CLIENTS.collect { it[1] } as String[]),

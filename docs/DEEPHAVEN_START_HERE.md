@@ -149,6 +149,10 @@ about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointe
    budget). `MARKET_HISTORY=200000`: CPU 80-90%, cycle p50 ~41 ms, live heap ~1.1-1.3 GB, but only ~4 min of tape.
    Suggested: compute it for the picked name only, or an operator that removals do not recompute. **No cap becomes the
    default until this is fixed** (the user, 2026-10-28) -- see 5 for a commit that would make one.
+   *Read 2026-10-28, not changed:* the Stock tab's grids read `stock(alpha)` through a server base
+   (`src/server-base.ts`): the whole relation, every name's EMA, kept on the server, each pick a filter over it. The
+   picked name's alone needs the pick's filter below the window (a filter on the window's partition commutes with it)
+   and the base made per pick -- a DataCube design change, not a model edit.
 3. **Residual growth even when capped:** ~9-12 MB/min with the browser parked on one tab, `long[]` plus a growing
    number of `LongSegmentedSortedArray`. Likely the as-of joins' right sides on the 1 s / 5 s / 30 s marks (`t7__pt1`,
    `t10__pt5`, `t13__pt30`); not confirmed.
@@ -160,6 +164,11 @@ about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointe
    already refreshed. (Read on `589dcd96`, not run: the reconnect is shared by every grid of a server only while it
    runs -- `Server.#reconnecting` is cleared when it settles -- so a grid whose end arrives after that starts another,
    and `DeephavenEngine.reconnect` resets every reader and stops every shared following, `deephaven-engine.ts:351`.)
+   *Fixed 2026-10-28* (`engine-client/src/deephaven-engine.ts`): a session's or live connection's end is the server gone
+   only while it is the engine's own -- one a reconnect let go of ends as it closes, which had started another reconnect,
+   each resetting every reader -- and a window's wait refused before it is awaited is handled. Checked by
+   `//datacube:deephaven_desk_test`'s new restart: the page signs in again once, its first tab drawn and ticking 23 s
+   after the restart, nothing thrown.
 5. **The Coinbase feed splices messages after a sleep** (`market.groovy` `CoinbaseFeed`, line 838). `connect()` opens a
    new WebSocket every minute the feed looks quiet and never closes the old one; every socket shares one `partial`
    `StringBuilder` (line 842), so messages get spliced (timestamps like '2026-10-26T20:35:24.1est_4Z'). A splice that
@@ -174,14 +183,25 @@ about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointe
    splits, interleaves and corrupts messages: 4 of 6 checks fail on the old code, 6 of 6 pass) and `7f8b0ab0` (the
    hand tool keeps the latest 200,000 trades unless `MARKET_HISTORY` is set, its heap 1 GB). The second contradicts 2
    above: take `d9ebe018`, not `7f8b0ab0`, until the EMA is fixed.
+   *Fixed 2026-10-28, re-implemented here* (`market.groovy` `CoinbaseFeed`, `World.drain`): one socket at a time, the
+   one before let go first; each socket's message parts its own; a message unreadable or not placed skipped and counted
+   (the world's crypto status: "Coinbase Exchange (2 messages skipped)"), never the feed refused nor the beat lost. Not
+   taken: `7f8b0ab0`'s cap (2, above). Checked by a new `//datacube:deephaven_feed_test`: a hand-written fake feed
+   (`test/deephaven/fake-feed.mjs`) sends each message in three parts, one not JSON and a price not a number, then goes
+   quiet mid-message.
 6. **Each open desk page holds ~0.5 GB of server state**, and keeps it ~5 min after the page closes (the session
    timeout), so a reload briefly doubles it.
 7. **Minor:** `market.groovy`'s 148 `list as String[]` conversions each throw and catch a `GroovyRuntimeException`
    (~88/s; `toArray(new String[0])` avoids it). Allocation runs at ~540 MB/s, 60% of it `DoubleSparseArraySource`
    previous-value blocks under `SelectColumnLayer`: short pauses, but a tuning target.
+   *Fixed 2026-10-28:* the per-beat tables' 76 columns (quotes, trades, news, orders, fills, routes, FX, RFQs) are
+   `toArray(new String[0])`; the reference tables' conversions run once, at start.
 8. **Ops:** mkcert works on macOS: install it with Homebrew from the account that owns `/opt/homebrew`, then run
    `mkcert -install` from the demo's account, and the launcher needs no certificate accept. The desk launcher's 4g
    default (`DESK_HEAP`, `desk.mjs:27`) makes a long show fail: a larger default, or a warning when the heap nears full.
+   *Fixed 2026-10-28* (`desk.mjs`): the heap is half the machine's memory, 4g to 16g, unless `DESK_HEAP` says, and the
+   launcher says at start about how long a show runs on it at the world's defaults (from 1's rates: 4g ~44 min, 8g
+   ~2 h, 16g ~4 h).
 
 ## Gaps measured (2026-10-24)
 

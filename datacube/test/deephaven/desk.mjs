@@ -39,20 +39,23 @@ const ok = (what) => console.log(`ok   ${what}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let browser;
+let chrome;
 try {
-  // the browser's own lines, every one, to browser.log in the outputs, and its fatal ones here (a renderer that
-  // crashes says why there, nowhere else: 2026-10-28, the renderer crashed at Run On's switch with nothing said here)
-  const { appendFileSync } = await import('node:fs');
-  browser = await chromium.launch({
-    args: ['--enable-logging=stderr', '--v=0'],
-    logger: {
-      isEnabled: () => true,
-      log: (name, severity, message) => {
-        appendFileSync(join(outputs, 'browser.log'), `${new Date().toISOString()} ${name} ${severity} ${String(message)}\n`);
-        if (/FATAL|Check failed|crash|Received signal|OOM|out of memory|V8 error|Fatal/i.test(String(message))) console.log(`[browser] ${String(message).slice(0, 400)}`);
-      },
-    },
-  });
+  // the browser's own output, every line, to browser.log in the outputs, and its fatal lines here: a renderer that
+  // crashes says why there, nowhere else (2026-10-28: the renderer crashed at Run On's switch in 3 runs, no kernel kill,
+  // nothing said -- Playwright's logger never sees the browser's own output, its process does)
+  const { createWriteStream } = await import('node:fs');
+  chrome = await chromium.launchServer({ args: ['--enable-logging=stderr', '--log-level=1'] });
+  const said = createWriteStream(join(outputs, 'browser.log'));
+  for (const out of [chrome.process().stdout, chrome.process().stderr]) {
+    out?.on('data', (b) => {
+      said.write(b);
+      for (const line of String(b).split('\n')) {
+        if (/FATAL|Check failed|crash|Received signal|OOM|out of memory|V8 error/i.test(line)) console.log(`[browser] ${line.slice(0, 400)}`);
+      }
+    });
+  }
+  browser = await chromium.connect(chrome.wsEndpoint());
   const page = await (await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1680, height: 1050 } })).newPage();
   page.on('pageerror', (e) => fail(`page error: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[page ${m.type()}] ${m.text().slice(0, 300)}`); });
@@ -462,6 +465,7 @@ try {
   fail(String(e?.stack ?? e));
 } finally {
   await browser?.close();
+  await chrome?.close();
   site.close();
   await server.stop();
 }

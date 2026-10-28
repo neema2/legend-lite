@@ -82,10 +82,73 @@ class ReleasedVersionsTest {
     }
 
     @Test
+    void aWorkspaceStartsFromAReleasedVersion_eachElementAFileOfItsOwn_itsHashRecorded() {
+        ReleasedVersions r = released();
+        Sdlc sdlc = new Sdlc(new MemoryStorage(), "me", "Me", new CoreGrammar(), () -> 0L);
+        sdlc.released(r);
+        // the person's project at the release's coordinates made with it: none was there
+        Sdlc.Response made = sdlc.handle("POST", "/projects/demo:desk/workspaces/elsewhere", "{\"releasedVersion\":\"1.0.0\"}");
+        assertEquals(200, made.status(), made.body());
+        Json.Obj from = Json.parseObject(made.body()).getObj("releasedFrom");
+        assertEquals("1.0.0", from.getString("versionId"));
+        assertEquals(r.hash("demo", "desk", "1.0.0"), from.getString("hash"));
+        assertEquals(false, from.getBool("changed"));
+        // each element its own file: its section's header, then its text from the release's file, byte for byte
+        Sdlc.Response pure = sdlc.handle("GET", "/projects/demo:desk/workspaces/elsewhere/pure", null);
+        assertEquals(200, pure.status(), pure.body());
+        java.util.Map<String, String> texts = new java.util.TreeMap<>();
+        for (Json.Node n : ((Json.Arr) Json.parse(pure.body())).items()) texts.put(((Json.Obj) n).getString("path"), ((Json.Obj) n).getString("pureCode"));
+        assertEquals(java.util.Set.of("demo::Trade", "demo::DB", "demo::OnDeephaven"), texts.keySet());
+        assertEquals("###Pure\nClass demo::Trade { qty: Integer[1]; }\n", texts.get("demo::Trade"));
+        assertEquals("###Relational\nDatabase demo::DB ( Table TRADE (QTY INTEGER) )\n", texts.get("demo::DB"));
+        assertTrue(texts.get("demo::OnDeephaven").startsWith("###Connection\nRelationalDatabaseConnection demo::OnDeephaven\n"), texts.get("demo::OnDeephaven"));
+        assertTrue(texts.get("demo::OnDeephaven").endsWith("keyVaultReference: 'deephaven.psk'; };\n}\n"), texts.get("demo::OnDeephaven"));
+        // its entities read from those files, as any workspace's
+        Sdlc.Response entities = sdlc.handle("GET", "/projects/demo:desk/workspaces/elsewhere/entities", null);
+        assertEquals(200, entities.status(), entities.body());
+        assertEquals(3, ((Json.Arr) Json.parse(entities.body())).items().size());
+
+        // started again: refused, by name; a version the site does not release: refused, by name
+        Sdlc.Response again = sdlc.handle("POST", "/projects/demo:desk/workspaces/elsewhere", "{\"releasedVersion\":\"1.0.0\"}");
+        assertEquals(409, again.status(), again.body());
+        Sdlc.Response none = sdlc.handle("POST", "/projects/demo:desk/workspaces/other", "{\"releasedVersion\":\"9.9.9\"}");
+        assertEquals(404, none.status(), none.body());
+        assertTrue(none.body().contains("is not a version this model home's site releases"), none.body());
+
+        // the site changes the version under the same number: the workspace says so
+        r.add("demo", "desk", "1.0.0", List.of(new ReleasedVersions.File("desk/model.pure", MODEL + "\n")));
+        Sdlc.Response view = sdlc.handle("GET", "/projects/demo:desk/workspaces/elsewhere", null);
+        assertEquals(true, Json.parseObject(view.body()).getObj("releasedFrom").getBool("changed"), view.body());
+    }
+
+    @Test
+    void anElementWhoseSectionImportsWhatTheCompilerDoesNotIsRefusedByName() {
+        ReleasedVersions r = new ReleasedVersions(new CoreGrammar());
+        r.add("demo", "imports", "1.0.0", List.of(new ReleasedVersions.File("m.pure", """
+                ###Pure
+                import other::*;
+                Class demo::A { b: B[1]; }
+                """)));
+        Sdlc sdlc = new Sdlc(new MemoryStorage(), "me", "Me", new CoreGrammar(), () -> 0L);
+        sdlc.released(r);
+        Sdlc.Response refused = sdlc.handle("POST", "/projects/demo:imports/workspaces/w", "{\"releasedVersion\":\"1.0.0\"}");
+        assertEquals(400, refused.status(), refused.body());
+        assertTrue(refused.body().contains("demo::A's section imports other::*"), refused.body());
+        // the compiler's own imports are dropped, the element read the same
+        r.add("demo", "imports", "2.0.0", List.of(new ReleasedVersions.File("m.pure", """
+                ###Pure
+                import meta::pure::metamodel::type::*;
+                Class demo::A { b: String[1]; }
+                """)));
+        Sdlc.Response made = sdlc.handle("POST", "/projects/demo:imports/workspaces/w", "{\"releasedVersion\":\"2.0.0\"}");
+        assertEquals(200, made.status(), made.body());
+    }
+
+    @Test
     void depotAnswersAReleasedVersionBesideThePersonsOwn_andThePersonsNeverTakesItsCoordinates() {
         ReleasedVersions r = released();
         Sdlc sdlc = new Sdlc(new MemoryStorage(), "me", "Me", new CoreGrammar(), () -> 0L);
-        sdlc.releasedAt(r::holds);
+        sdlc.released(r);
         Sdlc.Response made = sdlc.handle("POST", "/projects",
                 "{\"name\":\"mine\",\"description\":\"\",\"groupId\":\"demo\",\"artifactId\":\"mine\"}");
         assertEquals(200, made.status(), made.body());

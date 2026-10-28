@@ -184,7 +184,7 @@ public final class SdlcServer {
         Sdlc sdlc = new Sdlc(repository, userId, userName, new CoreGrammar(), System::currentTimeMillis).backendType("git");
         ReleasedVersions released = new ReleasedVersions(new CoreGrammar());
         if (releases != null) readReleases(releases, released);
-        sdlc.releasedAt(released::holds);
+        sdlc.released(released);
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0);
         SdlcServer home = new SdlcServer(sdlc, repository, port, origins);
         server.createContext(ROOT + "/", home.handler());

@@ -29,7 +29,7 @@ public final class SdlcPage {
 
     private static Sdlc make(String userId, String name) {
         Sdlc made = new Sdlc(storage, userId, name, new CoreGrammar(), System::currentTimeMillis);
-        made.releasedAt(RELEASED::holds);
+        made.released(RELEASED);
         return made;
     }
 

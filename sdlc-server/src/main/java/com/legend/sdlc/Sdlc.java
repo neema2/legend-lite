@@ -46,7 +46,16 @@ public final class Sdlc {
 
         /** A whole model's compile errors, every one, as legend-lite's {@code compilation/compile} finds them: none when it compiles. */
         List<String> compile(String model);
+
+        /** {@link #modelJson} with each element's {@code sourceInformation}: its span, in lines and columns from 1. */
+        String modelJsonWithSpans(String text);
+
+        /** The packages every element resolves through without importing them (the compiler's own imports). */
+        List<String> importedByItself();
     }
+
+    /** An element's path and the text of its own file. */
+    public record ElementText(String path, String pureCode) {}
 
     /** The project structure every project here declares (upstream's latest; the layout itself is lite's, S5). */
     private static final int STRUCTURE_VERSION = 13;
@@ -86,15 +95,14 @@ public final class Sdlc {
         this.clock = clock;
     }
 
-    /** The versions the model home's site releases, by {@code group:artifact:version} ({@link ReleasedVersions}): none
-     *  until told. */
-    private java.util.function.Predicate<String> released = gav -> false;
+    /** The versions the model home's site releases ({@link ReleasedVersions}): none until told. */
+    private @Nullable ReleasedVersions released;
 
     /**
      * The versions the site releases (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): a person's version is never made at
-     * one's coordinates -- the two layers never answer for the same version.
+     * one's coordinates -- the two layers never answer for the same version -- and a workspace may start from one.
      */
-    public void releasedAt(java.util.function.Predicate<String> released) {
+    public void released(ReleasedVersions released) {
         this.released = released;
     }
 
@@ -221,12 +229,17 @@ public final class Sdlc {
                         return ok(workspaceView(p, w));
                     }
                     case "POST" -> {
+                        // lite's own (D5): a workspace started from a version the site releases, named in the body
+                        if (parse(body) instanceof Json.Obj made && made.getOr("releasedVersion", null) instanceof Json.Str v) {
+                            return ok(workspaceFromRelease(p, w, v.value()));
+                        }
                         return ok(createWorkspace(p, w));
                     }
                     case "DELETE" -> {
                         // upstream: deleting what is not there succeeds (contract quirk 3); its conflict resolution goes too
                         storage.delete(workspaceRef(p, w));
                         storage.delete(conflictRef(p, w));
+                        storage.delete(releasedFromRef(p, w));
                         return new Response(204, null);
                     }
                     default -> throw new Refusal("HTTP 405 Method Not Allowed", 405);
@@ -341,6 +354,12 @@ public final class Sdlc {
     }
 
     /** A workspace's conflict resolution (upstream's CONFLICT_RESOLUTION access type): its own head while it lasts. */
+    /** The released version a workspace started from, and its hash then (D5). */
+    private String releasedFromRef(String p, String w) {
+        if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
+        return "ref/" + checked(p) + "/releasedFrom/" + userId + "/" + w;
+    }
+
     private String conflictRef(String p, String w) {
         if (!WORKSPACE_ID.matcher(w).matches()) throw invalidWorkspace(w);
         return "ref/" + checked(p) + "/conflictResolution/" + userId + "/" + w;
@@ -435,7 +454,18 @@ public final class Sdlc {
     }
 
     private Map<String, Object> workspaceView(String p, String w) {
-        return map("projectId", p, "userId", userId, "workspaceId", w);
+        Map<String, Object> view = map("projectId", p, "userId", userId, "workspaceId", w);
+        // lite's (D5): the released version it started from, and whether the site has changed it under the same number
+        String from = storage.get(releasedFromRef(p, w));
+        if (from != null) {
+            Json.Obj f = Json.parseObject(from);
+            String versionId = f.getString("versionId");
+            int colon = p.indexOf(':');
+            String now = released == null ? null : released.hash(p.substring(0, colon), p.substring(colon + 1), versionId);
+            view.put("releasedFrom", map("versionId", versionId, "hash", f.getString("hash"),
+                    "changed", now == null || !now.equals(f.getString("hash"))));
+        }
+        return view;
     }
 
     /** A revision's {@code project.json}. */
@@ -566,6 +596,46 @@ public final class Sdlc {
             throw new Refusal("Error creating " + wsOf(p, w) + ": Branch already exists", 500);
         }
         if (existing == null) storage.put(workspaceRef(p, w), line);
+        return workspaceView(p, w);
+    }
+
+    /**
+     * A workspace started from version {@code versionId} of the site's release of project {@code p}
+     * (docs/ONE_CONNECTION_DESK_2026_10_28.md D5: editing a released version starts a workspace from it, as Studio
+     * does): the person's project at the release's coordinates made first when there is none, then the workspace, its
+     * first commit the version's elements, one file each, and the version's hash recorded with it -- a version the site
+     * changes under the same number is said by the workspace ({@code releasedFrom.changed}). Refused, by name, for a
+     * version the site does not release, and for a workspace that is there already.
+     */
+    private Map<String, Object> workspaceFromRelease(String p, String w, String versionId) {
+        int colon = p.indexOf(':');
+        String groupId = colon < 0 ? p : p.substring(0, colon);
+        String artifactId = colon < 0 ? "" : p.substring(colon + 1);
+        ReleasedVersions site = released;
+        String hash = site == null ? null : site.hash(groupId, artifactId, versionId);
+        if (site == null || hash == null) {
+            throw new Refusal("Version " + versionId + " of " + p + " is not a version this model home's site releases", 404);
+        }
+        @Nullable List<ElementText> elements;
+        try {
+            elements = site.elements(groupId, artifactId, versionId);
+        } catch (RuntimeException e) {
+            throw new Refusal("Version " + versionId + " of " + p + " cannot start a workspace: " + e.getMessage(), 400);
+        }
+        if (elements == null) throw new Refusal("Version " + versionId + " of " + p + " is not a version this model home's site releases", 404);
+        if (!isProjectId(p)) throw new Refusal("Invalid project: " + p, 400);
+        if (storage.get(projectKey(p)) == null) {
+            createProject(Json.parse(Json.toCompact(map("name", artifactId, "description", "Version " + versionId
+                    + " of " + p + ", released by this model home's site", "groupId", groupId, "artifactId", artifactId))));
+        }
+        if (storage.get(workspaceRef(p, w)) != null) throw new Refusal("Error creating " + wsOf(p, w) + ": workspace " + w + " already exists", 409);
+        createWorkspace(p, w);
+        List<PureOp> ops = new ArrayList<>();
+        for (ElementText e : elements) ops.add(new PureOp("CREATE", e.path(), e.pureCode()));
+        // made at the line's head (createWorkspace): the version's elements its first commit
+        String next = applyPure(lineHead(p), ops, "Started from version " + versionId + " of " + p);
+        if (next != null) storage.put(workspaceRef(p, w), next);
+        storage.put(releasedFromRef(p, w), Json.toCompact(map("versionId", versionId, "hash", hash)));
         return workspaceView(p, w);
     }
 
@@ -1121,7 +1191,7 @@ public final class Sdlc {
             default -> new int[] {latest[0], latest[1], latest[2] + 1};
         };
         String v = versionText(next);
-        if (released.test(p + ":" + v)) {
+        if (released != null && released.holds(p + ":" + v)) {
             throw new Refusal("Version " + v + " of project " + p + " is a version this model home's site releases: "
                     + "a version of one's own takes other coordinates", 409);
         }

@@ -18,7 +18,7 @@ import java.util.function.Supplier;
  * version loaded from the site's files at every open -- the page's from its configuration's releases folder, a server's
  * from the same folder -- and never written to a storage, so a site's update is never shadowed by an old copy. Depot
  * reads it beside the SDLC's own versions ({@link #over}), a released version first; the SDLC refuses a person's version
- * at a released version's coordinates ({@link Sdlc#releasedAt}), so the two never answer for the same version.
+ * at a released version's coordinates ({@link Sdlc#released}), so the two never answer for the same version.
  *
  * <p>A version's files are kept as the site gives them -- a file may hold many elements, as a site's do -- and its
  * entities read from them by the model home's grammar at lite's dialect (D1: a file holding lite's own connection words
@@ -31,7 +31,7 @@ public final class ReleasedVersions implements ArtifactSource {
     /** A file of a version: its path in the release and its Pure text. */
     public record File(String path, String pureCode) {}
 
-    private record Version(Release release, String hash) {}
+    private record Version(Release release, String hash, List<File> files) {}
 
     /** A version's entities, read from its files when first asked for and kept. */
     private static final class Entities implements Supplier<String> {
@@ -119,7 +119,75 @@ public final class ReleasedVersions implements ArtifactSource {
         }
         String hash = Sha1.hex(Sha1.digest(all.toString().getBytes(StandardCharsets.UTF_8)));
         Entities entities = new Entities(grammar, "version " + versionId + " of " + groupId + ":" + artifactId, List.copyOf(files));
-        versions.put(key(groupId, artifactId, versionId), new Version(new Release(List.of(), entities, Json.toCompact(texts)), hash));
+        versions.put(key(groupId, artifactId, versionId), new Version(new Release(List.of(), entities, Json.toCompact(texts)), hash, List.copyOf(files)));
+    }
+
+    /**
+     * A released version's elements, each the text of a file of its own (a workspace started from it: {@link Sdlc}),
+     * read from its files by their spans; null when none is released at those coordinates. Refused, by name, for a file
+     * the grammar cannot read or an element whose section imports what a file of one element cannot hold.
+     */
+    public @Nullable List<Sdlc.ElementText> elements(String groupId, String artifactId, String versionId) {
+        Version v = versions.get(key(groupId, artifactId, versionId));
+        if (v == null) return null;
+        List<Sdlc.ElementText> out = new ArrayList<>();
+        for (File f : v.files()) {
+            try {
+                out.addAll(elementsOf(grammar, f.pureCode()));
+            } catch (RuntimeException e) {
+                throw new IllegalArgumentException(f.path() + ": " + (e.getMessage() == null ? e.getClass().getName() : e.getMessage()), e);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Each element of {@code text} as a file of its own, one element per file as the SDLC keeps them:
+     * {@code ###<its section's parser>}, then its own text, byte for byte from its span. A section's imports are dropped
+     * only where the compiler imports them by itself; any other is refused by name (a file of one element holds none).
+     */
+    static List<Sdlc.ElementText> elementsOf(Sdlc.Grammar grammar, String text) {
+        Json.Obj model = Json.parseObject(grammar.modelJsonWithSpans(text));
+        List<String> byItself = grammar.importedByItself();
+        // each element's section: its parser and its imports
+        Map<String, Json.Obj> sectionOf = new java.util.HashMap<>();
+        List<Json.Obj> elements = new ArrayList<>();
+        for (Json.Node n : model.getArr("elements").items()) {
+            Json.Obj e = (Json.Obj) n;
+            if (!"sectionIndex".equals(e.getStringOr("_type", null))) {
+                elements.add(e);
+                continue;
+            }
+            for (Json.Node sec : e.getArr("sections").items()) {
+                for (Json.Node path : ((Json.Obj) sec).getArr("elements").items()) {
+                    if (path instanceof Json.Str p) sectionOf.put(p.value(), (Json.Obj) sec);
+                }
+            }
+        }
+        List<Integer> lineStarts = new ArrayList<>();
+        lineStarts.add(0);
+        for (int i = 0; i < text.length(); i++) if (text.charAt(i) == '\n') lineStarts.add(i + 1);
+        List<Sdlc.ElementText> out = new ArrayList<>();
+        for (Json.Obj e : elements) {
+            String path = e.getStringOr("package", null) + "::" + e.getStringOr("name", null);
+            Json.Obj section = sectionOf.get(path);
+            if (section == null) throw new IllegalArgumentException(path + " is in no section of its file");
+            Json.Arr imports = section.getArrOr("imports", null);
+            if (imports != null) {
+                for (Json.Node i : imports.items()) {
+                    String imported = ((Json.Str) i).value();
+                    if (!byItself.contains(imported)) {
+                        throw new IllegalArgumentException(path + "'s section imports " + imported
+                                + "::*, which a file of one element cannot hold: name what it uses by its full path");
+                    }
+                }
+            }
+            Json.Obj span = e.getObj("sourceInformation");
+            int from = lineStarts.get(span.getInt("startLine") - 1) + span.getInt("startColumn") - 1;
+            int to = lineStarts.get(span.getInt("endLine") - 1) + span.getInt("endColumn");
+            out.add(new Sdlc.ElementText(path, "###" + section.getString("parserName") + "\n" + text.substring(from, to) + "\n"));
+        }
+        return out;
     }
 
     /** Whether {@code group:artifact:version} is a version released here. */

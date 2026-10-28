@@ -23,6 +23,18 @@ public final class CoreGrammar implements Sdlc.Grammar {
         return com.legend.parser.PmcdParser.parseLiteDocument(text, false);
     }
 
+    /** {@link #modelJson} with each element's span (its first character to its last, in lines and columns from 1). */
+    @Override
+    public String modelJsonWithSpans(String text) {
+        return com.legend.parser.PmcdParser.parseLiteDocument(text, true);
+    }
+
+    /** The packages every element resolves through without importing them ({@link com.legend.compiler.CoreImports}). */
+    @Override
+    public List<String> importedByItself() {
+        return com.legend.compiler.CoreImports.SEQUENCE;
+    }
+
     @Override
     public List<String> compile(String model) {
         try {
