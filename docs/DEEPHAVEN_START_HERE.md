@@ -211,6 +211,13 @@ about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointe
    so a heap access, not a WebAssembly bounds trap. When: as the tab's DuckDB starts its market (the switch to the
    tab) or just after. Not chased further: a browser engine fault on that path; the next step is the same switch in a
    smaller page (DuckDB started beside a Deephaven reader), then a Chromium bug with the trace.
+   *Gone with the switch (2026-10-28, the user):* Run On ▸ is replaced by Open With ▸, which opens the saved page on
+   the other context in a tab of its own (docs/ONE_CONNECTION_DESK_2026_10_28.md, step 4): 3 runs of 3 passed, no
+   crash, the other tab in its own renderer. The fault itself was not found: a page that starts the tab's DuckDB
+   beside a live Deephaven reader may still meet it.
+10. **A linked view not following a pick within 30 s, sometimes** (2026-10-28, 1 run of 3, the first after a container
+   restart, the desk opened slowly: 12.8 s): the Stock tab's news cards stayed 9 against their grid's 8 rows, and
+   News's chart beside the panes did not move to the ticker clicked. No page error. Not chased yet.
 
 ## Gaps measured (2026-10-24)
 
