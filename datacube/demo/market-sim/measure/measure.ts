@@ -154,7 +154,7 @@ async function main(): Promise<void> {
   // EACH TILE'S QUERY: its cube opened by the app's rule, its first view's query by the app's builders, planned
   say('each tile planned');
   const tPlan = performance.now();
-  // the model's elements read once, as the app's host reads them (market/host.ts `elements`)
+  // the model's elements read once, as the page's services read them (src/services/browser.ts `tabEngines`)
   const elements = planner.modelElements(model);
   const reading = { elements: async (t: string) => (t === model ? elements : planner.modelElements(t)), parse: (t: string) => planner.parse(t) };
   const cubes = new Map<string, { doc: CubeDocument; planner: LitePlanner; snapshot: ReturnType<typeof openCube>['snapshot'] }>();

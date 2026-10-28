@@ -1699,8 +1699,9 @@ copy_to_directory(
     root_paths = ["query/demo/models"],
 )
 
-# THE TRADING DESK LIVE IN THE TAB (demo/market-sim/local-host.ts, docs/DUCKDB_LIVE_2026_10_25.md L3): its two models
-# served beside the page -- the one trading model and the desk's own -- fetched only when the desk is opened.
+# THE TRADING DESK'S PROJECT (demo/deephaven/market/desk.ts; docs/DUCKDB_LIVE_2026_10_25.md L3,
+# docs/ONE_CONNECTION_DESK_2026_10_28.md): its files served beside the page -- the one trading model, the desk's own and
+# its environments -- fetched only when the desk or a saved page of it is opened.
 copy_file(
     name = "site_trading_model",
     src = "//scripts/corpus:trading_model",
@@ -2407,10 +2408,12 @@ browser_test(
 )
 
 # THE TRADING DESK IN DATACUBE ITSELF (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trading desk; the user,
-# 2026-10-25): DataCube's own site (:site, as :serve serves it) with its config.json naming the market world's Deephaven,
-# so the tab's own page opens the trading desk -- one saved page, ten tabs -- and lists it first under Open…'s Examples
-# (demo/deephaven/market/host.ts). The market's code is a chunk of the page's own bundle, fetched only where a market is
-# named.
+# 2026-10-25): DataCube's own site (:site, as :serve serves it) with its config.json holding the market world's
+# Deephaven's test key in its vault and running the desk's data space on its Deephaven context, so the tab's own page
+# opens the trading desk -- one saved page, ten tabs -- on that server, and lists it first under Open…'s Examples. Where
+# its grids run is DataCube's, by the runtime's connections (src/runtime-engines.ts, src/deephaven-grids.ts:
+# docs/ONE_CONNECTION_DESK_2026_10_28.md step 5); the Deephaven grids' code is a chunk fetched when a model names a
+# server.
 _DEEPHAVEN_DESK_DATA = _HARNESS_HELPERS + [
     "demo/deephaven/market/desk-site.mjs",
     # the desk's environments, served beside the page as this site's copy (its server's port: desk-site.mjs)

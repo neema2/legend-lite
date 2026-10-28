@@ -21,7 +21,7 @@ import type { PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { familyOf, hasTimeOfDay, isDay, isFloat, isFractional, isNumeric } from '../../engine-client/src/types.ts';
 import { accessor, toJson, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from './lite-planner.ts';
-import { sourceWithDerived, type LevelScope } from './query.ts';
+import type { LevelScope } from './query.ts';
 import { PlanThenRun, QueryFailure, rebased, type QueryRunner, type RunOutcome, type RunWindow } from './runner.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
@@ -44,6 +44,12 @@ export interface ServerBaseOptions {
    * there, by name.
    */
   readonly connectionOf?: (store: string) => string;
+  /**
+   * A grid's base as its snapshot writes it: its source and its leaf-level calculated columns (query.ts
+   * `sourceWithDerived`). Handed in by the page, whose own code it is: so the code of a server's grids (deephaven-grids.ts,
+   * a chunk fetched when a model names a server) reaches none of the query writer the page starts with.
+   */
+  readonly baseOf: (snapshot: CubeSnapshot) => { lambda(): Lambda; readonly node: ValueSpecification };
 }
 
 /** A base as the page holds it: the table the server keeps it in -- or null, its columns no table declares, so its
@@ -107,6 +113,11 @@ export class ServerBases {
     return [...this.#declared.keys()];
   }
 
+  /** A grid's base as its snapshot writes it (`ServerBaseOptions.baseOf`). */
+  baseOf(snapshot: CubeSnapshot): { lambda(): Lambda; readonly node: ValueSpecification } {
+    return this.#options.baseOf(snapshot);
+  }
+
   /** A grid's runner: its queries planned by the page's planner -- read from a base, by the bases' own, when they have
    *  one -- and run by `reader`, its own. */
   runner(reader: QueryEngine = this.#engine): ServerBaseRunner {
@@ -160,7 +171,7 @@ export class ServerBases {
 
   /** `snapshot`'s base made on the server, stored, and declared as a table of the bases' model. */
   async #make(snapshot: CubeSnapshot): Promise<MadeBase> {
-    const lambda = sourceWithDerived(snapshot).lambda();
+    const lambda = this.#options.baseOf(snapshot).lambda();
     const plan = await this.#planner.plan(lambda);
     // a column the lowering never leaves null is declared so: no null guard, no null flag on a sort by it (G1)
     const nullable = await this.#planner.nullable(lambda);
@@ -278,7 +289,7 @@ export class ServerBaseRunner implements QueryRunner {
    * nothing followed into the page meanwhile).
    */
   async warm(snapshot: CubeSnapshot): Promise<void> {
-    await this.#on(sourceWithDerived(snapshot).lambda(), snapshot);
+    await this.#on(this.#bases.baseOf(snapshot).lambda(), snapshot);
   }
 
   async stream(query: Lambda, snapshot: CubeSnapshot, onChunk: (chunk: ResultTable) => void,
@@ -305,7 +316,7 @@ export class ServerBaseRunner implements QueryRunner {
 
   /** The runner for `snapshot`'s base: the page's, held for this grid while its grid or a chart of it reads it. */
   async #on(query: Lambda, snapshot: CubeSnapshot): Promise<QueryRunner> {
-    const live = sourceWithDerived(snapshot).node;
+    const live = this.#bases.baseOf(snapshot).node;
     const key = toJson(live);
     let base: Base;
     try {

@@ -38,26 +38,16 @@ export interface PageConfig {
    */
   readonly vendor: string;
   /**
-   * A market world's Deephaven server, which the page's saved queries over the one trading model run on, ticking
-   * (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trading desk): its address, the test server's pre-shared key, and
-   * where the trading model is served. Open…'s Examples then hold the trading desk. Absent: no market (the site's own
-   * config.json names none; the market's site serves one that does).
+   * THE PAGE'S VAULT: a server's key by the vault reference its connection names (a Deephaven connection's
+   * `PreSharedKey { keyVaultReference: ... }`, docs/ONE_CONNECTION_DESK_2026_10_28.md step 5) -- a test server's key,
+   * never a production one (a sign-in prompt: later). Empty: none, and a grid on such a server says so.
    */
-  readonly market?: MarketConfig;
-}
-
-export interface MarketConfig {
-  /** The server, `https://host:port` (its TLS certificate the test server's own). */
-  readonly url: string;
-  /** Its pre-shared key: a test server's, never a production one. */
-  readonly psk: string;
-  /** The one trading model's text (//scripts/corpus:trading_model), by URL relative to config.json. */
-  readonly model: string;
-  /** The desk's own model (demo/deephaven/market/market.pure: the screens' functions), likewise. */
-  readonly deskModel: string;
-  /** The desk's environments (demo/deephaven/market/environments.pure: its data space's contexts, the server's
-   *  connections among them), likewise -- a test's own copy, its server's port in the Deephaven context. */
-  readonly environments: string;
+  readonly vault: Readonly<Record<string, string>>;
+  /**
+   * The execution context each data space runs on here, by the data space's path, where the deployment's is not the data
+   * space's default (D2): what a page written here (an example: the trading desk) runs on. Empty: every default.
+   */
+  readonly contexts: Readonly<Record<string, string>>;
 }
 
 export interface DepotConfig {
@@ -77,7 +67,9 @@ export interface ProjectConfig {
   readonly models: readonly string[];
 }
 
-const EMPTY: PageConfig = { legendLite: '', legendEngine: '', warehouse: '', queryStore: '', user: '', projects: [], vendor: './vendor/' };
+const EMPTY: PageConfig = {
+  legendLite: '', legendEngine: '', warehouse: '', queryStore: '', user: '', projects: [], vendor: './vendor/', vault: {}, contexts: {},
+};
 
 const texts = (v: unknown): string[] => (Array.isArray(v) ? v.map(text).filter((t) => t !== '') : []);
 
@@ -100,18 +92,10 @@ function projects(v: unknown, base: string): ProjectConfig[] {
 }
 
 
-/** `market`, when it names a server, its key, the trading model, the desk's own and its environments; a malformed one
- *  is left out, not guessed at. */
-function market(v: unknown, base: string): MarketConfig | undefined {
-  if (typeof v !== 'object' || v === null) return undefined;
-  const o = v as Record<string, unknown>;
-  const [url, psk, model, deskModel, environments] = [text(o['url']), text(o['psk']), text(o['model']),
-    text(o['deskModel']), text(o['environments'])];
-  if (!url || !psk || !model || !deskModel || !environments) return undefined;
-  return {
-    url, psk, model: new URL(model, base).href, deskModel: new URL(deskModel, base).href,
-    environments: new URL(environments, base).href,
-  };
+/** A JSON object of texts (`vault`, `contexts`): an entry whose value is not a text is left out, not guessed at. */
+function textsByName(v: unknown): Record<string, string> {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return {};
+  return Object.fromEntries(Object.entries(v).map(([k, t]) => [k, text(t)] as const).filter(([, t]) => t !== ''));
 }
 
 /** `depot`, when it names an SDLC (`"page"` or a URL). */
@@ -141,13 +125,12 @@ export async function pageConfig(location: Location = window.location): Promise<
     if (r.ok) {
       const raw = await r.json() as Record<string, unknown>;
       const byName = depot(raw['depot']);
-      const live = market(raw['market'], url.href);
       file = {
         legendLite: text(raw['legendLite']), legendEngine: text(raw['legendEngine']), warehouse: text(raw['warehouse']),
         queryStore: text(raw['queryStore']), user: text(raw['user']), projects: projects(raw['projects'], url.href),
         vendor: text(raw['vendor']) || EMPTY.vendor,
+        vault: textsByName(raw['vault']), contexts: textsByName(raw['contexts']),
         ...(byName ? { depot: byName } : {}),
-        ...(live ? { market: live } : {}),
       };
     }
   } catch {
@@ -162,7 +145,8 @@ export async function pageConfig(location: Location = window.location): Promise<
     user: file.user,
     projects: file.projects,
     vendor: file.vendor,
+    vault: file.vault,
+    contexts: file.contexts,
     ...(file.depot ? { depot: file.depot } : {}),
-    ...(file.market ? { market: file.market } : {}),
   };
 }

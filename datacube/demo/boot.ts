@@ -19,10 +19,9 @@ import type { ProjectDataSource } from '../../engine-client/src/project-data.ts'
 import { mountRemote } from '../src/remote.ts';
 import { isPageFragment } from '../src/share/link.ts';
 import type { TableModels } from '../src/infer.ts';
-import { pageConfig, type MarketConfig } from './page-config.ts';
-// the tab's planner's class, which the tab loads at its start (planners.ts): the market's planner is one of its own
+import { pageConfig } from './page-config.ts';
+// the tab's planner's class, which the tab loads at its start (planners.ts): the trading desk's market is planned by it
 import { LitePlanner } from '../src/lite-planner.ts';
-import type { Market } from './deephaven/market/desk.ts';
 import { browserServices } from '../src/services/browser.ts';
 import { openDataCube } from '../src/app/datacube-app.ts';
 import type { PlaneService, PlaneWord, Sample, Services } from '../src/app/services.ts';
@@ -193,6 +192,9 @@ export interface Engine {
    * module, loaded when first asked, beside a planner on a server (planners.ts).
    */
   readonly tables: TableModels;
+  /** legend-lite's module in this tab, the same as `tables`: what plans a query on a Deephaven server (its wire is the
+   *  module's, DH11), whichever planner the page chose. */
+  readonly module: LitePlanner;
   /**
    * legend-lite's planner in this tab for a project's own database (a saved query opened by name; C5): the statements
    * that make, fill and drop it (engine-client's project-data.ts) -- the same module as `tables`.
@@ -295,16 +297,11 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   // the deployment's settings (config.json, the address's overrides), read once: the services hold what they say
   const configured = pageConfig();
   configured.catch(() => {});
-  // A MARKET, where the deployment names one (page-config.ts `market`: the market world's site serves it): its Deephaven
-  // signed in to and its model held by the page's module -- its code a chunk of its own, never fetched without one --
-  // begun once the planner is, beside the tab's DuckDB, which it needs nothing of (the trading desk's model held 3 s,
-  // waiting on DuckDB's start before: 2026-10-26)
-  const marketOpened = Promise.all([configured, engineReady]).then(([config, chosen]) =>
-    config.market ? openMarket(config.market, chosen.planner, config.vendor) : undefined);
-  marketOpened.catch(() => {});
-  // ...and where it names none, the market in this tab's code (market-sim/local-host.ts), fetched beside DuckDB's start
-  const localMarketCode = configured.then((config) => (config.market ? undefined : import('./market-sim/local-host.ts')));
-  localMarketCode.catch(() => {});
+  // THE TRADING DESK's code (deephaven/market/desk.ts: its project, its example, the market in this tab until the Market
+  // data source), a chunk of its own fetched beside DuckDB's start -- where its grids run is DataCube's, by its runtime's
+  // connections (docs/ONE_CONNECTION_DESK_2026_10_28.md step 5)
+  const deskCode = import('./market-sim/local-host.ts');
+  deskCode.catch(() => {});
   status.textContent = 'starting DuckDB and the planner…';
 
   // the one start of a tab's DuckDB (engine-client's startDuckDbInTab): its files and extensions from ./vendor/, its
@@ -369,13 +366,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   const { planner, source, label } = chosen;
   status.textContent = label;
   const config = await configured;
-  // the market world's server where the deployment names one; else the desk over a market run in this tab, started only
-  // when the desk is opened (demo/market-sim/local-host.ts: DataCube's static site, no config at all)
-  const localCode = await localMarketCode;
-  const market = localCode === undefined ? await marketOpened
-    : planner instanceof LitePlanner ? localCode.openLocalMarketHere(planner, duck) : undefined;
   // THE TAB'S SERVICES (src/services/browser.ts): everything below reads its planner, its database, its stores and its
-  // browser through them -- the market's added to them
+  // browser through them -- the trading desk's added to them
   const tab: Services = await browserServices({
     plane: tabPlane(),
     planner: chosen,
@@ -383,7 +375,11 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     config,
     location,
   });
-  const services: Services = market ? market.over(tab) : tab;
+  // the desk where the page plans in the tab (its model's elements read as lite reads them): its files beside the page,
+  // written on the context the deployment names (config.json `contexts`), its market in this tab started only when a
+  // grid on the tab's context reads its rows
+  const desk = planner instanceof LitePlanner ? (await deskCode).openDeskHere(tab, planner, duck, config.contexts) : undefined;
+  const services: Services = desk?.services ?? tab;
 
   /** The sample cube's opening view. */
   const sampleSnapshot = async (): Promise<CubeSnapshot> => ({
@@ -434,19 +430,8 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
         : start,
     taken: ['trades'],
     settled,
-    ...(market ? { examples: market.examples } : {}),
+    ...(desk ? { examples: desk.examples } : {}),
   });
-}
-
-/**
- * The market `config` names, opened (demo/deephaven/market/host.ts), its model held by the page's module: the tab's own
- * when the page plans in the tab (its worker), else a module of its own -- the server's wire is the module's (DH11).
- */
-async function openMarket(config: MarketConfig, planner: Planner, vendor: string): Promise<Market> {
-  const host = await import('./deephaven/market/host.ts');
-  const module = planner instanceof LitePlanner ? planner
-    : new LitePlanner({ assetBaseUrl: vendor, model: '', runtime: '', workerUrl: new URL('./planner-worker.js', location.href).href });
-  return host.openMarket(config, module);
 }
 
 /**

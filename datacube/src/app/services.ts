@@ -23,6 +23,7 @@ import type { FileHandles } from '../file-handles.ts';
 import type { InferredModel, TableModels } from '../infer.ts';
 import type { JoinHow, JoinSide } from '../join-how.ts';
 import type { JoinSummaryCounts } from '../join.ts';
+import type { LiveSource } from '../live-in-tab.ts';
 import type { PageDocument } from '../page-document.ts';
 import type { PageCommand } from '../page-commands.ts';
 import type { GridCommand } from '../grid-commands.ts';
@@ -182,6 +183,11 @@ export interface LocalEngine {
   projects(): Promise<ProjectDatabases>;
   /** Where a grid over one of the database's tables runs, its database type the model's connection names. */
   readonly engine: QueryEngine & { readonly databaseType: string; run(sql: string, epoch: number): Promise<unknown> };
+  /**
+   * The runtimes a source has made live in the database (live-in-tab.ts; docs/ONE_CONNECTION_DESK_2026_10_28.md step 5):
+   * a runtime served here has its grids follow the live engine, each its own reader.
+   */
+  readonly live: { serve(source: LiveSource): void };
 }
 
 /**

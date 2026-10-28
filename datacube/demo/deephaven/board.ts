@@ -20,6 +20,7 @@ import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../../src/config.
 import { defaultChart } from '../../src/chart-spec.ts';
 import { pageToJson, readPage } from '../../src/page-document.ts';
 import { PageApp, type GridMaker } from '../../src/page/page-app.ts';
+import { sourceWithDerived } from '../../src/query.ts';
 import { ServerBases } from '../../src/server-base.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
 import type { GridCommand } from '../../src/grid-commands.ts';
@@ -107,7 +108,7 @@ async function main(): Promise<void> {
   // the tab going (closed, reloaded, navigated away): its session ended as it goes, never left ticking on the server
   addEventListener('pagehide', () => { engine.close().catch(() => { /* the page is gone */ }); });
   // the page's bases: one per source and its calculated columns, whichever grids read it (V2)
-  const bases = new ServerBases(planner, engine, { model, connection: CONNECTION, stores: STORES });
+  const bases = new ServerBases(planner, engine, { model, connection: CONNECTION, stores: STORES, baseOf: sourceWithDerived });
   const counted = (): void => {
     shown.counts = engine.counts;
     shown.bases = bases.tables;

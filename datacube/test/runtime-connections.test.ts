@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { engineOf, runtimeConnections } from '../src/runtime-connections.ts';
+import { engineOf, runtimeConnections, runtimesOf } from '../src/runtime-connections.ts';
 
 const connection = (name: string, value: unknown): unknown => ({ _type: 'connection', package: 'p', name, connectionValue: value });
 const relational = (databaseType: string, spec: unknown, auth: unknown = { _type: 'test' }): unknown =>
@@ -56,6 +56,16 @@ describe('what a runtime runs on', () => {
     assert.throws(() => runtimeConnections(elements, 'p::Dangling'), /binds s::DB to p::Gone, which the model does not declare/);
     assert.throws(() => engineOf('p::Mixed', runtimeConnections(elements, 'p::Mixed')), /a Deephaven server beside another database/);
     assert.throws(() => engineOf('p::TwoServers', runtimeConnections(elements, 'p::TwoServers')), /binds two Deephaven servers/);
+  });
+
+  it('says what every runtime runs on, or why it cannot run', () => {
+    const all = runtimesOf(elements);
+    assert.deepEqual([...all.keys()], ['p::InTab', 'p::OnServer', 'p::Mixed', 'p::TwoServers', 'p::Dangling']);
+    assert.deepEqual(all.get('p::InTab'), { engine: { kind: 'tab' }, connections: runtimeConnections(elements, 'p::InTab') });
+    const mixed = all.get('p::Mixed');
+    assert.ok(mixed instanceof Error && /beside another database/.test(mixed.message));
+    const dangling = all.get('p::Dangling');
+    assert.ok(dangling instanceof Error && /p::Gone/.test(dangling.message));
   });
 
   it('refuses a Deephaven connection whose sign-in is not a key by vault reference', () => {

@@ -51,8 +51,8 @@ try {
   await checkDeskTabs(page, { ok, fail, outputs, started });
   // THE SCREENS' INTERACTIONS, as a person makes them on the desk (moved here from the trader screens' own test,
   // 2026-10-26: the desk is the one demo, its screens' host retired) -- each grid's rows read from the page the harness
-  // holds (datacube-app.ts `__dataPage`: hidden columns too), the market's own counts from its host (market/host.ts
-  // `__market`). A chart is read by what it says and what its page keeps: the window a span draws is chart-echarts'
+  // holds (datacube-app.ts `__dataPage`: hidden columns too), the server's own counts from DataCube's Deephaven grids
+  // (src/deephaven-grids.ts `__deephaven`). A chart is read by what it says and what its page keeps: the window a span draws is chart-echarts'
   // own test's (a span of time: the latest that many seconds, a window ending at the latest mark)
   const showTab = (name) => page.locator(`.dc-sheet-tab:has(.dc-sheet-label:text-is("${name}"))`).first().click();
   /** A grid's rows as its view has them now, every column; null before its first view. */
@@ -65,7 +65,7 @@ try {
   const cell = (g, column) => g?.rows[0]?.[g.columns.indexOf(column)];
   const every = (g, column, test) => g !== null && g.rows.length > 0 && g.rows.every((r) => test(r[g.columns.indexOf(column)]));
   const viewOf = (id) => page.evaluate((v) => window.__dataPage.views().views.find((x) => x.id === v), id);
-  const counts = () => page.evaluate(() => window.__market.counts());
+  const counts = () => page.evaluate(() => window.__deephaven.counts());
   /** `test`, asked until it holds (its last answer), or a failure saying `what` after `ms`. */
   const until = async (test, what, ms = 30_000) => {
     const end = Date.now() + ms;
@@ -123,11 +123,19 @@ try {
       const g = await rowsOf('st-newsTable');
       return every(g, 'ticker', (t) => t === other) || (g !== null && g.rows.length === 0) ? g : null;
     }, `its news at ${other}`);
-    const cards = await page.locator('[data-tile="st-news"] .dc-feed-card').evaluateAll((els) => els.map((e) =>
+    // its cards as its grid has its stories: read together until they agree -- a story crossing between the two reads
+    // draws the cards after the grid (the feed redraws from the grid's rows), so one read of each may straddle it
+    const cardsOf = () => page.locator('[data-tile="st-news"] .dc-feed-card').evaluateAll((els) => els.map((e) =>
       [...e.querySelectorAll('.dc-feed-ticker')].map((t) => t.textContent)));
-    if (cards.every((t) => t.includes(other)) && cards.length === Math.min(news.rows.length, 40)) {
-      ok(`Stock: its news followed the name picked: ${cards.length} stories about ${other} as cards, its grid behind them ${news.rows.length} rows`);
-    } else fail(`Stock: its news at ${other}: cards naming ${JSON.stringify(cards.slice(0, 5))}, its grid ${news.rows.length} rows`);
+    let seen = { cards: await cardsOf(), rows: news.rows.length };
+    const agreed = await until(async () => {
+      const [g, cards] = [await rowsOf('st-newsTable'), await cardsOf()];
+      seen = { cards, rows: g?.rows.length ?? 0 };
+      return g !== null && cards.every((t) => t.includes(other)) && cards.length === Math.min(g.rows.length, 40);
+    }, `its news cards at ${other}`).then(() => true, () => false);
+    if (agreed) {
+      ok(`Stock: its news followed the name picked: ${seen.cards.length} stories about ${other} as cards, its grid behind them ${seen.rows} rows`);
+    } else fail(`Stock: its news at ${other}: cards naming ${JSON.stringify(seen.cards.slice(0, 5))}, ${seen.cards.length} cards, its grid ${seen.rows} rows`);
   } catch (e) {
     fail(`Stock: ${e?.message ?? e}`);
   }

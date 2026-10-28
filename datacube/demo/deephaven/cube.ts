@@ -12,6 +12,7 @@
 
 import { CubeApp } from '../../src/app.ts';
 import type { CubeView } from '../../src/cube.ts';
+import { sourceWithDerived } from '../../src/query.ts';
 import { ServerBases } from '../../src/server-base.ts';
 import type { GridCommand } from '../../src/grid-commands.ts';
 import type { DeephavenCounts } from '../../../engine-client/src/deephaven-engine.ts';
@@ -97,7 +98,7 @@ async function main(): Promise<void> {
   shown.serverRun = async (code) => (await (serverLog ??= openServerLog(config.url, config.psk))).run(code);
 
   // every query the grid sends reads its base from one table the server keeps (B1)
-  const runner = new ServerBases(planner, engine, { model, connection: CONNECTION, stores: STORES }).runner();
+  const runner = new ServerBases(planner, engine, { model, connection: CONNECTION, stores: STORES, baseOf: sourceWithDerived }).runner();
   // the counts kept at once (the test reads them); said in the header at most twice a second -- the header's text laid
   // out again at every tick laid the grid out with it
   let saidAt = 0;

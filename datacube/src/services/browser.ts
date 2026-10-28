@@ -13,15 +13,20 @@ import type { WarehouseBinding } from '../../../engine-client/src/warehouse.ts';
 import type { QueriesModule, QueryReader } from '../../../query-store/src/index.ts';
 import type { Planner } from '../cube.ts';
 import type { TableModels } from '../infer.ts';
+import type { LitePlanner } from '../lite-planner.ts';
+import type { LiveSource } from '../live-in-tab.ts';
 import { writesModels, type ModelWriter } from '../model-writer.ts';
 import type { ModelOptions } from '../planner.ts';
+import { sourceWithDerived } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
+import type { ModelEngines, RuntimeEngines } from '../runtime-engines.ts';
 import { forgetUpload, ingestFile, mountRemoteView } from '../upload.ts';
 import { browserBasics, tabTitle } from './browser-basics.ts';
 import { browserPages } from './browser-pages.ts';
 import type {
   ConfiguredProject,
   DatabaseService,
+  GridRows,
   ModelHomeService,
   ModelWriting,
   PlaneService,
@@ -40,6 +45,9 @@ export interface TabPlanner {
   readonly planner: Planner;
   readonly label: string;
   readonly tables: TableModels;
+  /** legend-lite's module in this tab, the same as `tables`: what plans a query on a Deephaven server (its wire is the
+   *  module's, DH11), whichever planner the page chose. */
+  readonly module: LitePlanner;
   /** legend-lite's planner for a project's own database (C5, engine-client's project-data.ts). */
   readonly projects: ProjectDataSource;
   readonly models: {
@@ -57,6 +65,8 @@ export interface TabConfig {
   readonly depot?: { readonly sdlc: string };
   /** Where the page's WebAssembly is served (page-config.ts `vendor`). */
   readonly vendor: string;
+  /** The page's vault: a server's key by the vault reference its connection names (page-config.ts `vault`). */
+  readonly vault: Readonly<Record<string, string>>;
 }
 
 export interface BrowserServicesOptions {
@@ -84,21 +94,21 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       throw e;
     }));
   let projectKeeper: Promise<ProjectDatabases> | undefined;
+  const engines = tabEngines(o);
   return {
     engine: {
       plane: o.plane,
       label: o.planner.label,
-      // the page's own planner reads a saved query and its project's model
-      reading: { parse: (text) => o.planner.planner.parse(text), elements: (text) => o.planner.models.elements(text) },
-      // planned here and run here: a planner over the source's own model, on this tab's DuckDB
-      rows: (model, runtime, how) => ({ planner: o.planner.models.another(model, runtime, how), engine: o.duckdb.engine }),
+      // the page's own planner reads a saved query and its project's model -- and with it what each runtime runs on
+      reading: { parse: (text) => o.planner.planner.parse(text), elements: (text) => engines.elements(text) },
+      rows: (model, runtime, how) => engines.rows(model, runtime, how),
       database: tabDatabase(o.duckdb, o.planner.tables),
       // the model actions: the tab's module writes (beside whichever planner the page chose), the tab's DuckDB answers
       ...(writesModels(o.planner.tables) ? { modelWriting: tabModelWriting(o.planner.tables, o.duckdb.engine) } : {}),
       local: {
         planner: o.planner.planner,
         another: (model, runtime, how) => o.planner.models.another(model, runtime, how),
-        elements: (text) => o.planner.models.elements(text),
+        elements: (text) => engines.elements(text),
         tables: o.planner.tables,
         // a project's own rows, in a database of their own inside this tab's DuckDB (C5): the keeper fetched with the
         // first saved query a page opens by name, never with the grid's start
@@ -109,6 +119,7 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
             connect: () => o.duckdb.connect(),
           }, o.planner.projects))),
         engine: o.duckdb.engine,
+        live: engines.live,
       },
     },
     // opened now and waited for where a page is saved or opened: the start's first grid does not wait on IndexedDB
@@ -120,6 +131,56 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       ...browserBasics,
       address: () => o.location.href,
       title: tabTitle(),
+    },
+  };
+}
+
+/**
+ * WHERE A GRID'S ROWS RUN, by its runtime's connections (docs/ONE_CONNECTION_DESK_2026_10_28.md step 5), as the page
+ * reads its models: a model's elements read by the page's compiler once for the model read latest (the trading desk's
+ * 2.3 MB: every saved query of its project asks for them) and, from them, what each of its runtimes runs on, kept for
+ * every model read (runtime-engines.ts: a chunk of its own, fetched with the first model read). A runtime on a
+ * Deephaven server runs there; one a source has made live in this tab (`live.serve`) follows the live engine; any other
+ * is planned here and run on this tab's DuckDB -- a model the page has not read among them, which is one the page wrote
+ * itself (a file's, a join's, a flow's), on the tab's DuckDB as its connection says. A runtime's options (`how`: a saved
+ * query's mapping and enumerations) reach the tab's planner; the live engines' planners hold the model as their
+ * source's start or the server's first grid held it (as before step 5).
+ */
+function tabEngines(o: BrowserServicesOptions): {
+  elements(model: string): Promise<unknown[]>;
+  rows(model: string, runtime: string, how?: ModelOptions): GridRows;
+  readonly live: { serve(source: LiveSource): void };
+} {
+  let latest: { readonly model: string; readonly read: Promise<unknown[]> } | undefined;
+  const known = new Map<string, ModelEngines>();
+  const served = new Map<string, LiveSource>();
+  let engines: Promise<RuntimeEngines> | undefined;
+  const read = async (model: string): Promise<unknown[]> => {
+    const [elements, at] = await Promise.all([o.planner.models.elements(model),
+      engines ??= lazily(() => import('../runtime-engines.ts')).then((m) =>
+        new m.RuntimeEngines({
+          module: o.planner.module, vault: o.config.vault, baseOf: sourceWithDerived, served,
+          deephaven: () => lazily(() => import('../deephaven-grids.ts')),
+        }))]);
+    known.set(model, await at.read(elements));
+    return elements;
+  };
+  return {
+    elements: (model) => {
+      if (latest?.model !== model) {
+        const reading = read(model);
+        latest = { model, read: reading };
+        reading.catch(() => { if (latest?.read === reading) latest = undefined; });
+      }
+      return latest.read;
+    },
+    rows: (model, runtime, how) => known.get(model)?.(model, runtime)
+      ?? { planner: o.planner.models.another(model, runtime, how), engine: o.duckdb.engine },
+    live: {
+      serve: (source) => {
+        if (served.has(source.runtime)) throw new Error(`${source.runtime} is live in this tab already`);
+        served.set(source.runtime, source);
+      },
     },
   };
 }

@@ -49,6 +49,7 @@ async function inTab(model: string): Promise<Engine> {
     planner,
     source: SOURCE,
     tables: planner,
+    module: planner,
     projects: planner,
     label: 'local',
     models: {
@@ -79,6 +80,7 @@ async function onServer(model: string, which: 'remote' | 'engine'): Promise<Engi
     planner,
     source: SOURCE,
     tables: writer,
+    module: writer,
     projects: writer,
     label: which,
     models: {

@@ -108,3 +108,25 @@ export function engineOf(runtime: string, connections: readonly StoreConnection[
   }
   return { kind: 'deephaven', server: first!.deephaven! };
 }
+
+/** What a runtime runs on: where its grids run, and each store's connection. */
+export interface RuntimeOn {
+  readonly engine: EngineOf;
+  readonly connections: readonly StoreConnection[];
+}
+
+/** What every runtime the elements declare runs on, by its path -- or why it cannot run, said when its rows are asked. */
+export function runtimesOf(elements: readonly unknown[]): ReadonlyMap<string, RuntimeOn | Error> {
+  const out = new Map<string, RuntimeOn | Error>();
+  for (const e of elements) {
+    if (!isObject(e) || e['_type'] !== 'runtime') continue;
+    const runtime = pathOf(e);
+    try {
+      const connections = runtimeConnections(elements, runtime);
+      out.set(runtime, { engine: engineOf(runtime, connections), connections });
+    } catch (error) {
+      out.set(runtime, error instanceof Error ? error : new Error(String(error)));
+    }
+  }
+  return out;
+}

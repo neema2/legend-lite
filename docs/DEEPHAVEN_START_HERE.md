@@ -179,7 +179,7 @@ and a simulator in its place (K2), a candlestick chart (K3), the page (K4).
 | Target | `core/src/main/java/com/legend/sql/dialect/Deephaven.java`, `DeephavenBatch.java` |
 | Encoder | `core/src/main/java/com/legend/deephaven/` (`DeephavenWire`, `DeephavenMessages`, `ProtoWire`) |
 | Tab's sender and engine | `engine-client/src/deephaven.ts` (session), `deephaven-engine.ts` (engine, readers, following), `deephaven-live.ts` (the JS library), `deephaven-rows.ts`, `timeline.ts` |
-| DataCube | `datacube/src/server-base.ts` (bases), `runner.ts`, `app.ts` (tick, window), `grid/grid.ts` (`tickRows`, flash), `chart-render.ts` (held axes), `treeview.ts` |
-| Demo | `datacube/demo/deephaven/market/` (`desk.mjs`, the hand tool; `host.ts`, `screens.ts`, `market.groovy`); `mkcert.mjs` |
+| DataCube | `datacube/src/deephaven-grids.ts` (a server's engine, each grid its own reader, warming, reconnection: chosen by the runtime's connections, `runtime-engines.ts`, `runtime-connections.ts`), `server-base.ts` (bases), `runner.ts`, `app.ts` (tick, window), `grid/grid.ts` (`tickRows`, flash), `chart-render.ts` (held axes), `treeview.ts` |
+| Demo | `datacube/demo/deephaven/market/` (`desk.mjs`, the hand tool; `desk.ts`, `screens.ts`, `environments.pure`, `market.groovy`); `mkcert.mjs` |
 | Test benches | `datacube/demo/deephaven/` (`cube.ts`, `board.ts`, `risk.ts`, `risk.groovy`, `site.mjs`) |
 | Tests and tools | `datacube/test/deephaven/`, `datacube/bench/deephaven/`, `testing/.../EmbeddedDeephaven.java`, `tools/deephaven/` |
