@@ -61,6 +61,11 @@ final class ModelIntegrity {
         // new here is a graph element shadowing a boot FQN, recorded when the
         // boot layer's elements joined this index at the gate (2026-10-11)
         refuseDuplicates(model, wallSink);
+        // an ingest whose database could not be made (LITE-DESIGN-lakehouse: the design's checks, a dataset's table
+        // read): its reason, under its name
+        model.ingestErrors().forEach((fqn, msg) -> withElement(fqn, () -> {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL, msg);
+        }, wallSink));
         model.classes().filter(fresh).forEach(cd -> withElement(cd.qualifiedName(),
                 () -> checkClass(cd, classifier, functions, model), wallSink));
         checkInheritanceAcyclic(model, classifier, wallSink, fresh);

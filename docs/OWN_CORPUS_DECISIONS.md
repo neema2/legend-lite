@@ -355,6 +355,7 @@ as they are).
 | # | row | construct |
 |---|---|---|
 | (per the census) | parser/DeephavenConnectionTest | `type: Deephaven` connections, the `Deephaven` specification, `PreSharedKey` authentication |
+| 1 | server/PureV1ApiTest (pinned 2026-10-29, the branch's first census run) | a Deephaven connection model read as lite's own JSON (D1) |
 
 - **Surfaces:** LEGEND_LITE reads all three (the product surface); LEGEND_ENGINE refuses each by name at its token,
   `type: Deephaven` in the engine's own words ("Unknown database type 'Deephaven'"), as SQLite's.
@@ -367,3 +368,25 @@ as they are).
 - **DECISION:** DECIDED: **KEEP** (the user, 2026-10-22: Deephaven is just another backend, and its connection is
   modelled as its own, as Snowflake's is). A row is added only with a test that exercises the construct, and pinned in
   both census tests in the same change.
+
+## 16. LITE-DESIGN-lakehouse — declared 2026-10-29 (the desk's data products)
+
+Legend's `###Lakehouse` `Ingest` (docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §3a; the roadmap,
+docs/DESK_DATA_ROADMAP_2026_10_29.md A1): where datasets land, how their rows arrive and how they land. Legend's grammar
+is closed: legend-engine's public history never held a parser for it, so lite's is its own, Studio's one written form
+kept exactly and every other field spelled by that form's conventions; the JSON is Legend's, held to legend-studio's
+round-trip fixtures (`core/src/test/resources/lakehouse/`). Lite adds the `Stream` and `Pull` read modes, the
+`LatestByKey` write mode and a dataset's `retention` (SEMANTICS_REGISTER S113-S117). A store's `include Ingest x::Y`
+includes the database the ingest makes, a table for each dataset.
+
+| # | row | construct |
+|---|---|---|
+| (per the census) | parser/LakehouseIngestTest | `###Lakehouse` `Ingest` elements, and `include Ingest` in `###Relational` |
+
+- **Surfaces:** LEGEND_LITE and LEGEND_PLATFORM read the section (the registry's `LakehouseSectionGrammar`);
+  LEGEND_ENGINE refuses it as an unknown section, in the engine's own words ("'Lakehouse' is not a known section
+  parser").
+- **JSON:** `{"_type": "ingestDefinition", ...}`, Legend's fields as Studio's fixtures write them, lite's additions in
+  the same manner; an older `appDirDeployment` owner, test suites and preprocessors are refused by name.
+- **DECISION:** DECIDED: **KEEP** (the user, 2026-10-29: the desk's tables declared by ingests, its API data products).
+  A row is added only with a test that exercises the construct, and pinned in both census tests in the same change.

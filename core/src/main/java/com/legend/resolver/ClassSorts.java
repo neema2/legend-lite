@@ -22,7 +22,6 @@ final class ClassSorts {
     private static final String SORT_BY_FQN = "meta::pure::functions::collection::sortBy";
     private static final String SORT_BY_REV_FQN = "meta::pure::functions::collection::sortByReversed";
     private static final String COMPARE_FQN = "meta::pure::functions::lang::compare";
-    private static final String REVERSE_FQN = "meta::pure::functions::collection::reverse";
 
     /** first()/head() over an object-space chain — LIMIT 1 in disguise. */
     static boolean isFirstLike(TypedNativeCall c) {
@@ -43,7 +42,7 @@ final class ClassSorts {
         // internal error); reverse over an unsorted extent has no order to
         // turn, and stays unrecognized
         if (n instanceof TypedNativeCall rv && rv.args().size() == 1
-                && REVERSE_FQN.equals(rv.callee().qualifiedName())) {
+                && com.legend.builtin.Pure.AT_COLLECTION_REVERSE.contains(rv.callee().id())) {
             // the typer writes a class-space sortBy as the relation sort
             TypedSortBy inner = rv.args().get(0) instanceof TypedSortBy sb ? sb
                     : classSortOf(rv.args().get(0));

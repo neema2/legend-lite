@@ -98,6 +98,15 @@ final class CutBeforeFanOut {
         return out;
     }
 
+    /** The joins that fold below the cut: {@code joins} less those {@code above} it, in order, compared by
+     *  identity. */
+    static List<AssociationJoins.AssocJoin> below(List<AssociationJoins.AssocJoin> joins,
+            List<AssociationJoins.AssocJoin> above) {
+        Set<AssociationJoins.AssocJoin> moved = identitySet();
+        moved.addAll(above);
+        return joins.stream().filter(aj -> !moved.contains(aj)).toList();
+    }
+
     /** The joins folded above {@code cut} -- the {@code moved} outermost
      * joins of {@code joined} -- rebuilt over {@code cutRows}: the same
      * joins, their left the cut rows (the ops keep the row's columns). */
@@ -125,6 +134,17 @@ final class CutBeforeFanOut {
                     j.prefix(), j.frameName(), j.info(), j.userCondition());
         }
         return out;
+    }
+
+    /** The ops' result with the joins above the cut put back over it ({@link #rebase}), then ordered again by the
+     *  chain's outermost sort, {@code order} (its key {@code key}, substituted), since a join does not keep its input's
+     *  order; none when the chain has no sort. */
+    static TypedSpec overTheCut(TypedSpec joined, int moved, TypedSpec cut, TypedSpec cutRows,
+            @com.legend.base.Nullable TypedSortBy order,
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedLambda key) {
+        TypedSpec out = rebase(joined, moved, cut, cutRows);
+        return order == null || key == null ? out
+                : new TypedSortBy(out, key, order.ascending(), order.keyAlias(), out.info());
     }
 
     /** The sort that orders the chain's rows: its outermost. */

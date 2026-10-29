@@ -165,6 +165,7 @@ public final class ProtocolEmitter {
             case Protocol.PElasticsearch7Cluster es ->
                     TailEmitter.elasticsearchStore(b, es);
             case Protocol.PMongoDatabase mg -> TailEmitter.mongoDatabase(b, mg);
+            case Protocol.PIngest ig -> TailEmitter.ingest(b, ig);
             case Protocol.PDataQualityValidation dq ->
                     TailEmitter.dataQualityValidation(b, dq);
             case Protocol.PDataQualityRelationValidation dq ->
@@ -1908,7 +1909,7 @@ public final class ProtocolEmitter {
      * <p>Verified via {@code ProbeWireShapes}: the {@code rawType} span of a generic covers
      * the WHOLE application including the closing {@code >}; each argument carries its own.
      */
-    private static void genericType(StringBuilder b, com.legend.protocol.TypeExpression t) {
+    static void genericType(StringBuilder b, com.legend.protocol.TypeExpression t) {
         switch (t) {
             case com.legend.protocol.TypeExpression.NameRef n ->
                     genericTypeOf(b, n.name(), java.util.List.of(), java.util.List.of(),
@@ -3443,7 +3444,7 @@ public final class ProtocolEmitter {
         b.append(",\"value\":").append(rendered).append('}');
     }
 
-    private static void multiplicity(StringBuilder b, com.legend.protocol.Multiplicity m) {
+    static void multiplicity(StringBuilder b, com.legend.protocol.Multiplicity m) {
         if (!(m instanceof com.legend.protocol.Multiplicity.Concrete c)) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter has no rule for a multiplicity PARAMETER — add the emit rule.");

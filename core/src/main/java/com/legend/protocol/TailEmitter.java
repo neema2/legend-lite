@@ -264,6 +264,161 @@ final class TailEmitter {
         b.append('}');
     }
 
+    /**
+     * {@code _type:"ingestDefinition"} (LITE-DESIGN-lakehouse): Legend's fields as legend-studio's round-trip fixtures
+     * write them -- every slot alphabetical, a dataset's partition, cluster and preprocessor lists always present, an
+     * owner's deployments {@code {appDirId, level: "DEPLOYMENT"}} -- and lite's additions in the same manner: a stream
+     * or pull read mode, the {@code latest_by_key} write mode, a dataset's {@code retention}.
+     */
+    static void ingest(StringBuilder b, Protocol.PIngest g) {
+        b.append("{\"_type\":\"ingestDefinition\"");
+        if (g.datasetGroup() != null) {
+            b.append(",\"datasetGroup\":");
+            ProtocolEmitter.str(b, g.datasetGroup());
+        }
+        b.append(",\"datasets\":[");
+        for (int i = 0; i < g.datasets().size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            ingestDataset(b, g.datasets().get(i));
+        }
+        b.append("],\"name\":");
+        ProtocolEmitter.str(b, g.name());
+        if (g.owner() != null) {
+            b.append(",\"owner\":{\"_type\":\"appDir\"");
+            if (g.owner().prodParallel() != null) {
+                b.append(",\"prodParallel\":");
+                appDirNode(b, g.owner().prodParallel());
+            }
+            b.append(",\"production\":");
+            appDirNode(b, g.owner().production());
+            b.append('}');
+        }
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, g.pkg());
+        b.append(",\"readMode\":");
+        switch (g.readMode()) {
+            case Protocol.PIngestFiles f -> b.append("{\"_type\":\"").append(f.kind())
+                    .append("\",\"format\":{\"_type\":\"").append(f.format()).append("\"}}");
+            case Protocol.PIngestStream st -> {
+                b.append("{\"_type\":\"Stream\"");
+                if (st.format() != null) {
+                    b.append(",\"format\":{\"_type\":\"").append(st.format()).append("\"}");
+                }
+                b.append('}');
+            }
+            case Protocol.PIngestPull p -> {
+                b.append("{\"_type\":\"Pull\",\"schedule\":");
+                switch (p.schedule()) {
+                    case Protocol.PIngestDaily d -> {
+                        b.append("{\"_type\":\"Daily\",\"time\":");
+                        ProtocolEmitter.str(b, d.time());
+                        b.append(",\"timeZone\":");
+                        ProtocolEmitter.str(b, d.zone());
+                        b.append('}');
+                    }
+                    case Protocol.PIngestEvery e -> {
+                        b.append("{\"_type\":\"Every\",\"period\":");
+                        ProtocolEmitter.str(b, e.period());
+                        b.append('}');
+                    }
+                }
+                b.append('}');
+            }
+        }
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, g.sourceInformation());
+        b.append(",\"stereotypes\":");
+        ProtocolEmitter.stereotypes(b, g.stereotypes());
+        b.append(",\"taggedValues\":");
+        ProtocolEmitter.taggedValues(b, g.taggedValues());
+        if (g.writeMode() != null) {
+            b.append(",\"writeMode\":{\"_type\":");
+            ProtocolEmitter.str(b, g.writeMode());
+            b.append('}');
+        }
+        b.append('}');
+    }
+
+    private static void appDirNode(StringBuilder b, String id) {
+        b.append("{\"appDirId\":").append(id).append(",\"level\":\"DEPLOYMENT\"}");
+    }
+
+    private static void ingestDataset(StringBuilder b, Protocol.PIngestDataset d) {
+        b.append("{\"ingestPartitionColumns\":");
+        strings(b, d.ingestPartitionColumns());
+        b.append(",\"name\":");
+        ProtocolEmitter.str(b, d.name());
+        b.append(",\"preprocessors\":[],\"primaryKey\":");
+        strings(b, d.primaryKey());
+        if (d.privacyClassification() != null) {
+            b.append(",\"privacyClassification\":{\"sensitivity\":");
+            ProtocolEmitter.str(b, d.privacyClassification());
+            b.append('}');
+        }
+        if (d.retention() != null) {
+            b.append(",\"retention\":");
+            switch (d.retention()) {
+                case Protocol.PIngestLast l -> {
+                    b.append("{\"_type\":\"Last\",\"duration\":");
+                    ProtocolEmitter.str(b, l.duration());
+                    b.append('}');
+                }
+                case Protocol.PIngestLastRows r -> b.append("{\"_type\":\"LastRows\",\"rows\":").append(r.rows())
+                        .append('}');
+            }
+        }
+        b.append(",\"source\":");
+        switch (d.source()) {
+            case Protocol.PIngestColumns cols -> {
+                b.append("{\"_type\":\"serializedSource\",\"schema\":{\"_type\":\"relationType\",\"columns\":[");
+                for (int i = 0; i < cols.columns().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    TypeExpression.Column col = cols.columns().get(i);
+                    b.append("{\"genericType\":");
+                    ProtocolEmitter.genericType(b, col.type());
+                    b.append(",\"multiplicity\":");
+                    ProtocolEmitter.multiplicity(b, col.multiplicity());
+                    b.append(",\"name\":");
+                    ProtocolEmitter.str(b, col.name());
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, col.pos());
+                    b.append('}');
+                }
+                b.append("]}}");
+            }
+            case Protocol.PIngestFunction fn -> {
+                b.append("{\"_type\":\"FunctionSource\",\"function\":");
+                ProtocolEmitter.lambda(b, fn.function());
+                b.append('}');
+            }
+        }
+        b.append(",\"storageLayoutClusterColumns\":");
+        strings(b, d.storageLayoutClusterColumns());
+        b.append(",\"storageLayoutPartitionColumns\":");
+        strings(b, d.storageLayoutPartitionColumns());
+        if (d.writeMode() != null) {
+            b.append(",\"writeMode\":{\"_type\":");
+            ProtocolEmitter.str(b, d.writeMode());
+            b.append('}');
+        }
+        b.append('}');
+    }
+
+    private static void strings(StringBuilder b, List<String> values) {
+        b.append('[');
+        for (int i = 0; i < values.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            ProtocolEmitter.str(b, values.get(i));
+        }
+        b.append(']');
+    }
+
     static void mongoDatabase(StringBuilder b, Protocol.PMongoDatabase m) {
         b.append("{\"_type\":\"MongoDatabase\",\"collections\":[");
         for (int i = 0; i < m.collections().size(); i++) {

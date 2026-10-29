@@ -1,0 +1,272 @@
+[
+  {
+    "_type": "ingestDefinition",
+    "datasetGroup": "ZOO",
+    "datasets": [
+      {
+        "ingestPartitionColumns": [],
+        "name": "ANIMALS",
+        "preprocessors": [],
+        "primaryKey": [
+          "ANIMAL_ID"
+        ],
+        "privacyClassification": {
+          "sensitivity": "DP10"
+        },
+        "source": {
+          "_type": "serializedSource",
+          "schema": {
+            "_type": "relationType",
+            "columns": [
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Varchar"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": [
+                    {
+                      "_type": "integer",
+                      "value": 200
+                    }
+                  ]
+                },
+                "multiplicity": {
+                  "lowerBound": 0,
+                  "upperBound": 1
+                },
+                "name": "ANIMAL_ID"
+              },
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Varchar"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": [
+                    {
+                      "_type": "integer",
+                      "value": 200
+                    }
+                  ]
+                },
+                "multiplicity": {
+                  "lowerBound": 0,
+                  "upperBound": 1
+                },
+                "name": "NAME"
+              },
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Varchar"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": [
+                    {
+                      "_type": "integer",
+                      "value": 200
+                    }
+                  ]
+                },
+                "multiplicity": {
+                  "lowerBound": 0,
+                  "upperBound": 1
+                },
+                "name": "SPECIES"
+              },
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Varchar"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": [
+                    {
+                      "_type": "integer",
+                      "value": 200
+                    }
+                  ]
+                },
+                "multiplicity": {
+                  "lowerBound": 0,
+                  "upperBound": 1
+                },
+                "name": "HABITAT_ID"
+              },
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Varchar"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": [
+                    {
+                      "_type": "integer",
+                      "value": 200
+                    }
+                  ]
+                },
+                "multiplicity": {
+                  "lowerBound": 0,
+                  "upperBound": 1
+                },
+                "name": "KEEPER_ID"
+              }
+            ]
+          }
+        },
+        "storageLayoutClusterColumns": [],
+        "storageLayoutPartitionColumns": []
+      }
+    ],
+    "name": "ANIMALS",
+    "owner": {
+      "_type": "appDir",
+      "prodParallel": {
+        "appDirId": 222222,
+        "level": "DEPLOYMENT"
+      },
+      "production": {
+        "appDirId": 111111,
+        "level": "DEPLOYMENT"
+      }
+    },
+    "package": "zoo::lakehouse::ingestDefinitions::ZOO",
+    "readMode": {
+      "_type": "Delta",
+      "format": {
+        "_type": "Parquet"
+      }
+    },
+    "stereotypes": [],
+    "taggedValues": [],
+    "writeMode": {
+      "_type": "batch_milestoned"
+    }
+  },
+  {
+    "_type": "ingestDefinition",
+    "datasetGroup": "ZOO",
+    "datasets": [
+      {
+        "ingestPartitionColumns": [],
+        "name": "HABITATS",
+        "preprocessors": [],
+        "primaryKey": [
+          "HABITAT_ID"
+        ],
+        "privacyClassification": {
+          "sensitivity": "DP10"
+        },
+        "source": {
+          "_type": "serializedSource",
+          "schema": {
+            "_type": "relationType",
+            "columns": [
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Varchar"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": [
+                    {
+                      "_type": "integer",
+                      "value": 200
+                    }
+                  ]
+                },
+                "multiplicity": {
+                  "lowerBound": 0,
+                  "upperBound": 1
+                },
+                "name": "HABITAT_ID"
+              },
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Varchar"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": [
+                    {
+                      "_type": "integer",
+                      "value": 200
+                    }
+                  ]
+                },
+                "multiplicity": {
+                  "lowerBound": 0,
+                  "upperBound": 1
+                },
+                "name": "NAME"
+              },
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Varchar"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": [
+                    {
+                      "_type": "integer",
+                      "value": 200
+                    }
+                  ]
+                },
+                "multiplicity": {
+                  "lowerBound": 0,
+                  "upperBound": 1
+                },
+                "name": "KEEPER_ID"
+              }
+            ]
+          }
+        },
+        "storageLayoutClusterColumns": [],
+        "storageLayoutPartitionColumns": []
+      }
+    ],
+    "name": "HABITATS",
+    "owner": {
+      "_type": "appDir",
+      "prodParallel": {
+        "appDirId": 222222,
+        "level": "DEPLOYMENT"
+      },
+      "production": {
+        "appDirId": 111111,
+        "level": "DEPLOYMENT"
+      }
+    },
+    "package": "zoo::lakehouse::ingestDefinitions::ZOO",
+    "readMode": {
+      "_type": "Delta",
+      "format": {
+        "_type": "Parquet"
+      }
+    },
+    "stereotypes": [],
+    "taggedValues": [],
+    "writeMode": {
+      "_type": "batch_milestoned"
+    }
+  }
+]

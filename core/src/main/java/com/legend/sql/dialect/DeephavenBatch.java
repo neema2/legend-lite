@@ -2042,7 +2042,11 @@ final class DeephavenBatch {
             case "double" -> "NULL_DOUBLE";
             case "java.lang.Boolean" -> "(Boolean) null";
             case "java.lang.String" -> "(String) null";
-            default -> "(" + java + ") null";
+            case "java.math.BigDecimal", "java.time.Instant", "java.time.LocalDate", "java.time.LocalTime" ->
+                    "(" + java + ") null";
+            // every Java type javaTypeOf names has its arm: a new one is added here, never cast blind (Charter C2.4)
+            default -> throw new IllegalStateException("no typed null for the Java type '" + java + "' of column '"
+                    + column + "'");
         };
     }
 }

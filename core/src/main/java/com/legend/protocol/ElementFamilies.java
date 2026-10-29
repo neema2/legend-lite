@@ -117,6 +117,9 @@ final class ElementFamilies {
                     List.of("memSqlFunction")),
             new Family("MongoDB", false, (e, s) -> MongoComposer.store(as(e, Protocol.PMongoDatabase.class)),
                     List.of("MongoDatabase")),
+            // lite's (LITE-DESIGN-lakehouse): no reference engine prints it, so its place in the order is lite's own
+            new Family("Lakehouse", false, (e, s) -> LakehouseComposer.ingest(as(e, Protocol.PIngest.class), s),
+                    List.of("ingestDefinition")),
             new Family("Persistence", false, PersistenceComposer::element, List.of("persistenceContext", "persistence"), true),
             new Family("ServiceStore", false,
                     (e, s) -> ServiceStoreComposer.serviceStore(as(e, Protocol.PServiceStoreDefinition.class)),
@@ -196,6 +199,7 @@ final class ElementFamilies {
             case Protocol.PDeephavenDatabase d -> "deephavenStore";
             case Protocol.PElasticsearch7Cluster c -> "elasticsearch7Store";
             case Protocol.PMongoDatabase m -> "MongoDatabase";
+            case Protocol.PIngest i -> "ingestDefinition";
             case Protocol.PDataQualityValidation v -> "dataQualityValidation";
             case Protocol.PDataQualityRelationValidation v -> "dataqualityRelationValidation";
             case Protocol.PDataQualityRelationComparison c -> "dataQualityRelationComparison";

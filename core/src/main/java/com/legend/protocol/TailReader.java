@@ -179,6 +179,171 @@ final class TailReader {
         return m.done(out);
     }
 
+    /**
+     * {@code _type:"ingestDefinition"}: the writer's inverse, and Legend's own JSON as legend-studio's round-trip
+     * fixtures hold it (LITE-DESIGN-lakehouse). Legend's older owner spelling, a bare {@code appDirDeployment}, and test
+     * suites are refused by name: lite writes neither yet.
+     */
+    static Protocol.Element ingest(Wire w) {
+        if (w.has("appDirDeployment")) {
+            throw Wire.refuse("an ingest's older owner, 'appDirDeployment': lite reads 'owner'");
+        }
+        if (w.has("testSuites")) {
+            throw Wire.refuse("an ingest's test suites: lite does not read them yet");
+        }
+        Protocol.PIngestOwner owner = null;
+        Wire o = w.optObj("owner");
+        if (o != null) {
+            o.constant("_type", "appDir");
+            Wire pp = o.optObj("prodParallel");
+            String prodParallel = pp == null ? null : appDirNode(pp);
+            owner = o.done(new Protocol.PIngestOwner(appDirNode(o.obj("production")), prodParallel));
+        }
+        String group = w.optStr("datasetGroup");
+        Protocol.PIngestReadMode readMode = ingestReadMode(w.obj("readMode"));
+        String writeMode = ingestWriteMode(w.optObj("writeMode"));
+        return new Protocol.PIngest(w.str("package"), w.str("name"), DomainReader.stereotypes(w),
+                DomainReader.taggedValues(w), readMode, owner, group, writeMode,
+                w.list("datasets", TailReader::ingestDataset), w.span());
+    }
+
+    private static String appDirNode(Wire n) {
+        n.constant("level", "DEPLOYMENT");
+        String id = String.valueOf(n.lng("appDirId"));
+        if (!IngestWords.isAppDirId(id)) {
+            throw Wire.refuse("an application directory id is a positive number, not " + id);
+        }
+        return n.done(id);
+    }
+
+    private static Protocol.PIngestReadMode ingestReadMode(Wire r) {
+        String written = r.type();
+        String type = written == null ? "" : written;
+        return switch (type) {
+            case "Snapshot", "Delta" -> {
+                Wire f = r.obj("format");
+                String fileFormat = f.type();
+                String format = fileFormat == null ? "" : fileFormat;
+                if (!format.equals("CSV") && !format.equals("Parquet")) {
+                    throw Wire.refuse("an ingest's file format '" + fileFormat + "' (CSV, Parquet)");
+                }
+                f.done(format);
+                yield r.done(new Protocol.PIngestFiles(type, format));
+            }
+            case "Stream" -> {
+                Wire f = r.optObj("format");
+                String format = null;
+                if (f != null) {
+                    String streamFormat = f.type();
+                    if (!"Json".equals(streamFormat) && !"Avro".equals(streamFormat)) {
+                        throw Wire.refuse("an ingest's stream format '" + streamFormat + "' (Json, Avro)");
+                    }
+                    format = f.done(streamFormat);
+                }
+                yield r.done(new Protocol.PIngestStream(format));
+            }
+            case "Pull" -> {
+                Wire s = r.obj("schedule");
+                String kind = s.type();
+                Protocol.PIngestSchedule schedule = switch (kind == null ? "" : kind) {
+                    case "Daily" -> {
+                        String time = s.str("time");
+                        String zone = s.str("timeZone");
+                        if (!IngestWords.isTimeOfDay(time) || !IngestWords.isZone(zone)) {
+                            throw Wire.refuse("a daily pull at '" + time + "' in '" + zone
+                                    + "' (HH:MM in a named zone)");
+                        }
+                        yield s.done(new Protocol.PIngestDaily(time, zone));
+                    }
+                    case "Every" -> {
+                        String period = s.str("period");
+                        if (!IngestWords.isDuration(period)) {
+                            throw Wire.refuse("a pull every '" + period + "' (an ISO 8601 duration)");
+                        }
+                        yield s.done(new Protocol.PIngestEvery(period));
+                    }
+                    default -> throw Wire.refuse("an ingest's pull schedule '" + kind + "' (Daily, Every)");
+                };
+                yield r.done(new Protocol.PIngestPull(schedule));
+            }
+            default -> throw Wire.refuse("an ingest's read mode '" + type + "' (Snapshot, Delta, Stream, Pull)");
+        };
+    }
+
+    private static @com.legend.base.Nullable String ingestWriteMode(@com.legend.base.Nullable Wire m) {
+        if (m == null) {
+            return null;
+        }
+        String type = m.type();
+        if (type == null || IngestWords.writeModeWord(type) == null) {
+            throw Wire.refuse("an ingest's write mode '" + type
+                    + "' (append_only, batch_milestoned, batch_milestoned_business_temporal, latest_by_key)");
+        }
+        return m.done(type);
+    }
+
+    private static Protocol.PIngestDataset ingestDataset(Json.Node node) {
+        Wire d = Wire.of(node, "ingest dataset");
+        if (!d.arrOrEmpty("preprocessors").isEmpty()) {
+            throw Wire.refuse("an ingest dataset's preprocessors: lite does not read them yet");
+        }
+        String privacy = null;
+        Wire p = d.optObj("privacyClassification");
+        if (p != null) {
+            privacy = p.done(p.str("sensitivity"));
+        }
+        Protocol.PIngestRetention retention = null;
+        Wire r = d.optObj("retention");
+        if (r != null) {
+            String type = r.type();
+            retention = switch (type == null ? "" : type) {
+                case "Last" -> {
+                    String duration = r.str("duration");
+                    if (!IngestWords.isDuration(duration)) {
+                        throw Wire.refuse("a retention of '" + duration + "' (an ISO 8601 duration)");
+                    }
+                    yield r.done(new Protocol.PIngestLast(duration));
+                }
+                case "LastRows" -> {
+                    long rows = r.lng("rows");
+                    if (rows <= 0) {
+                        throw Wire.refuse("a retention of " + rows + " rows");
+                    }
+                    yield r.done(new Protocol.PIngestLastRows(rows));
+                }
+                default -> throw Wire.refuse("an ingest dataset's retention '" + type + "' (Last, LastRows)");
+            };
+        }
+        Wire s = d.obj("source");
+        String sourceType = s.type();
+        Protocol.PIngestSource source = switch (sourceType == null ? "" : sourceType) {
+            case "serializedSource" -> {
+                Wire schema = s.obj("schema");
+                schema.constant("_type", "relationType");
+                List<TypeExpression.Column> columns = schema.list("columns", n -> {
+                    Wire c = Wire.of(n, "ingest column");
+                    return c.done(new TypeExpression.Column(c.str("name"),
+                            ProtocolReader.genericType(c.take("genericType")),
+                            ProtocolReader.multiplicity(c.take("multiplicity")), c.span()));
+                });
+                schema.done(columns);
+                yield s.done(new Protocol.PIngestColumns(columns));
+            }
+            case "FunctionSource" -> s.done(new Protocol.PIngestFunction(ProtocolReader.lambdaNode(s.take("function"))));
+            default -> throw Wire.refuse("an ingest dataset's source '" + sourceType
+                    + "' (serializedSource, FunctionSource)");
+        };
+        return d.done(new Protocol.PIngestDataset(d.str("name"), d.strings("primaryKey"), source,
+                ingestWriteMode(d.optObj("writeMode")), retention, privacy,
+                stringsOrEmpty(d, "ingestPartitionColumns"), stringsOrEmpty(d, "storageLayoutPartitionColumns"), stringsOrEmpty(d, "storageLayoutClusterColumns"),
+                null));
+    }
+
+    private static List<String> stringsOrEmpty(Wire w, String key) {
+        List<String> s = w.optStrings(key);
+        return s == null ? List.of() : s;
+    }
+
     static Protocol.Element mongoDatabase(Wire w) {
         w.emptyArray("includedStores");
         w.emptyArray("views");

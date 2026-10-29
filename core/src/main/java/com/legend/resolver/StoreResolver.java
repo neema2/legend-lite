@@ -424,18 +424,21 @@ public final class StoreResolver {
                 : resolveChain(n, context);
     }
 
+    /** ROW-arm matches normalized to their union of branches first (harness burn-down leg 2): the chain then roots on
+     *  a class concatenate the distribute rules of {@link #anchoredNode} own. */
+    private TypedSpec rowMatchesNormalized(TypedSpec n0) {
+        return ChainDispatch.containsRowMatch(n0)
+                ? chainDispatch.normalizeRowMatches(n0, this::objectSpace,
+                        StoreResolver::sourceClassType, (l, r) -> Pipelines.substituteParam(specs, l, r))
+                : n0;
+    }
+
     /** ANCHORED: not itself object-space, but an unresolved anchor sits
      * beneath — chain TERMINALS first, then relation-space wrappers; an
      * unhandled variant is the NAMED H2-vocabulary wall, never a silent
      * pass-through. */
     private TypedSpec anchoredNode(TypedSpec n0, Context context) {
-        // ROW-arm matches normalize to their union of branches first
-        // (harness burn-down leg 2): the chain then roots on a class
-        // concatenate the distribute rules below own
-        TypedSpec n = ChainDispatch.containsRowMatch(n0)
-                ? chainDispatch.normalizeRowMatches(n0, this::objectSpace,
-                        StoreResolver::sourceClassType, (l, r) -> Pipelines.substituteParam(specs, l, r))
-                : n0;
+        TypedSpec n = rowMatchesNormalized(n0);
         return switch (n) {
             case TypedProject p when objectSpace(p.source()) ->
                     resolveChain(p, context);
@@ -3201,11 +3204,7 @@ public final class StoreResolver {
                 || !chainSpecs.isEmpty() ? List.of()
                 : CutBeforeFanOut.joinsAbove(ctx, cs, ops, top, opPaths,
                         joinsByChain, assocJoins);
-        Set<AssociationJoins.AssocJoin> movedJoins =
-                java.util.Collections.newSetFromMap(new IdentityHashMap<>());
-        movedJoins.addAll(aboveCut);
-        List<AssociationJoins.AssocJoin> belowCut = assocJoins.stream()
-                .filter(aj -> !movedJoins.contains(aj)).toList();
+        List<AssociationJoins.AssocJoin> belowCut = CutBeforeFanOut.below(assocJoins, aboveCut);
 
         // subType(@Sub) casts dispatch through the SUBTYPE's binding
         // table (same-source inheritance) — registered after
@@ -3246,13 +3245,7 @@ public final class StoreResolver {
         // the rows the ops cut: every join but those above the cut, which
         // the whole row (the substitutions' schema) carries after them
         final TypedSpec cutRows = m.pipeline();
-        if (!aboveCut.isEmpty()) {
-            TypedSpec whole = cutRows;
-            for (AssociationJoins.AssocJoin aj : aboveCut) {
-                whole = foldAssociationJoin(cs, whole, aj);
-            }
-            m = new Pipelines.Materialized(whole, m.slotPrefixes(), m.stripped());
-        }
+        m = foldAboveCut(cs, m, aboveCut);
         List<AssociationJoins.AssocJoin> aggAssocJoins = joined.aggAssocJoins();
         Map<TypedSpec, Substitution.AggRead> aggReads = joined.aggReads();
 
@@ -3297,17 +3290,11 @@ public final class StoreResolver {
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
             };
         }
-        if (!aboveCut.isEmpty()) {
-            // the projection's joins over the cut rows, in the order asked
-            pipeline = CutBeforeFanOut.rebase(m.pipeline(), aboveCut.size(),
-                    cutRows, pipeline);
+        if (!aboveCut.isEmpty()) {   // the projection's joins over the cut rows, in the order asked
             TypedSortBy order = CutBeforeFanOut.outermostSort(ops);
-            if (order != null) {
-                pipeline = new TypedSortBy(pipeline,
-                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fresh,
-                                order.key(), context).rewriteLambda(order.key()),
-                        order.ascending(), order.keyAlias(), pipeline.info());
-            }
+            pipeline = CutBeforeFanOut.overTheCut(m.pipeline(), aboveCut.size(), cutRows, pipeline, order,
+                    order == null ? null : substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads,
+                            false, fresh, order.key(), context).rewriteLambda(order.key()));
         }
 
         if (tree != null) {   // 4a. GRAPH terminal (H4a snapshot envelope)
@@ -3328,13 +3315,19 @@ public final class StoreResolver {
                         .rewriteLambda(fn);
         // An agg map may be the BARE instance var (x|$x : y|$y->count()) —
         // COUNT(*)-style; it becomes the identity over the row.
+        Function<TypedLambda, TypedLambda> identity = fn ->
+                substitution(cs, fm, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fv, fn)
+                        .identityLambda(fn);
+        return relationTerminal(top, base, sub, identity);
+    }
+
+    /** 4. The relation-shaping terminal over {@code base}: a project's columns and a groupBy's keys and aggregates,
+     *  each lambda substituted by {@code sub} -- an aggregate's BARE instance var by {@code identity}. */
+    private static TypedSpec relationTerminal(TypedSpec top, TypedSpec base,
+            Function<TypedLambda, TypedLambda> sub, Function<TypedLambda, TypedLambda> identity) {
         Function<TypedAggCol, TypedAggCol> subAgg = a ->
                 new TypedAggCol(a.name(),
-                        isBareUserVar(a.map())
-                                ? substitution(cs, fm, assocs, assocEnds, existsSubs,
-                                        aggReads, inQueryReads, false, fv,
-                                        a.map()).identityLambda(a.map())
-                                : sub.apply(a.map()),
+                        isBareUserVar(a.map()) ? identity.apply(a.map()) : sub.apply(a.map()),
                         a.reduce(),
                         a.order().stream().map(o -> new TypedAggCol.AggOrder(
                                 sub.apply(o.key()), o.ascending(), o.nullOrder())).toList());
@@ -3354,6 +3347,20 @@ public final class StoreResolver {
                     gb.info());
             default -> throw new IllegalStateException("unreachable");
         };
+    }
+
+    /** The joins above a positional cut (CutBeforeFanOut) folded onto the cut rows: the whole row the
+     *  substitutions read, the ops still applied to the rows below. */
+    private Pipelines.Materialized foldAboveCut(ClassSource cs, Pipelines.Materialized m,
+            List<AssociationJoins.AssocJoin> aboveCut) {
+        if (aboveCut.isEmpty()) {
+            return m;
+        }
+        TypedSpec whole = m.pipeline();
+        for (AssociationJoins.AssocJoin aj : aboveCut) {
+            whole = foldAssociationJoin(cs, whole, aj);
+        }
+        return new Pipelines.Materialized(whole, m.slotPrefixes(), m.stripped());
     }
 
     /** The object-space lambdas a relation-shaping terminal carries. */

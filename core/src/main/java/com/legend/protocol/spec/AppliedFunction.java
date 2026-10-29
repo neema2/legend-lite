@@ -121,6 +121,15 @@ public record AppliedFunction(
                 : List.of(store, new CString(rest)), List.of(), span, false, false, false, true);
     }
 
+    /** The name {@link #tableReference} gives its call. */
+    private static final String TABLE_REFERENCE = "tableReference";
+
+    /** Whether this is a table reference, {@code #>{db.rest}#} or {@code tableReference(db, 'rest')} -- asked of the
+     *  record that makes one, before any name is resolved (an ingest's dataset read, LITE-DESIGN-lakehouse). */
+    public boolean isTableReference() {
+        return TABLE_REFERENCE.equals(function);
+    }
+
     public AppliedFunction {
         Objects.requireNonNull(function, "function");
         Objects.requireNonNull(parameters, "parameters");

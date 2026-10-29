@@ -1,0 +1,55 @@
+[
+  {
+    "_type": "ingestDefinition",
+    "datasets": [
+      {
+        "name": "Person",
+        "primaryKey": [
+          "id"
+        ],
+        "source": {
+          "_type": "serializedSource",
+          "schema": {
+            "_type": "relationType",
+            "columns": [
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "Integer"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": []
+                },
+                "multiplicity": {
+                  "lowerBound": 1,
+                  "upperBound": 1
+                },
+                "name": "id"
+              },
+              {
+                "genericType": {
+                  "multiplicityArguments": [],
+                  "rawType": {
+                    "_type": "packageableType",
+                    "fullPath": "String"
+                  },
+                  "typeArguments": [],
+                  "typeVariableValues": []
+                },
+                "multiplicity": {
+                  "lowerBound": 1,
+                  "upperBound": 1
+                },
+                "name": "name"
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "name": "PersonIngest",
+    "package": "model"
+  }
+]

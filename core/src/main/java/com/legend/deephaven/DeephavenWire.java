@@ -181,6 +181,9 @@ public final class DeephavenWire {
         return new Json.Obj(to);
     }
 
+    /** The batch operation that drops columns, as the wire names it. */
+    private static final String DROP_COLUMNS = "dropColumns";
+
     /** A plan whose result the server stores, and that result's columns, by their names in the plan. */
     public record Stored(String plan, List<String> columns) {
     }
@@ -199,7 +202,7 @@ public final class DeephavenWire {
         Json.Obj last = p.ops().get(at);
         String name = last.fields().keySet().iterator().next();
         List<String> dropped = List.of();
-        if (name.equals("dropColumns") && at > 0 && readsOffset(last.getObj(name), at - 1)) {
+        if (DROP_COLUMNS.equals(name) && at > 0 && readsOffset(last.getObj(name), at - 1)) {
             dropped = new ArrayList<>();
             for (Json.Node column : last.getObj(name).getArr("columnNames").items()) {
                 dropped.add(((Json.Str) column).value());

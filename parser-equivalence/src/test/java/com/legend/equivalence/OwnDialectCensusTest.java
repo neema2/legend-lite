@@ -81,7 +81,14 @@ class OwnDialectCensusTest {
                     "IqIslandRoundTripTest.java",
                     // the reference checks, 2026-10-21 (REVIEWED): the wrong-arity cases' generic class, the
                     // declared extension LITE-DESIGN-function-types-generics (§11) by purpose
-                    "ReferenceIntegrityTest.java");
+                    "ReferenceIntegrityTest.java",
+                    // the one connection, 2026-10-29 (REVIEWED, found by the branch's first census run): a Deephaven
+                    // connection read as lite's own JSON (docs/ONE_CONNECTION_DESK_2026_10_28.md D1), the declared
+                    // extension LITE-DESIGN-deephaven-backend (OWN_CORPUS_DECISIONS §15)
+                    "PureV1ApiTest.java",
+                    // the desk's data products, 2026-10-29 (REVIEWED): Legend's ###Lakehouse Ingest read by lite's own
+                    // grammar, the declared extension LITE-DESIGN-lakehouse (OWN_CORPUS_DECISIONS §16)
+                    "LakehouseIngestTest.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -146,7 +153,12 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("IqIslandRoundTripTest.java", 1),
                     // the reference checks, 2026-10-21 (REVIEWED): one generic class, the arity cases' subject; 1 -> 2
                     // the same day (the independent audit): a class extending its own type parameter, a crash's guard
-                    java.util.Map.entry("ReferenceIntegrityTest.java", 2));
+                    java.util.Map.entry("ReferenceIntegrityTest.java", 2),
+                    // the one connection, 2026-10-29 (REVIEWED): its Deephaven connection model
+                    java.util.Map.entry("PureV1ApiTest.java", 1),
+                    // the desk's data products, 2026-10-29 (REVIEWED): its two models, Legend's ###Lakehouse form and
+                    // the desk's shapes
+                    java.util.Map.entry("LakehouseIngestTest.java", 2));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);

@@ -206,6 +206,8 @@ public final class ModelFromProtocol {
             // 2026-10-16 (docs/MONGODB_PLAN_2026_10_16.md, D3 and D6): a store whose collections are tables, their
             // columns the declared JSON schema's (until then carried opaque)
             case Protocol.PMongoDatabase m -> MongoDeclarations.toDatabaseDefinition(m);
+            // 2026-10-29 (LITE-DESIGN-lakehouse): an ingest, whose database the model builder makes
+            case Protocol.PIngest i -> new IngestDefinition(i.qualifiedName(), i);
             case Protocol.PDataQualityValidation v ->
                     carried("DataQualityValidation", "DataQualityValidation", v.qualifiedName());
             case Protocol.PDataQualityRelationValidation v ->
@@ -284,6 +286,7 @@ public final class ModelFromProtocol {
             case Protocol.PDeephavenDatabase d -> d.sourceInformation();
             case Protocol.PElasticsearch7Cluster s -> s.sourceInformation();
             case Protocol.PMongoDatabase m -> m.sourceInformation();
+            case Protocol.PIngest i -> i.sourceInformation();
             case Protocol.PDataQualityValidation v -> v.sourceInformation();
             case Protocol.PDataQualityRelationValidation v -> v.sourceInformation();
             case Protocol.PDataQualityRelationComparison v -> v.sourceInformation();

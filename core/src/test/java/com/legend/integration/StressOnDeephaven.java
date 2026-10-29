@@ -34,7 +34,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 /**
- * THE STRESS CORPUS ON DEEPHAVEN, AGAINST THE ORACLE (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, task 15): every
+ * THE STRESS CORPUS ON DEEPHAVEN, AGAINST THE REFERENCE (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, task 15): every
  * {@code stress::} service test over the corpus's store and its test data, planned on a Deephaven runtime, run on a
  * Deephaven server, and judged as the stress suites judge it ({@link StressSuites}: the referee's {@code EqualToJson}
  * expectation, {@link TestAssertions#equalToJson}). Lite sends a plan to Deephaven only from the browser tab (no sender
@@ -196,10 +196,10 @@ final class StressOnDeephaven {
      *  (datacube/demo/deephaven/market/environments.pure) -- each twin binds the corpus's store itself. */
     static final String DESK_RUNTIME = "market::InTabRuntime";
 
-    /** Each screen's case (above): its plan on Deephaven and DuckDB's rows over `rows` as its expectation. */
+    /** Each screen's case (above): its plan on Deephaven and the reference's rows over `rows` as its expectation. */
     private static List<Object> deskCases(ModelContext ctx, List<Protocol.PRelationalCsvTable> rows) throws Exception {
         ModelContext on = onDeephaven(ctx, DESK_RUNTIME);
-        ModelContext duck = onDuckDb(ctx, DESK_RUNTIME, rows);
+        ModelContext duck = onReference(ctx, DESK_RUNTIME, rows);
         List<Object> cases = new ArrayList<>();
         try (java.sql.Connection session = com.legend.testbackend.TestBackends.platform().open()) {
             for (String screen : SCREENS) {
@@ -211,16 +211,16 @@ final class StressOnDeephaven {
                         Compiler.resolveQuery(body(parsed), new ImportScope(List.of()), on)).plan(DESK_RUNTIME + DEEPHAVEN);
                 var answer = com.legend.Execution.executeResolved(
                         Compiler.resolveQuery(body(parsed), new ImportScope(List.of()), duck), duck,
-                        DESK_RUNTIME + DUCKDB, session);
+                        DESK_RUNTIME + REFERENCE, session);
                 if (!(answer instanceof com.legend.exec.ExecutionResult.Tabular answered)) {
-                    throw new IllegalStateException(query + " answered no rows on DuckDB: " + answer);
+                    throw new IllegalStateException(query + " answered no rows on the reference: " + answer);
                 }
                 c.put("sql", plan.sql());
                 c.put("type", com.legend.plan.UpstreamRelationType.of(plan.rootType()));
                 c.put("enumerations", List.of());
                 c.put("expected", List.of(com.legend.sql.Json.canonical(
                         com.legend.test.ServiceTestRunner.serialize(answered, "PURE_TDSOBJECT"))));
-                System.out.printf("[deephaven] %s: %d rows on DuckDB%n", query, answered.rows().size());
+                System.out.printf("[deephaven] %s: %d rows on the reference%n", query, answered.rows().size());
                 cases.add(c);
             }
         }
@@ -287,12 +287,13 @@ final class StressOnDeephaven {
     /** A desk case's id begins so: the lane holds every one of them to passing, beside the corpus's floor. */
     static final String DESK = "desk / ";
 
-    /** What a runtime's DuckDB twin is named: the runtime's, suffixed. */
-    static final String DUCKDB = "$duckdb";
+    /** What a runtime's reference twin is named (the platform's test backend, TestBackends.platform()): the runtime's,
+     *  suffixed. */
+    static final String REFERENCE = "$reference";
 
-    /** The model with `runtime`'s DuckDB twin beside it: its mappings, the corpus's store bound to a DuckDB session
-     *  seeded with `tables` as the stress suites seed one (ServiceTestRunner's test runtime). */
-    private static ModelContext onDuckDb(ModelContext ctx, String runtime, List<Protocol.PRelationalCsvTable> tables) {
+    /** The model with `runtime`'s reference twin beside it: its mappings, the corpus's store bound to the test
+     *  backend's session seeded with `tables` as the stress suites seed one (ServiceTestRunner's test runtime). */
+    private static ModelContext onReference(ModelContext ctx, String runtime, List<Protocol.PRelationalCsvTable> tables) {
         RuntimeDefinition r = ctx.findRuntime(runtime).orElseThrow();
         StringBuilder seed = new StringBuilder();
         for (Protocol.PRelationalCsvTable t : tables) {
@@ -302,7 +303,7 @@ final class StressOnDeephaven {
             seed.append(t.schema()).append('\n').append(t.table()).append('\n')
                     .append(java.util.Objects.requireNonNull(t.values()));
         }
-        String name = runtime + DUCKDB;
+        String name = runtime + REFERENCE;
         ConnectionDefinition conn = new ConnectionDefinition(name + "$conn", STORE,
                 com.legend.testbackend.TestBackends.platform().type(),
                 ConnectionSpecification.carryingTestData(seed.toString()), new AuthenticationSpec.TestAuth());
@@ -310,6 +311,21 @@ final class StressOnDeephaven {
                 List.of(), List.of(), new LinkedHashMap<>(r.connectionIds()));
         return ((com.legend.compiler.element.PureModelContext) ctx).withExecutionOverlay(twin, conn);
     }
+
+    /** The Deephaven server a twin is bound to, written as the model writes a connection (the desk's
+     *  environments.pure), so the database it names is the connection's own. */
+    private static final ConnectionDefinition SERVER = Compiler.compileModel("""
+            ###Relational
+            Database %s ( )
+            ###Connection
+            RelationalDatabaseConnection twin::Server
+            {
+              store: %s;
+              type: Deephaven;
+              specification: Deephaven { host: 'localhost'; port: 10000; useTls: true; };
+              auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+            }
+            """.formatted(STORE, STORE)).findConnection("twin::Server").orElseThrow();
 
     /** What a runtime's Deephaven twin is named: the runtime's, suffixed. */
     static final String DEEPHAVEN = "$deephaven";
@@ -319,9 +335,8 @@ final class StressOnDeephaven {
     private static ModelContext onDeephaven(ModelContext ctx, String runtime) {
         RuntimeDefinition r = ctx.findRuntime(runtime).orElseThrow();
         String name = runtime + DEEPHAVEN;
-        ConnectionDefinition conn = new ConnectionDefinition(name + "$conn", STORE,
-                ConnectionDefinition.DatabaseType.Deephaven, new ConnectionSpecification.Deephaven("localhost", 10000, true),
-                new AuthenticationSpec.PreSharedKey("deephaven.psk"));
+        ConnectionDefinition conn = new ConnectionDefinition(name + "$conn", STORE, SERVER.databaseType(),
+                SERVER.specification(), SERVER.authentication());
         Map<String, String> ids = new LinkedHashMap<>(r.connectionIds());
         RuntimeDefinition twin = new RuntimeDefinition(name, r.mappings(), Map.of(STORE, List.of(conn.qualifiedName())),
                 List.of(), List.of(), ids);

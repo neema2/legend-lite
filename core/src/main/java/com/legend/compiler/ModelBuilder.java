@@ -156,6 +156,10 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     /** {@code ###Data} elements — the bodies test suites reference by name. */
     private final ArrayList<com.legend.model.DataDefinition> dataElements = new ArrayList<>();
     private final ArrayList<com.legend.model.DataSpaceDefinition> dataSpaces = new ArrayList<>();
+    /** {@code ###Lakehouse} ingests (LITE-DESIGN-lakehouse); each one's database is indexed with the databases. */
+    private final ArrayList<com.legend.model.IngestDefinition> ingests = new ArrayList<>();
+    /** An ingest whose database could not be made, and why: thrown by the integrity pass (poison-not-drop). */
+    private final java.util.LinkedHashMap<String, String> ingestErrors = new java.util.LinkedHashMap<>();
     private final ArrayList<RuntimeDefinition>     runtimes      = new ArrayList<>();
     private final ArrayList<ConnectionDefinition>  connections   = new ArrayList<>();
     /** Named model-store connections (Json/Xml/ModelChain) — indexed so a
@@ -335,6 +339,23 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             }
         }
 
+        // Phase 2b: each ingest's database, made from its datasets once the stores they read are indexed above (a
+        // dataset made by a read of another store's table takes that table's columns). An ingest that cannot make
+        // one is recorded and registers no database; the integrity pass throws its reason.
+        for (PackageableElement el : fresh) {
+            if (el instanceof com.legend.model.IngestDefinition ing) {
+                int id = intern(ing.qualifiedName());
+                putAtId(ingests, id, ing);
+                try {
+                    ingestDatabase(ing.database((db, schema, table) -> findTablePart(db, schema, table,
+                            new java.util.HashSet<>())));
+                } catch (IllegalArgumentException e) {
+                    internElement(ing.qualifiedName());
+                    ingestErrors.put(ing.qualifiedName(), e.getMessage());
+                }
+            }
+        }
+
         // Phase 3a: top-level definitions that may reference phase-2
         // elements. Lifted behavior functions (Phase E output) need no
         // special pass: they are ordinary FunctionDefinition elements,
@@ -388,6 +409,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             case ServiceDefinition sd -> idGet(services, id) == sd;
             case com.legend.model.DataDefinition dd -> idGet(dataElements, id) == dd;
             case com.legend.model.DataSpaceDefinition ds -> idGet(dataSpaces, id) == ds;
+            case com.legend.model.IngestDefinition ing -> idGet(ingests, id) == ing;
             case ConnectionDefinition cd -> idGet(connections, id) == cd;
             case RuntimeDefinition rd -> idGet(runtimes, id) == rd;
             case Function fn -> {
@@ -1091,6 +1113,31 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         return Optional.empty();
     }
 
+    /** The table named by its bare parts ({@link TableIndex#find(String, String)}) reached from {@code dbFqn}
+     *  through the include closure, own first. */
+    private Optional<DatabaseDefinition.TableDefinition> findTablePart(String dbFqn,
+            @com.legend.base.Nullable String schema, String table, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return Optional.empty();
+        }
+        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return Optional.empty();
+        }
+        TableIndex tables = tablesByDb.get(symbols.resolveId(dbFqn));
+        DatabaseDefinition.TableDefinition own = tables == null ? null : tables.find(schema, table);
+        if (own != null) {
+            return Optional.of(own);
+        }
+        for (String inc : db.includes()) {
+            Optional<DatabaseDefinition.TableDefinition> hit = findTablePart(inc, schema, table, seen);
+            if (hit.isPresent()) {
+                return hit;
+            }
+        }
+        return Optional.empty();
+    }
+
     /** The TABLE {@code name} declared in database {@code dbFqn} itself (its
      *  includes not consulted), by {@link TableIndex}'s spelling rules. */
     @Override
@@ -1324,6 +1371,22 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     /** All {@link ServiceDefinition}s in ingest order (the integrity pass's references). */
     public Stream<ServiceDefinition> services() {
         return inOrder(services);
+    }
+
+    /** O(1). Returns the {@code ###Lakehouse} ingest for {@code fqn}, if any (its database is
+     *  {@link #findDatabase}'s, under the same name). */
+    public Optional<com.legend.model.IngestDefinition> findIngest(String fqn) {
+        return Optional.ofNullable(idGet(ingests, symbols.resolveId(fqn)));
+    }
+
+    /** All ingests in ingest order. */
+    public Stream<com.legend.model.IngestDefinition> ingests() {
+        return inOrder(ingests);
+    }
+
+    /** Each ingest whose database could not be made, and why. */
+    public java.util.Map<String, String> ingestErrors() {
+        return java.util.Collections.unmodifiableMap(ingestErrors);
     }
 
     /** All data spaces in ingest order (the integrity pass's references). */

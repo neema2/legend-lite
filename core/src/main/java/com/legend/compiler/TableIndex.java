@@ -73,14 +73,13 @@ final class TableIndex {
         return ix;
     }
 
-    /** The table {@code name} spells in this database, or null. */
-    @com.legend.base.Nullable TableDefinition find(String name) {
-        int dot = name.indexOf('.');
-        if (dot <= 0) {
-            return bare.get(name);
+    /** The table named by its parts, already bare -- no schema (a bare name, which may hold a {@code .} a quoted
+     *  identifier carried), or a schema and a table -- or null: a quoted {@code "tp.trades"} is one name, never a
+     *  schema {@code tp} (LITE-DESIGN-lakehouse, an ingest's read of a topic store's table). */
+    @com.legend.base.Nullable TableDefinition find(@com.legend.base.Nullable String schema, String table) {
+        if (schema == null) {
+            return bare.get(table);
         }
-        String schema = name.substring(0, dot);
-        String table = name.substring(dot + 1);
         if (schema.equals("default")) {
             TableDefinition hit = top.get(table);
             if (hit != null) {
@@ -89,5 +88,11 @@ final class TableIndex {
         }
         Map<String, TableDefinition> own = bySchema.get(schema);
         return own == null ? null : own.get(table);
+    }
+
+    /** The table {@code name} spells in this database, or null. */
+    @com.legend.base.Nullable TableDefinition find(String name) {
+        int dot = name.indexOf('.');
+        return dot <= 0 ? find(null, name) : find(name.substring(0, dot), name.substring(dot + 1));
     }
 }

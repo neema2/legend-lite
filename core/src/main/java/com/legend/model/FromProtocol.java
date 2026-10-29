@@ -136,6 +136,14 @@ public final class FromProtocol {
         for (com.legend.protocol.Protocol.PPointer p : db.includedStores()) {
             includes.add(p.path());
         }
+        // `include Ingest x::Y` (LITE-DESIGN-lakehouse): the ingest's own database, which the model builder makes
+        // from its datasets, is included as any database is. Other typed includes keep what they had: none reaches
+        // the model (the stress corpus writes one of a store that does not exist, 66-store-surface.pure).
+        for (com.legend.protocol.Protocol.PIncludedStoreSpec spec : db.includedStoreSpecifications()) {
+            if ("Ingest".equals(spec.storeType())) {
+                includes.add(spec.path());
+            }
+        }
         List<DatabaseDefinition.SchemaDefinition> schemas = new java.util.ArrayList<>();
         List<DatabaseDefinition.TableDefinition> flatTables = new java.util.ArrayList<>();
         List<DatabaseDefinition.ViewDefinition> flatViews = new java.util.ArrayList<>();

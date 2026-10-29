@@ -150,7 +150,12 @@ class FixtureAdjudicationTest {
                     // IQ island, 2026-10-14 (REVIEWED): the #IQ{...}#
                     // island (1), a declared lite extension upstream has no
                     // parser for (OWN_CORPUS_DECISIONS §14)
-                    "Can'X'IQ' available ones: [GQL,SQL,>,TDS]");
+                    "Can'X'IQ' available ones: [GQL,SQL,>,TDS]",
+                    // the desk's data products, 2026-10-29 (REVIEWED): Legend's
+                    // ###Lakehouse, its grammar closed, read by lite's own
+                    // (OWN_CORPUS_DECISIONS §16) -- the engine's public parser
+                    // has no section parser for it
+                    "'X' is not a known section parser");
 
     /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
      *  line-positional, so exact ids would tax unrelated edits). */

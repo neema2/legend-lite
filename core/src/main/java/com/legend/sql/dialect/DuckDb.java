@@ -866,7 +866,7 @@ public final class DuckDb extends AnsiSqlRenderer {
     private static SqlExpr named(SqlExpr e, java.util.Map<SqlExpr, String> names, String alias) {
         String name = names.get(SharedSubtrees.bare(e));
         if (name != null) {
-            return new SqlExpr.Column(alias, name);
+            return SqlExpr.Column.derived(alias, name);
         }
         return e instanceof SqlExpr.Call || e instanceof SqlExpr.Case || e instanceof SqlExpr.Cast || e instanceof SqlExpr.Group
                 ? e.mapChildren(c -> named(c, names, alias)) : e;

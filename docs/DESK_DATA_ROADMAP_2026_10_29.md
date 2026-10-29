@@ -100,7 +100,9 @@ real Kafka) is later work.
 **A0. Settle the words** (W) on the desk's example. The design's §3a made final, and the
 `docs/SEMANTICS_REGISTER.md` rows drafted. *Small.*
 
-**A1. Ingests in lite's compiler.**
+**A1. Ingests in lite's compiler.** *Built 2026-10-29:* `###Lakehouse` and `include Ingest`
+(`LakehouseSectionGrammar`, `Protocol.PIngest`, `IngestDefinition`, the JSON reader and writer, the printer),
+`parser/LakehouseIngestTest`; SEMANTICS_REGISTER S113-S117, OWN_CORPUS_DECISIONS §16.
 
 - **Build:**
   - The `###Lakehouse` `Ingest` element, parsed:
@@ -128,6 +130,9 @@ real Kafka) is later work.
 
   `store::DB` includes the ingests.
 - **Delete:** the hand-written declarations of those tables in `30-store.pure`.
+- **Also:** the corpus's own Python model (`scripts/corpus/model.py`, which the seeder, the oracle and the
+  differential lane read the trading model through) learns `include Ingest` and a dataset's read of a table: it
+  refuses any grammar it does not know, by design.
 - **Done when:** a test shows the compiled store's tables are the same as before (columns, types, keys), and every
   lane over the trading model is green: core, corpus, DataCube, the desk lanes.
 - *Medium.* The trading model is the stress corpus, and many tests read it.

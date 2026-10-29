@@ -205,6 +205,7 @@ public final class ModelComposer {
             case Protocol.PDeephavenDatabase x -> x.qualifiedName();
             case Protocol.PElasticsearch7Cluster x -> x.qualifiedName();
             case Protocol.PMongoDatabase x -> x.qualifiedName();
+            case Protocol.PIngest x -> x.qualifiedName();
             case Protocol.PDataQualityValidation x -> x.qualifiedName();
             case Protocol.PDataQualityRelationValidation x -> x.qualifiedName();
             case Protocol.PDataQualityRelationComparison x -> x.qualifiedName();

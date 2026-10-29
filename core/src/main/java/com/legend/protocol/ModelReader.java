@@ -163,6 +163,7 @@ public final class ModelReader {
             Map.entry("deephavenStore", TailReader::deephavenStore),
             Map.entry("elasticsearch7Store", TailReader::elasticsearchStore),
             Map.entry("MongoDatabase", TailReader::mongoDatabase),
+            Map.entry("ingestDefinition", TailReader::ingest),
             Map.entry("externalFormatSchemaSet", TailReader::schemaSet),
             Map.entry("binding", TailReader::binding),
             Map.entry("serviceStore", TailReader::serviceStore),

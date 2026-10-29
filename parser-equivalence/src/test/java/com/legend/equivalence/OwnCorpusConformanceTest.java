@@ -85,6 +85,19 @@ class OwnCorpusConformanceTest {
             // no such mapping-element parser, by design on our side
             return "LITE-DESIGN-inline-association";
         }
+        if (text.contains("###Lakehouse")) {
+            // the desk's data products, 2026-10-29 (REVIEWED): Legend's
+            // ###Lakehouse Ingest, whose grammar is closed, read by lite's
+            // own (OWN_CORPUS_DECISIONS §16) -- a section the engine's
+            // public grammar has no parser for
+            return "LITE-DESIGN-lakehouse";
+        }
+        if (msg.contains("Unknown database type 'Deephaven'")) {
+            // a Deephaven server as a database of lite's, 2026-10-22
+            // (OWN_CORPUS_DECISIONS §15) -- a connection type the engine's
+            // DatabaseType enum lacks, as SQLite's
+            return "LITE-DESIGN-deephaven-backend";
+        }
         if (msg.contains("Unknown database type 'SQLite'")) {
             // the SQLite execution backend (BACKEND_PORTABILITY) — a lite
             // connection type the engine's DatabaseType enum lacks
@@ -260,6 +273,16 @@ class OwnCorpusConformanceTest {
                 // 0 -> 1 (IQ island, 2026-10-14, REVIEWED): the model whose
                 // function is an #IQ{...}# island (IqIslandRoundTripTest)
                 Map.entry("LITE-DESIGN-iq-island", 1),
+                // 0 -> 2 (the desk's data products, 2026-10-29, REVIEWED):
+                // LakehouseIngestTest's two models, Legend's ###Lakehouse
+                // form and the desk's shapes (OWN_CORPUS_DECISIONS §16)
+                Map.entry("LITE-DESIGN-lakehouse", 2),
+                // 0 -> 1 (2026-10-29, REVIEWED, found by the branch's first
+                // census run): PureV1ApiTest's Deephaven connection, lite's
+                // own JSON read where the engine's routes refuse it
+                // (docs/ONE_CONNECTION_DESK_2026_10_28.md D1, 2026-10-28;
+                // OWN_CORPUS_DECISIONS §15)
+                Map.entry("LITE-DESIGN-deephaven-backend", 1),
                 // 20 -> 21 (2026-09-13, REVIEWED, composition step 1): the
                 // routed-navigate witness is a function-form mapping by design
                 Map.entry("LITE-DESIGN-mapping-as-function", 21),

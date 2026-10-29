@@ -81,7 +81,7 @@ public final class Protocol {
             PDataQualityRelationComparison, PSchemaSet, PBinding,
             PServiceStoreDefinition,
             PMapping, PDataElement, PRelationalMapper,
-            PNativeFunction, PPrimitive, POpaqueElement, PAssociationProjection {
+            PNativeFunction, PPrimitive, POpaqueElement, PAssociationProjection, PIngest {
     }
 
     /** {@code ###Data Data [decorations] qn { <body> }} — {@code _type:
@@ -2032,6 +2032,121 @@ public final class Protocol {
         }
     }
 
+    /**
+     * A {@code ###Lakehouse} Ingest -- {@code _type:"ingestDefinition"}: where datasets land, how their rows arrive
+     * (the read mode) and how they land (the write mode). Legend's element, its grammar closed: the wire is read from
+     * legend-studio's round-trip fixtures, the written forms Studio shows kept, lite's additions (a stream, a pull,
+     * latest by key, a retention) declared (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN-lakehouse;
+     * docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §3a). Lite's dialect reads it; the engine's refuses the section.
+     */
+    public record PIngest(String pkg, String name,
+                          List<PStereotype> stereotypes,
+                          List<PTaggedValue> taggedValues,
+                          PIngestReadMode readMode,
+                          @com.legend.base.Nullable PIngestOwner owner,
+                          @com.legend.base.Nullable String datasetGroup,
+                          /** the wire's write mode for every dataset that names none; null when unwritten */
+                          @com.legend.base.Nullable String writeMode,
+                          List<PIngestDataset> datasets,
+                          @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+
+        /** This ingest with {@code datasets} in place of its own (the name resolver's rewrite of their functions). */
+        public PIngest withDatasets(List<PIngestDataset> datasets) {
+            return new PIngest(pkg, name, stereotypes, taggedValues, readMode, owner, datasetGroup, writeMode, datasets,
+                    sourceInformation);
+        }
+    }
+
+    /** {@code owner=AppDir(production='111111', prodParallel='222222')}: the application directory deployments that
+     *  own the ingest, each an id of digits ({@code {appDirId, level: 'DEPLOYMENT'}} on the wire). */
+    public record PIngestOwner(String production, @com.legend.base.Nullable String prodParallel) {
+    }
+
+    /** How an ingest's rows arrive. */
+    public sealed interface PIngestReadMode permits PIngestFiles, PIngestStream, PIngestPull {
+    }
+
+    /** Legend's: files a producer drops, {@code Snapshot} (the whole set each time) or {@code Delta} (the changes), in
+     *  {@code CSV} or {@code Parquet}. */
+    public record PIngestFiles(String kind, String format) implements PIngestReadMode {
+    }
+
+    /** Lite's: rows arriving live -- from the topic each dataset's function reads, or, for a dataset whose columns are
+     *  written out, written into the ingest's own topic by its producer, in {@code format} ({@code Json},
+     *  {@code Avro}; null when the dataset's source says it). */
+    public record PIngestStream(@com.legend.base.Nullable String format) implements PIngestReadMode {
+    }
+
+    /** Lite's: each dataset's function run on a schedule, each run the whole set. */
+    public record PIngestPull(PIngestSchedule schedule) implements PIngestReadMode {
+    }
+
+    /** When a pull runs. */
+    public sealed interface PIngestSchedule permits PIngestDaily, PIngestEvery {
+    }
+
+    /** {@code Daily('06:00', 'America/New_York')}: once a day at a time of day in a named zone. */
+    public record PIngestDaily(String time, String zone) implements PIngestSchedule {
+    }
+
+    /** {@code Every('PT15M')}: at an interval, an ISO 8601 duration. */
+    public record PIngestEvery(String period) implements PIngestSchedule {
+    }
+
+    /**
+     * One dataset: its name (the table it lands as), its primary key, its source (its columns written out, or a
+     * function whose result it is), how its rows land when it says ({@code writeMode}, the wire's value), how much
+     * history it keeps (lite's {@code retention}), and the other wire fields Legend writes for a dataset, kept as
+     * read.
+     */
+    public record PIngestDataset(String name,
+                                 List<String> primaryKey,
+                                 PIngestSource source,
+                                 @com.legend.base.Nullable String writeMode,
+                                 @com.legend.base.Nullable PIngestRetention retention,
+                                 @com.legend.base.Nullable String privacyClassification,
+                                 List<String> ingestPartitionColumns,
+                                 List<String> storageLayoutPartitionColumns,
+                                 List<String> storageLayoutClusterColumns,
+                                 @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+
+        /** This dataset made by {@code function} in place of its source. */
+        public PIngestDataset withFunction(com.legend.protocol.spec.LambdaFunction function) {
+            return new PIngestDataset(name, primaryKey, new PIngestFunction(function), writeMode, retention,
+                    privacyClassification, ingestPartitionColumns, storageLayoutPartitionColumns,
+                    storageLayoutClusterColumns, sourceInformation);
+        }
+    }
+
+    /** Where a dataset's rows come from. */
+    public sealed interface PIngestSource permits PIngestColumns, PIngestFunction {
+    }
+
+    /** {@code serializedSource}: the columns written out, a relation type's -- rows pushed in by a producer. */
+    public record PIngestColumns(List<com.legend.protocol.TypeExpression.Column> columns) implements PIngestSource {
+    }
+
+    /** {@code FunctionSource}: the dataset is a function's result (Legend's materialized view; lite's stream and pull
+     *  read another store's table this way). */
+    public record PIngestFunction(com.legend.protocol.spec.LambdaFunction function) implements PIngestSource {
+    }
+
+    /** How much history an appended dataset keeps. */
+    public sealed interface PIngestRetention permits PIngestLast, PIngestLastRows {
+    }
+
+    /** {@code Last('PT8H')}: the rows of the last span of time, an ISO 8601 duration. */
+    public record PIngestLast(String duration) implements PIngestRetention {
+    }
+
+    /** {@code LastRows(200000)}: the last rows, so many. */
+    public record PIngestLastRows(long rows) implements PIngestRetention {
+    }
+
     /** A DataQuality graph-fetch tree node: root carries the class name,
      *  property nodes the property name; both carry constraint names and
      *  subtrees (ZTailProbe "dq-validation"). */
@@ -3517,6 +3632,7 @@ public final class Protocol {
             case PDeephavenDatabase d -> d.qualifiedName();
             case PElasticsearch7Cluster s -> s.qualifiedName();
             case PMongoDatabase m -> m.qualifiedName();
+            case PIngest i -> i.qualifiedName();
             case PDataQualityValidation v -> v.qualifiedName();
             case PDataQualityRelationValidation v -> v.qualifiedName();
             case PDataQualityRelationComparison v -> v.qualifiedName();

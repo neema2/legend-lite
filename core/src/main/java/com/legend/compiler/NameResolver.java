@@ -430,6 +430,7 @@ public final class NameResolver {
             case ConnectionDefinition cd -> resolveConnection(cd, scope);
             case com.legend.model.DataSpaceDefinition ds ->
                     resolveDataSpace(ds, scope);
+            case com.legend.model.IngestDefinition ing -> resolveIngest(ing, scope);
             case com.legend.model.ModelConnectionDefinition mc -> {
                 String cls = resolveName(mc.className(), scope);
                 yield cls.equals(mc.className()) ? mc
@@ -1525,6 +1526,26 @@ public final class NameResolver {
                 sd.documentation(), mappingRef, runtimeRef,
                 sd.testSuites(), sd.owners(), sd.autoActivateUpdates(),
                 multi, sd.test());
+    }
+
+    /** An ingest's names are in its datasets' functions (the store a read names); its written columns' types are
+     *  primitives. */
+    private static com.legend.model.IngestDefinition resolveIngest(com.legend.model.IngestDefinition ing,
+            Scope scope) {
+        com.legend.protocol.Protocol.PIngest g = ing.ingest();
+        List<com.legend.protocol.Protocol.PIngestDataset> datasets = new java.util.ArrayList<>(g.datasets().size());
+        boolean changed = false;
+        for (com.legend.protocol.Protocol.PIngestDataset d : g.datasets()) {
+            if (d.source() instanceof com.legend.protocol.Protocol.PIngestFunction f) {
+                LambdaFunction r = resolveLambda(f.function(), scope);
+                if (r != f.function()) {
+                    changed = true;
+                    d = d.withFunction(r);
+                }
+            }
+            datasets.add(d);
+        }
+        return !changed ? ing : new com.legend.model.IngestDefinition(ing.qualifiedName(), g.withDatasets(datasets));
     }
 
     private static com.legend.model.DataSpaceDefinition resolveDataSpace(
