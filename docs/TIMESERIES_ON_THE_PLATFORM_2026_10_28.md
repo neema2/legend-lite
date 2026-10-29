@@ -47,11 +47,13 @@ on PR #77. This note says what each item is, what is decided, and what waits on 
   as a `###Pure` section after a model's own, as the page sends it; nothing of the platform's own changes. A person's
   Pure on the platform then names `datacube::ts` with no TypeScript in the path: `//core:timeseries_library_test`
   compiles the file whole and runs a person's Pure over it on every in-process database (DuckDB, H2, SQLite).
-- **C. `#Quant{...}#`.** An island, as `#SQL{...}#` is (`SpecParser`'s island switch, `protocol/sql/SqlToPure`): the
-  formula language parsed in Java and written as a Pure relation expression of library calls -- what
-  `timeseries-query.ts` writes today. Its sources named in the island (`#Quant{ px = $prices(date: day, key: symbol);
-  returns(px:close[SPX], 1, log) }#`, the shape to settle: §5 D2). Ported by parity: every gallery formula and every
-  query-suite case planned both ways, the same SQL's answers required, before the TypeScript writer is deleted.
+- **C. The timeseries query language (2026-10-29: docs/TIMESERIES_LANGUAGE_2026_10_29.md).** A SQL dialect for
+  timeseries -- `SELECT … FROM (prices WHERE …) ON date BY symbol SAMPLE BY 1w FILL(PREV) FILTER …` -- whose meaning is
+  its expansion into plain SQL, then Pure through the existing translator, the library's functions found by name as
+  user-defined functions. The tile's formula box holds one select item; Python's API maps onto the clauses unchanged.
+  It replaces the `#Quant` sketch and §5's D1-D3. Tested on paper before it is built (that document's §13); then ported
+  by parity: every gallery formula and every query-suite case planned both ways, the same answers required, before the
+  TypeScript writer is deleted.
 - **D. The writer thin.** The tile sends `#Quant{...}#` and reads the answer; Python the same; `timeseries-query.ts`
   keeps what is the screen's alone (the points cut to a limit, the columns a drawing reads).
 - **E. The rest of the list.** The library on a second database (H2 or Postgres, the query suite's figures). B's test
@@ -73,6 +75,11 @@ month's number and the three fills answer as arithmetic on all three; a week's r
 other two (step E).
 
 ## 5. What waits on the user
+
+*Superseded 2026-10-29.* D1-D3 below were the `#Quant` sketch's questions. Working through them with the user led to
+the query language in docs/TIMESERIES_LANGUAGE_2026_10_29.md: the core never names DataCube's package (the library's
+functions are found by name, as SQL's user-defined functions are), a formula's context is the query's own clauses, and
+the order is: test the language on paper, then build it behind a parity test. Kept as the record of how it started.
 
 - **D1. Does the platform's `#Quant` emit calls to `datacube::ts`?** The world-map tenet (docs/WORLD_MAP.md) has the
   platform ship natives and declarations, no other Pure bodies. `datacube::ts` stays DataCube's (a program: input, never
