@@ -95,7 +95,7 @@ round-trip fixtures; each spelling lite reconstructed is listed so it can be rep
 | History kept | `keep=Last('PT8H')`, `keep=LastRows(200000)` | `keep: { ... }` | lite |
 | A store over an ingest | `include Ingest <path>` | `includedStoreSpecifications: [ { storeType: Ingest, ... } ]` | Legend, named in prose |
 | Topics as tables | `type: Kafka; specification: Kafka { bootstrapServers: '...'; schemaRegistry: '...'; format: Avro; };` | a `RelationalDatabaseConnection` of lite's type | lite (as `Deephaven`) |
-| Rows from the market world | `type: Simulated; specification: Simulated { world: 'market'; };` | the same, the demo's and the tests' | lite |
+| Rows written straight in by the market world (the tab only, §9 question 5) | `type: Simulated; specification: Simulated { world: 'market'; };` | the same, the static demo's and its tests' | lite |
 | A model access group | `<id> ('<description>') Model { mapping: <path>; compatibleRuntimes: [ <id>: <runtime>, ... ]; defaultRuntime: <id>; } [ <access points> ]` | `modelAccessPointGroup` | Legend's shape, lite's spelling |
 | A data space's mapping from a product | `mappingProvider: { element: <product>; keys: [ '<group id>' ]; };` | `mappingProvider: { element, keys }` | Legend's shape, lite's spelling |
 
@@ -303,20 +303,30 @@ RelationalDatabaseConnection prod::TickerPlant
 RelationalDatabaseConnection demo::TickerPlant
 {
   store: tickerplant::Topics;
+  type: Kafka;
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  auth: Test;
+}
+RelationalDatabaseConnection tab::TickerPlant
+{
+  store: tickerplant::Topics;
   type: Simulated;
   specification: Simulated { world: 'market'; };
   auth: Test;
 }
 ```
 
-| Store | Production | The demo |
-|---|---|---|
-| `store::DB` (where the ingests land) | Deephaven | Deephaven, or the tab's DuckDB |
-| `tickerplant::Topics`, `newswire::Topics`, `oms::Topics` | Kafka | `Simulated`: the market world writes the rows |
-| `secmaster::DB`, `riskdb::DB`, the other masters | each master's database | `Simulated`: the market world's reference rows |
-| Position keeping's files | its write location | the market world's start-of-day positions |
+| Store | Production | The demo on Deephaven | The demo in the tab (no server) |
+|---|---|---|---|
+| `store::DB` (where the ingests land) | Deephaven | Deephaven | the tab's DuckDB |
+| `tickerplant::Topics`, `newswire::Topics`, `oms::Topics` | Kafka | Kafka at a local address, the market world behind it (§A.5) | `Simulated`: the market world writes the landing tables itself |
+| `secmaster::DB`, `riskdb::DB`, the other masters | each master's database | the market world's reference rows | the same |
+| Position keeping's files | its write location | the market world's start-of-day positions | the same |
 
-The ingests, products and data space are the same in both; only the runtimes differ.
+The ingests, products and data space are the same in all three; only the runtimes differ. In the tab nothing is
+consumed: the landing tables are made from the ingests as everywhere (their write mode, their history kept), and the
+world appends and upserts into them, the way it writes the tab's live DuckDB today. The tab still ticks; only Kafka is
+missing.
 
 ## 5. End to end
 
@@ -386,10 +396,15 @@ table to its ingest's columns.
    read through contracts on access groups; that stays out of this design.
 4. **How Legend serves an access point on its target, and refreshes a materialized view:** not visible (closed
    services). Lite's answers are its own, registered.
-5. **The demo's streams: open** (the user, 2026-10-29, asking for something like DuckDB for Kafka instead of
-   `Simulated`). The proposal: no `Simulated` connection type. The demo's connections are `type: Kafka` at a local
-   address, so the ingests, Deephaven's startup program and its Kafka reader are production's own; only the address
-   differs. What answers at that address is §A.5's choice, waiting on the user.
+5. **The demo's streams: settled in part** (the user, 2026-10-29: "for demo we can have no server but for DeepHaven we
+   need server anyway - for static demo I guess we just dont do streaming we just do duckdb inserts"). A browser tab
+   can be neither a Kafka server (it accepts no connections) nor a Kafka client (it opens no raw sockets), so:
+   - **On Deephaven**, the demo's connections are `type: Kafka` at a local address, so the ingests, Deephaven's startup
+     program and its Kafka reader are production's own; only the address differs. What answers there (our door or a
+     real broker) is §A.5's choice, still open.
+   - **In the tab**, the world writes the landing tables directly. `Simulated` stays for this one case, as a word the
+     environment states. Leaving the topics unbound in the tab's environment instead would make "written directly"
+     look the same as "forgot to bind", and the platform's checks must refuse the second (AGENTS.md invariant 4).
 
 ## Appendix A. The research
 
@@ -633,9 +648,14 @@ The lateness is Deephaven's cycle (half a cycle on average), not the door.
 | Is it Kafka? | a stand-in, four requests | a real broker, tested against three client families | the reference | a real broker |
 | Measured here | yes (above) | no: needs the user's word | no | no |
 
-Recommended: the door for the demo and the lanes, because it means one process, no new dependency, and one world
-for both engines. Add one lane against a real broker (Tansu, or Apache Kafka if Tansu's youth worries) when a
-producer outside the world exists. That lane is where a gap between the door and Kafka would show.
+With the tab settled (§9 question 5: no Kafka there, the world writes DuckDB directly), the choice is for Deephaven
+only, where a server runs anyway. "No server" is no longer a reason for the door; what remains is that it needs no new
+dependency and no Kafka producer for the world, at the cost of being a stand-in. A real broker's one reason is that it
+is Kafka.
+
+Recommended: the door for the Deephaven demo and its lanes first, since it is measured and costs nothing new. Add one
+lane against a real broker (Tansu, or Apache Kafka if Tansu's youth worries) when a producer outside the world exists.
+That lane is where a gap between the door and Kafka would show.
 
 ## Appendix B. A cross-check
 
