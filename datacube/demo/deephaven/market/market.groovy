@@ -1840,7 +1840,8 @@ EXCHANGE = TableTools.newTable(
         TableTools.stringCol('TIMEZONE', 'America/New_York', 'America/New_York'),
         TableTools.stringCol('OPEN_TIME', '09:30', '09:30'),
         TableTools.stringCol('CLOSE_TIME', '16:00', '16:00'),
-        TableTools.col('IS_ELECTRONIC', Boolean.TRUE, Boolean.FALSE),
+        // typed arrays: Groovy hands col's varargs an Object[], held as java.lang.Object, which the store's BIT is not (DH16)
+        TableTools.col('IS_ELECTRONIC', [Boolean.TRUE, Boolean.FALSE] as Boolean[]),
         TableTools.stringCol('OPERATING_MIC', 'XNAS', 'XNYS'),
         TableTools.stringCol('WEBSITE', 'https://www.nasdaq.com', 'https://www.nyse.com'),
         TableTools.stringCol('REGULATORY_BODY', 'SEC', 'SEC'),
@@ -2005,9 +2006,9 @@ yesterday = today.minusDays(1)
 BUSINESS_UNIT = TableTools.newTable(
         TableTools.stringCol('BU_ID', 'BU-MARKETS'), TableTools.stringCol('NAME', 'Global Markets'),
         TableTools.stringCol('HEAD', 'TR-01'), TableTools.stringCol('DIVISION', 'Markets'),
-        TableTools.col('IS_ACTIVE', Boolean.TRUE), TableTools.intCol('HEADCOUNT', 18),
+        TableTools.col('IS_ACTIVE', [Boolean.TRUE] as Boolean[]), TableTools.intCol('HEADCOUNT', 18),
         TableTools.doubleCol('BUDGET', 4.2e7d), TableTools.stringCol('COST_CENTER', 'CC-100'),
-        TableTools.stringCol('REGION', 'AMER'), TableTools.col('ESTABLISHED_DATE', java.time.LocalDate.of(2009, 1, 5)),
+        TableTools.stringCol('REGION', 'AMER'), TableTools.col('ESTABLISHED_DATE', [java.time.LocalDate.of(2009, 1, 5)] as java.time.LocalDate[]),
         TableTools.stringCol('DESCRIPTION', 'Sales and trading'), TableTools.stringCol('LEGAL_ENTITY_ID', 'LE-US'))
 
 // the desks: each its sectors (none: equity derivatives, FX), its gross limit and day's P&L target
