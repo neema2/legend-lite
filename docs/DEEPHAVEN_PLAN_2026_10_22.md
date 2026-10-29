@@ -186,7 +186,7 @@ Alongside the MongoDB line's (the user's rulings of 2026-10-16), so the two non-
 | DH13 | authentication | a vault reference | **`PreSharedKey(keyVaultReference)`** (§4) |
 | DH14 | the metamodel store | D13: refused by name | **refused by name** |
 | DH15 | creating tables | (none) | **the store's DDL**: a table with a primary key becomes a keyed input table (its key the declared key), one without an append-only input table. Internal users only (DH11) |
-| DH16 | a table legend-lite did not create | (none) | **checked when a session first reads it**: the server's columns, types and nullability against the declaration, a mismatch refused by name; a write to it refused by name |
+| DH16 | a table legend-lite did not create | (none) | **checked when a session first reads it**: the server's columns, types and nullability against the declaration, a mismatch refused by name; a write to it refused by name. **Types built 2026-10-29, strict (the user's decision)**: the batch's `"declared"`, checked by `DeephavenWire.made` against each answer's Arrow schema (DEEPHAVEN_START_HERE.md item 5); nullability not checked |
 | DH17 | writes | (none planned: test-data loads only) | **the Cypher writes line's four verbs (§6)**, each a table-operation plan then one input-table add or delete; `write` into a keyed table and every verb but `write` on an append-only one refused by name; one write per program |
 | DH18 | names on the server | (none) | **the default schema's names**; a named schema refused until a case (§3) |
 | DH19 | a restart | (none) | **refused by name**: a table missing from the server is reported as missing, never recreated empty by the connector; the publisher recreates and reloads (§7) |

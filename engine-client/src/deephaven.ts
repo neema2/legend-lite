@@ -49,7 +49,25 @@ export interface KeptResult {
   /** The plan's operations, and those sent to make it: none when the session kept it alive already. */
   readonly ops: number;
   readonly sent: number;
+  /** The result's columns as the server holds them: each one's name and Deephaven type (`deephaven:type`). */
+  readonly columns: readonly DeephavenColumn[];
   release(): void;
+}
+
+/** A column of a table the server made, as its schema names it: its name and the Java type the server holds it as
+ *  (`int`, `long`, `java.lang.String`; null when the server wrote none). */
+export interface DeephavenColumn {
+  readonly name: string;
+  readonly type: string | null;
+}
+
+/** A table the server made otherwise than its store declares (DH16, decided strict): refused by name, never read as if
+ *  it held what the store says. */
+export class DeephavenMismatch extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DeephavenMismatch';
+  }
 }
 
 /** What a session needs of its page: how it fetches (the page's own `fetch`), how often it keeps the session's token
@@ -72,11 +90,21 @@ const RELEASE = 'io.deephaven.proto.backplane.grpc.SessionService/Release';
 const CLOSE = 'io.deephaven.proto.backplane.grpc.SessionService/CloseSession';
 const DO_GET = 'arrow.flight.protocol.FlightService/DoGet';
 
-/** A table the session keeps alive: its export, how many readers pin it now, and when it was last read (a count). */
+/** A table the session keeps alive: its export, its columns as the server holds them, how many readers pin it now,
+ *  and when it was last read (a count). */
 interface Kept {
   readonly exportId: number;
+  readonly columns: readonly DeephavenColumn[];
   pins: number;
   used: number;
+}
+
+/** An export a send makes, as the planner answered it: its key, its id, and the store's table its operation reads,
+ *  which only the planner reads (`made`). */
+interface SentExport {
+  readonly key: string;
+  readonly exportId: number;
+  readonly declared?: unknown;
 }
 
 /** One session of the tab's on a Deephaven server: the plans it sends, and the results it publishes. */
@@ -174,7 +202,7 @@ export class DeephavenSession {
       }));
       const send = JSON.parse(await timed('encode', () => this.ask('send', { plan, alive, supplied, nextExportId }))) as {
         readonly request: string;
-        readonly exports: readonly { readonly key: string; readonly exportId: number }[];
+        readonly exports: readonly SentExport[];
         readonly result: number;
       };
       onSent?.(send.result);
@@ -189,6 +217,7 @@ export class DeephavenSession {
         exportId: result.exportId,
         ops: keys.length,
         sent: send.exports.length,
+        columns: result.columns,
         release: () => {
           if (released) return;
           released = true;
@@ -208,10 +237,9 @@ export class DeephavenSession {
     }
   }
 
-  /** Sends a batch that makes `exports`, checks the server made each, and keeps them alive; a refusal lets them all
-   *  go. */
-  private async make(request: string, exports: readonly { readonly key: string; readonly exportId: number }[]):
-  Promise<void> {
+  /** Sends a batch that makes `exports`, checks the server made each -- and each that reads a store's table made it as
+   *  the store declares it (DH16) -- and keeps them alive; a refusal or a mismatch lets them all go. */
+  private async make(request: string, exports: readonly SentExport[]): Promise<void> {
     let answer: Uint8Array[];
     try {
       answer = await timed('batch', () => this.call(BATCH, fromBase64(request)));
@@ -221,23 +249,21 @@ export class DeephavenSession {
       throw e;
     }
     const decoding = performance.now();
-    let refused: string | null = answer.length === exports.length ? null
-      : `the server answered ${answer.length} of the batch's ${exports.length} operations`;
-    for (const message of answer) {
-      const created = JSON.parse(await this.ask('created', { message: toBase64(message) })) as {
-        readonly success: boolean;
-        readonly errorInfo: string;
-      };
-      // the first refusal is the cause: the operations after it that read it fail for it
-      if (!created.success && refused === null) refused = created.errorInfo;
-    }
+    const made = JSON.parse(await this.ask('made', { answers: answer.map(toBase64), exports })) as {
+      readonly refused: string | null;
+      readonly mismatch: string | null;
+      readonly columns: Readonly<Record<string, readonly DeephavenColumn[]>>;
+    };
     measured('created', decoding);
-    if (refused !== null) {
+    if (made.refused !== null || made.mismatch !== null) {
       for (const e of exports) this.releaseExport(e.exportId);
-      throw new DeephavenRefused('Batch', 3, refused);
+      if (made.refused !== null) throw new DeephavenRefused('Batch', 3, made.refused);
+      throw new DeephavenMismatch(made.mismatch!);
     }
     for (const e of exports) {
-      this.tables.set(e.key, { exportId: e.exportId, pins: 0, used: ++this.clock });
+      const columns = made.columns[e.exportId];
+      if (columns === undefined) throw new Error(`the planner read no columns of export ${e.exportId}`);
+      this.tables.set(e.key, { exportId: e.exportId, columns, pins: 0, used: ++this.clock });
       if (this.made.has(e.key)) this.madeAgain++;
       this.made.add(e.key);
     }

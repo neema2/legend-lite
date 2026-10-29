@@ -51,6 +51,9 @@ final class DeephavenBatch {
     private int ops;
     /** The helper columns a select's windows read and make ({@code __x<n>}, {@code __w<n>}): numbered across the batch. */
     private int windowColumns;
+    /** Each store table the batch reads, as its store declares it (DH16): written after the operations, for the sender
+     *  to check the server's table against ({@code DeephavenWire.made}). */
+    private final List<String> declared = new ArrayList<>();
 
     DeephavenBatch(Deephaven dialect, SqlWriter writer) {
         this.dialect = dialect;
@@ -69,7 +72,11 @@ final class DeephavenBatch {
     SqlWriter batch(SqlQuery q) {
         w.append("{\"ops\": [");
         query(q);
-        return w.append("]}");
+        w.append("]");
+        if (!declared.isEmpty()) {
+            w.append(", \"declared\": [" + String.join(", ", declared) + "]");
+        }
+        return w.append("}");
     }
 
     // ==================================================================
@@ -1591,7 +1598,8 @@ final class DeephavenBatch {
         };
     }
 
-    /** A server's table, by its name (the default schema's: DH18), each column renamed under the alias. */
+    /** A server's table, by its name (the default schema's: DH18), each column renamed under the alias; the table as its
+     *  store declares it written beside the batch (DH16), each column with the Java type the server must hold it as. */
     private int table(SqlSource.Table t, Deephaven.Scope scope) {
         if (t.call()) {
             throw new DialectCapability("a tabular function (" + t.name() + ") reached Deephaven, which has none");
@@ -1603,11 +1611,20 @@ final class DeephavenBatch {
         String table = DeephavenJson.name(t.name(), "a table");
         Map<String, String> columns = new LinkedHashMap<>();
         List<Spec> renames = new ArrayList<>();
+        List<String> types = new ArrayList<>();
         for (OutputCol c : t.outputs()) {
             String name = DeephavenJson.name(c.name(), "column " + t.name() + "." + c.name());
             String renamed = alias(t.alias()) + "__" + name;
             columns.put(c.name(), renamed);
             renames.add(new Spec(renamed + " = " + name, null));
+            SqlDdl.ColumnType stored = t.storedTypes().get(c.name());
+            if (stored == null) {
+                throw new IllegalStateException("column " + t.name() + "." + c.name() + " reached Deephaven with no"
+                        + " declared type: a server's table is checked against its store's declaration (DH16)");
+            }
+            types.add("{\"name\": " + DeephavenJson.string(renamed) + ", \"column\": " + DeephavenJson.string(name)
+                    + ", \"type\": " + DeephavenJson.string(javaTypeOf(stored, t.name() + "." + c.name()))
+                    + ", \"declared\": " + DeephavenJson.string(spelled(stored)) + "}");
         }
         scope.sources.put(t.alias(), columns);
         open("view");
@@ -1616,7 +1633,10 @@ final class DeephavenBatch {
             w.append(i > 0 ? ", " : "").append(DeephavenJson.string(renames.get(i).text()));
         }
         w.append("]");
-        return close();
+        int op = close();
+        declared.add("{\"op\": " + op + ", \"table\": " + DeephavenJson.string(table) + ", \"columns\": ["
+                + String.join(", ", types) + "]}");
+        return op;
     }
 
     private static String alias(String alias) {
@@ -1967,35 +1987,62 @@ final class DeephavenBatch {
                 + "]}}";
     }
 
-    /** The typed null a column of {@code type} starts from, which gives the input table its column's type
-     *  (docs/DEEPHAVEN_PLAN_2026_10_22.md §3's table); a type no Deephaven column holds refused by name. */
-    private static String nullOf(SqlDdl.ColumnType type, String column) {
+    /** The Java type a Deephaven server holds a column of {@code type} as -- its {@code deephaven:type} (measured on
+     *  42.7, 2026-10-29: {@link #nullOf}'s columns read back) -- which a server's table is checked against (DH16); a
+     *  type no Deephaven column holds refused by name. */
+    private static String javaTypeOf(SqlDdl.ColumnType type, String column) {
         return switch (type) {
             case SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
-                case BIT -> "(Boolean) null";
-                case TINYINT -> "NULL_BYTE";
-                case SMALLINT -> "NULL_SHORT";
-                case INTEGER -> "NULL_INT";
-                case BIGINT -> "NULL_LONG";
-                case REAL -> "NULL_FLOAT";
-                case FLOAT, DOUBLE -> "NULL_DOUBLE";
-                case DATE -> "(java.time.LocalDate) null";
-                case TIME -> "(java.time.LocalTime) null";
-                case TIMESTAMP -> "(java.time.Instant) null";
-                case VARCHAR -> "(String) null";
+                case BIT -> "java.lang.Boolean";
+                case TINYINT -> "byte";
+                case SMALLINT -> "short";
+                case INTEGER -> "int";
+                case BIGINT -> "long";
+                case REAL -> "float";
+                case FLOAT, DOUBLE -> "double";
+                case DATE -> "java.time.LocalDate";
+                case TIME -> "java.time.LocalTime";
+                case TIMESTAMP -> "java.time.Instant";
+                case VARCHAR -> "java.lang.String";
                 case TIMESTAMP_NS, JSON, OTHER, DISTINCT, ARRAY, OBJECT -> throw new DialectCapability("column " + column
                         + " is " + p.kind() + ", which no Deephaven column holds yet");
             };
             case SqlDdl.ColumnType.Sized s -> switch (s.kind()) {
-                case "VARCHAR", "CHAR" -> "(String) null";
+                case "VARCHAR", "CHAR" -> "java.lang.String";
                 default -> throw new DialectCapability("column " + column + " is " + s.kind() + "(" + s.size()
                         + "), which no Deephaven column holds yet");
             };
             case SqlDdl.ColumnType.Scaled s -> switch (s.kind()) {
-                case "DECIMAL", "NUMERIC" -> "(java.math.BigDecimal) null";
+                case "DECIMAL", "NUMERIC" -> "java.math.BigDecimal";
                 default -> throw new DialectCapability("column " + column + " is " + s.kind() + ", which no"
                         + " Deephaven column holds yet");
             };
+        };
+    }
+
+    /** {@code type} as its store spells it, for a refusal's words. */
+    private static String spelled(SqlDdl.ColumnType type) {
+        return switch (type) {
+            case SqlDdl.ColumnType.Plain p -> p.kind().name();
+            case SqlDdl.ColumnType.Sized s -> s.kind() + "(" + s.size() + ")";
+            case SqlDdl.ColumnType.Scaled s -> s.kind() + "(" + s.precision() + ", " + s.scale() + ")";
+        };
+    }
+
+    /** The typed null a column of {@code type} starts from, which gives the input table its column's type
+     *  (docs/DEEPHAVEN_PLAN_2026_10_22.md §3's table): its {@link #javaTypeOf Java type}'s null. */
+    private static String nullOf(SqlDdl.ColumnType type, String column) {
+        String java = javaTypeOf(type, column);
+        return switch (java) {
+            case "byte" -> "NULL_BYTE";
+            case "short" -> "NULL_SHORT";
+            case "int" -> "NULL_INT";
+            case "long" -> "NULL_LONG";
+            case "float" -> "NULL_FLOAT";
+            case "double" -> "NULL_DOUBLE";
+            case "java.lang.Boolean" -> "(Boolean) null";
+            case "java.lang.String" -> "(String) null";
+            default -> "(" + java + ") null";
         };
     }
 }

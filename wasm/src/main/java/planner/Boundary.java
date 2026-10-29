@@ -422,11 +422,15 @@ public final class Boundary {
      * ({@code plan}, {@code exportId}: the plan's request, its result exported under that id in the host's session),
      * {@code publish} ({@code exportId}, {@code name}), {@code releaseExport} ({@code exportId}, which ends the name
      * too) and {@code doGet} ({@code exportId}: the Flight ticket its rows are read by) -- each answered as its bytes
-     * in base64 -- {@code created} ({@code message}, one answer of a batch in base64), answered
-     * {@code {"success", "errorInfo"}}; {@code keys} ({@code plan}), answered {@code {"keys"}}, each operation's; and
-     * {@code send} ({@code plan}, {@code alive}: the session's tables, key to export id, {@code supplied}?: the tables
-     * the session supplies itself, name to export id, {@code nextExportId}), answered {@code {"request", "exports":
-     * [{"key", "exportId"}], "result"}}; and {@code stored} ({@code plan}), answered {@code {"plan", "columns"}}, the
+     * in base64 -- {@code made} ({@code answers}: a batch's answer, each message in base64, {@code exports}: what its
+     * {@code send} exports, as it answered them), answered {@code {"refused", "mismatch", "columns"}}: the server's
+     * refusal, a table it holds otherwise than its store declares (DH16), each null when there is none, and each made
+     * table's columns by its export, {@code [{"name", "type"}]}; {@code keys} ({@code plan}), answered
+     * {@code {"keys"}}, each operation's; and {@code send} ({@code plan}, {@code alive}: the session's tables, key to
+     * export id, {@code supplied}?: the tables the session supplies itself, name to export id, {@code nextExportId}),
+     * answered {@code {"request", "exports": [{"key", "exportId", "declared"?}], "result"}}, {@code declared} the store's
+     * table an export's operation reads, as {@code made} reads it back; and {@code stored} ({@code plan}), answered
+     * {@code {"plan", "columns"}}, the
      * plan with its result stored; {@code nullable} ({@code handle}, {@code lambda}, {@code runtime}), answered
      * {@code {"nullable"}}: which of the query's result columns may be null, as the planner lowers it -- sound across
      * an outer join, where the relation type keeps a joined column's own multiplicity (a grid's base, B1). The host carries the bytes; it builds
@@ -461,6 +465,21 @@ public final class Boundary {
                     java.util.Map<String, Object> one = new java.util.LinkedHashMap<>();
                     one.put("key", e.key());
                     one.put("exportId", e.exportId());
+                    if (e.declared() != null) {
+                        java.util.List<Object> columns = new java.util.ArrayList<>();
+                        for (com.legend.deephaven.DeephavenWire.DeclaredColumn c : e.declared().columns()) {
+                            java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
+                            col.put("name", c.name());
+                            col.put("column", c.column());
+                            col.put("type", c.type());
+                            col.put("declared", c.declared());
+                            columns.add(col);
+                        }
+                        java.util.Map<String, Object> declared = new java.util.LinkedHashMap<>();
+                        declared.put("table", e.declared().table());
+                        declared.put("columns", columns);
+                        one.put("declared", declared);
+                    }
                     exports.add(one);
                 }
                 java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
@@ -486,16 +505,49 @@ public final class Boundary {
                 out.put("columns", st.columns());
                 yield com.legend.json.Json.toCompact(out);
             }
-            case "created" -> {
-                com.legend.deephaven.DeephavenWire.Created c = com.legend.deephaven.DeephavenWire.created(
-                        java.util.Base64.getDecoder().decode(a.getString("message")));
+            case "made" -> {
+                java.util.List<byte[]> answers = new java.util.ArrayList<>();
+                for (com.legend.json.Json.Node n : a.getArr("answers").items()) {
+                    answers.add(java.util.Base64.getDecoder().decode(((com.legend.json.Json.Str) n).value()));
+                }
+                java.util.List<com.legend.deephaven.DeephavenWire.Export> exports = new java.util.ArrayList<>();
+                for (com.legend.json.Json.Node n : a.getArr("exports").items()) {
+                    com.legend.json.Json.Obj e = (com.legend.json.Json.Obj) n;
+                    com.legend.json.Json.Obj d = e.getObjOr("declared", null);
+                    com.legend.deephaven.DeephavenWire.Declared declared = null;
+                    if (d != null) {
+                        java.util.List<com.legend.deephaven.DeephavenWire.DeclaredColumn> columns =
+                                new java.util.ArrayList<>();
+                        for (com.legend.json.Json.Node c : d.getArr("columns").items()) {
+                            com.legend.json.Json.Obj col = (com.legend.json.Json.Obj) c;
+                            columns.add(new com.legend.deephaven.DeephavenWire.DeclaredColumn(col.getString("name"),
+                                    col.getString("column"), col.getString("type"), col.getString("declared")));
+                        }
+                        declared = new com.legend.deephaven.DeephavenWire.Declared(d.getString("table"), columns);
+                    }
+                    exports.add(new com.legend.deephaven.DeephavenWire.Export(e.getString("key"), e.getInt("exportId"),
+                            declared));
+                }
+                com.legend.deephaven.DeephavenWire.Made m = com.legend.deephaven.DeephavenWire.made(answers, exports);
+                java.util.Map<String, Object> columns = new java.util.LinkedHashMap<>();
+                m.columns().forEach((id, cs) -> {
+                    java.util.List<Object> list = new java.util.ArrayList<>();
+                    for (com.legend.deephaven.ArrowSchema.Column c : cs) {
+                        java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
+                        col.put("name", c.name());
+                        col.put("type", c.type());
+                        list.add(col);
+                    }
+                    columns.put(String.valueOf(id), list);
+                });
                 java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-                out.put("success", c.success());
-                out.put("errorInfo", c.errorInfo());
+                out.put("refused", m.refused());
+                out.put("mismatch", m.mismatch());
+                out.put("columns", columns);
                 yield com.legend.json.Json.toCompact(out);
             }
             default -> throw new IllegalArgumentException("no Deephaven operation '" + op
-                    + "': batch, keys, send, stored, nullable, publish, releaseExport, doGet, created");
+                    + "': batch, keys, send, stored, nullable, publish, releaseExport, doGet, made");
         };
     }
 

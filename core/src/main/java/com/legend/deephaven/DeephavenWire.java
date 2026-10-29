@@ -48,6 +48,8 @@ public final class DeephavenWire {
         ops.set(ops.size() - 1, exported(last, exportId));
         LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>(request.fields());
         fields.put("ops", new Json.Arr(ops));
+        // the store's declarations are the sender's to check the answer by (DH16), never the server's to read
+        fields.remove("declared");
         return ProtoWire.write("BatchTableRequest", new Json.Obj(fields), DeephavenWire::refuseParameters);
     }
 
@@ -64,8 +66,20 @@ public final class DeephavenWire {
         return parse(plan).keys();
     }
 
-    /** One table a {@link #send} exports: its key, and its id in the sending session. */
-    public record Export(String key, int exportId) {
+    /** One table a {@link #send} exports: its key, its id in the sending session, and, when its operation reads a
+     *  store's table, that table as the store declares it (DH16), which the server's answer is checked against
+     *  ({@link #made}). */
+    public record Export(String key, int exportId, @com.legend.base.Nullable Declared declared) {
+    }
+
+    /** A store's table as the store declares it, read by one of a plan's operations (DH16): the table's name on the
+     *  server, and its columns. */
+    public record Declared(String table, List<DeclaredColumn> columns) {
+    }
+
+    /** One column of a {@link Declared} table: its name in the table the operation makes, its name on the server, the
+     *  Java type the server must hold it as ({@code deephaven:type}), and the type as the store declares it. */
+    public record DeclaredColumn(String name, String column, String type, String declared) {
     }
 
     /**
@@ -144,7 +158,7 @@ public final class DeephavenWire {
             });
             sentAt[i] = ops.size();
             ops.add(exported(op, id));
-            exports.add(new Export(p.keys().get(i), id));
+            exports.add(new Export(p.keys().get(i), id, p.declared().get(i)));
             id++;
         }
         LinkedHashMap<String, Json.Node> request = new LinkedHashMap<>();
@@ -213,7 +227,7 @@ public final class DeephavenWire {
         op.put(as, last.getObj(name));
         List<Json.Node> ops = new ArrayList<>(p.ops());
         ops.set(at, new Json.Obj(op));
-        LinkedHashMap<String, Json.Node> request = new LinkedHashMap<>();
+        LinkedHashMap<String, Json.Node> request = new LinkedHashMap<>(Json.parseObject(plan).fields());
         request.put("ops", new Json.Arr(ops));
         return new Stored(Json.toCompact(new Json.Obj(request)), List.copyOf(columns));
     }
@@ -226,14 +240,16 @@ public final class DeephavenWire {
         return ProtoWire.write("Ticket", new Json.Obj(fields), b -> b);
     }
 
-    /** A plan's operations and each one's key. */
-    private record Parsed(List<Json.Obj> ops, List<String> keys) {
+    /** A plan's operations, each one's key, and the store's tables they read, by the place of the operation that reads
+     *  each. */
+    private record Parsed(List<Json.Obj> ops, List<String> keys, Map<Integer, Declared> declared) {
     }
 
     private static Parsed parse(String plan) {
         Json.Obj request = Json.parseObject(plan);
-        if (!request.fields().keySet().equals(java.util.Set.of("ops"))) {
-            throw new IllegalArgumentException("a Deephaven plan is its operations, not " + request.fields().keySet());
+        if (!request.has("ops") || !java.util.Set.of("ops", "declared").containsAll(request.fields().keySet())) {
+            throw new IllegalArgumentException("a Deephaven plan is its operations and the tables they read, not "
+                    + request.fields().keySet());
         }
         List<Json.Obj> ops = new ArrayList<>();
         for (Json.Node n : request.getArr("ops").items()) {
@@ -261,7 +277,24 @@ public final class DeephavenWire {
             });
             keys.add(com.legend.cache.Hash.ofUtf8(Json.toCompact(named)).hex());
         }
-        return new Parsed(List.copyOf(ops), List.copyOf(keys));
+        Map<Integer, Declared> declared = new LinkedHashMap<>();
+        Json.Arr tables = request.getArrOr("declared", null);
+        for (Json.Node n : tables == null ? List.<Json.Node>of() : tables.items()) {
+            Json.Obj d = (Json.Obj) n;
+            int op = d.getInt("op");
+            if (op < 0 || op >= ops.size() || declared.containsKey(op)) {
+                throw new IllegalArgumentException("a Deephaven plan declares the table of operation " + op
+                        + ", which it has not, or twice");
+            }
+            List<DeclaredColumn> columns = new ArrayList<>();
+            for (Json.Node c : d.getArr("columns").items()) {
+                Json.Obj col = (Json.Obj) c;
+                columns.add(new DeclaredColumn(col.getString("name"), col.getString("column"), col.getString("type"),
+                        col.getString("declared")));
+            }
+            declared.put(op, new Declared(d.getString("table"), List.copyOf(columns)));
+        }
+        return new Parsed(List.copyOf(ops), List.copyOf(keys), java.util.Collections.unmodifiableMap(declared));
     }
 
     /** Whether the operation body {@code op} reads the operation at {@code at} by its place in the batch. */
@@ -311,8 +344,10 @@ public final class DeephavenWire {
         return ProtoWire.write("ReleaseRequest", new Json.Obj(fields), b -> b);
     }
 
-    /** What the server answered for one operation of a batch: whether it created the table, and if not, why. */
-    public record Created(boolean success, String errorInfo) {
+    /** What the server answered for one operation of a batch: the export it made (0 when it named none), whether it
+     *  created the table, and if not, why; and the table's columns, as its schema names them (none when it sent no
+     *  schema). */
+    public record Created(int exportId, boolean success, String errorInfo, List<ArrowSchema.Column> columns) {
     }
 
     /** {@code response}, one message of a batch's answer. */
@@ -320,7 +355,94 @@ public final class DeephavenWire {
         Json.Obj r = ProtoWire.read("ExportedTableCreationResponse", response);
         // a field the server left out is its type's default (protobuf's own rule, proto3 having no presence)
         String error = r.getStringOr("errorInfo", null);
-        return new Created(r.getBoolOr("success", false), error == null ? "" : error);
+        String schema = r.getStringOr("schemaHeader", null);
+        List<ArrowSchema.Column> columns = schema == null || schema.isEmpty() ? List.of()
+                : ArrowSchema.columns(Base64.getDecoder().decode(schema));
+        return new Created(exportIdOf(r.getObjOr("resultId", null)), r.getBoolOr("success", false),
+                error == null ? "" : error, columns);
+    }
+
+    /** The export a response's table reference names: its ticket's id, 0 when it names none. */
+    private static int exportIdOf(Json.@com.legend.base.Nullable Obj reference) {
+        Json.Obj ticket = reference == null ? null : reference.getObjOr("ticket", null);
+        String bytes = ticket == null ? null : ticket.getStringOr("ticket", null);
+        byte[] t = bytes == null ? new byte[0] : Base64.getDecoder().decode(bytes);
+        if (t.length != 5 || t[0] != 'e') {
+            return 0;
+        }
+        return (t[1] & 0xff) | (t[2] & 0xff) << 8 | (t[3] & 0xff) << 16 | (t[4] & 0xff) << 24;
+    }
+
+    /** A batch's whole answer read (DH16): why it failed, null when the server made every table as declared -- the
+     *  server's refusal, or a table it holds otherwise than its store declares -- and each made table's columns by its
+     *  export, as the server holds them. */
+    public record Made(@com.legend.base.Nullable String refused, @com.legend.base.Nullable String mismatch,
+            Map<Integer, List<ArrowSchema.Column>> columns) {
+    }
+
+    /**
+     * {@code answers}, the messages a batch {@link #send} sent was answered with, read against what it {@code exports}:
+     * each table the server made, and each one an operation reading a store's table made, checked against the store's
+     * declaration, column by column (DH16, decided strict: the user, 2026-10-29) -- a server that holds a column as
+     * {@code long} where the store declares {@code INTEGER} is refused by name, never read as if it held what the store
+     * says. The first refusal is the cause: the operations after it that read it fail for it.
+     */
+    public static Made made(List<byte[]> answers, List<Export> exports) {
+        String refused = answers.size() == exports.size() ? null
+                : "the server answered " + answers.size() + " of the batch's " + exports.size() + " operations";
+        String mismatch = null;
+        Map<Integer, Export> byId = new LinkedHashMap<>();
+        for (Export e : exports) {
+            byId.put(e.exportId(), e);
+        }
+        Map<Integer, List<ArrowSchema.Column>> columns = new LinkedHashMap<>();
+        for (byte[] answer : answers) {
+            Created c = created(answer);
+            if (!c.success()) {
+                if (refused == null) {
+                    refused = c.errorInfo();
+                }
+                continue;
+            }
+            columns.put(c.exportId(), c.columns());
+            Export e = byId.get(c.exportId());
+            if (e == null) {
+                if (refused == null) {
+                    refused = "the server answered for export " + c.exportId() + ", which the batch did not make";
+                }
+                continue;
+            }
+            if (e.declared() != null && mismatch == null) {
+                mismatch = mismatch(e.declared(), c.columns());
+            }
+        }
+        for (Export e : exports) {
+            if (refused == null && !columns.containsKey(e.exportId())) {
+                refused = "the server did not answer for export " + e.exportId();
+            }
+        }
+        return new Made(refused, mismatch, java.util.Collections.unmodifiableMap(columns));
+    }
+
+    /** Why {@code published}, the columns the server made a store's table's read as, are not what {@code declared}
+     *  says; null when every declared column is held as declared. */
+    private static @com.legend.base.Nullable String mismatch(Declared declared, List<ArrowSchema.Column> published) {
+        Map<String, ArrowSchema.Column> byName = new LinkedHashMap<>();
+        for (ArrowSchema.Column c : published) {
+            byName.put(c.name(), c);
+        }
+        List<String> wrong = new ArrayList<>();
+        for (DeclaredColumn d : declared.columns()) {
+            ArrowSchema.Column c = byName.get(d.name());
+            if (c == null) {
+                wrong.add(d.column() + " is not in the table the server made");
+            } else if (!d.type().equals(c.type())) {
+                wrong.add(d.column() + " is held as " + (c.type() == null ? "no Deephaven type" : c.type())
+                        + "; its store declares " + d.declared() + " (" + d.type() + " on Deephaven)");
+            }
+        }
+        return wrong.isEmpty() ? null : "the server's table " + declared.table() + " is not what its store declares: "
+                + String.join("; ", wrong);
     }
 
     /** An export's ticket: {@code e} and the id, a 32-bit little-endian number the sending session chose. */

@@ -259,6 +259,8 @@ public final class DeephavenMessages {
                     f("resultId", 1, Kind.MESSAGE, "TableReference", Card.SINGLE),
                     f("success", 2, Kind.BOOL, null, Card.SINGLE),
                     f("errorInfo", 3, Kind.STRING, null, Card.SINGLE),
+                    // the made table's columns, Arrow's schema message (DH16: checked against the store's declaration)
+                    f("schemaHeader", 4, Kind.BYTES, null, Card.SINGLE),
                     f("isStatic", 5, Kind.BOOL, null, Card.SINGLE),
                     f("size", 6, Kind.SINT64, null, Card.SINGLE)),
             m("PublishRequest",

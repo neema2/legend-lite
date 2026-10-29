@@ -12,7 +12,9 @@
 // grid following its view lets go of nothing another grid reads. A whole result two grids read is one subscription.
 // The engine is itself the reader of one grid (its own `execute`, `follow`, `onLive`), for a page of one.
 
-import type { DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, KeptResult } from './deephaven.ts';
+import type {
+  DeephavenColumn, DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, KeptResult,
+} from './deephaven.ts';
 import { DeephavenSession } from './deephaven.ts';
 import { LiveClient, type DhModule, type Followed } from './deephaven-live.ts';
 import { byPosition, deephavenRows, followedTable } from './deephaven-rows.ts';
@@ -297,14 +299,20 @@ export class DeephavenEngine implements QueryEngine {
    * A GRID'S BASE KEPT ON THE SERVER (docs/DEEPHAVEN_PLAN_2026_10_22.md B1): `plan` -- the grid's base query and its
    * leaf-level calculated columns -- made once with its result stored, so the server computes the calculations once a
    * change and every query the grid sends, and every result it follows, reads them; kept until `letBaseGo`. Answers
-   * the name a query reads it by (a table of that name, which this engine supplies on every send) and the stored
-   * result's columns as the plan names them. A base kept already is answered at once.
+   * the name a query reads it by (a table of that name, which this engine supplies on every send), the stored
+   * result's columns as the plan names them, and its columns as the server holds them (`held`: the base is declared as
+   * it is held, DH16). A base kept already is answered at once.
    */
-  async keepBase(plan: string): Promise<{ readonly name: string; readonly columns: readonly string[] }> {
+  async keepBase(plan: string): Promise<{
+    readonly name: string;
+    readonly columns: readonly string[];
+    readonly held: readonly DeephavenColumn[];
+  }> {
     const session = this.#session;
     const stored = await session.stored(plan);
-    if (!this.#bases.has(stored.name)) {
-      const kept = await session.keepAlive(stored.plan, this.#supplied());
+    let kept = this.#bases.get(stored.name);
+    if (kept === undefined) {
+      kept = await session.keepAlive(stored.plan, this.#supplied());
       if (session !== this.#session) {
         kept.release();
         throw new QueryError('the Deephaven session changed while the base was made', plan);
@@ -312,7 +320,7 @@ export class DeephavenEngine implements QueryEngine {
       this.#bases.get(stored.name)?.release();
       this.#bases.set(stored.name, kept);
     }
-    return { name: stored.name, columns: stored.columns };
+    return { name: stored.name, columns: stored.columns, held: kept.columns };
   }
 
   /** Whether the base named `name` is kept now: a reconnect lets every one go. */

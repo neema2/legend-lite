@@ -32,12 +32,15 @@ Boolean booleanOf(String v) {
     throw new IllegalArgumentException("not a boolean: " + v)
 }
 
-/** A column of `kind` (the dialect's DDL: int, long, double, BigDecimal, Boolean, LocalDate, Instant, LocalTime,
- *  String), its values from their text, a null where there is none. */
+/** A column of `kind` (the dialect's DDL: byte, short, int, long, float, double, BigDecimal, Boolean, LocalDate, Instant,
+ *  LocalTime, String), its values from their text, a null where there is none. */
 def columnOf(String name, String kind, List<String> text) {
     switch (kind) {
+        case 'byte': return TableTools.byteCol(name, text.collect { it == null ? QueryConstants.NULL_BYTE : new BigDecimal(it.trim()).byteValueExact() } as byte[])
+        case 'short': return TableTools.shortCol(name, text.collect { it == null ? QueryConstants.NULL_SHORT : new BigDecimal(it.trim()).shortValueExact() } as short[])
         case 'int': return TableTools.intCol(name, text.collect { it == null ? QueryConstants.NULL_INT : new BigDecimal(it.trim()).intValueExact() } as int[])
         case 'long': return TableTools.longCol(name, text.collect { it == null ? QueryConstants.NULL_LONG : new BigDecimal(it.trim()).longValueExact() } as long[])
+        case 'float': return TableTools.floatCol(name, text.collect { it == null ? QueryConstants.NULL_FLOAT : Float.parseFloat(it.trim()) } as float[])
         case 'double': return TableTools.doubleCol(name, text.collect { it == null ? QueryConstants.NULL_DOUBLE : Double.parseDouble(it.trim()) } as double[])
         case 'BigDecimal': return TableTools.col(name, text.collect { it == null ? null : new BigDecimal(it.trim()) } as BigDecimal[])
         case 'Boolean': return TableTools.col(name, text.collect { it == null ? null : booleanOf(it) } as Boolean[])

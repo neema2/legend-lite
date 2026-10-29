@@ -90,10 +90,103 @@ class DeephavenWireTest {
 
     @Test
     void aCreationAnswerIsReadAndAFieldLiteDoesNotReadIsSkipped() {
-        assertEquals(new DeephavenWire.Created(true, ""), DeephavenWire.created(HEX.parseHex("1001")));
-        // success left out (false), the error, then a schema (field 4) lite does not read
-        DeephavenWire.Created failed = DeephavenWire.created(HEX.parseHex("1a03626164" + "2203010203"));
-        assertEquals(new DeephavenWire.Created(false, "bad"), failed);
+        assertEquals(new DeephavenWire.Created(0, true, "", List.of()), DeephavenWire.created(HEX.parseHex("1001")));
+        // success left out (false), the error, then the table's size (field 6), which lite does not read
+        DeephavenWire.Created failed = DeephavenWire.created(HEX.parseHex("1a03626164" + "3004"));
+        assertEquals(new DeephavenWire.Created(0, false, "bad", List.of()), failed);
+    }
+
+    /** A schema as Deephaven 42.7 writes one (BarrageUtil.schemaBytesFromTable, read off the pinned server
+     *  2026-10-29): a table of every kind of column a store declares, and a table of none. */
+    private static byte[] schema(String name) throws IOException {
+        try (InputStream in = Objects.requireNonNull(
+                DeephavenWireTest.class.getResourceAsStream("/deephaven/" + name + ".b64"))) {
+            return java.util.Base64.getDecoder().decode(new String(in.readAllBytes(), StandardCharsets.UTF_8).trim());
+        }
+    }
+
+    /** DH16: a made table's schema is read as its columns, each with the Java type the server holds it as. */
+    @Test
+    void aSchemaIsReadAsEachColumnsDeephavenType() throws IOException {
+        assertEquals(List.of(new ArrowSchema.Column("B", "byte"), new ArrowSchema.Column("S", "short"),
+                new ArrowSchema.Column("I", "int"), new ArrowSchema.Column("L", "long"),
+                new ArrowSchema.Column("F", "float"), new ArrowSchema.Column("D", "double"),
+                new ArrowSchema.Column("Str", "java.lang.String"), new ArrowSchema.Column("T", "java.time.Instant"),
+                new ArrowSchema.Column("Bo", "java.lang.Boolean"), new ArrowSchema.Column("Dt", "java.time.LocalDate"),
+                new ArrowSchema.Column("Tm", "java.time.LocalTime"),
+                new ArrowSchema.Column("Bd", "java.math.BigDecimal")), ArrowSchema.columns(schema("schema-every-kind")));
+        assertEquals(List.of(), ArrowSchema.columns(schema("schema-no-columns")));
+        IllegalArgumentException cut = assertThrows(IllegalArgumentException.class,
+                () -> ArrowSchema.columns(java.util.Arrays.copyOf(schema("schema-every-kind"), 200)));
+        assertTrue(cut.getMessage().contains("cut short or malformed"), cut.getMessage());
+    }
+
+    /** One answer of a batch: the export it made, and the made table's schema. */
+    private static byte[] answer(int exportId, byte[] schema) {
+        LinkedHashMap<String, Json.Node> ticket = new LinkedHashMap<>();
+        ticket.put("ticket", new Json.Str(java.util.Base64.getEncoder().encodeToString(
+                DeephavenWire.exportTicket(exportId))));
+        LinkedHashMap<String, Json.Node> reference = new LinkedHashMap<>();
+        reference.put("ticket", new Json.Obj(ticket));
+        LinkedHashMap<String, Json.Node> fields = new LinkedHashMap<>();
+        fields.put("resultId", new Json.Obj(reference));
+        fields.put("success", new Json.Bool(true));
+        fields.put("schemaHeader", new Json.Str(java.util.Base64.getEncoder().encodeToString(schema)));
+        return ProtoWire.write("ExportedTableCreationResponse", new Json.Obj(fields), b -> b);
+    }
+
+    /** DH16, decided strict (the user, 2026-10-29): the target writes each store table a plan reads as its store
+     *  declares it; a send hands each export that reads one its declaration; and the answer is checked against it,
+     *  column by column -- a column the server holds otherwise is refused by name, the store's type and the server's
+     *  both said. */
+    @Test
+    void aServersTableIsCheckedAgainstItsStoresDeclaration() throws IOException {
+        String plan = plan("#>{risk::Ref.trades}#->select(~[id, qty, pnl, desk])");
+        assertTrue(plan.contains("\"declared\": [{\"op\": 0, \"table\": \"trades\", \"columns\": [{\"name\": \"t0__id\","
+                + " \"column\": \"id\", \"type\": \"int\", \"declared\": \"INTEGER\"}"), plan);
+        assertTrue(plan.contains("{\"name\": \"t0__qty\", \"column\": \"qty\", \"type\": \"long\", \"declared\":"
+                + " \"BIGINT\"}"), plan);
+        assertTrue(plan.contains("{\"name\": \"t0__desk\", \"column\": \"desk\", \"type\": \"java.lang.String\","
+                + " \"declared\": \"VARCHAR(16)\"}"), plan);
+        // the declarations are the sender's: the keys and the request are what they were without them
+        assertEquals(DeephavenWire.keys(plan), DeephavenWire.keys(plan.substring(0, plan.indexOf(", \"declared\"")) + "}"));
+        DeephavenWire.Send send = DeephavenWire.send(plan, Map.of(), Map.of(), 1);
+        DeephavenWire.Declared trades = send.exports().get(0).declared();
+        assertEquals("trades", Objects.requireNonNull(trades).table());
+        assertEquals(new DeephavenWire.DeclaredColumn("t0__id", "id", "int", "INTEGER"), trades.columns().get(0));
+        for (int i = 1; i < send.exports().size(); i++) {
+            assertEquals(null, send.exports().get(i).declared(), "only a store table's read is declared");
+        }
+
+        // a table held as declared: made, its columns read; the probe's table is the schema of every kind
+        DeephavenWire.Declared asHeld = new DeephavenWire.Declared("kinds", List.of(
+                new DeephavenWire.DeclaredColumn("I", "I", "int", "INTEGER"),
+                new DeephavenWire.DeclaredColumn("Str", "Str", "java.lang.String", "VARCHAR(16)")));
+        DeephavenWire.Export one = new DeephavenWire.Export("k1", 1, asHeld);
+        DeephavenWire.Export two = new DeephavenWire.Export("k2", 2, null);
+        DeephavenWire.Made made = DeephavenWire.made(
+                List.of(answer(2, schema("schema-no-columns")), answer(1, schema("schema-every-kind"))), List.of(one, two));
+        assertEquals(null, made.refused());
+        assertEquals(null, made.mismatch());
+        assertEquals(new ArrowSchema.Column("I", "int"), Objects.requireNonNull(made.columns().get(1)).get(2));
+        assertEquals(List.of(), made.columns().get(2));
+
+        // a column the server holds otherwise than its store declares: refused by name
+        DeephavenWire.Declared wide = new DeephavenWire.Declared("kinds", List.of(
+                new DeephavenWire.DeclaredColumn("I", "I", "long", "BIGINT"),
+                new DeephavenWire.DeclaredColumn("D", "D", "double", "DOUBLE")));
+        DeephavenWire.Made mismatched = DeephavenWire.made(List.of(answer(1, schema("schema-every-kind"))),
+                List.of(new DeephavenWire.Export("k1", 1, wide)));
+        assertEquals(null, mismatched.refused());
+        assertEquals("the server's table kinds is not what its store declares: I is held as int; its store declares"
+                + " BIGINT (long on Deephaven)", mismatched.mismatch());
+
+        // an answer short of the batch, and one for an export the batch did not make, are refused
+        assertEquals("the server answered 1 of the batch's 2 operations", DeephavenWire.made(
+                List.of(answer(1, schema("schema-no-columns"))), List.of(two, new DeephavenWire.Export("k1", 1, null)))
+                .refused());
+        assertEquals("the server answered for export 9, which the batch did not make", DeephavenWire.made(
+                List.of(answer(9, schema("schema-no-columns"))), List.of(two)).refused());
     }
 
     /** What the target writes for DataCube's shapes on a Deephaven runtime encodes, and reads back to the same bytes. */

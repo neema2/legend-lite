@@ -97,8 +97,12 @@ class DeephavenDialectTest {
                 + " \"direction\": \"DESCENDING\"}"), b);
         assertTrue(b.contains("{\"head\": {"), b);
         assertTrue(b.contains("\"numRows\": \"10\""), b);
-        assertTrue(b.endsWith("{\"dropColumns\": {\"sourceId\": {\"batchOffset\": 5}, \"columnNames\": [\"__k0\","
-                + " \"__n0\"]}}]}"), b);
+        // the last operation is the result; after the operations, the table it reads as its store declares it (DH16)
+        assertTrue(b.contains("{\"dropColumns\": {\"sourceId\": {\"batchOffset\": 5}, \"columnNames\": [\"__k0\","
+                + " \"__n0\"]}}], \"declared\": [{\"op\": 0, \"table\": \"trades\", \"columns\": [{\"name\": \"t0__id\","
+                + " \"column\": \"id\", \"type\": \"int\", \"declared\": \"INTEGER\"}, "), b);
+        assertTrue(b.endsWith("{\"name\": \"t0__instrument\", \"column\": \"instrument\", \"type\": \"java.lang.String\","
+                + " \"declared\": \"VARCHAR(16)\"}]}]}"), b);
     }
 
     @Test
@@ -146,7 +150,7 @@ class DeephavenDialectTest {
         assertTrue(b.contains("\"a = ((notional * 2.0) + 1.0)\""), b);
         assertTrue(b.contains("\"b = ((a * a) - a)\""), b);
         // the square root's guard reads its operand by name, its error's text too
-        String c = b.substring(b.indexOf("\"c = "));
+        String c = b.substring(b.indexOf("\"c = "), b.indexOf("], \"declared\""));
         assertTrue(c.contains("sqrt(b)") && !c.contains("t0__notional"), c);
         // 2026-10-26: a double cast to a double is itself -- the guard's comparison and its error's text read b as it is
         assertFalse(c.contains("(double) b") || c.contains("NULL_DOUBLE : (double)"), c);

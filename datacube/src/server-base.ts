@@ -72,15 +72,24 @@ interface Base {
   readonly runner: QueryRunner;
 }
 
-/** A plan column's type as the base's table declares it; null: one the fragment does not write. */
-function columnType(c: PlanColumn): string | null {
-  if (familyOf(c.type) === 'boolean') return 'BIT';
-  if (isNumeric(c.type) && !isFractional(c.type)) return 'BIGINT';
-  if (isFloat(c.type)) return 'DOUBLE';
-  if (familyOf(c.type) === 'text') return 'VARCHAR(65535)';
-  if (isDay(c.type)) return 'DATE';
-  if (hasTimeOfDay(c.type)) return 'TIMESTAMP';
-  return null;
+/** A base column's type as the base's table declares it: the store type the server HOLDS it as (`held`, its
+ *  `deephaven:type`), as every server table is checked against its declaration (DH16, decided strict) -- where that
+ *  is the kind the plan computes it as; null: one the fragment does not write. */
+function columnType(c: PlanColumn, held: string | null): string | null {
+  const integral = isNumeric(c.type) && !isFractional(c.type);
+  switch (held) {
+    case 'java.lang.Boolean': return familyOf(c.type) === 'boolean' ? 'BIT' : null;
+    case 'byte': return integral ? 'TINYINT' : null;
+    case 'short': return integral ? 'SMALLINT' : null;
+    case 'int': return integral ? 'INTEGER' : null;
+    case 'long': return integral ? 'BIGINT' : null;
+    case 'float': return isFloat(c.type) ? 'REAL' : null;
+    case 'double': return isFloat(c.type) ? 'DOUBLE' : null;
+    case 'java.lang.String': return familyOf(c.type) === 'text' ? 'VARCHAR(65535)' : null;
+    case 'java.time.LocalDate': return isDay(c.type) ? 'DATE' : null;
+    case 'java.time.Instant': return hasTimeOfDay(c.type) ? 'TIMESTAMP' : null;
+    default: return null;
+  }
 }
 
 /**
@@ -176,7 +185,7 @@ export class ServerBases {
     // a column the lowering never leaves null is declared so: no null guard, no null flag on a sort by it (G1)
     const nullable = await this.#planner.nullable(lambda);
     const kept = await this.#engine.keepBase(plan.sql);
-    const types = plan.columns.map(columnType);
+    const types = plan.columns.map((c) => columnType(c, kept.held.find((h) => h.name === c.name)?.type ?? null));
     const declared = kept.columns.length === plan.columns.length && nullable.length === plan.columns.length
       && kept.columns.every((c, i) => c === plan.columns[i]?.name) && types.every((t) => t !== null);
     if (!declared) {

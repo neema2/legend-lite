@@ -111,20 +111,21 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
    from: Deephaven Community has no per-table permissions -- whoever signs in reads every table, and runs code if the
    console is on (the demo's key can) -- so restricting it means an authorization plugin, which is Deephaven-licensed code.
 4. ~~Merge `main`~~: done 2026-10-24 (above), PR #72 with it.
-5. **DH16, a published table's types checked against the store's declaration: strict or compatible** (found
-   2026-10-27, not built). **Decided (the user, 2026-10-29): strict, always** ("i think always strict") -- a table
-   whose columns are not the declared kinds is refused by name; a publisher that differs conforms, or the model is
-   declared as the table is. What it would read: each source table's declared column types are in the plan's MIR
-   (`SqlSource.Table.storedTypes`), and the server's answer to each operation of a batch carries its result's Arrow
-   schema (`ExportedTableCreationResponse.schema_header`, field 4, which `DeephavenMessages` does not list yet), each
-   column's Java type in its `deephaven:type`. A session would check a table the first time it reads it, the module
-   saying what its held runtime's store declares. The decision: the DDL's kinds (`DeephavenBatch.nullOf`: TINYINT a
-   byte, SMALLINT a short, REAL a float, ...) are not what the servers publish today -- the corpus fixture publishes
-   TINYINT and SMALLINT as `int` and REAL as `double` (`StressOnDeephaven.kind`), and the market world's Groovy picks
-   each column's type itself. Strict (the DDL's kind exactly) makes the publishers conform first; compatible needs the
-   lowering's own rule for which Java types read alike (its formulas differ by type: integer division, overflow). A
-   NOT NULL can only be checked by reading rows (Deephaven's schema says nothing of it, and a live table may gain a
-   null later).
+5. **DH16, a published table's types checked against the store's declaration** (found 2026-10-27). **Decided (the
+   user, 2026-10-29): strict, always** ("i think always strict"). **Built 2026-10-29:** the target writes beside each
+   batch, after its operations, every store table the batch reads as its store declares it (`"declared"`: the
+   operation that reads it, and each column's Java type, `DeephavenBatch.javaTypeOf` -- one table with the DDL's typed
+   nulls); a send hands each export that reads one its declaration; and the planner reads the server's whole answer at
+   once (`DeephavenWire.made`, the module's `made`): each answer's export by its ticket, its Arrow schema
+   (`schema_header`, field 4, read by `ArrowSchema` -- a flatbuffer, no Arrow library in the planner) and each column's
+   `deephaven:type` compared with the declaration. A column held otherwise is refused by name, both types said: "the
+   server's table kinds is not what its store declares: I is held as int; its store declares BIGINT (long on
+   Deephaven)" (`DeephavenMismatch` in the tab). The publishers conform: the corpus fixture now publishes a SMALLINT as
+   a `short`, a TINYINT a `byte`, a REAL a `float` (`StressOnDeephaven.kind`); a grid's base is declared as the server
+   holds it (`server-base.ts`: an `int` an INTEGER, a `long` a BIGINT -- it was BIGINT for every integer), read off its
+   own answer. The declarations are not part of the operations' keys: a table kept alive is checked once, when made.
+   Not checked: NOT NULL (Deephaven's schema says nothing of it, and a live table may gain a null later; only reading
+   rows could).
 
 ## The desk under load (measured on the user's Mac, 2026-10-27/28)
 
@@ -251,8 +252,8 @@ mapping. Refused on both: a write to a store table (the Cypher writes line, not 
 
 **And in the integration:** no server-side execution (`Connectors` answers `Unbuilt`: no Python, Studio or REST over
 Deephaven, and no semantic lanes to find the formula differences the register expects, L3s); the browser route trusts
-the store's declaration (DH16's check and DH19's refusal are L3s's: a wrong type surfaces late; a `NOT NULL` column that
-holds nulls loses the guards the lowering writes); tables are found by their query-scope name only (a Deephaven
+the store's declaration for nullability (DH16's type check is built, item 5 above; DH19's refusal is L3s's: a `NOT NULL`
+column that holds nulls loses the guards the lowering writes); tables are found by their query-scope name only (a Deephaven
 application's fields and a Python server's tables not tried); no check of the server's version at sign-in (42.7 only is
 tested); and this branch carries the MongoDB line's commits, which are not on `main` either.
 

@@ -393,12 +393,14 @@ final class StressOnDeephaven {
     private static String kind(RelationalDataType t) {
         return switch (t) {
             case RelationalDataType.BigInt b -> "long";
-            case RelationalDataType.SmallInt s -> "int";
-            case RelationalDataType.TinyInt s -> "int";
+            // 2026-10-29 (DH16, decided strict): each as the store declares it -- a SMALLINT a short, a TINYINT a byte,
+            // a REAL a float -- since a server's table is checked against its declaration, column by column
+            case RelationalDataType.SmallInt s -> "short";
+            case RelationalDataType.TinyInt s -> "byte";
             case RelationalDataType.Integer_ i -> "int";
             case RelationalDataType.Float_ f -> "double";
             case RelationalDataType.Double_ d -> "double";
-            case RelationalDataType.Real r -> "double";
+            case RelationalDataType.Real r -> "float";
             case RelationalDataType.Bit b -> "Boolean";
             case RelationalDataType.Decimal d -> "BigDecimal";
             case RelationalDataType.Numeric n -> "BigDecimal";
