@@ -360,8 +360,8 @@ def _vocabulary_features(specs, quarantined: set[str], add) -> None:
     live = [s for s in specs if s.name not in quarantined]
 
     def applied(s):
-        return ([p.apply for p in s.projections if getattr(p, "apply", None) is not None],
-                [a.apply for a in query.atoms(s.filters) if getattr(a, "apply", None) is not None])
+        return ([p.apply for p in s.projections if isinstance(getattr(p, "apply", None), query.Apply)],
+                [a.apply for a in query.atoms(s.filters) if isinstance(getattr(a, "apply", None), query.Apply)])
 
     add("Q4  function in a projection", [s.short for s in live if applied(s)[0]])
     add("Q4  function in a filter", [s.short for s in live if applied(s)[1]])
@@ -393,6 +393,11 @@ def _vocabulary_features(specs, quarantined: set[str], add) -> None:
             ("Q4  TDS restrict/rename/distinct", (query.Rename, query.Select, query.Distinct), "tds"),
             ("Q4  TDS ordinal", (query.Cut,), "tds")):
         add(name, [s.short for s in live if s.paradigm == paradigm and ops(s, *kinds)])
+
+    # stage 5: control flow in a query
+    add("Q4  if", [s.short for s in live if any(isinstance(getattr(p, "apply", None), query.If) for p in s.projections)])
+    add("Q4  let", [s.short for s in live if s.lets])
+    add("Q4  exists over a to-many", [s.short for s in live if any(a.op == "exists" for a in query.atoms(s.filters))])
 
 
 def _query_features(specs, quarantined: set[str], add) -> None:
@@ -609,6 +614,9 @@ BASELINE = {
     "Q4  relation extend", "Q4  relation window", "Q4  relation join", "Q4  relation concatenate",
     "Q4  relation rename/select/distinct", "Q4  relation ordinal", "Q4  TDS extend", "Q4  TDS olapGroupBy",
     "Q4  TDS join", "Q4  TDS restrict/rename/distinct", "Q4  TDS ordinal",
+    # 2026-10-29, the improvement plan's Phase 4, stage 5 (vocab.py): control flow in a query, each executed by
+    # passing services on legend-engine 4.145.0.
+    "Q4  if", "Q4  let", "Q4  exists over a to-many",
 }
 
 

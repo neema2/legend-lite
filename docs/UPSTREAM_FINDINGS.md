@@ -2232,3 +2232,24 @@ OVER (PARTITION BY ...)` and the count as a bare `count(...)` with no `OVER`, so
 `olapGroupBy(['d'], func('n', y|$y->count()), 'w')`, is written as a window and passes. Pinned by
 `stress::VR_WindowCount` (quarantined); `VR_WindowSum`, `VR_WindowMax` and `VT_WindowCount` pass. Repro:
 `scripts/corpus/repro/window-count/` (`WindowSum` passes; `WindowCount` errors).
+
+## F78 — `bitShiftLeft` of a negative Integer errors on DuckDB
+
+**An execution error.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 5, the scalars stage 2 left out).
+legend-pure's `bitShiftLeft(arg:Integer[1], n:Integer[1]):Integer[1]` is Java's `<<` on a long, so
+`-1->bitShiftLeft(1)` is -2. legend-engine 4.145.0's DuckDB SQL is `(cast(%s as BIGINT) << cast(%s as BIGINT))`,
+and DuckDB refuses a negative left operand: "Out of Range Error: Cannot left-shift negative number -1". Every
+service whose rows hold a negative Integer errors, whatever its other rows: `stress::VP_BitShiftLeft`,
+`VN_BitShiftLeft` and `VF_BitShiftLeft` (quarantined). `bitShiftRight` over the same rows passes. Repro:
+`scripts/corpus/repro/bitshiftleft-negative/` (`Positive` passes; `Negative` errors).
+
+## F79 — `parseDecimal` in a query keeps three fractional digits
+
+**A wrong answer, silently.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 5). legend-pure's
+`parseDecimal(string:String[1]):Decimal[1]` reads every digit of the string. legend-engine 4.145.0's SQL is
+`cast(%s as decimal)` (`transformParseDecimal`, used by DuckDB), and DuckDB reads a DECIMAL with no precision as
+DECIMAL(18,3): `'12345678.123456789012345678'` parses as 12345678.123, `'1.0000000000000002'` as 1.000 and
+`'-0.000000000000000001'` as 0.000. The two-argument form, `parseDecimal(s, precision, scale)`, writes the precision
+and is not affected. Pinned by `stress::VP_ParseDecimal` and `VN_ParseDecimal` (quarantined); `VF_ParseDecimal`,
+whose comparand survives the rounding, passes. Repro: `scripts/corpus/repro/parsedecimal-scale/` (`ThreeDigits`
+passes; `MoreDigits` fails).

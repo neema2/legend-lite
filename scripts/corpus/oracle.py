@@ -44,7 +44,7 @@ import re
 
 from model import Corpus
 from query import (Agg, And, Concatenate, Cut, DateTimeArg, Distinct, Extend, Hop, Join, Not, Or, Param,
-                   ParamEmpty, PathArg, Pred, Rename, Select, Sort, Spec, Window)
+                   ParamEmpty, PathArg, Pred, Rename, SELF, Select, Sort, Spec, Window, If)
 
 def _timestamp(v: str) -> str:
     """Legend renders a DateTime column as ISO-8601 with nanoseconds and a numeric UTC
@@ -967,7 +967,9 @@ IMPL = {
     "parseBoolean": _propagating(lambda s: str(s).strip().lower() == "true", 1),
     "parseInteger": _propagating(lambda s: int(str(s).strip()), 1),
     "parseFloat": _propagating(lambda s: float(str(s).strip()), 1),
-    "parseDecimal": _propagating(lambda s: float(str(s).strip().rstrip("dD")), 1),
+    # a Decimal, as legend-pure's parseDecimal(String[1]):Decimal[1] returns: a float would lose the digits a Decimal
+    # carries (the improvement plan's Phase 4, the first service to parse one)
+    "parseDecimal": _propagating(lambda s: __import__("decimal").Decimal(str(s).strip().rstrip("dD")), 1),
 
     # ---- null-inspecting: TOTAL, never return NULL themselves -------------------------
     "isNull": lambda vals: vals[0] is None,
@@ -1990,7 +1992,15 @@ _INFIX_FN = {"+": "plus", "-": "minus", "*": "times", "/": "divide"}
 
 # A function's Pure return type, as the column it projects renders.
 RET_KIND = {"String": "string", "Integer": "int", "Float": "float", "Decimal": "float", "Number": "float",
-            "Boolean": "bool", "StrictDate": "date", "Date": "date", "DateTime": "timestamp"}
+            "Boolean": "bool", "StrictDate": "date", "Date": "date", "DateTime": "timestamp",
+            "DayOfWeek": "string"}
+
+
+def _if(a, v):
+    """A query.If over one value: the test as a filter would make it, then the branch's literal or the value."""
+    test = (bool(v) if a.op == "is" else v is None if a.op == "isEmpty" else _cmp(a.op, v, a.value))
+    b = a.then if test else a.otherwise
+    return v if b == SELF else b
 
 
 def _apply(a, v):
@@ -2000,6 +2010,8 @@ def _apply(a, v):
     collection is empty. Applied directly, a function of a [1] parameter over an absent value raises in
     Pure, which no expected result can state, so the oracle refuses it. A step answering nothing (a
     regexpExtract with no match) ends the chain the same way: absent through map, refused otherwise."""
+    if isinstance(a, If):
+        return _if(a, v)
     for i, (fn, args) in enumerate(a.steps):
         if v is None:
             if a.through_map:
@@ -3180,6 +3192,11 @@ def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None,
         return not _pred(c, data, row, root, f.item, params, dated)
     if isinstance(f, ParamEmpty):
         return params is None or params.get(f.name) is None
+    if getattr(f, "op", None) == "exists":
+        # `$x.end->exists(c|<inner>)`: some member of the to-many end satisfies the inner comparison
+        hops, target = c.resolve_assoc(root, f.path)
+        members = walk_many(c, data, row, hops, _reverse_hops(c, root, f.path))
+        return any(_pred(c, data, m, target, f.value, params) for m in members)
     v = _value(c, data, row, root, f.path, dated=dated)
     if getattr(f, "apply", None) is not None:
         v = _apply(f.apply, v)
@@ -3190,6 +3207,8 @@ def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None,
                 f"for an absent boolean is not something this oracle should guess; filter on "
                 f"a required property, or compare explicitly.")
         return bool(v) if f.op == "is" else not v
+    if f.op == "exists":
+        raise Unsupported("exists is evaluated over the end's members, before its value is read")
     if f.op == "isEmpty":
         return v is None
     if f.op == "isNotEmpty":
@@ -3211,6 +3230,9 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
     if spec.graph is not None:
         return evaluate_graph(c, spec, data, params)
     """Returns the rows the service must produce, as alias -> python value."""
+    if spec.lets:
+        # a top-level let binds a literal, which a predicate reads as a Param of its name
+        params = {**dict(spec.lets), **(params or {})}
     plain = [p for p in spec.projections if p.agg is None and not p.func
              and not (len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS)]
     if any(c.to_many_on(spec.root, p.path) for p in plain):

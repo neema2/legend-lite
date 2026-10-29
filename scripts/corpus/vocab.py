@@ -29,8 +29,8 @@ from dataclasses import dataclass
 from decimal import Decimal as D
 
 import oracle
-from query import (Agg, Apply, Concatenate, Cut, DateArg, DateTimeArg, Distinct, EnumArg, Extend, Join, Pred,
-                   Proj, Rename, Select, Sort, Spec, Window)
+from query import (SELF, Agg, Apply, Concatenate, Cut, DateArg, DateTimeArg, Distinct, EnumArg, Extend, If, Join,
+                   Not, Param, Pred, Proj, Rename, Select, Sort, Spec, Window)
 
 ROOT = "typedvalues::TypedValue"
 MAPPING = "stress::AllMapping"
@@ -161,7 +161,35 @@ CASES = [
     # ---- booleans
     _c("Not", BOOLEAN, "Boolean", ("not", ())),
     _c("ToStringBoolean", BOOLEAN, "String", ("toString", ())),
+    # ---- stage 5: the scalars stage 2 left out. Not splitPart: legend-pure's is zero-based (`split($token)->at(
+    # $part)`), where the oracle's, which the combination matrix asserts in property mappings, is the relational
+    # dynafunction's one-based reading, F37's question for another function
+    _c("Left", STRING, "String", ("left", (3,))),
+    _c("Right", STRING, "String", ("right", (3,))),
+    _c("Char", STRING, "String", ("ascii", ()), ("char", ())),
+    _c("JaroWinklerSimilarity", STRING, "Float", ("jaroWinklerSimilarity", ("alpha",)), inexact=True),
+    _c("BitShiftLeft", INTEGER, "Integer", ("bitShiftLeft", (1,))),
+    _c("ParseFloat", FLOAT, "Float", ("toString", ()), ("parseFloat", ())),
+    _c("ToDecimal", FLOAT, "Decimal", ("toDecimal", ())),
+    _c("Cbrt", FLOAT, "Float", ("cbrt", ()), inexact=True),
+    # sinh, cosh and tanh over atan's bounded range, as exp: 1e10 is a row
+    _c("Sinh", FLOAT, "Float", ("atan", ()), ("sinh", ()), inexact=True),
+    _c("Cosh", FLOAT, "Float", ("atan", ()), ("cosh", ()), inexact=True),
+    _c("Tanh", FLOAT, "Float", ("atan", ()), ("tanh", ()), inexact=True),
+    # asin and acos over sin's range, [-1, 1]
+    _c("Asin", FLOAT, "Float", ("sin", ()), ("asin", ()), inexact=True),
+    _c("Acos", FLOAT, "Float", ("sin", ()), ("acos", ()), inexact=True),
+    _c("Atan2", FLOAT, "Float", ("atan2", (2.0,)), inexact=True),
+    # cot away from sin's zeros: 0.0 is a row
+    _c("Cot", FLOAT, "Float", ("+", (0.5,)), ("cot", ()), inexact=True),
+    _c("ParseDecimal", DECIMAL, "Decimal", ("toString", ()), ("parseDecimal", ())),
+    _c("DayOfWeek", DATE, "DayOfWeek", ("dayOfWeek", ())),
+    _c("FirstMillisecondOfSecond", DATE_TIME, "DateTime", ("firstMillisecondOfSecond", ())),
+    _c("TimeBucket", DATE_TIME, "DateTime", ("timeBucket", (6, _unit("HOURS")))),
 ]
+
+# Results that are enumeration values: compared with `==` only, against the value
+ENUM_RESULTS = {"DayOfWeek"}
 
 # The fraction of the fifteen rows a filter must keep (the improvement plan's Phase 2 rule for a comparand)
 LOW, HIGH = 3, 12
@@ -187,6 +215,8 @@ def _literal(value, ret: str):
         return DateArg(value)
     if ret == "DateTime":
         return DateTimeArg(value)
+    if ret in ENUM_RESULTS:
+        return EnumArg(ret, value)
     return value
 
 
@@ -219,7 +249,7 @@ def _comparand(values: list, ret: str) -> tuple[str, object] | None:
                 key=lambda v: (str(type(v)), v))
     order = sorted(range(len(xs)), key=lambda i: abs(i - len(xs) / 2))
     for i in order:
-        for op in (">=", "<", ">", "=="):
+        for op in ("==",) if ret in ENUM_RESULTS else (">=", "<", ">", "=="):
             kept = sum(1 for v in values if v is not None and oracle._cmp(op, v, xs[i]))
             if LOW <= kept <= HIGH:
                 return op, _literal(xs[i], ret)
@@ -259,7 +289,7 @@ def build(c, tables) -> list[Spec]:
             flt = Pred([req], cut[0], cut[1], apply=direct)
         out.append(_spec(f"VF_{case.key}", f"{fns} over the required `{req}`, in a filter.",
                          [Proj("r", [req])], [flt]))
-    return out + build_aggregates(c, tables) + build_relations(c, tables)
+    return out + build_aggregates(c, tables) + build_relations(c, tables) + build_control(c, tables)
 
 
 # ---- stage 3: aggregates in a groupBy
@@ -523,6 +553,46 @@ def build_relations(c, tables) -> list[Spec]:
     for tds, prefix, how in ((False, "VR_", "a Relation"), (True, "VT_", "a TDS")):
         for key, doc, cols, ops, filters in _relation_cases(tds):
             out.append(_trades(f"{prefix}{key}", f"{doc.capitalize()}, over {how}.", cols, ops, filters, tds))
+    return out
+
+
+# ---- stage 5: control flow in a query
+#
+# `if` projected over a comparison, a Boolean and an absent value (0, or the value itself: the coalescing idiom); a
+# top-level `let` a filter compares with; and `exists` over a to-many end, positions::Book's trades, three books of
+# nine having any, and its negation, which keeps the books with none.
+
+BOOK = "positions::Book"
+
+
+def build_control(c, tables) -> list[Spec]:
+    def typed(name, doc, projections, filters=(), lets=()):
+        s = _spec(name, doc, projections, list(filters))
+        s.lets = list(lets)
+        return s
+
+    out = [
+        typed("VC_IfCompare", "`if` over a comparison of the required `quantity`, projected.",
+              [Proj("r", ["quantity"], apply=If(">", 42, "above", "not above", "String"))]),
+        typed("VC_IfBoolean", "`if` over the required Boolean `active`, projected.",
+              [Proj("r", ["active"], apply=If("is", None, "on", "off", "String"))]),
+        typed("VC_IfEmpty", "`if` over the optional `quantityOpt`: 0 when it is absent, else the value.",
+              [Proj("r", ["quantityOpt"], apply=If("isEmpty", None, 0, SELF, "Integer"))]),
+        typed("VC_LetInteger", "a top-level `let` binding an Integer the filter compares with.",
+              [Proj("q", ["quantity"])], [Pred(["quantity"], ">=", Param("t"))], lets=[("t", 42)]),
+        typed("VC_LetDate", "a top-level `let` binding a Date the filter compares with.",
+              [Proj("d", ["valueDate"])], [Pred(["valueDate"], "<", Param("d"))],
+              lets=[("d", DateArg("2024-06-03"))]),
+    ]
+    big = Pred(["trades"], "exists", Pred(["notional"], ">", 400000.0))
+    for name, flt, doc in (("VC_ExistsTrade", big, "the books with a trade over 400,000: `exists` over a to-many"),
+                           ("VC_NotExistsTrade", Not(big), "the books with no trade over 400,000, or none")):
+        s = Spec(f"stress::{name}", f"/stress/vocab/{name.lower()}", f"{doc.capitalize()}.", BOOK)
+        s.projections = [Proj("bookId", ["bookId"])]
+        s.filters = [flt]
+        s.sort = ("bookId", False)
+        s.mapping = MAPPING
+        out.append(s)
     return out
 
 

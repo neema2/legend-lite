@@ -291,6 +291,16 @@ ENGINE_QUARANTINE["stress::VT_ExtendString"] = ("F37", "a TDS extend's substring
 # F77 -- a window count over a partition is written as a grouped COUNT with no OVER, which DuckDB refuses. The window's
 # sum and max, and the TDS olapGroupBy's count, pass. Minimized in repro/window-count/.
 ENGINE_QUARANTINE["stress::VR_WindowCount"] = ("F77", "a window count is written without OVER")
+# F78 -- bitShiftLeft of a negative Integer errors on DuckDB (`<<` refuses a negative left operand); legend-pure's is
+# Java's long shift. Minimized in repro/bitshiftleft-negative/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_BitShiftLeft": ("F78", "bitShiftLeft of a negative number errors") for v in "PNF"
+})
+# F79 -- parseDecimal is `cast(s as decimal)`, DuckDB's DECIMAL(18,3): three fractional digits. VF_ParseDecimal's
+# comparand survives the rounding and passes. Minimized in repro/parsedecimal-scale/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_ParseDecimal": ("F79", "parseDecimal keeps three fractional digits") for v in "PN"
+})
 # F76 -- in a groupBy, the sample variance and standard deviation of one value are SQL's NULL, where Pure's are 0
 # (`variance`: `if ($numbers->size() == 1, | 0, ...)`). The VG_ and VGN_ of both pass. Minimized in
 # repro/sample-variance-of-one/.

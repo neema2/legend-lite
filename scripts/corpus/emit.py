@@ -364,7 +364,17 @@ _INFIX = ("+", "-", "*", "/")
 
 def _applied(subject: str, apply) -> str:
     """`subject` with an Apply's functions applied (Phase 4): `$x.p->f(a)->g()`, an operator infix and
-    parenthesised, and the whole chain inside `map` for an optional value."""
+    parenthesised, and the whole chain inside `map` for an optional value; or a query.If over it."""
+    import query
+
+    if isinstance(apply, query.If):
+        def branch(b):
+            if b == query.SELF:
+                return f"{subject}->toOne()" if apply.op == "isEmpty" else subject
+            return _literal(b)
+        test = (subject if apply.op == "is" else f"{subject}->isEmpty()" if apply.op == "isEmpty"
+                else f"({subject} {apply.op} {_literal(apply.value)})")
+        return f"if({test}, |{branch(apply.then)}, |{branch(apply.otherwise)})"
     def chain(t: str) -> str:
         for fn, args in apply.steps:
             if fn in _INFIX:
@@ -423,6 +433,10 @@ def _condition(f) -> str:
         return f"{path}->{f.op}()"
     if f.op == "in":
         return f"{path}->in({_literal(f.value)})"
+    if f.op == "exists":
+        # a to-many end and a comparison over each of its members, under the member's own variable
+        inner = f.value
+        return f"{path}->exists(c|($c.{_path(inner.path)} {inner.op} {_literal(inner.value)}))"
     return f"({path} {f.op} {_literal(f.value)})"
 
 
@@ -585,7 +599,11 @@ def query_text(spec: Spec) -> str:
     keys are identical.
     """
     params = ", ".join(f"{n}: {t}[{m}]" for n, t, m in spec.params)
-    lines = [f"    query: {{{params}|{_root(spec)}" if spec.params
+    if spec.lets:
+        lets = " ".join(f"let {n} = {_literal(v)};" for n, v in spec.lets)
+        lines = [f"    query: {{|{lets} {_root(spec)}"]
+    else:
+        lines = [f"    query: {{{params}|{_root(spec)}" if spec.params
              else f"    query: |{_root(spec)}"]
     if spec.filters:
         conds = " && ".join(_condition(f) for f in spec.filters)
@@ -651,7 +669,8 @@ def query_text(spec: Spec) -> str:
                      else f"        ->sort([{rendered}])")
     if spec.limit is not None:
         lines.append(f"        ->limit({spec.limit})")
-    return "\n".join(lines) + ("};" if spec.params else ";")
+    # a lambda of several lines ends each after the first with `;`: `{|let t = 42; <query>;}`
+    return "\n".join(lines) + (";};" if spec.lets else "};" if spec.params else ";")
 
 
 def _multi_execution(spec: Spec) -> str:

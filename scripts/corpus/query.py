@@ -182,6 +182,22 @@ class Join:
     on: tuple                  # ((left column, right column), ...)
 
 
+# The value an If's branch takes when it is the tested value itself.
+SELF = "<the value>"
+
+
+@dataclass(frozen=True)
+class If:
+    """`if(<test>, |<then>, |<otherwise>)` over the value at a path (the improvement plan's Phase 4, stage 5). The
+    test is the value under `op` and `value`, as a filter compares it (`is` for a Boolean, `isEmpty` for an absent
+    one); each branch is a literal, or SELF for the value itself (`->toOne()` under `isEmpty`)."""
+    op: str
+    value: object
+    then: object
+    otherwise: object
+    ret: str
+
+
 class Agg(tuple):
     """An aggregate column of a groupBy: (result alias, source alias, function), as every generator before Phase 4
     writes one, and since its stage 3 (the aggregates) carrying what a platform aggregate needs:
@@ -352,6 +368,9 @@ class Spec:
     # Relation operations after the projection and any groupBy (Phase 4, stage 4): Extend, Window, Rename, Select,
     # Distinct, Sort, Cut, Concatenate and Join, in order.
     relation: list = field(default_factory=list)
+    # A top-level `let` per (name, literal), before the query (Phase 4, stage 5): `{|let t = 42; <query>;}`. A
+    # predicate reads one as a Param of that name.
+    lets: list = field(default_factory=list)
 
     @property
     def short(self) -> str:
