@@ -2,7 +2,8 @@
 
 Proposed 2026-10-19. The user took the five decisions on 2026-10-21 ([Decisions](#decisions)), and Phase 0 started
 that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done on 2026-10-23, on `stress_test/corpus`.
-Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28, and Phase 4 started that day.
+Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28, and Phase 4 started that day
+(stages 1 and 2 of five landed; see its record).
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -700,9 +701,9 @@ Phase 4 lands in stages, each committed on `stress_test/corpus` when it is green
 
 **Stage 1: the 23 disagreements, adjudicated (2026-10-28, `ce86f115d`).** Before any went into a service, each
 was put in front of the pinned engine again, twice: in a property mapping, by the probes, and in a query, where this
-phase's services use them. Each answer was set beside the function's definition in legend-pure, or in legend-engine's Pure where the
-function is legend-engine's. Each disagreement turned out to be an oracle or probe fix, the engine's error under a
-finding, or both:
+phase's services use them. Each answer was set beside the function's definition in legend-pure, or in
+legend-engine's Pure where the function is legend-engine's. Each disagreement turned out to be an oracle or probe
+fix, the engine's error under a finding, or both:
 
 | Function | What disagreed | Verdict |
 |---|---|---|
@@ -740,6 +741,108 @@ finding, or both:
   //core:stress_suites_h2 //core:corpus_differential_test`: 394 pass and 2 are skipped. 57 fail on this desk alone,
   none depending on a changed file: 54 diff tests (the `update_*` ones and `pins_test`) that `fc.exe` cannot open
   here, each pair identical ignoring CR, and 3 datacube browser tests that time out.
+
+**Stage 2: scalar functions in a query (2026-10-28, `87de58282`).** The first part of the generator, over
+`typedvalues::TypedValue` (Phase 1's pack), whose fifteen rows hold a tie on each comparand with both neighbours,
+negatives, zero, INTEGER's two extremes, strings that differ by case, end in a space or carry an apostrophe,
+Decimals a double cannot tell apart, a leap day, midnight and the last second of a day, and an absent value in every
+optional column.
+
+- **`vocab.py`** writes `99-vocab-services.pure` (in `STRESS_GENERATED`, the layout, `core/BUILD.bazel`'s count and
+  `trading_model.py`'s `SERVICES_AND_DATA`): 258 services, 86 cases over 76 function names. Each case is three
+  services:
+  - `VP_`: the function projected over a required property, every boundary value and no absent one;
+  - `VN_`: the same function through `map` over the optional property, `$x.opt->map(v|$v->f())`, which is how Pure
+    applies a function to an optional value. legend-pure's `map` over an empty collection is empty, so an absent
+    value stays absent whatever the function;
+  - `VF_`: the function in a filter, against a comparand that keeps between a fifth and four fifths of the rows. A
+    Boolean function is the filter itself.
+
+  A transcendental result (`exp`, `log`, `log10`, `sin`, `cos`, `tan`, `atan`) is projected as a comparison with a
+  threshold its value clears by a margin, `->greaterThan(t)`, never raw, so no platform's last bit reaches an
+  expectation (F60's lesson). `vocab.check()` fails the build when a filter keeps every row or none, or when a
+  `VN_` meets no absent value.
+- **The reader, emitter and oracle.** `query.Apply` is a chain of functions applied to a path's value, the four
+  arithmetic operators written infix, inside `map` for an optional value; `Proj` and `Pred` carry one. `emit.py`
+  writes it, and `oracle._apply` evaluates it as legend-pure defines it, through `oracle.IMPL`.
+- **Oracle fixes, each where the oracle had followed SQL rather than legend-pure:**
+  - `indexOf` is zero-based with -1 for a miss, not `strpos`.
+  - `dayOfWeekNumber` is ISO. By its own comment it had followed the engine's DuckDB lowering, which made agreement
+    with the engine circular.
+  - `mod` is never negative and `rem` takes the dividend's sign. The oracle had refused negative operands as
+    "dialects differ".
+  - `round` is half-even. The oracle had refused every tie.
+  - `toString` of a Boolean is `'true'`, not Python's `'True'`.
+
+  Regenerating changed no existing service.
+- **A Decimal comparand never takes more than 16 fractional digits.** The first run's three Decimal filters met
+  F61 (Phase 1's finding, which its own services pin).
+- **`executed.py`** holds four features (rule 6), each executed by passing services: a function in a projection, in
+  a filter, through `map`, and a chain of them.
+- **The scalar probe**, run again with this oracle: `indexOf` and `dayOfWeekNumber` now disagree in a property
+  mapping too, and are recorded as F72's and F74's.
+
+**Found on the way** (each minimized under `scripts/corpus/repro/`, with its services quarantined):
+
+- **F71:** Integer arithmetic over an `INTEGER` column is 32-bit in the SQL, where Pure's Integer is 64-bit.
+  `abs(-2147483648)` and `2147483647 + 1` overflow, and `floor(1e10)` is cast to INT32 (8 services;
+  `integer-arithmetic-32-bit`).
+- **F72:** `indexOf` in a query is SQL's `strpos`, one-based with 0 for a miss, where the same query's
+  `substring` is Pure's (3 services; `indexof-strpos`).
+- **F73:** `round` takes a tie away from zero; Pure's is half-even (2 services; `round-half-even`).
+- **F74:** `dayOfWeekNumber` counts from Sunday; Pure's is ISO (3 services; `dayofweeknumber-sunday-first`).
+- F35 (3 services), F38 (4: the projections; the filters pass) and F68 (2: `VN_PlusString` and `VN_RegexpIndexOf`)
+  are pinned again. In all, 25 of the 258 are quarantined.
+
+**The engine verdict (2026-10-28, legend-engine 4.145.0, Windows x64).** The whole corpus (`bazel run
+//scripts/corpus:run -- --jobs 4`, 96 minutes): 5,327 pass, 82 known-fail (quarantined), 1 not run (F15), 0
+unexpected, of 5,410 testables. Of the 258 new services 233 pass and 25 are quarantined, and every service that
+passed after stage 1 passes. Before the run, the vocabulary alone ran from a scratch copy of the corpus, and that
+is how its findings and fixes above were found.
+
+**Lite.** On DuckDB 5,135 tests pass (4,939 before) and on H2 5,079 (4,910). The 196 and 169 vocabulary services
+that pass account for the whole rise, and no test that passed fails. Both `MIN_PASS` ratchets rose by that, each
+with a dated note. Lite rounds half-even and numbers ISO weekdays, as Pure does. Its failing vocabulary services fall
+into these buckets:
+
+- **TV-04's trailing space trimmed** (Phase 1's bucket). It reaches most string functions now: `toUpper`, `length`,
+  `lpad`, `reverseString`, the filters on `endsWith` and `matches`...
+- **New on both databases:** 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), and `map` over an
+  absent value applying the function to NULL (F68's: `VN_Contains` false, `VN_DecodeBase64` `''`, `VN_PlusString`
+  `'!'`).
+- **New on H2 only:**
+  - functions the dialect lacks: the bit operations, base64, `levenshteinDistance`, `reverseString`, `regexpCount`
+    and `regexpIndexOf`;
+  - a `weekOfYear` that is not ISO, and a `firstDayOfWeek` that starts on Sunday.
+
+**The measures after stage 2** (the report's `tools/run.sh` at the pin, given the engine's pass list):
+
+- Platform functions in service queries: 112 distinct names (target 150; the report counted 25). 107 are in services
+  that pass on the engine, and 100 in services that pass in lite.
+- PCT function names used anywhere: 99 of 321 (target 150; 66 before).
+- EMIT 45 of 109 on the engine and 39 in lite, as before: a function applied in a query is no EMIT feature.
+
+**Where this session stopped (2026-10-28).** Stages 1 and 2 are committed. Phase 4 is not done: the two function
+rows are short of 150, and no window, olap, TDS-join or relation-API service has been written. The stages left:
+
+- **Stage 3: aggregates.** `groupBy` over `TypedValue` with each aggregate the probes agree on, over a column with
+  absent values, with a group whose values are all absent. The `aggregate` probe's rows list them, among them
+  `average`, `median`, `mode`, `stdDev*`, `variance*`, `percentile`, `joinStrings`, `maxBy`/`minBy` and `wavg`.
+  Spec already takes `group_by` and `aggs`; the oracle's `_agg` and IMPL hold the implementations.
+- **Stage 4: relation and TDS shapes,** through `oracle.RELATION_IMPL`:
+  - `extend`, `rename`, `select`, `distinct`, `slice`, `take`, `drop`, `concatenate` and `join`;
+  - the window functions over A5's ties, where `rank`, `denseRank` and `rowNumber` differ;
+  - `olapGroupBy`, and the TDS forms with a TDS join.
+
+  Each needs its shape in `query.Spec` and `emit.py`.
+- **Stage 5: control flow and the rest of the scalars.**
+  - `let`, `if`, `exists`, `map` over a to-many, and `subType()` inside queries.
+  - The scalars left out of stage 2: `left`, `right`, `splitPart`, `char`, `parseFloat`, `parseDecimal`,
+    `toDecimal`, `jaroWinklerSimilarity`, `cbrt`, `sinh`/`cosh`/`tanh`, `asin`/`acos`, `atan2`, `cot`,
+    `firstMillisecondOfSecond`, `timeBucket`, `formatDate`, and `hashCode` in a form that compares hashes only.
+- After each oracle change, `bazel run //scripts/corpus:probe_functions` (and `:probe_collection`) again: the
+  evidence follows the oracle, and a new disagreement is adjudicated before its function enters a service. The other
+  fourteen probes still name the Maven-era runner (P7-03).
 
 ### Phase 5: M2M (about 5 days, about 40 services)
 
@@ -882,7 +985,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 1 | 2026-10-23 | — | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 2 | 2026-10-27 | — | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 3 | 2026-10-28 | — | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
-| 4 | 2026-10-28 | — | stage 1 (`ce86f115d`): 0 | none added; F68, F69, F70 found, each with a repro | none | stage 1: the 23 disagreements adjudicated |
+| 4 | 2026-10-28 | stages 1 and 2 of 5 | stage 1 (`ce86f115d`) 0; stage 2 (`87de58282`) 258 | 25 vocabulary services under F35, F38, F68, F71-F74; F68-F74 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's); on H2 alone, functions the dialect lacks, a non-ISO `weekOfYear` and a Sunday-first `firstDayOfWeek` | after stage 2: platform functions in service queries 112 (107 on the engine); PCT 99 of 321; EMIT 45 of 109 on the engine, 39 in lite |
 | 5 | — | — | — | — | — | — |
 | 6 | — | — | — | — | — | — |
 | 7 | — | — | — | — | — | — |
