@@ -1,7 +1,7 @@
 # The desk's data, end to end: the roadmap (2026-10-29)
 
-**Status: PROPOSED, to read with the user before anything starts** (the user, 2026-10-29: "Let's write down full
-roadmap so we can start after we look at it together").
+**Status: AGREED 2026-10-29 but for decision P (§2); work under way.** Written to read with the user first (the
+user, 2026-10-29: "Let's write down full roadmap so we can start after we look at it together").
 
 This orders the work of the data products design, docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md ("the design"). It
 also takes in what is left of the one-connection plan (docs/ONE_CONNECTION_DESK_2026_10_28.md: steps 6 and 7, "Next
@@ -39,43 +39,59 @@ four Deephaven's reader needs (design §A.5, `experiments/kafka-door-spike`).
 | The desk's data space | two contexts, "In this tab" and "Deephaven", both over `stress::AllMapping` (`environments.pure`) |
 | Kafka | none. A spike showed the pinned Deephaven reads our door: every row once, at 2,000 and 20,000 rows a second |
 
-## 2. Decisions to make together
+## 2. Decisions
 
-| | Decision | Needed before | Recommended |
+The user, 2026-10-29: "Retention, door for sure, no need for tansu just use door, order do all in order you think but
+all together in same PR don't worry about license for the moment".
+
+| | Decision | Needed before | Decided |
 |---|---|---|---|
-| **W** | The words (below) | A1 | below |
-| **K** | The Deephaven demo's Kafka: our door, or a real broker | B1 | the door: measured, nothing new to depend on, the world writes into it from the same process |
+| **W** | The words (below) | A1 | `retention=` (the user). The other two as recommended below, taken under "do all in order you think"; still the user's to change |
+| **K** | The Deephaven demo's Kafka: our door, or a real broker | B1 | the door ("door for sure") |
 | **S** | Decision 3 of the design said "the demo's simulator stays in the server, writing rows only". With the door, the simulation runs as its own process instead | B1 | yes: it follows from K |
-| **P** | Who runs a pull on Deephaven (below) | B3 | the generated program, over JDBC; measured first |
-| **X** | May a session download and run Tansu, or Apache Kafka, for one comparison lane | B5 | yes, for that one lane |
-| **O** | The order: Deephaven first, or the stages that do not touch Deephaven first | after A | Deephaven first, as the user asked on 2026-10-29 (D6 ahead of step 6) |
-| **L** | Where the stages that do not touch Deephaven land | after A | §5 |
+| **P** | How pulled reference data reaches Deephaven (below) | B3 | **open**: the user asked for the best options; recommended (c) |
+| **X** | A comparison lane against Tansu or Apache Kafka | B5 | no ("no need for tansu just use door"): B5 dropped |
+| **O** | The order | after A | the recommended order (§4) |
+| **L** | Where it lands | -- | one PR for all of it; the licence set aside for now (§5) |
 
-**W, the words** (the design's §3a, three still open):
+**W, the words:**
 
-1. **How much history a table keeps:**
-   - The options: `keep=Last('PT8H')` (proposed), `history=Last('PT8H')` (the user's suggestion), or
-     `retention=Last('PT8H')`.
-   - Recommended: `retention=`. It is Kafka's and Deephaven's word for exactly this. In Legend, "history" usually means
-     milestoning: keeping every version of a row (`batch_milestoned`), which is a different thing.
+1. **How much history a table keeps: `retention=`** (the user). `retention=Last('PT8H')`, `retention=LastRows(200000)`.
+   It is Kafka's and Deephaven's word for exactly this; "history" in Legend usually means milestoning.
 2. **Where a topic's format is written:**
-   - On the Kafka connection (`format: Avro;`) when the ingest reads someone else's topic: the producer chose the
-     format, so it belongs to where the data is.
+   - On the Kafka connection (`format: Json;`, `format: Avro;`) when the ingest reads someone else's topic: the
+     producer chose the format, so it belongs to where the data is.
    - On the ingest (`Stream<Json>`) only when producers write into the ingest's own topic, as the world's status does.
 3. **The tab's word for "the world writes these tables":** `Simulated` (design §9 question 5). Leaving the stores
    unbound in the tab's environment would look the same as a forgotten binding.
 
-**P, who runs a pull on Deephaven:**
+**P, how pulled reference data reaches Deephaven.** Two questions hide in "the pull":
 
-- **(a) The generated program.** Lite plans the pull's query for the master's database and renders its SQL. The
-  program runs that SQL over JDBC on the pull's schedule.
-  - Deephaven ships its JDBC reader (`deephaven-extensions-jdbc-42.7`), but no JDBC driver for H2, DuckDB, Postgres or
-    SQLite. Each master's driver would go on the server.
-  - The master's database does the work, and no Java carries rows: the execution tenet.
-- **(b) A platform process.** It runs the query and writes the rows into Deephaven (the one-connection plan's "Next
-  (D6)": rows as an Arrow upload). Java carries every row.
-- **In the demo,** either way, the masters are a small database the world writes at start, so the pull runs
-  production's path too.
+1. **How a master publishes.** That is the owner's choice, written as its ingest's read mode:
+   - `Pull`: the platform queries the master's database on a schedule (the desk's masters, in the design);
+   - `Stream`: the master publishes each change to a topic (change data capture); fresher, no schedule;
+   - `Snapshot<Parquet>`: the master drops snapshot files (Legend's own form).
+
+   The last two need no one to run a query. The rest of this is about `Pull`.
+2. **For a `Pull`: who runs the query, and how its rows reach Deephaven.** Four ways:
+
+| | Who runs the query | How the rows reach Deephaven | For | Against |
+|---|---|---|---|---|
+| (a) | Deephaven itself: the generated program, over JDBC (`deephaven-extensions-jdbc-42.7`) | Deephaven reads the result into a table | no other process; the master's database does the query | every Deephaven server needs each master's JDBC driver (42.7 ships none), network route and password; the schedule, retries and errors written as Groovy; the query runs once per server; it serves Deephaven only |
+| (b) | the platform | written into a Deephaven table, as an Arrow upload into an input table | the passwords stay with the platform | a writer lite does not have; input tables are what the licence's section 4 restricts; after a server restart the table is empty until the next run |
+| (c) | the platform | published to a keyed topic (the door in the demo, Kafka in production), read like every stream | Deephaven has one way in for all its data; the query runs once however many servers read it; a restarted server reads the topic again; the passwords stay with the platform; no input tables | the runner must publish (into the door in the same process in the demo; Kafka's Java client in production); a key a run no longer returns needs Kafka's delete marker, and how Deephaven's reader takes one is to be measured |
+| (d) | the platform | written as a Parquet snapshot that Deephaven reads again, or an Iceberg table it refreshes from (both readers in 42.7) | each run's snapshot replaces the last, so keys that vanish vanish | storage shared by the runner and every server; a second way into Deephaven beside Kafka |
+
+**Recommended: (c).** It reverses the earlier lean to (a), for three reasons:
+
+- the masters' drivers and passwords stay in one place, the platform's, with every other connection's;
+- Deephaven gets all its data one way: the subscriptions the generated program makes;
+- a restart, or a second server, costs nothing.
+
+In the demo, the masters are a small DuckDB database the world writes at start. The runner plans each pull with the
+planner, runs it on that database on its schedule, and publishes the rows to the door. It is the platform's piece,
+kept apart from the world's even though they share the demo's process. Production's runner (the platform's server,
+real Kafka) is later work.
 
 ## 3. The stages
 
@@ -174,11 +190,7 @@ four Deephaven's reader needs (design §A.5, `experiments/kafka-door-spike`).
 - **Decide then:** whether the corpus's own `corpus.groovy` (76 lines) is generated the same way or kept as a fixture.
 - **Done when:** every Deephaven lane is green with only the feed process and the generated program.
 
-**B5. One lane against a real broker** (optional, decision X).
-
-- The same world writes through Kafka's Produce request into Tansu or Apache Kafka, and Deephaven reads it.
-- Any difference between the door and Kafka shows here.
-- *Small to medium,* with Produce added to the world's Kafka writer.
+**B5. Dropped** (decision X: "no need for tansu just use door"). The door is the only Kafka the desk runs against.
 
 ### C. The tab (does not touch Deephaven; the one-connection plan's steps 6 and 7)
 
@@ -250,7 +262,7 @@ four Deephaven's reader needs (design §A.5, `experiments/kafka-door-spike`).
 ## 4. The order
 
 ```
-A0 -> A1 -> A2 -+-> B1 -> B2 -> B3 -> B4 (-> B5)
+A0 -> A1 -> A2 -+-> B1 -> B2 -> B3 -> B4
                 +-> C1 -> C2
           A1 ---+-> D1 -> D2 (D2 after A2)
                          all of it -> E
@@ -267,13 +279,11 @@ Stages B, C and D share only A, so two of them can run side by side if wanted.
 
 ## 5. Landing
 
-- Nothing from the Deephaven line goes to main before the licence answer (the user, 2026-10-24).
-- **Proposed (decision L):** stages A, C and D touch no Deephaven code.
-  - They are built on a branch from main and land through a PR, with CI on every OS, so they do not wait on the
-    licence.
-  - The Deephaven branch merges main to pick them up (merge, never rebase).
-  - B and E stay on `claude/deephaven-3-browser`.
-- The door (B1) is ours and Kafka's, not Deephaven's, but only Deephaven reads it, so it stays with B.
+- **One PR for all of it** (the user, 2026-10-29: "all together in same PR"), from `claude/deephaven-3-browser`,
+  opened when the user asks.
+- **The licence is set aside for now** (the user, 2026-10-29: "don't worry about license for the moment"). The
+  question itself stays open (docs/DEEPHAVEN_START_HERE.md, open item 1).
+- Main is merged into the branch as it moves (merge, never rebase).
 - No push to main without the user's word, in the session that pushes.
 
 ## 6. What this replaces, and what it leaves out

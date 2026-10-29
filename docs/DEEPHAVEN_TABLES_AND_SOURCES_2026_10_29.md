@@ -43,6 +43,10 @@ orders from the order system. The design describes all of it in Legend's own ter
    'reference'), keep classes please!"
 8. **Entitlements:** "Agree no entitlements needed for now". **Dataset groups** left unset (the desk's tables stay in
    the default schema) and **a pull owned by the source's team**, the team that owns the product: "Okay".
+9. **The roadmap's decisions** (docs/DESK_DATA_ROADMAP_2026_10_29.md, the user, 2026-10-29: "Retention, door for sure,
+   no need for tansu just use door, order do all in order you think but all together in same PR don't worry about
+   license for the moment"): the history word is `retention=`; the demo's Kafka on Deephaven is our own door, no
+   broker beside it; the roadmap's order; one PR for all of it.
 
 Superseded on the way, kept in git history: a `###Pipeline` and a Kafka `###` store (2026-10-29: "Lot of new concepts
 to juggle"), extending `###Persistence` with streams, a per-backend `DeephavenTable` activator, and a generic `Deploy`
@@ -67,8 +71,8 @@ element. Each reinvented a Legend concept under a new name.
    the environment's runtime, like any query's.
 2. **Streams.** A dataset whose source is a topic -- a table of a store reached through a Kafka connection (a lite
    connection type, as `Deephaven` is) -- read live.
-3. **How rows land, for live data:** `AppendOnly` with the history it keeps (`keep=Last('PT8H')`,
-   `keep=LastRows(200000)`), and `LatestByKey` (one row per key, the newest).
+3. **How rows land, for live data:** `AppendOnly` with the history it keeps (`retention=Last('PT8H')`,
+   `retention=LastRows(200000)`), and `LatestByKey` (one row per key, the newest).
 4. **Schedules:** `Every('PT15M')`, `Daily('06:00', 'America/New_York')` -- for pulls. A materialized view follows its
    inputs (Legend's show no refresh setting).
 5. **Live targets:** a Deephaven server and the tab's DuckDB, where ingests land and access points are served, beside
@@ -94,7 +98,7 @@ round-trip fixtures; each spelling lite reconstructed is listed so it can be rep
 | A dataset of written columns | `NAME( col: Type, ... ) pk=[ col ];` | `source: { _type: serializedSource, schema }` | Legend, seen |
 | A dataset made by a function | `NAME( \|<function> ) pk=[ col ];` | `source: { _type: FunctionSource, function }` | Legend's source, lite's spelling |
 | How rows land | `writeMode=AppendOnly`, `writeMode=BatchMilestoned`, `writeMode=LatestByKey` | `writeMode: { _type: append_only \| batch_milestoned \| latest_by_key }` | Legend's first two by rule 2; `LatestByKey` lite |
-| History kept | `keep=Last('PT8H')`, `keep=LastRows(200000)` | `keep: { ... }` | lite |
+| History kept | `retention=Last('PT8H')`, `retention=LastRows(200000)` | `retention: { ... }` | lite (the user, 2026-10-29: "Retention") |
 | A store over an ingest | `include Ingest <path>` | `includedStoreSpecifications: [ { storeType: Ingest, ... } ]` | Legend, named in prose |
 | Topics as tables | `type: Kafka; specification: Kafka { bootstrapServers: '...'; schemaRegistry: '...'; format: Avro; };` | a `RelationalDatabaseConnection` of lite's type | lite (as `Deephaven`) |
 | Rows written straight in by the market world (the tab only, §9 question 5) | `type: Simulated; specification: Simulated { world: 'market'; };` | the same, the static demo's and its tests' | lite |
@@ -106,7 +110,7 @@ Durations are ISO 8601 (`PT8H`, `PT15M`); a time of day is `HH:MM` in a named IA
 **What each read mode means:** files (`Snapshot`, `Delta`) are dropped by a producer at the ingest's write location;
 `Stream` rows arrive live -- from the topic a function reads, or written by the dataset's producer when its columns are
 written out; `Pull` runs each dataset's function on the schedule, each run the whole set. **What each write mode
-means:** `AppendOnly` adds every row (with `keep`, older ones fall away); `LatestByKey` keeps the newest row per key (a
+means:** `AppendOnly` adds every row (with `retention`, older ones fall away); `LatestByKey` keeps the newest row per key (a
 pull's run also drops the keys it no longer returns); `BatchMilestoned` keeps every version with batch ids -- Legend's,
 refused on Deephaven by name until a case needs history there.
 
@@ -141,7 +145,7 @@ where the model puts it. The desk-only `world` status table is the market world'
 // MARKET DATA, streamed from the ticker plant's topics (owned by the market data team)
 Ingest marketdata::MarketDataFeed Stream owner=AppDir(production='...')
 [
-  MARKET_TRADE( |#>{tickerplant::Topics."tp.us-equities.trades.v3"}# ) pk=[ PRINT_ID ] writeMode=AppendOnly keep=Last('PT8H');
+  MARKET_TRADE( |#>{tickerplant::Topics."tp.us-equities.trades.v3"}# ) pk=[ PRINT_ID ] writeMode=AppendOnly retention=Last('PT8H');
   MARKET_QUOTE( |#>{tickerplant::Topics."tp.us-equities.nbbo.v2"}# )  pk=[ QUOTE_ID ] writeMode=LatestByKey;
   FX_RATE( |#>{tickerplant::Topics."tp.fx.spot.v1"}# )                pk=[ RATE_ID ]  writeMode=LatestByKey;
 ]
@@ -149,7 +153,7 @@ Ingest marketdata::MarketDataFeed Stream owner=AppDir(production='...')
 // NEWS, streamed from the vendor's topic
 Ingest marketdata::NewsFeed Stream owner=AppDir(production='...')
 [
-  NEWS_STORY( |#>{newswire::Topics."vendor.newswire.stories.v1"}# ) pk=[ STORY_ID ] writeMode=AppendOnly keep=Last('PT24H');
+  NEWS_STORY( |#>{newswire::Topics."vendor.newswire.stories.v1"}# ) pk=[ STORY_ID ] writeMode=AppendOnly retention=Last('PT24H');
 ]
 
 // THE ORDER SYSTEM, streamed from its drop copy
@@ -369,7 +373,7 @@ table to its ingest's columns.
 
 - Every table a product's mapping reads is a dataset of an ingest the environment lands, or a table of a store the
   environment's runtime names.
-- A dataset's key is among its columns; `LatestByKey` has a key; `keep` only on appended data.
+- A dataset's key is among its columns; `LatestByKey` has a key; `retention` only on appended data.
 - `Stream` only from a source that can stream (a topic, the simulated world, tables on the same server); a database
   pull needs a schedule.
 - A function-defined dataset's columns are its function's result; a pushed one's are written out.
