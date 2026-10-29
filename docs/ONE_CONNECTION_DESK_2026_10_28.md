@@ -95,6 +95,20 @@ lite's own connections (environments.pure) is an entity like any other. The same
 a server loads its released versions from a folder the same way. The demos' configs and saved pages are rewritten to
 it: nothing of `projects[]` is kept for compatibility.
 
+**D6. On Deephaven, the platform is how a table is described and created -- in DataCube and outside it (the user,
+2026-10-29: "on deep haven the platform is the way you describe/create tables even if it's outside of the
+datacube").** Found by the strict type check (DH16): its first run caught the market world's hand-written Groovy
+publishing three columns otherwise than the store declares -- the root cause being that a hand-written script, not the
+platform, made the tables. So: a table on Deephaven is declared in a store and created from that declaration by the
+platform (the store's DDL as an input table, DH15), and its rows are written through the platform's writes (§6 of
+docs/DEEPHAVEN_PLAN_2026_10_22.md, which landed with the planner's write branch); a hand-written script that makes
+tables goes, the market world's Groovy first. DataCube's own copies on a server (a grid's base) follow the same rule:
+the platform declares the copy's columns and creates it to match, never describes it after from what the server holds.
+The strict check stays for what the platform does not make -- a table another program publishes on a server a person
+connects to (D4) -- and is not extended further (to SQL databases) for now. Within the licence (§4): creating a table
+on Deephaven makes an input table, which only internal users may define (a deployment setting refusing it is due before
+this reaches anyone else).
+
 ## 2. What differs today
 
 | Piece | DuckDB in the tab | Deephaven | After this plan |
@@ -165,11 +179,16 @@ Each ends in a deletion where it can. Sizes are estimates, not measures.
 deleted (DataCube, the Query app, their configs and demos), the model home's entities at lite's dialect, workspaces
 from a released version; "Deephaven at another address…" lands with it. *About 2-3 days.*
 
-**Later, separate tracks:** lite's writes to Deephaven (the Market data source writing into a Deephaven server's
-tables, which retires the Groovy app: a writer, input tables, measured first -- write rate, a created table's visibility
-to other sessions, memory); Deephaven in the Database source (a server's tables listed, opened live); tables and views
-created on a server through platform scripts (the Java executor's Deephaven sender, L3s); DH16 for tables other programs
-publish (docs/DEEPHAVEN_START_HERE.md, open decision 5).
+**Next (D6, the user, 2026-10-29: ahead of the per-pick EMA and step 6): the platform creates and fills the Deephaven
+tables** -- the store's DDL sent to the server, each table reachable by its name from every session, its rows written
+through the platform's writes (a relation-valued parameter carried as an Arrow upload, §6's gap), recreated and
+reloaded after a restart (DH19); the market world's Groovy keeps simulating but makes no table; then DataCube's copies
+declared by the platform. Measured first: a created table's visibility to other sessions, the write rate the market
+needs, memory.
+
+**Later, separate tracks:** Deephaven in the Database source (a server's tables listed, opened live); tables and views
+created on a server through platform scripts (the Java executor's Deephaven sender, L3s). (DH16 for tables other
+programs publish: built 2026-10-29, docs/DEEPHAVEN_START_HERE.md item 5.)
 
 **Last: the demo runs without leaks, its bugs fixed** (the user, 2026-10-28) -- the desk left open for hours on
 Deephaven without its memory growing or its cycles slowing, and the bugs a long run finds fixed: the server keeps a row

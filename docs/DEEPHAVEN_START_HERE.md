@@ -124,9 +124,11 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
    a `short`, a TINYINT a `byte`, a REAL a `float` (`StressOnDeephaven.kind`); the market world's first run under the
    check refused EXCHANGE (`IS_ELECTRONIC` held as `java.lang.Object`: Groovy hands `TableTools.col`'s varargs an
    `Object[]`), and a probe of all 20 tables it publishes against the store found two more, BUSINESS_UNIT's `IS_ACTIVE`
-   and `ESTABLISHED_DATE` -- each now a typed array; a grid's base is declared as the server
-   holds it (`server-base.ts`: an `int` an INTEGER, a `long` a BIGINT -- it was BIGINT for every integer), read off its
-   own answer. The declarations are not part of the operations' keys: a table kept alive is checked once, when made.
+   and `ESTABLISHED_DATE` -- each now a typed array. A grid's base is, for now, declared as the server holds it
+   (`server-base.ts`: an `int` an INTEGER, a `long` a BIGINT -- it was BIGINT for every integer), read off its own
+   answer, so its check passes by construction; D6 (docs/ONE_CONNECTION_DESK_2026_10_28.md, the user, 2026-10-29)
+   replaces that: the platform declares a copy's columns and creates it to match, as it creates every table on
+   Deephaven. The declarations are not part of the operations' keys: a table kept alive is checked once, when made.
    Not checked: NOT NULL (Deephaven's schema says nothing of it, and a live table may gain a null later; only reading
    rows could).
 
