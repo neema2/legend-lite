@@ -29,7 +29,8 @@ from dataclasses import dataclass
 from decimal import Decimal as D
 
 import oracle
-from query import Agg, Apply, DateArg, DateTimeArg, EnumArg, Pred, Proj, Spec
+from query import (Agg, Apply, Concatenate, Cut, DateArg, DateTimeArg, Distinct, EnumArg, Extend, Join, Pred,
+                   Proj, Rename, Select, Sort, Spec, Window)
 
 ROOT = "typedvalues::TypedValue"
 MAPPING = "stress::AllMapping"
@@ -258,7 +259,7 @@ def build(c, tables) -> list[Spec]:
             flt = Pred([req], cut[0], cut[1], apply=direct)
         out.append(_spec(f"VF_{case.key}", f"{fns} over the required `{req}`, in a filter.",
                          [Proj("r", [req])], [flt]))
-    return out + build_aggregates(c, tables)
+    return out + build_aggregates(c, tables) + build_relations(c, tables)
 
 
 # ---- stage 3: aggregates in a groupBy
@@ -427,6 +428,101 @@ def build_aggregates(c, tables) -> list[Spec]:
             out.append(_grouped(c, tables, f"VGS_{case.key}",
                                 f"{call} over the required `{req}`, grouped by `segment`, whose group A holds one "
                                 f"value: Pure's variance of one value is 0.", KEY_SEGMENT, req, case))
+    return out
+
+
+# ---- stage 4: relation and TDS shapes
+#
+# Over trading::Trade, whose twenty trades hold A5's ties: four trades of 2024-06-03 share a notional of 250,000, so
+# rank, denseRank and rowNumber differ there (seed.py). Each shape runs in the Relation paradigm (VR_) and the legacy
+# TDS one (VT_), as query.Spec's `relation` operations evaluated by the oracle's RELATION_IMPL and _relation_ops:
+# extend, rename, select (restrict), distinct, the ordinal operations after a total order (take, drop, slice, limit,
+# paginated), concatenate, inner and left joins, and the window functions (over() for a Relation, olapGroupBy for a
+# TDS), partitioned by trade date and ordered by notional. rowNumber and ntile take the trade id after the notional,
+# since a tie leaves their numbering to the database.
+
+TRADE = "trading::Trade"
+TYPED = "typedvalues::TypedValue"
+ORDER_TOTAL = (("n", False), ("id", False))
+BY_ID = Sort((("id", False),))
+
+
+def _trades(name: str, doc: str, cols, ops, filters=(), tds=False) -> Spec:
+    s = Spec(f"stress::{name}", f"/stress/vocab/{name.lower()}", doc, TRADE)
+    s.projections = [Proj(a, [p]) for a, p in cols]
+    s.filters = list(filters)
+    s.relation = list(ops)
+    s.mapping = MAPPING
+    s.paradigm = "tds" if tds else "relation"
+    return s
+
+
+ID_N = (("id", "tradeId"), ("n", "notional"))
+ID_D_N = (("id", "tradeId"), ("d", "tradeDate"), ("n", "notional"))
+
+
+def _typed_side(tds: bool) -> Spec:
+    """A join's other side: the typed values that name a trade, each with its trade's id."""
+    s = Spec("stress::side", "", "", TYPED)
+    s.projections = [Proj("vid", ["valueId"]), Proj("vq", ["quantity"]), Proj("tid", ["valuedTrade", "tradeId"])]
+    s.filters = [Pred(["valuedTrade", "tradeId"], "isNotEmpty")]
+    s.mapping = MAPPING
+    s.paradigm = "tds" if tds else "relation"
+    return s
+
+
+def _relation_cases(tds: bool) -> list[tuple[str, str, tuple, list, list]]:
+    """(name, doc, columns, operations, filters) of each shape, in one paradigm."""
+    concat_other = _trades("other", "", ID_N, [], [Pred(["notional"], "<", 100000.0)], tds)
+    windows = [("Rank", "rank", (("n", False),), ()), ("DenseRank", "denseRank", (("n", False),), ())]
+    if tds:
+        # olapGroupBy sorts by one key (SortInformation[0..1]), and its ranking functions are rank, averageRank,
+        # denseRank and rowNumber (meta::pure::functions::math::olap, each `fail('not implemented')` in Pure: a
+        # marker for the SQL)
+        windows.append(("RowNumber", "rowNumber", (("id", False),), ()))
+    else:
+        windows += [("PercentRank", "percentRank", (("n", False),), ()),
+                    ("CumulativeDistribution", "cumulativeDistribution", (("n", False),), ()),
+                    ("RowNumber", "rowNumber", ORDER_TOTAL, ()), ("Ntile", "ntile", ORDER_TOTAL, (3,))]
+    ret = {"percentRank": "Float", "cumulativeDistribution": "Float"}
+    cases = [
+        ("Extend", "a column computed from another, the notional halved",
+         ID_N, [Extend("half", "n", Apply((("/", (2.0,)),), "Float"), of="Float"), BY_ID], []),
+        ("ExtendString", "a column computed from another, the id's digits",
+         ID_N, [Extend("digits", "id", Apply((("substring", (4,)),), "String"), of="String"), BY_ID], []),
+        ("Rename", "a column renamed", ID_N, [Rename("n", "amount"), BY_ID], []),
+        ("Select", "two of three columns kept", ID_D_N, [Select(("id", "n")), BY_ID], []),
+        ("Distinct", "the distinct trade dates", (("d", "tradeDate"),),
+         [Distinct(), Sort((("d", False),))], []),
+        ("Take", "the five largest notionals", ID_N, [Sort((("n", True), ("id", False))), Cut("take", (5,))], []),
+        ("Limit", "the three smallest notionals", ID_N, [Sort(ORDER_TOTAL), Cut("limit", (3,))], []),
+        ("Drop", "all but the fifteen smallest notionals", ID_N, [Sort(ORDER_TOTAL), Cut("drop", (15,))], []),
+        ("Slice", "the third to seventh smallest notionals, across the tie at 250,000", ID_N,
+         [Sort(ORDER_TOTAL), Cut("slice", (2, 7))], []),
+        ("Concatenate", "the notionals over 400,000 followed by those under 100,000", ID_N,
+         [Concatenate(concat_other), BY_ID], [Pred(["notional"], ">", 400000.0)]),
+        ("JoinInner", "each trade with the typed value naming it, inner", ID_N,
+         [Join(_typed_side(tds), "INNER", (("id", "tid", "String"),)), BY_ID], []),
+        ("JoinLeft", "each trade with the typed value naming it, or none", ID_N,
+         [Join(_typed_side(tds), "LEFT_OUTER" if tds else "LEFT", (("id", "tid", "String"),)), BY_ID], []),
+    ]
+    if tds:
+        cases.append(("Paginated", "the second page of four, by notional", ID_N,
+                      [Sort(ORDER_TOTAL), Cut("paginated", (2, 4))], []))
+    for key, fn, order, args in windows:
+        cases.append((key, f"`{fn}` over each trade date's notionals", ID_D_N,
+                      [Window("w", fn, ("d",), order, args, ret=ret.get(fn, "Integer")), BY_ID], []))
+    for key, fn, r in (("WindowSum", "sum", "Float"), ("WindowMax", "max", "Float"), ("WindowCount", "count", "Integer")):
+        cases.append((key, f"`{fn}` of each trade date's notionals, on every trade", ID_D_N,
+                      [Window("w", fn, ("d",), col="n", ret=r), BY_ID], []))
+    return cases
+
+
+def build_relations(c, tables) -> list[Spec]:
+    out = []
+    for tds, prefix, how in ((False, "VR_", "a Relation"), (True, "VT_", "a TDS")):
+        for key, doc, cols, ops, filters in _relation_cases(tds):
+            out.append(_trades(f"{prefix}{key}", f"{doc.capitalize()}, over {how}.", cols, ops, filters, tds))
     return out
 
 

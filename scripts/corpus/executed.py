@@ -379,6 +379,21 @@ def _vocabulary_features(specs, quarantined: set[str], add) -> None:
     add("Q4  aggregate over pairs", [s.short for s in live if any(a.pair for a in aggs(s))])
     add("Q4  aggregate then a function", [s.short for s in live if any(a.then for a in aggs(s))])
 
+    # stage 4: relation and TDS operations after the projection (query.Spec.relation)
+    def ops(s, *kinds):
+        return [o for o in s.relation if isinstance(o, kinds)]
+
+    for name, kinds, paradigm in (
+            ("Q4  relation extend", (query.Extend,), "relation"), ("Q4  relation window", (query.Window,), "relation"),
+            ("Q4  relation join", (query.Join,), "relation"), ("Q4  relation concatenate", (query.Concatenate,),
+                                                                 "relation"),
+            ("Q4  relation rename/select/distinct", (query.Rename, query.Select, query.Distinct), "relation"),
+            ("Q4  relation ordinal", (query.Cut,), "relation"), ("Q4  TDS extend", (query.Extend,), "tds"),
+            ("Q4  TDS olapGroupBy", (query.Window,), "tds"), ("Q4  TDS join", (query.Join,), "tds"),
+            ("Q4  TDS restrict/rename/distinct", (query.Rename, query.Select, query.Distinct), "tds"),
+            ("Q4  TDS ordinal", (query.Cut,), "tds")):
+        add(name, [s.short for s in live if s.paradigm == paradigm and ops(s, *kinds)])
+
 
 def _query_features(specs, quarantined: set[str], add) -> None:
     """A query's typed constants, predicate trees and parameters (the improvement plan's Phase 1,
@@ -589,6 +604,11 @@ BASELINE = {
     # by passing services on legend-engine 4.145.0.
     "Q4  aggregate in a groupBy", "Q4  aggregate with arguments", "Q4  aggregate over pairs",
     "Q4  aggregate then a function",
+    # 2026-10-29, the improvement plan's Phase 4, stage 4 (vocab.py): relation and TDS operations after the
+    # projection, each executed by passing services on legend-engine 4.145.0.
+    "Q4  relation extend", "Q4  relation window", "Q4  relation join", "Q4  relation concatenate",
+    "Q4  relation rename/select/distinct", "Q4  relation ordinal", "Q4  TDS extend", "Q4  TDS olapGroupBy",
+    "Q4  TDS join", "Q4  TDS restrict/rename/distinct", "Q4  TDS ordinal",
 }
 
 

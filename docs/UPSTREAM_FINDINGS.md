@@ -1250,6 +1250,13 @@ as Pure does. A relational property mapping's `substring(T.S, 2, 4)` is still pa
 read substring as one-based with an exclusive end (`'lp'` for `(2, 4)`), agreeing with neither; it now reads
 legend-pure's definition.
 
+
+**In a TDS `extend` it is still SQL's (2026-10-28, the improvement plan's Phase 4, stage 4).** The same query
+written both ways answers differently: a Relation `extend(~[digits:r|$r.id->substring(4)])` answers `'0001'` for
+'TRD-0001', as Pure does, and a TDS `extend([col(r|$r.getString('id')->substring(4), 'digits')])` answers
+`'-0001'`, SQL's one-based reading. Pinned by `stress::VT_ExtendString` (quarantined); `VR_ExtendString` passes. Repro:
+`scripts/corpus/repro/substring-tds-extend/` (`RelationExtend` passes; `TdsExtend` fails).
+
 ## F38 — `firstDayOfWeek` returns a DateTime through a StrictDate property
 
 Four properties, all declared `StrictDate[0..1]`, all computed from one DATE column by the
@@ -2214,3 +2221,14 @@ legend-engine 4.145.0's DuckDB SQL is `VAR_SAMP` and `STDDEV_SAMP`, which are NU
 `STDDEV_POP` are 0 there, and agree). Pinned by `stress::VGS_VarianceSampleQuantity` and `VGS_StdDevSampleQuantity`
 (quarantined), whose segment A holds one row; `VG_` and `VGN_` of both, over groups of six and nine, pass. Repro:
 `scripts/corpus/repro/sample-variance-of-one/` (`Population` passes; `Sample` fails on the group of one).
+
+## F77 — A window `count` over a partition is written as a grouped COUNT, and the database refuses it
+
+**An execution error.** Found 2026-10-28 by the improvement plan's Phase 4 (stage 4, the relation shapes).
+`extend(over(~[d]), ~[w:{p,w,r|$r.n}:y|$y->count()])` puts the number of each partition's values on every row, as
+the same window's `sum` and `max` put their total and greatest. legend-engine 4.145.0 writes the sum as `SUM(...)
+OVER (PARTITION BY ...)` and the count as a bare `count(...)` with no `OVER`, so DuckDB rejects the statement:
+"column ... must appear in the GROUP BY clause or must be part of an aggregate function". The TDS form,
+`olapGroupBy(['d'], func('n', y|$y->count()), 'w')`, is written as a window and passes. Pinned by
+`stress::VR_WindowCount` (quarantined); `VR_WindowSum`, `VR_WindowMax` and `VT_WindowCount` pass. Repro:
+`scripts/corpus/repro/window-count/` (`WindowSum` passes; `WindowCount` errors).

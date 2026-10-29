@@ -43,7 +43,8 @@ from datetime import datetime as _datetime
 import re
 
 from model import Corpus
-from query import Agg, And, DateTimeArg, Hop, Not, Or, Param, ParamEmpty, PathArg, Pred, Spec
+from query import (Agg, And, Concatenate, Cut, DateTimeArg, Distinct, Extend, Hop, Join, Not, Or, Param,
+                   ParamEmpty, PathArg, Pred, Rename, Select, Sort, Spec, Window)
 
 def _timestamp(v: str) -> str:
     """Legend renders a DateTime column as ISO-8601 with nanoseconds and a numeric UTC
@@ -3000,6 +3001,151 @@ def _reduce_group(a: Agg, members: list[dict]):
     return v
 
 
+# ------------------------------------- relation operations after the projection (Phase 4, stage 4)
+
+
+def _ranked(part: list[dict], order: tuple, fn: str, args: tuple) -> list:
+    """A ranking function over one partition, its rows in input order, each ranked by its place in `order`. rank
+    leaves a gap after a tie and denseRank does not; rowNumber and ntile number the rows, so a tie in the order
+    leaves them to the database, and the oracle refuses one."""
+    keys = [tuple(r[k] for k, _d in order) for r in part]
+    ordered = sorted(range(len(part)), key=lambda i: _sort_tuple(keys[i], order))
+    n = len(part)
+    if fn in ("rowNumber", "ntile") and len(set(keys)) < n:
+        raise Unsupported(f"{fn} over an order with ties numbers the tied rows as the database reads them")
+    out = [None] * n
+    rank = dense = 0
+    prev = object()
+    for place, i in enumerate(ordered, 1):
+        if keys[i] != prev:
+            rank, dense, prev = place, dense + 1, keys[i]
+        if fn == "rank":
+            out[i] = rank
+        elif fn == "denseRank":
+            out[i] = dense
+        elif fn == "rowNumber":
+            out[i] = place
+        elif fn == "percentRank":
+            out[i] = (rank - 1) / (n - 1) if n > 1 else 0.0
+        elif fn == "cumulativeDistribution":
+            out[i] = sum(1 for k in keys if _sort_tuple(k, order) <= _sort_tuple(keys[i], order)) / n
+        elif fn == "ntile":
+            # SQL's NTILE, which legend-pure's follows: buckets differ in size by at most one, the larger first
+            size, extra = n // int(args[0]), n % int(args[0])
+            edge = extra * (size + 1)
+            out[i] = (place - 1) // (size + 1) + 1 if place <= edge else extra + (place - 1 - edge) // size + 1
+        else:
+            raise Unsupported(f"window function {fn!r} is not implemented")
+    return out
+
+
+def _sort_tuple(key: tuple, order: tuple) -> tuple:
+    """A sort key honouring each column's direction: numbers negate, anything else sorts through a wrapper."""
+    return tuple(_Desc(v) if d else v for v, (_k, d) in zip(key, order))
+
+
+class _Desc:
+    __slots__ = ("v",)
+
+    def __init__(self, v):
+        self.v = v
+
+    def __lt__(self, other):
+        return other.v < self.v
+
+    def __le__(self, other):
+        return other.v <= self.v
+
+    def __eq__(self, other):
+        return self.v == other.v
+
+    def __hash__(self):
+        return hash(self.v)
+
+
+def _window_rows(op: Window, rows: list[dict]) -> list[dict]:
+    parts: dict[tuple, list[int]] = {}
+    for i, r in enumerate(rows):
+        parts.setdefault(tuple(r[p] for p in op.partition), []).append(i)
+    values = [None] * len(rows)
+    for members in parts.values():
+        part = [rows[i] for i in members]
+        if op.col is not None:
+            v = _REDUCERS[op.fn]([r[op.col] for r in part if r[op.col] is not None])
+            got = [v] * len(part)
+        else:
+            got = _ranked(part, op.order, op.fn, op.args)
+        for i, v in zip(members, got):
+            values[i] = v
+    return [{**r, op.name: v} for r, v in zip(rows, values)]
+
+
+def _relation_ops(c: Corpus, spec: Spec, rows: list[dict], data, params) -> list[dict]:
+    """A Spec's `relation` operations, in order, as legend-pure's relation functions define them."""
+    previous = None
+    for op in spec.relation:
+        if isinstance(op, Extend):
+            rows = [{**r, op.name: _apply(op.apply, r[op.col])} for r in rows]
+        elif isinstance(op, Window):
+            rows = _window_rows(op, rows)
+        elif isinstance(op, Rename):
+            rows = RELATION_IMPL["rename"](rows, op.old, op.new)
+        elif isinstance(op, Select):
+            rows = [{k: r[k] for k in op.cols} for r in rows]
+        elif isinstance(op, Distinct):
+            seen, kept = set(), []
+            for r in rows:
+                k = tuple(r.items())
+                if k not in seen:
+                    seen.add(k)
+                    kept.append(r)
+            rows = kept
+        elif isinstance(op, Sort):
+            if any(r[k] is None for r in rows for k, _d in op.keys):
+                raise Fanout(f"{spec.short}: a sort column holds an absent value, which dialects place differently")
+            rows = sorted(rows, key=lambda r: _sort_tuple(tuple(r[k] for k, _d in op.keys), op.keys))
+        elif isinstance(op, Cut):
+            if not isinstance(previous, Sort) or \
+                    len({tuple(r[k] for k, _d in previous.keys) for r in rows}) < len(rows):
+                raise Fanout(f"{spec.short}: {op.fn} needs a total order before it, or its rows are the database's")
+            a = [int(x) for x in op.args]
+            rows = (rows[:a[0]] if op.fn in ("take", "limit") else rows[a[0]:] if op.fn == "drop"
+                    else rows[a[0]:a[1]] if op.fn == "slice"
+                    else rows[(a[0] - 1) * a[1]:a[0] * a[1]] if op.fn == "paginated" else None)
+            if rows is None:
+                raise Unsupported(f"ordinal operation {op.fn!r} is not implemented")
+        elif isinstance(op, Concatenate):
+            rows = rows + evaluate(c, op.other, data, params)
+        elif isinstance(op, Join):
+            right = evaluate(c, op.other, data, params)
+            for l, r, *_t in op.on:
+                if any(x[l] is None for x in rows) or any(x[r] is None for x in right):
+                    # Pure's `==` holds between two absent values, SQL's never does
+                    raise Unsupported(f"{spec.short}: a join key is absent")
+            rows = _rel_join(rows, right, op.kind,
+                             lambda a, b: all(_cmp("==", a[l], b[r]) for l, r, *_t in op.on))
+        else:
+            raise Unsupported(f"relation operation {op!r} is not implemented")
+        previous = op
+    return rows
+
+
+def _relation_kinds(c: Corpus, spec: Spec, k: dict[str, str]) -> dict[str, str]:
+    """The JSON kinds of a relation pipeline's columns, from the projection's through each operation."""
+    for op in spec.relation:
+        if isinstance(op, Extend):
+            k[op.name] = RET_KIND[op.apply.ret]
+        elif isinstance(op, Window):
+            k[op.name] = RET_KIND[op.ret]
+        elif isinstance(op, Rename):
+            k = {(op.new if a == op.old else a): v for a, v in k.items()}
+        elif isinstance(op, Select):
+            k = {a: k[a] for a in op.cols}
+        elif isinstance(op, Join):
+            k = {**k, **kinds(c, op.other)}
+    return k
+
+
 def _bound(value, params: dict | None):
     """A predicate's comparand: a literal as written, or a parameter's value in this test."""
     if not isinstance(value, Param):
@@ -3107,6 +3253,8 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
         # filter with `!=` over a nullable alias would need _cmp's rule; none is written.
         out = [r for r in out
                if r.get(f.path[0]) is not None and _cmp(f.op, r[f.path[0]], f.value)]
+    if spec.relation:
+        out = _relation_ops(c, spec, out, data, params)
     keys = ([] if not spec.sort
             else spec.sort if isinstance(spec.sort, list) else [spec.sort])
     if keys:
@@ -3207,8 +3355,8 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
             # An average of integers is a float; every other aggregate keeps its source kind.
             k[name] = ("int" if fn == "count"
                        else "float" if fn == "average" else base[src])
-        return k
-    return _kinds_of_projections(c, spec)
+        return _relation_kinds(c, spec, k)
+    return _relation_kinds(c, spec, _kinds_of_projections(c, spec))
 
 
 def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:

@@ -499,6 +499,76 @@ def graph_text(spec: Spec) -> str:
             f"        ->serialize({tree})" + ("};" if spec.params else ";"))
 
 
+_TDS_GETTER = {"String": "getString", "Integer": "getInteger", "Float": "getFloat", "Decimal": "getDecimal",
+               "Number": "getNumber", "Boolean": "getBoolean", "Date": "getDate", "StrictDate": "getStrictDate",
+               "DateTime": "getDateTime"}
+
+
+def _order(keys, tds: bool) -> str:
+    """Sort keys: `[~a->ascending(), ~b->descending()]`, or a TDS's `[asc('a'), desc('b')]`."""
+    if tds:
+        return "[" + ", ".join(f"{'desc' if d else 'asc'}('{k}')" for k, d in keys) + "]"
+    return "[" + ", ".join(f"~{k}->{'descending' if d else 'ascending'}()" for k, d in keys) + "]"
+
+
+def _inline(spec: Spec) -> str:
+    """Another relation, written in place: a Concatenate's or a Join's other side."""
+    text = query_text(spec)
+    text = text[text.index("|") + 1:].rstrip(";")
+    return " ".join(line.strip() for line in text.splitlines())
+
+
+def _relation_op(op, tds: bool) -> str:
+    """One relation operation after the projection (query.Extend, Window, ...), in the Spec's paradigm."""
+    import query
+
+    if isinstance(op, query.Extend):
+        if tds:
+            return (f"->extend([col(r|{_applied(f'$r.{_TDS_GETTER[op.of]}({_literal(op.col)})', op.apply)}, "
+                    f"'{op.name}')])")
+        return f"->extend(~[{op.name}:r|{_applied(f'$r.{op.col}', op.apply)}])"
+    if isinstance(op, query.Window):
+        if tds:
+            # olapGroupBy(partition, [sort,] func(...), name): a ranking function takes the order, an aggregate the
+            # column it reduces
+            part = "[" + ", ".join(f"'{p}'" for p in op.partition) + "]"
+            if op.col is not None:
+                return f"->olapGroupBy({part}, func('{op.col}', y|$y->{op.fn}()), '{op.name}')"
+            if len(op.order) != 1:
+                raise ValueError(f"olapGroupBy takes one sort key (SortInformation[0..1]): {op!r}")
+            (key, desc), = op.order
+            return f"->olapGroupBy({part}, {'desc' if desc else 'asc'}('{key}'), func(y|$y->{op.fn}()), '{op.name}')"
+        part = "~[" + ", ".join(op.partition) + "]"
+        over = f"over({part}, {_order(op.order, False)})" if op.order else f"over({part})"
+        if op.col is not None:
+            return f"->extend({over}, ~[{op.name}:{{p,w,r|$r.{op.col}}}:y|$y->{op.fn}()])"
+        args = "".join(f", {_literal(a)}" for a in op.args)
+        call = f"$p->{op.fn}($r{args})" if op.fn in ("rowNumber", "ntile") else f"$p->{op.fn}($w, $r{args})"
+        return f"->extend({over}, ~[{op.name}:{{p,w,r|{call}}}])"
+    if isinstance(op, query.Rename):
+        return f"->renameColumns([pair('{op.old}', '{op.new}')])" if tds else f"->rename(~{op.old}, ~{op.new})"
+    if isinstance(op, query.Select):
+        if tds:
+            return "->restrict([" + ", ".join(f"'{c}'" for c in op.cols) + "])"
+        return "->select(~[" + ", ".join(op.cols) + "])"
+    if isinstance(op, query.Distinct):
+        return "->distinct()"
+    if isinstance(op, query.Sort):
+        return f"->sort({_order(op.keys, tds)})"
+    if isinstance(op, query.Cut):
+        return f"->{op.fn}({', '.join(_literal(a) for a in op.args)})"
+    if isinstance(op, query.Concatenate):
+        return f"->concatenate({_inline(op.other)})"
+    if isinstance(op, query.Join):
+        if tds:
+            cond = " && ".join(f"$a.{_TDS_GETTER[t]}('{l}') == $b.{_TDS_GETTER[t]}('{r}')" for l, r, t in op.on)
+            return (f"->join({_inline(op.other)}, meta::relational::metamodel::join::JoinType.{op.kind}, "
+                    f"{{a, b|{cond}}})")
+        cond = " && ".join(f"$a.{l} == $b.{r}" for l, r, *_t in op.on)
+        return f"->join({_inline(op.other)}, JoinKind.{op.kind}, {{a, b|{cond}}})"
+    raise ValueError(f"unhandled relation operation {op!r}")
+
+
 def query_text(spec: Spec) -> str:
     """Render the query from the parsed spec.
 
@@ -571,6 +641,8 @@ def query_text(spec: Spec) -> str:
         conds = " && ".join(
             f"(${VAR}.{f.path[0]} {f.op} {_literal(f.value)})" for f in spec.post_filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
+    for op in getattr(spec, "relation", ()):
+        lines.append("        " + _relation_op(op, spec.paradigm == "tds"))
     if spec.sort:
         keys = spec.sort if isinstance(spec.sort, list) else [spec.sort]
         rendered = ", ".join(

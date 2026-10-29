@@ -18495,3 +18495,2317 @@ Service stress::VG_CorrRate
     }
   ]
 }
+
+Service stress::VR_Extend
+{
+    pattern: '/stress/vocab/vr_extend';
+    documentation: 'A column computed from another, the notional halved, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->extend(~[half:r|($r.n / 2.0)])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Extend_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0,"half":95250.0},{"id":"TRD-0002","n":477500.0,"half":238750.0},{"id":"TRD-0003","n":250000.0,"half":125000.0},{"id":"TRD-0004","n":250000.0,"half":125000.0},{"id":"TRD-0005","n":250000.0,"half":125000.0},{"id":"TRD-0006","n":250000.0,"half":125000.0},{"id":"TRD-0007","n":282000.0,"half":141000.0},{"id":"TRD-0008","n":18975.0,"half":9487.5},{"id":"TRD-0009","n":576750.0,"half":288375.0},{"id":"TRD-0010","n":498000.0,"half":249000.0},{"id":"TRD-0011","n":167300.0,"half":83650.0},{"id":"TRD-0012","n":369000.0,"half":184500.0},{"id":"TRD-0013","n":171250.0,"half":85625.0},{"id":"TRD-0014","n":69000.0,"half":34500.0},{"id":"TRD-0015","n":35000.0,"half":17500.0},{"id":"TRD-0016","n":264600.0,"half":132300.0},{"id":"TRD-0017","n":385000.0,"half":192500.0},{"id":"TRD-0018","n":4912500.0,"half":2456250.0},{"id":"TRD-0019","n":1960000.0,"half":980000.0},{"id":"TRD-0020","n":975000.0,"half":487500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_ExtendString
+{
+    pattern: '/stress/vocab/vr_extendstring';
+    documentation: 'A column computed from another, the id\'s digits, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->extend(~[digits:r|$r.id->substring(4)])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_ExtendString_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0,"digits":"0001"},{"id":"TRD-0002","n":477500.0,"digits":"0002"},{"id":"TRD-0003","n":250000.0,"digits":"0003"},{"id":"TRD-0004","n":250000.0,"digits":"0004"},{"id":"TRD-0005","n":250000.0,"digits":"0005"},{"id":"TRD-0006","n":250000.0,"digits":"0006"},{"id":"TRD-0007","n":282000.0,"digits":"0007"},{"id":"TRD-0008","n":18975.0,"digits":"0008"},{"id":"TRD-0009","n":576750.0,"digits":"0009"},{"id":"TRD-0010","n":498000.0,"digits":"0010"},{"id":"TRD-0011","n":167300.0,"digits":"0011"},{"id":"TRD-0012","n":369000.0,"digits":"0012"},{"id":"TRD-0013","n":171250.0,"digits":"0013"},{"id":"TRD-0014","n":69000.0,"digits":"0014"},{"id":"TRD-0015","n":35000.0,"digits":"0015"},{"id":"TRD-0016","n":264600.0,"digits":"0016"},{"id":"TRD-0017","n":385000.0,"digits":"0017"},{"id":"TRD-0018","n":4912500.0,"digits":"0018"},{"id":"TRD-0019","n":1960000.0,"digits":"0019"},{"id":"TRD-0020","n":975000.0,"digits":"0020"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Rename
+{
+    pattern: '/stress/vocab/vr_rename';
+    documentation: 'A column renamed, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->rename(~n, ~amount)
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Rename_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","amount":190500.0},{"id":"TRD-0002","amount":477500.0},{"id":"TRD-0003","amount":250000.0},{"id":"TRD-0004","amount":250000.0},{"id":"TRD-0005","amount":250000.0},{"id":"TRD-0006","amount":250000.0},{"id":"TRD-0007","amount":282000.0},{"id":"TRD-0008","amount":18975.0},{"id":"TRD-0009","amount":576750.0},{"id":"TRD-0010","amount":498000.0},{"id":"TRD-0011","amount":167300.0},{"id":"TRD-0012","amount":369000.0},{"id":"TRD-0013","amount":171250.0},{"id":"TRD-0014","amount":69000.0},{"id":"TRD-0015","amount":35000.0},{"id":"TRD-0016","amount":264600.0},{"id":"TRD-0017","amount":385000.0},{"id":"TRD-0018","amount":4912500.0},{"id":"TRD-0019","amount":1960000.0},{"id":"TRD-0020","amount":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Select
+{
+    pattern: '/stress/vocab/vr_select';
+    documentation: 'Two of three columns kept, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->select(~[id, n])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Select_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0},{"id":"TRD-0002","n":477500.0},{"id":"TRD-0003","n":250000.0},{"id":"TRD-0004","n":250000.0},{"id":"TRD-0005","n":250000.0},{"id":"TRD-0006","n":250000.0},{"id":"TRD-0007","n":282000.0},{"id":"TRD-0008","n":18975.0},{"id":"TRD-0009","n":576750.0},{"id":"TRD-0010","n":498000.0},{"id":"TRD-0011","n":167300.0},{"id":"TRD-0012","n":369000.0},{"id":"TRD-0013","n":171250.0},{"id":"TRD-0014","n":69000.0},{"id":"TRD-0015","n":35000.0},{"id":"TRD-0016","n":264600.0},{"id":"TRD-0017","n":385000.0},{"id":"TRD-0018","n":4912500.0},{"id":"TRD-0019","n":1960000.0},{"id":"TRD-0020","n":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Distinct
+{
+    pattern: '/stress/vocab/vr_distinct';
+    documentation: 'The distinct trade dates, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            d:x|$x.tradeDate
+        ])
+        ->distinct()
+        ->sort([~d->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Distinct_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"d":"2024-06-03"},{"d":"2024-06-04"},{"d":"2024-06-05"},{"d":"2024-06-06"},{"d":"2024-06-07"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Take
+{
+    pattern: '/stress/vocab/vr_take';
+    documentation: 'The five largest notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->sort([~n->descending(), ~id->ascending()])
+        ->take(5);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Take_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0018","n":4912500.0},{"id":"TRD-0019","n":1960000.0},{"id":"TRD-0020","n":975000.0},{"id":"TRD-0009","n":576750.0},{"id":"TRD-0010","n":498000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Limit
+{
+    pattern: '/stress/vocab/vr_limit';
+    documentation: 'The three smallest notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->sort([~n->ascending(), ~id->ascending()])
+        ->limit(3);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Limit_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0008","n":18975.0},{"id":"TRD-0015","n":35000.0},{"id":"TRD-0014","n":69000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Drop
+{
+    pattern: '/stress/vocab/vr_drop';
+    documentation: 'All but the fifteen smallest notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->sort([~n->ascending(), ~id->ascending()])
+        ->drop(15);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Drop_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0010","n":498000.0},{"id":"TRD-0009","n":576750.0},{"id":"TRD-0020","n":975000.0},{"id":"TRD-0019","n":1960000.0},{"id":"TRD-0018","n":4912500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Slice
+{
+    pattern: '/stress/vocab/vr_slice';
+    documentation: 'The third to seventh smallest notionals, across the tie at 250,000, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->sort([~n->ascending(), ~id->ascending()])
+        ->slice(2, 7);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Slice_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0014","n":69000.0},{"id":"TRD-0011","n":167300.0},{"id":"TRD-0013","n":171250.0},{"id":"TRD-0001","n":190500.0},{"id":"TRD-0003","n":250000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Concatenate
+{
+    pattern: '/stress/vocab/vr_concatenate';
+    documentation: 'The notionals over 400,000 followed by those under 100,000, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.notional > 400000.0)})
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->concatenate(trading::Trade.all() ->filter({x|($x.notional < 100000.0)}) ->project(~[ id:x|$x.tradeId, n:x|$x.notional ]))
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Concatenate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 9 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0002","n":477500.0},{"id":"TRD-0008","n":18975.0},{"id":"TRD-0009","n":576750.0},{"id":"TRD-0010","n":498000.0},{"id":"TRD-0014","n":69000.0},{"id":"TRD-0015","n":35000.0},{"id":"TRD-0018","n":4912500.0},{"id":"TRD-0019","n":1960000.0},{"id":"TRD-0020","n":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_JoinInner
+{
+    pattern: '/stress/vocab/vr_joininner';
+    documentation: 'Each trade with the typed value naming it, inner, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->join(typedvalues::TypedValue.all() ->filter({x|$x.valuedTrade.tradeId->isNotEmpty()}) ->project(~[ vid:x|$x.valueId, vq:x|$x.quantity, tid:x|$x.valuedTrade.tradeId ]), JoinKind.INNER, {a, b|$a.id == $b.tid})
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_JoinInner_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0,"vid":"TV-01","vq":42,"tid":"TRD-0001"},{"id":"TRD-0002","n":477500.0,"vid":"TV-02","vq":41,"tid":"TRD-0002"},{"id":"TRD-0003","n":250000.0,"vid":"TV-03","vq":43,"tid":"TRD-0003"},{"id":"TRD-0004","n":250000.0,"vid":"TV-04","vq":42,"tid":"TRD-0004"},{"id":"TRD-0005","n":250000.0,"vid":"TV-05","vq":0,"tid":"TRD-0005"},{"id":"TRD-0006","n":250000.0,"vid":"TV-06","vq":-1,"tid":"TRD-0006"},{"id":"TRD-0007","n":282000.0,"vid":"TV-07","vq":-5,"tid":"TRD-0007"},{"id":"TRD-0008","n":18975.0,"vid":"TV-08","vq":1,"tid":"TRD-0008"},{"id":"TRD-0009","n":576750.0,"vid":"TV-09","vq":100,"tid":"TRD-0009"},{"id":"TRD-0010","n":498000.0,"vid":"TV-10","vq":2147483647,"tid":"TRD-0010"},{"id":"TRD-0011","n":167300.0,"vid":"TV-11","vq":-2147483648,"tid":"TRD-0011"},{"id":"TRD-0012","n":369000.0,"vid":"TV-12","vq":7,"tid":"TRD-0012"},{"id":"TRD-0014","n":69000.0,"vid":"TV-13","vq":42,"tid":"TRD-0014"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_JoinLeft
+{
+    pattern: '/stress/vocab/vr_joinleft';
+    documentation: 'Each trade with the typed value naming it, or none, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            n:x|$x.notional
+        ])
+        ->join(typedvalues::TypedValue.all() ->filter({x|$x.valuedTrade.tradeId->isNotEmpty()}) ->project(~[ vid:x|$x.valueId, vq:x|$x.quantity, tid:x|$x.valuedTrade.tradeId ]), JoinKind.LEFT, {a, b|$a.id == $b.tid})
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_JoinLeft_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 21 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0,"vid":"TV-01","vq":42,"tid":"TRD-0001"},{"id":"TRD-0002","n":477500.0,"vid":"TV-02","vq":41,"tid":"TRD-0002"},{"id":"TRD-0003","n":250000.0,"vid":"TV-03","vq":43,"tid":"TRD-0003"},{"id":"TRD-0004","n":250000.0,"vid":"TV-04","vq":42,"tid":"TRD-0004"},{"id":"TRD-0005","n":250000.0,"vid":"TV-05","vq":0,"tid":"TRD-0005"},{"id":"TRD-0006","n":250000.0,"vid":"TV-06","vq":-1,"tid":"TRD-0006"},{"id":"TRD-0007","n":282000.0,"vid":"TV-07","vq":-5,"tid":"TRD-0007"},{"id":"TRD-0008","n":18975.0,"vid":"TV-08","vq":1,"tid":"TRD-0008"},{"id":"TRD-0009","n":576750.0,"vid":"TV-09","vq":100,"tid":"TRD-0009"},{"id":"TRD-0010","n":498000.0,"vid":"TV-10","vq":2147483647,"tid":"TRD-0010"},{"id":"TRD-0011","n":167300.0,"vid":"TV-11","vq":-2147483648,"tid":"TRD-0011"},{"id":"TRD-0012","n":369000.0,"vid":"TV-12","vq":7,"tid":"TRD-0012"},{"id":"TRD-0013","n":171250.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0014","n":69000.0,"vid":"TV-13","vq":42,"tid":"TRD-0014"},{"id":"TRD-0015","n":35000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0016","n":264600.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0017","n":385000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0018","n":4912500.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0019","n":1960000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0020","n":975000.0,"tid":null,"vq":null,"vid":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Rank
+{
+    pattern: '/stress/vocab/vr_rank';
+    documentation: '`rank` over each trade date\'s notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending()]), ~[w:{p,w,r|$p->rank($w, $r)}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Rank_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":7},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":6},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":4},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":3},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":2},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":3},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":2},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":1},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":1},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":2},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":3},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":2},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_DenseRank
+{
+    pattern: '/stress/vocab/vr_denserank';
+    documentation: '`denserank` over each trade date\'s notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending()]), ~[w:{p,w,r|$p->denseRank($w, $r)}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_DenseRank_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":4},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":3},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":4},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":3},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":2},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":3},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":2},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":1},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":1},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":2},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":3},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":2},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_PercentRank
+{
+    pattern: '/stress/vocab/vr_percentrank';
+    documentation: '`percentrank` over each trade date\'s notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending()]), ~[w:{p,w,r|$p->percentRank($w, $r)}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_PercentRank_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":0.0},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":1.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":0.16666666666666666},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":0.16666666666666666},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":0.16666666666666666},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":0.16666666666666666},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":0.8333333333333334},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":0.0},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":1.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":0.6666666666666666},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":0.3333333333333333},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":1.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":0.5},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":0.0},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":0.0},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":0.5},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":1.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":1.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":0.5},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":0.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_CumulativeDistribution
+{
+    pattern: '/stress/vocab/vr_cumulativedistribution';
+    documentation: '`cumulativedistribution` over each trade date\'s notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending()]), ~[w:{p,w,r|$p->cumulativeDistribution($w, $r)}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_CumulativeDistribution_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":0.14285714285714285},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":1.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":0.7142857142857143},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":0.7142857142857143},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":0.7142857142857143},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":0.7142857142857143},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":0.8571428571428571},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":0.25},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":1.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":0.75},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":0.5},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":1.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":0.6666666666666666},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":0.3333333333333333},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":0.3333333333333333},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":0.6666666666666666},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":1.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":1.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":0.6666666666666666},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":0.3333333333333333}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_RowNumber
+{
+    pattern: '/stress/vocab/vr_rownumber';
+    documentation: '`rownumber` over each trade date\'s notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending(), ~id->ascending()]), ~[w:{p,w,r|$p->rowNumber($r)}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_RowNumber_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":7},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":3},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":4},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":5},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":6},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":4},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":3},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":2},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":3},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":2},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":1},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":1},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":2},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":3},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":2},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Ntile
+{
+    pattern: '/stress/vocab/vr_ntile';
+    documentation: '`ntile` over each trade date\'s notionals, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending(), ~id->ascending()]), ~[w:{p,w,r|$p->ntile($r, 3)}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Ntile_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":3},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":1},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":1},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":3},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":3},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":2},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":1},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":3},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":2},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":1},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":1},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":2},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":3},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":2},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_WindowSum
+{
+    pattern: '/stress/vocab/vr_windowsum';
+    documentation: '`sum` of each trade date\'s notionals, on every trade, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d]), ~[w:{p,w,r|$r.n}:y|$y->sum()])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_WindowSum_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1950000.0},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":1950000.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":1950000.0},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":1950000.0},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":1950000.0},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":1950000.0},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":1950000.0},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1261025.0},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":1261025.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":1261025.0},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":1261025.0},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":609250.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":609250.0},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":609250.0},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":684600.0},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":684600.0},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":684600.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":7847500.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":7847500.0},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":7847500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_WindowMax
+{
+    pattern: '/stress/vocab/vr_windowmax';
+    documentation: '`max` of each trade date\'s notionals, on every trade, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d]), ~[w:{p,w,r|$r.n}:y|$y->max()])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_WindowMax_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":477500.0},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":477500.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":477500.0},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":477500.0},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":477500.0},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":477500.0},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":477500.0},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":576750.0},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":576750.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":576750.0},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":576750.0},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":369000.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":369000.0},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":369000.0},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":385000.0},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":385000.0},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":385000.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":4912500.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":4912500.0},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":4912500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_WindowCount
+{
+    pattern: '/stress/vocab/vr_windowcount';
+    documentation: '`count` of each trade date\'s notionals, on every trade, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d]), ~[w:{p,w,r|$r.n}:y|$y->count()])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_WindowCount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":7},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":7},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":7},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":7},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":7},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":7},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":7},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":4},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":4},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":4},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":4},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":3},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":3},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":3},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":3},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":3},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":3},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":3},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":3}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Extend
+{
+    pattern: '/stress/vocab/vt_extend';
+    documentation: 'A column computed from another, the notional halved, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->extend([col(r|($r.getFloat('n') / 2.0), 'half')])
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Extend_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0,"half":95250.0},{"id":"TRD-0002","n":477500.0,"half":238750.0},{"id":"TRD-0003","n":250000.0,"half":125000.0},{"id":"TRD-0004","n":250000.0,"half":125000.0},{"id":"TRD-0005","n":250000.0,"half":125000.0},{"id":"TRD-0006","n":250000.0,"half":125000.0},{"id":"TRD-0007","n":282000.0,"half":141000.0},{"id":"TRD-0008","n":18975.0,"half":9487.5},{"id":"TRD-0009","n":576750.0,"half":288375.0},{"id":"TRD-0010","n":498000.0,"half":249000.0},{"id":"TRD-0011","n":167300.0,"half":83650.0},{"id":"TRD-0012","n":369000.0,"half":184500.0},{"id":"TRD-0013","n":171250.0,"half":85625.0},{"id":"TRD-0014","n":69000.0,"half":34500.0},{"id":"TRD-0015","n":35000.0,"half":17500.0},{"id":"TRD-0016","n":264600.0,"half":132300.0},{"id":"TRD-0017","n":385000.0,"half":192500.0},{"id":"TRD-0018","n":4912500.0,"half":2456250.0},{"id":"TRD-0019","n":1960000.0,"half":980000.0},{"id":"TRD-0020","n":975000.0,"half":487500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_ExtendString
+{
+    pattern: '/stress/vocab/vt_extendstring';
+    documentation: 'A column computed from another, the id\'s digits, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->extend([col(r|$r.getString('id')->substring(4), 'digits')])
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_ExtendString_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0,"digits":"0001"},{"id":"TRD-0002","n":477500.0,"digits":"0002"},{"id":"TRD-0003","n":250000.0,"digits":"0003"},{"id":"TRD-0004","n":250000.0,"digits":"0004"},{"id":"TRD-0005","n":250000.0,"digits":"0005"},{"id":"TRD-0006","n":250000.0,"digits":"0006"},{"id":"TRD-0007","n":282000.0,"digits":"0007"},{"id":"TRD-0008","n":18975.0,"digits":"0008"},{"id":"TRD-0009","n":576750.0,"digits":"0009"},{"id":"TRD-0010","n":498000.0,"digits":"0010"},{"id":"TRD-0011","n":167300.0,"digits":"0011"},{"id":"TRD-0012","n":369000.0,"digits":"0012"},{"id":"TRD-0013","n":171250.0,"digits":"0013"},{"id":"TRD-0014","n":69000.0,"digits":"0014"},{"id":"TRD-0015","n":35000.0,"digits":"0015"},{"id":"TRD-0016","n":264600.0,"digits":"0016"},{"id":"TRD-0017","n":385000.0,"digits":"0017"},{"id":"TRD-0018","n":4912500.0,"digits":"0018"},{"id":"TRD-0019","n":1960000.0,"digits":"0019"},{"id":"TRD-0020","n":975000.0,"digits":"0020"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Rename
+{
+    pattern: '/stress/vocab/vt_rename';
+    documentation: 'A column renamed, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->renameColumns([pair('n', 'amount')])
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Rename_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","amount":190500.0},{"id":"TRD-0002","amount":477500.0},{"id":"TRD-0003","amount":250000.0},{"id":"TRD-0004","amount":250000.0},{"id":"TRD-0005","amount":250000.0},{"id":"TRD-0006","amount":250000.0},{"id":"TRD-0007","amount":282000.0},{"id":"TRD-0008","amount":18975.0},{"id":"TRD-0009","amount":576750.0},{"id":"TRD-0010","amount":498000.0},{"id":"TRD-0011","amount":167300.0},{"id":"TRD-0012","amount":369000.0},{"id":"TRD-0013","amount":171250.0},{"id":"TRD-0014","amount":69000.0},{"id":"TRD-0015","amount":35000.0},{"id":"TRD-0016","amount":264600.0},{"id":"TRD-0017","amount":385000.0},{"id":"TRD-0018","amount":4912500.0},{"id":"TRD-0019","amount":1960000.0},{"id":"TRD-0020","amount":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Select
+{
+    pattern: '/stress/vocab/vt_select';
+    documentation: 'Two of three columns kept, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.tradeDate,
+                x|$x.notional
+            ],
+            ['id', 'd', 'n']
+        )
+        ->restrict(['id', 'n'])
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Select_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0},{"id":"TRD-0002","n":477500.0},{"id":"TRD-0003","n":250000.0},{"id":"TRD-0004","n":250000.0},{"id":"TRD-0005","n":250000.0},{"id":"TRD-0006","n":250000.0},{"id":"TRD-0007","n":282000.0},{"id":"TRD-0008","n":18975.0},{"id":"TRD-0009","n":576750.0},{"id":"TRD-0010","n":498000.0},{"id":"TRD-0011","n":167300.0},{"id":"TRD-0012","n":369000.0},{"id":"TRD-0013","n":171250.0},{"id":"TRD-0014","n":69000.0},{"id":"TRD-0015","n":35000.0},{"id":"TRD-0016","n":264600.0},{"id":"TRD-0017","n":385000.0},{"id":"TRD-0018","n":4912500.0},{"id":"TRD-0019","n":1960000.0},{"id":"TRD-0020","n":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Distinct
+{
+    pattern: '/stress/vocab/vt_distinct';
+    documentation: 'The distinct trade dates, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeDate
+            ],
+            ['d']
+        )
+        ->distinct()
+        ->sort([asc('d')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Distinct_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"d":"2024-06-03"},{"d":"2024-06-04"},{"d":"2024-06-05"},{"d":"2024-06-06"},{"d":"2024-06-07"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Take
+{
+    pattern: '/stress/vocab/vt_take';
+    documentation: 'The five largest notionals, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->sort([desc('n'), asc('id')])
+        ->take(5);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Take_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0018","n":4912500.0},{"id":"TRD-0019","n":1960000.0},{"id":"TRD-0020","n":975000.0},{"id":"TRD-0009","n":576750.0},{"id":"TRD-0010","n":498000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Limit
+{
+    pattern: '/stress/vocab/vt_limit';
+    documentation: 'The three smallest notionals, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->sort([asc('n'), asc('id')])
+        ->limit(3);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Limit_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 3 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0008","n":18975.0},{"id":"TRD-0015","n":35000.0},{"id":"TRD-0014","n":69000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Drop
+{
+    pattern: '/stress/vocab/vt_drop';
+    documentation: 'All but the fifteen smallest notionals, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->sort([asc('n'), asc('id')])
+        ->drop(15);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Drop_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0010","n":498000.0},{"id":"TRD-0009","n":576750.0},{"id":"TRD-0020","n":975000.0},{"id":"TRD-0019","n":1960000.0},{"id":"TRD-0018","n":4912500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Slice
+{
+    pattern: '/stress/vocab/vt_slice';
+    documentation: 'The third to seventh smallest notionals, across the tie at 250,000, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->sort([asc('n'), asc('id')])
+        ->slice(2, 7);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Slice_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0014","n":69000.0},{"id":"TRD-0011","n":167300.0},{"id":"TRD-0013","n":171250.0},{"id":"TRD-0001","n":190500.0},{"id":"TRD-0003","n":250000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Concatenate
+{
+    pattern: '/stress/vocab/vt_concatenate';
+    documentation: 'The notionals over 400,000 followed by those under 100,000, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->filter({x|($x.notional > 400000.0)})
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->concatenate(trading::Trade.all() ->filter({x|($x.notional < 100000.0)}) ->project( [ x|$x.tradeId, x|$x.notional ], ['id', 'n'] ))
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Concatenate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 9 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0002","n":477500.0},{"id":"TRD-0008","n":18975.0},{"id":"TRD-0009","n":576750.0},{"id":"TRD-0010","n":498000.0},{"id":"TRD-0014","n":69000.0},{"id":"TRD-0015","n":35000.0},{"id":"TRD-0018","n":4912500.0},{"id":"TRD-0019","n":1960000.0},{"id":"TRD-0020","n":975000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_JoinInner
+{
+    pattern: '/stress/vocab/vt_joininner';
+    documentation: 'Each trade with the typed value naming it, inner, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->join(typedvalues::TypedValue.all() ->filter({x|$x.valuedTrade.tradeId->isNotEmpty()}) ->project( [ x|$x.valueId, x|$x.quantity, x|$x.valuedTrade.tradeId ], ['vid', 'vq', 'tid'] ), meta::relational::metamodel::join::JoinType.INNER, {a, b|$a.getString('id') == $b.getString('tid')})
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_JoinInner_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 13 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0,"vid":"TV-01","vq":42,"tid":"TRD-0001"},{"id":"TRD-0002","n":477500.0,"vid":"TV-02","vq":41,"tid":"TRD-0002"},{"id":"TRD-0003","n":250000.0,"vid":"TV-03","vq":43,"tid":"TRD-0003"},{"id":"TRD-0004","n":250000.0,"vid":"TV-04","vq":42,"tid":"TRD-0004"},{"id":"TRD-0005","n":250000.0,"vid":"TV-05","vq":0,"tid":"TRD-0005"},{"id":"TRD-0006","n":250000.0,"vid":"TV-06","vq":-1,"tid":"TRD-0006"},{"id":"TRD-0007","n":282000.0,"vid":"TV-07","vq":-5,"tid":"TRD-0007"},{"id":"TRD-0008","n":18975.0,"vid":"TV-08","vq":1,"tid":"TRD-0008"},{"id":"TRD-0009","n":576750.0,"vid":"TV-09","vq":100,"tid":"TRD-0009"},{"id":"TRD-0010","n":498000.0,"vid":"TV-10","vq":2147483647,"tid":"TRD-0010"},{"id":"TRD-0011","n":167300.0,"vid":"TV-11","vq":-2147483648,"tid":"TRD-0011"},{"id":"TRD-0012","n":369000.0,"vid":"TV-12","vq":7,"tid":"TRD-0012"},{"id":"TRD-0014","n":69000.0,"vid":"TV-13","vq":42,"tid":"TRD-0014"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_JoinLeft
+{
+    pattern: '/stress/vocab/vt_joinleft';
+    documentation: 'Each trade with the typed value naming it, or none, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->join(typedvalues::TypedValue.all() ->filter({x|$x.valuedTrade.tradeId->isNotEmpty()}) ->project( [ x|$x.valueId, x|$x.quantity, x|$x.valuedTrade.tradeId ], ['vid', 'vq', 'tid'] ), meta::relational::metamodel::join::JoinType.LEFT_OUTER, {a, b|$a.getString('id') == $b.getString('tid')})
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_JoinLeft_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 21 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","n":190500.0,"vid":"TV-01","vq":42,"tid":"TRD-0001"},{"id":"TRD-0002","n":477500.0,"vid":"TV-02","vq":41,"tid":"TRD-0002"},{"id":"TRD-0003","n":250000.0,"vid":"TV-03","vq":43,"tid":"TRD-0003"},{"id":"TRD-0004","n":250000.0,"vid":"TV-04","vq":42,"tid":"TRD-0004"},{"id":"TRD-0005","n":250000.0,"vid":"TV-05","vq":0,"tid":"TRD-0005"},{"id":"TRD-0006","n":250000.0,"vid":"TV-06","vq":-1,"tid":"TRD-0006"},{"id":"TRD-0007","n":282000.0,"vid":"TV-07","vq":-5,"tid":"TRD-0007"},{"id":"TRD-0008","n":18975.0,"vid":"TV-08","vq":1,"tid":"TRD-0008"},{"id":"TRD-0009","n":576750.0,"vid":"TV-09","vq":100,"tid":"TRD-0009"},{"id":"TRD-0010","n":498000.0,"vid":"TV-10","vq":2147483647,"tid":"TRD-0010"},{"id":"TRD-0011","n":167300.0,"vid":"TV-11","vq":-2147483648,"tid":"TRD-0011"},{"id":"TRD-0012","n":369000.0,"vid":"TV-12","vq":7,"tid":"TRD-0012"},{"id":"TRD-0013","n":171250.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0014","n":69000.0,"vid":"TV-13","vq":42,"tid":"TRD-0014"},{"id":"TRD-0015","n":35000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0016","n":264600.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0017","n":385000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0018","n":4912500.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0019","n":1960000.0,"tid":null,"vq":null,"vid":null},{"id":"TRD-0020","n":975000.0,"tid":null,"vq":null,"vid":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Paginated
+{
+    pattern: '/stress/vocab/vt_paginated';
+    documentation: 'The second page of four, by notional, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.notional
+            ],
+            ['id', 'n']
+        )
+        ->sort([asc('n'), asc('id')])
+        ->paginated(2, 4);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Paginated_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0013","n":171250.0},{"id":"TRD-0001","n":190500.0},{"id":"TRD-0003","n":250000.0},{"id":"TRD-0004","n":250000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_Rank
+{
+    pattern: '/stress/vocab/vt_rank';
+    documentation: '`rank` over each trade date\'s notionals, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.tradeDate,
+                x|$x.notional
+            ],
+            ['id', 'd', 'n']
+        )
+        ->olapGroupBy(['d'], asc('n'), func(y|$y->rank()), 'w')
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_Rank_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":7},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":6},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":4},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":3},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":2},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":3},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":2},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":1},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":1},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":2},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":3},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":2},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_DenseRank
+{
+    pattern: '/stress/vocab/vt_denserank';
+    documentation: '`denserank` over each trade date\'s notionals, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.tradeDate,
+                x|$x.notional
+            ],
+            ['id', 'd', 'n']
+        )
+        ->olapGroupBy(['d'], asc('n'), func(y|$y->denseRank()), 'w')
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_DenseRank_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":4},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":2},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":3},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":4},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":3},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":2},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":3},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":2},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":1},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":1},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":2},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":3},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":2},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_RowNumber
+{
+    pattern: '/stress/vocab/vt_rownumber';
+    documentation: '`rownumber` over each trade date\'s notionals, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.tradeDate,
+                x|$x.notional
+            ],
+            ['id', 'd', 'n']
+        )
+        ->olapGroupBy(['d'], asc('id'), func(y|$y->rowNumber()), 'w')
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_RowNumber_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":2},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":3},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":4},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":5},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":6},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":7},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":2},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":3},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":4},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":1},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":2},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":3},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":1},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":2},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":1},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":2},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":3}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_WindowSum
+{
+    pattern: '/stress/vocab/vt_windowsum';
+    documentation: '`sum` of each trade date\'s notionals, on every trade, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.tradeDate,
+                x|$x.notional
+            ],
+            ['id', 'd', 'n']
+        )
+        ->olapGroupBy(['d'], func('n', y|$y->sum()), 'w')
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_WindowSum_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":1950000.0},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":1950000.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":1950000.0},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":1950000.0},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":1950000.0},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":1950000.0},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":1950000.0},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":1261025.0},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":1261025.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":1261025.0},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":1261025.0},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":609250.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":609250.0},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":609250.0},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":684600.0},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":684600.0},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":684600.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":7847500.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":7847500.0},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":7847500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_WindowMax
+{
+    pattern: '/stress/vocab/vt_windowmax';
+    documentation: '`max` of each trade date\'s notionals, on every trade, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.tradeDate,
+                x|$x.notional
+            ],
+            ['id', 'd', 'n']
+        )
+        ->olapGroupBy(['d'], func('n', y|$y->max()), 'w')
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_WindowMax_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":477500.0},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":477500.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":477500.0},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":477500.0},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":477500.0},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":477500.0},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":477500.0},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":576750.0},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":576750.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":576750.0},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":576750.0},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":369000.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":369000.0},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":369000.0},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":385000.0},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":385000.0},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":385000.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":4912500.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":4912500.0},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":4912500.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VT_WindowCount
+{
+    pattern: '/stress/vocab/vt_windowcount';
+    documentation: '`count` of each trade date\'s notionals, on every trade, over a TDS.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(
+            [
+                x|$x.tradeId,
+                x|$x.tradeDate,
+                x|$x.notional
+            ],
+            ['id', 'd', 'n']
+        )
+        ->olapGroupBy(['d'], func('n', y|$y->count()), 'w')
+        ->sort([asc('id')]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VT_WindowCount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":7},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":7},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":7},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":7},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":7},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":7},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":7},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":4},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":4},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":4},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":4},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":3},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":3},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":3},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":3},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":3},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":3},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":3},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":3},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":3}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}

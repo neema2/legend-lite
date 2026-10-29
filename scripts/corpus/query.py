@@ -110,6 +110,78 @@ class Apply:
     through_map: bool = False
 
 
+# Relation operations after the projection (the improvement plan's Phase 4, stage 4), in a Spec's `relation`, applied
+# in order after any groupBy: each written in the paradigm of its Spec, `->extend(~[...])` for a Relation and
+# `->extend([col(...)])` for a TDS, and evaluated by the oracle's RELATION_IMPL.
+@dataclass(frozen=True)
+class Extend:
+    """A column computed from another: `->extend(~[name: r|$r.col->f()])`, the functions an Apply's. `of` is the
+    column's Pure type, which a TDS reads it by (`$r.getFloat('col')`)."""
+    name: str
+    col: str
+    apply: Apply
+    of: str | None = None
+
+
+@dataclass(frozen=True)
+class Window:
+    """A window column: `->extend(over(~[partition], [~order->ascending()]), ~[name: {p,w,r|$p->fn($w,$r)}])` for a
+    ranking function (`args` after the row: ntile's bucket count), or `{p,w,r|$r.col}:y|$y->fn()` for an aggregate
+    over the partition (`col` set). A TDS writes it as `olapGroupBy`. `ret` is its Pure type."""
+    name: str
+    fn: str
+    partition: tuple
+    order: tuple = ()          # ((column, descending), ...)
+    args: tuple = ()
+    col: str | None = None
+    ret: str = "Integer"
+
+
+@dataclass(frozen=True)
+class Rename:
+    old: str
+    new: str
+
+
+@dataclass(frozen=True)
+class Select:
+    """`->select(~[cols])`, or a TDS's `restrict([...])`."""
+    cols: tuple
+
+
+@dataclass(frozen=True)
+class Distinct:
+    pass
+
+
+@dataclass(frozen=True)
+class Sort:
+    """`->sort([~a->ascending(), ...])` inside the pipeline, where an ordinal operation needs a total order."""
+    keys: tuple                 # ((column, descending), ...)
+
+
+@dataclass(frozen=True)
+class Cut:
+    """An ordinal operation: `take(n)`, `drop(n)`, `limit(n)`, `slice(a, b)`, or a TDS's `paginated(page, size)`."""
+    fn: str
+    args: tuple
+
+
+@dataclass(eq=False)
+class Concatenate:
+    """`->concatenate(<other>)`: the other relation a Spec of its own, projecting the same columns."""
+    other: object
+
+
+@dataclass(eq=False)
+class Join:
+    """`->join(<other>, JoinKind.INNER, {a, b| $a.x == $b.y})`: `on` pairs a left column with a right one, and the
+    two sides' columns are distinct names."""
+    other: object
+    kind: str                  # INNER | LEFT
+    on: tuple                  # ((left column, right column), ...)
+
+
 class Agg(tuple):
     """An aggregate column of a groupBy: (result alias, source alias, function), as every generator before Phase 4
     writes one, and since its stage 3 (the aggregates) carrying what a platform aggregate needs:
@@ -277,6 +349,9 @@ class Spec:
     # A temporal root read at more than one version (Versions): every version, or those in a range.
     # None reads the version(s) in force at `as_of`.
     versions: object | None = None
+    # Relation operations after the projection and any groupBy (Phase 4, stage 4): Extend, Window, Rename, Select,
+    # Distinct, Sort, Cut, Concatenate and Join, in order.
+    relation: list = field(default_factory=list)
 
     @property
     def short(self) -> str:

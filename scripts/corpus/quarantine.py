@@ -285,6 +285,12 @@ ENGINE_QUARANTINE.update({
                  "DSAgg_RevenueBudget", "DSAgg_STPRate", "DSAgg_SanctionsCheck", "DSAgg_SwapFinancing",
                  "DSAgg_Team", "DSGroup_CashFlow")},
 })
+# F37 -- a TDS extend's substring is SQL's, one-based, where the Relation extend of the same query is Pure's (VR_ExtendString
+# passes). Minimized in repro/substring-tds-extend/.
+ENGINE_QUARANTINE["stress::VT_ExtendString"] = ("F37", "a TDS extend's substring is one-based")
+# F77 -- a window count over a partition is written as a grouped COUNT with no OVER, which DuckDB refuses. The window's
+# sum and max, and the TDS olapGroupBy's count, pass. Minimized in repro/window-count/.
+ENGINE_QUARANTINE["stress::VR_WindowCount"] = ("F77", "a window count is written without OVER")
 # F76 -- in a groupBy, the sample variance and standard deviation of one value are SQL's NULL, where Pure's are 0
 # (`variance`: `if ($numbers->size() == 1, | 0, ...)`). The VG_ and VGN_ of both pass. Minimized in
 # repro/sample-variance-of-one/.
