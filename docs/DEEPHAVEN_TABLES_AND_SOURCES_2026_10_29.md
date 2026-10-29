@@ -138,6 +138,38 @@ this schedule, in this way."**
 | Written | **No** | There is no query: apps and people write the rows |
 | Derived | **No** | A view is not written anywhere; it is computed |
 
+## 6b. Legend's data products, ingest and materialized views (read 2026-10-29)
+
+The user's reframing ("not a deploy but an API to the data that gives a level of abstraction from physical table")
+led to these. They are not in the open legend-engine repo (its Query app only refers to them); their data model is in
+legend-studio, read at `18a8f8f` (2026-10-29): `legend-graph/src/graph/metamodel/pure/dataProduct/DataProduct.ts`,
+`.../packageableElements/ingest/IngestDefinition.ts`, their `V1_` protocol classes, the Studio editors' test data, and
+`legend-extension-dsl-data-space`. Lite implements none of them today.
+
+- **`IngestDefinition`** -- where data lands. An owner (an application directory deployment), a dataset group, and
+  datasets: each a name, its columns (a relation type: `name Varchar(200)[0..1]`), a primary key, partition and
+  clustering columns, a privacy classification, and either a `serializedSource` (rows pushed in by a producer, read as
+  a `Snapshot` in a format such as CSV) or a **`FunctionSource`: a materialized view, a dataset defined by a Pure
+  function over other datasets**, with its own tests (`IngestMatViewTest`). A write mode says how rows land:
+  `append_only`, `batch_milestoned`, `batch_milestoned_business_temporal`. A query reads a dataset by its own accessor,
+  `#I{model::MyIngest.MyDataSet}#` -- the logical dataset, never a physical table.
+- **`DataProduct`** -- the API to the data. A title, description, owner, support, tests and sample values, and groups of
+  **access points**: a `FunctionAccessPoint` (a Pure query) or a `LakehouseAccessPoint` (a function, a target
+  environment -- `Snowflake`, `Databricks`, `BigQuery`, `DuckDb` -- a classification, and whether it is reproducible).
+  An access point's function reads ingest datasets (`#I{...}#->filter(...)` in the test data).
+- **Model access** -- a `ModelAccessPointGroup` is a group of access points plus a **mapping** (classes mapped onto the
+  product's data), its **compatible runtimes** and a default one, featured classes, diagrams, and **secure views** (a
+  function over an ingest dataset). A mapping can also include a whole data product (`MappingIncludeDataProduct`).
+- **A data space made of data products** -- a `DataSpace`'s execution context may take its mapping from a
+  `mappingProvider`: a data product and the id of one of its model access point groups, whose mapping it uses
+  (`DSL_DataSpace_MappingProviderResolution.test.ts`). So a data space can be assembled from data products, the
+  user's picture of the desk.
+
+What it means here (proposed): the desk stays a data space, its execution contexts taking their mapping from data
+products' model access point groups; the screens' functions are access points; the market's tables are ingest
+datasets (landed by the simulator in the demo, by Kafka or a loader in production), the shared views are materialized
+views (function-sourced datasets), and Deephaven joins the target environments beside DuckDb.
+
 ## 7. Open decisions
 
 1. **Where a table's source is described** (§4, layer 2). *Recommended after reading it (§6a):* **loaded** tables in
