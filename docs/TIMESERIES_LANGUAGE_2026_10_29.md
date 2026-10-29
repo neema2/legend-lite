@@ -1,7 +1,7 @@
 # A query language for timeseries (2026-10-29)
 
-**Status: design, not built. Version 2**, after the first paper test (§13) and the user's decisions of 2026-10-29;
-§14 lists what changed from version 1. Step C of docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md, worked out with the
+**Status: design, not built. Version 3**, after two rounds of paper tests (§13) and the user's decisions of
+2026-10-29; §14 lists what changed in each version. Step C of docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md, worked out with the
 user on 2026-10-28 and 2026-10-29. It replaces that note's `#Quant` sketch (its D1-D3).
 
 ## 1. What it is for
@@ -57,7 +57,8 @@ Clause order: `SELECT … FROM … SAMPLE BY … FILL(…) FILTER …`. Only `SE
 - A source is a table, `(table WHERE condition)`, or any SQL subquery: `(SELECT *, price * qty AS value FROM trades)`.
   `(prices WHERE venue = 'NYSE')` means exactly `(SELECT * FROM prices WHERE venue = 'NYSE')`.
 - `ON` names the date column; `BY` the column naming each row's instrument (a symbol, a tenor, a series). `BY` is left
-  out where the source has one instrument.
+  out where the source has one instrument: its columns are then lines with no subscript (`total_volume`), a
+  subquery's columns included.
 - Several sources are separated by commas, each with its own `ON` and `BY` and an alias:
   `FROM prices px ON date BY symbol, rates rf ON date BY tenor`. **The comma is not a join**: each source's lines are
   picked first (R2), and lines meet on dates (R6).
@@ -92,28 +93,33 @@ A function along time takes its window as an argument. The argument's type says 
 | Window | Type | Means |
 |---|---|---|
 | `20` | a number | the last 20 observations, the current one included: on daily data 20 trading days, under `SAMPLE BY 1w` 20 weeks |
-| `3mo`, `1y`, `30d` | a span (§5) | the dates after one that far back, to the current one: rolling |
+| `3mo`, `1y`, `30d` | a span (§5) | the dates **after** the one that far back, up to and including the current one: rolling |
 | `all` | the keyword | everything to date: `sum(pnl['A'], all)` is a running total |
-| `'2023-01-01'`, `date_trunc('year', latest)` | a date | everything since that date: `sum(pnl['A'], '2023-01-01')` is the total since 2023 |
+| `'2023-01-01'`, `date_trunc('year', latest)` | a date | the dates **on or after** that date, up to and including the current one: `sum(pnl['A'], '2023-01-01')` is the total since 2023 |
 
-**Take care with spans and dates.** `sum(pnl['A'], 1y)` is a rolling year: each date looks back a year from itself.
-`sum(pnl['A'], latest - 1y)` is a running total from one fixed date. They agree on the last date only.
+**A span and a date are different series.** `sum(pnl['A'], 1y)` is a rolling year: each date looks back a year from
+itself, and the date exactly a year back is not in it. `sum(pnl['A'], latest - 1y)` is a running total from one fixed
+date, that date included.
 
+- A function that takes prices and uses their returns counts **returns**: `volatility(x, 20)` is over 20 returns,
+  from 21 prices, as gs-quant's is.
 - A rolling value first appears **once its window is full**: a 20-observation average on the 20th observation; a
   `1y` window from the line's first date a year on. A date window is full from that date.
 - Every function runs **over its line's own values**: `avg(close['SPX'], 20)` averages SPX's last 20 observations,
   never dates filled in from another line (R6).
 - **Warm-up adds up through nesting**: `zscores(volatility(x, 3mo), 1y)` needs 3 months and then a year. The compiler
   works out each item's warm-up and reports it (Show Query, the tile): "z: first value after 15 months of data
-  (2016-04-01)". It warns where the data is shorter than an item's warm-up.
+  (2016-04-01)". It warns where the data is shorter than an item's warm-up, and where a source's `WHERE` starts the
+  data less than an item's warm-up before the first date shown: "ma has no values for its first 19 days: the data
+  starts 2024-01-01 (WHERE); to show from that date with full values, FILTER the answer instead".
 - `FILTER ready` keeps only the rows where every item has its value.
 
 ### R5. Periods
 
 `SAMPLE BY <span>` gives one row per period: `1d`, `1w` (Monday to Sunday), `1mo`, `1q`, `1y` (calendar periods).
 
-- **Under `SAMPLE BY`, every line says how its period's rows become one value, where it is first used**:
-  `last(close['SPX'])`, `first(open['SPX'])`, `max(high['SPX'])`, `min(low['SPX'])`, `sum(volume['SPX'])`,
+- **Under `SAMPLE BY`, a line appears only inside a period aggregate**, which says how its period's rows become one
+  value: `last(close['SPX'])`, `first(open['SPX'])`, `max(high['SPX'])`, `min(low['SPX'])`, `sum(volume['SPX'])`,
   `avg(close['SPX'])`. Name it as an item, and later items use the name:
 
   ```sql
@@ -130,7 +136,11 @@ A function along time takes its window as an argument. The argument's type says 
   monthly return each need a different aggregate (sum, sum, compounded), and the wrong one gives plausible numbers.
 - **An aggregate with no window and no `SAMPLE BY` is refused**: "a sum over what? add SAMPLE BY 1w for each week's
   total, or write sum(volume['SPX'], 20) for the last 20, or sum(volume['SPX'], all) for the total to date."
-- A period's row is dated at **its last date with data** (a week's Friday, or its Thursday in a holiday week).
+- **A period has one date for every line**: its last date on which any line of the query has data (a week's Friday,
+  or its Thursday in a holiday week). Two instruments whose last trades in a month fall on different days still share
+  the month's row.
+- **A period with no data for a line gives that line no value there**, not 0 (`coalesce(wk_volume, 0)` where a 0 is
+  wanted). A period in which no line has data is not a row: under `SAMPLE BY 1d`, a holiday is no period.
 - A window then counts periods: `avg(wk_close, 4)` is the average of the last 4 weekly closes.
 
 ### R6. Lines meeting, and the result's rows
@@ -146,10 +156,13 @@ are:
   - `FILL(NULL)`: none;
   - `FILL(0)`: 0.
 
+`FILL` is written with or without `SAMPLE BY`: `FROM prices ON date BY symbol FILL(PREV)` fills daily lines.
+
 `FILL` applies only where lines meet in an expression. A function of one line (R4) never reads filled values. A
 function of two lines (`correlation`, `beta`, `hedge_ratio`, `residual`, every function of §6's "Two lines") reads
-the dates both lines have, whatever `FILL` says, as gs-quant's econometrics do. A `FILL` that changes nothing in a
-query gets a warning.
+the dates both lines have, whatever `FILL` says, as gs-quant's econometrics do. A `FILL` that changes nothing gets a
+warning that says where `FILL` acts: "FILL(LINEAR) changes nothing: no item combines lines with an operator, and
+hedge_ratio and residual read the dates both lines have".
 
 **The result has a row for each date** (and instrument, for per-instrument lines) **on which at least one item has a
 value.** An item with no value on a row is empty there.
@@ -172,8 +185,10 @@ value.** An item with no value on a row is empty there.
 
 **WHERE the data, FILTER the answer.**
 
-- `WHERE` removes rows before anything is computed: it changes the numbers. Use it for "since" questions (performance
-  since 2024), for the universe (rank only these nine sectors), and for bad data.
+- `WHERE` removes rows before anything is computed: it changes the numbers. Use it for data every figure must leave
+  out: the universe (rank only these nine sectors), bad data, or history a figure may not see (a backtest that starts
+  in 2024 with no earlier data). For "performance since a date", rebase at that date instead (R9):
+  `rebase(close['AAPL'], '2024-01-01')`.
 - `FILTER` removes rows after everything is computed: it only changes what is shown. Use it for the dates and the
   instruments to show: a 20-day average shown from 1 January still uses December's prices.
 - **Refused, with the fix in the message:**
@@ -190,9 +205,10 @@ value.** An item with no value on a row is empty there.
 ### R9. Dates
 
 - Date literals are strings: `'2024-01-01'`.
-- `latest` is the result's last date (one date for the whole result, not each instrument's). It may be used wherever a
-  date may.
-- Spans add to and subtract from dates: `FILTER date > latest - 1y`.
+- `latest` is **the data's last date**: the last date of any source, after its `WHERE` and before `FILTER`. It is one
+  date for the whole query, not each instrument's, and may be used wherever a date may.
+- Spans add to and subtract from dates by SQL's own rules: `'2024-03-31' - 1mo` is `'2024-02-29'`.
+  `FILTER date > latest - 1y`.
 - SQL's date functions take dates: `date_trunc('year', latest)` (the first of `latest`'s year), `year(date)`,
   `quarter(date)`, `month(date)`, `day(date)`, `isodow(date)` (1 Monday to 7 Sunday).
 - **"As of" a date** means the last value on or before it. `value_at(x, '2024-01-01')` is x's value as of that date,
@@ -202,8 +218,8 @@ value.** An item with no value on a row is empty there.
 ### R10. Options and results with several values
 
 - A function's options come after its lines and window, by place or by name with `=>`:
-  `returns(close['SPX'], 1, 'log')`, `returns(close['SPX'], type => 'log')`. Option values are strings. A bare word is
-  a column, as in SQL; `type = 'log'` is a comparison, not an option.
+  `returns(close['SPX'], 1, 'log')`, `returns(close['SPX'], type => 'log')`. Option values are strings; the first
+  value §6 lists is the default. A bare word is a column, as in SQL; `type = 'log'` is a comparison, not an option.
 - Functions with several outputs return a struct: `bollinger_bands(close['SPX'], 20, 2) AS bb` has `bb.lower`,
   `bb.upper` and `bb.width`; `ohlc(o, h, l, c)` has `open`, `high`, `low`, `close`, which the tile draws as candles.
 
@@ -214,14 +230,16 @@ or **any**. The compiler refuses the wrong kind: `volatility(returns(x), 3mo)` i
 prices and computes their returns: write volatility(x, 3mo)"; `correlation(returns(x), returns(y), 60)` likewise.
 
 - A line read from the data, and a period aggregate of one, is **any** kind; `any` is accepted everywhere.
-- `returns(…)` and the two-line statistics give R; `prices(…)`, `index(…)`, `rebase(…)` and `basket(…)` give P.
+- `returns(…)` and the two-line statistics of returns give R; `prices(…)`, `index(…)`, `rebase(…)` and `basket(…)`
+  give P. `hedge_ratio(…)` (a slope) and `residual(…)` (a spread in price units) regress levels, and give any.
 - Arithmetic keeps a kind where every line in it has that kind, numbers aside: `returns(x) - 0.01` is R, `x / y` of two
   P lines is P. Otherwise it is any.
 
 ### R12. Units
 
 Every figure is a ratio: a 20% volatility is `0.20`, a 5% return `0.05`, a capture of 100% `1.0`, a percentile rank
-between 0 and 1 (SQL's `percent_rank`). The tile writes them as percentages. The language converts its own outputs,
+between 0 and 1 (SQL's `percent_rank`). The tile writes them as percentages; a query that wants a number in percent
+writes `100 * x`. The language converts its own outputs,
 never the data's: yields stored in percent stay in percent (`rf.yield['DE3M'] / 100`). RSI and stochastic keep their
 conventional 0 to 100 (§12, decision 5).
 
@@ -237,8 +255,8 @@ conventional 0 to 100 (§12, decision 5).
 
 ## 6. Functions
 
-`x`, `y` are lines; `w` a window (R4); the kind of each line (R11) in brackets; options with their values and
-defaults.
+`x`, `y` are lines; `w` a window (R4); the kind of each line (R11) in brackets; numbers with their defaults
+(`obs = 1`); options with their values, the first the default (`type => 'simple' | 'log'`).
 
 **Returns and levels**
 - `returns(x [P], obs = 1, type => 'simple' | 'log' | 'absolute')` → R. `obs`: observations, or a span (as of that far
@@ -265,7 +283,7 @@ defaults.
   `percentile(x, q, w)`: the window's q-quantile, q from 0 to 1.
 - `volatility(x [P], w, type => 'simple' | 'log')`: the annualized sample deviation of x's returns, a ratio.
 - `drawdown(x [P], w)`: x / its peak over the window − 1 (`w = all`: the running peak). `max_drawdown(x [P], w)`: the
-  deepest drawdown within the window (−0.2 for 20%).
+  deepest drawdown within the window, measured from peaks inside it (−0.2 for 20%).
 - `sharpe_ratio(x [P], w)`: x's annualized mean return over its annualized volatility. For a line of returns, compound
   it first: `sharpe_ratio(prices(r), w)`.
 - `vol_swap_volatility(x [P], w)`: the root mean square of log returns, annualized by 252, a ratio.
@@ -275,7 +293,8 @@ defaults.
   deviations.
 - `atr(high, low, close, w = 14)`, `stochastic(high, low, close, w = 14)` (0 to 100),
   `keltner_channels(high, low, close, w = 20, a = 10, k = 2)` → struct (`lower`, `upper`, `width`),
-  `donchian_channels(high, low, w)` → struct (`lower`, `upper`, `width`), `vwap(price, volume, w)`.
+  `donchian_channels(high, low, w)` → struct (`lower`, `upper`, `width`), `vwap(price, volume, w)`: Σ price × volume /
+  Σ volume over the window, none where nothing traded.
 - `dickey_fuller(x, w)`, `half_life(x, w)`.
 
 **From each line's first value (no window)**
@@ -292,8 +311,8 @@ defaults.
 - `first_of(x)`, `last_of(x)`: the line's first and last values. `winsorize(x, limit = 2.5)`: held within `limit`
   sample deviations of the line's mean.
 
-**Two lines (along time, each with a window `w`; both lines P; of their simple returns unless `type => 'levels'` or
-`'changes'`)**
+**Two lines (along time, each with a window `w`; both lines P; of their simple returns unless `type => 'levels'` (the
+lines as they are) or `'changes'` (their differences, x − x[-1]: for yields and spreads))**
 - `correlation(x, y, w)`, `cov(x, y, w)`, `beta(x, y, w)`, `r_squared(x, y, w)`, `alpha(x, y, w)` (x's mean return
   less beta times y's).
 - `tracking_error(x, b, w)` (annualized, a ratio), `information_ratio(x, b, w)`, `up_capture(x, b, w)`,
@@ -394,8 +413,9 @@ grids' rows.
 - `m` as a unit (§5).
 
 **Warned:**
-- a `FILL` that changes nothing (R6);
-- an item whose warm-up is longer than the data (R4);
+- a `FILL` that changes nothing, saying where `FILL` acts (R6);
+- an item whose warm-up is longer than the data, or a source's `WHERE` that starts the data inside an item's warm-up
+  (R4);
 - `index`, `rebase`, `change` or `percent_change` with no date in a query that `FILTER`s its dates: "these start from
   the data's first date, not the first date shown; give the date: index(x, '…')".
 
@@ -481,7 +501,7 @@ FROM   macro ON date BY series
 ```sql
 -- a pairs trade, KO against PEP, with its P&L since 2023
 SELECT hedge_ratio(close['KO'], close['PEP'], 6mo)        AS hedge,
-       close['KO'] - hedge * close['PEP']                 AS spread,
+       residual(close['KO'], close['PEP'], 6mo)           AS spread,
        zscores(spread, 3mo)                               AS z,
        CASE WHEN z >  2 THEN -1
             WHEN z < -2 THEN  1
@@ -491,8 +511,9 @@ SELECT hedge_ratio(close['KO'], close['PEP'], 6mo)        AS hedge,
 FROM   prices ON date BY symbol
 FILTER date >= '2023-01-01'
 ```
-Yesterday's position, hedged with yesterday's ratio, times today's moves is the day's P&L. The compiler reports: z
-first after 9 months; position and daily_pnl a day later.
+The spread is the regression's own residual (its intercept included). Yesterday's position, hedged with yesterday's
+ratio, times today's moves is the day's P&L. The compiler reports: z first after 9 months; position and daily_pnl a day
+later.
 
 ```sql
 -- risk-adjusted momentum: each month, the equities ranked by 12-1 momentum per unit of volatility; the top three
@@ -569,9 +590,35 @@ A rule that models get wrong more than once is changed before the spec is built,
 **First run (version 1, 2026-10-29):** the same model that wrote the spec, reading carefully. 29 of 30 written right
 (the 30th, total volume across equities, correctly reported as open decision 3); 10 of 10 read right; 69 gallery tiles
 translated, 5 not expressible. It found the traps and gaps that version 2 fixes (§14). A careful reader avoided the
-traps; the second run uses a smaller model, a better stand-in for a quick reader.
+traps; the second run uses smaller models, a better stand-in for a quick reader.
 
-## 14. What changed from version 1
+**Second run (version 2, 2026-10-29):** Sonnet and Haiku, the 30 requests unchanged and 13 readings (three of them
+queries the spec refuses). Sonnet: 30 of 30 written right, 13 of 13 read right, every refusal found with its fix.
+Haiku: 30 of 30 written right (two with a needless `SAMPLE BY 1d`, unsure whether `FILL` stands alone), 12 of 13 read
+right, one called "not covered" (the same question). Request 27 was again reported as open decision 3, each writing it
+with a plain-SQL source. Their findings are version 3's changes (§14). The next run waits for the quants' review.
+
+## 14. What changed
+
+### Version 3 (from the second test)
+
+- A period has one date for every line: its last date with any line's data (R5). Dated per line, two instruments
+  whose last trades in a month differed never met in a `rank`.
+- Window boundaries stated: a span excludes the date that far back, a date window includes its date (R4).
+- `latest` is the data's last date, before `FILTER` (R9): the result's last date was circular.
+- "Performance since a date" rebases at that date (R8, R9); `WHERE` is for data every figure must leave out. The two
+  gave different bases on a holiday.
+- `hedge_ratio` and `residual` regress levels and give any kind of line, not returns (R11).
+- The pairs example's spread is `residual(…)`, the regression's own residual (it dropped the intercept).
+- Stated: `FILL` stands alone, without `SAMPLE BY` (R6); a price function's window counts returns (R4); under
+  `SAMPLE BY` a line appears only inside a period aggregate (R5); an empty period gives no value, not 0, and a period
+  with no data is no row (R5); a percent is `100 * x` (R12); an option's first value is its default (R10); a source
+  without `BY` has bare lines (R1); spans follow SQL's date arithmetic (R9); `vwap` and `max_drawdown` defined; what
+  `'changes'` means (§6).
+- New warning: a source's `WHERE` that starts the data inside an item's warm-up (R4). The idle-`FILL` warning says
+  where `FILL` acts.
+
+### Version 2 (from the first test and the user's decisions)
 
 From the first test:
 - `FILL(PREV)` no longer fills before a line's first value (it used a later value).
