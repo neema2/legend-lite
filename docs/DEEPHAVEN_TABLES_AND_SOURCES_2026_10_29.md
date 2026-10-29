@@ -1,6 +1,7 @@
 # Deephaven: every table described and set up by the platform, wherever its rows come from (2026-10-29)
 
-**Status: PROPOSED, for the user's review.** Nothing below is built. It works out decision D6
+**Status: decisions 2 and 3 taken (the user, 2026-10-29); decision 1 recommended after reading `###Persistence`
+(§6a), awaiting the user.** Nothing below is built. It works out decision D6
 (docs/ONE_CONNECTION_DESK_2026_10_28.md) as the user refined it on 2026-10-29.
 
 ## 0. In one paragraph
@@ -113,15 +114,44 @@ declared by the platform: D6). The program is generated, never hand-written, and
   not a script variable (the desk's memory, docs/DEEPHAVEN_START_HERE.md "the desk under load", item 1).
 - **In this tab (DuckDB):** unchanged. The same descriptions say what the tab's market makes there (step 6).
 
+## 6a. `###Persistence`, read in full (2026-10-29, for decision 1)
+
+Read in legend-engine at `1121404` (`legend-engine-xts-persistence`: the metamodel, its extensions, the relational
+target and the grammar's tests). What it is, plainly: **"run this query, and write its result into that table, on
+this schedule, in this way."**
+
+- **`Persistence`**: a `trigger` (`Manual`, or a cron schedule), a `service` (a Legend Service: a query over a
+  runtime -- the source), and `serviceOutputTargets`: the query's rows (`TDS { keys: [...]; deduplication: ...;
+  datasetType: Snapshot | Delta }`) going into a target (`Relational #{ table: ...; database: ...; temporality: ...
+  }#`), and a notifier.
+- **How rows land:** a *snapshot* replaces the whole table; a *delta* adds or replaces rows by their keys (a delete
+  marked by a column's value); *append-only* adds. Optional history columns (unitemporal, bitemporal milestoning).
+- **`PersistenceContext`**: binds a `Persistence` to where it runs and its target's connection (`sinkConnection`) --
+  the same description, a different server per environment.
+
+**Fit, by kind of table:**
+
+| Kind | Fit | Why |
+|---|---|---|
+| Loaded | **Good** | Exactly its job: a query of the reference master's store, written into the Deephaven table; snapshot at the start of the day, or deltas by key during it; the context names which server. On Deephaven: no history columns (Deephaven keeps none: refused by name), a delta is a keyed input table's add and delete by key, append-only an add-only input table's add |
+| Streamed | **No** | Its source is always a query, never a topic and a message format |
+| Written | **No** | There is no query: apps and people write the rows |
+| Derived | **No** | A view is not written anywhere; it is computed |
+
 ## 7. Open decisions
 
-1. **Where a table's source is described** (§4, layer 2): (a) reuse `###Persistence` for loaded tables and add a lite
-   element for streamed ones; (b) one new lite element for every source, each naming the tables it fills, bound per
-   environment in the runtime; (c) on the connection, as step 6's in-tab decision put the market on the in-tab
-   connection. *Recommended: read `###Persistence` in full first, then choose between (a) and (b).*
+1. **Where a table's source is described** (§4, layer 2). *Recommended after reading it (§6a):* **loaded** tables in
+   Legend's own `###Persistence` (its query-into-table, snapshot or delta, schedule and per-server context, with no
+   history columns on Deephaven); **streamed and written** tables in one new lite element, a *feed* -- the tables it
+   fills and how: a Kafka topic and its message format (Legend's external formats, Avro or Protobuf, where one is
+   declared), written through the API (input tables), or in the demo the simulator -- with each table's key and the
+   history it keeps; **derived** views stay Pure functions (a shared view on the server, later). Which persistences
+   and feeds an environment uses is bound beside its connections. The feed's exact words are proposed before anything
+   is built. *Awaiting the user.*
 2. **How tables are set up on the server** (§5): the startup program for shared tables, the API for a page's own.
-   *Recommended as proposed.*
-3. **The demo's simulator** (§6): stays inside the server as the feed, no table definitions. *Recommended.*
+   **Decided (the user, 2026-10-29: "Yes").**
+3. **The demo's simulator** (§6): stays inside the server as the feed, no table definitions. **Decided (the user,
+   2026-10-29).**
 
 ## 8. Order of work, once decided
 
