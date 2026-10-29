@@ -386,6 +386,10 @@ table to its ingest's columns.
    read through contracts on access groups; that stays out of this design.
 4. **How Legend serves an access point on its target, and refreshes a materialized view:** not visible (closed
    services). Lite's answers are its own, registered.
+5. **The demo's streams: open** (the user, 2026-10-29, asking for something like DuckDB for Kafka instead of
+   `Simulated`). The proposal: no `Simulated` connection type. The demo's connections are `type: Kafka` at a local
+   address, so the ingests, Deephaven's startup program and its Kafka reader are production's own; only the address
+   differs. What answers at that address is §A.5's choice, waiting on the user.
 
 ## Appendix A. The research
 
@@ -547,6 +551,91 @@ listed as lite's own until the real grammar is seen; and **the JSON lite produce
 fixtures** (`TEST_DATA__DataProductRoundtrip.ts`, `TEST_DATA__IngestRoundtrip.ts`,
 `TEST_DATA__IngestIncludeTransitiveRoundtrip.ts`, the Query app's data space fixtures) -- the protocol is what Studio and
 the engine exchange, so it is matched exactly even where the text is reconstructed.
+
+### A.5 The demo's Kafka: two brokers read, our own door measured (2026-10-29)
+
+The question (the user): is there a small, single-binary Kafka, the way DuckDB is a small SQL database, to stand where
+the production brokers stand in the demo and the tests? Redpanda and Tansu, or a Kafka front door on our own simulated
+world.
+
+**What Deephaven's reader needs.** Read from the pinned 42.7's bytecode: `KafkaIngester` calls `assign`,
+`partitionsFor`, `seek`, `seekToBeginning`, `seekToEnd` and `poll`, never a consumer group. On the wire that is four
+requests: ApiVersions, Metadata, ListOffsets, Fetch. The client is `kafka-clients-8.3.2-ccs` (Confluent's build); its
+lowest versions, read from the jar, are Fetch 4, ListOffsets 1, Metadata 0. The extension also carries Confluent's
+schema-registry client and Avro and Protobuf deserializers, for `avroSpec` and `protobufSpec`.
+
+**Redpanda** (read from `redpanda-data/redpanda` at `4254992`, 2026-10-08):
+
+- Licence: Business Source License 1.1 for the core. Use is free except as a hosted streaming service sold to third
+  parties, and each release becomes Apache 2.0 four years after it ships. Enterprise features are under the Redpanda
+  Community License (paid). Either way, it is a second licence question beside Deephaven's.
+- Running it: on Linux, a package (apt, yum) or an archive unpacked into `/opt/redpanda`. On macOS, the README says
+  "Docker is required".
+- Not run here.
+
+**Tansu, renamed Nisshi** (read from `nisshi-io/solace-nisshi` at `4b4c1b4`, 2026-10-29):
+
+- Licence and owner: Apache 2.0. The README says the project is now part of Solace, and that "the license stays
+  Apache 2.0".
+- Size and maturity: one static Rust binary, version 0.8.1, very active (its last 50 commits span two days). Its
+  releases still change what it stores: 0.7.0 changed the default cluster id, and 0.8.0 the topic configuration keys.
+- Prebuilt binaries: Linux x86-64 and Arm64 (musl), and macOS on Apple silicon. There are none for Windows or Intel
+  Macs; those build from source with `cargo`.
+- Storage: in memory (the release binary's default), SQLite, PostgreSQL, or S3.
+- Retention (`retention.ms`, `retention.bytes`): applied only on SQLite and PostgreSQL, every 10 minutes by default.
+  The in-memory engine keeps every record until it stops.
+- Kafka API: what clients use, so producing, fetching, consumer groups (the classic protocol) and the idempotent
+  producer. It has no transactions.
+- Tested clients: its CI runs librdkafka's and franz-go's test suites, and Kafka's own command-line tools 3.7, 3.9 and
+  4.3, which use the Java client.
+- Schemas: one file per topic in a folder (JSON Schema, Avro or Protobuf). The broker refuses a record that does not
+  match its topic's schema. A topic with a schema can also be written as Parquet, Iceberg or Delta tables; the release
+  binary is built with every feature. This is not the Confluent schema-registry web API, so Deephaven's Avro reader
+  with a registry address would not work against it; its JSON reader would.
+- Not run here: the session refused to run a downloaded binary without the user's word.
+
+**Our own door, measured.** `experiments/kafka-door-spike` is about 200 lines of Node with no libraries. A simulated
+world writes quotes into memory, and a Kafka endpoint answers the four requests above, one version each, with records
+in Kafka's batch format v2. The pinned Deephaven read it with `KafkaTools.consumeToTable`, production's own reader:
+
+| Quotes a second | Deephaven's cycle | Every quote, once, in order? | Late by, p50 / p99 / max | The door's CPU, memory |
+|---|---|---|---|---|
+| 2,000 (the desk world's rate) | 100 ms | yes, 143,660 | 53 / 103 / 143 ms | 6% of a core, 134 MB |
+| 20,000 | 100 ms | yes, 879,000 | 55 / 104 / 151 ms | 19% of a core, 461 MB (1.4 M held) |
+| 2,000 | 10 ms | yes, 89,620 | 7 / 14 / 61 ms | 7% of a core, 130 MB |
+
+The lateness is Deephaven's cycle (half a cycle on average), not the door.
+
+**What the door is and is not.**
+
+- It is a server. A browser tab cannot accept a connection, so it runs as a small Node process; the tab's live DuckDB
+  stays as it is.
+- It hangs off the world, not off DuckDB. A Kafka topic is a log read by position, and DuckDB adds nothing to serving
+  one. The world (`datacube/demo/market-sim`) already writes through one seam, `MarketSink`, where each table's write is
+  a stream's append or a keyed table's upsert. A second sink would append each row to its table's topic:
+  - a stream's topic is a log whose oldest records are dropped past its retention;
+  - a keyed table's topic keeps the latest record of each key (Kafka's "compacted" topic).
+
+  The world then feeds both engines, and `market.groovy`'s copy of the simulation can go.
+- It is read-only. Others' producers, and Deephaven's own `produceFromTable`, would need Produce and the idempotent
+  producer's InitProducerId.
+- It is a stand-in. A test against it proves Deephaven reads our door, not that it reads Kafka. The surface is small
+  and has been stable, but a future client could drop the older encodings the door speaks, as Kafka 4.0 dropped
+  versions from before 2.1 (KIP-896). The door would then add Kafka's newer "flexible" encoding.
+
+**The choice, for the user.**
+
+| | Our door | Tansu (Nisshi) | Apache Kafka, one node | Redpanda |
+|---|---|---|---|---|
+| Licence | ours | Apache 2.0 | Apache 2.0 | BSL 1.1: a second question |
+| Runs on | anywhere Node runs | Linux, Apple-silicon Mac (Windows: build it) | anywhere Java runs | Linux; Mac through Docker |
+| How the world writes to it | in the same process | through a Kafka producer: a Node client to take on, or Produce written by us | the same as Tansu | the same as Tansu |
+| Is it Kafka? | a stand-in, four requests | a real broker, tested against three client families | the reference | a real broker |
+| Measured here | yes (above) | no: needs the user's word | no | no |
+
+Recommended: the door for the demo and the lanes, because it means one process, no new dependency, and one world
+for both engines. Add one lane against a real broker (Tansu, or Apache Kafka if Tansu's youth worries) when a
+producer outside the world exists. That lane is where a gap between the door and Kafka would show.
 
 ## Appendix B. A cross-check
 
