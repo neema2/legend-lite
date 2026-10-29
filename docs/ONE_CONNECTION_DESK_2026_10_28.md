@@ -139,8 +139,11 @@ Each ends in a deletion where it can. Sizes are estimates, not measures.
      market server named in the config) goes.
 6. **The Market data source (D3)** -- in the source picker; its tables from the model (`tables.ts`'s copies deleted);
    simulated and the crypto exchange first, a URL and a file next; the desk example configured "simulated", the desk
-   host's start of the simulator deleted. *Medium.* **As proposed (2026-10-28, waiting on the user)** -- D3 left three
-   things open, each proposed here:
+   host's start of the simulator deleted. *Medium.* **Decided (the user, 2026-10-29: "i like modelled data sources for
+   market data!"): the market is the connection's** -- the model's in-tab connection says what fills its stores (the
+   simulator, Coinbase's feed for the crypto names), and a page saves nothing new: a page on that connection's context
+   has its market, as a page on Deephaven's has the server's. Changing a feed is an edit of the model (a workspace),
+   not a page choice. Superseded, kept for the record: the page-level `markets` list proposed 2026-10-28 --
    - **Where a page keeps it:** a page-level list, `markets`, each one a market the page fills live in the tab: the
      project and the runtime whose stores it fills (the desk's `market::InTabRuntime`), and a feed for each part --
      prices, news, reference data, the bank's books -- `simulated`, `coinbase` (prices: the crypto names from

@@ -112,7 +112,9 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
    console is on (the demo's key can) -- so restricting it means an authorization plugin, which is Deephaven-licensed code.
 4. ~~Merge `main`~~: done 2026-10-24 (above), PR #72 with it.
 5. **DH16, a published table's types checked against the store's declaration: strict or compatible** (found
-   2026-10-27, not built). What it would read: each source table's declared column types are in the plan's MIR
+   2026-10-27, not built). **Decided (the user, 2026-10-29): strict, always** ("i think always strict") -- a table
+   whose columns are not the declared kinds is refused by name; a publisher that differs conforms, or the model is
+   declared as the table is. What it would read: each source table's declared column types are in the plan's MIR
    (`SqlSource.Table.storedTypes`), and the server's answer to each operation of a batch carries its result's Arrow
    schema (`ExportedTableCreationResponse.schema_header`, field 4, which `DeephavenMessages` does not list yet), each
    column's Java type in its `deephaven:type`. A session would check a table the first time it reads it, the module
