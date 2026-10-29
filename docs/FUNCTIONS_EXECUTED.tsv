@@ -270,7 +270,7 @@ startsWith	scalar	ok
 stdDevPopulation	aggregate	ok
 stdDevSample	aggregate	ok
 subType	remaining	refused: Error initializing test suite session for 'S_subTyp
-substring	scalar	DISAGREES with the oracle -- the engine's: F37, a property mapping's substring is SQL's (a query's is Pure's)
+substring	scalar	ok
 sum	aggregate	ok
 tableToTDS	remaining	refused: no matching signature: tableToTDS
 tail	collection	cutionResult.<init>(SQLExecutionResult.java:135) at org.fino

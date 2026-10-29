@@ -1206,6 +1206,16 @@ and drops whatever the engine names, so a refusal identifies itself instead of f
 
 ## F37 — `substring` computes a different answer in SQL than in Pure
 
+**The property-mapping half WITHDRAWN 2026-10-29: not a defect.** A relational mapping's `substring(T.S, 2, 4)` is
+the relational dynafunction, which every dialect extension writes as SQL's `SUBSTRING` (one-based, the third argument
+a length); legend-pure's `substring` is a different function of the same name, zero-based with an exclusive end. The
+engine itself treats them so: `pureToSQLQuery`'s `processSubstr` converts a query's Pure `substring` into the
+dynafunction's arguments, as `processSplitPart` does for `splitPart`. The user took that reading for `splitPart`
+(the improvement plan's D9) and then for `substring`, so `stress::F37_SubstringSql` now asserts `lpha` and passes,
+the oracle reads a mapping's `substring` as SQL's (`oracle._sql_substring`) and a query's as Pure's
+(`oracle.QUERY_IMPL`), and the combination matrix writes `substring` cells again. **What stands** is a query's
+`substring` answering SQL's: a TDS `extend` does (below, `stress::VT_ExtendString`). The original entry follows.
+
 `substring('alpha', 2, 4)` returns **`ph`** evaluated in memory and **`lpha`** pushed into
 SQL. Both run in this engine, on the same string, with the same arguments.
 

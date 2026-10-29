@@ -504,7 +504,6 @@ ADJUDICATED = {
     "adjust": "the engine's: F38, a StrictDate rendered as a DateTime",
     "dayOfYear": "the engine's: F35, DuckDB's day() is the day of the month",
     "firstDayOfWeek": "the engine's: F38, a StrictDate rendered as a DateTime",
-    "substring": "the engine's: F37, a property mapping's substring is SQL's (a query's is Pure's)",
     # stage 2: the oracle now reads legend-pure's definitions, which the engine's SQL does not follow here either
     "indexOf": "the engine's: F72, indexOf is SQL's strpos, one-based with 0 for a miss",
     "dayOfWeekNumber": "the engine's: F74, dayOfWeekNumber counts from Sunday",
@@ -565,7 +564,7 @@ def record(ran, rejected, differ=(), nooracle=()) -> None:
     unjudged = dict(nooracle)
     names = {name for name, _r, _e, _a in ran} - set(differ) - set(unjudged)
     # Only the transforms a matrix cell USES: until 2026-10-28 every function the matrix could
-    # spell was added, `substring` among them, which XFORM leaves out (F37), so a function the
+    # spell was added, `substring` among them, which XFORM then left out (F37), so a function the
     # probe found disagreeing was counted as agreeing too.
     used = {x for xs in combos.XFORM.values() for x in xs}
     for key, fn in list(combos._UNARY.items()) + list(combos._BINARY.items()):

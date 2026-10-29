@@ -1,5 +1,12 @@
 # `substring` returns a different string in SQL than in memory
 
+**F37's property-mapping half withdrawn (2026-10-29).** A relational mapping's `substring` is the relational
+dynafunction, which every dialect extension writes as SQL's `SUBSTRING`; legend-pure's `substring` is a different
+function of the same name, as `splitPart` is (the user's reading, `docs/STRESS_CORPUS_PLAN_2026_10_19.md`, D9). So
+`stress::F37_SubstringSql` now asserts `lpha` and passes, beside `F37_SubstringPure`'s `ph`. F37 stands for a query's
+`substring` answering SQL's, as a TDS `extend`'s does (`scripts/corpus/repro/substring-tds-extend/`). The original
+report follows.
+
     substring('alpha', 2, 4)
 
     in memory   "ph"      0-based start, exclusive end   (Java String.substring)

@@ -765,6 +765,20 @@ def _substring(vals):
     return s[start:end]
 
 
+def _sql_substring(vals):
+    """The relational dynafunction `substring(str, start[, length])`, a property mapping's: SQL's SUBSTRING, ONE-based,
+    the third argument a LENGTH, every dialect extension writing it verbatim. A start before the first character or a
+    negative length is refused: dialects read them apart (DuckDB counts a negative start from the end)."""
+    if any(v is None for v in vals):
+        return None
+    s, start = str(vals[0]), int(vals[1])
+    length = int(vals[2]) if len(vals) > 2 else len(s)
+    if start < 1 or length < 0:
+        raise Unsupported(f"substring({s!r}, {start}, {length}): a start before 1 or a negative length, which "
+                          f"dialects read apart")
+    return s[start - 1:start - 1 + length]
+
+
 def _split_part(vals):
     if any(v is None for v in vals[:3]):
         return None
@@ -1333,13 +1347,13 @@ IMPL = {
     #
     # Each states its convention, so a failure says WHICH assumption was wrong.
     #
-    # substring is ZERO-BASED with an EXCLUSIVE end, as legend-pure defines it (`substring(str,
-    # start, end)`: "Both indexes are zero-based, so the result has `end - start` characters"), and
-    # as 77-substring-paths.pure has always asserted. It was one-based until 2026-10-28 (the
-    # improvement plan's Phase 4 adjudication): the probe found it disagreeing, and at the pin the
-    # engine answers Pure's in a query and SQL's in a property mapping (F37). A position outside
-    # the string is an error in Pure (Java's String.substring), so it is refused, not clamped.
-    "substring": lambda vals: _substring(vals),
+    # substring here is the relational DYNAFUNCTION, a property mapping's: SQL's SUBSTRING, one-based, the third
+    # argument a length, which every dialect extension writes verbatim. A query's substring is legend-pure's,
+    # zero-based with an exclusive end (QUERY_IMPL). One reading served both until 2026-10-29: legend-pure's from
+    # 2026-10-28, and one-based with an exclusive end before that, which agreed with neither. The user's reading of
+    # the plan's D9 (two functions sharing a name) was taken for substring too on 2026-10-29, which withdrew F37's
+    # property-mapping half.
+    "substring": lambda vals: _sql_substring(vals),
     # indexOf is ZERO-BASED, -1 on a miss, as legend-pure defines it ("The zero-based position of the
     # first occurrence of `toFind` in `str`, or `-1` if it does not occur"). It was SQL's strpos, one-based
     # with 0 for a miss, until 2026-10-28 (the improvement plan's Phase 4).
@@ -2070,9 +2084,13 @@ def _pure_split_part(vals):
 
 
 # Functions whose Pure definition, which a QUERY applies, differs from the relational dynafunction of the same name,
-# which a property mapping applies: the query's reading (the user's decision for splitPart, 2026-10-29).
+# which a property mapping applies: the query's reading (the user's decisions for splitPart and substring,
+# 2026-10-29).
 QUERY_IMPL = {
     "splitPart": _pure_split_part,
+    # legend-pure's `substring(str, start[, end])`, zero-based with an exclusive end; at the pin the engine converts a
+    # query's (pureToSQLQuery's processSubstr), but not a TDS extend's (F37)
+    "substring": _substring,
 }
 
 

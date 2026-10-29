@@ -134,12 +134,12 @@ WRITTEN = ("plain", "scope")
 # generation with an error far from the mapping. `plus`/`minus`/`times` in particular are
 # binary here, which was a guess worth checking rather than assuming from Pure's list form.
 XFORM = {
-    # No `sub`: relational `substring` disagrees with the in-memory one (F37), and a matrix
-    # cell asserting either answer would be asserting a defect. It has its own pair of
-    # services in 77-substring-paths.pure, where the disagreement is the point rather than
-    # noise across sixteen classes.
+    # `sub` is the relational dynafunction, SQL's substring (one-based, a length), as `split` is SQL's
+    # split_part: a property mapping's, which the oracle reads so (the plan's D9, taken for substring by the
+    # user on 2026-10-29). It was left out from Phase 0 until then, while F37 counted a mapping's substring
+    # as a defect for not being Pure's.
     "string": ("none", "up", "low", "trim", "rev", "cat", "nest", "coal",
-               "lpad", "repl", "split", "left"),
+               "lpad", "repl", "split", "left", "sub"),
     "char": ("none", "up", "trim"),
     "int": ("none", "abs", "sign", "plus", "minus", "times", "mod", "band", "bxor"),
     "bigint": ("none", "plus", "abs", "shl"),

@@ -99,11 +99,8 @@ ENGINE_QUARANTINE["stress::CV7_PillarsShorter"] = (
 # service asserts 155 for 2024-06-03, which is right, and fails. Kept rather than corrected:
 # an expectation adjusted to 3 would make the suite green by recording the defect as the
 # specification, and this one is invisible without an independently computed expectation.
-# F37 -- `substring` is 0-based with an exclusive end in memory and 1-based with a LENGTH in
-# SQL. The two services run the identical call on the identical string; the in-memory one
-# PASSES, which is what makes the relational one a defect rather than a corpus assumption.
-ENGINE_QUARANTINE["stress::F37_SubstringSql"] = (
-    "F37", "substring in SQL is 1-based and takes a length, not a 0-based exclusive end")
+# F37's property-mapping half (F37_SubstringSql) was withdrawn on 2026-10-29: a mapping's substring is the relational
+# dynafunction, SQL's, which the service now asserts and passes. Its TDS-extend half stands (VT_ExtendString, below).
 
 # F41 -- `first()` on a relation returns the whole relation. The service sorts four rows
 # into a total order and asserts the first one; the engine returns all four. Nothing errors,

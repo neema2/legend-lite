@@ -3281,3 +3281,9 @@ Status lives in the plan's Progress table (rule 0b.16).
   - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (thirteen to fourteen).
   - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
     `99-vocab-services.pure`.
+  - `repro/substring-two-answers/README.md` (announced 2026-10-29): a dated note that F37's property-mapping half is
+    withdrawn, a mapping's `substring` being the relational dynafunction (the plan's D9, taken for it by the user).
+  - `core/src/main/java/com/legend/normalizer/RelOpTranslator.java` (announced 2026-10-29, the user's choice): the
+    `substring` dynafunction's operands wrap in the dyna lane's `toOne`, as the generic dyna path's do, so a column
+    reached through a join types against Pure's strict `substring(String[1], ...)`; the corpus's new substring cells
+    met it.
