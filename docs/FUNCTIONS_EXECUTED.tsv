@@ -33,7 +33,7 @@ concat	scalar	ok
 concatenate	collection	ite session for 'Svc_suite' <- caused by: Execution error at
 concatenate	relation	ok
 concatenate	tds	ERROR
-contains	collection	lizing test suite session for 'Svc_suite' <- caused by: Asse
+contains	collection	alizing test suite session for 'Svc_suite' <- caused by: Ass
 contains	scalar	ok
 convertTimeZone	scalar	REFUSED: not supported yet
 corr	aggregate	ok
@@ -186,7 +186,7 @@ p4wa	scalar	REFUSED: not in the DynaFunctionRegistry
 p4wtd	scalar	REFUSED: not in the DynaFunctionRegistry
 p52wa	scalar	REFUSED: not in the DynaFunctionRegistry
 p52wtd	scalar	REFUSED: not in the DynaFunctionRegistry
-paginated	collection	ror initializing test suite session for 'Svc_suite' <- cause
+paginated	collection	rror initializing test suite session for 'Svc_suite' <- caus
 paginated	tds	ok
 parseBoolean	scalar	REFUSED: not supported yet
 parseDate	scalar	REFUSED: not supported yet
@@ -227,7 +227,7 @@ regexpCount	scalar	ok
 regexpExtract	scalar	ok
 regexpIndexOf	scalar	ok
 regexpLike	scalar	ok
-regexpReplace	scalar	REFUSED: unattributed: by: Execution error at (resource:/core_relational_duckdb/relational/sq
+regexpReplace	scalar	REFUSED: unattributed:  by: Execution error at (resource:/core_relational_duckdb/relational/s
 rem	scalar	ok
 removeDuplicates	aggregate	not in DynaFunctionRegistry
 removeDuplicates	collection	Candidate functions: array_distinct(ANY[]) -> ANY[] LINE 2: 

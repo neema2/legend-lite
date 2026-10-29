@@ -269,6 +269,29 @@ ENGINE_QUARANTINE.update({
 ENGINE_QUARANTINE.update({
     f"stress::V{v}_DayOfWeekNumber": ("F74", "dayOfWeekNumber counts from Sunday, not Monday") for v in "PNF"
 })
+# F75 -- in a groupBy, sum and joinStrings over a group whose values are all absent are SQL's NULL, where Pure's are 0
+# and ''. The vocabulary's segment A is such a group; the deep stacks' grouped totals below each have one too (a
+# navigation that lands on nothing), and their expectations moved from null to 0 when the oracle's group-by sum took
+# legend-pure's definition (Phase 4, stage 3). VGN_CountName passes. Minimized in repro/aggregate-over-nothing/.
+ENGINE_QUARANTINE.update({
+    **{f"stress::VGN_{k}": ("F75", "an aggregate over nothing is NULL, not Pure's 0 or ''")
+       for k in ("SumQuantity", "SumRate", "SumAmount", "JoinStringsName")},
+    **{f"stress::{k}": ("F75", "sum over a group whose values are all absent is NULL, not 0")
+       for k in ("DSAgg_AnalystCoverage", "DSAgg_Block", "DSAgg_ClearingPortfolioReconciliation",
+                 "DSAgg_ClientActivity", "DSAgg_CompanyProfile", "DSAgg_ComplianceAlert", "DSAgg_ConsensusForecast",
+                 "DSAgg_CounterpartyLimit", "DSAgg_Execution", "DSAgg_FillDetail", "DSAgg_InitialMargin",
+                 "DSAgg_LimitBreach", "DSAgg_MarketdataYieldCurve", "DSAgg_PnlAccrualEntry",
+                 "DSAgg_PositionSnapshot", "DSAgg_ProcessingQueue", "DSAgg_ProductsEquity", "DSAgg_ProductsOption",
+                 "DSAgg_RevenueBudget", "DSAgg_STPRate", "DSAgg_SanctionsCheck", "DSAgg_SwapFinancing",
+                 "DSAgg_Team", "DSGroup_CashFlow")},
+})
+# F76 -- in a groupBy, the sample variance and standard deviation of one value are SQL's NULL, where Pure's are 0
+# (`variance`: `if ($numbers->size() == 1, | 0, ...)`). The VG_ and VGN_ of both pass. Minimized in
+# repro/sample-variance-of-one/.
+ENGINE_QUARANTINE.update({
+    f"stress::VGS_{k}": ("F76", "the sample variance of one value is NULL, not 0")
+    for k in ("VarianceSampleQuantity", "StdDevSampleQuantity")
+})
 
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the

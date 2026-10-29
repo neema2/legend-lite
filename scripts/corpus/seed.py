@@ -21013,6 +21013,10 @@ def _typed_values() -> list[dict]:
         # comparand STANDARD ('S'); 'Z' has no mapping entry
         "GRADE": ["P", "S", "W", "D", "S", "P", "W", "S", "D", "P", "S", "W", "P", "D", "S"],
         "GRADE_OPT": ["P", n, "W", "Z", "S", "P", n, "S", "D", "Z", "S", "W", n, "D", "S"],
+        # the groupBy key of the improvement plan's Phase 4 (stage 3): segment A holds TV-02 alone, the one row absent in
+        # every optional column, so a group whose values are all absent is there for each of them; B, C and D
+        # each hold present and absent values of every optional column
+        "SEGMENT": ["B", "A", "B", "B", "B", "B", "C", "C", "C", "C", "C", "D", "D", "D", "D"],
     }
     rows = [dict(VALUE_ID=f"TV-{i + 1:02d}") for i in range(15)]
     for col, values in cols.items():

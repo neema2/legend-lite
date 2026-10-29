@@ -370,6 +370,15 @@ def _vocabulary_features(specs, quarantined: set[str], add) -> None:
     add("Q4  function chain", [s.short for s in live
                                if any(len(a.steps) > 1 for a in applied(s)[0] + applied(s)[1])])
 
+    # stage 3: platform aggregates in a groupBy (query.Agg)
+    def aggs(s):
+        return [a for a in s.aggs if isinstance(a, query.Agg)]
+
+    add("Q4  aggregate in a groupBy", [s.short for s in live if aggs(s)])
+    add("Q4  aggregate with arguments", [s.short for s in live if any(a.args for a in aggs(s))])
+    add("Q4  aggregate over pairs", [s.short for s in live if any(a.pair for a in aggs(s))])
+    add("Q4  aggregate then a function", [s.short for s in live if any(a.then for a in aggs(s))])
+
 
 def _query_features(specs, quarantined: set[str], add) -> None:
     """A query's typed constants, predicate trees and parameters (the improvement plan's Phase 1,
@@ -576,6 +585,10 @@ BASELINE = {
     # executed by passing services on legend-engine 4.145.0.
     "Q4  function in a projection", "Q4  function in a filter", "Q4  function through map",
     "Q4  function chain",
+    # 2026-10-28, the improvement plan's Phase 4, stage 3 (vocab.py): platform aggregates in a groupBy, each executed
+    # by passing services on legend-engine 4.145.0.
+    "Q4  aggregate in a groupBy", "Q4  aggregate with arguments", "Q4  aggregate over pairs",
+    "Q4  aggregate then a function",
 }
 
 

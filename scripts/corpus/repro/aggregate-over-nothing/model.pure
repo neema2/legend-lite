@@ -1,0 +1,146 @@
+// F75: in a groupBy, `sum` and `joinStrings` over a group whose values are all absent answer SQL's NULL, where Pure's
+// are 0 and ''.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/aggregate-over-nothing/model.pure \
+//       --testable=demo::Count --testable=demo::Sum --testable=demo::JoinStrings
+//
+// A relation groupBy's map is {T[1]->K[0..1]}: an absent value maps to nothing, so group G2 reduces an empty collection.
+// legend-pure's sum is `$numbers->plus()`, 0 over nothing; joinStrings is '' over nothing; count is 0. legend-engine
+// 4.145.0's DuckDB SQL is SUM, STRING_AGG and COUNT, and SQL's SUM and STRING_AGG of no values are NULL. Count passes;
+// Sum and JoinStrings fail on G2 alone.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  g: String[1];
+  i: Integer[0..1];
+  s: String[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, G VARCHAR(4), I INTEGER, S VARCHAR(20))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    g: [demo::DB]T.G,
+    i: [demo::DB]T.I,
+    s: [demo::DB]T.S
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,G,I,S\n' +
+      'R1,G1,1,a\n' +
+      'R2,G1,2,b\n' +
+      'R3,G2,,\n' +
+      'R4,G2,,\n';
+  }#
+}
+
+###Service
+Service demo::Count
+{
+  pattern: '/demo/count';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[g:x|$x.g, i:x|$x.i])->groupBy(~[g], ~[r: x|$x.i : y|$y->count()])->sort(~g->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Count_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"g":"G1","r":2}, {"g":"G2","r":0} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Sum
+{
+  pattern: '/demo/sum';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[g:x|$x.g, i:x|$x.i])->groupBy(~[g], ~[r: x|$x.i : y|$y->sum()])->sort(~g->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Sum_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"g":"G1","r":3}, {"g":"G2","r":0} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::JoinStrings
+{
+  pattern: '/demo/joinstrings';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[g:x|$x.g, s:x|$x.s])->groupBy(~[g], ~[r: x|$x.s : y|$y->joinStrings(',')])->sort(~g->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    JoinStrings_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"g":"G1","r":"a,b"}, {"g":"G2","r":""} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

@@ -14023,3 +14023,4475 @@ Service stress::VF_ToStringBoolean
     }
   ]
 }
+
+Service stress::VG_CountName
+{
+    pattern: '/stress/vocab/vg_countname';
+    documentation: '`count()` over the required `name`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.name
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->count()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_CountName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":6},{"k":true,"r":9}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_CountName
+{
+    pattern: '/stress/vocab/vgn_countname';
+    documentation: '`count()` over the optional `nameOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.nameOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->count()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_CountName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":0},{"k":"B","r":4},{"k":"C","r":5},{"k":"D","r":3}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_SumQuantity
+{
+    pattern: '/stress/vocab/vg_sumquantity';
+    documentation: '`sum()` over the required `quantity`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->sum()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_SumQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":-2147483457},{"k":true,"r":2147483880}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_SumQuantity
+{
+    pattern: '/stress/vocab/vgn_sumquantity';
+    documentation: '`sum()` over the optional `quantityOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->sum()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_SumQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":0},{"k":"B","r":121},{"k":"C","r":2147483789},{"k":"D","r":-2147483529}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_SumRate
+{
+    pattern: '/stress/vocab/vg_sumrate';
+    documentation: '`sum()` over the required `rate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->sum()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_SumRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":16.375},{"k":true,"r":10000000117.125}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_SumRate
+{
+    pattern: '/stress/vocab/vgn_sumrate';
+    documentation: '`sum()` over the optional `rateOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->sum()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_SumRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":0.0},{"k":"B","r":5.25},{"k":"C","r":10000000002.5},{"k":"D","r":110.25}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_SumAmount
+{
+    pattern: '/stress/vocab/vg_sumamount';
+    documentation: '`sum()` over the required `amount`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.amount
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->sum()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_SumAmount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":1000004.000000000000000190},{"k":true,"r":12345779.013456789012346078}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_SumAmount
+{
+    pattern: '/stress/vocab/vgn_sumamount';
+    documentation: '`sum()` over the optional `amountOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.amountOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->sum()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_SumAmount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":0.0},{"k":"B","r":-0.4999999999999997},{"k":"C","r":3.100000000000000101},{"k":"D","r":12345779.413456789012345768}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_AverageQuantity
+{
+    pattern: '/stress/vocab/vg_averagequantity';
+    documentation: '`average()` over the required `quantity`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->average()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_AverageQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":-357913909.5},{"k":true,"r":238609320.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_AverageQuantity
+{
+    pattern: '/stress/vocab/vgn_averagequantity';
+    documentation: '`average()` over the optional `quantityOpt`, grouped by `active`, whose groups each hold absent and present values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->average()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_AverageQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":51.333333333333336},{"k":true,"r":25.22222222222222}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_AverageRate
+{
+    pattern: '/stress/vocab/vg_averagerate';
+    documentation: '`average()` over the required `rate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->average()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_AverageRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":2.7291666666666665},{"k":true,"r":1111111124.125}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_AverageRate
+{
+    pattern: '/stress/vocab/vgn_averagerate';
+    documentation: '`average()` over the optional `rateOpt`, grouped by `active`, whose groups each hold absent and present values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->average()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_AverageRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":2500000001.21875},{"k":true,"r":14.140625}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_AverageAmount
+{
+    pattern: '/stress/vocab/vg_averageamount';
+    documentation: '`average()` over the required `amount`, grouped by `active`. Compared with 1000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.amount
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->average()->greaterThan(1000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_AverageAmount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_AverageAmount
+{
+    pattern: '/stress/vocab/vgn_averageamount';
+    documentation: '`average()` over the optional `amountOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 1000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.amountOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->average()->greaterThan(1000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_AverageAmount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MaxQuantity
+{
+    pattern: '/stress/vocab/vg_maxquantity';
+    documentation: '`max()` over the required `quantity`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MaxQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":100},{"k":true,"r":2147483647}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MaxQuantity
+{
+    pattern: '/stress/vocab/vgn_maxquantity';
+    documentation: '`max()` over the optional `quantityOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MaxQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":43},{"k":"C","r":2147483647},{"k":"D","r":99}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MaxRate
+{
+    pattern: '/stress/vocab/vg_maxrate';
+    documentation: '`max()` over the required `rate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MaxRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":10.5},{"k":true,"r":10000000000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MaxRate
+{
+    pattern: '/stress/vocab/vgn_maxrate';
+    documentation: '`max()` over the optional `rateOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MaxRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":2.375},{"k":"C","r":10000000000.0},{"k":"D","r":100.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MaxAmount
+{
+    pattern: '/stress/vocab/vg_maxamount';
+    documentation: '`max()` over the required `amount`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.amount
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MaxAmount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":1000000.0},{"k":true,"r":12345678.123456789012345678}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MaxAmount
+{
+    pattern: '/stress/vocab/vgn_maxamount';
+    documentation: '`max()` over the optional `amountOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.amountOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MaxAmount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":1.0000000000000002},{"k":"C","r":1.0000000000000001},{"k":"D","r":12345678.123456789012345678}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MaxValueDate
+{
+    pattern: '/stress/vocab/vg_maxvaluedate';
+    documentation: '`max()` over the required `valueDate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.valueDate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MaxValueDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"2025-01-01"},{"k":true,"r":"2024-12-31"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MaxValueDate
+{
+    pattern: '/stress/vocab/vgn_maxvaluedate';
+    documentation: '`max()` over the optional `valueDateOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.valueDateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MaxValueDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"2024-06-04"},{"k":"C","r":"2024-06-03"},{"k":"D","r":"2025-01-01"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MaxTradeDate
+{
+    pattern: '/stress/vocab/vg_maxtradedate';
+    documentation: '`max()` over the required `tradeDate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.tradeDate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MaxTradeDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"2024-12-31"},{"k":true,"r":"2025-02-28"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MaxTradeDate
+{
+    pattern: '/stress/vocab/vgn_maxtradedate';
+    documentation: '`max()` over the optional `tradeDateOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.tradeDateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MaxTradeDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"2024-03-01"},{"k":"C","r":"2025-02-28"},{"k":"D","r":"2024-03-31"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MaxStampedAt
+{
+    pattern: '/stress/vocab/vg_maxstampedat';
+    documentation: '`max()` over the required `stampedAt`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.stampedAt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MaxStampedAt_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"2025-01-01T00:00:00.000000000+0000"},{"k":true,"r":"2024-06-03T23:59:59.000000000+0000"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MaxStampedAt
+{
+    pattern: '/stress/vocab/vgn_maxstampedat';
+    documentation: '`max()` over the optional `stampedAtOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.stampedAtOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->max()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MaxStampedAt_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"2024-06-03T12:00:01.000000000+0000"},{"k":"C","r":"2024-06-04T00:00:00.000000000+0000"},{"k":"D","r":"2025-01-01T00:00:00.000000000+0000"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MinQuantity
+{
+    pattern: '/stress/vocab/vg_minquantity';
+    documentation: '`min()` over the required `quantity`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MinQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":-2147483648},{"k":true,"r":-1}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MinQuantity
+{
+    pattern: '/stress/vocab/vgn_minquantity';
+    documentation: '`min()` over the optional `quantityOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MinQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":-5},{"k":"C","r":42},{"k":"D","r":-2147483648}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MinRate
+{
+    pattern: '/stress/vocab/vg_minrate';
+    documentation: '`min()` over the required `rate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MinRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":-0.25},{"k":true,"r":-1.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MinRate
+{
+    pattern: '/stress/vocab/vgn_minrate';
+    documentation: '`min()` over the optional `rateOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MinRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":-1.5},{"k":"C","r":-0.25},{"k":"D","r":2.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MinAmount
+{
+    pattern: '/stress/vocab/vg_minamount';
+    documentation: '`min()` over the required `amount`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.amount
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MinAmount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":-0.000000000000000001},{"k":true,"r":-2.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MinAmount
+{
+    pattern: '/stress/vocab/vgn_minamount';
+    documentation: '`min()` over the optional `amountOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.amountOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MinAmount_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":-2.5},{"k":"C","r":0.1},{"k":"D","r":0.3}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MinValueDate
+{
+    pattern: '/stress/vocab/vg_minvaluedate';
+    documentation: '`min()` over the required `valueDate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.valueDate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MinValueDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"2024-02-29"},{"k":true,"r":"1970-01-01"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MinValueDate
+{
+    pattern: '/stress/vocab/vgn_minvaluedate';
+    documentation: '`min()` over the optional `valueDateOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.valueDateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MinValueDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"1999-12-31"},{"k":"C","r":"1970-01-01"},{"k":"D","r":"2024-06-30"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MinTradeDate
+{
+    pattern: '/stress/vocab/vg_mintradedate';
+    documentation: '`min()` over the required `tradeDate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.tradeDate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MinTradeDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"2020-02-29"},{"k":true,"r":"2023-03-01"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MinTradeDate
+{
+    pattern: '/stress/vocab/vgn_mintradedate';
+    documentation: '`min()` over the optional `tradeDateOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.tradeDateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MinTradeDate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"2023-12-31"},{"k":"C","r":"2023-03-01"},{"k":"D","r":"2020-02-29"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MinStampedAt
+{
+    pattern: '/stress/vocab/vg_minstampedat';
+    documentation: '`min()` over the required `stampedAt`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.stampedAt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MinStampedAt_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"1999-12-31T23:59:59.000000000+0000"},{"k":true,"r":"2000-01-01T00:00:00.000000000+0000"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MinStampedAt
+{
+    pattern: '/stress/vocab/vgn_minstampedat';
+    documentation: '`min()` over the optional `stampedAtOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.stampedAtOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->min()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MinStampedAt_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"2024-06-03T00:00:00.000000000+0000"},{"k":"C","r":"1999-12-31T23:59:59.000000000+0000"},{"k":"D","r":"2024-06-02T23:59:59.000000000+0000"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MedianQuantity
+{
+    pattern: '/stress/vocab/vg_medianquantity';
+    documentation: '`median()` over the required `quantity`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->median()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MedianQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":27.0},{"k":true,"r":42.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MedianQuantity
+{
+    pattern: '/stress/vocab/vgn_medianquantity';
+    documentation: '`median()` over the optional `quantityOpt`, grouped by `active`, whose groups each hold absent and present values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->median()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MedianQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":41.0},{"k":true,"r":42.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MedianRate
+{
+    pattern: '/stress/vocab/vg_medianrate';
+    documentation: '`median()` over the required `rate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->median()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MedianRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":1.6875},{"k":true,"r":2.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MedianRate
+{
+    pattern: '/stress/vocab/vgn_medianrate';
+    documentation: '`median()` over the optional `rateOpt`, grouped by `active`, whose groups each hold absent and present values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->median()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MedianRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":2.1875},{"k":true,"r":2.3125}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_ModeMetric
+{
+    pattern: '/stress/vocab/vg_modemetric';
+    documentation: '`mode()` over the required `metric`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.metric
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->mode()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_ModeMetric_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":2.5},{"k":true,"r":2.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_StdDevPopulationQuantity
+{
+    pattern: '/stress/vocab/vg_stddevpopulationquantity';
+    documentation: '`stdDevPopulation()` over the required `quantity`, grouped by `active`. Compared with 700000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevPopulation()->greaterThan(700000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_StdDevPopulationQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_StdDevPopulationQuantity
+{
+    pattern: '/stress/vocab/vgn_stddevpopulationquantity';
+    documentation: '`stdDevPopulation()` over the optional `quantityOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 1000000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevPopulation()->greaterThan(1000000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_StdDevPopulationQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_StdDevSampleQuantity
+{
+    pattern: '/stress/vocab/vg_stddevsamplequantity';
+    documentation: '`stdDevSample()` over the required `quantity`, grouped by `active`. Compared with 800000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevSample()->greaterThan(800000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_StdDevSampleQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_StdDevSampleQuantity
+{
+    pattern: '/stress/vocab/vgn_stddevsamplequantity';
+    documentation: '`stdDevSample()` over the optional `quantityOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 1000000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevSample()->greaterThan(1000000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_StdDevSampleQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGS_StdDevSampleQuantity
+{
+    pattern: '/stress/vocab/vgs_stddevsamplequantity';
+    documentation: '`stdDevSample()` over the required `quantity`, grouped by `segment`, whose group A holds one value: Pure\'s variance of one value is 0. Compared with 30.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevSample()->greaterThan(30.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGS_StdDevSampleQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":false},{"k":"B","r":false},{"k":"C","r":true},{"k":"D","r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_VariancePopulationQuantity
+{
+    pattern: '/stress/vocab/vg_variancepopulationquantity';
+    documentation: '`variancePopulation()` over the required `quantity`, grouped by `active`. Compared with 5.47994e+17, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->variancePopulation()->greaterThan(5.47994e+17)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_VariancePopulationQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_VariancePopulationQuantity
+{
+    pattern: '/stress/vocab/vgn_variancepopulationquantity';
+    documentation: '`variancePopulation()` over the optional `quantityOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 5.1241e+17, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->variancePopulation()->greaterThan(5.1241e+17)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_VariancePopulationQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_VarianceSampleQuantity
+{
+    pattern: '/stress/vocab/vg_variancesamplequantity';
+    documentation: '`varianceSample()` over the required `quantity`, grouped by `active`. Compared with 6.40512e+17, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->varianceSample()->greaterThan(6.40512e+17)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_VarianceSampleQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_VarianceSampleQuantity
+{
+    pattern: '/stress/vocab/vgn_variancesamplequantity';
+    documentation: '`varianceSample()` over the optional `quantityOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 5.76461e+17, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->varianceSample()->greaterThan(5.76461e+17)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_VarianceSampleQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGS_VarianceSampleQuantity
+{
+    pattern: '/stress/vocab/vgs_variancesamplequantity';
+    documentation: '`varianceSample()` over the required `quantity`, grouped by `segment`, whose group A holds one value: Pure\'s variance of one value is 0. Compared with 1000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->varianceSample()->greaterThan(1000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGS_VarianceSampleQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":false},{"k":"B","r":false},{"k":"C","r":true},{"k":"D","r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_StdDevPopulationRate
+{
+    pattern: '/stress/vocab/vg_stddevpopulationrate';
+    documentation: '`stdDevPopulation()` over the required `rate`, grouped by `active`. Compared with 2000000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevPopulation()->greaterThan(2000000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_StdDevPopulationRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_StdDevPopulationRate
+{
+    pattern: '/stress/vocab/vgn_stddevpopulationrate';
+    documentation: '`stdDevPopulation()` over the optional `rateOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 2000000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevPopulation()->greaterThan(2000000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_StdDevPopulationRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_StdDevSampleRate
+{
+    pattern: '/stress/vocab/vg_stddevsamplerate';
+    documentation: '`stdDevSample()` over the required `rate`, grouped by `active`. Compared with 2000000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevSample()->greaterThan(2000000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_StdDevSampleRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_StdDevSampleRate
+{
+    pattern: '/stress/vocab/vgn_stddevsamplerate';
+    documentation: '`stdDevSample()` over the optional `rateOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 3000000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->stdDevSample()->greaterThan(3000000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_StdDevSampleRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_VariancePopulationRate
+{
+    pattern: '/stress/vocab/vg_variancepopulationrate';
+    documentation: '`variancePopulation()` over the required `rate`, grouped by `active`. Compared with 4.938272e+18, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->variancePopulation()->greaterThan(4.938272e+18)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_VariancePopulationRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_VariancePopulationRate
+{
+    pattern: '/stress/vocab/vgn_variancepopulationrate';
+    documentation: '`variancePopulation()` over the optional `rateOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 9.375e+18, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->variancePopulation()->greaterThan(9.375e+18)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_VariancePopulationRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_VarianceSampleRate
+{
+    pattern: '/stress/vocab/vg_variancesamplerate';
+    documentation: '`varianceSample()` over the required `rate`, grouped by `active`. Compared with 5.555556e+18, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->varianceSample()->greaterThan(5.555556e+18)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_VarianceSampleRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_VarianceSampleRate
+{
+    pattern: '/stress/vocab/vgn_variancesamplerate';
+    documentation: '`varianceSample()` over the optional `rateOpt`, grouped by `active`, whose groups each hold absent and present values. Compared with 1.25e+19, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->varianceSample()->greaterThan(1.25e+19)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_VarianceSampleRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_PercentileQuantity
+{
+    pattern: '/stress/vocab/vg_percentilequantity';
+    documentation: '`percentile(0.5)` over the required `quantity`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->percentile(0.5)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_PercentileQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":27.0},{"k":true,"r":42.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_PercentileQuantity
+{
+    pattern: '/stress/vocab/vgn_percentilequantity';
+    documentation: '`percentile(0.5)` over the optional `quantityOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->percentile(0.5)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_PercentileQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":41.0},{"k":"C","r":100.0},{"k":"D","r":10.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_PercentileRate
+{
+    pattern: '/stress/vocab/vg_percentilerate';
+    documentation: '`percentile(0.5)` over the required `rate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->percentile(0.5)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_PercentileRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":1.6875},{"k":true,"r":2.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_PercentileRate
+{
+    pattern: '/stress/vocab/vgn_percentilerate';
+    documentation: '`percentile(0.5)` over the optional `rateOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->percentile(0.5)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_PercentileRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":2.125},{"k":"C","r":1.375},{"k":"D","r":7.75}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_JoinStringsName
+{
+    pattern: '/stress/vocab/vg_joinstringsname';
+    documentation: '`joinStrings(\',\')` over the required `name`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.name
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->joinStrings(',')
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_JoinStringsName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"Alpha,alpha ,beta,gamma,alpha,omega"},{"k":true,"r":"alpha,ALPHA,alphabet,beta,O\'Neil,Zeta,delta,aleph,kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_JoinStringsName
+{
+    pattern: '/stress/vocab/vgn_joinstringsname';
+    documentation: '`joinStrings(\',\')` over the optional `nameOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.nameOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->joinStrings(',')
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_JoinStringsName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":""},{"k":"B","r":"alpha,ALPHA,alpha ,beta"},{"k":"C","r":"Alpha,O\'Neil,gamma,zeta,alpha"},{"k":"D","r":"alphabet,mu,aleph"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_FirstName
+{
+    pattern: '/stress/vocab/vg_firstname';
+    documentation: '`first()` over the required `name`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.name
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->first()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_FirstName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"Alpha"},{"k":true,"r":"alpha"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_FirstName
+{
+    pattern: '/stress/vocab/vgn_firstname';
+    documentation: '`first()` over the optional `nameOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.nameOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->first()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_FirstName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"alpha"},{"k":"C","r":"Alpha"},{"k":"D","r":"alphabet"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_LastName
+{
+    pattern: '/stress/vocab/vg_lastname';
+    documentation: '`last()` over the required `name`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.name
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->last()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_LastName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"omega"},{"k":true,"r":"kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_LastName
+{
+    pattern: '/stress/vocab/vgn_lastname';
+    documentation: '`last()` over the optional `nameOpt`, grouped by `segment`, whose group A holds only absent values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.segment,
+            v:x|$x.nameOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->last()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_LastName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 1 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"beta"},{"k":"C","r":"alpha"},{"k":"D","r":"aleph"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MaxByName
+{
+    pattern: '/stress/vocab/vg_maxbyname';
+    documentation: '`maxBy()` over rowMapper(`name`, `quantity`), grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.name,
+            w:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|meta::pure::functions::math::mathUtility::rowMapper($x.v, $x.w) : agg|$agg->maxBy()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MaxByName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"gamma"},{"k":true,"r":"Zeta"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MinByName
+{
+    pattern: '/stress/vocab/vg_minbyname';
+    documentation: '`minBy()` over rowMapper(`name`, `quantity`), grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.name,
+            w:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|meta::pure::functions::math::mathUtility::rowMapper($x.v, $x.w) : agg|$agg->minBy()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MinByName_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":"alpha"},{"k":true,"r":"beta"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_WavgRate
+{
+    pattern: '/stress/vocab/vg_wavgrate';
+    documentation: '`wavg()` over wavgRowMapper(`rate`, `metric`), grouped by `active`. Compared with 300000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate,
+            w:x|$x.metric
+        ])
+        ->groupBy(~[k], ~[
+            r: x|meta::pure::functions::math::mathUtility::wavgRowMapper($x.v, $x.w) : agg|$agg->wavg()->greaterThan(300000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_WavgRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_CovarPopulationRate
+{
+    pattern: '/stress/vocab/vg_covarpopulationrate';
+    documentation: '`covarPopulation()` over rowMapper(`rate`, `metric`), grouped by `active`. Compared with -1000000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate,
+            w:x|$x.metric
+        ])
+        ->groupBy(~[k], ~[
+            r: x|meta::pure::functions::math::mathUtility::rowMapper($x.v, $x.w) : agg|$agg->covarPopulation()->greaterThan(-1000000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_CovarPopulationRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_CovarSampleRate
+{
+    pattern: '/stress/vocab/vg_covarsamplerate';
+    documentation: '`covarSample()` over rowMapper(`rate`, `metric`), grouped by `active`. Compared with -1000000000.0, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate,
+            w:x|$x.metric
+        ])
+        ->groupBy(~[k], ~[
+            r: x|meta::pure::functions::math::mathUtility::rowMapper($x.v, $x.w) : agg|$agg->covarSample()->greaterThan(-1000000000.0)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_CovarSampleRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":true},{"k":true,"r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_CorrRate
+{
+    pattern: '/stress/vocab/vg_corrrate';
+    documentation: '`corr()` over rowMapper(`rate`, `metric`), grouped by `active`. Compared with -0.1, as its value is inexact.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate,
+            w:x|$x.metric
+        ])
+        ->groupBy(~[k], ~[
+            r: x|meta::pure::functions::math::mathUtility::rowMapper($x.v, $x.w) : agg|$agg->corr()->greaterThan(-0.1)
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_CorrRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}

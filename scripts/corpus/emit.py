@@ -375,6 +375,23 @@ def _applied(subject: str, apply) -> str:
     return f"{subject}->map(v|{chain('$v')})" if apply.through_map else chain(subject)
 
 
+_MATH_UTILITY = "meta::pure::functions::math::mathUtility"
+
+
+def _agg_column(a) -> str:
+    """One aggregate of a relation groupBy, `name: x|<map> : agg|<reduce>`. A plain triple maps the source
+    alias and reduces with the function; a query.Agg (Phase 4) also gives the function its arguments, maps a
+    pair through rowMapper or wavgRowMapper, and applies steps to the result."""
+    name, src, fn = a
+    mapped = f"${VAR}.{src}"
+    if getattr(a, "pair", None) is not None:
+        mapped = f"{_MATH_UTILITY}::{a.mapper}(${VAR}.{src}, ${VAR}.{a.pair})"
+    reduce = f"$agg->{fn}({', '.join(_literal(x) for x in getattr(a, 'args', ()))})"
+    for step, args in getattr(a, "then", ()):
+        reduce = f"{reduce}->{step}({', '.join(_literal(x) for x in args)})"
+    return f"{name}: {VAR}|{mapped} : agg|{reduce}"
+
+
 def _condition(f) -> str:
     """One filter conjunct as Pure text: a comparison, a bare boolean, a membership or absence
     test, or a tree of them (query.And, Or, Not, ParamEmpty)."""
@@ -547,9 +564,7 @@ def query_text(spec: Spec) -> str:
         # The aggregate list is BRACKETED. The bare `~name: ... : ...` form parses only
         # with a SINGLE aggregate; with two it builds a colSpec whose function is null and
         # fails with "colSpec.function1 is null".
-        parts = ",\n            ".join(
-            f"{name}: {VAR}|${VAR}.{src} : agg|$agg->{fn}()"
-            for name, src, fn in spec.aggs)
+        parts = ",\n            ".join(_agg_column(a) for a in spec.aggs)
         lines.append(f"        ->groupBy(~[{keys}], ~[\n            {parts}\n        ])")
     if getattr(spec, "post_filters", None):
         # On the RELATION, so the operands are projected aliases and not model paths.

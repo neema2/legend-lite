@@ -50,6 +50,9 @@ Class typedvalues::TypedValue
    stampedAtOpt: DateTime[0..1];
    grade: typedvalues::Grade[1];
    gradeOpt: typedvalues::Grade[0..1];
+   // a groupBy key (the improvement plan's Phase 4): segment A holds the one row absent in every optional
+   // column
+   segment: String[1];
 }
 
 // The two types without a relational column type, over the same TYPED_VALUE rows.
@@ -82,7 +85,7 @@ Association typedvalues::TradeTimeAndOctet
 // connection seeds it and the join from TRADE is declared where both tables are visible.
 Database typedvalues::TypedStore
 (
-    Table TYPED_VALUE (VALUE_ID VARCHAR(12) PRIMARY KEY, TRADE_ID VARCHAR(200), NAME VARCHAR(40) NOT NULL, NAME_OPT VARCHAR(40), ACTIVE BIT NOT NULL, ACTIVE_OPT BIT, QUANTITY INTEGER NOT NULL, QUANTITY_OPT INTEGER, RATE DOUBLE NOT NULL, RATE_OPT DOUBLE, AMOUNT DECIMAL(38, 18) NOT NULL, AMOUNT_OPT DECIMAL(38, 18), METRIC DOUBLE NOT NULL, METRIC_OPT DECIMAL(18, 4), VALUE_DATE DATE NOT NULL, VALUE_DATE_OPT DATE, TRADE_DATE DATE NOT NULL, TRADE_DATE_OPT DATE, STAMPED_AT TIMESTAMP NOT NULL, STAMPED_AT_OPT TIMESTAMP, CUTOFF VARCHAR(8) NOT NULL, CUTOFF_OPT VARCHAR(8), OCTET TINYINT NOT NULL, OCTET_OPT TINYINT, GRADE VARCHAR(2) NOT NULL, GRADE_OPT VARCHAR(2))
+    Table TYPED_VALUE (VALUE_ID VARCHAR(12) PRIMARY KEY, TRADE_ID VARCHAR(200), NAME VARCHAR(40) NOT NULL, NAME_OPT VARCHAR(40), ACTIVE BIT NOT NULL, ACTIVE_OPT BIT, QUANTITY INTEGER NOT NULL, QUANTITY_OPT INTEGER, RATE DOUBLE NOT NULL, RATE_OPT DOUBLE, AMOUNT DECIMAL(38, 18) NOT NULL, AMOUNT_OPT DECIMAL(38, 18), METRIC DOUBLE NOT NULL, METRIC_OPT DECIMAL(18, 4), VALUE_DATE DATE NOT NULL, VALUE_DATE_OPT DATE, TRADE_DATE DATE NOT NULL, TRADE_DATE_OPT DATE, STAMPED_AT TIMESTAMP NOT NULL, STAMPED_AT_OPT TIMESTAMP, CUTOFF VARCHAR(8) NOT NULL, CUTOFF_OPT VARCHAR(8), OCTET TINYINT NOT NULL, OCTET_OPT TINYINT, GRADE VARCHAR(2) NOT NULL, GRADE_OPT VARCHAR(2), SEGMENT VARCHAR(2) NOT NULL)
 )
 
 ###Mapping
@@ -121,7 +124,8 @@ Mapping typedvalues::TypedValueMapping
       stampedAt: [typedvalues::TypedStore]TYPED_VALUE.STAMPED_AT,
       stampedAtOpt: [typedvalues::TypedStore]TYPED_VALUE.STAMPED_AT_OPT,
       grade: EnumerationMapping GradeCodes: [typedvalues::TypedStore]TYPED_VALUE.GRADE,
-      gradeOpt: EnumerationMapping GradeCodes: [typedvalues::TypedStore]TYPED_VALUE.GRADE_OPT
+      gradeOpt: EnumerationMapping GradeCodes: [typedvalues::TypedStore]TYPED_VALUE.GRADE_OPT,
+      segment: [typedvalues::TypedStore]TYPED_VALUE.SEGMENT
    }
 
    typedvalues::TimeAndOctet: Relational

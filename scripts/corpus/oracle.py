@@ -43,7 +43,7 @@ from datetime import datetime as _datetime
 import re
 
 from model import Corpus
-from query import And, DateTimeArg, Hop, Not, Or, Param, ParamEmpty, PathArg, Pred, Spec
+from query import Agg, And, DateTimeArg, Hop, Not, Or, Param, ParamEmpty, PathArg, Pred, Spec
 
 def _timestamp(v: str) -> str:
     """Legend renders a DateTime column as ISO-8601 with nanoseconds and a numeric UTC
@@ -2806,22 +2806,27 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
     out = []
     for key, members in groups.items():
         row = dict(zip(spec.group_by, key))
-        for name, src, fn in spec.aggs:
+        for a in spec.aggs:
+            name, src, fn = a
+            if isinstance(a, Agg):
+                row[name] = _reduce_group(a, members)
+                continue
             vals = [m[src] for m in members if m[src] is not None]
             if fn == "count":
                 row[name] = len(vals)
             elif fn == "sum":
-                # NULL over an empty group, not 0. SQL's SUM of no rows is NULL, and the
-                # guard that said so was a trailing `if not vals` covering every branch --
-                # dropped when these became explicit cases, which turned one group's total
-                # from null into a plausible zero.
-                row[name] = _exact_sum(vals) if vals else None
+                # 0 over a group whose values are all absent: legend-pure's sum is `plus()`, 0
+                # over nothing, as IMPL's sum always was. Until 2026-10-28 this was SQL's NULL
+                # (and a guard once dropped turned it into an unintended 0); the improvement
+                # plan's Phase 4 put legend-pure back as the spec, and the engine's NULL is F75.
+                row[name] = _exact_sum(vals) if vals else 0
             elif fn == "max":
                 row[name] = max(vals) if vals else None
             elif fn == "min":
                 row[name] = min(vals) if vals else None
             elif fn == "average":
-                row[name] = _exact_avg(vals) if vals else None
+                # legend-pure's average fails over nothing ("Mean of an empty set")
+                row[name] = _exact_avg(vals) if vals else _empty_fails("average")
             else:
                 # Silence here is how MD2 asked for an average and got a column of nulls
                 # with nothing to say it had not been computed. An aggregate this does not
@@ -2832,6 +2837,167 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
                     f"oracle that cannot answer.")
         out.append(row)
     return out
+
+
+# ------------------------------------------- aggregates in a groupBy (Phase 4, stage 3)
+#
+# Each as legend-pure defines it, or legend-engine's Pure where the function is legend-engine's
+# (core_functions_standard/math/aggregator): the reducer of a relation groupBy receives the values its map
+# produced, and an absent value produces none (the map is `{T[1]->K[0..1]}`), so a group whose values are
+# all absent reduces an EMPTY collection. Over one, Pure's sum is 0 (`plus()` of nothing), its max, min,
+# first, last and percentile are absent, its count is 0 and its joinStrings is ''; its average, median,
+# mode, variances, standard deviations and wavg fail ("Mean of an empty set", `toOneMany()`, `at()`), which
+# no expected result can state, so the oracle refuses them there. Over ONE value Pure's variance is 0, the
+# sample form too (`variance`: `if ($numbers->size() == 1, | 0, ...)`), and its covarSample is absent.
+
+
+def _empty_fails(fn: str):
+    raise Unsupported(f"{fn} over an empty collection fails in Pure, which no expected result can state")
+
+
+def _pure_sum(xs):
+    """`plus()` of the values: exact, as the integers and decimals of the seed add; 0 for nothing."""
+    from decimal import Decimal
+    if not xs:
+        return 0
+    if all(isinstance(x, int) and not isinstance(x, bool) for x in xs):
+        return sum(xs)
+    total = sum((Decimal(str(x)) if not isinstance(x, Decimal) else x for x in xs), Decimal(0))
+    return total if any(isinstance(x, Decimal) for x in xs) else float(total)
+
+
+def _pure_variance(xs, sample: bool):
+    """`variance(numbers, isBiasCorrected)`: 0 over one value; else the squared deviations from `average()`,
+    folded in order, over n, or n - 1 for the sample."""
+    if not xs:
+        _empty_fails("variance")
+    if len(xs) == 1:
+        return 0
+    avg = float(sum(xs)) / len(xs)
+    acc = 0.0
+    for x in xs:
+        acc = acc + (float(x) - avg) ** 2
+    return acc / (len(xs) - (1.0 if sample else 0.0))
+
+
+def _pure_mode(xs):
+    """`mode`: over the sorted values, the first to reach a strictly greater count -- the smallest of the most
+    frequent."""
+    if not xs:
+        _empty_fails("mode")
+    best, best_n, prev, n = None, 0, object(), 0
+    for x in sorted(xs):
+        n = n + 1 if x == prev else 1
+        prev = x
+        if n > best_n:
+            best, best_n = x, n
+    return best
+
+
+def _pure_percentile(xs, p):
+    """`percentile(numbers, p)`, ascending and continuous: linear between neighbours of the sorted values."""
+    if not 0 <= p <= 1:
+        raise Unsupported(f"percentile {p} is outside [0, 1], which its precondition refuses")
+    data = sorted(xs)
+    n = len(data)
+    if n <= 1:
+        return data[0] if data else None
+    pos = (p * 100 * (n - 1)) / 100
+    i = math.floor(pos)
+    d = pos - i
+    if pos == 0:
+        return data[0]
+    if pos >= n - 1:
+        return data[-1]
+    if d == 0:
+        return data[i] if (1.0 * (i + 1)) / n > p else data[i + 1]
+    return data[i] + (data[i + 1] - data[i]) * d
+
+
+def _pure_covar(pairs, sample: bool):
+    """`covariance(a, b, count, isBiasCorrected)`: absent over no pair, and the sample form over one."""
+    count = len(pairs)
+    if count == 0 or (sample and count <= 1):
+        return None
+    sa = sum(a for a, _b in pairs)
+    sb = sum(b for _a, b in pairs)
+    return (sum(a * b for a, b in pairs) - sa * sb / count) / (count - (1 if sample else 0))
+
+
+def _pure_corr(pairs):
+    cov = _pure_covar(pairs, False)
+    if cov is None:
+        return None
+    sa = _pure_variance([a for a, _b in pairs], False) ** 0.5
+    sb = _pure_variance([b for _a, b in pairs], False) ** 0.5
+    if sa == 0 or sb == 0:
+        raise Unsupported("corr over a side with no variance divides by zero")
+    return cov / (sa * sb)
+
+
+def _pure_by(pairs, descending: bool):
+    """`maxBy`/`minBy`: the values sorted by their keys (a stable sort), the first. A tie keeps row order."""
+    if not pairs:
+        return None
+    return sorted(pairs, key=lambda p: p[1], reverse=descending)[0][0]
+
+
+def _pure_wavg(pairs):
+    if not pairs:
+        _empty_fails("wavg")
+    weights = sum(w for _v, w in pairs)
+    if weights == 0:
+        raise Unsupported("wavg over weights that sum to zero divides by zero")
+    return sum(v * w for v, w in pairs) / weights
+
+
+# The reducers of a column's values: (values, *arguments) -> result.
+_REDUCERS = {
+    "count": lambda xs: len(xs),
+    "sum": _pure_sum,
+    "max": lambda xs: max(xs) if xs else None,
+    "min": lambda xs: min(xs) if xs else None,
+    "first": lambda xs: xs[0] if xs else None,
+    "last": lambda xs: xs[-1] if xs else None,
+    "average": lambda xs: _exact_avg(xs) if xs else _empty_fails("average"),
+    "median": lambda xs: _median(xs) if xs else _empty_fails("median"),
+    "mode": _pure_mode,
+    "variancePopulation": lambda xs: _pure_variance(xs, False),
+    "varianceSample": lambda xs: _pure_variance(xs, True),
+    "stdDevPopulation": lambda xs: _pure_variance(xs, False) ** 0.5,
+    "stdDevSample": lambda xs: _pure_variance(xs, True) ** 0.5,
+    "percentile": _pure_percentile,
+    "joinStrings": lambda xs, sep: sep.join(xs),
+}
+
+# The reducers of (value, key) pairs, which the map builds with rowMapper or wavgRowMapper.
+_PAIR_REDUCERS = {
+    "maxBy": lambda ps: _pure_by(ps, True),
+    "minBy": lambda ps: _pure_by(ps, False),
+    "wavg": _pure_wavg,
+    "covarPopulation": lambda ps: _pure_covar(ps, False),
+    "covarSample": lambda ps: _pure_covar(ps, True),
+    "corr": _pure_corr,
+}
+
+
+def _reduce_group(a: Agg, members: list[dict]):
+    """One query.Agg over a group's projected rows, as Pure defines the aggregate (above)."""
+    name, src, fn = a
+    if a.pair is not None:
+        pairs = [(m[src], m[a.pair]) for m in members]
+        if any(x is None or y is None for x, y in pairs):
+            # rowMapper's two collections then misalign (legend-engine's own PCT for covarSample says the
+            # platform does not handle it yet)
+            raise Unsupported(f"{name}: a pair with an absent side")
+        v = _PAIR_REDUCERS[fn](pairs, *a.args)
+    else:
+        v = _REDUCERS[fn]([m[src] for m in members if m[src] is not None], *a.args)
+    for step, args in a.then:
+        if v is None:
+            raise Unsupported(f"{name}: {step} over an absent aggregate")
+        v = _dynafunction(step, [v, *args])
+    return v
 
 
 def _bound(value, params: dict | None):
@@ -3033,7 +3199,11 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
     if spec.group_by:
         base = _kinds_of_projections(c, spec)
         k = {a: base[a] for a in spec.group_by}
-        for name, src, fn in spec.aggs:
+        for a in spec.aggs:
+            name, src, fn = a
+            if isinstance(a, Agg) and a.ret is not None:
+                k[name] = RET_KIND[a.ret]
+                continue
             # An average of integers is a float; every other aggregate keeps its source kind.
             k[name] = ("int" if fn == "count"
                        else "float" if fn == "average" else base[src])

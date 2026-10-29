@@ -2190,3 +2190,27 @@ gives 11, where Pure gives 0, 2 and 10 (-1.5 gives -2 either way). The oracle ha
 The oracle had followed the engine's lowering, by its own comment, which made the agreement circular; it now reads
 legend-pure's definition. Pinned by `stress::VP_DayOfWeekNumber`, `VN_DayOfWeekNumber` and `VF_DayOfWeekNumber`
 (quarantined). Repro: `scripts/corpus/repro/dayofweeknumber-sunday-first/`.
+
+## F75 — In a groupBy, `sum` and `joinStrings` over a group whose values are all absent answer NULL, not 0 and ''
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 (stage 3, the aggregates). A
+relation groupBy's map is `{T[1]->K[0..1]}`, so an absent value maps to nothing and a group whose values are all
+absent reduces an empty collection. legend-engine's Pure defines `sum` as `$numbers->plus()`, 0 over nothing, and
+legend-pure's `joinStrings` is `''` over nothing; `count` is 0. legend-engine 4.145.0's DuckDB SQL is `SUM` and
+`STRING_AGG`, which are NULL over no values (`COUNT` is 0, and agrees). The oracle's group-by `sum` had followed SQL
+(its `IMPL["sum"]`, used by the probes, was already 0); it now reads the Pure definition, so 24 grouped totals
+written before Phase 4 change their expectation from null to 0 and are quarantined with this finding
+(`stress::DSAgg_*`, `DSGroup_CashFlow`, each over a navigation that lands on nothing for one group). Pinned by
+`stress::VGN_SumQuantity`, `VGN_SumRate`, `VGN_SumAmount` and `VGN_JoinStringsName` (quarantined); their groups with
+values agree, and `VGN_CountName` passes. Repro: `scripts/corpus/repro/aggregate-over-nothing/` (`Count` passes;
+`Sum` and `JoinStrings` fail on the all-absent group alone).
+
+## F76 — In a groupBy, the sample variance and standard deviation of one value answer NULL, not 0
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 (stage 3). legend-engine's Pure
+`variance(numbers, isBiasCorrected)` is `if ($numbers->size() == 1, | 0, ...)`, and `varianceSample`,
+`stdDevSample` (its square root) and the population forms all go through it, so each is 0 over one value.
+legend-engine 4.145.0's DuckDB SQL is `VAR_SAMP` and `STDDEV_SAMP`, which are NULL over one value (`VAR_POP` and
+`STDDEV_POP` are 0 there, and agree). Pinned by `stress::VGS_VarianceSampleQuantity` and `VGS_StdDevSampleQuantity`
+(quarantined), whose segment A holds one row; `VG_` and `VGN_` of both, over groups of six and nine, pass. Repro:
+`scripts/corpus/repro/sample-variance-of-one/` (`Population` passes; `Sample` fails on the group of one).

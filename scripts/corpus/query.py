@@ -110,6 +110,25 @@ class Apply:
     through_map: bool = False
 
 
+class Agg(tuple):
+    """An aggregate column of a groupBy: (result alias, source alias, function), as every generator before Phase 4
+    writes one, and since its stage 3 (the aggregates) carrying what a platform aggregate needs:
+
+      args    the aggregate's arguments after the collection: `percentile(0.5)`, `joinStrings(',')`
+      pair    a second source alias, for an aggregate over pairs: the map is `mapper($x.src, $x.pair)`
+      mapper  `rowMapper` or `wavgRowMapper` (meta::pure::functions::math::mathUtility), with `pair`
+      then    steps (query.Apply's) applied to the aggregate's result: `->greaterThan(t)` compares an inexact one
+      ret     the Pure type of the column, the last step's result
+
+    A tuple, so `for name, src, fn in spec.aggs` reads it as it reads the plain triples."""
+
+    def __new__(cls, name: str, src: str, fn: str, args=(), pair: str | None = None, mapper: str | None = None,
+                then=(), ret: str | None = None):
+        a = super().__new__(cls, (name, src, fn))
+        a.args, a.pair, a.mapper, a.then, a.ret = tuple(args), pair, mapper, tuple(then), ret
+        return a
+
+
 @dataclass
 class Pred:
     path: list[str]
@@ -228,7 +247,7 @@ class Spec:
     paradigm: str = "relation"
     # Query-level aggregation, applied AFTER project and BEFORE sort/limit.
     #   group_by  aliases of the projected columns to group on
-    #   aggs      (result alias, source alias, 'count'|'sum'|'max'|'min')
+    #   aggs      (result alias, source alias, 'count'|'sum'|'max'|'min'), or an Agg
     # Only the keys and the aggregates survive; every other projected column is dropped,
     # which is what groupBy means and a common way to write a query that silently loses
     # a column you thought you were selecting.

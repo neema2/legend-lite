@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from decimal import Decimal as D
 
 import oracle
-from query import Apply, DateArg, DateTimeArg, EnumArg, Pred, Proj, Spec
+from query import Agg, Apply, DateArg, DateTimeArg, EnumArg, Pred, Proj, Spec
 
 ROOT = "typedvalues::TypedValue"
 MAPPING = "stress::AllMapping"
@@ -258,12 +258,182 @@ def build(c, tables) -> list[Spec]:
             flt = Pred([req], cut[0], cut[1], apply=direct)
         out.append(_spec(f"VF_{case.key}", f"{fns} over the required `{req}`, in a filter.",
                          [Proj("r", [req])], [flt]))
+    return out + build_aggregates(c, tables)
+
+
+# ---- stage 3: aggregates in a groupBy
+#
+# `project(~[k: <key>, v: <value>])->groupBy(~[k], ~[r: x|$x.v : agg|$agg->f(args)])->sort(~k->ascending())`, each
+# aggregate as legend-pure defines it (or legend-engine's Pure, core_functions_standard/math/aggregator), through
+# the oracle's _REDUCERS:
+#
+#   VG_   over a required property, keyed on `active` (nine rows and six): every boundary value of the column
+#   VGN_  over the optional property. An aggregate Pure defines over an empty collection is keyed on `segment`,
+#         whose group A holds TV-02 alone, the row absent in every optional column, so A's values are all absent:
+#         sum is 0 there, count 0, joinStrings '', max, min, first, last and percentile absent. An aggregate Pure
+#         fails on over nothing (average, median, the variances and standard deviations) is keyed on `active`,
+#         whose two groups each hold absent and present values: the absent ones are ignored
+#   VGS_  a sample variance or standard deviation over a required property keyed on `segment`: over A's one value
+#         Pure's variance is 0 (`if ($numbers->size() == 1, | 0, ...)`)
+#
+# An aggregate over pairs (maxBy, minBy, wavg, the covariances, corr) maps them with rowMapper or wavgRowMapper, over
+# two required properties: an absent side misaligns rowMapper's collections, which legend-engine's own PCT for
+# covarSample says the platform does not handle. An inexact result (a mean of non-dyadic values, a variance, a
+# correlation: F60's lesson) is compared in the reducer against a threshold its values clear by a margin,
+# `->greaterThan(t)`, never projected raw. mode is over `metric`, whose groups each have one most frequent value:
+# Pure's mode is the smallest of the most frequent, and a database's choice among a tie is its own.
+
+KEY_ACTIVE = ("k", ["active"])
+KEY_SEGMENT = ("k", ["segment"])
+METRIC = ("metric", "metricOpt")
+PAIR_RATE_METRIC = ("rate", "metric")
+PAIR_NAME_QUANTITY = ("name", "quantity")
+
+# The aggregates Pure defines over an empty collection (oracle._REDUCERS): their VGN_ is keyed on `segment`.
+TOTAL = {"count", "sum", "max", "min", "first", "last", "percentile", "joinStrings"}
+
+
+@dataclass(frozen=True)
+class GCase:
+    """One aggregate over `subject` (required, optional) or over a `pair` of required properties. `ret` is its
+    Pure type; `optional`: whether a VGN_ is written; `singleton`: whether a VGS_ is."""
+    key: str
+    fn: str
+    subject: tuple | None
+    ret: str
+    args: tuple = ()
+    pair: tuple | None = None
+    mapper: str | None = None
+    inexact: bool = False
+    optional: bool = True
+    singleton: bool = False
+
+
+AGG_CASES = [
+    GCase("CountName", "count", STRING, "Integer"),
+    GCase("SumQuantity", "sum", INTEGER, "Integer"),
+    GCase("SumRate", "sum", FLOAT, "Float"),
+    GCase("SumAmount", "sum", DECIMAL, "Decimal"),
+    GCase("AverageQuantity", "average", INTEGER, "Float"),
+    GCase("AverageRate", "average", FLOAT, "Float"),
+    GCase("AverageAmount", "average", DECIMAL, "Float", inexact=True),
+    GCase("MaxQuantity", "max", INTEGER, "Integer"),
+    GCase("MaxRate", "max", FLOAT, "Float"),
+    GCase("MaxAmount", "max", DECIMAL, "Decimal"),
+    GCase("MaxValueDate", "max", DATE, "Date"),
+    GCase("MaxTradeDate", "max", STRICT_DATE, "StrictDate"),
+    GCase("MaxStampedAt", "max", DATE_TIME, "DateTime"),
+    GCase("MinQuantity", "min", INTEGER, "Integer"),
+    GCase("MinRate", "min", FLOAT, "Float"),
+    GCase("MinAmount", "min", DECIMAL, "Decimal"),
+    GCase("MinValueDate", "min", DATE, "Date"),
+    GCase("MinTradeDate", "min", STRICT_DATE, "StrictDate"),
+    GCase("MinStampedAt", "min", DATE_TIME, "DateTime"),
+    GCase("MedianQuantity", "median", INTEGER, "Float"),
+    GCase("MedianRate", "median", FLOAT, "Float"),
+    GCase("ModeMetric", "mode", METRIC, "Number", optional=False),
+    GCase("StdDevPopulationQuantity", "stdDevPopulation", INTEGER, "Float", inexact=True),
+    GCase("StdDevSampleQuantity", "stdDevSample", INTEGER, "Float", inexact=True, singleton=True),
+    GCase("VariancePopulationQuantity", "variancePopulation", INTEGER, "Float", inexact=True),
+    GCase("VarianceSampleQuantity", "varianceSample", INTEGER, "Float", inexact=True, singleton=True),
+    GCase("StdDevPopulationRate", "stdDevPopulation", FLOAT, "Float", inexact=True),
+    GCase("StdDevSampleRate", "stdDevSample", FLOAT, "Float", inexact=True),
+    GCase("VariancePopulationRate", "variancePopulation", FLOAT, "Float", inexact=True),
+    GCase("VarianceSampleRate", "varianceSample", FLOAT, "Float", inexact=True),
+    GCase("PercentileQuantity", "percentile", INTEGER, "Number", args=(0.5,)),
+    GCase("PercentileRate", "percentile", FLOAT, "Number", args=(0.5,)),
+    GCase("JoinStringsName", "joinStrings", STRING, "String", args=(",",)),
+    GCase("FirstName", "first", STRING, "String"),
+    GCase("LastName", "last", STRING, "String"),
+    GCase("MaxByName", "maxBy", None, "String", pair=PAIR_NAME_QUANTITY, mapper="rowMapper"),
+    GCase("MinByName", "minBy", None, "String", pair=PAIR_NAME_QUANTITY, mapper="rowMapper"),
+    GCase("WavgRate", "wavg", None, "Float", pair=PAIR_RATE_METRIC, mapper="wavgRowMapper", inexact=True),
+    GCase("CovarPopulationRate", "covarPopulation", None, "Number", pair=PAIR_RATE_METRIC, mapper="rowMapper",
+          inexact=True),
+    GCase("CovarSampleRate", "covarSample", None, "Number", pair=PAIR_RATE_METRIC, mapper="rowMapper",
+          inexact=True),
+    GCase("CorrRate", "corr", None, "Number", pair=PAIR_RATE_METRIC, mapper="rowMapper", inexact=True),
+]
+
+
+def _gspec(name: str, doc: str, key: tuple, value: str, case: GCase, then=(), ret=None, pair_value=None) -> Spec:
+    s = Spec(f"stress::{name}", f"/stress/vocab/{name.lower()}", doc, ROOT)
+    s.projections = [Proj(key[0], key[1]), Proj("v", [value])]
+    pair = None
+    if pair_value is not None:
+        s.projections.append(Proj("w", [pair_value]))
+        pair = "w"
+    s.group_by = [key[0]]
+    s.aggs = [Agg("r", "v", case.fn, case.args, pair=pair, mapper=case.mapper, then=then, ret=ret or case.ret)]
+    s.sort = (key[0], False)
+    s.mapping = MAPPING
+    return s
+
+
+def _group_threshold(values: list) -> float | None:
+    """For inexact results, one per group: a short decimal strictly between two adjacent values, near the middle,
+    far enough from each that no platform's last bit moves a group across it."""
+    xs = sorted(set(float(v) for v in values if v is not None))
+    order = sorted(range(1, len(xs)), key=lambda i: abs(i - len(xs) / 2))
+    for i in order:
+        lo, hi = xs[i - 1], xs[i]
+        if hi - lo < 1e-6 * max(abs(lo), abs(hi), 1.0):
+            continue
+        margin = 1e-7 * max(abs(lo), abs(hi), 1.0)
+        for digits in range(-12, 7):
+            t = round((lo + hi) / 2, digits)
+            if lo + margin < t < hi - margin:
+                return float(t)
+    return None
+
+
+def _grouped(c, tables, name: str, doc: str, key: tuple, value: str, case: GCase, pair_value=None) -> Spec:
+    """The service; an inexact aggregate compares against a threshold between its groups' values."""
+    s = _gspec(name, doc, key, value, case, pair_value=pair_value)
+    if not case.inexact:
+        return s
+    values = [r["r"] for r in oracle.evaluate(c, s, tables)]
+    t = _group_threshold(values)
+    if t is None:
+        raise SystemExit(f"vocab: no threshold separates {name}'s groups: {values}")
+    return _gspec(name, f"{doc} Compared with {t!r}, as its value is inexact.", key, value, case,
+                  then=(("greaterThan", (t,)),), ret="Boolean", pair_value=pair_value)
+
+
+def build_aggregates(c, tables) -> list[Spec]:
+    import emit
+
+    out = []
+    for case in AGG_CASES:
+        call = f"`{case.fn}({', '.join(emit._literal(a) for a in case.args)})`"
+        if case.pair is not None:
+            a, b = case.pair
+            out.append(_grouped(c, tables, f"VG_{case.key}",
+                                f"{call} over {case.mapper}(`{a}`, `{b}`), grouped by `active`.",
+                                KEY_ACTIVE, a, case, pair_value=b))
+            continue
+        req, opt = case.subject
+        out.append(_grouped(c, tables, f"VG_{case.key}", f"{call} over the required `{req}`, grouped by `active`.",
+                            KEY_ACTIVE, req, case))
+        if case.optional:
+            total = case.fn in TOTAL
+            key = KEY_SEGMENT if total else KEY_ACTIVE
+            why = ("whose group A holds only absent values" if total
+                   else "whose groups each hold absent and present values")
+            out.append(_grouped(c, tables, f"VGN_{case.key}",
+                                f"{call} over the optional `{opt}`, grouped by `{key[1][0]}`, {why}.",
+                                key, opt, case))
+        if case.singleton:
+            out.append(_grouped(c, tables, f"VGS_{case.key}",
+                                f"{call} over the required `{req}`, grouped by `segment`, whose group A holds one "
+                                f"value: Pure's variance of one value is 0.", KEY_SEGMENT, req, case))
     return out
 
 
 def check(c, specs: list[Spec], tables) -> list[str]:
-    """Every filter keeps between a fifth and four fifths of the rows, and every projection through map meets an absent
-    value (the point of VN_)."""
+    """Every filter keeps between a fifth and four fifths of the rows, every projection through map meets an absent
+    value (the point of VN_), every groupBy has two groups or more, and each grouped aggregate over an optional value
+    meets the absent values its key is chosen for: segment A's all absent, or a group with both."""
     problems = []
     for s in specs:
         rows = oracle.evaluate(c, s, tables)
@@ -271,4 +441,24 @@ def check(c, specs: list[Spec], tables) -> list[str]:
             problems.append(f"{s.short}: its filter keeps {len(rows)} of 15 rows")
         if s.short.startswith("VN_") and not any(r["r"] is None for r in rows):
             problems.append(f"{s.short}: no absent value reaches the map")
+        if s.short.startswith("VG") and len(rows) < 2:
+            problems.append(f"{s.short}: {len(rows)} group(s)")
+        if s.short.startswith("VGN_"):
+            flat = oracle.evaluate(c, _ungrouped(s), tables)
+            groups: dict = {}
+            for r in flat:
+                groups.setdefault(r["k"], []).append(r["v"])
+            if s.projections[0].path == ["segment"]:
+                met = any(all(v is None for v in vs) for vs in groups.values())
+            else:
+                met = any(None in vs and any(v is not None for v in vs) for vs in groups.values())
+            if not met:
+                problems.append(f"{s.short}: no group meets the absent values its key is chosen for")
     return problems
+
+
+def _ungrouped(s: Spec) -> Spec:
+    """The projection a groupBy service groups."""
+    u = Spec(s.name, s.pattern, s.doc, s.root)
+    u.projections, u.mapping = s.projections, s.mapping
+    return u
