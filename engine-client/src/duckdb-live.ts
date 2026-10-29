@@ -357,8 +357,10 @@ export class DuckDbLiveReader implements LiveReader {
   readonly #release: () => void;
   /** The results read lately, by their SQL: each followed once read in the view followed last, or later. */
   readonly #kept = new Map<string, Kept>();
-  /** The epoch of the view followed last; null before the first: nothing is followed until a view is. */
+  /** The epoch of the view followed last; null before the first, and while it rests: nothing is followed then. */
   #floor: number | null = null;
+  /** The view's epoch it followed when it rested (`rest`): followed again once its grid runs again (`execute`). */
+  #rested: number | null = null;
   readonly #listeners = new Set<(e: LiveEvent) => void>();
   #closed = false;
 
@@ -372,6 +374,13 @@ export class DuckDbLiveReader implements LiveReader {
   /** A planned query's rows: a kept result still fresh answers it (no run: elapsed 0), else it runs and is kept. */
   async execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable> {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+    // ITS GRID RUNNING AGAIN, its sheet shown: what it followed when it rested is followed again. The grid's run is a
+    // tick of the view it has -- no view lands, so no `follow` is told (the user, 2026-10-29: the desk in the tab
+    // "stops ticking if you change tabs and come back": every grid left resting for good)
+    if (this.#floor === null && this.#rested !== null) {
+      this.#floor = this.#rested;
+      this.#rested = null;
+    }
     const kept = this.#kept.get(plan.sql);
     if (kept !== undefined && this.#fresh(kept)) {
       kept.epoch = Math.max(kept.epoch, epoch);
@@ -396,6 +405,7 @@ export class DuckDbLiveReader implements LiveReader {
   /** The view of `epoch` landed: what it read, and anything read since, followed; what only older views read let go. */
   async follow(epoch: number): Promise<void> {
     this.#floor = epoch;
+    this.#rested = null;
     for (const [sql, kept] of this.#kept) if (kept.epoch < epoch) this.#kept.delete(sql);
   }
 
@@ -405,11 +415,13 @@ export class DuckDbLiveReader implements LiveReader {
   }
 
   /**
-   * Its grid not shown (a sheet hidden): nothing followed until its next view (`follow`), so an emit runs none of its
-   * results -- on the tab's one DuckDB a hidden sheet's grids would otherwise run at every emit (measured 2026-10-27, the
-   * desk in the tab: every tab visited, an emit 7.1 s). Its kept results stay; a run of one gone stale runs it again.
+   * Its grid not shown (a sheet hidden): nothing followed until its grid runs again (`execute`, its sheet shown) or its
+   * next view (`follow`), so an emit runs none of its results -- on the tab's one DuckDB a hidden sheet's grids would
+   * otherwise run at every emit (measured 2026-10-27, the desk in the tab: every tab visited, an emit 7.1 s). Its kept
+   * results stay; a run of one gone stale runs it again.
    */
   rest(): void {
+    if (this.#floor !== null) this.#rested = this.#floor;
     this.#floor = null;
   }
 

@@ -130,20 +130,22 @@ describe('the live DuckDB', () => {
     await live.close();
   });
 
-  it('a reader whose grid is not shown rests: an emit runs none of its results, until its grid runs and follows again', async () => {
+  it('a reader whose grid is not shown rests: an emit runs none of its results, until its grid runs again', async () => {
     // 2026-10-27, the desk in the tab: every tab visited, every hidden grid ran at each emit (an emit 7.1 s)
     live = await opened();
     const { reader, told } = await following(live, COUNT);
     const readerSent = sent[1]!;
     reader.rest();
+    assert.equal(reader.following, 0, 'resting, it follows nothing');
     const before = readerSent.length;
     await live.append('PRINTS', ...prints(0, 3));
     await live.emit();
     assert.equal(told.length, 0, 'a resting reader is told nothing');
     assert.equal(readerSent.slice(before).filter((s) => s.startsWith('SELECT')).length, 0, 'nothing of it ran at the emit');
-    // its sheet shown again: the grid runs (its kept result stale, so run), then its view followed
-    assert.equal(value(await reader.execute(COUNT, 2)), 3);
-    await reader.follow(2);
+    // its sheet shown again: the grid runs -- a tick of the view it had, no view landing and no `follow` told (the
+    // user, 2026-10-29: "stops ticking if you change tabs and come back") -- and it follows again what it followed
+    assert.equal(value(await reader.execute(COUNT, 1)), 3);
+    assert.equal(reader.following, 1, 'running again, it follows again');
     await live.append('PRINTS', ...prints(3, 2));
     await live.emit();
     assert.equal(told.length, 1, 'following again, told');
