@@ -53,7 +53,7 @@ dateDiff	scalar	ok
 datePart	scalar	ok
 dayOfMonth	scalar	ok
 dayOfWeek	scalar	ok
-dayOfWeekNumber	scalar	ok
+dayOfWeekNumber	scalar	DISAGREES with the oracle -- the engine's: F74, dayOfWeekNumber counts from Sunday
 dayOfYear	scalar	DISAGREES with the oracle -- the engine's: F35, DuckDB's day() is the day of the month
 decodeBase64	scalar	ok
 denseRank	relation	ok
@@ -117,7 +117,7 @@ hashCode	scalar	RUNS; no oracle value -- Unsupported: dynafunction 'hashCode' is
 hour	scalar	ok
 if	scalar	ok
 in	collection	lizing test suite session for 'Svc_suite' <- caused by: Asse
-indexOf	scalar	ok
+indexOf	scalar	DISAGREES with the oracle -- the engine's: F72, indexOf is SQL's strpos, one-based with 0 for a miss
 init	collection	unctions: len(VARCHAR) -> BIGINT len(BIT) -> BIGINT len(ANY[
 isAlphaNumeric	scalar	ok
 isDistinct	aggregate	ok

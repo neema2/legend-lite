@@ -2124,7 +2124,9 @@ value: `$x.s->map(v|$v + 'z')` gives `'z'` (DuckDB's `concat` reads NULL as ''),
 `$x.s->map(v|$v + 'z') == 'z'` keeps the row, where Pure's `[] == 'z'` is false; `map(v|$v->regexpIndexOf('p'))`
 gives `-1` (the lowering's `CASE WHEN regexp_matches(...) ... ELSE -1`); and `map(v|$v->hashCode())->isEmpty()` is
 false, the hash of a NULL being a number. A function whose SQL propagates the NULL (`length`, `toUpper`) gives the
-right answer. `->toOne()->f()` lowers identically, where Pure would raise. Repro:
+right answer. `->toOne()->f()` lowers identically, where Pure would raise. Pinned since Phase 4's stage 2 by
+`stress::VN_PlusString` and `VN_RegexpIndexOf` (quarantined), beside their `VP_` twins over the required
+property, which pass. Repro:
 `scripts/corpus/repro/map-over-absent/` (`Length` passes; `Append`, `AppendFilter`, `IndexOf` and `HashIsEmpty` fail).
 
 ## F69 — On DuckDB, `regexpIndexOf` reports where the matched text first occurs, not where the match is
@@ -2146,3 +2148,45 @@ string"), so this records it with a repro rather than discovers it. Repro:
 which answers `''` for no match, so `isEmpty()` is false, a filter on it drops the row, and a projected
 `->first()` is `''` where Pure has nothing. A match is right (`'abab'` gives `'ba'`). Repro:
 `scripts/corpus/repro/regexpextract-no-match/` (`Matches` passes; `NoMatchIsEmpty` and `NoMatchFilter` fail).
+
+## F71 — Integer arithmetic over an INTEGER column is 32-bit in the SQL
+
+**A failure where Pure has an answer.** Found 2026-10-28 by the improvement plan's Phase 4 (the function vocabulary,
+over `typedvalues::TypedValue`, whose `QUANTITY` is an `INTEGER` holding -2147483648 and 2147483647). legend-pure's
+`Integer` is a 64-bit value, so `abs(-2147483648)` is 2147483648, `2147483647 + 1` is 2147483648, and `floor(1e10)`
+is 10000000000. legend-engine 4.145.0 computes each in a 32-bit type and DuckDB raises: `Overflow on
+abs(-2147483648)`, `Overflow in addition of INT32 (2147483647 + 1)!`, and for `floor` over a `DOUBLE` a cast of
+10000000000.0 "out of range for the destination type INT32" -- the lowering casts `floor`'s result to `INTEGER`.
+`ceiling(1e10)` is not cast and is right. Pinned by `stress::VP_AbsInteger`, `VN_AbsInteger`, `VF_AbsInteger`,
+`VP_PlusInteger`, `VN_PlusInteger`, `VP_Floor`, `VN_Floor` and `VF_Floor` (quarantined); `VF_PlusInteger` passes.
+Repro: `scripts/corpus/repro/integer-arithmetic-32-bit/` (`Small` passes; `Abs`, `Plus` and `Floor` raise).
+
+## F72 — `indexOf` in a query is SQL's `strpos`: one-based, and 0 for a miss
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4. legend-pure defines `indexOf` as
+"the zero-based position of the first occurrence of `toFind` in `str`, or `-1` if it does not occur", so
+`'alpha'->indexOf('p')` is 2 and `'beta'->indexOf('z')` is -1. legend-engine 4.145.0 answers 3 and 0. The same
+query's `substring` is Pure's at the pin (F37's addendum), so two position functions of one query count from
+different bases. The oracle had read `indexOf` as `strpos` too, one-based with 0 for a miss, and the probes, which
+ran it in a property mapping, recorded agreement; it now reads legend-pure's definition. Pinned by `stress::VP_IndexOf`,
+`VN_IndexOf` and `VF_IndexOf` (quarantined). Repro: `scripts/corpus/repro/indexof-strpos/` (both services fail).
+
+## F73 — `round` takes a tie away from zero, where legend-pure rounds it to the even neighbour
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4. legend-pure's
+`round(Number[1]):Integer[1]`: "Rounding is half-even ... `17.5` rounds to `18` but `16.5` rounds to `16`".
+legend-engine 4.145.0's DuckDB SQL is `round()`, which takes a tie away from zero: 0.5 gives 1, 2.5 gives 3 and 10.5
+gives 11, where Pure gives 0, 2 and 10 (-1.5 gives -2 either way). The oracle had refused every half-way value, as
+"dialects differ" there; a query asks legend-pure's question, so it now answers it. Pinned by `stress::VP_Round` and
+`VN_Round` (quarantined); `VF_Round`, whose comparand no tie reaches, passes. Repro:
+`scripts/corpus/repro/round-half-even/` (`NotATie` passes; `Ties` fails).
+
+## F74 — `dayOfWeekNumber` counts from Sunday in the SQL, where legend-pure counts from Monday
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4. legend-pure's one-argument
+`dayOfWeekNumber(Date[1]):Integer[1]` is ISO: its own tests have `DayOfWeek.Monday->dayOfWeekNumber()` 1 and Sunday
+7, and its Sunday-first overload is `dayOfWeekNumber($day)->mod(7) + 1`. legend-engine 4.145.0's DuckDB SQL is
+`dayofweek(d) + 1`, written for "Sunday = 0, Saturday = 6 >> we need from 1 to 7", so a Monday is 2 and a Sunday 1.
+The oracle had followed the engine's lowering, by its own comment, which made the agreement circular; it now reads
+legend-pure's definition. Pinned by `stress::VP_DayOfWeekNumber`, `VN_DayOfWeekNumber` and `VF_DayOfWeekNumber`
+(quarantined). Repro: `scripts/corpus/repro/dayofweeknumber-sunday-first/`.

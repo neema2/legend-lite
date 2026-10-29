@@ -1,0 +1,174 @@
+// F71: Integer arithmetic over an INTEGER column is 32-bit in the SQL, where Pure's Integer is 64-bit.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/integer-arithmetic-32-bit/model.pure \
+//       --testable=demo::Small --testable=demo::Abs --testable=demo::Plus --testable=demo::Floor
+//
+// R2 holds INTEGER's least value and its greatest, R3 a Float of 1e10. legend-pure's Integer is a 64-bit (Java long)
+// value, so abs(-2147483648) is 2147483648, 2147483647 + 1 is 2147483648 and floor(1e10) is 10000000000.
+// legend-engine 4.145.0 computes each in the column's own 32-bit type, and DuckDB raises: "Overflow on
+// abs(-2147483648)", "Overflow in addition of INT32", and for floor a cast of 1e10 "out of range" for INTEGER.
+// Small, the same arithmetic on R1's small values, passes; the other three fail with the error, not a value.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  s: String[1];
+  i: Integer[1];
+  f: Float[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, S VARCHAR(20), I INTEGER, F DOUBLE)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    s: [demo::DB]T.S,
+    i: [demo::DB]T.I,
+    f: [demo::DB]T.F
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,S,I,F\n' +
+      'R1,a,7,2.5\n' +
+      'R2,b,-2147483648,1.0\n' +
+      'R3,c,2147483647,10000000000.0\n';
+  }#
+}
+
+###Service
+Service demo::Small
+{
+  pattern: '/demo/small';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R1')->project(~[id:x|$x.id, a:x|$x.i->abs(), p:x|$x.i + 1, f:x|$x.f->floor()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Small_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","a":7,"p":8,"f":2} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Abs
+{
+  pattern: '/demo/abs';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R2')->project(~[id:x|$x.id, r:x|$x.i->abs()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Abs_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R2","r":2147483648} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Plus
+{
+  pattern: '/demo/plus';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R3')->project(~[id:x|$x.id, r:x|$x.i + 1])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Plus_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R3","r":2147483648} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Floor
+{
+  pattern: '/demo/floor';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R3')->project(~[id:x|$x.id, r:x|$x.f->floor()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Floor_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R3","r":10000000000} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

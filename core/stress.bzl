@@ -23,6 +23,7 @@ STRESS_GENERATED = {
     "98-combination-execution.pure": "stress",
     "99-intraday-services.pure": "stress",
     "99-typed-services.pure": "stress",
+    "99-vocab-services.pure": "stress",
 }
 
 LINKED_PROJECTS = [

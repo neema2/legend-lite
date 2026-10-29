@@ -51,6 +51,7 @@ py_library(
         "taxonomy.py",
         "tomany.py",
         "views.py",
+        "vocab.py",
     ],
     # the modules import each other by bare name (`import model`)
     imports = ["."],
@@ -95,6 +96,7 @@ _BUILD_MODULES = [
     "taxonomy",
     "tomany",
     "views",
+    "vocab",
 ]
 
 _DENSE_MODULES = [

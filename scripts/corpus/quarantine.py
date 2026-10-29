@@ -227,6 +227,49 @@ ENGINE_QUARANTINE.update({
     for name in ("TP_Grade_Ne_Root", "TP_Grade_Ne_Hop", "TM_Grade_NotIn_Hop")
 })
 
+# The function vocabulary's services (the improvement plan's Phase 4, vocab.py), each written with legend-pure's answer
+# and failing on legend-engine 4.145.0 for a recorded reason; the sibling services of each function that pass are noted.
+#
+# F35 -- `dayOfYear` lowers to DuckDB's day(), the day of the month, in a query as in a mapping. Pinned minimally by
+# 76-dayofyear.pure.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_DayOfYear": ("F35", "dayOfYear answers the day of the month") for v in "PNF"
+})
+# F38 -- a StrictDate result of date arithmetic renders as a DateTime; the values are right, so the filters pass
+# (VF_FirstDayOfWeek, VF_AdjustDays). Pinned minimally by 78-firstday-types.pure.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_{k}": ("F38", "a StrictDate rendered as a DateTime")
+    for v in "PN" for k in ("FirstDayOfWeek", "AdjustDays")
+})
+# F68 -- through `map`, an absent value reaches a NULL-tolerant SQL function and comes back a value: `+ '!'` gives
+# '!', regexpIndexOf -1. The projections over the required property pass. Minimized in repro/map-over-absent/.
+ENGINE_QUARANTINE.update({
+    f"stress::VN_{k}": ("F68", "map over an absent value applies the function to NULL")
+    for k in ("PlusString", "RegexpIndexOf")
+})
+# F71 -- Integer arithmetic over an INTEGER column is 32-bit in the SQL: abs(-2147483648) and 2147483647 + 1 overflow,
+# and floor(1e10) is cast to INT32. Pure's Integer is 64-bit. VF_PlusInteger passes. Minimized in
+# repro/integer-arithmetic-32-bit/.
+ENGINE_QUARANTINE.update({
+    **{f"stress::V{v}_AbsInteger": ("F71", "abs over INTEGER's least value overflows 32 bits") for v in "PNF"},
+    **{f"stress::V{v}_PlusInteger": ("F71", "+ over INTEGER's greatest value overflows 32 bits") for v in "PN"},
+    **{f"stress::V{v}_Floor": ("F71", "floor's result is cast to a 32-bit integer") for v in "PNF"},
+})
+# F72 -- `indexOf` in a query is SQL's strpos: one-based, and 0 for a miss. Minimized in repro/indexof-strpos/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_IndexOf": ("F72", "indexOf is one-based with 0 for a miss") for v in "PNF"
+})
+# F73 -- `round` takes a tie away from zero, where legend-pure rounds it to the even neighbour. VF_Round's comparand
+# meets no tie and passes. Minimized in repro/round-half-even/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_Round": ("F73", "round takes a tie away from zero, not to the even neighbour") for v in "PN"
+})
+# F74 -- `dayOfWeekNumber` is Sunday-first in the SQL (DuckDB's dayofweek + 1), where legend-pure's is ISO, Monday
+# 1. Minimized in repro/dayofweeknumber-sunday-first/.
+ENGINE_QUARANTINE.update({
+    f"stress::V{v}_DayOfWeekNumber": ("F74", "dayOfWeekNumber counts from Sunday, not Monday") for v in "PNF"
+})
+
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the
 # same mapping and the same serialization format, so the JSON TYPE of `values` depends on

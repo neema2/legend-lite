@@ -350,7 +350,25 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
          for n in [c.class_filter[k]] if n in c.multigrain])
     _query_features(specs, quarantined, add)
     _milestoning_features(c, specs, quarantined, add)
+    _vocabulary_features(specs, quarantined, add)
     return out
+
+
+def _vocabulary_features(specs, quarantined: set[str], add) -> None:
+    """Platform functions applied in a query (the improvement plan's Phase 4, vocab.py), executed when a passing
+    service carries them -- held here so a change that stops executing one fails the build (the plan's rule 6)."""
+    live = [s for s in specs if s.name not in quarantined]
+
+    def applied(s):
+        return ([p.apply for p in s.projections if getattr(p, "apply", None) is not None],
+                [a.apply for a in query.atoms(s.filters) if getattr(a, "apply", None) is not None])
+
+    add("Q4  function in a projection", [s.short for s in live if applied(s)[0]])
+    add("Q4  function in a filter", [s.short for s in live if applied(s)[1]])
+    add("Q4  function through map", [s.short for s in live
+                                     if any(a.through_map for a in applied(s)[0] + applied(s)[1])])
+    add("Q4  function chain", [s.short for s in live
+                               if any(len(a.steps) > 1 for a in applied(s)[0] + applied(s)[1])])
 
 
 def _query_features(specs, quarantined: set[str], add) -> None:
@@ -515,13 +533,15 @@ def all_specs(c: model.Corpus):
     import intraday
     import literals
     import spread
+    import vocab
 
     base = base_specs(c)
     tables = flat.all_tables(c)
     seeded = literals.walked(tables)
     # The typed and intraday services after spread's, which must not see them: spread measures what
     # the walking generators leave uncovered (literals.FIXTURE_TABLES says why the packs are apart).
-    return base + spread.build(c, seeded, base) + literals.build() + intraday.build()
+    return (base + spread.build(c, seeded, base) + literals.build() + intraday.build()
+            + vocab.build(c, tables))
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.
@@ -552,6 +572,10 @@ BASELINE = {
     "M3  milestoning date parameter", "M3  allVersions", "M3  allVersionsInRange",
     "M3  dated navigation", "M3  milestoning date from the row", "M3  navigation AllVersions",
     "M3  date propagation",
+    # 2026-10-28, the improvement plan's Phase 4, stage 2 (vocab.py): platform functions applied in a query, each
+    # executed by passing services on legend-engine 4.145.0.
+    "Q4  function in a projection", "Q4  function in a filter", "Q4  function through map",
+    "Q4  function chain",
 }
 
 

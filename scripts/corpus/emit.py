@@ -359,6 +359,22 @@ def _literal(v) -> str:
     return repr(v)
 
 
+_INFIX = ("+", "-", "*", "/")
+
+
+def _applied(subject: str, apply) -> str:
+    """`subject` with an Apply's functions applied (Phase 4): `$x.p->f(a)->g()`, an operator infix and
+    parenthesised, and the whole chain inside `map` for an optional value."""
+    def chain(t: str) -> str:
+        for fn, args in apply.steps:
+            if fn in _INFIX:
+                t = f"({t} {fn} {_literal(args[0])})"
+            else:
+                t = f"{t}->{fn}({', '.join(_literal(a) for a in args)})"
+        return t
+    return f"{subject}->map(v|{chain('$v')})" if apply.through_map else chain(subject)
+
+
 def _condition(f) -> str:
     """One filter conjunct as Pure text: a comparison, a bare boolean, a membership or absence
     test, or a tree of them (query.And, Or, Not, ParamEmpty)."""
@@ -374,6 +390,8 @@ def _condition(f) -> str:
     if isinstance(f, query.ParamEmpty):
         return f"${f.name}->isEmpty()"
     path = f"${VAR}.{_path(f.path)}"
+    if getattr(f, "apply", None) is not None:
+        path = _applied(path, f.apply)
     # `is`/`not` are the BARE boolean forms -- `$x.flag` and `!$x.flag` -- with no
     # comparison. They exist because comparing a boolean to a boolean literal with `==`
     # is the one filter shape the engine cannot lower: `$x.isFinal == false` over a
@@ -489,6 +507,8 @@ def query_text(spec: Spec) -> str:
         if p.func:
             inner = ", ".join(_literal(a) for a in p.args)
             return f"${VAR}->{p.func}({inner})"
+        if getattr(p, "apply", None) is not None:
+            return _applied(f"${VAR}.{_path(p.path)}", p.apply)
         return (f"${VAR}.{_path(p.path)}"
                 + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
                 + (f"->{p.agg}()" if p.agg else ""))

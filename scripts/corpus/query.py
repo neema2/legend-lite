@@ -96,12 +96,29 @@ class Versions:
     end: object = None
 
 
+@dataclass(frozen=True)
+class Apply:
+    """Platform functions applied in a QUERY to the value at a path (the improvement plan's Phase 4):
+    `$x.path->f(a)->g(b)`, each step a (function, arguments) pair, or an operator written infix
+    (`+`, `-`, `*`, `/`) with its right operand. `ret` is the last step's Pure return type.
+
+    `through_map` writes the chain inside `map`, `$x.path->map(v|$v->f(a))`: how Pure applies a function
+    to an optional value. legend-pure's map over an empty collection is empty, so an absent value stays
+    absent whatever the function (the oracle's _apply); the engine's SQL does not always agree (F68)."""
+    steps: tuple
+    ret: str
+    through_map: bool = False
+
+
 @dataclass
 class Pred:
     path: list[str]
     op: str
     # A literal; a list of literals or a Param for 'in'; nothing for 'isEmpty' / 'isNotEmpty'.
     value: object = None
+    # Functions applied to the path's value before it is compared (Phase 4): the left operand is the
+    # result. With op 'is' or 'not' the result is a Boolean and the filter itself.
+    apply: Apply | None = None
 
 
 # A predicate TREE (the improvement plan's Phase 1). A spec's `filters` is still a list of
@@ -151,6 +168,8 @@ class Proj:
     args: list = field(default_factory=list)   # arguments to a QUALIFIED property
     # A standalone function called extension-style: `$x->stress::rules::isBuy()`.
     func: str | None = None
+    # Platform functions applied to the path's value (Phase 4): the column is their result.
+    apply: Apply | None = None
 
 
 @dataclass

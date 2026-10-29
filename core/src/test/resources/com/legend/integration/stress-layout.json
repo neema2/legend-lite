@@ -12,7 +12,8 @@
     "97-hier-execution.pure": "stress",
     "98-combination-execution.pure": "stress",
     "99-intraday-services.pure": "stress",
-    "99-typed-services.pure": "stress"
+    "99-typed-services.pure": "stress",
+    "99-vocab-services.pure": "stress"
   },
   "linked_projects": [
     "core-types",

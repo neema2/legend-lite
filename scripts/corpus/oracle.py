@@ -745,6 +745,12 @@ def _pad(vals, left):
     return pad + s if left else s + pad
 
 
+def _round_half_even(v):
+    """legend-pure's `round(Number[1]):Integer[1]`: the nearest integer, a tie to the even one."""
+    from decimal import Decimal, ROUND_HALF_EVEN
+    return int(Decimal(str(v)).quantize(Decimal(1), rounding=ROUND_HALF_EVEN))
+
+
 def _substring(vals):
     """legend-pure's `substring(str, start[, end])`: zero-based, the end exclusive. A position
     outside the string fails in Pure (Java's String.substring), so the oracle refuses it."""
@@ -997,7 +1003,9 @@ IMPL = {
     "pow": _propagating(exactmath.pow, 2),
     "toDecimal": _propagating(lambda v: float(v), 1),
     "toFloat": _propagating(lambda v: float(v), 1),
-    "toString": _propagating(lambda v: str(v), 1),
+    # A Boolean is `true`/`false` in Pure, where Python's str() capitalises: the improvement plan's Phase 4
+    # found it (2026-10-28), the first service to project one.
+    "toString": _propagating(lambda v: ("true" if v else "false") if isinstance(v, bool) else str(v), 1),
     # math.cbrt, not `x ** (1/3)`. The exponent form is inexact by construction -- 1/3 is
     # not representable, so it computes a slightly wrong power of a correct base and lands
     # one ulp out (362.5 -> ...043 where the true cube root is ...044). This is not deferring
@@ -1056,20 +1064,16 @@ IMPL = {
     "divide": _guarded(lambda a, b: a / b, lambda a, b: b != 0,
                        "division by zero is an error in some dialects and NULL in others",
                        arity=2),
-    # mod/rem disagree between dialects only on NEGATIVE operands, so those are refused and
-    # the non-negative case -- which is unambiguous -- is implemented.
-    "mod": _guarded(lambda a, b: int(a) % int(b), lambda a, b: a >= 0 and b > 0,
-                    "the sign of the result for negative operands differs by dialect",
-                    arity=2),
-    "rem": _guarded(lambda a, b: math.fmod(a, b), lambda a, b: a >= 0 and b > 0,
-                    "the sign of the result for negative operands differs by dialect",
-                    arity=2),
-    # A half-way value rounds half-up in some dialects and half-even in others; every other
-    # value has one answer.
-    "round": _guarded(lambda v: int(math.floor(v + 0.5)),
-                      lambda v: abs(v - math.floor(v) - 0.5) > 1e-9,
-                      "a half-way value rounds half-up in some dialects and half-even in "
-                      "others"),
+    # mod, rem and round as legend-pure defines them (the improvement plan's Phase 4, 2026-10-28): `mod`
+    # "as defined mathematically. The result is never negative"; `rem` is the `%` of other languages, its
+    # sign the dividend's; `round(Number[1]):Integer[1]` is HALF-EVEN ("17.5 rounds to 18 but 16.5 rounds
+    # to 16"). Until then the oracle refused negative operands and half-way values, as dialects differ
+    # there; a query asks legend-pure's question, so the dialect's answer is the engine's to match.
+    "mod": _guarded(lambda a, b: a % abs(b), lambda a, b: b != 0, "mod by zero", arity=2),
+    "rem": _guarded(lambda a, b: (math.fmod(a, b) if isinstance(a, float) or isinstance(b, float)
+                                  else (abs(a) % abs(b)) * (1 if a >= 0 else -1)),
+                    lambda a, b: b != 0, "rem by zero", arity=2),
+    "round": _propagating(_round_half_even, 1),
     "sin": _propagating(exactmath.sin, 1), "cos": _propagating(exactmath.cos, 1),
     "tan": _propagating(exactmath.tan, 1), "sinh": _propagating(exactmath.sinh, 1),
     "cosh": _propagating(exactmath.cosh, 1), "tanh": _propagating(exactmath.tanh, 1),
@@ -1086,15 +1090,12 @@ IMPL = {
     "monthNumber": _propagating(lambda d: _dt(d).month, 1),
     "dayOfMonth": _propagating(lambda d: _dt(d).day, 1),
     "dayOfYear": _propagating(lambda d: _dt(d).timetuple().tm_yday, 1),
-    # ISO weekday: Monday is 1. Stated because the alternative convention (Sunday first) is
-    # equally common and the signature does not say which.
-    # Sunday=1 .. Saturday=7, NOT ISO. The signature does not fix a convention and I picked
-    # ISO from habit; the engine picked the other one and says so where it lowers -- the
-    # DuckDB extension writes `dayofweek(d) + 1` with the comment "(Sunday = 0, Saturday = 6)
-    # >> we need from 1 to 7". A stated convention beats an assumed one, so this follows the
-    # engine here. It is the `concat` lesson again: where behaviour is a choice rather than a
-    # consequence, an implementation written from what the NAME means is a guess.
-    "dayOfWeekNumber": _propagating(lambda d: _dt(d).isoweekday() % 7 + 1, 1),
+    # ISO weekday, Monday 1 to Sunday 7, as legend-pure defines it: its own tests have
+    # `DayOfWeek.Monday->dayOfWeekNumber()` 1 and Sunday 7, and its Sunday-first overload is
+    # `dayOfWeekNumber($day)->mod(7) + 1`. Until 2026-10-28 this followed the ENGINE's DuckDB lowering,
+    # `dayofweek(d) + 1`, Sunday 1, which made agreement with it circular; the improvement plan's Phase 4
+    # restored legend-pure as the spec.
+    "dayOfWeekNumber": _propagating(lambda d: _dt(d).isoweekday(), 1),
     "weekOfYear": _propagating(lambda d: _dt(d).isocalendar()[1], 1),
     "quarterNumber": _propagating(lambda d: (_dt(d).month - 1) // 3 + 1, 1),
     "hour": _propagating(lambda d: _dt(d).hour, 1),
@@ -1323,10 +1324,11 @@ IMPL = {
     # engine answers Pure's in a query and SQL's in a property mapping (F37). A position outside
     # the string is an error in Pure (Java's String.substring), so it is refused, not clamped.
     "substring": lambda vals: _substring(vals),
-    # indexOf is ONE-BASED (SQL's strpos), which legend-pure's is not (zero-based, -1 on a miss).
-    # Left as the probes found it agreeing in a property mapping; the query position is Phase 4's.
+    # indexOf is ZERO-BASED, -1 on a miss, as legend-pure defines it ("The zero-based position of the
+    # first occurrence of `toFind` in `str`, or `-1` if it does not occur"). It was SQL's strpos, one-based
+    # with 0 for a miss, until 2026-10-28 (the improvement plan's Phase 4).
     "indexOf": lambda vals: (None if any(v is None for v in vals[:2]) else
-                             str(vals[0]).find(str(vals[1])) + 1),
+                             str(vals[0]).find(str(vals[1]))),
     # Pad to the width; a string ALREADY at least that long is returned unchanged rather
     # than truncated.
     "lpad": lambda vals: _pad(vals, left=True),
@@ -1978,6 +1980,36 @@ def _dynafunction(fn, vals):
         f"dynafunction {fn!r} has no independent implementation in the oracle. Add one "
         f"deliberately -- do NOT read the expected value from the engine, which would make "
         f"the assertion circular.")
+
+
+# ------------------------------------- platform functions in a query (Phase 4)
+
+# The operators a chain writes infix (query.Apply), by their functions.
+_INFIX_FN = {"+": "plus", "-": "minus", "*": "times", "/": "divide"}
+
+# A function's Pure return type, as the column it projects renders.
+RET_KIND = {"String": "string", "Integer": "int", "Float": "float", "Decimal": "float", "Number": "float",
+            "Boolean": "bool", "StrictDate": "date", "Date": "date", "DateTime": "timestamp"}
+
+
+def _apply(a, v):
+    """A query.Apply over one value, as legend-pure defines it (the improvement plan's Phase 4).
+
+    Through `map`, an absent value stays absent whatever the functions: legend-pure's map over an empty
+    collection is empty. Applied directly, a function of a [1] parameter over an absent value raises in
+    Pure, which no expected result can state, so the oracle refuses it. A step answering nothing (a
+    regexpExtract with no match) ends the chain the same way: absent through map, refused otherwise."""
+    for i, (fn, args) in enumerate(a.steps):
+        if v is None:
+            if a.through_map:
+                return None
+            raise Unsupported(f"{fn} applied to an absent value without map, which Pure raises on")
+        name = _INFIX_FN.get(fn, fn)
+        if name == "plus" and isinstance(v, str):
+            v = v + str(args[0])         # `+` over strings is concatenation
+            continue
+        v = _dynafunction(name, [v, *args])
+    return v
 
 
 # ---------------------------------------------------- derived-property evaluation
@@ -2837,6 +2869,8 @@ def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None,
     if isinstance(f, ParamEmpty):
         return params is None or params.get(f.name) is None
     v = _value(c, data, row, root, f.path, dated=dated)
+    if getattr(f, "apply", None) is not None:
+        v = _apply(f.apply, v)
     if f.op in ("is", "not"):
         if v is None:
             raise Unsupported(
@@ -2878,6 +2912,8 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
             if all(_pred(c, data, r, spec.root, f, params, dated) for f in spec.filters)]
 
     out = [{p.alias: (_agg(c, data, r, spec.root, p, params) if p.agg
+                      else _apply(p.apply, _value(c, data, r, spec.root, p.path, p.args, p.func, dated))
+                      if getattr(p, "apply", None) is not None
                       else _value(c, data, r, spec.root, p.path, p.args, p.func, dated))
             for p in spec.projections}
            for r in kept]
@@ -3017,6 +3053,9 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
         if p.func:
             out[p.alias] = {"Boolean": "bool", "Float": "float", "Integer": "int",
                             "String": "string"}[c.functions[p.func].ret]
+            continue
+        if getattr(p, "apply", None) is not None:
+            out[p.alias] = RET_KIND[p.apply.ret]
             continue
         if len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS:
             target = XSTORE_LINKS[(spec.root, p.path[0])][3]

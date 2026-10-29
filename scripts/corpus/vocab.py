@@ -1,0 +1,274 @@
+"""
+The function vocabulary: the services of 99-vocab-services.pure (docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 4).
+
+The corpus's queries used 25 platform functions. legend-engine's SQL registry has 262 names, and the probes ran most
+of the ones the oracle implements on seeds of their own (docs/FUNCTIONS_EXECUTED.tsv), in a property mapping, where no
+service of the corpus reached them, so nothing tested lite on them. These services apply each function in a QUERY,
+over typedvalues::TypedValue (8112-typedvalues.pure), whose fifteen rows hold a tie on each comparand and both its
+neighbours, negatives, zero, INTEGER's two extremes, strings that differ by case or end in a space or carry an
+apostrophe, Decimals a double cannot tell apart, a leap day, midnight and the last second of a day, and an absent value
+in every optional column:
+
+  VP_   the function projected over a required property: every boundary value, none absent
+  VN_   the same function through `map` over the optional property, `$x.opt->map(v|$v->f())`, which is how Pure
+        applies a function to an optional value. legend-pure's map over an empty collection is empty, so an absent
+        value stays absent whatever the function (oracle._apply); where the engine's SQL turns a NULL into a value,
+        that is F68
+  VF_   the function in a filter over the required property, against a comparand that keeps between a fifth and four
+        fifths of the rows; a Boolean function is the filter itself
+
+Expectations are legend-pure's definitions, through the oracle (oracle._apply over oracle.IMPL), never either engine's
+output. A function whose result in floating point depends on the platform's last bit (a transcendental: F60's lesson)
+is compared against a threshold the oracle's value clears by a margin, `->greaterThan(t)`, rather than projected raw.
+What the pinned engine answers wrongly is written with legend-pure's answer and quarantined against a finding
+(scripts/corpus/quarantine.py).
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from decimal import Decimal as D
+
+import oracle
+from query import Apply, DateArg, DateTimeArg, EnumArg, Pred, Proj, Spec
+
+ROOT = "typedvalues::TypedValue"
+MAPPING = "stress::AllMapping"
+
+# (required property, optional property) of TypedValue, by the type they hold
+STRING = ("name", "nameOpt")
+INTEGER = ("quantity", "quantityOpt")
+FLOAT = ("rate", "rateOpt")
+DECIMAL = ("amount", "amountOpt")
+DATE = ("valueDate", "valueDateOpt")             # Date
+STRICT_DATE = ("tradeDate", "tradeDateOpt")      # StrictDate
+DATE_TIME = ("stampedAt", "stampedAtOpt")        # DateTime
+BOOLEAN = ("active", "activeOpt")
+
+
+def _unit(u: str) -> EnumArg:
+    return EnumArg("DurationUnit", u)
+
+
+@dataclass(frozen=True)
+class Case:
+    """One function, applied as `steps` (query.Apply's) to `subject`; `ret` is the result's Pure type.
+    `inexact`: a floating-point result whose last bit is the platform's, so it is compared, never projected."""
+    key: str
+    subject: tuple
+    steps: tuple
+    ret: str
+    inexact: bool = False
+
+
+def _c(key, subject, ret, *steps, inexact=False) -> Case:
+    return Case(key, subject, tuple((fn, tuple(args)) for fn, args in steps), ret, inexact)
+
+
+CASES = [
+    # ---- strings: 'alpha ' ends in a space, "O'Neil" carries an apostrophe, case differs among the alphas
+    _c("ToUpper", STRING, "String", ("toUpper", ())),
+    _c("ToLower", STRING, "String", ("toLower", ())),
+    _c("Trim", STRING, "String", ("trim", ())),
+    _c("Ltrim", STRING, "String", ("ltrim", ())),
+    _c("Rtrim", STRING, "String", ("rtrim", ())),
+    _c("ReverseString", STRING, "String", ("reverseString", ())),
+    _c("Length", STRING, "Integer", ("length", ())),
+    _c("Substring", STRING, "String", ("substring", (0, 2))),
+    _c("SubstringFrom", STRING, "String", ("substring", (1,))),
+    _c("IndexOf", STRING, "Integer", ("indexOf", ("a",))),
+    _c("Lpad", STRING, "String", ("lpad", (10, "*"))),
+    _c("Rpad", STRING, "String", ("rpad", (10, "*"))),
+    _c("Replace", STRING, "String", ("replace", ("a", "4"))),
+    _c("StartsWith", STRING, "Boolean", ("startsWith", ("al",))),
+    _c("EndsWith", STRING, "Boolean", ("endsWith", ("a",))),
+    _c("Contains", STRING, "Boolean", ("contains", ("ph",))),
+    _c("IsAlphaNumeric", STRING, "Boolean", ("isAlphaNumeric", ())),
+    _c("Ascii", STRING, "Integer", ("ascii", ())),
+    _c("EncodeBase64", STRING, "String", ("encodeBase64", ())),
+    _c("DecodeBase64", STRING, "String", ("encodeBase64", ()), ("decodeBase64", ())),
+    _c("LevenshteinDistance", STRING, "Integer", ("levenshteinDistance", ("alpha",))),
+    _c("RepeatString", STRING, "String", ("repeatString", (2,))),
+    _c("PlusString", STRING, "String", ("+", ("!",))),
+    _c("Matches", STRING, "Boolean", ("matches", ("[a-z]+",))),
+    _c("RegexpLike", STRING, "Boolean", ("regexpLike", ("^a",))),
+    _c("RegexpCount", STRING, "Integer", ("regexpCount", ("a",))),
+    _c("RegexpIndexOf", STRING, "Integer", ("regexpIndexOf", ("ph",))),
+    # ---- integers: -2147483648 and 2147483647, INTEGER's extremes, are rows
+    _c("AbsInteger", INTEGER, "Integer", ("abs", ())),
+    _c("SignInteger", INTEGER, "Integer", ("sign", ())),
+    _c("Mod", INTEGER, "Integer", ("mod", (7,))),
+    _c("Rem", INTEGER, "Integer", ("rem", (7,))),
+    _c("PlusInteger", INTEGER, "Integer", ("+", (1,))),
+    _c("DivideInteger", INTEGER, "Float", ("/", (4,))),
+    _c("BitAnd", INTEGER, "Integer", ("bitAnd", (255,))),
+    _c("BitOr", INTEGER, "Integer", ("bitOr", (256,))),
+    _c("BitXor", INTEGER, "Integer", ("bitXor", (255,))),
+    _c("BitNot", INTEGER, "Integer", ("bitNot", ())),
+    _c("BitShiftRight", INTEGER, "Integer", ("bitShiftRight", (1,))),
+    _c("ToStringInteger", INTEGER, "String", ("toString", ())),
+    _c("ParseInteger", INTEGER, "Integer", ("toString", ()), ("parseInteger", ())),
+    _c("ToFloat", INTEGER, "Float", ("toFloat", ())),
+    # ---- floats: every value exact in binary, negatives and zero among them
+    _c("AbsFloat", FLOAT, "Float", ("abs", ())),
+    _c("SignFloat", FLOAT, "Integer", ("sign", ())),
+    _c("PlusFloat", FLOAT, "Float", ("+", (0.5,))),
+    _c("MinusFloat", FLOAT, "Float", ("-", (0.25,))),
+    _c("TimesFloat", FLOAT, "Float", ("*", (2.0,))),
+    _c("DivideFloat", FLOAT, "Float", ("/", (4.0,))),
+    _c("Ceiling", FLOAT, "Integer", ("ceiling", ())),
+    _c("Floor", FLOAT, "Integer", ("floor", ())),
+    _c("Round", FLOAT, "Integer", ("round", ())),
+    _c("Sqrt", FLOAT, "Float", ("abs", ()), ("sqrt", ())),
+    _c("Pow", FLOAT, "Float", ("pow", (2,))),
+    # exp over atan's bounded range: 1e10 is a row, and exp(1e10) is past every double
+    _c("Exp", FLOAT, "Float", ("atan", ()), ("exp", ()), inexact=True),
+    _c("Log", FLOAT, "Float", ("abs", ()), ("+", (1.0,)), ("log", ()), inexact=True),
+    _c("Log10", FLOAT, "Float", ("abs", ()), ("+", (1.0,)), ("log10", ()), inexact=True),
+    _c("Sin", FLOAT, "Float", ("sin", ()), inexact=True),
+    _c("Cos", FLOAT, "Float", ("cos", ()), inexact=True),
+    _c("Tan", FLOAT, "Float", ("tan", ()), inexact=True),
+    _c("Atan", FLOAT, "Float", ("atan", ()), inexact=True),
+    # ---- decimals: 1.0000000000000001 and 1.0000000000000000 are one double
+    _c("AbsDecimal", DECIMAL, "Decimal", ("abs", ())),
+    _c("PlusDecimal", DECIMAL, "Decimal", ("+", (D("1.5"),))),
+    _c("TimesDecimal", DECIMAL, "Decimal", ("*", (2,))),
+    # ---- dates: a leap day, 1970-01-01, 1999-12-31 and 2025-01-01 among them
+    _c("Year", DATE, "Integer", ("year", ())),
+    _c("MonthNumber", DATE, "Integer", ("monthNumber", ())),
+    _c("DayOfMonth", DATE, "Integer", ("dayOfMonth", ())),
+    _c("DayOfYear", DATE, "Integer", ("dayOfYear", ())),
+    _c("DayOfWeekNumber", DATE, "Integer", ("dayOfWeekNumber", ())),
+    _c("WeekOfYear", DATE, "Integer", ("weekOfYear", ())),
+    _c("QuarterNumber", DATE, "Integer", ("quarterNumber", ())),
+    _c("FirstDayOfMonth", DATE, "Date", ("firstDayOfMonth", ())),
+    _c("FirstDayOfQuarter", DATE, "Date", ("firstDayOfQuarter", ())),
+    _c("FirstDayOfYear", DATE, "Date", ("firstDayOfYear", ())),
+    _c("FirstDayOfWeek", DATE, "Date", ("firstDayOfWeek", ())),
+    _c("DateDiffDays", STRICT_DATE, "Integer", ("dateDiff", (DateArg("2024-01-01"), _unit("DAYS")))),
+    _c("AdjustDays", STRICT_DATE, "Date", ("adjust", (1, _unit("DAYS")))),
+    # ---- date-times: midnight, the last second of a day, 1999-12-31 23:59:59
+    _c("Hour", DATE_TIME, "Integer", ("hour", ())),
+    _c("Minute", DATE_TIME, "Integer", ("minute", ())),
+    _c("Second", DATE_TIME, "Integer", ("second", ())),
+    _c("DatePart", DATE_TIME, "Date", ("datePart", ())),
+    _c("FirstHourOfDay", DATE_TIME, "DateTime", ("firstHourOfDay", ())),
+    _c("FirstMinuteOfHour", DATE_TIME, "DateTime", ("firstMinuteOfHour", ())),
+    _c("FirstSecondOfMinute", DATE_TIME, "DateTime", ("firstSecondOfMinute", ())),
+    _c("AdjustHours", DATE_TIME, "DateTime", ("adjust", (5, _unit("HOURS")))),
+    _c("DateDiffSeconds", DATE_TIME, "Integer",
+       ("dateDiff", (DateTimeArg("2024-06-03 12:00:00"), _unit("SECONDS")))),
+    # ---- booleans
+    _c("Not", BOOLEAN, "Boolean", ("not", ())),
+    _c("ToStringBoolean", BOOLEAN, "String", ("toString", ())),
+]
+
+# The fraction of the fifteen rows a filter must keep (the improvement plan's Phase 2 rule for a comparand)
+LOW, HIGH = 3, 12
+
+
+def _spec(name: str, doc: str, projections: list[Proj], filters: list) -> Spec:
+    s = Spec(f"stress::{name}", f"/stress/vocab/{name.lower()}", doc, ROOT)
+    s.projections = [Proj("valueId", ["valueId"])] + projections
+    s.filters = filters
+    s.mapping = MAPPING
+    return s
+
+
+def _values(c, tables, case: Case, prop: str, through_map: bool) -> list:
+    """The function's value on each row, as the oracle computes it."""
+    probe = _spec("probe", "", [Proj("r", [prop], apply=Apply(case.steps, case.ret, through_map))], [])
+    return [r["r"] for r in oracle.evaluate(c, probe, tables)]
+
+
+def _literal(value, ret: str):
+    """A value of the function's result as a query literal of its type."""
+    if ret in ("Date", "StrictDate"):
+        return DateArg(value)
+    if ret == "DateTime":
+        return DateTimeArg(value)
+    return value
+
+
+def _threshold(values: list) -> tuple[str, object] | None:
+    """For an inexact result: (`>`, t) with t a short decimal strictly between two adjacent values, near the middle,
+    so no platform's last bit can move a row across it."""
+    xs = sorted(set(v for v in values if v is not None))
+    order = sorted(range(1, len(xs)), key=lambda i: abs(i - len(xs) / 2))
+    for i in order:
+        lo, hi = xs[i - 1], xs[i]
+        if hi - lo < 1e-6:
+            continue
+        for digits in range(0, 7):
+            t = round((lo + hi) / 2, digits)
+            if lo + 1e-9 < t < hi - 1e-9:
+                kept = sum(1 for v in values if v is not None and v > t)
+                if LOW <= kept <= HIGH:
+                    return ">", float(t)
+                break
+    return None
+
+
+def _comparand(values: list, ret: str) -> tuple[str, object] | None:
+    """(operator, comparand) keeping between LOW and HIGH of the rows: a value of the result itself, the middle ones
+    first, under `>=`, `<`, `>` and `==`."""
+    # A Decimal comparand past 16 fractional digits is rounded in the SQL (F61, Phase 1's, which its own services
+    # pin), so none is chosen here.
+    xs = sorted(set(v for v in values if v is not None
+                    and not (isinstance(v, D) and v.as_tuple().exponent < -16)),
+                key=lambda v: (str(type(v)), v))
+    order = sorted(range(len(xs)), key=lambda i: abs(i - len(xs) / 2))
+    for i in order:
+        for op in (">=", "<", ">", "=="):
+            kept = sum(1 for v in values if v is not None and oracle._cmp(op, v, xs[i]))
+            if LOW <= kept <= HIGH:
+                return op, _literal(xs[i], ret)
+    return None
+
+
+def build(c, tables) -> list[Spec]:
+    out = []
+    for case in CASES:
+        req, opt = case.subject
+        fns = " then ".join(f"`{fn}`" for fn, _a in case.steps)
+        direct = Apply(case.steps, case.ret)
+        mapped = Apply(case.steps, case.ret, through_map=True)
+        values = _values(c, tables, case, req, False)
+        if case.inexact:
+            cut = _threshold(values)
+            if cut is None:
+                raise SystemExit(f"vocab: no threshold separates {case.key}'s values: {values}")
+            op, t = cut
+            # projected as the comparison, so the platform's last bit cannot reach the expectation
+            direct = Apply(case.steps + (("greaterThan", (t,)),), "Boolean")
+            mapped = Apply(case.steps + (("greaterThan", (t,)),), "Boolean", through_map=True)
+        out.append(_spec(f"VP_{case.key}", f"{fns} over the required `{req}`, projected.",
+                         [Proj("r", [req], apply=direct)], []))
+        out.append(_spec(f"VN_{case.key}", f"{fns} through map over the optional `{opt}`: an absent value "
+                                           f"stays absent.",
+                         [Proj("r", [opt], apply=mapped)], []))
+        if case.inexact:
+            flt = Pred([req], op, t, apply=Apply(case.steps, case.ret))
+        elif case.ret == "Boolean":
+            kept = sum(1 for v in values if v)
+            flt = Pred([req], "is" if kept >= LOW or kept >= len(values) - kept else "not", apply=direct)
+        else:
+            cut = _comparand(values, case.ret)
+            if cut is None:
+                raise SystemExit(f"vocab: no comparand keeps a fifth to four fifths of {case.key}: {values}")
+            flt = Pred([req], cut[0], cut[1], apply=direct)
+        out.append(_spec(f"VF_{case.key}", f"{fns} over the required `{req}`, in a filter.",
+                         [Proj("r", [req])], [flt]))
+    return out
+
+
+def check(c, specs: list[Spec], tables) -> list[str]:
+    """Every filter keeps between a fifth and four fifths of the rows, and every projection through map meets an absent
+    value (the point of VN_)."""
+    problems = []
+    for s in specs:
+        rows = oracle.evaluate(c, s, tables)
+        if s.short.startswith("VF_") and not 1 <= len(rows) <= 14:
+            problems.append(f"{s.short}: its filter keeps {len(rows)} of 15 rows")
+        if s.short.startswith("VN_") and not any(r["r"] is None for r in rows):
+            problems.append(f"{s.short}: no absent value reaches the map")
+    return problems

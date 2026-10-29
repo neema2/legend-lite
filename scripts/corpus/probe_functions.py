@@ -505,6 +505,9 @@ ADJUDICATED = {
     "dayOfYear": "the engine's: F35, DuckDB's day() is the day of the month",
     "firstDayOfWeek": "the engine's: F38, a StrictDate rendered as a DateTime",
     "substring": "the engine's: F37, a property mapping's substring is SQL's (a query's is Pure's)",
+    # stage 2: the oracle now reads legend-pure's definitions, which the engine's SQL does not follow here either
+    "indexOf": "the engine's: F72, indexOf is SQL's strpos, one-based with 0 for a miss",
+    "dayOfWeekNumber": "the engine's: F74, dayOfWeekNumber counts from Sunday",
 }
 
 # Functions that WERE run, diagnosed, written up, and then removed from the case list because
