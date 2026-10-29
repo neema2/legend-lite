@@ -151,6 +151,12 @@ about 31-36 ms, and `//datacube:deephaven_desk_test` passes on macOS. The pointe
    budget). `MARKET_HISTORY=200000`: CPU 80-90%, cycle p50 ~41 ms, live heap ~1.1-1.3 GB, but only ~4 min of tape.
    Suggested: compute it for the picked name only, or an operator that removals do not recompute. **No cap becomes the
    default until this is fixed** (the user, 2026-10-28) -- see 5 for a commit that would make one.
+   *Measured 2026-10-29 on the pinned server (Deephaven 42.7):* the stream pattern -- the EMA computed on the blink
+   table, its state carried per symbol, the history capped after it -- is not available. A keyed `updateBy` on a blink
+   table is refused ("Blink tables do not support partitionedAggBy; use BlinkTableTools.blinkToAppendOnly to accumulate
+   full history"), and so is `partitionBy`; an unkeyed `updateBy` is accepted but restarts at every cycle (prices 10,
+   20, 40, 0 in separate cycles gave 10, 20, 40, 0; the append-only reference 10, 15, 27.5, 13.75). Aggregations
+   (`lastBy`) do keep their state across cycles. So a running per-symbol EMA needs the add-only history here.
    *Read 2026-10-28, not changed:* the Stock tab's grids read `stock(alpha)` through a server base
    (`src/server-base.ts`): the whole relation, every name's EMA, kept on the server, each pick a filter over it. The
    picked name's alone needs the pick's filter below the window (a filter on the window's partition commutes with it)
