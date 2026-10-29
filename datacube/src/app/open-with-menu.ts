@@ -1,8 +1,9 @@
 // OPEN WITH ▸ (docs/ONE_CONNECTION_DESK_2026_10_28.md D2, revised by the user 2026-10-28: "Open With is only for Saved
-// things - its basically an Open for a saved Page that has a parameter"): a saved page opened again, in a tab of its
-// own, with its saved queries over a data space on another of the data space's execution contexts -- the context a
-// parameter of that opening (the address's `#open=<id>&space=<path>&context=<name>`), never an edit of the page: it is
-// not changed by it, and Save writes the page's own contexts. Each data space the page's saved queries were read
+// things - its basically an Open for a saved Page that has a parameter"): a saved page -- one the store keeps, or an
+// example the site ships (the trading desk) -- opened again, in a tab of its own, with its saved queries over a data
+// space on another of the data space's execution contexts -- the context a parameter of that opening (the address's
+// `#open=<id>&space=<path>&context=<name>`, or `#example=<id>&…`), never an edit of the page: it is not changed by it,
+// and Save writes the page's own contexts. Each data space the page's saved queries were read
 // through offers its contexts as its model declares them, the one this tab runs on checked (sources.ts `dataSpaces`).
 // This code is a chunk of its own, fetched when the page first reads a saved query over a data space (datacube-app.ts).
 
@@ -32,9 +33,18 @@ export function openWithEntries(spaces: ReadonlyMap<string, DataSpaceRead>):
   return { items, choices };
 }
 
-/** The address that opens saved page `id` with `choice`: this page's own, its fragment the opening's. */
-export function openWithAddress(page: string, id: string, choice: OpenWithChoice): string {
+/** The saved page Open With ▸ opens: one the store keeps (`open`, by its record's id), or an example the site ships
+ *  (`example`, by its id: the trading desk) -- opened as saved, or as shipped. */
+export interface OpenWithPage {
+  /** The address's key for it: `#open=<id>` or `#example=<id>`. */
+  readonly fragment: 'open' | 'example';
+  readonly id: string;
+}
+
+/** The address that opens `target` with `choice`: this page's own, its fragment the opening's. */
+export function openWithAddress(page: string, target: OpenWithPage, choice: OpenWithChoice): string {
   const at = new URL(page);
-  at.hash = `open=${encodeURIComponent(id)}&space=${encodeURIComponent(choice.dataSpace)}&context=${encodeURIComponent(choice.context)}`;
+  at.hash = `${target.fragment}=${encodeURIComponent(target.id)}&space=${encodeURIComponent(choice.dataSpace)}`
+    + `&context=${encodeURIComponent(choice.context)}`;
   return at.href;
 }

@@ -79,19 +79,21 @@ type Start =
   | { readonly kind: 'sample' }
   | { readonly kind: 'link' }
   | { readonly kind: 'warehouse'; readonly key: string; readonly table?: string }
-  /** An example page by its id (`#example=trading-desk`): opened as Open…'s Examples open it. */
-  | { readonly kind: 'example'; readonly id: string }
+  /** An example page by its id (`#example=trading-desk`): opened as Open…'s Examples open it -- on the context the
+   *  address names where it names one (`&space=<path>&context=<name>`: Open With ▸). */
+  | { readonly kind: 'example'; readonly id: string; readonly with?: { readonly dataSpace: string; readonly context: string } }
   /** A saved page by its id, with the context its saved queries over a data space run on where one is named
    *  (`#open=<id>&space=<path>&context=<name>`: Open With ▸, src/app/open-with-menu.ts). */
   | { readonly kind: 'open'; readonly id: string; readonly with?: { readonly dataSpace: string; readonly context: string } };
 
 async function startOf(where: Location): Promise<Start> {
-  if (where.hash.startsWith('#example=')) return { kind: 'example', id: decodeURIComponent(where.hash.slice('#example='.length)) };
-  if (where.hash.startsWith('#open=')) {
+  // a saved page (`#open=<id>`) or an example (`#example=<id>`), on the context the address names where it names one
+  if (where.hash.startsWith('#open=') || where.hash.startsWith('#example=')) {
     const p = new URLSearchParams(where.hash.slice(1));
     const dataSpace = p.get('space');
     const context = p.get('context');
-    return { kind: 'open', id: p.get('open') ?? '', ...(dataSpace && context ? { with: { dataSpace, context } } : {}) };
+    const on = dataSpace && context ? { with: { dataSpace, context } } : {};
+    return where.hash.startsWith('#open=') ? { kind: 'open', id: p.get('open') ?? '', ...on } : { kind: 'example', id: p.get('example') ?? '', ...on };
   }
   if (where.hash.startsWith('#key=')) {
     const p = new URLSearchParams(where.hash.slice(1));

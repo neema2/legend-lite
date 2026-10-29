@@ -819,7 +819,9 @@ const NATURE = 'by nature:';
 const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly other: string; readonly ability?: HostAbility }>> = {
   // -- the app shell (datacube-app.ts) --
   'src/app/datacube-app.ts:rowsOf:local': { count: 2, other: `${BOTH} a grid's rows run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
-  'src/app/datacube-app.ts:hostMenu:services.pages': { other: `${BOTH} Save and Open… where the host keeps pages (the tab's browser store, Python's folder)`, ability: 'pages' },
+  // count 3 since 2026-10-29 (the user: "menu items should not be hidden, they should be greyed out with a hover that says
+  // why disabled"): Open…, Save and Save As… each there, off and saying why where the host keeps no pages
+  'src/app/datacube-app.ts:hostMenu:services.pages': { count: 3, other: `${BOTH} Save and Open… where the host keeps pages (the tab's browser store, Python's folder)`, ability: 'pages' },
   'src/app/datacube-app.ts:hostMenu:browser.address': { other: `${NATURE} Share… needs an address others can open; Python's is this machine's loopback` },
   'src/app/datacube-app.ts:empty:services.live': { other: `${NATURE} the empty page's words: a page Python serves is filled from Python` },
   'src/app/datacube-app.ts:empty:services.pages': { other: `${BOTH} the empty page offers a saved page where the host keeps pages`, ability: 'pages' },

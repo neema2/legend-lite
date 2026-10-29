@@ -64,6 +64,25 @@ try {
 
   // THE DESK OPENED, EACH TAB DRAWN AND TICKING (demo/desk-tabs.mjs, the in-tab desk's lane's checks too)
   await checkDeskTabs(page, { ok, fail, outputs, started });
+  // OPEN WITH ON THE DESK AS SHIPPED (the user, 2026-10-29: "why is the trading app disabled open with? shouldnt that be
+  // a saved page?"): the example the site ships is a saved page to Open With ▸ -- offered, not greyed out, its data
+  // space's contexts listed, the one it runs on checked (opening one is checked below, on the desk saved by Save As…)
+  try {
+    await page.click('.dc-titlebar-menu');
+    const item = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open With"))').first();
+    const off = await item.getAttribute('aria-disabled');
+    const why = await item.getAttribute('title');
+    await item.hover();
+    const entries = await page.evaluate(() => [...document.querySelectorAll('.dc-menu-item[aria-checked]')]
+      .map((e) => [e.querySelector('.dc-menu-label')?.textContent?.trim(), e.getAttribute('aria-checked')]));
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    if (off === null && entries.length === 2 && entries.filter(([, c]) => c === 'true').length === 1) {
+      ok(`Open With on the desk as shipped: offered, ${entries.map(([l, c]) => `${l}${c === 'true' ? ' (checked)' : ''}`).join(', ')}`);
+    } else fail(`Open With on the desk as shipped: ${off === null ? 'offered' : `greyed out ("${why}")`}, entries ${JSON.stringify(entries)}`);
+  } catch (e) {
+    fail(`Open With on the desk as shipped: ${e?.message ?? e}`);
+  }
   // THE SCREENS' INTERACTIONS, as a person makes them on the desk (moved here from the trader screens' own test,
   // 2026-10-26: the desk is the one demo, its screens' host retired) -- each grid's rows read from the page the harness
   // holds (datacube-app.ts `__dataPage`: hidden columns too), the server's own counts from DataCube's Deephaven grids

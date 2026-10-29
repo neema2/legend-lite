@@ -53,7 +53,7 @@ import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
 import { EXAMPLE_PAGES, type ExamplePage } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
-import type { OpenWithChoice } from './open-with-menu.ts';
+import type { OpenWithChoice, OpenWithPage } from './open-with-menu.ts';
 import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
@@ -78,6 +78,8 @@ const CREATE_CLASS = { id: 'host.createClass', label: 'Class\u2026', section: 'c
  *  first. */
 const CREATE_ASSOCIATION = { id: 'host.createAssociation', label: 'Association\u2026', section: 'create' } as const;
 const CREATE_DATA_SPACE = { id: 'host.createDataSpace', label: 'Data Space\u2026', section: 'create' } as const;
+/** Open…, Save and Save As… where the host keeps no saved pages: off, saying why. */
+const NO_PAGES = { disabled: true, hint: 'Saved pages are kept by the page\'s host: this one keeps none' } as const;
 /** CREATE ▸ GRID OVER <CLASS> (§16.1): a grid made a class, its class read beside it -- a dashboard's tile; first of the
  *  model's entries under Create ▸ (the user, 2026-10-23: "Add Grid over Class is great under Create"). */
 const CLASS_GRID_ID = 'host.classGrid' as const;
@@ -95,8 +97,9 @@ export type AppStart =
    *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md P12), followed and reported back to it. */
   | { readonly kind: 'live' }
   /** An example page by its id (the address's `#example=<id>`), opened as Open…'s Examples open it: the host's own
-   *  (`OpenDataCube.examples`: the market's trading desk) or the app's. */
-  | { readonly kind: 'example'; readonly id: string }
+   *  (`OpenDataCube.examples`: the market's trading desk) or the app's -- its saved queries over a data space on the
+   *  context `with` names where it names one (Open With ▸), as a saved page's are. */
+  | { readonly kind: 'example'; readonly id: string; readonly with?: { readonly dataSpace: string; readonly context: string } }
   /** A saved page by its id (the address's `#open=<id>`: Open With ▸, open-with-menu.ts), its saved queries over a data
    *  space on the context `with` names where it names one -- a parameter of this opening, never an edit of the page. */
   | { readonly kind: 'open'; readonly id: string; readonly with?: { readonly dataSpace: string; readonly context: string } };
@@ -586,20 +589,23 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const id = page.record;
       if (id !== undefined) void (async () => (await services.pages)?.handles?.put(handleKey(id, sha), handle))();
     },
+    // NEVER HIDDEN (the user, 2026-10-29: "menu items should not be hidden, they should be greyed out with a hover that
+    // says why disabled"): an entry this page cannot take is there, off, saying why
     hostMenu: () => [
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
-      ...(services.pages ? [
-        { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const },
-        { id: 'host.save' as const, label: 'Save', section: 'file' as const, ...whileStarting(saveCube) },
-        { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const, ...whileStarting(saveCube) },
-      ] : []),
+      { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const, ...(services.pages ? {} : NO_PAGES) },
+      { id: 'host.save' as const, label: 'Save', section: 'file' as const, ...(services.pages ? whileStarting(saveCube) : NO_PAGES) },
+      { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const, ...(services.pages ? whileStarting(saveCube) : NO_PAGES) },
       // the page's settings in a link: never a row of data (src/share/link.ts)
-      ...(services.browser.address ? [{ id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const, ...whileStarting(copyShareLink) }] : []),
+      { id: 'host.share' as const, label: 'Share\u2026', section: 'file' as const,
+        ...(services.browser.address ? whileStarting(copyShareLink)
+          : { disabled: true as const, hint: 'Makes a link others open: this view has no address others can open' }) },
       { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
-      // where the page's saved queries run: each data space they name, its contexts
-      ...(openWithItems?.() ?? []),
-      // THE PAGE'S MODEL, under its Create ▸: its associations and its data space, once the page has a model home
-      ...(createDataSpace ? [CREATE_ASSOCIATION, CREATE_DATA_SPACE] : []),
+      // a saved page opened again on another context of its data space (Open With ▸), off while the page starts
+      ...(openWithItems?.() ?? [{ label: 'Open With', section: 'data' as const, ...whileStarting(undefined) }]),
+      // THE PAGE'S MODEL, under its Create ▸: its associations and its data space
+      { ...CREATE_ASSOCIATION, ...whileStarting(createDataSpace) },
+      { ...CREATE_DATA_SPACE, ...whileStarting(createDataSpace) },
       // The planes, as entries rather than a control: the bar is
       // for what you watch, the menu for what you do occasionally.
       // The one you are ON is disabled rather than hidden, so the
@@ -723,7 +729,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         void lazily(() => import('./open-with-menu.ts')).then((m) => { openWithCode = m; }, () => { /* offered at the next read */ });
       },
       // a saved page opened with a context (`#open=…&context=…`): its saved queries over the data space read on it
-      ...(start.kind === 'open' && start.with ? { openedWith: start.with } : {}),
+      ...((start.kind === 'open' || start.kind === 'example') && start.with ? { openedWith: start.with } : {}),
     });
     // the grids of a timeseries series of several, over one model of the tables they read: the tab's own (its database's),
     // or -- a page Python serves -- the host's, by the same rule (join.json together); its query then planned and run
@@ -789,6 +795,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       baseline?: string;
       /** What opening left out of the saved page (a file changed, a source not opened): saving over it loses them. */
       lost?: readonly string[];
+      /** The example it was opened as (Open…'s Examples, the address's `#example=<id>`): a page the site ships, opened
+       *  again as shipped by Open With ▸, as a stored page is opened as saved. */
+      example?: string;
     } = {};
     renamePage = (name) => {
       page.rename(name);
@@ -818,18 +827,28 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const { address, openTab } = services.browser;
       return address && openTab ? { address: address(), openTab } : undefined;
     };
+    /** The saved page Open With ▸ opens: the store's record the page is, else the example it was opened as. */
+    const openedAs = (): OpenWithPage | undefined => (page.record !== undefined ? { fragment: 'open', id: page.record }
+      : current.example !== undefined ? { fragment: 'example', id: current.example } : undefined);
+    // never hidden (the user, 2026-10-29: "menu items should not be hidden, they should be greyed out with a hover
+    // that says why disabled"): off, the entry says why
+    const openWithOff = (hint: string): MenuItem[] => [{ label: 'Open With', section: 'data', disabled: true, hint }];
     openWithItems = () => {
-      if (openWithCode === undefined || page.record === undefined || opener() === undefined || sources.dataSpaces().size === 0) return [];
+      if (opener() === undefined) return openWithOff('Opens a page in a tab of its own: this view is not one');
+      if (openedAs() === undefined) return openWithOff('Opens a saved page on another context: save this page first');
+      if (openWithCode === undefined || sources.dataSpaces().size === 0) {
+        return openWithOff('Opens a saved page on another context of its data space: no grid here reads one');
+      }
       const { items, choices } = openWithCode.openWithEntries(sources.dataSpaces());
       openWithChoices = choices;
       return items;
     };
     openWithChosen = (n) => {
       const choice = openWithChoices[n];
-      const id = page.record;
+      const target = openedAs();
       const tab = opener();
-      if (openWithCode === undefined || choice === undefined || id === undefined || tab === undefined) return;
-      tab.openTab(openWithCode.openWithAddress(tab.address, id, choice));
+      if (openWithCode === undefined || choice === undefined || target === undefined || tab === undefined) return;
+      tab.openTab(openWithCode.openWithAddress(tab.address, target, choice));
     };
     // For the browser harness ONLY (test/python-engine/python-engine.mjs, two tabs on one page): the page's hash as its
     // keeper computes it (page-hash.ts, W17), to compare with Python's. Not product code.
@@ -1035,7 +1054,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
      * Opened.taken), by their ids. `held`: every id the page has held where its other editor keeps it (B12).
      */
     async function openSaved(saved: SavedDocument, id: string | undefined, replacing = false,
-      held: readonly string[] = [], unread: string[] = []): Promise<readonly string[]> {
+      held: readonly string[] = [], unread: string[] = [], example?: string): Promise<readonly string[]> {
       // a page, or a cube saved alone before pages: the page it opens as (page-document.ts savedPage, Python's Page.open's)
       const given = savedPage(saved);
       // a saved page opens live, each grid that was snapped said: a copy lasts only as long as the session that made it
@@ -1110,6 +1129,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       page.restore(record !== undefined ? { ...unsaved, record } : unsaved, makers, held);
       current = {
         savedName: doc.name,
+        ...(example !== undefined ? { example } : {}),
         ...(doc.unknown ? { pageUnknown: doc.unknown } : {}),
         cubeUnknown: new Map(doc.cubes.filter((c) => c.cube.unknown).map((c) => [gridOfCube(doc, c.id), c.cube.unknown!])),
       };
@@ -1302,7 +1322,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           item.disabled = true;
           void (async () => {
             try {
-              await openSaved(readSaved(pageToJson(await example.build())), undefined);
+              await openSaved(readSaved(pageToJson(await example.build())), undefined, false, [], [], example.id);
             } catch (e) {
               library?.say(`Could not open the example: ${e instanceof Error ? e.message : String(e)}`, 'warn');
             } finally {
@@ -1943,7 +1963,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const example = examples.find((e) => e.id === start.id);
       try {
         if (example === undefined) throw new Error(`this page has no example “${start.id}”`);
-        await openSaved(readSaved(pageToJson(await example.build())), undefined);
+        await openSaved(readSaved(pageToJson(await example.build())), undefined, false, [], [], example.id);
       } catch (e) {
         failedStart(e);
       }

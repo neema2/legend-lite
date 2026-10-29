@@ -68,8 +68,11 @@ describe('Open With ▸', () => {
       ['host.openWith.1', 'Deephaven (localhost:10000)', false],
     ]);
     // the saved page's own address, its fragment the opening's: the page's id and the context, by name
-    assert.equal(openWithAddress('https://site.example/datacube/demo/index.html?planner=local#p1.old', 'page 7', choices[1]!),
+    assert.equal(openWithAddress('https://site.example/datacube/demo/index.html?planner=local#p1.old', { fragment: 'open', id: 'page 7' }, choices[1]!),
       'https://site.example/datacube/demo/index.html?planner=local#open=page%207&space=market%3A%3ATradingDesk&context=Deephaven');
+    // an example the site ships (the trading desk) is opened as shipped, by its id
+    assert.equal(openWithAddress('https://site.example/datacube/demo/index.html', { fragment: 'example', id: 'trading-desk' }, choices[0]!),
+      'https://site.example/datacube/demo/index.html#example=trading-desk&space=market%3A%3ATradingDesk&context=In%20this%20tab');
   });
 
   it('names each data space where the page read several', () => {
