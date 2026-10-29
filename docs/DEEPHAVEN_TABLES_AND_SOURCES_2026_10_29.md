@@ -22,7 +22,9 @@ orders from the order system. The design describes all of it in Legend's own ter
   environments -- in this tab, Deephaven -- and its screens are the functions over classes they are today.
 - **Where it runs: the environment's runtime.** Each ingest lands, and each query runs, on the database its runtime
   names: the tab's DuckDB, or a Deephaven server. On Deephaven the platform generates the startup program that makes
-  every table; the market world's Groovy keeps simulating and writes rows only (D6).
+  every table (D6). In a demo the simulated world stands in for the sources: behind our own Kafka door on Deephaven,
+  writing the tab's DuckDB directly (§9 question 5).
+- **The order of the work:** docs/DESK_DATA_ROADMAP_2026_10_29.md.
 
 ## 1. What the user decided (2026-10-29)
 
@@ -341,10 +343,10 @@ missing.
 **Reference data, each morning (production):** at 06:00 New York, the security master pull runs `INSTRUMENT_V`'s
 query on the security master's connection (its runtime's) and replaces `INSTRUMENT` on the server.
 
-**The demo:** the same ingests, products and data space; the runtimes differ. The ticker plant's and the order
-system's topics are bound to the market world's simulator, which writes the rows into the tables the startup program
-made; the masters' pulls read the simulator's reference rows. In this tab, the same ingests land in the tab's DuckDB,
-the simulator in the tab writing them.
+**The demo:** the same ingests, products and data space; the runtimes differ (§4.6). On Deephaven, the ticker plant's
+and the order system's topics are a Kafka door the simulated world writes behind, read by the same subscriptions as
+production's; the masters' pulls read a small database the world writes at start. In this tab, the same ingests land
+in the tab's DuckDB, and the world writes them directly.
 
 **A restart:** Deephaven keeps nothing; the startup program runs again, makes every table again, the streams resume
 and each pull runs once at start before its schedule. (DH19 still refuses a read of a table that is missing.)
@@ -368,22 +370,16 @@ table to its ingest's columns.
 - Every table a product's mapping reads is a dataset of an ingest the environment lands, or a table of a store the
   environment's runtime names.
 - A dataset's key is among its columns; `LatestByKey` has a key; `keep` only on appended data.
-- `Continuous` only from a source that can stream (a topic, the simulator, tables on the same server); a database pull
-  needs a schedule.
+- `Stream` only from a source that can stream (a topic, the simulated world, tables on the same server); a database
+  pull needs a schedule.
 - A function-defined dataset's columns are its function's result; a pushed one's are written out.
-- A target that cannot do what a dataset asks (`Continuous` on a warehouse) is refused by name.
+- A target that cannot do what a dataset asks (`Stream` on a warehouse) is refused by name.
 
 ## 8. Order of work
 
-1. The words of §3a, settled with the user on this example.
-2. Ingests in lite: the `###Lakehouse` grammar (Legend's forms and lite's additions), `include Ingest`, and checks.
-3. The desk's tables declared by ingests; `store::DB` including them; the domain mappings unchanged; the lanes green.
-4. The generated startup program on Deephaven: streams, pulls, pushes. The market world's Groovy reduced to the
-   simulator, writing rows only. The tape's history cap a model setting; the desk's memory measured over a long run.
-5. Data products for the domains and the desk; the data space's contexts taking their mapping from `desk::Desk`.
-6. The in-tab DuckDB as a target: the same ingests landed in the tab (step 6 of docs/ONE_CONNECTION_DESK_2026_10_28.md).
-7. Shared views as materialized views, kept live (decision 4).
-8. Access points read as `#P{...}#` where a reader wants a function rather than classes.
+In docs/DESK_DATA_ROADMAP_2026_10_29.md (proposed 2026-10-29, to read with the user): the foundation (the words,
+ingests in the compiler, the desk's tables declared by ingests), then Deephaven made by the platform (the door, the
+generated startup program, pulls and files, `market.groovy` deleted), the tab, the data products, the long run.
 
 ## 9. Open questions
 

@@ -262,7 +262,14 @@ column that holds nulls loses the guards the lowering writes); tables are found 
 application's fields and a Python server's tables not tried); no check of the server's version at sign-in (42.7 only is
 tested); and this branch carries the MongoDB line's commits, which are not on `main` either.
 
-## Now: one connection (the user, 2026-10-28)
+## Now: the desk's data, end to end (proposed 2026-10-29, to read with the user)
+
+**docs/DESK_DATA_ROADMAP_2026_10_29.md**: every desk table declared by an ingest and made by the platform; on Deephaven
+a generated startup program fed through our own Kafka door, `market.groovy` deleted; the tab written directly; the desk
+a data space of data products. It orders docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md and takes over the
+one-connection plan's open steps (below). Nothing in it starts before the user has read it.
+
+## Before it: one connection (the user, 2026-10-28)
 
 The desk the same on DuckDB and Deephaven but for one connection, every table made and every row written by the
 platform, the market simulator alone a program of its own: **docs/ONE_CONNECTION_DESK_2026_10_28.md** (revision 2: D1,
