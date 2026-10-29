@@ -159,7 +159,8 @@ Taken by the user on 2026-10-21. Each entry states the question as it was put, t
   cells move and `split` leaves `combos.XFORM`), or splitPart left out of queries. **Decided (the user, 2026-10-29):
   two readings.** The dynafunction keeps SQL's one-based reading in a property mapping, so no expectation moved, and
   a query's `splitPart` is Pure's (`oracle.QUERY_IMPL`). Under that reading F37's property-mapping half, `substring`'s,
-  is the same case; the session raised it as a question of its own and changed nothing there.
+  is the same case: **the user took the same reading for it (2026-10-29)**, which withdrew that half of F37 (Phase
+  4's record, after "Phase 4 done").
 
 ## Phases
 
@@ -1115,6 +1116,36 @@ having changed):
   0 unexpected, of 5,640 testables. Phase 4 added 488 services (258, 77, 40, 64 and 49 in stages 2 to 6).
 - **Lite**: 5,324 tests pass on DuckDB and 5,248 on H2 (4,939 and 4,910 before the phase).
 
+**F37's property-mapping half withdrawn (2026-10-29, `12795b348`).** The user took D9's reading for `substring` too: a
+relational mapping's `substring` is the relational dynafunction, which every dialect extension writes as SQL's
+`SUBSTRING` (one-based, the third argument a length), and legend-pure's is a different function of the same name; the
+engine itself converts a query's into the dynafunction's arguments (`processSubstr`), as it does `splitPart`'s.
+
+- **The oracle** reads a mapping's `substring` as SQL's (`_sql_substring`, refusing a start before 1 or a negative
+  length, which dialects read apart) and a query's as legend-pure's (`QUERY_IMPL`). `probe_functions.py` drops
+  `substring`'s F37 adjudication.
+- **`77-substring-paths.pure`:** `F37_SubstringSql` asserts `'lpha'` (its test renamed `one_based_length`) and left
+  quarantine; `F37_SubstringPure`, an M2M mapping evaluated in memory, keeps Pure's `'ph'`. F37 stands for its other
+  half, a TDS `extend`'s `substring` answering SQL's in a query (`VT_ExtendString`).
+- **The combination matrix** writes `sub` again (left out since Phase 0 for F37): 12 cells of 956, each
+  `substring(col, 2, 4)`, which reads `'-S-N'` from `'R-S-NN1-001'` where Pure's would be `'S-'`. The cells repack the
+  matrix's classes, so `64-combinations.pure`, `98-combination-execution.pure` and the deep stacks over them changed.
+- **Lite (cross-area, the user's choice):** the new cells met a lite gap. `RelOpTranslator` passed the `substring`
+  dynafunction's operands bare, so a column reached through a join, `[0..1]`, failed to type against Pure's strict
+  `substring(String[1], ...)` ("multiplicity [0..1] is not compatible with [1]"), sinking `CB_C7`, `CB_C9`, `CB_C10`
+  and `SP_ComboC9Group`: DuckDB would have fallen 5,324 to 5,321. Asked, the user chose to fix lite rather than lower
+  the floor: the case now wraps its operands in the dyna lane's `toOne`, as the generic dynafunction path does.
+- **The engine verdict.** The model changed, so the whole corpus ran (`bazel run //scripts/corpus:run -- --jobs 4`, 80
+  minutes): 5,541 pass, 98 known-fail, 1 not run (F15), 0 unexpected, of 5,640 testables. Every repacked combination
+  service passes, and `F37_SubstringSql` with them.
+- **Lite.** On DuckDB 5,325 tests pass and on H2 5,249: `F37_SubstringSql` on each, and no test that passed fails
+  (`CB_C7`, `CB_C9` and `CB_C10` still meet H2's bit operations). Both `MIN_PASS` rose by one, each with a dated note.
+- **The gate** met the desk's known reds alone: the same 55 diff tests (the stress corpus's outputs equal to
+  the checkout ignoring CR) and 4 datacube browser timeouts; core's own tests pass with the translator's change.
+  The probes, run again, changed `substring`'s verdict alone, from disagreeing under F37 to `ok`, and
+  `//scripts/corpus:functions_gate` passes. No measure moves: `substring` was already a PCT name in use, and a
+  mapping's function is no query's.
+
 ### Phase 5: M2M (about 5 days, about 40 services)
 
 Report §7 (M2M) and §10 item 4. The corpus has 5 M2M class mappings, and lite runs none of them.
@@ -1256,7 +1287,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 1 | 2026-10-23 | — | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 2 | 2026-10-27 | — | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 3 | 2026-10-28 | — | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
-| 4 | 2026-10-28 | 2026-10-29, six stages | stage 1 (`0bb5fca71`) 0; stage 2 (`b9f0d212c`) 258; stage 3 (`94c3f5a0c`) 77; stage 4 (`939d4c40b`) 40; stage 5 (`0496e6966`) 64; D8 reversed (`5cabca0a4`) 0; stage 6 (`880243bbb`) 49 | 25 vocabulary services under F35, F38, F68, F71-F74 (stage 2); 30 under F75 and F76, 24 of them deep-stack totals whose expectation moved to Pure's 0 (stage 3); 2 under F37 and F77 (stage 4); 5 under F78 and F79 (stage 5); F75 withdrawn with D8's reversal, its 28 services out (2026-10-29); 8 under F68, F80, F81 and F82 (stage 6); F68-F82 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's), an aggregate over nothing as SQL's NULL (F76's; F75's withdrawn), `last` and `wavgRowMapper` in a groupBy, `substring(start)` one-based in an `extend`, `olapGroupBy`'s ranking `func`, `parseDecimal` as DECIMAL(5,2), `sum` over no trades as NULL (F82's); on H2 alone, functions the dialect lacks (`MAKE_DATE`, `greatest`/`least` over a list), a non-ISO `weekOfYear`, a Sunday-first `firstDayOfWeek`, `AVG` of integers to eleven digits, and `regexpReplace` refusing `replaceAll` or replacing every match for the first | platform functions in service queries 183 (178 on the engine, 165 in lite); PCT 161 of 321; EMIT 45 of 109 on the engine, 39 in lite |
+| 4 | 2026-10-28 | 2026-10-29, six stages | stage 1 (`0bb5fca71`) 0; stage 2 (`b9f0d212c`) 258; stage 3 (`94c3f5a0c`) 77; stage 4 (`939d4c40b`) 40; stage 5 (`0496e6966`) 64; D8 reversed (`5cabca0a4`) 0; stage 6 (`880243bbb`) 49 | 25 vocabulary services under F35, F38, F68, F71-F74 (stage 2); 30 under F75 and F76, 24 of them deep-stack totals whose expectation moved to Pure's 0 (stage 3); 2 under F37 and F77 (stage 4); 5 under F78 and F79 (stage 5); F75 withdrawn with D8's reversal, its 28 services out (2026-10-29); 8 under F68, F80, F81 and F82 (stage 6); F37's property-mapping half withdrawn, `F37_SubstringSql` out (`12795b348`); F68-F82 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's), an aggregate over nothing as SQL's NULL (F76's; F75's withdrawn), `last` and `wavgRowMapper` in a groupBy, `substring(start)` one-based in an `extend`, `olapGroupBy`'s ranking `func`, `parseDecimal` as DECIMAL(5,2), `sum` over no trades as NULL (F82's); on H2 alone, functions the dialect lacks (`MAKE_DATE`, `greatest`/`least` over a list), a non-ISO `weekOfYear`, a Sunday-first `firstDayOfWeek`, `AVG` of integers to eleven digits, and `regexpReplace` refusing `replaceAll` or replacing every match for the first | platform functions in service queries 183 (178 on the engine, 165 in lite); PCT 161 of 321; EMIT 45 of 109 on the engine, 39 in lite |
 | 5 | — | — | — | — | — | — |
 | 6 | — | — | — | — | — | — |
 | 7 | — | — | — | — | — | — |
