@@ -17330,7 +17330,7 @@ Service stress::VGN_SumQuantity
       ]
       tests:
       [
-        // 4 rows; 0 absent cells.
+        // 4 rows; 1 absent cells.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -17343,7 +17343,7 @@ Service stress::VGN_SumQuantity
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":"A","r":0},{"k":"B","r":121},{"k":"C","r":2147483789},{"k":"D","r":-2147483529}]';
+                    data: '[{"k":"A","r":null},{"k":"B","r":121},{"k":"C","r":2147483789},{"k":"D","r":-2147483529}]';
                   }#;
               }#
           ]
@@ -17446,7 +17446,7 @@ Service stress::VGN_SumRate
       ]
       tests:
       [
-        // 4 rows; 0 absent cells.
+        // 4 rows; 1 absent cells.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -17459,7 +17459,7 @@ Service stress::VGN_SumRate
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":"A","r":0.0},{"k":"B","r":5.25},{"k":"C","r":10000000002.5},{"k":"D","r":110.25}]';
+                    data: '[{"k":"A","r":null},{"k":"B","r":5.25},{"k":"C","r":10000000002.5},{"k":"D","r":110.25}]';
                   }#;
               }#
           ]
@@ -17562,7 +17562,7 @@ Service stress::VGN_SumAmount
       ]
       tests:
       [
-        // 4 rows; 0 absent cells.
+        // 4 rows; 1 absent cells.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -17575,7 +17575,7 @@ Service stress::VGN_SumAmount
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":"A","r":0.0},{"k":"B","r":-0.4999999999999997},{"k":"C","r":3.100000000000000101},{"k":"D","r":12345779.413456789012345768}]';
+                    data: '[{"k":"A","r":null},{"k":"B","r":-0.4999999999999997},{"k":"C","r":3.100000000000000101},{"k":"D","r":12345779.413456789012345768}]';
                   }#;
               }#
           ]
@@ -20984,7 +20984,7 @@ Service stress::VGN_JoinStringsName
       ]
       tests:
       [
-        // 4 rows; 0 absent cells.
+        // 4 rows; 1 absent cells.
         expected_rows:
         {
           serializationFormat: PURE_TDSOBJECT;
@@ -20997,7 +20997,7 @@ Service stress::VGN_JoinStringsName
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"k":"A","r":""},{"k":"B","r":"alpha,ALPHA,alpha ,beta"},{"k":"C","r":"Alpha,O\'Neil,gamma,zeta,alpha"},{"k":"D","r":"alphabet,mu,aleph"}]';
+                    data: '[{"k":"A","r":null},{"k":"B","r":"alpha,ALPHA,alpha ,beta"},{"k":"C","r":"Alpha,O\'Neil,gamma,zeta,alpha"},{"k":"D","r":"alphabet,mu,aleph"}]';
                   }#;
               }#
           ]

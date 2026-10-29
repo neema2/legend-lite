@@ -139763,7 +139763,7 @@ Service stress::DSAgg_PnlAccrualEntry
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":0},{"currency":"GBP","n":1,"total":24},{"currency":"USD","n":2,"total":55}]';
+                    data: '[{"currency":"EUR","n":1,"total":null},{"currency":"GBP","n":1,"total":24},{"currency":"USD","n":2,"total":55}]';
                   }#;
               }#
           ]
@@ -142944,7 +142944,7 @@ Service stress::DSAgg_PositionSnapshot
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":0},{"currency":"JPY","n":1,"total":367},{"currency":"USD","n":1,"total":339}]';
+                    data: '[{"currency":"GBP","n":1,"total":null},{"currency":"JPY","n":1,"total":367},{"currency":"USD","n":1,"total":339}]';
                   }#;
               }#
           ]
@@ -145747,7 +145747,7 @@ Service stress::DSAgg_SwapFinancing
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":0}]';
+                    data: '[{"currency":"GBP","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -254233,7 +254233,7 @@ Service stress::DSGroup_CashFlow
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","n":1,"total":0}]';
+                    data: '[{"bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -267519,7 +267519,7 @@ Service stress::DSAgg_ClientActivity
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":31},{"currency":"JPY","n":1,"total":0},{"currency":"USD","n":1,"total":45}]';
+                    data: '[{"currency":"GBP","n":1,"total":31},{"currency":"JPY","n":1,"total":null},{"currency":"USD","n":1,"total":45}]';
                   }#;
               }#
           ]
@@ -268797,7 +268797,7 @@ Service stress::DSAgg_Execution
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"broker":"BROKER-003","n":1,"total":94},{"broker":"BROKER-004","n":1,"total":101},{"broker":"BROKER-005","n":1,"total":0}]';
+                    data: '[{"broker":"BROKER-003","n":1,"total":94},{"broker":"BROKER-004","n":1,"total":101},{"broker":"BROKER-005","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -269797,7 +269797,7 @@ Service stress::DSAgg_RevenueBudget
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":0},{"currency":"GBP","n":1,"total":143},{"currency":"JPY","n":1,"total":164},{"currency":"USD","n":1,"total":136}]';
+                    data: '[{"currency":"EUR","n":1,"total":null},{"currency":"GBP","n":1,"total":143},{"currency":"JPY","n":1,"total":164},{"currency":"USD","n":1,"total":136}]';
                   }#;
               }#
           ]
@@ -270092,7 +270092,7 @@ Service stress::DSAgg_FillDetail
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"counterpartyId":"COUNTERPARTY-I-001","n":1,"total":0}]';
+                    data: '[{"counterpartyId":"COUNTERPARTY-I-001","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -270330,7 +270330,7 @@ Service stress::DSAgg_Team
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"name":"Fenwick","n":1,"total":45},{"name":"Kestrel","n":1,"total":31},{"name":"Northbridge","n":1,"total":24},{"name":"Thameside","n":1,"total":0}]';
+                    data: '[{"name":"Fenwick","n":1,"total":45},{"name":"Kestrel","n":1,"total":31},{"name":"Northbridge","n":1,"total":24},{"name":"Thameside","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -271213,7 +271213,7 @@ Service stress::DSAgg_LimitBreach
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"PENDING","n":1,"total":0},{"status":"SUSPENDED","n":1,"total":122}]';
+                    data: '[{"status":"PENDING","n":1,"total":null},{"status":"SUSPENDED","n":1,"total":122}]';
                   }#;
               }#
           ]
@@ -271679,7 +271679,7 @@ Service stress::DSAgg_ProductsOption
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"exerciseStyle":"EXERCISE-STYLE-003","n":1,"total":304},{"exerciseStyle":"EXERCISE-STYLE-004","n":1,"total":311},{"exerciseStyle":"EXERCISE-STYLE-005","n":1,"total":0}]';
+                    data: '[{"exerciseStyle":"EXERCISE-STYLE-003","n":1,"total":304},{"exerciseStyle":"EXERCISE-STYLE-004","n":1,"total":311},{"exerciseStyle":"EXERCISE-STYLE-005","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -272739,7 +272739,7 @@ Service stress::DSAgg_InitialMargin
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":0},{"currency":"GBP","n":1,"total":241}]';
+                    data: '[{"currency":"EUR","n":1,"total":null},{"currency":"GBP","n":1,"total":241}]';
                   }#;
               }#
           ]
@@ -275134,7 +275134,7 @@ Service stress::DSAgg_CounterpartyLimit
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":0},{"currency":"JPY","n":1,"total":171}]';
+                    data: '[{"currency":"EUR","n":1,"total":null},{"currency":"JPY","n":1,"total":171}]';
                   }#;
               }#
           ]
@@ -275429,7 +275429,7 @@ Service stress::DSAgg_SanctionsCheck
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"CLOSED","n":1,"total":395},{"status":"PENDING","n":1,"total":0}]';
+                    data: '[{"status":"CLOSED","n":1,"total":395},{"status":"PENDING","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -276019,7 +276019,7 @@ Service stress::DSAgg_ConsensusForecast
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":0},{"currency":"GBP","n":1,"total":66},{"currency":"JPY","n":1,"total":87}]';
+                    data: '[{"currency":"EUR","n":1,"total":null},{"currency":"GBP","n":1,"total":66},{"currency":"JPY","n":1,"total":87}]';
                   }#;
               }#
           ]
@@ -279464,7 +279464,7 @@ Service stress::DSAgg_CompanyProfile
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":0}]';
+                    data: '[{"currency":"GBP","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -281218,7 +281218,7 @@ Service stress::DSAgg_ClearingPortfolioReconciliation
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"JPY","n":1,"total":0},{"currency":"USD","n":2,"total":755}]';
+                    data: '[{"currency":"JPY","n":1,"total":null},{"currency":"USD","n":2,"total":755}]';
                   }#;
               }#
           ]
@@ -285138,7 +285138,7 @@ Service stress::DSAgg_MarketdataYieldCurve
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":0}]';
+                    data: '[{"currency":"EUR","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -285611,7 +285611,7 @@ Service stress::DSAgg_ProcessingQueue
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"CLOSED","n":1,"total":402},{"status":"SUSPENDED","n":1,"total":0}]';
+                    data: '[{"status":"CLOSED","n":1,"total":402},{"status":"SUSPENDED","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -285849,7 +285849,7 @@ Service stress::DSAgg_STPRate
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"region":"APAC","n":1,"total":430},{"region":"Americas","n":1,"total":0}]';
+                    data: '[{"region":"APAC","n":1,"total":430},{"region":"Americas","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -286794,7 +286794,7 @@ Service stress::DSAgg_ProductsEquity
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"companyName":"Aldgate","n":1,"total":0},{"companyName":"Kestrel","n":1,"total":185}]';
+                    data: '[{"companyName":"Aldgate","n":1,"total":null},{"companyName":"Kestrel","n":1,"total":185}]';
                   }#;
               }#
           ]
@@ -287799,7 +287799,7 @@ Service stress::DSAgg_ComplianceAlert
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"ACTIVE","n":2,"total":160},{"status":"CLOSED","n":1,"total":0},{"status":"SUSPENDED","n":1,"total":87}]';
+                    data: '[{"status":"ACTIVE","n":2,"total":160},{"status":"CLOSED","n":1,"total":null},{"status":"SUSPENDED","n":1,"total":87}]';
                   }#;
               }#
           ]
@@ -288032,7 +288032,7 @@ Service stress::DSAgg_AnalystCoverage
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"region":"APAC","n":1,"total":87},{"region":"Americas","n":1,"total":0}]';
+                    data: '[{"region":"APAC","n":1,"total":87},{"region":"Americas","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -289973,7 +289973,7 @@ Service stress::DSAgg_Block
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":234},{"currency":"GBP","n":1,"total":0},{"currency":"USD","n":2,"total":461}]';
+                    data: '[{"currency":"EUR","n":1,"total":234},{"currency":"GBP","n":1,"total":null},{"currency":"USD","n":2,"total":461}]';
                   }#;
               }#
           ]

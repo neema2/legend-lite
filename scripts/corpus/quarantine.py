@@ -269,22 +269,9 @@ ENGINE_QUARANTINE.update({
 ENGINE_QUARANTINE.update({
     f"stress::V{v}_DayOfWeekNumber": ("F74", "dayOfWeekNumber counts from Sunday, not Monday") for v in "PNF"
 })
-# F75 -- in a groupBy, sum and joinStrings over a group whose values are all absent are SQL's NULL, where Pure's are 0
-# and ''. The vocabulary's segment A is such a group; the deep stacks' grouped totals below each have one too (a
-# navigation that lands on nothing), and their expectations moved from null to 0 when the oracle's group-by sum took
-# legend-pure's definition (Phase 4, stage 3). VGN_CountName passes. Minimized in repro/aggregate-over-nothing/.
-ENGINE_QUARANTINE.update({
-    **{f"stress::VGN_{k}": ("F75", "an aggregate over nothing is NULL, not Pure's 0 or ''")
-       for k in ("SumQuantity", "SumRate", "SumAmount", "JoinStringsName")},
-    **{f"stress::{k}": ("F75", "sum over a group whose values are all absent is NULL, not 0")
-       for k in ("DSAgg_AnalystCoverage", "DSAgg_Block", "DSAgg_ClearingPortfolioReconciliation",
-                 "DSAgg_ClientActivity", "DSAgg_CompanyProfile", "DSAgg_ComplianceAlert", "DSAgg_ConsensusForecast",
-                 "DSAgg_CounterpartyLimit", "DSAgg_Execution", "DSAgg_FillDetail", "DSAgg_InitialMargin",
-                 "DSAgg_LimitBreach", "DSAgg_MarketdataYieldCurve", "DSAgg_PnlAccrualEntry",
-                 "DSAgg_PositionSnapshot", "DSAgg_ProcessingQueue", "DSAgg_ProductsEquity", "DSAgg_ProductsOption",
-                 "DSAgg_RevenueBudget", "DSAgg_STPRate", "DSAgg_SanctionsCheck", "DSAgg_SwapFinancing",
-                 "DSAgg_Team", "DSGroup_CashFlow")},
-})
+# F75 (withdrawn 2026-10-29, the improvement plan's D8 reversed): in a groupBy, sum and joinStrings over a group whose
+# values are all absent are NULL, and that is legend-engine's own definition -- the groupBy native never reduces such a
+# group (oracle._reduce_group). Its 28 services left quarantine; repro/aggregate-over-nothing/ now shows the rule.
 # F37 -- a TDS extend's substring is SQL's, one-based, where the Relation extend of the same query is Pure's (VR_ExtendString
 # passes). Minimized in repro/substring-tds-extend/.
 ENGINE_QUARANTINE["stress::VT_ExtendString"] = ("F37", "a TDS extend's substring is one-based")

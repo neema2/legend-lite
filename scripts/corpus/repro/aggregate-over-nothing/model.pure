@@ -1,13 +1,17 @@
-// F75: in a groupBy, `sum` and `joinStrings` over a group whose values are all absent answer SQL's NULL, where Pure's
-// are 0 and ''.
+// A relation groupBy over a group whose values are all absent: count is 0, and sum and joinStrings are absent. All
+// three services pass, and they assert legend-engine's own definition.
 //
-//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/aggregate-over-nothing/model.pure \
-//       --testable=demo::Count --testable=demo::Sum --testable=demo::JoinStrings
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/aggregate-over-nothing/model.pure //       --testable=demo::Count --testable=demo::Sum --testable=demo::JoinStrings
 //
-// A relation groupBy's map is {T[1]->K[0..1]}: an absent value maps to nothing, so group G2 reduces an empty collection.
-// legend-pure's sum is `$numbers->plus()`, 0 over nothing; joinStrings is '' over nothing; count is 0. legend-engine
-// 4.145.0's DuckDB SQL is SUM, STRING_AGG and COUNT, and SQL's SUM and STRING_AGG of no values are NULL. Count passes;
-// Sum and JoinStrings fail on G2 alone.
+// legend-engine's groupBy is a native, and both of its Pure runtimes drop the absent values and answer nothing for a
+// group with none left, never handing the reducer an empty collection (compiled
+// RelationNativeImplementation.performMapReduce, interpreted AggregationShared); PCT
+// test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort asserts it for `plus()`. legend-engine 4.145.0's DuckDB SQL
+// (SUM, STRING_AGG) agrees: G2's sum and joinStrings are null. Its count is 0 (SQL's COUNT; Pure's count of nothing).
+//
+// Recorded as a defect, F75, from 2026-10-28, when the corpus's oracle read the group as reducing an empty collection
+// (sum 0, joinStrings ''); withdrawn on 2026-10-29, when the improvement plan's D8 was reversed on the natives' and the
+// PCT's evidence.
 ###Pure
 Class demo::Row
 {
@@ -109,7 +113,7 @@ Service demo::Sum
         {
           serializationFormat: PURE_TDSOBJECT;
           asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
-            data: '[ {"g":"G1","r":3}, {"g":"G2","r":0} ]'; }#; }# ]
+            data: '[ {"g":"G1","r":3}, {"g":"G2","r":null} ]'; }#; }# ]
         }
       ]
     }
@@ -138,7 +142,7 @@ Service demo::JoinStrings
         {
           serializationFormat: PURE_TDSOBJECT;
           asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
-            data: '[ {"g":"G1","r":"a,b"}, {"g":"G2","r":""} ]'; }#; }# ]
+            data: '[ {"g":"G1","r":"a,b"}, {"g":"G2","r":null} ]'; }#; }# ]
         }
       ]
     }

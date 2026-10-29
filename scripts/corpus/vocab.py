@@ -299,11 +299,13 @@ def build(c, tables) -> list[Spec]:
 # the oracle's _REDUCERS:
 #
 #   VG_   over a required property, keyed on `active` (nine rows and six): every boundary value of the column
-#   VGN_  over the optional property. An aggregate Pure defines over an empty collection is keyed on `segment`,
-#         whose group A holds TV-02 alone, the row absent in every optional column, so A's values are all absent:
-#         sum is 0 there, count 0, joinStrings '', max, min, first, last and percentile absent. An aggregate Pure
-#         fails on over nothing (average, median, the variances and standard deviations) is keyed on `active`,
-#         whose two groups each hold absent and present values: the absent ones are ignored
+#   VGN_  over the optional property. An aggregate whose reducer Pure defines over an empty collection is keyed on
+#         `segment`, whose group A holds TV-02 alone, the row absent in every optional column, so A's values are all
+#         absent: the groupBy never reduces such a group (oracle._reduce_group), so count is 0 there and sum,
+#         joinStrings, max, min, first, last and percentile are absent (the improvement plan's D8, reversed
+#         2026-10-29). An aggregate whose reducer fails over nothing (average, median, the variances and standard
+#         deviations) is keyed on `active`, whose two groups each hold absent and present values: the absent ones
+#         are ignored
 #   VGS_  a sample variance or standard deviation over a required property keyed on `segment`: over A's one value
 #         Pure's variance is 0 (`if ($numbers->size() == 1, | 0, ...)`)
 #
@@ -320,7 +322,8 @@ METRIC = ("metric", "metricOpt")
 PAIR_RATE_METRIC = ("rate", "metric")
 PAIR_NAME_QUANTITY = ("name", "quantity")
 
-# The aggregates Pure defines over an empty collection (oracle._REDUCERS): their VGN_ is keyed on `segment`.
+# The aggregates whose reducer Pure defines over an empty collection (oracle._REDUCERS): their VGN_ is keyed on
+# `segment`.
 TOTAL = {"count", "sum", "max", "min", "first", "last", "percentile", "joinStrings"}
 
 

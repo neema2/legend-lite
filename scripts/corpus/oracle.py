@@ -1786,9 +1786,11 @@ def _rel_sort(rows, keys):
     return rows
 
 
-def _rel_group(rows, keys, aggs):
+def _rel_group(rows, keys, aggs, compress=True):
     """GROUP BY over named columns. An empty input yields NO groups, not one empty group --
-    the distinction that decides whether a report shows a zero row or no row."""
+    the distinction that decides whether a report shows a zero row or no row. A group whose
+    values are all absent is absent but for count's 0, as the groupBy native answers (the
+    group-by aggregates' comment below); a window (`compress` False) still reduces its frame."""
     out, seen = [], {}
     for r in rows:
         k = tuple(r.get(c) for c in keys)
@@ -1797,7 +1799,8 @@ def _rel_group(rows, keys, aggs):
         row = dict(zip(keys, k))
         for name, col, fn in aggs:
             vals = [m.get(col) for m in members if m.get(col) is not None]
-            row[name] = _dynafunction(fn, [vals])
+            row[name] = (None if compress and not vals and fn != "count"
+                         else _dynafunction(fn, [vals]))
         out.append(row)
     return out
 
@@ -1887,7 +1890,7 @@ RELATION_IMPL = {
     "tableToTDS": lambda rows: _rows(rows),
     "viewToTDS": lambda rows: _rows(rows),
     "tdsContains": lambda rows, r: r in _rows(rows),
-    "olapGroupBy": _rel_group,
+    "olapGroupBy": lambda rows, keys, aggs: _rel_group(rows, keys, aggs, compress=False),
     "groupByWithWindowSubset": _rel_group,
     "projectWithColumnSubset": lambda rows, cols: [{a: r.get(c) for a, c in cols}
                                                    for r in _rows(rows)],
@@ -2828,18 +2831,15 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
             if fn == "count":
                 row[name] = len(vals)
             elif fn == "sum":
-                # 0 over a group whose values are all absent: legend-pure's sum is `plus()`, 0
-                # over nothing, as IMPL's sum always was. Until 2026-10-28 this was SQL's NULL
-                # (and a guard once dropped turned it into an unintended 0); the improvement
-                # plan's Phase 4 put legend-pure back as the spec, and the engine's NULL is F75.
-                row[name] = _exact_sum(vals) if vals else 0
+                # Absent over a group whose values are all absent: the groupBy is never handed the
+                # empty collection (_reduce_group, the improvement plan's D8, reversed 2026-10-29).
+                row[name] = _exact_sum(vals) if vals else None
             elif fn == "max":
                 row[name] = max(vals) if vals else None
             elif fn == "min":
                 row[name] = min(vals) if vals else None
             elif fn == "average":
-                # legend-pure's average fails over nothing ("Mean of an empty set")
-                row[name] = _exact_avg(vals) if vals else _empty_fails("average")
+                row[name] = _exact_avg(vals) if vals else None
             else:
                 # Silence here is how MD2 asked for an average and got a column of nulls
                 # with nothing to say it had not been computed. An aggregate this does not
@@ -2856,12 +2856,15 @@ def _group(spec: Spec, rows: list[dict]) -> list[dict]:
 #
 # Each as legend-pure defines it, or legend-engine's Pure where the function is legend-engine's
 # (core_functions_standard/math/aggregator): the reducer of a relation groupBy receives the values its map
-# produced, and an absent value produces none (the map is `{T[1]->K[0..1]}`), so a group whose values are
-# all absent reduces an EMPTY collection. Over one, Pure's sum is 0 (`plus()` of nothing), its max, min,
-# first, last and percentile are absent, its count is 0 and its joinStrings is ''; its average, median,
-# mode, variances, standard deviations and wavg fail ("Mean of an empty set", `toOneMany()`, `at()`), which
-# no expected result can state, so the oracle refuses them there. Over ONE value Pure's variance is 0, the
-# sample form too (`variance`: `if ($numbers->size() == 1, | 0, ...)`), and its covarSample is absent.
+# produced, and an absent value produces none (the map is `{T[1]->K[0..1]}`). A group whose values are ALL
+# absent is never reduced: the groupBy native drops the absent values and answers nothing for a group with
+# none left, in both of legend-engine's Pure runtimes (compiled RelationNativeImplementation.performMapReduce,
+# interpreted AggregationShared), and PCT test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort asserts it for
+# `plus()`; the legacy TDS groupBy's body does the same (tds.pure, `if ($vals->isEmpty(), | ^TDSNull(), ...)`).
+# So such a group's aggregate is absent, its sum and joinStrings included, as SQL's are. Its count is 0: the
+# improvement plan's D8, reversed by the user on 2026-10-29 with count kept at Pure's own `count` of nothing,
+# which SQL and both engines answer and no PCT contradicts. Over ONE value Pure's variance is 0, the sample
+# form too (`variance`: `if ($numbers->size() == 1, | 0, ...)`), and its covarSample is absent.
 
 
 def _empty_fails(fn: str):
@@ -3005,7 +3008,9 @@ def _reduce_group(a: Agg, members: list[dict]):
             raise Unsupported(f"{name}: a pair with an absent side")
         v = _PAIR_REDUCERS[fn](pairs, *a.args)
     else:
-        v = _REDUCERS[fn]([m[src] for m in members if m[src] is not None], *a.args)
+        vals = [m[src] for m in members if m[src] is not None]
+        # a group whose values are all absent is never reduced (above): absent, but for count's 0
+        v = _REDUCERS[fn](vals, *a.args) if vals or fn == "count" else None
     for step, args in a.then:
         if v is None:
             raise Unsupported(f"{name}: {step} over an absent aggregate")

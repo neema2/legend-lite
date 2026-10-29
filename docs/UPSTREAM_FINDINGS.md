@@ -2200,6 +2200,17 @@ legend-pure's definition. Pinned by `stress::VP_DayOfWeekNumber`, `VN_DayOfWeekN
 
 ## F75 — In a groupBy, `sum` and `joinStrings` over a group whose values are all absent answer NULL, not 0 and ''
 
+**WITHDRAWN 2026-10-29: not a defect.** legend-engine's `groupBy` is a native, and both of its Pure runtimes drop
+the absent values and answer nothing for a group with none left, without handing the reducer an empty collection:
+the compiled `RelationNativeImplementation.performMapReduce` (`subList.removeIf(Objects::isNull); ... subList.isEmpty()
+? null : reduce...`) and the interpreted `AggregationShared`. PCT `test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort`
+asserts it for `plus()` (`UK,3000,null`), and neither the core manifests nor DuckDB's exclude it; the legacy TDS
+groupBy's body does the same (`tds.pure`: `if ($vals->isEmpty(), | ^TDSNull(), ...)`). So the engine's NULL is
+legend-engine's definition, and the reasoning below, that the group "reduces an empty collection", is where it went
+wrong. The improvement plan's D8, which had made the oracle's group-by `sum` 0 over nothing, was reversed by the user
+on that evidence: such a group's aggregate is absent, its `count` 0. The 28 services left quarantine and pass on the
+engine, and `repro/aggregate-over-nothing/` shows the rule. The original entry follows.
+
 **A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 (stage 3, the aggregates). A
 relation groupBy's map is `{T[1]->K[0..1]}`, so an absent value maps to nothing and a group whose values are all
 absent reduces an empty collection. legend-engine's Pure defines `sum` as `$numbers->plus()`, 0 over nothing, and
