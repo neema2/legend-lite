@@ -251,8 +251,8 @@ table to its ingest's columns.
    tables are in the default schema today. Keep Legend's rule and update the domain mappings, or keep the default.
 2. **Pull's owner:** whose job is a pull -- the product's team (the platform runs their query) or the source system's
    (it pushes files, Legend's way)? Both can coexist; the model says which.
-3. **Entitlements:** Legend's products are read through contracts on access groups. The desk has one user; who may
-   read what is a separate decision, recorded and not designed here.
+3. **Entitlements: none for now** (the user, 2026-10-29: "Agree no entitlements needed for now"). Legend's products are
+   read through contracts on access groups; that stays out of this design.
 4. **How Legend serves an access point on its target, and refreshes a materialized view:** not visible (closed
    services). Lite's answers are its own, registered.
 
@@ -385,6 +385,37 @@ live target environments (`Deephaven`, the tab's DuckDB) for landing and for ser
 
 **Not visible (closed services):** how an access point is served on its target (a view? a table?), how materialized
 views refresh, the full ingest grammar beyond the one example, and how `#P{}#` and `#I{}#` are planned.
+
+### A.4 The written syntax: what is Legend's, what is ours (read 2026-10-29)
+
+**The grammars are closed.** Studio has no parser for `###Lakehouse` or `###DataProduct`: it sends their text to the
+engine (`parseGrammar`, `parseCompatibleModel`), and an ingest's text comes from Legend's ingest server
+(`getIngestDefinitionGrammar`). legend-engine's public history (3,000 commits, back to July 2023) never held a grammar
+for either. So the spelling cannot be read from a parser; it is reconstructed from what Studio shows.
+
+**What Studio shows, written:**
+- One ingest: `Ingest test::IngestDefinition Snapshot<CSV> owner=AppDir(production='297484') [ TEST_TABLE( int_val:
+  Int, varchar_val: Varchar(500) ) pk=[ int_val ]; ]` (marketplace and data product test utilities).
+- Data products: two commented round-trip examples (title, description, icon, delivery frequency, coverage regions,
+  groups with descriptions and stereotypes, `id ('description'): LH(Snowflake, |...)classification`, support info) and
+  one more in the test utilities (`TEST_VIEW: *LH(Snowflake, |#I{test::Ingest.TEST_TABLE}#)` -- the `*`'s meaning not
+  shown).
+- `include Ingest` named in prose (`TEST_DATA__IngestIncludeTransitiveRoundtrip.ts`'s comment).
+- Data spaces: real round-trip grammar cases (`legend-manual-tests/.../roundtrip-grammar/cases/DSL_DataSpace-*.pure`),
+  but none with a `mappingProvider`.
+
+**What Studio shows only as JSON** (the protocol, and Studio's round-trip fixtures): model access groups (mapping,
+compatible runtimes, default runtime, featured elements, diagrams, secure views), native model access, function access
+points, owners and production overrides, data product tests, an ingest's dataset group, partition and clustering
+columns, privacy classification, `Delta` and `Parquet`, write modes, function-sourced datasets (materialized views),
+ingest tests, and the data space's `mappingProvider`.
+
+**How lite would build it:** every written form Studio shows, exactly; every other field spelled by the conventions
+those forms use (`key: value;` inside braces, `NAME( col: Type, ... ) pk=[ ... ];` for datasets), each such spelling
+listed as lite's own until the real grammar is seen; and **the JSON lite produces tested against Studio's round-trip
+fixtures** (`TEST_DATA__DataProductRoundtrip.ts`, `TEST_DATA__IngestRoundtrip.ts`,
+`TEST_DATA__IngestIncludeTransitiveRoundtrip.ts`, the Query app's data space fixtures) -- the protocol is what Studio and
+the engine exchange, so it is matched exactly even where the text is reconstructed.
 
 ## Appendix B. A cross-check
 
