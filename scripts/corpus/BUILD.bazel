@@ -50,6 +50,7 @@ py_library(
         "stacks.py",
         "taxonomy.py",
         "tomany.py",
+        "unreached.py",
         "views.py",
         "vocab.py",
     ],
@@ -69,6 +70,7 @@ _BUILD_MODULES = [
     "battery",
     "combos",
     "deepstack",
+    "dense_mapping",
     "density",
     "emit",
     "emptiness",
@@ -95,6 +97,7 @@ _BUILD_MODULES = [
     "stacks",
     "taxonomy",
     "tomany",
+    "unreached",
     "views",
     "vocab",
 ]

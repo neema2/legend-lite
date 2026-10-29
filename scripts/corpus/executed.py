@@ -351,7 +351,17 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     _query_features(specs, quarantined, add)
     _milestoning_features(c, specs, quarantined, add)
     _vocabulary_features(specs, quarantined, add)
+    _unreached_features(specs, quarantined, add)
     return out
+
+
+def _unreached_features(specs, quarantined: set[str], add) -> None:
+    """Constructs declared but reached by no service before the improvement plan's Phase 7 (unreached.py), executed
+    when a passing service reaches them -- held here so a change that stops executing one fails the build (the plan's
+    rule 6)."""
+    live = [s for s in specs if s.name not in quarantined]
+
+    add("U1  DenseMapping respelling", [s.short for s in live if s.mapping == "stress::DenseMapping"])
 
 
 def _vocabulary_features(specs, quarantined: set[str], add) -> None:
@@ -572,6 +582,7 @@ def all_specs(c: model.Corpus):
     import intraday
     import literals
     import spread
+    import unreached
     import vocab
 
     base = base_specs(c)
@@ -580,7 +591,7 @@ def all_specs(c: model.Corpus):
     # The typed and intraday services after spread's, which must not see them: spread measures what
     # the walking generators leave uncovered (literals.FIXTURE_TABLES says why the packs are apart).
     return (base + spread.build(c, seeded, base) + literals.build() + intraday.build()
-            + vocab.build(c, tables))
+            + vocab.build(c, tables) + unreached.build(c, tables))
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.
@@ -630,6 +641,9 @@ BASELINE = {
     # 2026-10-29, the improvement plan's Phase 4, stage 6 (vocab.py): the last PCT names, each executed by passing
     # services on legend-engine 4.145.0.
     "Q4  function over a list", "Q4  function as an argument", "Q4  relation window offset",
+    # 2026-10-29, the improvement plan's Phase 7 (unreached.py): constructs declared but reached by no service, each
+    # executed by passing services on legend-engine 4.145.0.
+    "U1  DenseMapping respelling",
 }
 
 

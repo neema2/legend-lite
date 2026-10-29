@@ -3287,3 +3287,20 @@ Status lives in the plan's Progress table (rule 0b.16).
     `substring` dynafunction's operands wrap in the dyna lane's `toOne`, as the generic dyna path's do, so a column
     reached through a join types against Pure's strict `substring(String[1], ...)`; the corpus's new substring cells
     met it.
+- **Phase 7 (started 2026-10-29): declared but unreached.** It lands in stages, each committed when green. Inside the
+  owned files: a generator `scripts/corpus/unreached.py` writing a new generated file `99-unreached-services.pure`
+  (`core/stress.bzl`'s `STRESS_GENERATED` and the layout JSON); runtimes for `stress::DenseMapping` in
+  `91-runtime.pure` and `28-external.pure`; the router union and the inheritance operation moved out of
+  `71-mapping-surface2.pure` into a hand-written pack lite loads, with the merge services' store in
+  `74-surface-last.pure`; mappings for the unused joins (the products, counterparty, back-office, OTC, hier and
+  surface stores and mappings), and the eight joins the user agreed to delete (2026-10-29: the five `dense_*` in
+  `dense_store.py`, `HierInstrument_Issuer`, `surface_AnsiNotEqual`, `TierVersion_Trade`); a profile on the new
+  pack's classes; their seed in `seed.py`; `model.py` and the oracle for the operation forms; `executed.py`,
+  `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 7 (announced 2026-10-29, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (fourteen to fifteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-unreached-services.pure`.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: kept consistent
+    with the split of `71-mapping-surface2.pure` (it stays excluded for its M2M explosion; the moved operations are
+    loaded).
