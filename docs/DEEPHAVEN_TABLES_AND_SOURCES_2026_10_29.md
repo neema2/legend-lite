@@ -170,6 +170,78 @@ products' model access point groups; the screens' functions are access points; t
 datasets (landed by the simulator in the demo, by Kafka or a loader in production), the shared views are materialized
 views (function-sourced datasets), and Deephaven joins the target environments beside DuckDb.
 
+## 6c. Homework: how the pieces work end to end (read 2026-10-29, before the design is rewritten)
+
+The user, 2026-10-29: "make sure we do more homework especially about how Dataspace and dataproduct work together -
+how streaming might be added, how the whole thing will work end to end before we write the doc". Read in
+legend-studio at `18a8f8f`: the round-trip test data (`legend-graph/src/graph-manager/__tests__/roundtripTestData/`
+`TEST_DATA__DataProductRoundtrip.ts`, `TEST_DATA__IngestRoundtrip.ts`, `TEST_DATA__IngestIncludeTransitiveRoundtrip.ts`),
+the Query app's data space and data product test data, `DataSpaceQueryBuilderState.ts`,
+`ValueSpecificationHelper.ts` (`attachWithFromQuery`), the value specification serializer's accessor kinds,
+`legend-cube`'s access point source emitter, and `legend-server-lakehouse`'s clients. The lakehouse services themselves
+(validation, deployment, how an access point is served) are not public.
+
+**The written forms** (from the test data):
+
+```
+###Lakehouse
+Ingest test::IngestDefinition Snapshot<CSV> owner=AppDir(production='297484')
+[
+  TEST_TABLE( int_val: Int, varchar_val: Varchar(500) ) pk=[ int_val ];
+]
+
+###DataProduct
+DataProduct x::A
+{
+  title: 'Test title'
+  accessPoints: [
+    group ('Group description') [
+      myId ('Id description'): LH(Snowflake, |#I{test::Ingest.TEST_TABLE}#)classification1
+    ]
+  ]
+}
+```
+
+**The chain, producer to consumer:**
+
+1. **Ingest** (`###Lakehouse`): datasets (columns, primary key, partition and clustering columns, privacy
+   classification), how files are read (`Snapshot` or `Delta`, `CSV` or `Parquet`), how rows land (`append_only`,
+   `batch_milestoned`, `batch_milestoned_business_temporal`), an owner (an application directory node, production and
+   a prod-parallel), and tests (sample rows in, expected rows out). Deployed: validated, then deployed to the ingest
+   environment the owner's application directory is found in (a discovery service), which answers a **write
+   location** -- producers drop files there. **Push only: the platform pulls nothing.**
+2. **Materialized views**: a dataset of an ingest whose source is a function over other datasets (`FunctionSource`),
+   tested like any (`IngestMatViewTest`). No refresh or freshness setting is visible.
+3. **Into the class model**: a relational `Database` can `include Ingest <ingest>` (`includedStoreSpecifications`,
+   `storeType: 'Ingest'`): the ingest's datasets become its tables (schema the ingest's name, table the dataset's),
+   with joins and ordinary relational mappings over them.
+4. **Data product** (`###DataProduct`): access points -- each a function, most often reading `#I{ingest.dataset}#`; a
+   lakehouse access point (`LH(<target>, |<function>)<classification>`) names where it is served (`Snowflake`,
+   `Databricks`, `BigQuery`, `DuckDb`); model access groups (a mapping, compatible runtimes and a default, featured
+   classes, diagrams, secure views); or native model access (execution contexts of a mapping and a runtime, featured
+   classes, sample queries: a data space's contents). Owner, support, tests. Deployed by its text; readers ask for
+   access through contracts (an entitlement workflow over access groups).
+5. **Composition**: a mapping includes another data product (`MappingIncludeDataProduct`) and joins to it across
+   stores (an `xStore` association): products build on each other at the model.
+6. **Consumption**: a query reads an access point as a relation, `#P{product.accessPoint}#` (accessor kinds: `>`
+   relational, `I` ingest, `P` data product, `SQL`); the new DataCube (`legend-cube`) has a source that emits exactly
+   that. A **data space's execution context takes its mapping from a data product's model access group**
+   (`mappingProvider: { element: <product>, keys: [<group id>] }`), its runtime its own or a compatible one, and its
+   queries run as `query->with(<product>)->from(<runtime>)`; one data space may mix such contexts with classic mapping
+   and runtime ones. The Query app opens a product three ways: an access point (lakehouse access), a model access group,
+   or a native execution context.
+7. **Environments**: an owner's production and prod-parallel deployments; `ExecutionEnvironmentInstance` (services:
+   a mapping and runtime per environment key) for the same query run in several environments.
+
+**Streaming: nothing.** Ingest reads files, in snapshots or changes, at a write location; write modes are batch;
+materialized views have no refresh setting; the target environments are warehouses. What streaming would add, each a
+lite difference to register: an ingest read mode from a topic (`Stream<Avro>`: the write location a Kafka topic, not
+a folder); stream write modes -- append with history kept (`keep`), latest by key; materialized views kept live; and
+live target environments (`Deephaven`, the tab's DuckDB) for landing and for serving access points.
+
+**Not visible (closed services):** how an access point is served on its target (a view? a table?), how materialized
+views refresh, the full ingest grammar beyond the one example, and how `#P{}#` and `#I{}#` are planned.
+
 ## 7. Open decisions
 
 1. **Where a table's source is described** (§4, layer 2). *Recommended after reading it (§6a):* **loaded** tables in
