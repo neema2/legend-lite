@@ -104,7 +104,11 @@ platform (the store's DDL as an input table, DH15), and its rows are written thr
 docs/DEEPHAVEN_PLAN_2026_10_22.md, which landed with the planner's write branch); a hand-written script that makes
 tables goes, the market world's Groovy first. DataCube's own copies on a server (a grid's base) follow the same rule:
 the platform declares the copy's columns and creates it to match, never describes it after from what the server holds.
-The strict check stays for what the platform does not make -- a table another program publishes on a server a person
+Refined the same day: "all data into deephaven has to come from SOMEWHERE" -- the platform must describe, manage,
+configure and create every table and view (input, derived, a view on top, a Kafka feed's), persisted or not; and
+"platform configuring tables/views does not also mean platform has to write the rows necessarily - it's okay if
+simulator/Kafka writes separately". The design: docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md (proposed). The
+strict check stays for what the platform does not make -- a table another program publishes on a server a person
 connects to (D4) -- and is not extended further (to SQL databases) for now. Within the licence (§4): creating a table
 on Deephaven makes an input table, which only internal users may define (a deployment setting refusing it is due before
 this reaches anyone else).
