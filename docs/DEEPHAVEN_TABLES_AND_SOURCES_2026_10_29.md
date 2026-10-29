@@ -153,6 +153,24 @@ this schedule, in this way."**
 3. **The demo's simulator** (§6): stays inside the server as the feed, no table definitions. **Decided (the user,
    2026-10-29).**
 
+4. **Shared views** (decided, the user, 2026-10-29: "We can phase shared views after but think about the design
+   upfront - I would want pure/relation API not store view"): a shared view on a server is a Pure function returning a
+   Relation, written with the Relation API, never a store `View`; built after the tables, designed now (§7a).
+
+## 7a. Shared views: the design questions to settle before the tables are built
+
+- **What makes a view shareable:** it takes no parameter a page supplies, or its parameters are fixed in its
+  declaration (`market::screens::stock(0.1)`: the 0.1 bound once, for everyone).
+- **How a page reads it:** the page's own query is unchanged -- it calls the function -- and the planner, on a server
+  that keeps that call as a shared view, reads the named table instead of computing it again (as a database matches a
+  query to a materialized view). A page never names the shared table itself.
+- **Its shape:** the function's result columns are a declaration like a store table's, so the strict check (DH16)
+  covers it.
+- **Its life:** made by the startup program (decision 2), under a stable name; a changed function is a new
+  deployment; nothing is shared that a server is not told to keep.
+- **What it costs:** held while the server runs, read or not -- so the model says which views a server keeps, never
+  every function.
+
 ## 8. Order of work, once decided
 
 1. Read `###Persistence` and settle decision 1.
