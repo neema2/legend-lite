@@ -594,6 +594,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     hostMenu: () => [
       // saved pages: where the host keeps them (in this browser), over the sources they were built on
       { id: 'host.open' as const, label: 'Open\u2026', section: 'file' as const, ...(services.pages ? {} : NO_PAGES) },
+      // right under Open… (the user, 2026-10-29): a saved page opened again on another context of its data space, off
+      // while the page starts
+      ...(openWithItems?.() ?? [{ label: 'Open With', section: 'file' as const, ...whileStarting(undefined) }]),
       { id: 'host.save' as const, label: 'Save', section: 'file' as const, ...(services.pages ? whileStarting(saveCube) : NO_PAGES) },
       { id: 'host.saveAs' as const, label: 'Save As\u2026', section: 'file' as const, ...(services.pages ? whileStarting(saveCube) : NO_PAGES) },
       // the page's settings in a link: never a row of data (src/share/link.ts)
@@ -601,8 +604,6 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(services.browser.address ? whileStarting(copyShareLink)
           : { disabled: true as const, hint: 'Makes a link others open: this view has no address others can open' }) },
       { id: 'host.query', label: 'Generated Pure & SQL\u2026', section: 'view' as const },
-      // a saved page opened again on another context of its data space (Open With ▸), off while the page starts
-      ...(openWithItems?.() ?? [{ label: 'Open With', section: 'data' as const, ...whileStarting(undefined) }]),
       // THE PAGE'S MODEL, under its Create ▸: its associations and its data space
       { ...CREATE_ASSOCIATION, ...whileStarting(createDataSpace) },
       { ...CREATE_DATA_SPACE, ...whileStarting(createDataSpace) },
@@ -832,7 +833,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       : current.example !== undefined ? { fragment: 'example', id: current.example } : undefined);
     // never hidden (the user, 2026-10-29: "menu items should not be hidden, they should be greyed out with a hover
     // that says why disabled"): off, the entry says why
-    const openWithOff = (hint: string): MenuItem[] => [{ label: 'Open With', section: 'data', disabled: true, hint }];
+    const openWithOff = (hint: string): MenuItem[] => [{ label: 'Open With', section: 'file', disabled: true, hint }];
     openWithItems = () => {
       if (opener() === undefined) return openWithOff('Opens a page in a tab of its own: this view is not one');
       if (openedAs() === undefined) return openWithOff('Opens a saved page on another context: save this page first');

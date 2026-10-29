@@ -24,7 +24,8 @@ export function openWithEntries(spaces: ReadonlyMap<string, DataSpaceRead>):
   const choices: OpenWithChoice[] = [];
   const items = [...spaces.values()].map((space): MenuItem => ({
     label: spaces.size > 1 ? `Open ${space.title} With` : 'Open With',
-    section: 'data',
+    // right under Open… (the user, 2026-10-29)
+    section: 'file',
     submenu: space.contexts.map((c): MenuItem => {
       choices.push({ dataSpace: space.path, context: c.name, title: c.title });
       return { id: `host.openWith.${choices.length - 1}`, label: c.title, checked: c.name === space.context };
