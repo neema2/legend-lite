@@ -3,7 +3,7 @@
 Proposed 2026-10-19. The user took the five decisions on 2026-10-21 ([Decisions](#decisions)), and Phase 0 started
 that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done on 2026-10-23, on `stress_test/corpus`.
 Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28, and Phase 4 started that day
-(its five stages landed by 2026-10-29, four PCT names short of its target; see its record).
+and was done on 2026-10-29, in six stages (see its record).
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -134,14 +134,32 @@ Taken by the user on 2026-10-21. Each entry states the question as it was put, t
   is withdrawn, and `CB_NotEqualsNull` is out of quarantine (it passes on the engine and in lite). **Taken by the
   Phase 1 session on that evidence; the user may reverse it.** Reversing it is one function, and the generated
   expectations follow.
-- **D8, the oracle's group-by `sum` over nothing (raised 2026-10-29 by Phase 4, stage 3).** The oracle's group-by
-  `sum` followed SQL, NULL over a group whose values are all absent, while its `IMPL["sum"]`, which the probes use,
-  was 0. legend-engine's Pure defines `sum` as `$numbers->plus()`, 0 over nothing, and a relation groupBy's map drops
-  an absent value, so the group reduces an empty collection. Under rule 3, with legend-pure as the spec (D7's
-  precedent): **the group-by `sum` is 0 over nothing**, 24 deep-stack grouped totals change their expectation from
-  null to 0, and the engine's NULL is F75, which quarantines them. Lite answers NULL too, so 24 of its passing tests
-  now fail (both `MIN_PASS` notes say so). **Taken by the Phase 4 session on that evidence; the user may reverse it.**
-  Reversing it is one line of `oracle._group`, and the 24 expectations follow.
+- **D8, the oracle's group-by `sum` over nothing (raised 2026-10-29 by Phase 4, stage 3; reversed by the user the
+  same day).** The oracle's group-by `sum` followed SQL, NULL over a group whose values are all absent, while its
+  `IMPL["sum"]`, which the probes use, was 0. Stage 3 read legend-engine's Pure, `sum` as `$numbers->plus()` and a
+  relation groupBy's map dropping an absent value, as the group reducing an empty collection: it made the group-by
+  `sum` 0 over nothing, moved 24 deep-stack grouped totals from null to 0, and recorded the engine's NULL as F75.
+  The review the user asked for found that premise wrong. `groupBy` is a native, and both of legend-engine's Pure
+  runtimes (the compiled `RelationNativeImplementation.performMapReduce`, the interpreted `AggregationShared`) drop
+  the absent values and answer nothing for a group with none left, never handing the reducer an empty collection.
+  PCT `test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort` asserts it for `plus()` (`UK,3000,null`), and neither the
+  core manifests nor DuckDB's exclude it; the legacy TDS groupBy's body does the same (`tds.pure`: `if
+  ($vals->isEmpty(), | ^TDSNull(), ...)`). **Decided (the user, 2026-10-29): reversed, with `count` kept at 0.** A
+  group whose values are all absent has an absent aggregate, `sum` and `joinStrings` included, as SQL's are; its
+  `count` is 0, Pure's own `count` of nothing, which SQL and both engines answer and no PCT contradicts (the natives'
+  shortcut would make it absent too). F75 is withdrawn: its 28 services left quarantine and pass on the engine.
+  `oracle._reduce_group`, `_group` and `_rel_group` hold the rule.
+- **D9, `splitPart`'s index base (raised 2026-10-29 by Phase 4, stage 5).** `splitPart` is legend-engine's Pure
+  function, `$str->toOne()->split($token)->at($part)`, zero-based (its PCT: `'Hello World'->splitPart(' ', 0)` is
+  `'Hello'`). In a query the pinned engine converts it (`processSplitPart`: "sql is 1 index based, pure is 0 index
+  based"), and a probe answered zero-based. A relational property mapping's `splitPart` is the dynafunction, which
+  every dialect extension writes verbatim as SQL's one-based `split_part`, and lite reads it so (`RelOpTranslator`,
+  part - 1); the oracle had one, one-based, reading, which 12 cells of the combination matrix assert, and the engine
+  and lite pass them. The options were two readings by context, Pure's everywhere (substring's precedent: the matrix
+  cells move and `split` leaves `combos.XFORM`), or splitPart left out of queries. **Decided (the user, 2026-10-29):
+  two readings.** The dynafunction keeps SQL's one-based reading in a property mapping, so no expectation moved, and
+  a query's `splitPart` is Pure's (`oracle.QUERY_IMPL`). Under that reading F37's property-mapping half, `substring`'s,
+  is the same case; the session raised it as a question of its own and changed nothing there.
 
 ## Phases
 
@@ -707,7 +725,7 @@ ran them on small seeds of their own. No corpus service uses them, so gate 10 ne
 
 Phase 4 lands in stages, each committed on `stress_test/corpus` when it is green.
 
-**Stage 1: the 23 disagreements, adjudicated (2026-10-28, `ce86f115d`).** Before any went into a service, each
+**Stage 1: the 23 disagreements, adjudicated (2026-10-28, `0bb5fca71`).** Before any went into a service, each
 was put in front of the pinned engine again, twice: in a property mapping, by the probes, and in a query, where this
 phase's services use them. Each answer was set beside the function's definition in legend-pure, or in
 legend-engine's Pure where the function is legend-engine's. Each disagreement turned out to be an oracle or probe
@@ -750,7 +768,7 @@ fix, the engine's error under a finding, or both:
   none depending on a changed file: 54 diff tests (the `update_*` ones and `pins_test`) that `fc.exe` cannot open
   here, each pair identical ignoring CR, and 3 datacube browser tests that time out.
 
-**Stage 2: scalar functions in a query (2026-10-28, `87de58282`).** The first part of the generator, over
+**Stage 2: scalar functions in a query (2026-10-28, `b9f0d212c`).** The first part of the generator, over
 `typedvalues::TypedValue` (Phase 1's pack), whose fifteen rows hold a tie on each comparand with both neighbours,
 negatives, zero, INTEGER's two extremes, strings that differ by case, end in a space or carry an apostrophe,
 Decimals a double cannot tell apart, a leap day, midnight and the last second of a day, and an absent value in every
@@ -830,7 +848,7 @@ into these buckets:
 - PCT function names used anywhere: 99 of 321 (target 150; 66 before).
 - EMIT 45 of 109 on the engine and 39 in lite, as before: a function applied in a query is no EMIT feature.
 
-**Stage 3: aggregates in a groupBy (2026-10-29, `a9bd6b32e`).** Each aggregate the probes agree on, written as
+**Stage 3: aggregates in a groupBy (2026-10-29, `94c3f5a0c`).** Each aggregate the probes agree on, written as
 legend-pure defines it, or legend-engine's Pure where the function is legend-engine's
 (`core_functions_standard/math/aggregator`), never as SQL computes it.
 
@@ -863,7 +881,8 @@ legend-pure defines it, or legend-engine's Pure where the function is legend-eng
   grouped totals written before Phase 4 (`DSAgg_*` and `DSGroup_CashFlow`, each over a navigation that lands on
   nothing for one group) changed their expectation from null to 0. Its group-by `average` over nothing is
   refused, as Pure fails there; no service met one. This is the plan's D8, taken by this
-  session on legend-pure's definition as D7 was; the user may reverse it.
+  session on legend-pure's definition as D7 was; the user may reverse it. (The user reversed it on 2026-10-29, on
+  the groupBy natives' and their PCT's evidence: see D8 and stage 6.)
 - **`executed.py`** holds four more features (rule 6): an aggregate in a groupBy, one with arguments, one over
   pairs, and one followed by a function.
 
@@ -871,7 +890,7 @@ legend-pure defines it, or legend-engine's Pure where the function is legend-eng
 
 - **F75:** in a groupBy, `sum` and `joinStrings` over a group whose values are all absent answer SQL's NULL, where
   Pure's are 0 and `''` (`count`, 0, agrees). 28 services: the four `VGN_` ones and the 24 deep-stack totals
-  (`aggregate-over-nothing`).
+  (`aggregate-over-nothing`). Withdrawn on 2026-10-29 with D8's reversal: the NULL is legend-engine's own definition.
 - **F76:** the sample variance and standard deviation of one value answer NULL, where Pure's are 0 (2 services;
   `sample-variance-of-one`).
 
@@ -896,7 +915,7 @@ depending on a changed file: 55 diff tests that `fc.exe` cannot open here, each 
 one by one), and 3 datacube browser tests that time out. Stages 4 and 5 met the same 58. The probes, run again after
 each oracle change, changed no verdict, and `//scripts/corpus:functions_gate` passes.
 
-**Stage 4: relation and TDS shapes (2026-10-29, `4282b601f`).** Over `trading::Trade`, whose trades of
+**Stage 4: relation and TDS shapes (2026-10-29, `939d4c40b`).** Over `trading::Trade`, whose trades of
 2024-06-03 hold A5's tie: four share a notional of 250,000, so `rank`, `denseRank` and `rowNumber` differ there.
 
 - **`query.Spec.relation`**, a list of operations after the projection and any groupBy, each written in the
@@ -932,7 +951,7 @@ passed fails. Both `MIN_PASS` ratchets rose, each with a dated note. The others:
 one-based in an `extend` of either paradigm, and `olapGroupBy`'s ranking `func(y|$y->rank())` ("a bare lambda has no
 type outside a call position").
 
-**Stage 5: the rest of the scalars, and control flow (2026-10-29, `4ad3d3529`).**
+**Stage 5: the rest of the scalars, and control flow (2026-10-29, `0496e6966`).**
 
 - **19 scalar cases** in stage 2's form (`VP_`, `VN_`, `VF_`; 57 services): `left`, `right`, `char` (after
   `ascii`), `jaroWinklerSimilarity`, `bitShiftLeft`, `parseFloat` and `parseDecimal` (after `toString`),
@@ -978,9 +997,9 @@ whole run with stages 4 and 5's `--only` runs, nothing else having changed):
 - PCT function names used anywhere: 146 of 321 (target 150; 99 after stage 2).
 - EMIT 45 of 109 on the engine and 39 in lite, as before: a function in a query is no EMIT feature.
 
-**Where this session stopped (2026-10-29).** All five stages are committed. Phase 4 is not done: its platform-function
-row and its window, olap, TDS-join and relation-API services are, but the PCT row is four names short of 150. What
-is left:
+**Where the stage-5 session stopped (2026-10-29).** All five stages are committed. Phase 4 is not done: its
+platform-function row and its window, olap, TDS-join and relation-API services are, but the PCT row is four names
+short of 150. What is left (all of it taken up by stage 6, below):
 
 - **Four PCT names or more.** Unused and in reach (`coverage.json`'s `pct_by_category`): `parseBoolean`, `pi`,
   `toDegrees`, `toRadians`, `mean`, `xor`, `between`, `greatest`, `least`, `toUpperFirstCharacter`,
@@ -996,6 +1015,105 @@ is left:
   collection of size 2 to multiplicity [1]"), a finding to minimize when a service carries it.
 - After each oracle change, `bazel run //scripts/corpus:probe_functions` (and `:probe_collection`) again. The other
   fourteen probes, the aggregate probe among them, still name the Maven-era runner (P7-03).
+
+**The branch rebased (2026-10-29).** `stress_test/corpus` was rebased onto upstream `main` (9de4d3a87) with no
+conflict, so the stages' commits have new hashes; the ones above are the rebased ones (stage 1 `0bb5fca71`, stage 2
+`b9f0d212c`, stage 3 `94c3f5a0c`, stage 4 `939d4c40b`, stage 5 `0496e6966`).
+
+**D8 reversed (2026-10-29, `5cabca0a4`).** The user asked for D8 to be reviewed, and reversed it on the review's
+evidence (see D8): a groupBy never reduces a group whose values are all absent, so its aggregate is absent, `sum` and
+`joinStrings` included, and its `count` is 0. `oracle._reduce_group` and `_group` hold the rule, and `_rel_group`
+(the probes' groupBy) too; a window still reduces its frame. F75 is withdrawn, and `repro/aggregate-over-nothing/`
+now shows the rule.
+
+- **The engine verdict.** No seed changed; `changed` listed the 28 services whose expectations moved back to null
+  (the 24 deep-stack totals, `VGN_SumQuantity`, `VGN_SumRate`, `VGN_SumAmount` and `VGN_JoinStringsName`): 28 pass,
+  0 unexpected. The repro's three services pass.
+- **Lite.** On DuckDB 5,291 tests pass (5,264 before) and on H2 5,224 (5,197): the 24 totals and the three
+  `VGN_Sum` services, which lite answers with NULL; `VGN_JoinStringsName` still meets TV-04's trimmed trailing space.
+  No test that passed fails. Both `MIN_PASS` rose, each with a dated note.
+- **The gate** met the desk's known reds alone: the same 55 diff tests (the stress corpus's outputs compared equal
+  ignoring CR) and 5 datacube browser tests (4 timeouts and `cube_page_shell_test`, none depending on the corpus;
+  the rebase brought the flow-mode work). The probes, run again, changed no verdict.
+
+**Stage 6: the last PCT names, and the gaps stage 5 left (2026-10-29, `880243bbb`).** Every candidate was first put in
+front of the pinned engine in a small model of its own: `xor`, `pi`, `toDegrees`, `toRadians`,
+`toUpperFirstCharacter`, `toLowerFirstCharacter`, `between`, `regexpReplace`, `date(y, m, d)`, `greatest`, `least`,
+`mean`, `lag`, `lead`, `nth` and a query's `splitPart` answered as Pure defines them. `parseBoolean` is refused in a
+query as in a mapping (F36), and `lag($r, 2)` answers the previous row (F80). Most are legend-engine's own Pure
+functions with bodies, which the engine inlines in a query.
+
+- **13 scalar cases** in stage 2's form (`VP_`, `VN_`, `VF_`; 39 services): `xor`, `toDegrees`, `toRadians`, `pi()`
+  as an argument (`$x.rate * pi()`, `query.Nullary`), `toUpperFirstCharacter`, `toLowerFirstCharacter`, `greatest`
+  and `least` over a list of the value and a literal (`[$x.quantity, 7]->greatest()`), `between`, `regexpReplace`
+  with `replaceAll` false and true, `date(year, 6, 1)`, and `splitPart('e', 0)` (D9: a query's is Pure's, zero-based,
+  `oracle.QUERY_IMPL`; refused where Pure's and SQL's splits differ, an empty piece or a token of several
+  characters). The transcendental ones are compared with a threshold, as before.
+- **`mean`** in stage 3's form (`VG_` and `VGN_`, over `quantity` and `rate`; 4 services): legend-engine's Pure is
+  `$numbers->average()`.
+- **Windows** in stage 4's form, Relation only (olapGroupBy has none of them; 4 services): `lag`, `lead`, `nth($w,
+  $r, 2)` and `lag($r, 2)`, each reading another row's notional (`Window.read`) over each trade date ordered by
+  notional and id. The oracle's `nth` reads the window's frame, the partition's start through the current row, as
+  its PCT does.
+- **Control flow** (2 services): `VC_LetColumn`, a `let` inside a column lambda (`Apply.let`), and
+  `VC_MapSumTrades`, `$x.trades->map(t|$t.notional)->sum()` over `positions::Book` (`Proj.over`), whose six books
+  with no trades sum legend-pure's 0. `subType()` is left for Phase 7 (the user's decision): the corpus's one mapped
+  hierarchy, `hier::`, maps a root set beside subclass sets, where a cast of a root-set object is Pure's failure and
+  the engine's routing, so a service first needs a definition of it. It is no PCT name, so no row waits on it.
+- **Oracle fixes, each where it had followed SQL rather than legend-engine's Pure:** `between` over an absent
+  operand is false (its body's comparisons, D7), not NULL; `regexpReplace` honours `replaceAll`, where it had
+  replaced every match whatever the flag. Neither function had reached a service, and the probes, run again, changed
+  no verdict.
+- **`executed.py`** holds three more features (rule 6): a function over a list, a function as an argument, and a
+  window's offset function.
+
+**Found on the way** (each minimized under `scripts/corpus/repro/`, with its services quarantined):
+
+- **F80:** a window's `lag` or `lead` with an offset other than 1 is written with no offset (`processOffset` reads
+  only its sign), so `lag($r, 2)` answers the previous row (1 service, `VR_Lag2`; `lag-offset`).
+- **F81:** a `let` inside a column lambda fails in the router, "Cannot cast a collection of size 2 to multiplicity
+  [1]", braced or not; a top-level `let` passes (1 service, `VC_LetColumn`; `let-in-column`).
+- **F82:** `sum` over a to-many navigation that lands on nothing answers SQL's NULL, where legend-pure's collection
+  `sum` is 0: a plain function over an empty collection, as `count()` is in F6, not a groupBy (1 service,
+  `VC_MapSumTrades`; `sum-over-empty-to-many`).
+- **F68, five more:** through `map` over an absent value, `toUpperFirstCharacter` and `toLowerFirstCharacter` answer
+  `''`, `greatest` and `least` of `[NULL, 7]` 7, and `between` false (5 services, the `VN_` ones; their `VP_` and
+  `VF_` pass).
+
+**The engine verdict (2026-10-29).** `changed` listed the 49 new services and nothing else: 41 pass, 8 known-fail, 0
+unexpected. The three repros reproduce as described.
+
+**Lite.** On DuckDB 5,324 tests pass (5,291 after D8) and on H2 5,248 (5,224): 33 and 24 of the 49, and no test that
+passed fails. Lite answers `VR_Lag2` right, where the engine is F80. Both `MIN_PASS` rose, each with a dated note.
+Its failing stage-6 services:
+
+- **on both databases:** TV-04's trimmed trailing space (Phase 1's bucket: `toUpperFirstCharacter`,
+  `toLowerFirstCharacter`, `regexpReplace`, `splitPart`, the `let` column), `map` over an absent value (F68's shape:
+  `between`, `greatest`, `least`), and the sum over no trades as NULL (F82's shape);
+- **on H2 only:** no `MAKE_DATE` (`date`), `greatest` and `least` over a list ("reached a dialect without a list
+  encoding"), `regexp_replace` refusing the `g` flag and, asked for the first match, replacing every one, and `AVG`
+  of integers to eleven digits (`mean`).
+
+**The gate.** `bazel test --lockfile_mode=error //gates:local //:generated //scripts/corpus:all
+//core:stress_suites //core:stress_suites_h2 //core:corpus_differential_test`: 398 pass and 2 are skipped. 59 fail
+on this desk alone, none depending on a changed file: the same 55 diff tests as before (the stress corpus's
+outputs compared equal to the checkout ignoring CR) and 4 datacube browser tests that time out. The probes, run
+again after the oracle's fixes, changed no verdict, and `//scripts/corpus:functions_gate` passes.
+
+**Phase 4 done (2026-10-29).** Every row it set out to move has reached its target, and its window, olap, TDS-join
+and relation-API services pass on the engine. The measures after stage 6 (the report's `tools/run.sh` at the pin,
+given the engine's pass list: stage 3's whole run with the `--only` runs of stages 4 to 6 and D8, nothing else
+having changed):
+
+- **PCT function names used anywhere: 161 of 321** (target 150; 146 after stage 5, 64 at the pin before the plan).
+  Stage 6 added `between`, `date`, `greatest`, `lag`, `lead`, `least`, `mean`, `nth`, `pi`, `regexpReplace`,
+  `toDegrees`, `toLowerFirstCharacter`, `toRadians`, `toUpperFirstCharacter` and `xor`.
+- **Platform functions in service queries: 183** distinct names (target 150; 167 after stage 5, and the report
+  counted 25). 178 are in services that pass on the engine, and 165 in services that pass in lite.
+- EMIT 45 of 109 on the engine and 39 in lite, as before: a function in a query is no EMIT feature.
+- **The engine's standing verdict**, adding those runs to stage 3's: 5,540 pass, 99 known-fail, 1 not run (F15),
+  0 unexpected, of 5,640 testables. Phase 4 added 488 services (258, 77, 40, 64 and 49 in stages 2 to 6).
+- **Lite**: 5,324 tests pass on DuckDB and 5,248 on H2 (4,939 and 4,910 before the phase).
 
 ### Phase 5: M2M (about 5 days, about 40 services)
 
@@ -1138,7 +1256,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 1 | 2026-10-23 | — | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 2 | 2026-10-27 | — | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 3 | 2026-10-28 | — | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
-| 4 | 2026-10-28 | stages 1 to 5 of 5; four PCT names short | stage 1 (`ce86f115d`) 0; stage 2 (`87de58282`) 258; stage 3 (`a9bd6b32e`) 77; stage 4 (`4282b601f`) 40; stage 5 (`4ad3d3529`) 64 | 25 vocabulary services under F35, F38, F68, F71-F74 (stage 2); 30 under F75 and F76, 24 of them deep-stack totals whose expectation moved to Pure's 0 (stage 3); 2 under F37 and F77 (stage 4); 5 under F78 and F79 (stage 5); F68-F79 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's), an aggregate over nothing as SQL's NULL (F75's, F76's), `last` and `wavgRowMapper` in a groupBy, `substring(start)` one-based in an `extend`, `olapGroupBy`'s ranking `func`, `parseDecimal` as DECIMAL(5,2); on H2 alone, functions the dialect lacks, a non-ISO `weekOfYear`, a Sunday-first `firstDayOfWeek`, `AVG` of integers to eleven digits | after stage 5: platform functions in service queries 167 (162 on the engine, 150 in lite); PCT 146 of 321; EMIT 45 of 109 on the engine, 39 in lite |
+| 4 | 2026-10-28 | 2026-10-29, six stages | stage 1 (`0bb5fca71`) 0; stage 2 (`b9f0d212c`) 258; stage 3 (`94c3f5a0c`) 77; stage 4 (`939d4c40b`) 40; stage 5 (`0496e6966`) 64; D8 reversed (`5cabca0a4`) 0; stage 6 (`880243bbb`) 49 | 25 vocabulary services under F35, F38, F68, F71-F74 (stage 2); 30 under F75 and F76, 24 of them deep-stack totals whose expectation moved to Pure's 0 (stage 3); 2 under F37 and F77 (stage 4); 5 under F78 and F79 (stage 5); F75 withdrawn with D8's reversal, its 28 services out (2026-10-29); 8 under F68, F80, F81 and F82 (stage 6); F68-F82 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's), an aggregate over nothing as SQL's NULL (F76's; F75's withdrawn), `last` and `wavgRowMapper` in a groupBy, `substring(start)` one-based in an `extend`, `olapGroupBy`'s ranking `func`, `parseDecimal` as DECIMAL(5,2), `sum` over no trades as NULL (F82's); on H2 alone, functions the dialect lacks (`MAKE_DATE`, `greatest`/`least` over a list), a non-ISO `weekOfYear`, a Sunday-first `firstDayOfWeek`, `AVG` of integers to eleven digits, and `regexpReplace` refusing `replaceAll` or replacing every match for the first | platform functions in service queries 183 (178 on the engine, 165 in lite); PCT 161 of 321; EMIT 45 of 109 on the engine, 39 in lite |
 | 5 | — | — | — | — | — | — |
 | 6 | — | — | — | — | — | — |
 | 7 | — | — | — | — | — | — |
