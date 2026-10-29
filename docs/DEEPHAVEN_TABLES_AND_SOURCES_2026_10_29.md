@@ -39,6 +39,8 @@ orders from the order system. The design describes all of it in Legend's own ter
 6. **The desk:** "Desk app will still be a DataSpace but a dataSpace made up of data products / access points".
 7. **This document's three questions:** "Add pull too, products by sensible domains maybe even one level down from
    'reference'), keep classes please!"
+8. **Entitlements:** "Agree no entitlements needed for now". **Dataset groups** left unset (the desk's tables stay in
+   the default schema) and **a pull owned by the source's team**, the team that owns the product: "Okay".
 
 Superseded on the way, kept in git history: a `###Pipeline` and a Kafka `###` store (2026-10-29: "Lot of new concepts
 to juggle"), extending `###Persistence` with streams, a per-backend `DeephavenTable` activator, and a generic `Deploy`
@@ -63,16 +65,48 @@ element. Each reinvented a Legend concept under a new name.
    the environment's runtime, like any query's.
 2. **Streams.** A dataset whose source is a topic -- a table of a store reached through a Kafka connection (a lite
    connection type, as `Deephaven` is) -- read live.
-3. **How rows land, for live data:** `AppendOnly` with the history it keeps (`keep=Last('8h')`, `Last(200000)`), and
-   `LatestByKey` (one row per key, the newest).
-4. **Refresh:** `Continuous`, `Every('15m')`, `Daily('06:00', 'America/New_York')` -- for pulls and materialized views
-   (Legend's materialized views show no refresh setting).
+3. **How rows land, for live data:** `AppendOnly` with the history it keeps (`keep=Last('PT8H')`,
+   `keep=LastRows(200000)`), and `LatestByKey` (one row per key, the newest).
+4. **Schedules:** `Every('PT15M')`, `Daily('06:00', 'America/New_York')` -- for pulls. A materialized view follows its
+   inputs (Legend's show no refresh setting).
 5. **Live targets:** a Deephaven server and the tab's DuckDB, where ingests land and access points are served, beside
    Legend's Snowflake, Databricks, BigQuery and DuckDb. Chosen by the environment's runtime, never written in the
    ingest.
 
-The exact words of 1-4 are proposed with the worked example (§4) and settled before anything is built; Legend's own
-written forms are kept wherever they exist.
+The words are §3a, worked on the desk in §4.
+
+## 3a. The words (proposed 2026-10-29, for the user's review)
+
+**Three rules.** (1) Every form Studio shows written is kept exactly (Appendix A.4). (2) Any other field is spelled by
+the conventions of the element it is in -- `key=value` on an ingest's header and datasets (as `owner=` and `pk=`),
+`key: value;` inside braces (as a data product's and a data space's) -- its key the protocol's field name. (3) What lite
+adds follows the same two conventions. The JSON each form produces is the protocol's, tested against Studio's
+round-trip fixtures; each spelling lite reconstructed is listed so it can be replaced when Legend's grammar is seen.
+
+| Construct | Written | Protocol (JSON) | Whose |
+|---|---|---|---|
+| An ingest | `Ingest <path> <read mode> owner=AppDir(production='<id>') [ <datasets> ]` | `ingestDefinition` | Legend, seen |
+| Files, whole or changed | `Snapshot<CSV>`, `Delta<Parquet>` | `readMode: { _type: Snapshot \| Delta, format: { _type: CSV \| Parquet } }` | Legend; `Delta<Parquet>` by rule 2 |
+| Live rows | `Stream` | `readMode: { _type: Stream }` | lite |
+| Pulled on a schedule | `Pull<Daily('06:00', 'America/New_York')>`, `Pull<Every('PT15M')>` | `readMode: { _type: Pull, schedule: { ... } }` | lite |
+| A dataset of written columns | `NAME( col: Type, ... ) pk=[ col ];` | `source: { _type: serializedSource, schema }` | Legend, seen |
+| A dataset made by a function | `NAME( \|<function> ) pk=[ col ];` | `source: { _type: FunctionSource, function }` | Legend's source, lite's spelling |
+| How rows land | `writeMode=AppendOnly`, `writeMode=BatchMilestoned`, `writeMode=LatestByKey` | `writeMode: { _type: append_only \| batch_milestoned \| latest_by_key }` | Legend's first two by rule 2; `LatestByKey` lite |
+| History kept | `keep=Last('PT8H')`, `keep=LastRows(200000)` | `keep: { ... }` | lite |
+| A store over an ingest | `include Ingest <path>` | `includedStoreSpecifications: [ { storeType: Ingest, ... } ]` | Legend, named in prose |
+| Topics as tables | `type: Kafka; specification: Kafka { bootstrapServers: '...'; schemaRegistry: '...'; format: Avro; };` | a `RelationalDatabaseConnection` of lite's type | lite (as `Deephaven`) |
+| Rows from the market world | `type: Simulated; specification: Simulated { world: 'market'; };` | the same, the demo's and the tests' | lite |
+| A model access group | `<id> ('<description>') Model { mapping: <path>; compatibleRuntimes: [ <id>: <runtime>, ... ]; defaultRuntime: <id>; } [ <access points> ]` | `modelAccessPointGroup` | Legend's shape, lite's spelling |
+| A data space's mapping from a product | `mappingProvider: { element: <product>; keys: [ '<group id>' ]; };` | `mappingProvider: { element, keys }` | Legend's shape, lite's spelling |
+
+Durations are ISO 8601 (`PT8H`, `PT15M`); a time of day is `HH:MM` in a named IANA zone.
+
+**What each read mode means:** files (`Snapshot`, `Delta`) are dropped by a producer at the ingest's write location;
+`Stream` rows arrive live -- from the topic a function reads, or written by the dataset's producer when its columns are
+written out; `Pull` runs each dataset's function on the schedule, each run the whole set. **What each write mode
+means:** `AppendOnly` adds every row (with `keep`, older ones fall away); `LatestByKey` keeps the newest row per key (a
+pull's run also drops the keys it no longer returns); `BatchMilestoned` keeps every version with batch ids -- Legend's,
+refused on Deephaven by name until a case needs history there.
 
 ## 4. The desk, worked
 
@@ -91,42 +125,74 @@ reference data one level down:
 | `marketdata::MarketData` | `MarketQuote`, `MarketTrade`, `FxRate` | `marketdata::MarketdataMapping` | Streamed from the ticker plant | Trades appended, 8 h kept; quotes and rates latest by key |
 | `marketdata::News` | `NewsStory` | (its share of `MarketdataMapping`) | Streamed from the news vendor | Appended, 24 h kept |
 | `trading::OrderFlow` | `Order`, `Execution`, `OrderRoute`, `Rfq` | `trading::TradingMapping` | Streamed from the order system | Orders and RFQs latest by key; fills and routes appended |
-| `positions::Positions` | `Book`, `Position` | `positions::PositionsMapping` | Pulled from position keeping at the start of the day | Snapshot, daily |
+| `positions::Positions` | `Book`, `Position` | `positions::PositionsMapping` | Dropped as files by position keeping each morning (Legend's own form) | Snapshot, daily |
 | `risk::Limits` | `RiskLimit` | `risk::RiskMapping` | Pulled from the risk system | Latest by key, every 15 minutes |
 | `desk::Analytics` (the desk's own) | -- | -- | Materialized from the products above | Live (the shared views, phased after) |
 
 News is its own product because its source, licence and readers differ from prices'. `Book` stays with positions,
 where the model puts it. The desk-only `world` status table is the market world's, not a product.
 
-### 4.2 An ingest of each kind (proposed words; Legend's where they exist)
+### 4.2 The ingests
 
 ```pure
 ###Lakehouse
-// STREAMED: the ticker plant's topics (in the demo, the market world's simulator)
-Ingest marketdata::MarketDataFeed Stream owner=AppDir(production='...')           // Stream: lite
+// MARKET DATA, streamed from the ticker plant's topics (owned by the market data team)
+Ingest marketdata::MarketDataFeed Stream owner=AppDir(production='...')
 [
-  MARKET_TRADE = |#>{tickerplant::Topics.MARKET_TRADE}#  pk=[ PRINT_ID ]  write=AppendOnly  keep=Last('8h');
-  MARKET_QUOTE = |#>{tickerplant::Topics.MARKET_QUOTE}#  pk=[ QUOTE_ID ]  write=LatestByKey;
-  FX_RATE      = |#>{tickerplant::Topics.FX_RATE}#       pk=[ RATE_ID ]   write=LatestByKey;
+  MARKET_TRADE( |#>{tickerplant::Topics."tp.us-equities.trades.v3"}# ) pk=[ PRINT_ID ] writeMode=AppendOnly keep=Last('PT8H');
+  MARKET_QUOTE( |#>{tickerplant::Topics."tp.us-equities.nbbo.v2"}# )  pk=[ QUOTE_ID ] writeMode=LatestByKey;
+  FX_RATE( |#>{tickerplant::Topics."tp.fx.spot.v1"}# )                pk=[ RATE_ID ]  writeMode=LatestByKey;
 ]
 
-// PULLED: the security master's tables, each morning
-Ingest products::SecurityMasterLoad Pull<Daily('06:00', 'America/New_York')> owner=AppDir(production='...')   // Pull: lite
+// NEWS, streamed from the vendor's topic
+Ingest marketdata::NewsFeed Stream owner=AppDir(production='...')
 [
-  INSTRUMENT = |#>{secmaster::DB.INSTRUMENT_V}#  pk=[ INSTRUMENT_ID ];
-  EQUITY     = |#>{secmaster::DB.EQUITY_V}#      pk=[ EQUITY_ID ];
-  OPTION     = |#>{secmaster::DB.OPTION_V}#      pk=[ OPTION_ID ];
+  NEWS_STORY( |#>{newswire::Topics."vendor.newswire.stories.v1"}# ) pk=[ STORY_ID ] writeMode=AppendOnly keep=Last('PT24H');
 ]
 
-// PUSHED: Legend's own form, unchanged -- a producer drops files
+// THE ORDER SYSTEM, streamed from its drop copy
+Ingest trading::OrderFlowFeed Stream owner=AppDir(production='...')
+[
+  TRADE_ORDER( |#>{oms::Topics."oms.equities.orders.v4"}# ) pk=[ ORDER_ID ]     writeMode=LatestByKey;
+  EXECUTION( |#>{oms::Topics."oms.equities.fills.v4"}# )    pk=[ EXECUTION_ID ] writeMode=AppendOnly;
+  ORDER_ROUTE( |#>{oms::Topics."oms.equities.routes.v4"}# ) pk=[ ROUTE_ID ]     writeMode=AppendOnly;
+  RFQ( |#>{oms::Topics."oms.fx.rfqs.v2"}# )                 pk=[ RFQ_ID ]       writeMode=LatestByKey;
+]
+
+// THE SECURITY MASTER, pulled each morning (owned by the security master's team)
+Ingest products::SecurityMasterLoad Pull<Daily('06:00', 'America/New_York')> owner=AppDir(production='...')
+[
+  INSTRUMENT( |#>{secmaster::DB.INSTRUMENT_V}# ) pk=[ INSTRUMENT_ID ] writeMode=LatestByKey;
+  EQUITY( |#>{secmaster::DB.EQUITY_V}# )         pk=[ EQUITY_ID ]     writeMode=LatestByKey;
+  OPTION( |#>{secmaster::DB.OPTION_V}# )         pk=[ OPTION_ID ]     writeMode=LatestByKey;
+]
+// refdata::MarketsLoad (EXCHANGE, SECTOR), org::OrganisationLoad (BUSINESS_UNIT, DESK, TRADER) and
+// counterparty::ClientMasterLoad (COUNTERPARTY): the same, each from its own master
+
+// RISK LIMITS, pulled every fifteen minutes
+Ingest risk::LimitsLoad Pull<Every('PT15M')> owner=AppDir(production='...')
+[
+  RISK_LIMIT( |#>{riskdb::DB.RISK_LIMIT}# ) pk=[ LIMIT_ID ] writeMode=LatestByKey;
+]
+
+// POSITIONS at the start of the day: Legend's own form -- position keeping drops its files
 Ingest positions::StartOfDay Snapshot<Parquet> owner=AppDir(production='...')
 [
-  POSITION( POSITION_ID: Varchar(200), QUANTITY: Double, ... ) pk=[ POSITION_ID ];
+  POSITION( POSITION_ID: Varchar(200), QUANTITY: Double, AVERAGE_COST: Double, ... ) pk=[ POSITION_ID ];
+  BOOK( BOOK_ID: Varchar(200), NAME: Varchar(200), ... ) pk=[ BOOK_ID ];
+]
+
+// THE MARKET WORLD'S STATUS: written live by the world itself (columns written out: no function)
+Ingest market::WorldStatus Stream
+[
+  world( item: Varchar(16), state: Varchar(16), detail: Varchar(256) ) pk=[ item ] writeMode=LatestByKey;
 ]
 ```
 
-A dataset defined by a function takes its columns from the function's result -- no column list written twice -- and
-the strict check (DH16) holds what lands to them.
+A dataset made by a function takes its columns from the function's result -- no column list written twice -- and the
+strict check (DH16) holds what lands to them. The topics' stores (`tickerplant::Topics`, `newswire::Topics`,
+`oms::Topics`) are ordinary `###Relational` databases whose tables are named as the topics are; the masters' stores
+(`secmaster::DB`, `riskdb::DB`) are the source systems' own.
 
 ### 4.3 Into the class model: the trading store includes the ingests
 
@@ -135,7 +201,10 @@ the strict check (DH16) holds what lands to them.
 Database store::DB
 (
   include Ingest marketdata::MarketDataFeed
+  include Ingest marketdata::NewsFeed
+  include Ingest trading::OrderFlowFeed
   include Ingest products::SecurityMasterLoad
+  include Ingest risk::LimitsLoad
   include Ingest positions::StartOfDay
   ...
 )
@@ -143,8 +212,7 @@ Database store::DB
 
 The domain mappings stay as written: `marketdata::MarketdataMapping` maps `MarketTrade` to `MARKET_TRADE` as today.
 What changes is where `MARKET_TRADE` is declared -- by the ingest, which knows where its rows come from, rather than by
-a hand-kept table list. (Legend puts an included ingest's datasets under a schema named by the ingest's dataset group
-(`datasetGroup`); whether the desk's tables keep the default schema is a detail to settle, §9.)
+a hand-kept table list. With no dataset group, each dataset stays in the default schema (decided, §1.8).
 
 ### 4.4 The products
 
@@ -155,19 +223,42 @@ DataProduct marketdata::MarketData
   title: 'Market data'
   description: 'Prices, quotes and FX rates from the ticker plant, live'
   accessPoints: [
-    model ('The market data classes') [ ... ]         // a model access group: marketdata::MarketdataMapping,
-  ]                                                   // its compatible runtimes, its featured classes
+    model ('The market data classes') Model
+    {
+      mapping: marketdata::MarketdataMapping;
+      compatibleRuntimes: [ inTab: market::InTabRuntime, deephaven: market::DeephavenRuntime ];
+      defaultRuntime: deephaven;
+    } [ ]
+  ]
+}
+
+DataProduct desk::Desk
+{
+  title: 'Trading desk'
+  description: 'The desk\'s model: every domain product, and the links between them'
+  accessPoints: [
+    model ('The desk classes') Model
+    {
+      mapping: desk::DeskMapping;        // includes each domain product, carries the cross-domain associations
+      compatibleRuntimes: [ inTab: market::InTabRuntime, deephaven: market::DeephavenRuntime ];
+      defaultRuntime: deephaven;
+    } [ ]
+  ]
 }
 ```
 
-(The written forms in 4.4 and 4.5 are illustrative: Studio's test data shows a model access group and a data space's
-`mappingProvider` only as JSON -- `modelAccessPointGroup` with `mapping`, `compatibleRuntimes`, `defaultRuntime`;
-`mappingProvider: { element, keys }` -- not as text. Their shape is Legend's; the spelling is to be read from the
-grammar when lite parses them.)
+```pure
+###Mapping
+Mapping desk::DeskMapping
+(
+  include dataproduct marketdata::MarketData       // Legend's MappingIncludeDataProduct; the words are lite's (rule 2)
+  include dataproduct products::SecurityMaster
+  ...
+  // the association bindings stress::AllMapping carries today, where both ends are visible
+)
+```
 
-Each product's model access group is its domain's mapping; its owner and support are its team's. Products compose as
-the model does today: the desk's mapping includes each product (Legend's `MappingIncludeDataProduct`) and carries the
-links between domains -- `stress::AllMapping`'s association bindings -- where both ends are visible.
+Each domain product's model access group is its domain's mapping; its owner and support are its team's.
 
 ### 4.5 The desk: a data space made of the products
 
@@ -177,16 +268,55 @@ DataSpace market::TradingDesk
 {
   executionContexts:
   [
-    { name: 'In this tab'; mappingProvider: { element: desk::Desk; keys: [ 'model' ] }; defaultRuntime: market::InTabRuntime; },
-    { name: 'Deephaven';   mappingProvider: { element: desk::Desk; keys: [ 'model' ] }; defaultRuntime: market::DeephavenRuntime; }
+    {
+      name: 'In this tab';
+      title: 'In this tab (DuckDB)';
+      mappingProvider: { element: desk::Desk; keys: [ 'model' ]; };
+      defaultRuntime: market::InTabRuntime;
+    },
+    {
+      name: 'Deephaven';
+      title: 'Deephaven';
+      mappingProvider: { element: desk::Desk; keys: [ 'model' ]; };
+      defaultRuntime: market::DeephavenRuntime;
+    }
   ];
   defaultExecutionContext: 'In this tab';
+  title: 'Trading desk';
 }
 ```
 
-`desk::Desk` is the desk's own product: a model access group whose mapping includes the domain products. Its
-screens -- `market::screens::stock`, `positionsLive`, `watchlist`, ... -- are the functions over classes they are
+Its screens -- `market::screens::stock`, `positionsLive`, `watchlist`, ... -- are the functions over classes they are
 today; DataCube's saved pages are unchanged. Open With ▸ still switches between the contexts.
+
+### 4.6 The environments: where each store is
+
+```pure
+###Connection
+RelationalDatabaseConnection prod::TickerPlant
+{
+  store: tickerplant::Topics;
+  type: Kafka;
+  specification: Kafka { bootstrapServers: 'tp-kafka-01.prod:9093,tp-kafka-02.prod:9093'; schemaRegistry: 'https://schemas.prod'; format: Avro; };
+  auth: ...;
+}
+RelationalDatabaseConnection demo::TickerPlant
+{
+  store: tickerplant::Topics;
+  type: Simulated;
+  specification: Simulated { world: 'market'; };
+  auth: Test;
+}
+```
+
+| Store | Production | The demo |
+|---|---|---|
+| `store::DB` (where the ingests land) | Deephaven | Deephaven, or the tab's DuckDB |
+| `tickerplant::Topics`, `newswire::Topics`, `oms::Topics` | Kafka | `Simulated`: the market world writes the rows |
+| `secmaster::DB`, `riskdb::DB`, the other masters | each master's database | `Simulated`: the market world's reference rows |
+| Position keeping's files | its write location | the market world's start-of-day positions |
+
+The ingests, products and data space are the same in both; only the runtimes differ.
 
 ## 5. End to end
 
@@ -235,7 +365,7 @@ table to its ingest's columns.
 
 ## 8. Order of work
 
-1. The words of pull, stream, write modes and refresh, settled with the user on this example.
+1. The words of §3a, settled with the user on this example.
 2. Ingests in lite: the `###Lakehouse` grammar (Legend's forms and lite's additions), `include Ingest`, and checks.
 3. The desk's tables declared by ingests; `store::DB` including them; the domain mappings unchanged; the lanes green.
 4. The generated startup program on Deephaven: streams, pulls, pushes. The market world's Groovy reduced to the
@@ -247,10 +377,11 @@ table to its ingest's columns.
 
 ## 9. Open questions
 
-1. **Schema names:** an included ingest's datasets live under a schema named by its dataset group in Legend; the desk's
-   tables are in the default schema today. Keep Legend's rule and update the domain mappings, or keep the default.
-2. **Pull's owner:** whose job is a pull -- the product's team (the platform runs their query) or the source system's
-   (it pushes files, Legend's way)? Both can coexist; the model says which.
+1. **Schema names: decided** -- no dataset group; the desk's tables stay in the default schema. A group (and DH18's
+   naming rule on Deephaven) when two sources' datasets collide.
+2. **Pull's owner: decided** -- the source's team, which owns the product; pull is one way it publishes (the platform
+   runs its query on its own database), beside dropping files. A consumer never pulls from another team's database,
+   but for a stopgap stated as one, its owner and risk written down.
 3. **Entitlements: none for now** (the user, 2026-10-29: "Agree no entitlements needed for now"). Legend's products are
    read through contracts on access groups; that stays out of this design.
 4. **How Legend serves an access point on its target, and refreshes a materialized view:** not visible (closed
