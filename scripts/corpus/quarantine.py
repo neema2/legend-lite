@@ -242,10 +242,13 @@ ENGINE_QUARANTINE.update({
     for v in "PN" for k in ("FirstDayOfWeek", "AdjustDays")
 })
 # F68 -- through `map`, an absent value reaches a NULL-tolerant SQL function and comes back a value: `+ '!'` gives
-# '!', regexpIndexOf -1. The projections over the required property pass. Minimized in repro/map-over-absent/.
+# '!', regexpIndexOf -1; since stage 6 also toUpperFirstCharacter and toLowerFirstCharacter '' (their bodies concatenate),
+# greatest and least of [NULL, 7] 7 (SQL's GREATEST skips a NULL), and between false (its body's comparisons). The
+# projections over the required property pass. Minimized in repro/map-over-absent/.
 ENGINE_QUARANTINE.update({
     f"stress::VN_{k}": ("F68", "map over an absent value applies the function to NULL")
-    for k in ("PlusString", "RegexpIndexOf")
+    for k in ("PlusString", "RegexpIndexOf", "ToUpperFirstCharacter", "ToLowerFirstCharacter", "Greatest", "Least",
+              "Between")
 })
 # F71 -- Integer arithmetic over an INTEGER column is 32-bit in the SQL: abs(-2147483648) and 2147483647 + 1 overflow,
 # and floor(1e10) is cast to INT32. Pure's Integer is 64-bit. VF_PlusInteger passes. Minimized in
@@ -295,6 +298,15 @@ ENGINE_QUARANTINE.update({
     f"stress::VGS_{k}": ("F76", "the sample variance of one value is NULL, not 0")
     for k in ("VarianceSampleQuantity", "StdDevSampleQuantity")
 })
+# F80 -- a window's lag or lead with an offset other than 1 is written with no offset, so it answers the row 1 away.
+# VR_Lag, VR_Lead and VR_Nth pass. Minimized in repro/lag-offset/.
+ENGINE_QUARANTINE["stress::VR_Lag2"] = ("F80", "lag with an offset of 2 answers the previous row")
+# F81 -- a let inside a column lambda fails in the router ("Cannot cast a collection of size 2 to multiplicity [1]"); a
+# top-level let passes (VC_LetInteger, VC_LetDate). Minimized in repro/let-in-column/.
+ENGINE_QUARANTINE["stress::VC_LetColumn"] = ("F81", "a let inside a column lambda fails in the router")
+# F82 -- sum over a to-many navigation that lands on nothing is SQL's NULL, where legend-pure's collection sum is 0.
+# Minimized in repro/sum-over-empty-to-many/.
+ENGINE_QUARANTINE["stress::VC_MapSumTrades"] = ("F82", "sum over no trades is NULL, not 0")
 
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the

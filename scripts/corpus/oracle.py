@@ -43,7 +43,7 @@ from datetime import datetime as _datetime
 import re
 
 from model import Corpus
-from query import (Agg, And, Concatenate, Cut, DateTimeArg, Distinct, Extend, Hop, Join, Not, Or, Param,
+from query import (Agg, And, Concatenate, Cut, DateTimeArg, Distinct, Extend, Hop, Join, Not, Nullary, Or, Param,
                    ParamEmpty, PathArg, Pred, Rename, SELF, Select, Sort, Spec, Window, If)
 
 def _timestamp(v: str) -> str:
@@ -952,6 +952,9 @@ IMPL = {
     "concat": lambda vals: "".join(str(v) for v in vals if v is not None),
     "toUpper": _propagating(lambda s: str(s).upper(), 1),
     "toLower": _propagating(lambda s: str(s).lower(), 1),
+    # legend-engine's Pure: `if($str->length() == 0, |$str, |$str->left(1)->toUpper() + $str->substr(1))`
+    "toUpperFirstCharacter": _propagating(lambda s: str(s)[:1].upper() + str(s)[1:], 1),
+    "toLowerFirstCharacter": _propagating(lambda s: str(s)[:1].lower() + str(s)[1:], 1),
     "trim": _propagating(lambda s: str(s).strip(), 1),
     "ltrim": _propagating(lambda s: str(s).lstrip(), 1),
     "rtrim": _propagating(lambda s: str(s).rstrip(), 1),
@@ -1004,6 +1007,12 @@ IMPL = {
     "floor": _propagating(lambda v: math.floor(v), 1),
     "exp": _propagating(exactmath.exp, 1),
     "pow": _propagating(exactmath.pow, 2),
+    # legend-engine's Pure: `pi()` is 3.141592653589793, `toDegrees` is `$radians * 180 / pi()` and `toRadians`
+    # `$degrees * pi() / 180`, each a double's product and quotient. The vocabulary compares their results with a
+    # threshold, never raw.
+    "pi": _propagating(lambda: math.pi, 0),
+    "toDegrees": _propagating(lambda r: r * 180 / math.pi, 1),
+    "toRadians": _propagating(lambda d: d * math.pi / 180, 1),
     "toDecimal": _propagating(lambda v: float(v), 1),
     "toFloat": _propagating(lambda v: float(v), 1),
     # A Boolean is `true`/`false` in Pure, where Python's str() capitalises: the improvement plan's Phase 4
@@ -1155,8 +1164,12 @@ IMPL = {
     # any-of-nothing is false. Stated because it is the case a caller forgets.
     "and": lambda vals: all(_flatten(vals)),
     "or": lambda vals: any(_flatten(vals)),
-    "between": lambda vals: (None if any(v is None for v in vals[:3]) else
+    # legend-engine's Pure: `($value >= $lower) && ($value <= $upper)` over [0..1] operands, and a comparison over
+    # an absent value is false (D7), so between over one is false. It was SQL's NULL until 2026-10-29 (stage 6).
+    "between": lambda vals: (False if any(v is None for v in vals[:3]) else
                              vals[1] <= vals[0] <= vals[2]),
+    # legend-engine's Pure: `and(or($first, $second), or(!$first, !$second))`
+    "xor": _propagating(lambda a, b: bool(a) != bool(b), 2),
 
     # ---- collection: shape operations over a list ------------------------------------
     #
@@ -1336,7 +1349,9 @@ IMPL = {
     # than truncated.
     "lpad": lambda vals: _pad(vals, left=True),
     "rpad": lambda vals: _pad(vals, left=False),
-    # splitPart is ONE-BASED; an out-of-range part is NULL rather than the empty string.
+    # splitPart is ONE-BASED; an out-of-range part is NULL rather than the empty string. This is the relational
+    # DYNAFUNCTION, a property mapping's, which every dialect extension writes as SQL's split_part; a query's
+    # splitPart is legend-engine's Pure function, zero-based (QUERY_IMPL, below).
     "splitPart": lambda vals: _split_part(vals),
     # replace is non-overlapping, left to right -- Python's str.replace, which is also what
     # every SQL REPLACE does.
@@ -1610,7 +1625,13 @@ def _regex(fn):
                 return None
             return m.group(group)
         if fn == "regexpReplace":
-            return _re.sub(pattern, str(vals[2]), s)
+            # legend-engine's `regexpReplace(string, regexp, replacement, replaceAll)`: every match, or the first
+            # alone when replaceAll is false (the three-argument dynafunction replaces every one). A replacement
+            # naming a group is Java's `$1`, Python's `\1`, so one with either sign is refused.
+            repl = str(vals[2])
+            if "$" in repl or "\\" in repl:
+                raise Unsupported(f"replacement {repl!r} names a group, which Java and Python spell apart")
+            return _re.sub(pattern, repl, s, count=1 if len(vals) > 3 and vals[3] is False else 0)
         raise Unsupported(fn)
     return impl
 
@@ -2021,11 +2042,38 @@ def _apply(a, v):
                 return None
             raise Unsupported(f"{fn} applied to an absent value without map, which Pure raises on")
         name = _INFIX_FN.get(fn, fn)
+        args = [_dynafunction(x, []) if isinstance(x, Nullary) else x for x in args]
         if name == "plus" and isinstance(v, str):
             v = v + str(args[0])         # `+` over strings is concatenation
             continue
-        v = _dynafunction(name, [v, *args])
+        v = QUERY_IMPL[name]([v, *args]) if name in QUERY_IMPL else _dynafunction(name, [v, *args])
     return v
+
+
+def _pure_split_part(vals):
+    """legend-engine's `splitPart(str, token, part)`, `$str->toOne()->split($token)->at($part)`: ZERO-based, where the
+    relational dynafunction of the same name is SQL's one-based split_part. The pinned engine converts a query's
+    (pureToSQLQuery's processSplitPart: "sql is 1 index based, pure is 0 index based"). Refused where the two
+    splits differ (an empty piece, which Pure's drops and SQL's keeps; a token of several characters, which Pure's
+    reads as a set: SEMANTICS_REGISTER S17) and where `at` raises (a part past the last)."""
+    s, token, part = vals
+    if s is None:
+        return None
+    if len(str(token)) != 1:
+        raise Unsupported(f"splitPart over the token {token!r}: Pure's split reads several characters as a set")
+    parts = str(s).split(str(token))
+    if "" in parts:
+        raise Unsupported(f"splitPart of {s!r}: an empty piece, which Pure's split drops and SQL's keeps")
+    if not 0 <= int(part) < len(parts):
+        raise Unsupported(f"splitPart of {s!r} at {part}: Pure's at() raises past the last piece")
+    return parts[int(part)]
+
+
+# Functions whose Pure definition, which a QUERY applies, differs from the relational dynafunction of the same name,
+# which a property mapping applies: the query's reading (the user's decision for splitPart, 2026-10-29).
+QUERY_IMPL = {
+    "splitPart": _pure_split_part,
+}
 
 
 # ---------------------------------------------------- derived-property evaluation
@@ -2404,6 +2452,10 @@ def _agg(c: Corpus, data, row, root: str, proj, params: dict | None = None):
         # returns isEmpty=true and isNotEmpty=false, where count() returns 1 rather than 0.
         # So a family of to-many queries is testable that count() cannot carry.
         return (not landed) if proj.agg == "isEmpty" else bool(landed)
+    if proj.agg == "sum" and proj.over is not None:
+        # `$x.path->map(t|$t.<over>)->sum()`: legend-pure's collection sum, `plus()` of the values, 0 over a
+        # navigation that lands on nothing (Phase 4, stage 6; not a groupBy, which never reduces an empty group)
+        return _pure_sum([v for v in (_value(c, data, r, _target, [proj.over]) for r in landed) if v is not None])
     raise Fanout(f"unhandled aggregate {proj.agg!r}")
 
 
@@ -2976,6 +3028,7 @@ _REDUCERS = {
     "first": lambda xs: xs[0] if xs else None,
     "last": lambda xs: xs[-1] if xs else None,
     "average": lambda xs: _exact_avg(xs) if xs else _empty_fails("average"),
+    "mean": lambda xs: _exact_avg(xs) if xs else _empty_fails("mean"),
     "median": lambda xs: _median(xs) if xs else _empty_fails("median"),
     "mode": _pure_mode,
     "variancePopulation": lambda xs: _pure_variance(xs, False),
@@ -3021,16 +3074,25 @@ def _reduce_group(a: Agg, members: list[dict]):
 # ------------------------------------- relation operations after the projection (Phase 4, stage 4)
 
 
-def _ranked(part: list[dict], order: tuple, fn: str, args: tuple) -> list:
+def _ranked(part: list[dict], order: tuple, fn: str, args: tuple, read: str | None = None) -> list:
     """A ranking function over one partition, its rows in input order, each ranked by its place in `order`. rank
     leaves a gap after a tie and denseRank does not; rowNumber and ntile number the rows, so a tie in the order
-    leaves them to the database, and the oracle refuses one."""
+    leaves them to the database, and the oracle refuses one. lag, lead and nth answer another row's `read`
+    column: lag and lead the row `args[0]` (or 1) places before or after (legend-engine's Pure: `offset($w, $r,
+    -$offset)`), nth the row at that place in the window's frame, the partition's start through the current row
+    (its PCT: `nth($w, $r, 2)` is absent on a partition's first row); a tie leaves them to the database too."""
     keys = [tuple(r[k] for k, _d in order) for r in part]
     ordered = sorted(range(len(part)), key=lambda i: _sort_tuple(keys[i], order))
     n = len(part)
-    if fn in ("rowNumber", "ntile") and len(set(keys)) < n:
+    if fn in ("rowNumber", "ntile", "lag", "lead", "nth") and len(set(keys)) < n:
         raise Unsupported(f"{fn} over an order with ties numbers the tied rows as the database reads them")
     out = [None] * n
+    if fn in ("lag", "lead", "nth"):
+        k = int(args[0]) if args else 1
+        for place, i in enumerate(ordered):
+            j = place - k if fn == "lag" else place + k if fn == "lead" else (k - 1 if place >= k - 1 else -1)
+            out[i] = part[ordered[j]][read] if 0 <= j < n else None
+        return out
     rank = dense = 0
     prev = object()
     for place, i in enumerate(ordered, 1):
@@ -3091,7 +3153,7 @@ def _window_rows(op: Window, rows: list[dict]) -> list[dict]:
             v = _REDUCERS[op.fn]([r[op.col] for r in part if r[op.col] is not None])
             got = [v] * len(part)
         else:
-            got = _ranked(part, op.order, op.fn, op.args)
+            got = _ranked(part, op.order, op.fn, op.args, op.read)
         for i, v in zip(members, got):
             values[i] = v
     return [{**r, op.name: v} for r, v in zip(rows, values)]
@@ -3394,6 +3456,10 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
             continue
         if p.agg in ("isEmpty", "isNotEmpty"):
             out[p.alias] = "bool"
+            continue
+        if p.agg is not None and p.over is not None:
+            table, col, _ = c.resolve(spec.root, list(p.path) + [p.over])
+            out[p.alias] = c.tables[table].columns[col].kind
             continue
         if p.func:
             out[p.alias] = {"Boolean": "bool", "Float": "float", "Integer": "int",

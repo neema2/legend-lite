@@ -30,7 +30,7 @@ from decimal import Decimal as D
 
 import oracle
 from query import (SELF, Agg, Apply, Concatenate, Cut, DateArg, DateTimeArg, Distinct, EnumArg, Extend, If, Join,
-                   Not, Param, Pred, Proj, Rename, Select, Sort, Spec, Window)
+                   Not, Nullary, Param, Pred, Proj, Rename, Select, Sort, Spec, Window)
 
 ROOT = "typedvalues::TypedValue"
 MAPPING = "stress::AllMapping"
@@ -161,9 +161,7 @@ CASES = [
     # ---- booleans
     _c("Not", BOOLEAN, "Boolean", ("not", ())),
     _c("ToStringBoolean", BOOLEAN, "String", ("toString", ())),
-    # ---- stage 5: the scalars stage 2 left out. Not splitPart: legend-pure's is zero-based (`split($token)->at(
-    # $part)`), where the oracle's, which the combination matrix asserts in property mappings, is the relational
-    # dynafunction's one-based reading, F37's question for another function
+    # ---- stage 5: the scalars stage 2 left out
     _c("Left", STRING, "String", ("left", (3,))),
     _c("Right", STRING, "String", ("right", (3,))),
     _c("Char", STRING, "String", ("ascii", ()), ("char", ())),
@@ -186,6 +184,28 @@ CASES = [
     _c("DayOfWeek", DATE, "DayOfWeek", ("dayOfWeek", ())),
     _c("FirstMillisecondOfSecond", DATE_TIME, "DateTime", ("firstMillisecondOfSecond", ())),
     _c("TimeBucket", DATE_TIME, "DateTime", ("timeBucket", (6, _unit("HOURS")))),
+    # ---- stage 6: the last PCT names in reach. legend-engine's own Pure functions with bodies, which the engine
+    # inlines in a query (xor, pi, toDegrees, toRadians, toUpperFirstCharacter, toLowerFirstCharacter, between), and
+    # native ones (date, greatest, least, regexpReplace, splitPart)
+    _c("Xor", BOOLEAN, "Boolean", ("xor", (True,))),
+    _c("ToDegrees", FLOAT, "Float", ("toDegrees", ()), inexact=True),
+    _c("ToRadians", FLOAT, "Float", ("toRadians", ()), inexact=True),
+    _c("TimesPi", FLOAT, "Float", ("*", (Nullary("pi"),)), inexact=True),
+    _c("ToUpperFirstCharacter", STRING, "String", ("toUpperFirstCharacter", ())),
+    _c("ToLowerFirstCharacter", STRING, "String", ("toLowerFirstCharacter", ())),
+    # `[$x.quantity, 7]->greatest()`: a collection of the value and a literal
+    _c("Greatest", INTEGER, "Integer", ("greatest", (7,))),
+    _c("Least", INTEGER, "Integer", ("least", (7,))),
+    _c("Between", INTEGER, "Boolean", ("between", (0, 42))),
+    # replaceAll false rewrites the first match alone, true every one
+    _c("RegexpReplaceFirst", STRING, "String", ("regexpReplace", ("a", "4", False))),
+    _c("RegexpReplaceAll", STRING, "String", ("regexpReplace", ("a", "4", True))),
+    # `date(year, month, day)`: the first of June of the value's year
+    _c("DateYmd", DATE, "StrictDate", ("year", ()), ("date", (6, 1))),
+    # A query's splitPart is legend-engine's, zero-based (oracle.QUERY_IMPL), where a property mapping's is the
+    # relational dynafunction, SQL's one-based split_part, which the combination matrix asserts (the user's
+    # decision, 2026-10-29). The first piece before an `e`, which no name begins or ends with or doubles
+    _c("SplitPart", STRING, "String", ("splitPart", ("e", 0))),
 ]
 
 # Results that are enumeration values: compared with `==` only, against the value
@@ -351,6 +371,9 @@ AGG_CASES = [
     GCase("AverageQuantity", "average", INTEGER, "Float"),
     GCase("AverageRate", "average", FLOAT, "Float"),
     GCase("AverageAmount", "average", DECIMAL, "Float", inexact=True),
+    # legend-engine's Pure: `mean` is `$numbers->average()` (stage 6)
+    GCase("MeanQuantity", "mean", INTEGER, "Float"),
+    GCase("MeanRate", "mean", FLOAT, "Float"),
     GCase("MaxQuantity", "max", INTEGER, "Integer"),
     GCase("MaxRate", "max", FLOAT, "Float"),
     GCase("MaxAmount", "max", DECIMAL, "Decimal"),
@@ -545,6 +568,14 @@ def _relation_cases(tds: bool) -> list[tuple[str, str, tuple, list, list]]:
     for key, fn, order, args in windows:
         cases.append((key, f"`{fn}` over each trade date's notionals", ID_D_N,
                       [Window("w", fn, ("d",), order, args, ret=ret.get(fn, "Integer")), BY_ID], []))
+    if not tds:
+        # another row's notional (stage 6): the one before, the one after, the second of the partition's first rows
+        # through this one, and the one two before. olapGroupBy has none of them
+        for key, fn, args, doc in (("Lag", "lag", (), "the notional before"), ("Lead", "lead", (), "the notional after"),
+                                   ("Nth", "nth", (2,), "the second notional so far"),
+                                   ("Lag2", "lag", (2,), "the notional two before")):
+            cases.append((key, f"{doc}, by notional, on each trade date", ID_D_N,
+                          [Window("w", fn, ("d",), ORDER_TOTAL, args, ret="Float", read="n"), BY_ID], []))
     for key, fn, r in (("WindowSum", "sum", "Float"), ("WindowMax", "max", "Float"), ("WindowCount", "count", "Integer")):
         cases.append((key, f"`{fn}` of each trade date's notionals, on every trade", ID_D_N,
                       [Window("w", fn, ("d",), col="n", ret=r), BY_ID], []))
@@ -563,7 +594,8 @@ def build_relations(c, tables) -> list[Spec]:
 #
 # `if` projected over a comparison, a Boolean and an absent value (0, or the value itself: the coalescing idiom); a
 # top-level `let` a filter compares with; and `exists` over a to-many end, positions::Book's trades, three books of
-# nine having any, and its negation, which keeps the books with none.
+# nine having any, and its negation, which keeps the books with none. Stage 6 adds a `let` inside a column lambda
+# and a `map` then `sum` over that to-many end, where a book with no trades sums legend-pure's 0.
 
 BOOK = "positions::Book"
 
@@ -586,6 +618,8 @@ def build_control(c, tables) -> list[Spec]:
         typed("VC_LetDate", "a top-level `let` binding a Date the filter compares with.",
               [Proj("d", ["valueDate"])], [Pred(["valueDate"], "<", Param("d"))],
               lets=[("d", DateArg("2024-06-03"))]),
+        typed("VC_LetColumn", "a `let` inside a column lambda, binding the required `name` the column extends.",
+              [Proj("r", ["name"], apply=Apply((("+", ("!",)),), "String", let=True))]),
     ]
     big = Pred(["trades"], "exists", Pred(["notional"], ">", 400000.0))
     for name, flt, doc in (("VC_ExistsTrade", big, "the books with a trade over 400,000: `exists` over a to-many"),
@@ -596,6 +630,12 @@ def build_control(c, tables) -> list[Spec]:
         s.sort = ("bookId", False)
         s.mapping = MAPPING
         out.append(s)
+    s = Spec("stress::VC_MapSumTrades", "/stress/vocab/vc_mapsumtrades",
+             "Each book's total notional, `map` then `sum` over its trades: legend-pure's sum of no trades is 0.", BOOK)
+    s.projections = [Proj("bookId", ["bookId"]), Proj("total", ["trades"], agg="sum", over="notional")]
+    s.sort = ("bookId", False)
+    s.mapping = MAPPING
+    out.append(s)
     return out
 
 

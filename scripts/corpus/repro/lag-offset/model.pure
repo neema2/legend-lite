@@ -1,0 +1,143 @@
+// F80: a window's `lag` or `lead` with an offset other than 1 answers the row 1 away.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/lag-offset/model.pure \
+//       --testable=demo::Lag --testable=demo::Lag2 --testable=demo::Lead2
+//
+// legend-engine's Pure: `lag($w, $r, $offset)` is `offset($w, $r, -$offset)`, and `lead` is `offset($w, $r, $offset)`,
+// the row that many places before or after in the window's order. legend-engine 4.145.0's processOffset reads the
+// offset's sign and writes `lag(col)` or `lead(col)` with no offset, so SQL takes its default of 1. In group a (ordered
+// R1, R2, R3) the notional two before R3 is R1's 100; the engine answers R2's 250. Lag passes; Lag2 and Lead2 fail.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  g: String[1];
+  n: Float[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table R (ID VARCHAR(4) PRIMARY KEY, G VARCHAR(4), N DOUBLE)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]R.ID )
+    ~mainTable [demo::DB]R
+    id: [demo::DB]R.ID,
+    g: [demo::DB]R.G,
+    n: [demo::DB]R.N
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.R:
+      'ID,G,N\n' +
+      'R1,a,100.0\n' +
+      'R2,a,250.0\n' +
+      'R3,a,300.0\n' +
+      'R4,b,50.0\n';
+  }#
+}
+
+###Service
+Service demo::Lag
+{
+  pattern: '/demo/lag';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, g:x|$x.g, n:x|$x.n])->extend(over(~[g], [~n->ascending()]), ~[w:{p,w,r|$p->lag($r).n}])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Lag_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","g":"a","n":100.0,"w":null}, {"id":"R2","g":"a","n":250.0,"w":100.0}, {"id":"R3","g":"a","n":300.0,"w":250.0}, {"id":"R4","g":"b","n":50.0,"w":null} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Lag2
+{
+  pattern: '/demo/lag2';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, g:x|$x.g, n:x|$x.n])->extend(over(~[g], [~n->ascending()]), ~[w:{p,w,r|$p->lag($r, 2).n}])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Lag2_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","g":"a","n":100.0,"w":null}, {"id":"R2","g":"a","n":250.0,"w":null}, {"id":"R3","g":"a","n":300.0,"w":100.0}, {"id":"R4","g":"b","n":50.0,"w":null} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::Lead2
+{
+  pattern: '/demo/lead2';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, g:x|$x.g, n:x|$x.n])->extend(over(~[g], [~n->ascending()]), ~[w:{p,w,r|$p->lead($r, 2).n}])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Lead2_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","g":"a","n":100.0,"w":300.0}, {"id":"R2","g":"a","n":250.0,"w":null}, {"id":"R3","g":"a","n":300.0,"w":null}, {"id":"R4","g":"b","n":50.0,"w":null} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

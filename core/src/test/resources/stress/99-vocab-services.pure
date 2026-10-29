@@ -17121,6 +17121,2125 @@ Service stress::VF_TimeBucket
   ]
 }
 
+Service stress::VP_Xor
+{
+    pattern: '/stress/vocab/vp_xor';
+    documentation: '`xor` over the required `active`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.active->xor(true)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_Xor_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":false},{"valueId":"TV-02","r":true},{"valueId":"TV-03","r":false},{"valueId":"TV-04","r":true},{"valueId":"TV-05","r":false},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":true},{"valueId":"TV-08","r":false},{"valueId":"TV-09","r":true},{"valueId":"TV-10","r":false},{"valueId":"TV-11","r":true},{"valueId":"TV-12","r":false},{"valueId":"TV-13","r":false},{"valueId":"TV-14","r":true},{"valueId":"TV-15","r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_Xor
+{
+    pattern: '/stress/vocab/vn_xor';
+    documentation: '`xor` through map over the optional `activeOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.activeOpt->map(v|$v->xor(true))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_Xor_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":false},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":true},{"valueId":"TV-04","r":true},{"valueId":"TV-05","r":false},{"valueId":"TV-06","r":null},{"valueId":"TV-07","r":false},{"valueId":"TV-08","r":true},{"valueId":"TV-09","r":false},{"valueId":"TV-10","r":null},{"valueId":"TV-11","r":true},{"valueId":"TV-12","r":false},{"valueId":"TV-13","r":false},{"valueId":"TV-14","r":true},{"valueId":"TV-15","r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_Xor
+{
+    pattern: '/stress/vocab/vf_xor';
+    documentation: '`xor` over the required `active`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|$x.active->xor(true)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.active
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_Xor_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-02","r":false},{"valueId":"TV-04","r":false},{"valueId":"TV-07","r":false},{"valueId":"TV-09","r":false},{"valueId":"TV-11","r":false},{"valueId":"TV-14","r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_ToDegrees
+{
+    pattern: '/stress/vocab/vp_todegrees';
+    documentation: '`toDegrees` over the required `rate`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.rate->toDegrees()->greaterThan(132.0)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_ToDegrees_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":false},{"valueId":"TV-02","r":false},{"valueId":"TV-03","r":true},{"valueId":"TV-04","r":false},{"valueId":"TV-05","r":false},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":false},{"valueId":"TV-08","r":true},{"valueId":"TV-09","r":false},{"valueId":"TV-10","r":true},{"valueId":"TV-11","r":true},{"valueId":"TV-12","r":true},{"valueId":"TV-13","r":true},{"valueId":"TV-14","r":false},{"valueId":"TV-15","r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_ToDegrees
+{
+    pattern: '/stress/vocab/vn_todegrees';
+    documentation: '`toDegrees` through map over the optional `rateOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.rateOpt->map(v|$v->toDegrees()->greaterThan(132.0))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_ToDegrees_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":false},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":true},{"valueId":"TV-04","r":false},{"valueId":"TV-05","r":false},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":false},{"valueId":"TV-08","r":null},{"valueId":"TV-09","r":true},{"valueId":"TV-10","r":false},{"valueId":"TV-11","r":false},{"valueId":"TV-12","r":true},{"valueId":"TV-13","r":true},{"valueId":"TV-14","r":null},{"valueId":"TV-15","r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_ToDegrees
+{
+    pattern: '/stress/vocab/vf_todegrees';
+    documentation: '`toDegrees` over the required `rate`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.rate->toDegrees() > 132.0)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.rate
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_ToDegrees_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 7 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-03","r":2.375},{"valueId":"TV-08","r":10000000000.0},{"valueId":"TV-10","r":3.75},{"valueId":"TV-11","r":10.5},{"valueId":"TV-12","r":100.0},{"valueId":"TV-13","r":7.75},{"valueId":"TV-15","r":2.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_ToRadians
+{
+    pattern: '/stress/vocab/vp_toradians';
+    documentation: '`toRadians` over the required `rate`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.rate->toRadians()->greaterThan(0.04)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_ToRadians_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":false},{"valueId":"TV-02","r":false},{"valueId":"TV-03","r":true},{"valueId":"TV-04","r":false},{"valueId":"TV-05","r":false},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":false},{"valueId":"TV-08","r":true},{"valueId":"TV-09","r":false},{"valueId":"TV-10","r":true},{"valueId":"TV-11","r":true},{"valueId":"TV-12","r":true},{"valueId":"TV-13","r":true},{"valueId":"TV-14","r":false},{"valueId":"TV-15","r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_ToRadians
+{
+    pattern: '/stress/vocab/vn_toradians';
+    documentation: '`toRadians` through map over the optional `rateOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.rateOpt->map(v|$v->toRadians()->greaterThan(0.04))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_ToRadians_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":false},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":true},{"valueId":"TV-04","r":false},{"valueId":"TV-05","r":false},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":false},{"valueId":"TV-08","r":null},{"valueId":"TV-09","r":true},{"valueId":"TV-10","r":false},{"valueId":"TV-11","r":false},{"valueId":"TV-12","r":true},{"valueId":"TV-13","r":true},{"valueId":"TV-14","r":null},{"valueId":"TV-15","r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_ToRadians
+{
+    pattern: '/stress/vocab/vf_toradians';
+    documentation: '`toRadians` over the required `rate`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.rate->toRadians() > 0.04)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.rate
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_ToRadians_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 7 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-03","r":2.375},{"valueId":"TV-08","r":10000000000.0},{"valueId":"TV-10","r":3.75},{"valueId":"TV-11","r":10.5},{"valueId":"TV-12","r":100.0},{"valueId":"TV-13","r":7.75},{"valueId":"TV-15","r":2.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_TimesPi
+{
+    pattern: '/stress/vocab/vp_timespi';
+    documentation: '`*` over the required `rate`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|($x.rate * pi())->greaterThan(7.3)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_TimesPi_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":false},{"valueId":"TV-02","r":false},{"valueId":"TV-03","r":true},{"valueId":"TV-04","r":false},{"valueId":"TV-05","r":false},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":false},{"valueId":"TV-08","r":true},{"valueId":"TV-09","r":false},{"valueId":"TV-10","r":true},{"valueId":"TV-11","r":true},{"valueId":"TV-12","r":true},{"valueId":"TV-13","r":true},{"valueId":"TV-14","r":false},{"valueId":"TV-15","r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_TimesPi
+{
+    pattern: '/stress/vocab/vn_timespi';
+    documentation: '`*` through map over the optional `rateOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.rateOpt->map(v|($v * pi())->greaterThan(7.3))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_TimesPi_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":false},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":true},{"valueId":"TV-04","r":false},{"valueId":"TV-05","r":false},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":false},{"valueId":"TV-08","r":null},{"valueId":"TV-09","r":true},{"valueId":"TV-10","r":false},{"valueId":"TV-11","r":false},{"valueId":"TV-12","r":true},{"valueId":"TV-13","r":true},{"valueId":"TV-14","r":null},{"valueId":"TV-15","r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_TimesPi
+{
+    pattern: '/stress/vocab/vf_timespi';
+    documentation: '`*` over the required `rate`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|(($x.rate * pi()) > 7.3)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.rate
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_TimesPi_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 7 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-03","r":2.375},{"valueId":"TV-08","r":10000000000.0},{"valueId":"TV-10","r":3.75},{"valueId":"TV-11","r":10.5},{"valueId":"TV-12","r":100.0},{"valueId":"TV-13","r":7.75},{"valueId":"TV-15","r":2.5}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_ToUpperFirstCharacter
+{
+    pattern: '/stress/vocab/vp_toupperfirstcharacter';
+    documentation: '`toUpperFirstCharacter` over the required `name`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name->toUpperFirstCharacter()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_ToUpperFirstCharacter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"Alpha"},{"valueId":"TV-02","r":"Alpha"},{"valueId":"TV-03","r":"ALPHA"},{"valueId":"TV-04","r":"Alpha "},{"valueId":"TV-05","r":"Alphabet"},{"valueId":"TV-06","r":"Beta"},{"valueId":"TV-07","r":"Beta"},{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"Gamma"},{"valueId":"TV-10","r":"Zeta"},{"valueId":"TV-11","r":"Alpha"},{"valueId":"TV-12","r":"Delta"},{"valueId":"TV-13","r":"Aleph"},{"valueId":"TV-14","r":"Omega"},{"valueId":"TV-15","r":"Kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_ToUpperFirstCharacter
+{
+    pattern: '/stress/vocab/vn_toupperfirstcharacter';
+    documentation: '`toUpperFirstCharacter` through map over the optional `nameOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.nameOpt->map(v|$v->toUpperFirstCharacter())
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_ToUpperFirstCharacter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"Alpha"},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":"ALPHA"},{"valueId":"TV-04","r":"Alpha "},{"valueId":"TV-05","r":null},{"valueId":"TV-06","r":"Beta"},{"valueId":"TV-07","r":"Alpha"},{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"Gamma"},{"valueId":"TV-10","r":"Zeta"},{"valueId":"TV-11","r":"Alpha"},{"valueId":"TV-12","r":"Alphabet"},{"valueId":"TV-13","r":null},{"valueId":"TV-14","r":"Mu"},{"valueId":"TV-15","r":"Aleph"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_ToUpperFirstCharacter
+{
+    pattern: '/stress/vocab/vf_toupperfirstcharacter';
+    documentation: '`toUpperFirstCharacter` over the required `name`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.name->toUpperFirstCharacter() >= 'Delta')})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_ToUpperFirstCharacter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-10","r":"Zeta"},{"valueId":"TV-12","r":"delta"},{"valueId":"TV-14","r":"omega"},{"valueId":"TV-15","r":"kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_ToLowerFirstCharacter
+{
+    pattern: '/stress/vocab/vp_tolowerfirstcharacter';
+    documentation: '`toLowerFirstCharacter` over the required `name`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name->toLowerFirstCharacter()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_ToLowerFirstCharacter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"alpha"},{"valueId":"TV-02","r":"alpha"},{"valueId":"TV-03","r":"aLPHA"},{"valueId":"TV-04","r":"alpha "},{"valueId":"TV-05","r":"alphabet"},{"valueId":"TV-06","r":"beta"},{"valueId":"TV-07","r":"beta"},{"valueId":"TV-08","r":"o\'Neil"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-10","r":"zeta"},{"valueId":"TV-11","r":"alpha"},{"valueId":"TV-12","r":"delta"},{"valueId":"TV-13","r":"aleph"},{"valueId":"TV-14","r":"omega"},{"valueId":"TV-15","r":"kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_ToLowerFirstCharacter
+{
+    pattern: '/stress/vocab/vn_tolowerfirstcharacter';
+    documentation: '`toLowerFirstCharacter` through map over the optional `nameOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.nameOpt->map(v|$v->toLowerFirstCharacter())
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_ToLowerFirstCharacter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"alpha"},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":"aLPHA"},{"valueId":"TV-04","r":"alpha "},{"valueId":"TV-05","r":null},{"valueId":"TV-06","r":"beta"},{"valueId":"TV-07","r":"alpha"},{"valueId":"TV-08","r":"o\'Neil"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-10","r":"zeta"},{"valueId":"TV-11","r":"alpha"},{"valueId":"TV-12","r":"alphabet"},{"valueId":"TV-13","r":null},{"valueId":"TV-14","r":"mu"},{"valueId":"TV-15","r":"aleph"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_ToLowerFirstCharacter
+{
+    pattern: '/stress/vocab/vf_tolowerfirstcharacter';
+    documentation: '`toLowerFirstCharacter` over the required `name`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.name->toLowerFirstCharacter() >= 'delta')})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_ToLowerFirstCharacter_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 6 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-10","r":"Zeta"},{"valueId":"TV-12","r":"delta"},{"valueId":"TV-14","r":"omega"},{"valueId":"TV-15","r":"kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_Greatest
+{
+    pattern: '/stress/vocab/vp_greatest';
+    documentation: '`greatest` over the required `quantity`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|[$x.quantity, 7]->greatest()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_Greatest_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":42},{"valueId":"TV-02","r":41},{"valueId":"TV-03","r":43},{"valueId":"TV-04","r":42},{"valueId":"TV-05","r":7},{"valueId":"TV-06","r":7},{"valueId":"TV-07","r":7},{"valueId":"TV-08","r":7},{"valueId":"TV-09","r":100},{"valueId":"TV-10","r":2147483647},{"valueId":"TV-11","r":7},{"valueId":"TV-12","r":7},{"valueId":"TV-13","r":42},{"valueId":"TV-14","r":13},{"valueId":"TV-15","r":99}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_Greatest
+{
+    pattern: '/stress/vocab/vn_greatest';
+    documentation: '`greatest` through map over the optional `quantityOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.quantityOpt->map(v|[$v, 7]->greatest())
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_Greatest_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":42},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":43},{"valueId":"TV-04","r":41},{"valueId":"TV-05","r":7},{"valueId":"TV-06","r":7},{"valueId":"TV-07","r":null},{"valueId":"TV-08","r":42},{"valueId":"TV-09","r":100},{"valueId":"TV-10","r":2147483647},{"valueId":"TV-11","r":null},{"valueId":"TV-12","r":7},{"valueId":"TV-13","r":7},{"valueId":"TV-14","r":13},{"valueId":"TV-15","r":99}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_Greatest
+{
+    pattern: '/stress/vocab/vf_greatest';
+    documentation: '`greatest` over the required `quantity`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|([$x.quantity, 7]->greatest() >= 43)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.quantity
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_Greatest_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 4 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-03","r":43},{"valueId":"TV-09","r":100},{"valueId":"TV-10","r":2147483647},{"valueId":"TV-15","r":99}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_Least
+{
+    pattern: '/stress/vocab/vp_least';
+    documentation: '`least` over the required `quantity`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|[$x.quantity, 7]->least()
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_Least_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":7},{"valueId":"TV-02","r":7},{"valueId":"TV-03","r":7},{"valueId":"TV-04","r":7},{"valueId":"TV-05","r":0},{"valueId":"TV-06","r":-1},{"valueId":"TV-07","r":-5},{"valueId":"TV-08","r":1},{"valueId":"TV-09","r":7},{"valueId":"TV-10","r":7},{"valueId":"TV-11","r":-2147483648},{"valueId":"TV-12","r":7},{"valueId":"TV-13","r":7},{"valueId":"TV-14","r":7},{"valueId":"TV-15","r":7}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_Least
+{
+    pattern: '/stress/vocab/vn_least';
+    documentation: '`least` through map over the optional `quantityOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.quantityOpt->map(v|[$v, 7]->least())
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_Least_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":7},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":7},{"valueId":"TV-04","r":7},{"valueId":"TV-05","r":0},{"valueId":"TV-06","r":-5},{"valueId":"TV-07","r":null},{"valueId":"TV-08","r":7},{"valueId":"TV-09","r":7},{"valueId":"TV-10","r":7},{"valueId":"TV-11","r":null},{"valueId":"TV-12","r":7},{"valueId":"TV-13","r":-2147483648},{"valueId":"TV-14","r":7},{"valueId":"TV-15","r":7}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_Least
+{
+    pattern: '/stress/vocab/vf_least';
+    documentation: '`least` over the required `quantity`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|([$x.quantity, 7]->least() >= 0)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.quantity
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_Least_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":42},{"valueId":"TV-02","r":41},{"valueId":"TV-03","r":43},{"valueId":"TV-04","r":42},{"valueId":"TV-05","r":0},{"valueId":"TV-08","r":1},{"valueId":"TV-09","r":100},{"valueId":"TV-10","r":2147483647},{"valueId":"TV-12","r":7},{"valueId":"TV-13","r":42},{"valueId":"TV-14","r":13},{"valueId":"TV-15","r":99}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_Between
+{
+    pattern: '/stress/vocab/vp_between';
+    documentation: '`between` over the required `quantity`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.quantity->between(0, 42)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_Between_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":true},{"valueId":"TV-02","r":true},{"valueId":"TV-03","r":false},{"valueId":"TV-04","r":true},{"valueId":"TV-05","r":true},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":false},{"valueId":"TV-08","r":true},{"valueId":"TV-09","r":false},{"valueId":"TV-10","r":false},{"valueId":"TV-11","r":false},{"valueId":"TV-12","r":true},{"valueId":"TV-13","r":true},{"valueId":"TV-14","r":true},{"valueId":"TV-15","r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_Between
+{
+    pattern: '/stress/vocab/vn_between';
+    documentation: '`between` through map over the optional `quantityOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.quantityOpt->map(v|$v->between(0, 42))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_Between_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":true},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":false},{"valueId":"TV-04","r":true},{"valueId":"TV-05","r":true},{"valueId":"TV-06","r":false},{"valueId":"TV-07","r":null},{"valueId":"TV-08","r":true},{"valueId":"TV-09","r":false},{"valueId":"TV-10","r":false},{"valueId":"TV-11","r":null},{"valueId":"TV-12","r":true},{"valueId":"TV-13","r":false},{"valueId":"TV-14","r":true},{"valueId":"TV-15","r":false}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_Between
+{
+    pattern: '/stress/vocab/vf_between';
+    documentation: '`between` over the required `quantity`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|$x.quantity->between(0, 42)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.quantity
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_Between_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":42},{"valueId":"TV-02","r":41},{"valueId":"TV-04","r":42},{"valueId":"TV-05","r":0},{"valueId":"TV-08","r":1},{"valueId":"TV-12","r":7},{"valueId":"TV-13","r":42},{"valueId":"TV-14","r":13}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_RegexpReplaceFirst
+{
+    pattern: '/stress/vocab/vp_regexpreplacefirst';
+    documentation: '`regexpReplace` over the required `name`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name->regexpReplace('a', '4', false)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_RegexpReplaceFirst_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"4lpha"},{"valueId":"TV-02","r":"Alph4"},{"valueId":"TV-03","r":"ALPHA"},{"valueId":"TV-04","r":"4lpha "},{"valueId":"TV-05","r":"4lphabet"},{"valueId":"TV-06","r":"bet4"},{"valueId":"TV-07","r":"bet4"},{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"g4mma"},{"valueId":"TV-10","r":"Zet4"},{"valueId":"TV-11","r":"4lpha"},{"valueId":"TV-12","r":"delt4"},{"valueId":"TV-13","r":"4leph"},{"valueId":"TV-14","r":"omeg4"},{"valueId":"TV-15","r":"k4ppa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_RegexpReplaceFirst
+{
+    pattern: '/stress/vocab/vn_regexpreplacefirst';
+    documentation: '`regexpReplace` through map over the optional `nameOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.nameOpt->map(v|$v->regexpReplace('a', '4', false))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_RegexpReplaceFirst_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"4lpha"},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":"ALPHA"},{"valueId":"TV-04","r":"4lpha "},{"valueId":"TV-05","r":null},{"valueId":"TV-06","r":"bet4"},{"valueId":"TV-07","r":"Alph4"},{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"g4mma"},{"valueId":"TV-10","r":"zet4"},{"valueId":"TV-11","r":"4lpha"},{"valueId":"TV-12","r":"4lphabet"},{"valueId":"TV-13","r":null},{"valueId":"TV-14","r":"mu"},{"valueId":"TV-15","r":"4leph"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_RegexpReplaceFirst
+{
+    pattern: '/stress/vocab/vf_regexpreplacefirst';
+    documentation: '`regexpReplace` over the required `name`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.name->regexpReplace('a', '4', false) >= 'O\'Neil')})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_RegexpReplaceFirst_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-06","r":"beta"},{"valueId":"TV-07","r":"beta"},{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-10","r":"Zeta"},{"valueId":"TV-12","r":"delta"},{"valueId":"TV-14","r":"omega"},{"valueId":"TV-15","r":"kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_RegexpReplaceAll
+{
+    pattern: '/stress/vocab/vp_regexpreplaceall';
+    documentation: '`regexpReplace` over the required `name`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name->regexpReplace('a', '4', true)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_RegexpReplaceAll_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"4lph4"},{"valueId":"TV-02","r":"Alph4"},{"valueId":"TV-03","r":"ALPHA"},{"valueId":"TV-04","r":"4lph4 "},{"valueId":"TV-05","r":"4lph4bet"},{"valueId":"TV-06","r":"bet4"},{"valueId":"TV-07","r":"bet4"},{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"g4mm4"},{"valueId":"TV-10","r":"Zet4"},{"valueId":"TV-11","r":"4lph4"},{"valueId":"TV-12","r":"delt4"},{"valueId":"TV-13","r":"4leph"},{"valueId":"TV-14","r":"omeg4"},{"valueId":"TV-15","r":"k4pp4"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_RegexpReplaceAll
+{
+    pattern: '/stress/vocab/vn_regexpreplaceall';
+    documentation: '`regexpReplace` through map over the optional `nameOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.nameOpt->map(v|$v->regexpReplace('a', '4', true))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_RegexpReplaceAll_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"4lph4"},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":"ALPHA"},{"valueId":"TV-04","r":"4lph4 "},{"valueId":"TV-05","r":null},{"valueId":"TV-06","r":"bet4"},{"valueId":"TV-07","r":"Alph4"},{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"g4mm4"},{"valueId":"TV-10","r":"zet4"},{"valueId":"TV-11","r":"4lph4"},{"valueId":"TV-12","r":"4lph4bet"},{"valueId":"TV-13","r":null},{"valueId":"TV-14","r":"mu"},{"valueId":"TV-15","r":"4leph"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_RegexpReplaceAll
+{
+    pattern: '/stress/vocab/vf_regexpreplaceall';
+    documentation: '`regexpReplace` over the required `name`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.name->regexpReplace('a', '4', true) >= 'O\'Neil')})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_RegexpReplaceAll_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-06","r":"beta"},{"valueId":"TV-07","r":"beta"},{"valueId":"TV-08","r":"O\'Neil"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-10","r":"Zeta"},{"valueId":"TV-12","r":"delta"},{"valueId":"TV-14","r":"omega"},{"valueId":"TV-15","r":"kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_DateYmd
+{
+    pattern: '/stress/vocab/vp_dateymd';
+    documentation: '`year` then `date` over the required `valueDate`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.valueDate->year()->date(6, 1)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_DateYmd_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"2024-06-01"},{"valueId":"TV-02","r":"2024-06-01"},{"valueId":"TV-03","r":"2024-06-01"},{"valueId":"TV-04","r":"2024-06-01"},{"valueId":"TV-05","r":"1999-06-01"},{"valueId":"TV-06","r":"2000-06-01"},{"valueId":"TV-07","r":"2024-06-01"},{"valueId":"TV-08","r":"2024-06-01"},{"valueId":"TV-09","r":"2025-06-01"},{"valueId":"TV-10","r":"1970-06-01"},{"valueId":"TV-11","r":"2024-06-01"},{"valueId":"TV-12","r":"2024-06-01"},{"valueId":"TV-13","r":"2023-06-01"},{"valueId":"TV-14","r":"2024-06-01"},{"valueId":"TV-15","r":"2024-06-01"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_DateYmd
+{
+    pattern: '/stress/vocab/vn_dateymd';
+    documentation: '`year` then `date` through map over the optional `valueDateOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.valueDateOpt->map(v|$v->year()->date(6, 1))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_DateYmd_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"2024-06-01"},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":"2024-06-01"},{"valueId":"TV-04","r":"2024-06-01"},{"valueId":"TV-05","r":"1999-06-01"},{"valueId":"TV-06","r":"2000-06-01"},{"valueId":"TV-07","r":"2024-06-01"},{"valueId":"TV-08","r":"2024-06-01"},{"valueId":"TV-09","r":null},{"valueId":"TV-10","r":"1970-06-01"},{"valueId":"TV-11","r":"2024-06-01"},{"valueId":"TV-12","r":"2024-06-01"},{"valueId":"TV-13","r":null},{"valueId":"TV-14","r":"2024-06-01"},{"valueId":"TV-15","r":"2025-06-01"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_DateYmd
+{
+    pattern: '/stress/vocab/vf_dateymd';
+    documentation: '`year` then `date` over the required `valueDate`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.valueDate->year()->date(6, 1) >= %2023-06-01)})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.valueDate
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_DateYmd_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 12 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"2024-06-03"},{"valueId":"TV-02","r":"2024-06-02"},{"valueId":"TV-03","r":"2024-06-04"},{"valueId":"TV-04","r":"2024-06-03"},{"valueId":"TV-07","r":"2024-02-29"},{"valueId":"TV-08","r":"2024-12-31"},{"valueId":"TV-09","r":"2025-01-01"},{"valueId":"TV-11","r":"2024-06-01"},{"valueId":"TV-12","r":"2024-07-03"},{"valueId":"TV-13","r":"2023-06-03"},{"valueId":"TV-14","r":"2024-06-30"},{"valueId":"TV-15","r":"2024-06-05"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VP_SplitPart
+{
+    pattern: '/stress/vocab/vp_splitpart';
+    documentation: '`splitPart` over the required `name`, projected.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name->splitPart('e', 0)
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VP_SplitPart_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"alpha"},{"valueId":"TV-02","r":"Alpha"},{"valueId":"TV-03","r":"ALPHA"},{"valueId":"TV-04","r":"alpha "},{"valueId":"TV-05","r":"alphab"},{"valueId":"TV-06","r":"b"},{"valueId":"TV-07","r":"b"},{"valueId":"TV-08","r":"O\'N"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-10","r":"Z"},{"valueId":"TV-11","r":"alpha"},{"valueId":"TV-12","r":"d"},{"valueId":"TV-13","r":"al"},{"valueId":"TV-14","r":"om"},{"valueId":"TV-15","r":"kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VN_SplitPart
+{
+    pattern: '/stress/vocab/vn_splitpart';
+    documentation: '`splitPart` through map over the optional `nameOpt`: an absent value stays absent.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.nameOpt->map(v|$v->splitPart('e', 0))
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VN_SplitPart_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 3 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"alpha"},{"valueId":"TV-02","r":null},{"valueId":"TV-03","r":"ALPHA"},{"valueId":"TV-04","r":"alpha "},{"valueId":"TV-05","r":null},{"valueId":"TV-06","r":"b"},{"valueId":"TV-07","r":"Alpha"},{"valueId":"TV-08","r":"O\'N"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-10","r":"z"},{"valueId":"TV-11","r":"alpha"},{"valueId":"TV-12","r":"alphab"},{"valueId":"TV-13","r":null},{"valueId":"TV-14","r":"mu"},{"valueId":"TV-15","r":"al"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VF_SplitPart
+{
+    pattern: '/stress/vocab/vf_splitpart';
+    documentation: '`splitPart` over the required `name`, in a filter.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->filter({x|($x.name->splitPart('e', 0) >= 'alpha ')})
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|$x.name
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VF_SplitPart_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 8 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-04","r":"alpha "},{"valueId":"TV-05","r":"alphabet"},{"valueId":"TV-06","r":"beta"},{"valueId":"TV-07","r":"beta"},{"valueId":"TV-09","r":"gamma"},{"valueId":"TV-12","r":"delta"},{"valueId":"TV-14","r":"omega"},{"valueId":"TV-15","r":"kappa"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::VG_CountName
 {
     pattern: '/stress/vocab/vg_countname';
@@ -17924,6 +20043,238 @@ Service stress::VGN_AverageAmount
                   #{
                     contentType: 'application/json';
                     data: '[{"k":false,"r":false},{"k":true,"r":true}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MeanQuantity
+{
+    pattern: '/stress/vocab/vg_meanquantity';
+    documentation: '`mean()` over the required `quantity`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantity
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->mean()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MeanQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":-357913909.5},{"k":true,"r":238609320.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MeanQuantity
+{
+    pattern: '/stress/vocab/vgn_meanquantity';
+    documentation: '`mean()` over the optional `quantityOpt`, grouped by `active`, whose groups each hold absent and present values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.quantityOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->mean()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MeanQuantity_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":51.333333333333336},{"k":true,"r":25.22222222222222}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VG_MeanRate
+{
+    pattern: '/stress/vocab/vg_meanrate';
+    documentation: '`mean()` over the required `rate`, grouped by `active`.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rate
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->mean()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VG_MeanRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":2.7291666666666665},{"k":true,"r":1111111124.125}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VGN_MeanRate
+{
+    pattern: '/stress/vocab/vgn_meanrate';
+    documentation: '`mean()` over the optional `rateOpt`, grouped by `active`, whose groups each hold absent and present values.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            k:x|$x.active,
+            v:x|$x.rateOpt
+        ])
+        ->groupBy(~[k], ~[
+            r: x|$x.v : agg|$agg->mean()
+        ])
+        ->sort(~k->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VGN_MeanRate_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 2 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":false,"r":2500000001.21875},{"k":true,"r":14.140625}]';
                   }#;
               }#
           ]
@@ -22608,6 +24959,234 @@ Service stress::VR_Ntile
   ]
 }
 
+Service stress::VR_Lag
+{
+    pattern: '/stress/vocab/vr_lag';
+    documentation: 'The notional before, by notional, on each trade date, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending(), ~id->ascending()]), ~[w:{p,w,r|$p->lag($r).n}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Lag_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 5 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":null},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":282000.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":190500.0},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":250000.0},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":null},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":498000.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":167300.0},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":18975.0},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":171250.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":69000.0},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":null},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":null},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":35000.0},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":264600.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":1960000.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":975000.0},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Lead
+{
+    pattern: '/stress/vocab/vr_lead';
+    documentation: 'The notional after, by notional, on each trade date, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending(), ~id->ascending()]), ~[w:{p,w,r|$p->lead($r).n}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Lead_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 5 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":250000.0},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":null},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":282000.0},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":477500.0},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":167300.0},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":null},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":576750.0},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":498000.0},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":null},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":369000.0},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":171250.0},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":264600.0},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":385000.0},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":null},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":null},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":4912500.0},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":1960000.0}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Nth
+{
+    pattern: '/stress/vocab/vr_nth';
+    documentation: 'The second notional so far, by notional, on each trade date, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending(), ~id->ascending()]), ~[w:{p,w,r|$p->nth($w, $r, 2).n}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Nth_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 5 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":null},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":250000.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":250000.0},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":null},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":167300.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":167300.0},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":167300.0},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":171250.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":171250.0},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":null},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":null},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":264600.0},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":264600.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":1960000.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":1960000.0},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VR_Lag2
+{
+    pattern: '/stress/vocab/vr_lag2';
+    documentation: 'The notional two before, by notional, on each trade date, over a Relation.';
+    execution: Single
+    {
+    query: |trading::Trade.all()
+        ->project(~[
+            id:x|$x.tradeId,
+            d:x|$x.tradeDate,
+            n:x|$x.notional
+        ])
+        ->extend(over(~[d], [~n->ascending(), ~id->ascending()]), ~[w:{p,w,r|$p->lag($r, 2).n}])
+        ->sort([~id->ascending()]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VR_Lag2_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 20 rows; 10 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"TRD-0001","d":"2024-06-03","n":190500.0,"w":null},{"id":"TRD-0002","d":"2024-06-03","n":477500.0,"w":250000.0},{"id":"TRD-0003","d":"2024-06-03","n":250000.0,"w":null},{"id":"TRD-0004","d":"2024-06-03","n":250000.0,"w":190500.0},{"id":"TRD-0005","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0006","d":"2024-06-03","n":250000.0,"w":250000.0},{"id":"TRD-0007","d":"2024-06-03","n":282000.0,"w":250000.0},{"id":"TRD-0008","d":"2024-06-04","n":18975.0,"w":null},{"id":"TRD-0009","d":"2024-06-04","n":576750.0,"w":167300.0},{"id":"TRD-0010","d":"2024-06-04","n":498000.0,"w":18975.0},{"id":"TRD-0011","d":"2024-06-04","n":167300.0,"w":null},{"id":"TRD-0012","d":"2024-06-05","n":369000.0,"w":69000.0},{"id":"TRD-0013","d":"2024-06-05","n":171250.0,"w":null},{"id":"TRD-0014","d":"2024-06-05","n":69000.0,"w":null},{"id":"TRD-0015","d":"2024-06-06","n":35000.0,"w":null},{"id":"TRD-0016","d":"2024-06-06","n":264600.0,"w":null},{"id":"TRD-0017","d":"2024-06-06","n":385000.0,"w":35000.0},{"id":"TRD-0018","d":"2024-06-07","n":4912500.0,"w":975000.0},{"id":"TRD-0019","d":"2024-06-07","n":1960000.0,"w":null},{"id":"TRD-0020","d":"2024-06-07","n":975000.0,"w":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::VR_WindowSum
 {
     pattern: '/stress/vocab/vr_windowsum';
@@ -24179,6 +26758,60 @@ Service stress::VC_LetDate
   ]
 }
 
+Service stress::VC_LetColumn
+{
+    pattern: '/stress/vocab/vc_letcolumn';
+    documentation: 'a `let` inside a column lambda, binding the required `name` the column extends.';
+    execution: Single
+    {
+    query: |typedvalues::TypedValue.all()
+        ->project(~[
+            valueId:x|$x.valueId,
+            r:x|let v = $x.name; ($v + '!');
+        ]);
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VC_LetColumn_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 15 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"valueId":"TV-01","r":"alpha!"},{"valueId":"TV-02","r":"Alpha!"},{"valueId":"TV-03","r":"ALPHA!"},{"valueId":"TV-04","r":"alpha !"},{"valueId":"TV-05","r":"alphabet!"},{"valueId":"TV-06","r":"beta!"},{"valueId":"TV-07","r":"beta!"},{"valueId":"TV-08","r":"O\'Neil!"},{"valueId":"TV-09","r":"gamma!"},{"valueId":"TV-10","r":"Zeta!"},{"valueId":"TV-11","r":"alpha!"},{"valueId":"TV-12","r":"delta!"},{"valueId":"TV-13","r":"aleph!"},{"valueId":"TV-14","r":"omega!"},{"valueId":"TV-15","r":"kappa!"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::VC_ExistsTrade
 {
     pattern: '/stress/vocab/vc_existstrade';
@@ -24280,6 +26913,61 @@ Service stress::VC_NotExistsTrade
                   #{
                     contentType: 'application/json';
                     data: '[{"bookId":"BK-CASH-EU"},{"bookId":"BK-CREDIT"},{"bookId":"BK-CREDIT-SP1"},{"bookId":"BK-EQ"},{"bookId":"BK-FX"},{"bookId":"BK-LEGACY"},{"bookId":"BK-RATES"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::VC_MapSumTrades
+{
+    pattern: '/stress/vocab/vc_mapsumtrades';
+    documentation: 'Each book\'s total notional, `map` then `sum` over its trades: legend-pure\'s sum of no trades is 0.';
+    execution: Single
+    {
+    query: |positions::Book.all()
+        ->project(~[
+            bookId:x|$x.bookId,
+            total:x|$x.trades->map(t|$t.notional)->sum()
+        ])
+        ->sort(~bookId->ascending());
+        mapping: stress::AllMapping;
+        runtime: stress::RT;
+    }
+  testSuites:
+  [
+    VC_MapSumTrades_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          environment:
+            Reference
+            #{
+              stress::TestData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 9 rows; 0 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookId":"BK-CASH-EU","total":924850.0},{"bookId":"BK-CASH-US","total":2961025.0},{"bookId":"BK-CREDIT","total":0.0},{"bookId":"BK-CREDIT-SP1","total":0.0},{"bookId":"BK-EQ","total":0.0},{"bookId":"BK-FX","total":0.0},{"bookId":"BK-LEGACY","total":0.0},{"bookId":"BK-RATES","total":0.0},{"bookId":"BK-VOL-01","total":8466500.0}]';
                   }#;
               }#
           ]

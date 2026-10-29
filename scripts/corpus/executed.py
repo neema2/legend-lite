@@ -399,6 +399,16 @@ def _vocabulary_features(specs, quarantined: set[str], add) -> None:
     add("Q4  let", [s.short for s in live if s.lets])
     add("Q4  exists over a to-many", [s.short for s in live if any(a.op == "exists" for a in query.atoms(s.filters))])
 
+    # stage 6: the last PCT names (a function over a list of the value, a function as an argument, another row of a
+    # window)
+    def steps(s):
+        return [st for a in applied(s)[0] + applied(s)[1] for st in a.steps]
+
+    add("Q4  function over a list", [s.short for s in live if any(fn in ("greatest", "least") for fn, _a in steps(s))])
+    add("Q4  function as an argument", [s.short for s in live
+                                        if any(isinstance(x, query.Nullary) for _fn, args in steps(s) for x in args)])
+    add("Q4  relation window offset", [s.short for s in live if any(o.read for o in ops(s, query.Window))])
+
 
 def _query_features(specs, quarantined: set[str], add) -> None:
     """A query's typed constants, predicate trees and parameters (the improvement plan's Phase 1,
@@ -617,6 +627,9 @@ BASELINE = {
     # 2026-10-29, the improvement plan's Phase 4, stage 5 (vocab.py): control flow in a query, each executed by
     # passing services on legend-engine 4.145.0.
     "Q4  if", "Q4  let", "Q4  exists over a to-many",
+    # 2026-10-29, the improvement plan's Phase 4, stage 6 (vocab.py): the last PCT names, each executed by passing
+    # services on legend-engine 4.145.0.
+    "Q4  function over a list", "Q4  function as an argument", "Q4  relation window offset",
 }
 
 

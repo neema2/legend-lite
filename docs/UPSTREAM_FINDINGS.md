@@ -2136,6 +2136,14 @@ right answer. `->toOne()->f()` lowers identically, where Pure would raise. Pinne
 property, which pass. Repro:
 `scripts/corpus/repro/map-over-absent/` (`Length` passes; `Append`, `AppendFilter`, `IndexOf` and `HashIsEmpty` fail).
 
+**Five more functions meet it (2026-10-29, the improvement plan's Phase 4, stage 6).** Through `map` over an absent
+value, `toUpperFirstCharacter` and `toLowerFirstCharacter` answer `''` (legend-engine's Pure bodies, inlined in the
+query, concatenate `left(1)` with `substr(1)`), `[$v, 7]->greatest()` and `least()` answer 7 (SQL's `GREATEST` and
+`LEAST` skip a NULL, where Pure's absent value never reaches them), and `between(0, 42)` answers false (its body's
+`>=` and `<=`, each false over an absent operand). Pinned by `stress::VN_ToUpperFirstCharacter`,
+`VN_ToLowerFirstCharacter`, `VN_Greatest`, `VN_Least` and `VN_Between` (quarantined); each function's `VP_` and `VF_`
+over the required property pass.
+
 ## F69 — On DuckDB, `regexpIndexOf` reports where the matched text first occurs, not where the match is
 
 **A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 adjudication. legend-engine defines
@@ -2264,3 +2272,35 @@ DECIMAL(18,3): `'12345678.123456789012345678'` parses as 12345678.123, `'1.00000
 and is not affected. Pinned by `stress::VP_ParseDecimal` and `VN_ParseDecimal` (quarantined); `VF_ParseDecimal`,
 whose comparand survives the rounding, passes. Repro: `scripts/corpus/repro/parsedecimal-scale/` (`ThreeDigits`
 passes; `MoreDigits` fails).
+
+## F80 — A window's `lag` or `lead` with an offset other than 1 answers the row 1 away
+
+**A wrong answer, silently.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 6, the last PCT names).
+legend-engine's Pure defines `lag($w, $r, $offset)` as `offset($w, $r, -$offset)` and `lead` as `offset($w, $r,
+$offset)`: the row that many places before or after in the window's order. legend-engine 4.145.0's
+`processOffset` (`pureToSQLQuery.pure`) reads only the offset's sign and writes `lag(col)` or `lead(col)` with no
+second argument, so SQL takes its default of 1: `lag($r, 2)` answers the previous row. Pinned by `stress::VR_Lag2`
+(quarantined), over the trades of each trade date ordered by notional; `VR_Lag`, `VR_Lead` and `VR_Nth` pass. Repro:
+`scripts/corpus/repro/lag-offset/` (`Lag` passes; `Lag2` and `Lead2` fail).
+
+## F81 — A `let` inside a column lambda fails in the router
+
+**An execution error.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 6). A column lambda of two
+statements, `r:x|let q = $x.g; $q + '!';`, binds the row's value and extends it; legend-pure evaluates it as
+`$x.g + '!'`. legend-engine 4.145.0 fails before any SQL is written: "Execution error at
+(resource:/core/pure/router/routing/router_routing.pure line:609 column:101), Cannot cast a collection of size 2 to
+multiplicity [1]", the lambda's two statements taken for one value. The braced form, `r:{x|let q = $x.g; $q +
+'!';}`, fails the same way, and a `let` at the top of the query passes (`stress::VC_LetInteger`, `VC_LetDate`). Pinned
+by `stress::VC_LetColumn` (quarantined). Repro: `scripts/corpus/repro/let-in-column/` (`TopLet` passes; `LetColumn`
+and `LetColumnBraces` error).
+
+## F82 — `sum` over a to-many navigation that lands on nothing answers NULL, not 0
+
+**A wrong answer, silently.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 6). `$x.trades->map(t|
+$t.notional)->sum()` is legend-pure's collection `sum`, `plus()` of the values, 0 over an empty collection. legend-engine
+4.145.0 writes the navigation as an outer join with `SUM` over it, and SQL's SUM of no rows is NULL, so a book with no
+trades totals null. The path form without `map` (`$x.children.v->sum()` in the repro) answers the same. Not F75's case (withdrawn): a groupBy's
+native never reduces an empty group, where this is a plain Pure function over an empty collection, as `count()` is in
+F6. Pinned by `stress::VC_MapSumTrades` (quarantined), whose six books with no trades total null; the three with
+trades agree. Repro: `scripts/corpus/repro/sum-over-empty-to-many/` (`IsEmpty` passes; `MapSum` and `PathSum` fail on
+the parent with no children).

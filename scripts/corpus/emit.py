@@ -346,6 +346,8 @@ def _literal(v) -> str:
         return f"%{v}"
     if isinstance(v, query.EnumArg):
         return f"{v.enum}.{v}"
+    if isinstance(v, query.Nullary):
+        return f"{v}()"
     if isinstance(v, str):
         return f"'{_pure_str(v)}'"
     if isinstance(v, decimal.Decimal):
@@ -360,11 +362,14 @@ def _literal(v) -> str:
 
 
 _INFIX = ("+", "-", "*", "/")
+# Functions of a collection, written over a list of the value and the step's arguments: `[$x.p, 7]->greatest()`
+_LISTED = ("greatest", "least")
 
 
 def _applied(subject: str, apply) -> str:
     """`subject` with an Apply's functions applied (Phase 4): `$x.p->f(a)->g()`, an operator infix and
-    parenthesised, and the whole chain inside `map` for an optional value; or a query.If over it."""
+    parenthesised, a function of a collection over a list (`[$x.p, 7]->greatest()`), and the whole chain inside
+    `map` for an optional value, or after `let` for a bound one; or a query.If over it."""
     import query
 
     if isinstance(apply, query.If):
@@ -379,9 +384,14 @@ def _applied(subject: str, apply) -> str:
         for fn, args in apply.steps:
             if fn in _INFIX:
                 t = f"({t} {fn} {_literal(args[0])})"
+            elif fn in _LISTED:
+                t = f"[{', '.join([t] + [_literal(a) for a in args])}]->{fn}()"
             else:
                 t = f"{t}->{fn}({', '.join(_literal(a) for a in args)})"
         return t
+    if apply.let:
+        # a column lambda of two statements, `x|let v = $x.p; $v->f();`: the projection's last column
+        return f"let v = {subject}; {chain('$v')};"
     return f"{subject}->map(v|{chain('$v')})" if apply.through_map else chain(subject)
 
 
@@ -548,8 +558,8 @@ def _relation_op(op, tds: bool) -> str:
             part = "[" + ", ".join(f"'{p}'" for p in op.partition) + "]"
             if op.col is not None:
                 return f"->olapGroupBy({part}, func('{op.col}', y|$y->{op.fn}()), '{op.name}')"
-            if len(op.order) != 1:
-                raise ValueError(f"olapGroupBy takes one sort key (SortInformation[0..1]): {op!r}")
+            if len(op.order) != 1 or op.read is not None:
+                raise ValueError(f"olapGroupBy takes one sort key (SortInformation[0..1]) and ranks: {op!r}")
             (key, desc), = op.order
             return f"->olapGroupBy({part}, {'desc' if desc else 'asc'}('{key}'), func(y|$y->{op.fn}()), '{op.name}')"
         part = "~[" + ", ".join(op.partition) + "]"
@@ -557,6 +567,10 @@ def _relation_op(op, tds: bool) -> str:
         if op.col is not None:
             return f"->extend({over}, ~[{op.name}:{{p,w,r|$r.{op.col}}}:y|$y->{op.fn}()])"
         args = "".join(f", {_literal(a)}" for a in op.args)
+        if op.read is not None:
+            # another row of the partition, and its column: `$p->lag($r).n`, `$p->nth($w, $r, 2).n`
+            call = f"$p->{op.fn}($w, $r{args})" if op.fn == "nth" else f"$p->{op.fn}($r{args})"
+            return f"->extend({over}, ~[{op.name}:{{p,w,r|{call}.{op.read}}}])"
         call = f"$p->{op.fn}($r{args})" if op.fn in ("rowNumber", "ntile") else f"$p->{op.fn}($w, $r{args})"
         return f"->extend({over}, ~[{op.name}:{{p,w,r|{call}}}])"
     if isinstance(op, query.Rename):
@@ -614,6 +628,8 @@ def query_text(spec: Spec) -> str:
             return f"${VAR}->{p.func}({inner})"
         if getattr(p, "apply", None) is not None:
             return _applied(f"${VAR}.{_path(p.path)}", p.apply)
+        if getattr(p, "over", None) is not None:
+            return f"${VAR}.{_path(p.path)}->map(t|$t.{p.over})->{p.agg}()"
         return (f"${VAR}.{_path(p.path)}"
                 + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
                 + (f"->{p.agg}()" if p.agg else ""))

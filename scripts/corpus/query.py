@@ -96,6 +96,10 @@ class Versions:
     end: object = None
 
 
+class Nullary(str):
+    """A platform function of no arguments, as an argument: `pi()`. Held as its name."""
+
+
 @dataclass(frozen=True)
 class Apply:
     """Platform functions applied in a QUERY to the value at a path (the improvement plan's Phase 4):
@@ -104,10 +108,13 @@ class Apply:
 
     `through_map` writes the chain inside `map`, `$x.path->map(v|$v->f(a))`: how Pure applies a function
     to an optional value. legend-pure's map over an empty collection is empty, so an absent value stays
-    absent whatever the function (the oracle's _apply); the engine's SQL does not always agree (F68)."""
+    absent whatever the function (the oracle's _apply); the engine's SQL does not always agree (F68).
+
+    `let` binds the value first, `let v = $x.path; $v->f(a);`: the same value, through a variable (stage 6)."""
     steps: tuple
     ret: str
     through_map: bool = False
+    let: bool = False
 
 
 # Relation operations after the projection (the improvement plan's Phase 4, stage 4), in a Spec's `relation`, applied
@@ -127,7 +134,9 @@ class Extend:
 class Window:
     """A window column: `->extend(over(~[partition], [~order->ascending()]), ~[name: {p,w,r|$p->fn($w,$r)}])` for a
     ranking function (`args` after the row: ntile's bucket count), or `{p,w,r|$r.col}:y|$y->fn()` for an aggregate
-    over the partition (`col` set). A TDS writes it as `olapGroupBy`. `ret` is its Pure type."""
+    over the partition (`col` set), or `{p,w,r|$p->lag($r).read}` for a function that answers another row of the
+    partition, whose column `read` names (lag, lead and nth; `args` its offset). A TDS writes it as `olapGroupBy`.
+    `ret` is its Pure type."""
     name: str
     fn: str
     partition: tuple
@@ -135,6 +144,7 @@ class Window:
     args: tuple = ()
     col: str | None = None
     ret: str = "Integer"
+    read: str | None = None
 
 
 @dataclass(frozen=True)
@@ -277,6 +287,8 @@ class Proj:
     func: str | None = None
     # Platform functions applied to the path's value (Phase 4): the column is their result.
     apply: Apply | None = None
+    # With `agg`: the property of the landed rows it reduces, `$x.path->map(t|$t.<over>)->sum()` (stage 6).
+    over: str | None = None
 
 
 @dataclass
