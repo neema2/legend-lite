@@ -202,7 +202,7 @@ FILTER date > latest - 3y
 
 Today's tile: `volatility(close[asset_class=Equity], 63)`, split by symbol.
 
-What to notice: here a `WHERE` on the data is right, because no figure needs another instrument's rows. If the query also divided by `close['SPX']`, the same `WHERE` would remove SPX's rows; that query is refused with the fix (keep SPX in the data, `FILTER` the answer).
+What to notice: here a `WHERE` on the data is right, because no figure needs another instrument's rows. If the query also divided by `close['SPX']`, the same `WHERE` would remove SPX's rows. Which rows a `WHERE` on `asset_class` removes is known only when the query runs, so that query fails when it runs ("close['SPX'] has no rows in prices after its WHERE"); a `WHERE` on the instrument column itself, `symbol IN (...)`, is refused before it runs. Either way the fix is the same: keep SPX in the data and `FILTER` the answer.
 
 #### 7. Bollinger bands
 

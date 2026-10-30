@@ -32,7 +32,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * DATACUBE'S TIMESERIES LIBRARY ON THE PLATFORM (docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md, step B): {@code
  * datacube::ts}, DataCube's Pure file as it is ({@code datacube/src/pure/datacube_ts.pure}: a program, input to the
  * compiler, never the platform's -- docs/WORLD_MAP.md), taken after a model's own sections with no TypeScript in the
- * path. Every body of it type-checks, and a person's Pure calling its functions answers the same figures on every
+ * path. It compiles -- its parse, names, signatures and enumerations; a body generic over relations, as every one of
+ * its functions is, is typed at each call over that call's tables (register S112), so here where these tests call one
+ * -- and a person's Pure calling its functions answers the same figures on every
  * in-process database (a calendar period's as-of join where the dialect writes one), each worked here as plain
  * arithmetic over the same prices, never by the code under test.
  *
@@ -169,9 +171,10 @@ class TimeseriesLibraryTest {
     }
 
     @Test
-    void everyBodyOfTheLibraryTypeChecksOnThePlatform() throws Exception {
+    void theLibraryCompilesOnThePlatform() throws Exception {
+        // its elements: a body generic over relations has no check of its own (Compiler.compileAllBodies, S112)
         List<?> errors = Compiler.compileErrors(model(TestBackends.platform()));
-        assertEquals(List.of(), errors, "the library compiles as a whole");
+        assertEquals(List.of(), errors, "the library compiles");
     }
 
     @Test

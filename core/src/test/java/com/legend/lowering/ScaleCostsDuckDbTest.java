@@ -125,32 +125,114 @@ class ScaleCostsDuckDbTest {
         assertEquals(0, count(rendered, "FROM ("), rendered);
     }
 
+    /** A band of the employees' ages, 1 to 7: a seven-level if, as a volatility's periods a year is of its gaps. */
+    private static final String BAND;
+
+    static {
+        String age = "$r.age->toOne()";
+        BAND = "if(" + age + " < 26, |1, |if(" + age + " < 28, |2, |if(" + age + " < 30, |3, |if(" + age
+                + " < 32, |4, |if(" + age + " < 34, |5, |if(" + age + " < 36, |6, |7))))))";
+    }
+
+    /** The employees with an age. */
+    private static final String AGED = "|#>{store::HR.EMP}#->filter(r|$r.age->isNotEmpty())";
+
+    /** (ID, age): (1, 30), (2, 40), (3, 25), (5, 35), (6, 30) -- bands 4, 7, 1, 6, 4; depts eng, eng, ops, none, eng. */
+    private static final List<Integer> BANDS = List.of(4, 7, 1, 6, 4);
+
     @Test
     @DisplayName("a computed column a rule writes again and again stays in the select below, read by name")
     void aRuleCopiedArgumentIsReadByName() throws SQLException {
         // sqrt's domain guard writes its argument three times here (its test, its message's print, its value), and
         // the budget charged each read once (2026-10-30: a 63-day volatility read its periods-a-year CASE under two
         // sqrts, its warm-up's count and its deviation, and wrote it 59 times, 74% of its SQL); the copies are counted
-        // as written (Fold.overCopied), and past the budget the column stays in the select below, read by name. The
-        // volatility's shape: a band of the ages, as the periods a year is of the gaps, read under two sqrts. An
+        // as written (Fold.overCopied), and past the budget the column stays in the select below, read by name. An
         // extend, as the timeseries library writes one (a SQL island writes a subquery's column into its reader itself)
-        String age = "$r.age->toOne()";
-        String band = "if(" + age + " < 26, |1, |if(" + age + " < 28, |2, |if(" + age + " < 30, |3, |if(" + age
-                + " < 32, |4, |if(" + age + " < 34, |5, |if(" + age + " < 36, |6, |7))))))";
-        String query = "|#>{store::HR.EMP}#->filter(r|$r.age->isNotEmpty())->extend(~x: r|" + band + ")"
+        String query = AGED + "->extend(~x: r|" + BAND + ")"
                 + "->extend(~[s: r|$r.x->sqrt(), t: r|$r.x->sqrt() + 1])->select(~[ID, s, t])->sort(~ID->ascending())";
         String rendered = renderQuery(query);
         assertEquals(1, count(rendered, "< 26"), rendered);
-        List<List<Double>> roots = new ArrayList<>();
-        for (List<Object> row : Lean.run(MODEL, query, SqlIslandCases.RUNTIME, session).rows()) {
-            roots.add(List.of(((Number) row.get(1)).doubleValue(), ((Number) row.get(2)).doubleValue()));
-        }
-        // (ID, age): (1, 30), (2, 40), (3, 25), (5, 35), (6, 30) -- bands 4, 7, 1, 6, 4
         List<List<Double>> expected = new ArrayList<>();
-        for (int b : new int[] {4, 7, 1, 6, 4}) {
+        for (int b : BANDS) {
             expected.add(List.of(Math.sqrt(b), Math.sqrt(b) + 1));
         }
-        assertEquals(expected, roots);
+        assertEquals(expected, doubles(query, 1, 2));
+    }
+
+    @Test
+    @DisplayName("a window's columns that write a computed column again and again read it by name too")
+    void aWindowsCopiedArgumentIsReadByName() throws SQLException {
+        // the window's pass (Lowerer.extendWindow), the shape of the 63-day volatility itself: two aggregates of the
+        // band's square root over each department
+        String query = AGED + "->extend(~x: r|" + BAND + ")"
+                + "->extend(over(~dept), ~[s: {p,w,r|$r.x->sqrt()}:y|$y->sum(), t: {p,w,r|$r.x->sqrt()}:y|$y->max()])"
+                + "->select(~[ID, s, t])->sort(~ID->ascending())";
+        String rendered = renderQuery(query);
+        assertEquals(1, count(rendered, "< 26"), rendered);
+        assertEquals(byDepartment(), doubles(query, 1, 2));
+    }
+
+    @Test
+    @DisplayName("a fold that copies too much stays folded over two names alike without regard to case")
+    void aCopiedFoldStaysOverNamesAlikeWithoutCase() throws SQLException {
+        // PR #81's review, 2026-10-30 (Fold.isolatesAsItReads): isolated, DuckDB bound the subselect's x to X, and every
+        // s was 10. It stays folded: its copies written, its answer as before
+        String clash = AGED + "->extend(~X: r|100)->extend(~x: r|" + BAND + ")"
+                + "->extend(~[s: r|$r.x->sqrt(), t: r|$r.x->sqrt() + 1])->select(~[ID, s, t])->sort(~ID->ascending())";
+        List<List<Double>> roots = new ArrayList<>();
+        for (int b : BANDS) {
+            roots.add(List.of(Math.sqrt(b), Math.sqrt(b) + 1));
+        }
+        assertEquals(roots, doubles(clash, 1, 2));
+    }
+
+    @Test
+    @DisplayName("a fold that copies too much stays folded over an order a window reads after it")
+    void aCopiedFoldStaysOverAnOrder() throws SQLException {
+        // PR #81's review, 2026-10-30 (Fold.isolatesAsItReads): isolated, the window computed outside the subselect and
+        // the sort's order was lost (3, 6, 2, 1, 5). It stays folded: its copies written, its order as before
+        String ordered = AGED + "->extend(~x: r|" + BAND + ")->sort(~ID->descending())"
+                + "->extend(over(~dept), ~[s: {p,w,r|$r.x->sqrt()}:y|$y->sum(), t: {p,w,r|$r.x->sqrt()}:y|$y->max()])"
+                + "->select(~[ID, s, t])";
+        List<Object> ids = new ArrayList<>();
+        for (List<Object> row : Lean.run(MODEL, ordered, SqlIslandCases.RUNTIME, session).rows()) {
+            ids.add(((Number) row.get(0)).intValue());
+        }
+        assertEquals(List.of(6, 5, 3, 2, 1), ids, "the sort's order, kept through the window");
+        List<List<Double>> descending = new ArrayList<>(byDepartment());
+        java.util.Collections.reverse(descending);
+        assertEquals(descending, doubles(ordered, 1, 2));
+    }
+
+    /** Each aged employee's department's sum and largest of the bands' square roots, by ID. */
+    private static List<List<Double>> byDepartment() {
+        String[] depts = {"eng", "eng", "ops", null, "eng"};
+        List<List<Double>> out = new ArrayList<>();
+        for (int i = 0; i < BANDS.size(); i++) {
+            double sum = 0;
+            double max = Double.NEGATIVE_INFINITY;
+            for (int j = 0; j < BANDS.size(); j++) {
+                if (java.util.Objects.equals(depts[i], depts[j])) {
+                    sum += Math.sqrt(BANDS.get(j));
+                    max = Math.max(max, Math.sqrt(BANDS.get(j)));
+                }
+            }
+            out.add(List.of(sum, max));
+        }
+        return out;
+    }
+
+    /** {@code query}'s rows on DuckDB, each its columns {@code columns} as doubles. */
+    private static List<List<Double>> doubles(String query, int... columns) throws SQLException {
+        List<List<Double>> out = new ArrayList<>();
+        for (List<Object> row : Lean.run(MODEL, query, SqlIslandCases.RUNTIME, session).rows()) {
+            List<Double> cells = new ArrayList<>();
+            for (int c : columns) {
+                cells.add(((Number) row.get(c)).doubleValue());
+            }
+            out.add(cells);
+        }
+        return out;
     }
 
     @Test

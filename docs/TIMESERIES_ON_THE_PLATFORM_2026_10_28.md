@@ -7,7 +7,7 @@ on PR #77. This note says what each item is, what is decided, and what waits on 
 ## 1. Where things are
 
 - **The maths is the database's**, every figure through DataCube's Pure library `datacube::ts`
-  (`datacube/src/pure-library-text.ts`, ~1,700 lines, ~110 functions, generic over relations: S112; since step B the
+  (`datacube/src/pure-library-text.ts`, ~1,780 lines, 153 functions, generic over relations: S112; since step B the
   Pure file `datacube/src/pure/datacube_ts.pure`, the TypeScript module written from it).
 - **The assembly is TypeScript's**: `timeseries-expr.ts` parses the formula language (gs-quant's shorthand,
   `returns(px:close[SPX], 1, log)`), and `timeseries-query.ts` (~2,700 lines) writes the Pure each formula is -- the
@@ -46,7 +46,8 @@ on PR #77. This note says what each item is, what is decided, and what waits on 
   module (`pure-library-text.ts`) and the enumerations table generated from it, each diff-tested. The platform takes it
   as a `###Pure` section after a model's own, as the page sends it; nothing of the platform's own changes. A person's
   Pure on the platform then names `datacube::ts` with no TypeScript in the path: `//core:timeseries_library_test`
-  compiles the file whole and runs a person's Pure over it on every in-process database (DuckDB, H2, SQLite).
+  compiles the file (a body generic over relations is typed where a call reaches it, S112: here where its tests call
+  one) and runs a person's Pure over it on every in-process database (DuckDB, H2, SQLite).
 - **C. The timeseries query language (2026-10-29: docs/TIMESERIES_LANGUAGE_2026_10_29.md).** A SQL dialect for
   timeseries -- `SELECT … FROM (prices WHERE …) ON date BY symbol SAMPLE BY 1w FILL(PREV) FILTER …` -- whose meaning is
   its expansion into plain SQL, then Pure through the existing translator, the library's functions found by name as
@@ -71,7 +72,7 @@ Items 1 and 4 (§2), held by `timeseries_queries_test` (every number unchanged),
 the library's. Step A (§3): the fills and their pieces, the writer on them with every alignment number unchanged
 (163 tests), and a person's own Pure answering as the tile's step and time. Step B (§3): the library a Pure file, the page's module and the
 enumerations written from it (the text byte for byte as before); `//core:timeseries_library_test` (the core lane)
-compiles it whole and runs a person's Pure on DuckDB, H2 and SQLite -- a mean, returns simple and log, volatility, a
+compiles it (its bodies typed where its tests call them, S112) and runs a person's Pure on DuckDB, H2 and SQLite -- a mean, returns simple and log, volatility, a
 month's number and the three fills answer as arithmetic on all three; a week's returns on DuckDB, refused by name on the
 other two (step E).
 

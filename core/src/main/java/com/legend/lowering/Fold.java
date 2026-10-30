@@ -641,6 +641,9 @@ final class Fold {
      * call here and some 23 copies in DuckDB's text, a spelling the lowering may not know (invariant 3), so a sqrt
      * costs three copies of its argument here, not 27. */
     static @com.legend.base.Nullable String overCopied(SqlSelect base, List<SqlSelect.Projection> written) {
+        if (!isolatesAsItReads(base)) {
+            return null;
+        }
         java.util.Map<SqlExpr, String> computed = new java.util.IdentityHashMap<>();
         for (SqlSelect.Projection p : base.projections()) {
             if (!(p.expr() instanceof SqlExpr.Column) && p.outputName() != null) {
@@ -672,6 +675,17 @@ final class Fold {
             }
         }
         return growth > Budget.BLOAT ? worst : null;
+    }
+
+    /** Whether {@code s} isolated reads as it did (PR #81's review, 2026-10-30): {@link #overCopied} refuses a fold only
+     *  then, the copies left written where an isolation would change an answer -- a select with an order (a window or
+     *  an aggregate over the isolated select computes outside it, and its order is the subselect's alone), a limit, an
+     *  offset or DISTINCT (which an extend's isolation keeps by {@code Lowerer.extendOver}'s own rules, not the
+     *  plain isolation a refused fold retries over), or two names alike without regard to case (DuckDB binds a read
+     *  of either to the first: {@link #namesApartWithoutCase}). */
+    static boolean isolatesAsItReads(SqlSelect s) {
+        return s.orderBy().isEmpty() && s.limit() == null && s.offset() == null && !s.distinct()
+                && namesApartWithoutCase(s);
     }
 
     /** Counts into {@code copies} each of {@code computed}'s expressions written in {@code e}, not looking inside one:
