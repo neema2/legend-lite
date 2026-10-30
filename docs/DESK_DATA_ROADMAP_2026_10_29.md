@@ -153,7 +153,12 @@ Python model reads `###Lakehouse` (its generated files byte-identical).
   - A feed process in Node (the world, the Coinbase feed for the crypto names, the door), and a Bazel target that
     starts it beside Deephaven.
 - **Measure first:** every column kind Deephaven holds (the twelve DH16 measured) through JSON into Deephaven's reader,
-  instants, dates and decimals above all.
+  instants, dates and decimals above all. *Measured 2026-10-30* (the pinned 42.7, `KafkaTools.Consume.jsonSpec`, one
+  topic a kind and spelling through the door): `byte`, `short`, `int`, `long`, `float`, `double`, `String`, `Boolean`
+  and `Instant` read as written, a JSON `null` a null; an instant read from ISO text, epoch milliseconds or epoch
+  nanoseconds alike (the number's size says which). `LocalDate`, `LocalTime` and `BigDecimal` are refused ("Type
+  LocalDate not supported for JSON"), so the generated program reads such a column as text and converts it on the
+  server. The desk's twenty tables hold no decimal and no time; eighteen DATE columns in eleven tables take that path.
 - **Done when:**
   - the protocol tests pass: encoding, the checksum, an unknown request refused by name;
   - the pinned Deephaven reads every table the world writes, every row once.
