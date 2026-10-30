@@ -147,3 +147,11 @@ that moves moves with its reason in the commit (AGENTS.md).
   - The SAMPLE BY and FILL tests run on the platform's database (DuckDB): `last`/`first` need `ARG_MAX`/`ARG_MIN`,
     and one in-process planner runs out of memory on the nesting a FILL writes.
   `//core:ts_island_test`: thirteen tests. P3c (spans and date windows, options, `latest`) next.
+- 2026-10-30: P3c built. A window of a span (`avg(x, 3d)`, `std(x, 3mo)`, `count(x, 1y)`, R4: the dates after the one
+  that far back, from the line's first date that span on) is the library's `overPeriod`; a lag of a span
+  (`lag(x, 1y)`, `diff`, `returns(x, 1w)`, R9: as of that date) its `lagPeriod`, `diffPeriod`, `returnsPeriod` (an
+  as-of join: on the databases whose dialect writes one); a window from a date (`sum(x, '2024-01-25')`, R4) the
+  running figure of the values on or after it. Options by place or by name (R10: `returns(x, 1, 'log')`,
+  `returns(x, type => 'log')`), a name the function has not refused naming its own. `latest` (R9) in FILTER, the
+  answer's last date, and spans in a condition Postgres's intervals (`DAY > latest - 3d`). `//core:ts_island_test`:
+  seventeen tests. P4 (the tile's functions) next.

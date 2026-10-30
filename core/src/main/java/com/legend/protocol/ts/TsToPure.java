@@ -56,6 +56,8 @@ public final class TsToPure {
     /** v0's functions of a value some observations back ({@code obs = 1}): the language's name, the library's. */
     private static final Map<String, String> BACK = Map.of("lag", "lag", "diff", "diff", "returns", "returns");
 
+    private static final String DURATION = "meta::pure::functions::date::DurationUnit";
+
     /** The functions of the language's catalog (§6) that v1 brings, refused by name until then (P4). */
     private static final Set<String> LATER = Set.of("alpha", "annualize", "append", "atr", "basket", "beta",
             "bollinger_bands", "change", "compare", "consecutive", "correlation", "cov", "dickey_fuller",
@@ -260,9 +262,31 @@ public final class TsToPure {
             }
             rel = call("filter", rel, lambda("x", java.util.Objects.requireNonNull(some)));
             if (query.filter() != null) {
-                SqlAst.Expr condition = perPoint(query.filter());
+                SqlAst.Expr condition = intervals(perPoint(query.filter()));
+                // latest (R9): the data's last date, the answer's (an item's own name where one is called so)
+                String latest = null;
+                if (answer.stream().noneMatch(c -> c.equalsIgnoreCase("latest"))) {
+                    boolean[] reads = new boolean[1];
+                    visit(condition, x -> reads[0] |= x instanceof SqlAst.ColumnRef c && c.parts().size() == 1
+                            && !c.parts().get(0).quoted() && "latest".equalsIgnoreCase(c.parts().get(0).text()));
+                    if (reads[0]) {
+                        String one = lines.fresh("one");
+                        latest = lines.fresh("latest");
+                        rel = call("extend", rel, new ColSpec(one, lambda("x", new CInteger(1L))));
+                        rel = call("extend", rel, call("over", new ColSpecArray(List.of(new ColSpec(one)))),
+                                new ColSpec(latest, new LambdaFunction(List.of(new Variable("p"), new Variable("w"),
+                                        new Variable("r")), List.of(new AppliedProperty(new Variable("r"), date))),
+                                        lambda("y", call("max", new Variable("y")))));
+                        String l = latest;
+                        condition = map(condition, x -> x instanceof SqlAst.ColumnRef c && c.parts().size() == 1
+                                && !c.parts().get(0).quoted() && "latest".equalsIgnoreCase(c.parts().get(0).text())
+                                ? TsToPure.column(l, c.pos()) : x);
+                    }
+                }
+                String reading = latest;
                 visit(condition, x -> {
-                    if (x instanceof SqlAst.ColumnRef c && (c.parts().size() > 1 || resolve(answer, c) == null)) {
+                    if (x instanceof SqlAst.ColumnRef c && (c.parts().size() > 1 || resolve(answer, c) == null)
+                            && !(reading != null && c.parts().get(0).text().equals(reading))) {
                         throw invalid(text(c) + " isn't a column of the answer (" + String.join(", ", answer)
                                 + "): FILTER reads the answer's columns (R8); to use only some rows of the data, put"
                                 + " the WHERE with its source: FROM (source WHERE ...)", c.pos());
@@ -273,6 +297,9 @@ public final class TsToPure {
                     }
                 });
                 rel = call("filter", rel, rowLambda(condition, rel, sources, true, "FILTER"));
+                if (latest != null) {
+                    rel = call("select", rel, new ColSpecArray(answer.stream().map(ColSpec::new).toList()));
+                }
             }
             List<ValueSpecification> order = new ArrayList<>(List.of(call("ascending", new ColSpec(date))));
             if (instrument != null) {
@@ -653,7 +680,7 @@ public final class TsToPure {
                             fc.pos());
                 }
             });
-            return call("filter", relation, rowLambda(condition, relation, sources, true, clause));
+            return call("filter", relation, rowLambda(intervals(condition), relation, sources, true, clause));
         }
 
         // -------------------------------------------------------------- items
@@ -800,9 +827,15 @@ public final class TsToPure {
                 TsAst.Fill fill = query.fill();
                 TsLines.Line met = parts.size() == 1 ? parts.get(0).line()
                         : TsLines.joined(this, parts, e.pos(), fill == null ? null : fill.how());
+                visit(over, x -> {
+                    if (x instanceof SqlAst.FunctionCall o && TsParser.OPTION.equals(fn(o))) {
+                        throw invalid("an option by name is a timeseries function's: returns(x, type => 'log') (R10)",
+                                o.pos());
+                    }
+                });
                 String value = fresh("pt");
-                return new TsLines.Valued(met.with(call("extend", met.rel(), new ColSpec(value, rowLambda(over,
-                        met.rel(), false, "SELECT")))), value);
+                return new TsLines.Valued(met.with(call("extend", met.rel(), new ColSpec(value, rowLambda(
+                        intervals(over), met.rel(), false, "SELECT")))), value);
             }
 
             /** {@code e} with each line in it read as its column, its lines added to {@code parts} (each once). */
@@ -845,55 +878,94 @@ public final class TsToPure {
                         || fc.args().isEmpty()) {
                     throw invalid(name + " along time takes a line and a window: " + name + "(x, 20)", fc.pos());
                 }
-                if (!(node(fc.args().get(0)) instanceof TsLines.Valued v)) {
-                    throw invalid(name + " reads a line: its first argument is a number", fc.args().get(0).pos());
+                Arguments a = arguments(fc);
+                List<SqlAst.Expr> args = a.positional();
+                if (args.isEmpty() || !(node(args.get(0)) instanceof TsLines.Valued v)) {
+                    throw invalid(name + " reads a line: its first argument is a number", fc.pos());
                 }
                 TsLines.Line l = v.line();
                 String out = fresh(name);
-                List<SqlAst.Expr> args = fc.args();
                 ValueSpecification rel;
                 if (WINDOWED.containsKey(name) || "count".equals(name)) {
-                    if (args.size() == 1) {
-                        throw invalid(name + "(x) has no window: along time write " + name + "(x, 20) or " + name
-                                + "(x, all); a period's " + name + " is SAMPLE BY's (R5, v1)", fc.pos());
-                    }
+                    a.only(name);
                     if (args.size() != 2) {
-                        throw invalid(name + " takes a line and a window: " + name + "(x, 20)", fc.pos());
+                        throw invalid(name + " takes a line and a window: " + name + "(x, 20), " + name
+                                + "(x, 3mo), " + name + "(x, all) or " + name + "(x, '2024-01-01') (R4)", fc.pos());
                     }
                     SqlAst.Expr w = args.get(1);
-                    if (w instanceof SqlAst.ColumnRef c && query.spans().containsKey(c.pos())) {
-                        throw unsupported("a window of a span (3mo) is P3c's: for now a window counts observations,"
-                                + " " + name + "(x, 63)", w.pos());
-                    }
+                    TsAst.Span span = w instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
                     boolean all = w instanceof SqlAst.ColumnRef c && query.alls().contains(c.pos());
-                    if ("count".equals(name)) {
+                    String stat = "count".equals(name) ? "count" : java.util.Objects.requireNonNull(WINDOWED.get(name));
+                    if (span != null) {
+                        // the dates after the one that far back (R4): the library's statistic of a calendar period
+                        Period p = calendar(span);
+                        rel = call(LIBRARY + "overPeriod", l.rel(), new ColSpec(l.part()), new ColSpec(l.at()),
+                                new ColSpec(v.value()), new CInteger((long) p.n()), new EnumValue(DURATION, p.unit()),
+                                new EnumValue(LIBRARY + "Statistic", stat), new ColSpec(out));
+                    } else if (all || w instanceof SqlAst.StringLit || w instanceof SqlAst.TypedLit) {
+                        String value = v.value();
                         if (!all) {
-                            throw unsupported("count over a window of observations is v1's (P4): count(x, all)"
-                                    + " counts a line's values to date", w.pos());
+                            // the dates on or after the date (R4): the value from it on, none before, to date
+                            String since = fresh("since");
+                            SqlAst.Expr from = new SqlAst.Case(null, List.of(new SqlAst.When(new SqlAst.Binary(
+                                    SqlAst.BinaryOp.GE, TsToPure.column(l.at(), w.pos()), w, w.pos()),
+                                    TsToPure.column(value, w.pos()))), null, w.pos());
+                            l = l.with(call("extend", l.rel(), new ColSpec(since, rowLambda(from, l.rel(), false,
+                                    "SELECT"))));
+                            value = since;
                         }
-                        rel = call(LIBRARY + "count", l.rel(), new ColSpec(l.part()), new ColSpec(TsLines.PERIOD),
-                                new ColSpec(v.value()), new ColSpec(out));
+                        rel = "count".equals(name)
+                                ? call(LIBRARY + "count", l.rel(), new ColSpec(l.part()), new ColSpec(TsLines.PERIOD),
+                                        new ColSpec(value), new ColSpec(out))
+                                // everything to date from its first value
+                                : call(LIBRARY + stat, l.rel(), TsLines.over(l, call("rows", call("unbounded"),
+                                        new CInteger(0L))), new ColSpec(value), new CInteger(1L), new ColSpec(out));
                     } else {
-                        int n = all ? 0 : observations(w, "a window", name + "(x, 20)");
-                        ValueSpecification frame = all ? call("rows", call("unbounded"), new CInteger(0L))
-                                : call("rows", new CInteger((long) -(n - 1)), new CInteger(0L));
-                        // a value once its window is full (R4): n of them; everything to date from its first
-                        rel = call(LIBRARY + WINDOWED.get(name), l.rel(), TsLines.over(l, frame),
-                                new ColSpec(v.value()), new CInteger(all ? 1L : n), new ColSpec(out));
+                        if ("count".equals(name)) {
+                            throw unsupported("count over a window of observations is the library's to add: count(x,"
+                                    + " 3mo) counts a span's, count(x, all) a line's to date", w.pos());
+                        }
+                        int n = observations(w, "a window", name + "(x, 20)");
+                        // a value once its window is full (R4): n of them
+                        rel = call(LIBRARY + stat, l.rel(), TsLines.over(l, call("rows", new CInteger((long) -(n - 1)),
+                                new CInteger(0L))), new ColSpec(v.value()), new CInteger((long) n), new ColSpec(out));
                     }
                 } else {
-                    if (args.size() > 2) {
-                        throw invalid(name + " takes a line and how many observations back: " + name + "(x, 1)",
-                                fc.pos());
+                    boolean returns = "returns".equals(name);
+                    if (returns) {
+                        a.only(name, "type");
+                    } else {
+                        a.only(name);
                     }
-                    int obs = args.size() == 2 ? observations(args.get(1), "obs", name + "(x, 1)") : 1;
-                    List<ValueSpecification> params = new ArrayList<>(List.of(l.rel(), TsLines.over(l, null),
-                            new ColSpec(v.value()), new CInteger((long) obs)));
-                    if ("returns".equals(name)) {
-                        params.add(new EnumValue(LIBRARY + "Returns", "simple"));
+                    if (args.size() > (returns ? 3 : 2)) {
+                        throw invalid(name + " takes a line and how far back: " + name + "(x, 1), " + name
+                                + "(x, 1y)" + (returns ? ", and its type: returns(x, 1, 'log')" : ""), fc.pos());
                     }
-                    params.add(new ColSpec(out));
-                    rel = call(LIBRARY + BACK.get(name), params);
+                    SqlAst.Expr back = args.size() >= 2 ? args.get(1) : null;
+                    TsAst.Span span = back instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
+                    List<ValueSpecification> type = new ArrayList<>();
+                    if (returns) {
+                        SqlAst.Expr t = args.size() == 3 ? args.get(2) : a.named().get("type");
+                        type.add(new EnumValue(LIBRARY + "Returns", t == null ? "simple"
+                                : option(t, "type", List.of("simple", "log", "absolute"))));
+                    }
+                    if (span != null) {
+                        // as of that far back (R9): the library's of a calendar period
+                        Period p = calendar(span);
+                        List<ValueSpecification> params = new ArrayList<>(List.of(l.rel(), new ColSpec(l.part()),
+                                new ColSpec(l.at()), new ColSpec(v.value()), new CInteger((long) p.n()),
+                                new EnumValue(DURATION, p.unit())));
+                        params.addAll(type);
+                        params.add(new ColSpec(out));
+                        rel = call(LIBRARY + BACK.get(name) + "Period", params);
+                    } else {
+                        int obs = back == null ? 1 : observations(back, "obs", name + "(x, 1)");
+                        List<ValueSpecification> params = new ArrayList<>(List.of(l.rel(), TsLines.over(l, null),
+                                new ColSpec(v.value()), new CInteger((long) obs)));
+                        params.addAll(type);
+                        params.add(new ColSpec(out));
+                        rel = call(LIBRARY + BACK.get(name), params);
+                    }
                 }
                 return new TsLines.Valued(l.with(rel), out);
             }
@@ -904,11 +976,92 @@ public final class TsToPure {
                         && n.value().compareTo(java.math.BigInteger.valueOf(100_000)) <= 0) {
                     return n.value().intValue();
                 }
-                if (e instanceof SqlAst.StringLit) {
-                    throw unsupported("a date as " + what + " ('2023-01-01') is v1's (R4)", e.pos());
-                }
-                throw invalid(what + " counts observations, a whole number from 1: " + example, e.pos());
+                throw invalid(what + " counts observations, a whole number from 1, or is a span: " + example
+                        + " (R4)", e.pos());
             }
+        }
+
+        /** A call's arguments (R10): those by place, then those by name. */
+        private record Arguments(List<SqlAst.Expr> positional, Map<String, SqlAst.Expr> named, SqlAst.Pos pos) {
+
+            /** Refused: an option by name the function {@code fn} has not ({@code options} its own). */
+            void only(String fn, String... options) {
+                for (String n : named.keySet()) {
+                    if (!List.of(options).contains(n)) {
+                        throw invalid(fn + " has no option " + n + (options.length == 0 ? ""
+                                : ": its options are " + String.join(", ", options)) + " (R10)", pos);
+                    }
+                }
+            }
+        }
+
+        /** {@code fc}'s arguments: by place, then by name ({@code type => 'log'}, R10). */
+        private static Arguments arguments(SqlAst.FunctionCall fc) {
+            List<SqlAst.Expr> positional = new ArrayList<>();
+            Map<String, SqlAst.Expr> named = new LinkedHashMap<>();
+            for (SqlAst.Expr arg : fc.args()) {
+                if (arg instanceof SqlAst.FunctionCall o && TsParser.OPTION.equals(fn(o))) {
+                    String n = ((SqlAst.StringLit) o.args().get(0)).value();
+                    if (named.put(n, o.args().get(1)) != null) {
+                        throw invalid(fn(fc) + "'s option " + n + " is given twice (R10)", o.pos());
+                    }
+                } else if (!named.isEmpty()) {
+                    throw invalid("an option by place comes before those by name: " + fn(fc) + "(x, 1, type => 'log')"
+                            + " (R10)", arg.pos());
+                } else {
+                    positional.add(arg);
+                }
+            }
+            return new Arguments(positional, named, fc.pos());
+        }
+
+        /** An option's value (R10): a string, one of {@code values}. */
+        private static String option(SqlAst.Expr e, String name, List<String> values) {
+            if (!(e instanceof SqlAst.StringLit s) || !values.contains(s.value())) {
+                throw invalid(name + " is " + String.join(", ", values.stream().map(x -> "'" + x + "'").toList())
+                        + " (R10)", e.pos());
+            }
+            return s.value();
+        }
+
+        /** A span as the library's calendar periods take it (§5): a count of a DurationUnit, a quarter three months. */
+        private record Period(int n, String unit) {
+        }
+
+        private static Period calendar(TsAst.Span s) {
+            return switch (s.unit()) {
+                case "d" -> new Period(s.n(), "DAYS");
+                case "w" -> new Period(s.n(), "WEEKS");
+                case "mo" -> new Period(s.n(), "MONTHS");
+                case "q" -> new Period(3 * s.n(), "MONTHS");
+                case "y" -> new Period(s.n(), "YEARS");
+                case "h" -> new Period(s.n(), "HOURS");
+                case "min" -> new Period(s.n(), "MINUTES");
+                case "s" -> new Period(s.n(), "SECONDS");
+                default -> throw invalid("a span is d, w, mo, q, y, h, min or s (§5)", s.pos());
+            };
+        }
+
+        /** {@code e} with each span ({@code 1y}) Postgres's interval ({@code INTERVAL '1 year'}): date arithmetic in a
+         *  condition or a per-point expression (R9). */
+        private SqlAst.Expr intervals(SqlAst.Expr e) {
+            return map(e, x -> {
+                TsAst.Span s = x instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
+                if (s == null) {
+                    return x;
+                }
+                String text = switch (s.unit()) {
+                    case "d" -> s.n() + " day";
+                    case "w" -> s.n() + " week";
+                    case "mo" -> s.n() + " month";
+                    case "q" -> 3 * s.n() + " month";
+                    case "y" -> s.n() + " year";
+                    case "h" -> s.n() + " hour";
+                    case "min" -> s.n() + " minute";
+                    default -> s.n() + " second";
+                };
+                return new SqlAst.TypedLit(new SqlAst.TypeName("interval", List.of(), s.pos()), text, s.pos());
+            });
         }
 
         /** Whether {@code e} is a reference to the column {@code name}. */

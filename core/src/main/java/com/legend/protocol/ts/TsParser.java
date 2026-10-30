@@ -37,6 +37,9 @@ public final class TsParser {
      *  {@code __ts_pick(close, 'SPX', venue = 'NYSE')}, its line first, then its matches. */
     public static final String PICK = "__ts_pick";
 
+    /** The function an option by name is read as (R10): {@code type => 'log'} is {@code __ts_option('type', 'log')}. */
+    public static final String OPTION = "__ts_option";
+
     /** The clauses that end the FROM clause: the language's own, and SQL's that it refuses with their fix. */
     private static final Set<String> AFTER_FROM = Set.of("where", "filter", "sample", "fill", "group", "order",
             "limit", "offset", "having", "window", "union", "except", "intersect", "fetch");
@@ -532,7 +535,7 @@ public final class TsParser {
                         t.pos());
             }
         }
-        List<Token> slice = picked(new ArrayList<>(tokens.subList(from, to)));
+        List<Token> slice = named(picked(new ArrayList<>(tokens.subList(from, to))));
         slice.add(new Token(Kind.EOF, "", tokens.get(to).pos()));
         try {
             return SqlParser.expression(slice);
@@ -577,6 +580,40 @@ public final class TsParser {
             slice.add(start, new Token(Kind.LPAREN, "(", at));
             slice.add(start, new Token(Kind.QUOTED_IDENT, PICK, at));
         }
+    }
+
+    /** {@code slice} with each option by name, {@code name => value} (R10), read as {@link #OPTION}'s call:
+     *  {@code __ts_option('name', value)}, its value up to the argument's end; each token where it was. */
+    private static List<Token> named(List<Token> slice) {
+        for (int i = 1; i < slice.size(); i++) {
+            if (!slice.get(i).isOp("=>")) {
+                continue;
+            }
+            if (!name(slice.get(i - 1))) {
+                throw invalid("an option by name is name => value: returns(x, type => 'log') (R10)",
+                        slice.get(i).pos());
+            }
+            int depth = 0;
+            int end = i + 1;
+            for (; end < slice.size(); end++) {
+                Kind k = slice.get(end).kind();
+                if (k == Kind.LPAREN || k == Kind.LBRACKET) {
+                    depth++;
+                } else if ((k == Kind.RPAREN || k == Kind.RBRACKET) && depth-- == 0 || k == Kind.COMMA && depth == 0) {
+                    break;
+                }
+            }
+            if (end == i + 1) {
+                throw invalid("an option by name takes a value: type => 'log' (R10)", slice.get(i).pos());
+            }
+            Token name = slice.get(i - 1);
+            slice.add(end, new Token(Kind.RPAREN, ")", slice.get(end - 1).pos()));
+            slice.set(i, new Token(Kind.COMMA, ",", slice.get(i).pos()));
+            slice.set(i - 1, new Token(Kind.STRING, name.text(), name.pos()));
+            slice.add(i - 1, new Token(Kind.LPAREN, "(", name.pos()));
+            slice.add(i - 1, new Token(Kind.QUOTED_IDENT, OPTION, name.pos()));
+        }
+        return slice;
     }
 
     /** Whether tokens {@code [from, to)} read as an expression. */

@@ -494,6 +494,92 @@ class TsIslandTest {
     }
 
     @Test
+    void aSpansWindowIsTheDatesAfterTheOneThatFarBack() throws Exception {
+        // R4: 3d is the dates after the one three days back, from the line's first date three days on; 3 is three
+        // observations. AAA has no row on the 25th: the 26th's three days hold two of its values, its three
+        // observations the 23rd's, the 24th's and the 26th's
+        int gap = 5;
+        List<Integer> days = new ArrayList<>();
+        for (int i = 0; i < AAA.length; i++) {
+            if (i != gap) {
+                days.add(i);
+            }
+        }
+        List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT avg(CLOSE['AAA'], 3d) AS cal,"
+                + " avg(CLOSE['AAA'], 3) AS obs FROM (PRICES WHERE SYMBOL = 'AAA' AND DAY <> '2024-01-25') ON DAY"
+                + " BY SYMBOL}#");
+        // R6: no row on the 20th and the 21st, where neither has a value
+        assertClose(days.stream().skip(2).map(i -> {
+            if (i < 3) {
+                return null;
+            }
+            double sum = 0;
+            int n = 0;
+            for (int k : days) {
+                if (k > i - 3 && k <= i) {
+                    sum += AAA[k];
+                    n++;
+                }
+            }
+            return sum / n;
+        }).toArray(Double[]::new), column(got, null, null, "cal"), "a span's mean, from three days on");
+        assertClose(java.util.stream.IntStream.range(2, days.size()).mapToObj(j ->
+                (AAA[days.get(j)] + AAA[days.get(j - 1)] + AAA[days.get(j - 2)]) / 3).toArray(Double[]::new),
+                column(got, null, null, "obs"), "three observations' mean");
+    }
+
+    @Test
+    void aSpanBackIsAsOfThatDateAndADateWindowRunsFromIt() throws Exception {
+        // R9: returns(x, 1w) against the value as of a week back; R4: sum(x, '2024-01-25') the total since the 25th
+        List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT returns(CLOSE['AAA'], 1w) AS wk,"
+                + " sum(CLOSE['AAA'], '2024-01-25') AS since, lag(CLOSE['AAA'], 2d) AS two FROM PRICES ON DAY"
+                + " BY SYMBOL}#");
+        // R6: no row on the 20th and the 21st, where no item has a value
+        assertClose(each(AAA.length - 2, i -> i + 2 < 7 ? null : AAA[i + 2] / AAA[i - 5] - 1),
+                column(got, null, null, "wk"), "a week's returns");
+        assertClose(each(AAA.length - 2, j -> {
+            int i = j + 2;
+            if (i < 5) {
+                return null;
+            }
+            double sum = 0;
+            for (int k = 5; k <= i; k++) {
+                sum += AAA[k];
+            }
+            return sum;
+        }), column(got, null, null, "since"), "the total since the 25th");
+        assertClose(each(AAA.length - 2, i -> AAA[i]), column(got, null, null, "two"), "the value two days back");
+    }
+
+    @Test
+    void anOptionByPlaceOrByName() throws Exception {
+        // R10: returns' type, by place or by name
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT returns(CLOSE['AAA'], 1, 'log') AS lp,"
+                    + " returns(CLOSE['AAA'], type => 'log') AS ln, returns(CLOSE['AAA'], type => 'absolute') AS ab"
+                    + " FROM PRICES ON DAY BY SYMBOL}#");
+            Double[] log = each(AAA.length - 1, i -> Math.log(AAA[i + 1]) - Math.log(AAA[i]));
+            assertClose(log, column(got, null, null, "lp"), backend + ": log returns by place");
+            assertClose(log, column(got, null, null, "ln"), backend + ": log returns by name");
+            assertClose(each(AAA.length - 1, i -> AAA[i + 1] - AAA[i]), column(got, null, null, "ab"),
+                    backend + ": absolute returns");
+        }
+    }
+
+    @Test
+    void latestIsTheDataLastDate() throws Exception {
+        // R9: FILTER DAY > latest - 3d keeps the last three days, computed with every day before
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
+                    + " FROM PRICES ON DAY BY SYMBOL FILTER DAY > latest - 3d}#");
+            assertEquals(List.of("2024-01-29", "2024-01-30", "2024-01-31"), got.stream().map(r -> r.get("DAY")).toList(),
+                    backend + ": the last three days");
+            assertClose(each(3, i -> mean3(AAA, i + 9)), column(got, null, null, "ma"),
+                    backend + ": each with its history");
+        }
+    }
+
+    @Test
     void anEnumerationsValueIsWrittenAsAString() throws Exception {
         // R13: 'TECH' is ts::Sector.TECH, which the mapping stores as 'T' -- not the stored code compared with a string
         String pure = """
@@ -540,7 +626,12 @@ class TsIslandTest {
                 "isn't a column of the answer");
         refusals.put("SELECT q.close - r.close AS d FROM Quote q ON day BY instrument.ticker,"
                 + " Quote r ON day BY instrument.sector", "lines by ticker and lines by sector meet on no instrument");
-        refusals.put("SELECT avg(CLOSE, 3mo) AS a FROM PRICES ON DAY BY SYMBOL", "a window of a span (3mo) is P3c's");
+        refusals.put("SELECT returns(CLOSE['AAA'], type => 'ln') AS r FROM PRICES ON DAY BY SYMBOL",
+                "type is 'simple', 'log', 'absolute'");
+        refusals.put("SELECT avg(CLOSE['AAA'], 3, type => 'log') AS r FROM PRICES ON DAY BY SYMBOL", "avg has no option type");
+        refusals.put("SELECT returns(CLOSE['AAA'], type => 'log', 1) AS r FROM PRICES ON DAY BY SYMBOL",
+                "an option by place comes before those by name");
+        refusals.put("SELECT ln(CLOSE['AAA'] => 1) AS r FROM PRICES ON DAY BY SYMBOL", "an option by name is name => value");
         refusals.put("SELECT avg(CLOSE, 3) AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY week",
                 "SAMPLE BY takes a calendar period");
         refusals.put("SELECT last(CLOSE['AAA']) AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY 2w",
