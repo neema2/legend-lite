@@ -297,25 +297,43 @@ public final class VerdictBatch {
         }
         Map<Integer, List<Object>> rows = new HashMap<>();
         for (var g : groups.entrySet()) {
-            List<Pending> ps = g.getValue();
+            List<Pending> all = g.getValue();
             if (PrepTrace.on()) {
-                for (Pending p : ps) {
+                for (Pending p : all) {
                     PrepTrace.branch(p.name(), runner.chars(p.query()));
                 }
             }
             // the group as a plan value (S2e): the fused statement its wrapper over wrappers, each verdict a step with
             // no wrapper of its own here -- a single wrapper is planned and run lazily in the root loop below, at the
             // place the split rung reaches it, so nothing is sent past the first failure
+            List<Pending> ps = all;
             ExecutionPlan.TdsResult fusedPlan;
             try {
                 fusedPlan = runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true);
             } catch (com.legend.sql.dialect.DialectCapability e) {
-                // the split rung at planning: a canon the dialect cannot spell; counted as the run-time one is
-                fallback(e);
-                continue;
+                // the split rung at planning, member by member (the planner-driver seam program's S3b, 2026-10-30): a
+                // verdict whose canon the dialect cannot spell leaves the group and is refused at its own place in the
+                // root loop (executeOne: UNJUDGED, its own words, nothing sent); the members the dialect spells stay
+                // fused. Until S3b the wire probe's prepare rendered a wire-decided side at its planning, which refused
+                // such a side before it joined the group -- by accident, and only for those sides
+                ps = spelled(all);
+                fusedPlan = null;
+                if (!ps.isEmpty() && ps.size() < all.size()) {
+                    try {
+                        fusedPlan = runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true);
+                    } catch (com.legend.sql.dialect.DialectCapability again) {
+                        fusedPlan = null;
+                    }
+                }
+                if (fusedPlan == null) {
+                    // the split rung at planning: a canon the dialect cannot spell; counted as the run-time one is
+                    fallback(e);
+                    continue;
+                }
             }
-            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(ps.size());
-            for (Pending p : ps) {
+            List<Pending> members = ps;
+            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(members.size());
+            for (Pending p : members) {
                 verdicts.add(new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(), List.of(), null));
             }
             ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(verdicts, fusedPlan);
@@ -336,7 +354,7 @@ public final class VerdictBatch {
                 public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
                     int local = next[0]++;
                     if (row != null) {
-                        rows.put(ps.get(local).ix(), row);
+                        rows.put(members.get(local).ix(), row);
                     }
                 }
             };
@@ -394,6 +412,21 @@ public final class VerdictBatch {
             }
             throw failure;   // first-failure sequencing, as before
         }
+    }
+
+    /** The members of a group whose own canon the dialect spells, each fused alone over the batch's frames (planning
+     *  only: a render, nothing sent). */
+    private List<Pending> spelled(List<Pending> group) {
+        List<Pending> out = new ArrayList<>(group.size());
+        for (Pending p : group) {
+            try {
+                runner.plan(fusion.fuse(List.of(p.query()), frames), true);
+                out.add(p);
+            } catch (com.legend.sql.dialect.DialectCapability e) {
+                // refused at its own place in the root loop
+            }
+        }
+        return out;
     }
 
     /** The split rung's accounting: counted, with the reason's head and the frames the message names. */

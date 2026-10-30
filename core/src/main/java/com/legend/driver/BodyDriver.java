@@ -2797,17 +2797,9 @@ public final class BodyDriver {
                         .requireBounded("result shape").isMany()
                 && com.legend.compiler.element.type.Type
                         .isRelation(root.info().type());
-        if (!stores.isEmpty() && !hostSide) {
-            // leg 3.3: a store-reading side's wire-decided kinds are the
-            // database's (a store declaration is not a cast); a store-free
-            // side's stamp is the compiler's own fact
-            var batch = penv.verdictBatch();
-            plan = WireProbe.reconcile(plan,
-                    collectionDeclared ? java.util.Objects.requireNonNull(p.declaredInfo())
-                            : com.legend.plan.ResultShape.valueInfo(root.info()),
-                    penv.dialect(), penv.planSessions(), penv.target(), penv.session().state().wireTypes(),
-                    batch == null ? java.util.Map.of() : batch.frames());
-        }
+        // a store-reading side's wire-decided kinds are the database's (a store declaration is not a cast): its
+        // canon asks the value in the statement (CanonicalRenderSql.textOrStamp, the seam program's S3b, 2026-10-30),
+        // never a prepare at planning
         return new BarePlan(null, plan, root,
                 collectionDeclared ? p.declaredInfo() : null, penv, stores.isEmpty());
     }

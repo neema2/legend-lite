@@ -16583,6 +16583,52 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's S3b: the wire probe's reconcile deleted; a String-declared integral cell spelled by the kind the database holds
+
+The decisions log D87; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3b). The user's go of 2026-10-30
+for the whole remainder.
+
+1. **Measured first (a temporary print, reverted):** the reconcile re-typed exactly one shape, 7 times on each
+   database pass (`id` five times, `u_map__id` twice) and never on the host passes or channel B: a String-declared
+   column the store stamps BIGINT and the database reports VARCHAR -- `Interaction.id` (declared `String`, the store's
+   `ID INT`, the fixture's `InteractionTable("id" VARCHAR(200))`); its skews (55 on H2, 2 on DuckDB) re-typed nothing
+   (the slot stood). Disabling it lost three database verdicts on both databases (`testInWithDynaFunction`,
+   `testSimpleDistinct`, `testSimpleDistinctWithFilter`: `'Peter Smith''1'` against `'Peter Smith'1`).
+2. **Built:** `CanonicalRenderSql.textOrStamp`: the grid canon's cell for a String-declared column stamped INTEGER asks
+   the value in the statement -- its JSON form (`TO_VARIANT`, cast to text) starts with a double quote exactly when the
+   value is text (measured on H2 2.1.214 and DuckDB 1.5.6.0: `"1"` for the text, `1` for the integer, `"2014-12-01"` for
+   a date, so only the integral stamp takes the test) -- quoted as a string with the string's separator guard, else the
+   integer's spelling unchanged. The database computes it; nothing is read at planning. `WireProbe.reconcile` and its
+   call in `BodyDriver.planStaged` DELETED, with the census keys `WIRE_RETYPED`/`WIRE_SLOT_SKEW` only it fed (and their
+   two fields in the corpus's policy line). `WireProbe.staticized` (the raw grid's frame) stays for S3c.
+   `WireProbeTest` asserts the new spelling on each in-process database (DuckDB, H2, SQLite: `'7'`, `'a\'b'`, `TDSNull`
+   over a VARCHAR column, `7` over an INTEGER one).
+3. **Found by the oracle and fixed before the commit:** without the reconcile's render, a side the dialect cannot spell
+   (H2: an `UNNEST`) joined its verdict group and refused the group's fused statement, so the whole group fell back
+   (7 H2 tests newly sending fallback statements: the outside-body register's NEW 7). The reconcile had refused such a
+   side at its own planning -- by accident, and only for wire-decided sides. `VerdictBatch.flush`'s split rung at
+   planning now goes member by member (a render each, nothing sent): the members the dialect spells stay fused, the
+   others are refused at their place in the root loop as before. Every side, not only the wire-decided ones: on the H2
+   database pass fused statements 2,354 -> 2,450, fallbacks 210 -> 127, fallback statements 141 -> 18 (body 6,334 ->
+   6,430), and 87 tests no longer send anything outside their plan: `h2-database-outside-body-register.txt` 139 -> 52
+   lines (all 87 were fallback-only entries; the register's reason, a body sending outside its artifact, no longer
+   holds for them). DuckDB's database pass sent no fallback before or after.
+4. **Measured locally:** `bazel test --lockfile_mode=error //gates:local`: 447 of 457 pass, 1 skipped, and the 9 that
+   start a Postgres (eight `//core:*postgres*` targets and `//datacube:verify_app_test`) refuse root in this container
+   ("initdb refuses root") and pass 9 of 9 run unprivileged (`tools/postgres/as_unprivileged.sh`, the start page's §6);
+   `corpus_duckdb`, `corpus_h2`, `pct_channel_b` 5 of 5: zero
+   roster movement, every pass's pass/fail count unchanged (DuckDB host 2,471/108, database 2,473/108; H2 host
+   2,289/295, database 2,233/353), the host passes' and DuckDB database pass's statement censuses equal S3a's. The new
+   spelling is emitted 24 times on each corpus database pass and 0 times on channel B (a temporary count, reverted),
+   so the heavy channel B lanes never see it; the member-by-member rung reaches them (planning only, verdict-neutral):
+   their by-hand run is owed and batched with the staticizer's keyed form, which needs it by its nature.
+   `JavaEvalLedgerTest`: `BodyDriver` 2,317 -> 2,309, dated.
+5. **Also in this commit, CI on the previous head (`b921a818`, run 2290):** `checks` and `parser_equivalence` red on
+   Linux and Windows on one measured ratchet, `own_corpus.matched` 3,009 -> 3,010: `QuantifiedRowsTest`'s model
+   (`Class t::Marker {}` under its own `###Pure` header) joined the own corpus and matched -- a model joining, as the
+   ratchet records. `bazel run //parser-equivalence:update_ratchets`; the local chain had not covered that lane, so
+   this commit's proof is the whole local gate.
+
 ## 2026-10-30 — The seam program's S3a, first part: the LIMIT-0 column probe deleted; a cast-named pivot's text composed from the compiler's columns
 
 The decisions log D86; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3a) and its F10. The order
