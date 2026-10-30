@@ -16583,6 +16583,39 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The heavy lanes on PR #82's head: every server and cloud backend identical per test (five lane sessions)
+
+The user, 2026-10-30: "use the other warm sessions here to run all the tests on the other server and cloud backends so
+we gain comfort on those as well". The 2026-10-28 lane sessions of the start page's §7 no longer exist; the dialect
+program's five sibling sessions (2026-10-13) still hold the environments and ran the lanes, MEASURE ONLY, on PR #82's
+head 86d60625 against the PR's base on main (7bc0797d, run fresh in each container, since their last logs were
+1,200 commits old). The decisions log D81.
+
+| session | lanes (channel A; channel B) | result head vs base |
+|---|---|---|
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse; channel B on all four | identical per test; 0 lost, 0 moved, 0 channel B difference; markers equal |
+| sibling 1 | Trino; channel B on Trino and on Postgres (unprivileged) | identical per test |
+| sibling 2 | Snowflake; channel B | identical per test; every executed statement byte-identical in all ten suites |
+| sibling 3 | Databricks; channel B | identical per test; every non-session statement byte-identical in all ten suites |
+| sibling 4 | BigQuery; channel B | identical per test; 7 of 10 logs identical to the line |
+
+Observed on the way, none the PR's:
+
+1. **The session statements run once per connection** (step 1 of the java.sql revamp, D66, intended): Snowflake's
+   `ALTER SESSION` and Databricks' two `SET`s went from once per statement to once per connection (Databricks channel
+   A: 844 to 1 per suite; channel A's wall-clock halved there). No outcome moved.
+2. **A new upstream test is red on main on two manual lanes**: `removeDuplicates::testRemoveDuplicatesPrimitive
+   StandardFunctionMixedTypes` errors on SQLite channel B ("String or BLOB exceeds size limit", the essential floor
+   333 -> 332, `//pct:pct_channel_b_sqlite_essential` red on main and on the head alike) and on BigQuery channel A
+   ("nested arrays are not supported", unpinned: `//pct:pct_bigquery_essential` red on main). Main's, between
+   d12474f5 and 7bc0797d; the user's ruling owed (fix the cause or move the pin, dated).
+3. **The harness's echo of a test's Pure expression lists its lets in another order** on every lane (a few dozen
+   lines per suite): the same lets, the same body, the same statements; the SQL-dump digests move because the echo is
+   in them. An iteration-order effect of the package rename in the echo's source (a map keyed by something the rename
+   changed); a finding, not a behavior.
+4. **Snowflake channel B essential exceeds the 900 s default test timeout** when five suites run at once (the base
+   takes 1,027 s too; alone with a 3600 s timeout it passes in 1,065 s): the lane's size, pre-existing.
+
 ## 2026-10-30 — The seam program's S1b: the verdict steps and the program sink (no caller yet)
 
 The decisions log D80; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.2 to §3.4 and §4 (S1), as the user

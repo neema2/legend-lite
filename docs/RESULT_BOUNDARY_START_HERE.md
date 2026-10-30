@@ -815,7 +815,17 @@ Bazel's caches are warm, so a session usually runs the local four and hands the 
 BigQuery and Databricks need credentials, which only an environment's setup script provides (never the repository,
 never a message).
 
-**This account's warm lane sessions (2026-10-28; `get_session` says whether one is still alive):**
+**This account's warm lane sessions (2026-10-30: the 2026-10-28 ones below are GONE -- `send_message` answers "not found" -- and the dialect program's siblings of 2026-10-13 still hold the environments and ran PR #82's lanes that day, D81):**
+
+| Lane session (2026-10-30) | Databases | Id |
+|---|---|---|
+| dialect sibling 1b | SQLite, MariaDB, MySQL, ClickHouse (channel A and B) | `session_01FSy7uuE3kKMYoJzWQWx3X6` |
+| dialect sibling 1 | Trino; channel B on Postgres (unprivileged) | `session_01FdBn7kuJDnnLMxLzVWqtJN` |
+| dialect sibling 2 | Snowflake | `session_017WxTYpJVcaEYAYkubENkLj` |
+| dialect sibling 3 | Databricks | `session_017Ub2y2ECHqcMoxzLecjvDs` |
+| dialect sibling 4 | BigQuery | `session_01XJEeABN3XxCqvBhxsNSHwi` |
+
+**The 2026-10-28 table, for the record (none of these answers any more):**
 
 | Lane session | Databases | Id |
 |---|---|---|
