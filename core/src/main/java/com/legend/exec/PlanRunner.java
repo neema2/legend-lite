@@ -284,12 +284,12 @@ public final class PlanRunner {
                         case ExecutionPlan.Side.Rows r -> {
                             Held h = new Held();
                             result(r.result(), values, st, h);
-                            yield new Rows(h.columns, h.rows);
+                            yield collected(h);
                         }
                         case ExecutionPlan.Side.KeyedRows k -> {
                             Held h = new Held();
                             keyedOn(k.keyed(), values, st, heldSink(h));
-                            yield new Rows(h.columns, h.rows);
+                            yield collected(h);
                         }
                         case ExecutionPlan.Side.Constant c -> {
                             List<List<Object>> rows = new java.util.ArrayList<>(c.cells().size());
@@ -309,7 +309,7 @@ public final class PlanRunner {
                 Held h = new Held();
                 try {
                     result(group.fused(), values, st, h);
-                    for (List<Object> row : h.rows) {
+                    for (List<Object> row : collected(h).rows()) {
                         if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
                             throw new IllegalStateException("a fused verdict row's first cell is the verdict's index:"
                                     + " " + (row.isEmpty() ? "no cell" : row.get(0)));
@@ -337,11 +337,12 @@ public final class PlanRunner {
                     try (var origin = StatementOrigin.enter(StatementOrigin.FALLBACK)) {
                         result(each.wrapper(), values, st, h);
                     }
-                    if (h.rows.size() != 1) {
+                    Rows single = collected(h);
+                    if (single.rows().size() != 1) {
                         throw new IllegalStateException(each.name() + ": the verdict statement answered "
-                                + h.rows.size() + " rows");
+                                + single.rows().size() + " rows");
                     }
-                    row = h.rows.get(0);
+                    row = single.rows().get(0);
                 }
                 sink.verdict(each, row);
             }
@@ -516,6 +517,20 @@ public final class PlanRunner {
     }
 
     /** A plan of several steps' answer, held until its changes have committed: its typed rows. */
+    /** {@code held}'s rows as {@link #rows} hands them: through the result's batches and the collector, so a cell
+     *  reaches a judge as it reaches every other reader of a typed result (a tagged column's value, not its carrier;
+     *  the seam program's S2f, 2026-10-30: the held rows of a verdict's sides and of the fused statement go this way). */
+    private static Rows collected(Held held) throws IOException {
+        com.legend.result.Collector collector = new com.legend.result.Collector();
+        Streamed streamed = new Streamed(held.columns, collector, com.legend.result.Batcher.DEFAULT_CAPACITY);
+        for (List<Object> row : held.rows) {
+            streamed.row(row);
+        }
+        streamed.end();
+        com.legend.result.Collector.Collected c = collector.collected();
+        return new Rows(c.columns(), c.rows());
+    }
+
     private static final class Held {
         private List<ExecutionPlan.Column> columns = List.of();
         private final List<List<Object>> rows = new java.util.ArrayList<>();

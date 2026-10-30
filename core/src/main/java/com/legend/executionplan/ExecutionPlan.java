@@ -182,9 +182,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
          * A constant the program wrote (a literal side: {@code assertEquals(3, ...)}'s 3): its columns with their
          * type facts, and its rows as TEXT cells, each cell the literal's spelling as the program wrote it (null an
          * absent value); nothing is sent for it, the sink reads the cells by the columns' facts. The program's own
-         * text, never a value the runner computed.
+         * text, never a value the runner computed. {@code folded} (the seam program's S2f, the user's ruling of
+         * 2026-10-30: "it's okay to join CONSTANT strings only"): the cells are the COMPILER's join of the program's
+         * constant tokens ({@code 'a' + 'b'}, {@code joinStrings}, {@code replace} over literals, nothing else:
+         * {@code compiler.spec.typed.Literals}, its admitted set pinned), not the tokens verbatim; a reader of the plan
+         * knows which.
          */
-        record Constant(List<Column> columns, List<List<String>> cells) implements Side {
+        record Constant(List<Column> columns, List<List<String>> cells, boolean folded) implements Side {
             public Constant {
                 columns = List.copyOf(columns);
                 if (columns.isEmpty()) {

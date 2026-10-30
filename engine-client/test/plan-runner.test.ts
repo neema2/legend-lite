@@ -109,7 +109,7 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     await assert.rejects(() => runPlan(JSON.stringify({ ...plan, parameters: [{ name: 'p' }] }), session), /takes parameters/);
     await assert.rejects(() => runPlan('{"format":"other"}', session), /not a legend-lite execution plan/);
     // a plan of another version, and a statement only a dynamic pivot's probe plan writes (version 19): refused, never run
-    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, version: 5 }), session), /not a legend-lite execution plan of version 20/);
+    await assert.rejects(() => runPlan(JSON.stringify({ ...plan, version: 5 }), session), /not a legend-lite execution plan of version 21/);
     const root = plan.root as { steps: { sql: Record<string, unknown> }[] };
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };

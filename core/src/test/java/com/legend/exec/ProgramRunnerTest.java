@@ -96,7 +96,7 @@ final class ProgramRunnerTest {
         ExecutionPlan.Side left = new ExecutionPlan.Side.Rows(relation("SELECT 3 AS value",
                 List.of(col("value", "Integer", "INTEGER"))));
         ExecutionPlan.Side right = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
-                List.of(List.of("3")));
+                List.of(List.of("3")), false);
         ExecutionPlan.Verdict first = new ExecutionPlan.Verdict("assertEquals@2", "assertEquals", true,
                 List.of(left, right), wrapper(true, "x", "x"));
         ExecutionPlan.Verdict second = new ExecutionPlan.Verdict("assertEquals@3", "assertEquals", true,
@@ -273,7 +273,8 @@ final class ProgramRunnerTest {
         ExecutionPlan.Verdicts g = group(fused(FUSED));
         ExecutionPlan.Verdict third = new ExecutionPlan.Verdict("assertTdsEquivalent@5", "assertTdsEquivalent", false,
                 List.of(keyedSide, new ExecutionPlan.Side.Constant(List.of(col("a", "Integer", null),
-                        optional("b", "String", null)), List.of(List.of("1", "x"), java.util.Arrays.asList("2", null)))),
+                        optional("b", "String", null)), List.of(List.of("1", "x"), java.util.Arrays.asList("2", null)),
+                        true)),
                 null);
         ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(
                 new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", target)),
@@ -282,7 +283,7 @@ final class ProgramRunnerTest {
         String json = PlanJson.write(plan);
         assertEquals(plan, PlanJson.read(json), "the plan read back differs");
         assertTrue(json.contains("\"_type\":\"verdicts\"") && json.contains("\"_type\":\"keyedRows\"")
-                && json.contains("\"_type\":\"constant\""), json);
+                && json.contains("\"_type\":\"constant\"") && json.contains("\"folded\":true"), json);
     }
 
     private static List<Object> cells(List<Object> row) {

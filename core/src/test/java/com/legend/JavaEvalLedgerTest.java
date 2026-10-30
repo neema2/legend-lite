@@ -51,7 +51,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * counted): the egress decode cluster ({@code Executor.fetch/unwrap/
  * latticeKind/decodeAny} — decoding carriers the DATABASE produced, by
  * declared contract), {@code LiteralFold} (the engine's own
- * ConstantExecutionNode, differential-pinned), the harness COMPARISON
+ * ConstantExecutionNode, differential-pinned), the compiler's
+ * {@code Literals} fold of CONSTANT tokens (a literal, a list of them, a
+ * let bound to one, and three string operations over such constants
+ * alone -- {@code +}, {@code joinStrings}, {@code replace} -- never a
+ * value the database answered; the user's ruling of 2026-10-30, "it's
+ * okay to join CONSTANT strings only": the set is pinned by
+ * {@link #theCompilersLiteralFoldJoinsConstantsAlone} and proven equal to
+ * the database's answer by {@code LiteralsParityTest}), the harness COMPARISON
  * layer (verification consumes two sides, never produces a result),
  * and the deleted {@code JsonAssertCanon.sortByKey} (re-created the TEST'S OWN
  * canonicalization over a metamodel that never executes through SQL).
@@ -567,11 +574,11 @@ class JavaEvalLedgerTest {
             // declared-one operand handed to VerdictSql as a one-row relation; plan
             // wiring, nothing evaluated
             // 806 -> 804 (2026-10-19, re-pinned to the measured count after the plan path program's step 6)
-            Map.entry("core/src/main/java/com/legend/driver/HostJudge.java", 804),   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
+            Map.entry("core/src/main/java/com/legend/driver/HostJudge.java", 817),   // 804 -> 817 (2026-10-30, the seam program's S2f): the arms name their sides up front and take them back from the runner by position (the three ask helpers and the group fetch); no judgment moved into Java   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
             Map.entry("core/src/main/java/com/legend/driver/DatabaseJudge.java", 595),   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
             // 1249 -> 1258 (2026-10-27, the result boundary program's phase 5: Executor.structured moved here, its
             // one caller, when the old executor was deleted; a JSON text read to its structure, nothing evaluated)
-            Map.entry("core/src/main/java/com/legend/driver/AssertVerdicts.java", 1259),   // 1258 -> 1259 (2026-10-30, D73, step C): in com.legend.driver -- the one import line the move needs; no rule changed   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
+            Map.entry("core/src/main/java/com/legend/driver/AssertVerdicts.java", 1242),   // 1259 -> 1242 (2026-10-30, S2f): the one-side fetch helpers deleted (side, jsonSideText, tabular); the grid pair through HostSides   // 1258 -> 1259 (2026-10-30, D73, step C): in com.legend.driver -- the one import line the move needs; no rule changed   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -795,7 +802,7 @@ class JavaEvalLedgerTest {
             // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
             // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
             // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
-            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2321),   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
+            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2322),   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1398,6 +1405,10 @@ class JavaEvalLedgerTest {
     private static final java.util.Set<String> DRIVER_CLASSES =
             java.util.Set.of(
                     "AgreementArm.java", "JudgePlans.java",
+                    // the host judge's sides as a verdict step's base (the seam program's S2f, 2026-10-30): plans the
+                    // arm's sides, hands them to the runner as one verdict's base and carries the rows back by
+                    // position; judges nothing (D7: the host judge is the receiver's exception, never in the plan)
+                    "HostSides.java",
                     "AggAwareActivities.java", "AssertErrorNative.java",
                     "AssertVerdicts.java",
                     "HostJudge.java", "DatabaseJudge.java",
@@ -1606,6 +1617,28 @@ class JavaEvalLedgerTest {
         assertTrue(drift.length() == 0,
                 "the body driver, the judges and the generator's natives hold a session and never reach its"
                         + " connection (track B's B1b; banned at zero, no register):" + drift);
+    }
+
+    /** The compiler's fold of literal-only expressions ({@code compiler/spec/typed/Literals}): the operations it
+     *  evaluates are exactly three, each over constants the test wrote ({@code +}, {@code joinStrings},
+     *  {@code replace}), and every other native returns null so the side is sent to the database. A fourth operation
+     *  is a ruling first (the user, 2026-10-30, the seam program's S2f), then a parity leg in
+     *  {@code LiteralsParityTest}, then this pin. */
+    @Test
+    void theCompilersLiteralFoldJoinsConstantsAlone() throws IOException {
+        String src = Files.readString(SourceFiles.file("core/src/main/java/com/legend/compiler/spec/typed/Literals.java"))
+                .replaceAll("(?s)/\\*.*?\\*/", "")
+                .replaceAll("//.*", "");
+        java.util.List<String> operations = new java.util.ArrayList<>();
+        java.util.regex.Matcher m = Pattern.compile("case TypedNativeCall n when ([A-Za-z_.]+)").matcher(src);
+        while (m.find()) {
+            operations.add(m.group(1));
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("PlatformTypes.isPlus",
+                "PlatformTypes.STRING_JOIN_STRINGS.equals", "PlatformTypes.STRING_REPLACE.equals"), operations,
+                "the compiler's literal fold evaluates three string operations over constants, by the user's"
+                        + " ruling of 2026-10-30; a fourth is a ruling, a parity leg and this pin, in that order");
+        assertTrue(src.contains("default -> null;"), "anything the fold does not admit is sent to the database");
     }
 
     @Test

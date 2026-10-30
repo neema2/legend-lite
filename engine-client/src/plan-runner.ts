@@ -1,5 +1,5 @@
 // THE PLAN RUNNER, a host's (docs/WRITES_DESIGN_2026_10_18.md leg 7; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
-// into a table): an execution plan -- PlanJson's text, version 20, as legend-lite's planner writes it -- run on a host's own
+// into a table): an execution plan -- PlanJson's text, version 21, as legend-lite's planner writes it -- run on a host's own
 // database, for a host that runs its SQL itself: the tab (DuckDB-WASM) and Python's headless DataCube (its DuckDB). The
 // rules are Java's PlanRunner's (core/.../exec/PlanRunner.java), for the plans a host's program makes: a SEQUENCE of
 // steps in one transaction -- each `update` run for the change it makes, its count kept where a later step binds it
@@ -40,7 +40,9 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 19 since 2026-10-29: the LITERAL slot word retired (track L's L2; core's PlanJson.VERSION is the one owner)
 // 20 since 2026-10-30: the verdicts node (a run of asserts as one step: the planner-driver seam program's S1b) -- a
 // program's step, which this runner refuses by name as any step that is not an update, a check or a typed result
-const PLAN_VERSION = 20;
+// 21 since 2026-10-30: a verdict's constant side says whether the compiler folded its cells (S2f) -- inside the verdicts
+// node this runner refuses, so nothing here reads it
+const PLAN_VERSION = 21;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

@@ -63,8 +63,10 @@ public final class PlanJson {
      *  spelled text; a plan naming the word is refused at the reader); 20 since 2026-10-30: the {@code verdicts} node
      *  (a run of asserts as one step: each verdict's name, arm, equality flag, base sides -- typed rows, a keyed
      *  result, or a constant of text cells -- and database wrapper; the group's fused statement), the planner-driver
-     *  seam program's S1b. */
-    public static final int VERSION = 20;
+     *  seam program's S1b; 21 since 2026-10-30: a constant side's {@code folded} (its cells the compiler's join of the
+     *  program's constant tokens, not the tokens verbatim: S2f, the user's ruling "it's okay to join CONSTANT strings
+     *  only"). */
+    public static final int VERSION = 21;
 
     private PlanJson() {
     }
@@ -205,6 +207,7 @@ public final class PlanJson {
                                 so.put("_type", SideTag.constant.name());
                                 so.put("columns", columns(c.columns()));
                                 so.put("cells", c.cells());
+                                so.put("folded", c.folded());
                             }
                         }
                         base.add(so);
@@ -485,7 +488,8 @@ public final class PlanJson {
                                     }
                                     cells.add(out);
                                 }
-                                yield new ExecutionPlan.Side.Constant(readRelationColumns(so.getArr("columns")), cells);
+                                yield new ExecutionPlan.Side.Constant(readRelationColumns(so.getArr("columns")), cells,
+                                        so.getBool("folded"));
                             }
                         });
                     }

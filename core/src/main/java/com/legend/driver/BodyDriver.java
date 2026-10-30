@@ -2666,8 +2666,11 @@ public final class BodyDriver {
      * binds a primitive one as a literal side). */
     record PlannedValue(@com.legend.base.Nullable WrappedSide side,
             @com.legend.base.Nullable TypedSide answered,
-            @com.legend.base.Nullable TypedSpec root) {
-        /** The planned root, for a planned side (the to-one reader's check reads it). */
+            @com.legend.base.Nullable TypedSpec root, boolean joined) {
+        /** The planned root, for a planned side (the to-one reader's check reads it). {@code joined}: an answered
+         *  side whose constant the compiler JOINED from the program's constant tokens ({@code Literals.bare} false:
+         *  {@code +}, {@code joinStrings}, {@code replace} over literals), not the tokens verbatim (S2f, 2026-10-30:
+         *  the plan's constant side marks it). */
     }
 
     /** Plan a VALUE the way {@link #evalValue} would execute it, stopping
@@ -2699,7 +2702,8 @@ public final class BodyDriver {
         TypedSide constant = fold ? foldedSide(inlined.get(inlined.size() - 1),
                 inlined.subList(0, inlined.size() - 1)) : null;
         if (constant != null) {
-            return new PlannedValue(null, constant, null);
+            return new PlannedValue(null, constant, null, !com.legend.compiler.spec.typed.Literals.bare(
+                    inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1)));
         }
         BarePlan b;
         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
@@ -2709,7 +2713,7 @@ public final class BodyDriver {
             // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
             TypedSide folded = LiteralFold.fold(b.root());
             if (folded != null) {
-                return new PlannedValue(null, folded, null);
+                return new PlannedValue(null, folded, null, false);
             }
         }
         return planned(b, null);
@@ -2717,11 +2721,11 @@ public final class BodyDriver {
 
     private static PlannedValue planned(BarePlan b, com.legend.judge.@com.legend.base.Nullable CanonRider rider) {
         if (b.answered() != null) {
-            return new PlannedValue(null, b.answered(), null);
+            return new PlannedValue(null, b.answered(), null, false);
         }
         WrappedSide ws = wrapSide(b.plan(), b.root(), b.declaredInfo(), rider, b.env());
         return new PlannedValue(new WrappedSide(ws.plan(), ws.shapeInfo(), ws.shape(),
-                ws.session(), b.storeFree()), null, b.root());
+                ws.session(), b.storeFree()), null, b.root(), false);
     }
 
     /** A value's plan before the canon wrap: the plan, its root, the

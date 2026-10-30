@@ -16583,6 +16583,77 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's S2f: the host judge's sides as a verdict step's base through the plan runner; the constant side and the fold ruled
+
+The decisions log D83 (the rulings) and D84 (built); the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3
+and §4 (S2f). The user's rulings of 2026-10-30, after the brief and the plain-words explanation: the two shapes one
+pass cannot plan (the quantified unroll, the two-branch if) stay on today's path, named and counted, their own step
+after S2f; a folded side is a constant side of the plan, its cells the test's own tokens or the compiler's join of
+constant tokens, marked as folded ("I think it's okay to join CONSTANT strings only - is that what we mean?" -- yes:
+the folder admits a literal, a list of literals, a let bound to one, and `+`, `joinStrings`, `replace` over such
+constants alone; a value the database answered never folds); "Okay let's go".
+
+1. **Built:** `driver/HostSides` (new, registered in the ledger's driver register with its tenet argument): an arm
+   names its sides before any run (`Ask`: the argument and the three flags its fetch passed -- the identity lane, the
+   fold, the splice hook), they are planned into one `ExecutionPlan.Verdict`'s base (`JudgePlans.plannedSide`: typed
+   rows, a keyed result, or the program's constant), run through `PlanRunner.program` under `Judging.HOST` on the
+   sides' one session -- where a side reading a store was routed; a side reading no store runs on any session and
+   joins it (the metamodel bodies pair a side on the system database with a literal side: 33 of them on the DuckDB
+   host pass, the first run's one refusal, narrowed to two store-reading sides on two sessions, which none has) --
+   and each side is handed back by position
+   and shaped as the one-side route shapes it (`JudgePlans.shape`; the to-one reader's check per side). Every host
+   arm converted in its fetch order (`tdsEquivalent` in two groups, the grids then the tolerances, as it fetched),
+   the router's grid-pair arm too; the one-side helpers `AssertVerdicts.side`, `jsonSideText`, `tabular`,
+   `HostJudge.sideCanon`, `identitySide` deleted; `JudgePlans.evalSide` remains the one-side route for the two deferred
+   shapes (`sideCells` under the unroll, the two-branch if) and the engine-text asserts (S2i). `JudgePlans` split into
+   plan, run and shape halves (`PlannedSide`, `plannedOf`, `runSide`, `shape`; the four run-and-shape helpers are
+   their tails: `objectsShape`, `tabularShape`, `keyedShape`, `valuesShape`); the one-side route and a value
+   statement's result compose the same halves. **The constant side:** `JudgePlans.constantSide` writes a fold's value
+   as one column `value` of the declared type and one row per value, each cell the value's text (a String itself,
+   an Integer its digits, a Boolean its word; another kind refused by name); `decodeConstant` reads the plan's text
+   back by the column's type and checks it against the compiler's value -- a difference is raised by name, never a
+   fallback. `ExecutionPlan.Side.Constant` gains `folded` (format 21; `PlanJson`, the TypeScript runner's pin, the
+   test pins moved, dated); `BodyDriver.PlannedValue` gains `joined`, from the new `Literals.bare` (the program's
+   tokens alone, or an operation applied). **The runner hands held rows through the collector** (`PlanRunner.collected`:
+   a verdict's sides, the fused statement's rows, a single wrapper's row), so a cell reaches a judge as it reaches
+   every reader of a typed result -- a tagged column's value, not its carrier; the exec, root and integration tests
+   over mixed lists found the difference before any lane did. **Pinned:** `JavaEvalLedgerTest.theCompilersLiteralFoldJoinsConstantsAlone`
+   (the three guards of `Literals`' native-call arms, exactly; everything else `default -> null`; the ledger's
+   PERMANENT-ALLOWED list names the fold under the ruling); `LiteralsParityTest` (each operation's fold equals the
+   database's answer for the same text on the platform's database; a function over data or arithmetic does not fold);
+   `ConstantSideTest` (the round trip for the three kinds, a wide Integer, an empty collection, an absent scalar; a
+   drifted text refused; a Float refused). The ledger's line pins moved, dated: `HostJudge` 804 -> 817, `AssertVerdicts`
+   1259 -> 1242, `BodyDriver` 2321 -> 2322.
+2. **The deferred shapes, counted (a temporary print, reverted):** on the DuckDB corpus host pass 172 quantified
+   unrolls and 0 two-branch ifs; on channel B 0 and 0. They stay on `evalSide` by the ruling; their own step follows
+   (the quantified assert the database way, the version check decided at planning).
+3. **Measured locally before the commit:** `//core:core_tests_exec`, `core_tests_judge`, `core_tests_root`,
+   `core_tests_planner`, `core_tests_driver`, `//core:census`, `//core:guardrails`, `//tools/deps:core_layering_test`,
+   `//engine-client:plan_runner_test`: 9 of 9. Then `//gates:corpus_duckdb`, `//gates:corpus_h2`,
+   `//gates:pct_channel_b`, `//core:core_tests_integration`, twice: the first run refused 33 DuckDB host-pass
+   bodies by name ("the sides of assertEquals route to two sessions": the metamodel bodies pair a side on the
+   system database with a literal side), the rule narrowed as item 1 says; the second run: **zero roster movement**
+   on DuckDB and H2 (every roster and register file identical but one, below), the five channel B censuses the
+   committed lines, the integration lane green. The DuckDB host pass's assert census equals the baseline measured
+   on the committed head the same hour (assertEquals 3,011, assertSameElements 755, assertSize 682, assert 364,
+   assertJsonStringsEqual 177, the nine smaller families); the database passes' censuses equal S2e's to the
+   statement (DuckDB body 6551, fused 2579, fallbacks 0; H2 body 6334, fallback 141, fused 2354, fallbacks 210).
+   **Two things moved, both explained, neither a verdict:** (a) `h2-database-untriaged-register.txt` loses its two
+   entries (`graphFetch::tests::subType::testInheritanceMappingWithoutSubType`,
+   `testSubTypeAtRootLevelWithInheritanceMapping`, "#0 host FAIL, database never reached it", 2026-09-23): before,
+   the host sent the golden side first (`json_pretty`, which H2 lacks: a DataError after assert 0 was recorded as
+   FAIL); now every side is planned before any is sent, and the graph side is refused at planning (H2 has no list
+   encoding: `LIST_TRANSFORM`), so nothing is sent and no verdict row exists -- both tests fail before and after,
+   the fail roster is unchanged, and the register's own check asks for the stale lines' deletion (its reason here);
+   (b) the host passes send fewer statements in bodies that fail (DuckDB `other` 6,234 -> 6,222, `session`
+   6,521 -> 6,432; H2 `other` 5,877 -> 5,796, `session` unchanged), by the same rule -- a body whose later side the
+   planner refuses no longer sends its earlier sides (the failing bodies' messages are identical before and after
+   on both databases, the two above apart) -- and because a literal side now runs on the store-reading side's
+   session, so the body's own session is not touched in the 33 metamodel bodies (DuckDB's session statements).
+   The rosters, the verdict ledgers and the per-family censuses are the oracle, and they did not move.
+4. **Not measured yet:** the rest of the chain locally; CI on PR #83 on this head (its macOS stress lane runs again
+   here: the S2e head's was cancelled with no log, the S2e entry's note).
+
 ## 2026-10-30 — The seam program's S2e: the database judge's batch runs its verdicts as a verdict group through the plan runner
 
 The decisions log D82; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2e, the body planner's
