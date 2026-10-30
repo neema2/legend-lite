@@ -125,6 +125,32 @@ class ScaleCostsDuckDbTest {
         assertEquals(0, count(rendered, "FROM ("), rendered);
     }
 
+    @Test
+    @DisplayName("a computed column read once under a rule that writes its argument many times is written once")
+    void aRuleCopiedArgumentIsReadByName() throws SQLException {
+        // sqrt's domain guard writes its argument some 27 times (its message spells the value), so a CASE read once
+        // under a sqrt was written 27 times within the budget's one charge (2026-10-30: a 63-day volatility wrote its
+        // periods-a-year CASE 59 times, 74% of its SQL); the copies are counted as written (Fold.overCopied), and past
+        // the budget the CASE stays in the select below, read by name
+        String sql = "SELECT sqrt(q.x) AS r FROM (SELECT CASE WHEN age < 26 THEN 1 WHEN age < 31 THEN 4"
+                + " WHEN age < 36 THEN 9 ELSE 16 END AS x FROM " + EMP + ") q ORDER BY r";
+        String rendered = render(sql);
+        assertEquals(1, count(rendered, "age < 26"), rendered);
+        assertEquals(direct(sql), island(sql));
+    }
+
+    @Test
+    @DisplayName("an integer division by a written literal other than 0 carries no zero guard")
+    void aLiteralDivisorNeedsNoGuard() throws SQLException {
+        // the literal's token is compared, nothing computed (2026-10-30: Wilder's (w - 1) / w was guarded at each
+        // of RSI's 64 terms); a divisor of 0, or one read from a row, keeps the guard that raises Pure's error
+        String byTwo = "SELECT age / 2 AS h FROM " + EMP + " ORDER BY h";
+        assertEquals(0, count(render(byTwo), "Division by zero"), render(byTwo));
+        assertEquals(direct(byTwo), island(byTwo));
+        assertEquals(1, count(render("SELECT age / 0 AS h FROM " + EMP), "Division by zero"));
+        assertEquals(1, count(render("SELECT age / id AS h FROM " + EMP), "Division by zero"));
+    }
+
     private static SqlSource.Table table(String alias, OutputCol column) {
         return new SqlSource.Table("EMP", alias, List.of(column), false, java.util.Map.of(),
                 com.legend.sql.NameQuoting.BARE);

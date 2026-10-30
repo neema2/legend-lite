@@ -60,7 +60,8 @@ on PR #77. This note says what each item is, what is decided, and what waits on 
   found the first gap: a calendar period back (`lagPeriod`, and every `*Period` function on it) is an `asOfJoin`, and
   H2's and SQLite's dialects write none -- refused by name, never answered wrong; the portable rewrite (`AsOfAsPick`, a
   left join keeping each row's latest match) is Trino's alone, so giving it to them is a dialect change of its own. The
-  SQL's size; a semantics register row for an enumeration's value equalling its name's string (S6); "B" (a series written in
+  SQL's size (built 2026-10-30: the fold counts a rule's copies, a literal divisor carries no guard -- a volatility's SQL
+  25 KB to 8, the design note's follow-ups); a semantics register row for an enumeration's value equalling its name's string (S6); "B" (a series written in
   Pure, which C makes the same thing); brushing a period to filter.
 
 ## 4. Done on the branch

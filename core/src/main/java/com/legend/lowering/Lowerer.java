@@ -1913,6 +1913,14 @@ public final class Lowerer {
                 }
             }
         }
+        // the copies the columns write, their rules' included (Fold.overCopied): past the budget, the retry over the
+        // isolated base reads the projection by name
+        String copied = Fold.overCopied(base, ps);
+        if (copied != null) {
+            miss[0] = copied;
+            miss[1] = copied;
+            return null;
+        }
         return target.withProjections(ps);
     }
 
@@ -2751,6 +2759,10 @@ public final class Lowerer {
                                 over.frame()),
                         a.name(), Fold.named(contract, a.name())));
             }
+            // the copies the window columns write (Fold.overCopied): past the budget, isolated and read by name
+            if (Fold.overCopied(b, ps) instanceof String copied) {
+                throw new UnfoldableRef(copied);
+            }
             return b.withProjections(ps);
         });
         // a class-extent window closes its select (TypedExtendWindow
@@ -2769,6 +2781,9 @@ public final class Lowerer {
                 ps.add(new SqlSelect.Projection(
                         Windows.windowize(aggValue(b, a), List.of(), List.of(), null),
                         a.name(), Fold.named(contract, a.name())));
+            }
+            if (Fold.overCopied(b, ps) instanceof String copied) {
+                throw new UnfoldableRef(copied);
             }
             return b.withProjections(ps);
         });
