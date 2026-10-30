@@ -1,6 +1,6 @@
 # A query language for timeseries (2026-10-29)
 
-**Status: design, not built. Version 3.1**, after two rounds of paper tests (§13) and the user's decisions of
+**Status: design, being built (docs/TS_LANGUAGE_BUILD_2026_10_30.md). Version 3.2**, after two rounds of paper tests (§13) and the user's decisions of
 2026-10-29; §14 lists what changed in each version. Step C of docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md, worked out with the
 user on 2026-10-28 and 2026-10-29. It replaces that note's `#Quant` sketch (its D1-D3).
 The same language for quants, with worked examples and charts: docs/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md.
@@ -13,9 +13,12 @@ saved queries and services cannot use them. This language moves into the platfor
 
 - **The tile's formula box holds one select item** (`volatility(close['SPX'], 63)`). The tile's settings write the rest
   of the query.
-- **A query's meaning is its expansion** into plain SQL (the `#SQL{}#` island's Postgres SQL), which the existing
-  translator turns into Pure. The library's functions (`datacube::ts`) are found by name as SQL user-defined
-  functions. The database computes every figure.
+- **A query's meaning is the Pure it builds** (the user, 2026-10-30): every figure a call of the timeseries library
+  (the project `timeseries`, package `timeseries::`, which `#TS{…}#` imports), never its maths re-spelled; every
+  per-point expression, condition and plain-SQL subquery what Postgres means, through the `#SQL{}#` island's
+  translator. The database computes every figure. (Versions 1 to 3.1 defined a query by its expansion into plain SQL;
+  a library call has no plain-SQL form, so that was replaced.)
+- **In Pure, a query is the island `#TS{ … }#`** (§12, decision 1).
 
 ## 2. Principles
 
@@ -53,10 +56,32 @@ Clause order: `SELECT … FROM … SAMPLE BY … FILL(…) FILTER …`. Only `SE
 
 ### R1. Sources
 
-`FROM <source> [alias] ON <date column> [BY <instrument column>]`
+`[WITH name AS (subquery), …] … FROM <source> [alias] ON <date column> [BY <instrument column>]`
 
-- A source is a table, `(table WHERE condition)`, or any SQL subquery: `(SELECT *, price * qty AS value FROM trades)`.
-  `(prices WHERE venue = 'NYSE')` means exactly `(SELECT * FROM prices WHERE venue = 'NYSE')`.
+A source is any of four things (the user, 2026-10-30, for Class models):
+
+1. **A class, read as objects** (object mode): `FROM MarketQuote ON quoteTime BY instrument.ticker`. Its properties
+   are its columns, and a dotted path follows an association to one object (`instrument.sector.name`), wherever a
+   column may be named: `ON`, `BY`, a line, a subscript, a condition. Only the paths a query reads are read. A path
+   through a to-many association is refused (one row per element is a later `FLATTEN`, Snowflake's word for it).
+   The result names a path's column by its last step (`ticker`); two paths ending alike are refused, asking for a
+   flat source instead.
+2. **A subquery, flat** (flat mode): `FROM (SELECT instrument.ticker AS ticker, quoteTime, closePrice AS close FROM
+   MarketQuote) ON quoteTime BY ticker`: a class's paths named once, short, the rest of the query reading them as a
+   table's columns. It means `MarketQuote.all()->project(~[ticker: x|$x.instrument.ticker, …])`, the projection a
+   saved grid is. A `WHERE` inside it filters the objects, through the mapping. **`WITH` names one for the query:**
+
+   ```sql
+   WITH quotes AS (SELECT instrument.ticker AS ticker, quoteTime, closePrice AS close FROM MarketQuote)
+   SELECT avg(close, 20) AS ma20, volatility(close['AAPL'], 63) AS aapl_vol
+   FROM   quotes ON quoteTime BY ticker
+   ```
+3. **A table**, `(table WHERE condition)`, or any SQL subquery over tables: `(SELECT *, price * qty AS value FROM
+   trades)`. `(prices WHERE venue = 'NYSE')` means exactly `(SELECT * FROM prices WHERE venue = 'NYSE')`, and
+   `(MarketQuote WHERE instrument.sector.name = 'Energy')` likewise over a class.
+4. **A relation of the enclosing Pure**, `FROM $quotes`: a saved query's, a grid's (how the tile hands its sources
+   over), any relation a person's Pure computes.
+
 - `ON` names the date column; `BY` the column naming each row's instrument (a symbol, a tenor, a series). `BY` is left
   out where the source has one instrument: its columns are then lines with no subscript (`total_volume`), a
   subquery's columns included.
@@ -243,6 +268,18 @@ between 0 and 1 (SQL's `percent_rank`). The tile writes them as percentages; a q
 writes `100 * x`. The language converts its own outputs,
 never the data's: yields stored in percent stay in percent (`rf.yield['DE3M'] / 100`). RSI and stochastic keep their
 conventional 0 to 100 (§12, decision 5).
+
+### R13. Names of the model, and enumerations
+
+- **A class or table is named by its simple name** when the model has one of that name (`FROM MarketQuote`); with its
+  package where it has several, and the query is refused listing them: "MarketQuote is marketdata::MarketQuote and
+  archive::MarketQuote: write one". A package is written as in Pure, with `::`, and only where a source is named
+  (`FROM`, `WITH`): in an expression `::` is SQL's cast (`x::integer`), so no model name is written there.
+- **An enumeration's value is written as a string**, compared with a property of that enumeration:
+  `side = 'BUY'` and `side IN ('BUY', 'SELL')` mean `trading::Side.BUY`, which the mapping turns into its stored
+  code ('B'). A string the enumeration does not have is refused, naming its values: "'BOUGHT' is not a value of
+  trading::Side: BUY, SELL". (Upstream compares an enumeration column with a string by its stored code, so
+  `side = 'BUY'` there matches no row; the language says the value's name, and writes the value.)
 
 ## 5. Spans
 
@@ -562,7 +599,7 @@ point limit. These stay in the tile spec, referring to the select items by name.
 
 ## 12. Open decisions
 
-1. The island's name in Pure: `#Quant{…}#` is a placeholder.
+1. ~~The island's name in Pure.~~ **`#TS{…}#`** (the user, 2026-10-30).
 2. The comma between sources reads as SQL's cross join and is not one (R1). A different separator?
 3. Aggregates across instruments (the market's total volume each date): names of their own, beside `rank`. Until
    then, a plain-SQL subquery as the source.
@@ -602,6 +639,15 @@ right, one called "not covered" (the same question). Request 27 was again report
 with a plain-SQL source. Their findings are version 3's changes (§14). The next run waits for the quants' review.
 
 ## 14. What changed
+
+### Version 3.2 (2026-10-30, the user's rulings for building it)
+
+- The island is `#TS{…}#` (decision 1).
+- A query means the Pure it builds, the library for every figure (§1), no longer an expansion into plain SQL.
+- Class models as sources (R1): object mode with dotted paths, flat mode with a subquery or `WITH`, and `FROM $var`;
+  tables as before.
+- Model names and enumerations (R13): simple names, `::` only where a source is named, an enumeration's value as a
+  string.
 
 ### Version 3.1 (2026-10-30, from writing the guide for quants)
 

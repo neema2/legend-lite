@@ -2,7 +2,7 @@
 
 The build plan for docs/TIMESERIES_LANGUAGE_2026_10_29.md (the language, version 3.1) and the quants' guide
 (docs/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md). Stacked on PR #81 (`claude/timeseries-platform`), on the branch
-`claude/timeseries-viewer-datacube-tsm0nb`. Each phase is one or more commits held to the gates below; a later session
+`claude/timeseries-language` (the user, 2026-10-30). Each phase is one or more commits held to the gates below; a later session
 starts at §5's status.
 
 ## 1. The user's rulings (2026-10-30)
@@ -25,7 +25,11 @@ starts at §5's status.
 4. **The library is not DataCube's**: `datacube::ts` becomes the project `projects/timeseries`, package `timeseries::`
    (projects/CONTRACT.md's naming: the package root is the project's name). **`#TS` imports it**: a function a query
    names (`volatility`) is found in `timeseries::` first.
-5. **v0, then v1, and v1 draws every chart of the gallery** (`datacube/src/examples/timeseries-gallery.ts`: 69 tiles,
+5. **Class models as sources** (the spec's R1 and R13, version 3.2): a class read as objects with dotted paths
+   (`FROM MarketQuote ON quoteTime BY instrument.ticker`); a flat subquery over it, named once by `WITH` ("I especially
+   love the WITH"); a table; a relation of the enclosing Pure (`FROM $quotes`, the tile's way). Model names by their
+   simple name, `::` only where a source is named; an enumeration's value written as a string.
+6. **v0, then v1, and v1 draws every chart of the gallery** (`datacube/src/examples/timeseries-gallery.ts`: 69 tiles,
    173 series, about 80 of the tile's functions): each series written in `#TS`, planned and run, the same answer as
    the tile's TypeScript writer gives today (P5).
 
@@ -55,7 +59,8 @@ the Python API, `//core:timeseries_library_test` and the docs follow. Every numb
 (`timeseries_queries_test`, the library test, `timeseries_sql_measure`'s twelve queries byte for byte but the name).
 
 **P2. `#TS` v0.**
-- `SELECT item, … FROM <table | (table WHERE …) | (subquery)> [alias] ON <date> [BY <instrument>] [FILTER …]`.
+- `[WITH …] SELECT item, … FROM <class | (subquery) | table | $var> [alias] ON <date> [BY <instrument>] [FILTER …]`,
+  the four source forms of R1 and the names of R13.
 - Along time, a window of N observations or `all`: `avg`/`mean`, `sum`, `min`, `max`, `count`, `std`/`stddev`,
   `var`/`variance`; `lag`, `diff`, `returns` (`obs = 1`). Each the library's call.
 - R4 (a value once its window is full), R7 (names: `AS`, a later item reads an earlier one, an item not named like a
@@ -87,3 +92,7 @@ that moves moves with its reason in the commit (AGENTS.md).
 ## 5. Status
 
 - 2026-10-30: the plan; P0 next.
+- 2026-10-30: P0 done (`IslandLanguage`, 35 of 35 targets). Real examples over the markets project's classes
+  (`//datacube:ts_examples_measure`): five charts, their Pure and numbers; found the tile's `side="BUY"` matching no
+  trade (the stored code is 'B'), which R13 settles for `#TS`. The spec at 3.2 (class sources, `WITH`, names,
+  enumerations). P1 next.
