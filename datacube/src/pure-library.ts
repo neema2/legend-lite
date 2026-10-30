@@ -10,16 +10,21 @@
 // query that calls none is planned over its model as it is, byte for byte. Its text is a chunk of its own
 // (pure-library-text.ts), fetched the first time a query calls it, so a page that calls none never downloads it.
 
-import { functionsCalled, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { functionsCalled, walk, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { lazily } from './lazily.ts';
 
 /** The package the library's functions are in. */
 export const LIBRARY_PACKAGE = 'timeseries';
 
-/** Whether a query calls a function of the library. */
+/** Whether a query calls a function of the library -- or holds a #TS{...}# island, whose every figure is the
+ *  library's (docs/TS_LANGUAGE_BUILD_2026_10_30.md ruling 4). */
 export function callsLibrary(query: ValueSpecification): boolean {
   for (const f of functionsCalled(query)) if (f.startsWith(`${LIBRARY_PACKAGE}::`)) return true;
-  return false;
+  let island = false;
+  walk(query, (n) => {
+    if (n._type === 'classInstance' && n.type === 'TS') island = true;
+  });
+  return island;
 }
 
 /** The library's text (pure-library-text.ts), fetched where a query first calls it: a chunk of its own. */

@@ -250,6 +250,8 @@ _EXTRA_ENV = {
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
     "timeseries-queries",
+    # every gallery series both ways, the tile's writer and #TS (docs/TS_LANGUAGE_BUILD_2026_10_30.md P5)
+    "timeseries-ts-parity",
     # the timeseries over the trading model's classes, its rows the markets sample's (2026-10-27, Phase 6)
     "stress-markets",
     # the Pure library spike: one function of each family against today's writer (2026-10-27)
@@ -364,6 +366,7 @@ _EXTRA_DATA = {
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
     "timeseries-queries",
+    "timeseries-ts-parity",
     "stress-markets",
     "pure-library-spike",
     "timeseries-view-dom",
