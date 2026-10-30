@@ -249,6 +249,9 @@ value.** An item with no value on a row is empty there.
   value §6 lists is the default. A bare word is a column, as in SQL; `type = 'log'` is a comparison, not an option.
 - Functions with several outputs return a struct: `bollinger_bands(close['SPX'], 20, 2) AS bb` has `bb.lower`,
   `bb.upper` and `bb.width`; `ohlc(o, h, l, c)` has `open`, `high`, `low`, `close`, which the tile draws as candles.
+  A later item and FILTER read a field as `bb.lower`; the answer has a column per field, `bb_lower`, `bb_upper`,
+  `bb_width` (a name clashing with another is refused). A struct is named as an item: read whole (`bb * 2`) or inside
+  an expression (`bollinger_bands(x, 20) * 2`) it is refused.
 
 ### R11. Kinds of line
 

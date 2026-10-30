@@ -155,3 +155,29 @@ that moves moves with its reason in the commit (AGENTS.md).
   `returns(x, type => 'log')`), a name the function has not refused naming its own. `latest` (R9) in FILTER, the
   answer's last date, and spans in a condition Postgres's intervals (`DAY > latest - 3d`). `//core:ts_island_test`:
   seventeen tests. P4 (the tile's functions) next.
+- 2026-10-30: P4 built. Every function of §6's catalog the tile has (`TsFunctions`: its signatures the tile's
+  `TS_SIGNATURES`, each by its language name -- `range_of`, `first_of`, `filter_values`, `union_of`, `day_of`... where
+  SQL or a period's aggregate has the tile's -- dispatched on a typed `TsFunctions.Fn`) is the same library call the
+  tile's writer makes over the same line: the one-line functions, the pairs over each one's returns on the dates both
+  have (`correlation`, `beta`, `alpha`, ...; `hedge_ratio`, `residual`, `cov` of levels), the benchmarked ones and
+  `lead_lag`, the technicals (`atr`, `stochastic`, `keltner_channels`, `donchian_channels`, `obv`, `vwap`), `if`,
+  `compare`, `union_of`, `append`, `prepend`, `interpolate` (gs-quant's four methods), `total_return`,
+  `excess_returns`, `weighted_sum`, `basket`, `trend` and `seasonally_adjusted` (their cycle counted in SAMPLE BY's
+  periods, the tile's), and `value_at` (R9). Parameters by place after the lines or by name (R10), each checked to
+  its kind (a span, a whole number, a number, a word of its own, a date). A year's periods are SAMPLE BY's (252, 52,
+  12, 4, 1) or the ones the line's dates infer (`periodsPerYear`), as the tile's.
+  - **Results with several values (R10)**: `bollinger_bands`, `keltner_channels`, `donchian_channels` (`lower`,
+    `upper`, `width`) and `ohlc` (`open`, `high`, `low`, `close`) name an item whose fields a later item reads
+    (`bb.upper - bb.lower`) and FILTER reads (`bb.width > 0`); the answer has a column per field, `bb_lower`,
+    `bb_upper`, `bb_width`. A struct read whole, or inside an expression, is refused with the fix.
+  - `if(condition, x, y)`: a condition's flags 1 where it holds, 0 where it does not, none where it is none (the
+    library's `ifThen` reads a figure's flags). Under SAMPLE BY a candle or a technical reads each period's own
+    aggregate as written: `ohlc(first(open['X']), max(high['X']), min(low['X']), last(close['X']))` (the tile rolls
+    its daily rows to each period's candle; P5 writes these).
+  - Lines that read one line (a struct's fields) join it once: the spine and the inner join each take a line once,
+    with every value read of it.
+  - `rank` (across instruments, a date's) stays refused as still to come: it is no tile function, and P5 does not need
+    it.
+  `//core:ts_island_test`: twenty tests -- every function plans and runs on the platform's database (with spans, by
+  name, under SAMPLE BY), and arithmetic for a pair's correlation and beta, `compare`, `if`, a band's fields, `value_at`
+  and a candle's columns. P5 (the gallery both ways) next.

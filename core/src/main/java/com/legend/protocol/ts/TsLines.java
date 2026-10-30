@@ -50,11 +50,12 @@ final class TsLines {
     private static final String DURATION = "meta::pure::functions::date::DurationUnit";
 
     /** A relation of one row per line and period: its line column ({@link #ONE_LINE}, or the instrument column of a
-     *  line per instrument), whether it is a line per instrument, and its period's date column. */
-    record Line(ValueSpecification rel, String part, boolean byInstrument, String at) {
+     *  line per instrument), whether it is a line per instrument, its period's date column, and whether its number in
+     *  time ({@link #ORD}) counts seconds (a date-time source's) rather than days. */
+    record Line(ValueSpecification rel, String part, boolean byInstrument, String at, boolean seconds) {
 
         Line with(ValueSpecification other) {
-            return new Line(other, part, byInstrument, at);
+            return new Line(other, part, byInstrument, at, seconds);
         }
     }
 
@@ -112,7 +113,7 @@ final class TsLines {
         rel = call("extend", rel, new ColSpecArray(derived));
         rel = call("select", rel, new ColSpecArray(List.of(new ColSpec(instrument), new ColSpec(PERIOD),
                 new ColSpec(ORD), new ColSpec(AT), new ColSpec(value))));
-        return new Valued(new Line(rel, instrument, split, AT), value);
+        return new Valued(new Line(rel, instrument, split, AT, seconds), value);
     }
 
     /** A period's function of a date (R5's calendar periods): its first day. */
@@ -165,7 +166,7 @@ final class TsLines {
             rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
         }
         rel = call("filter", rel, lambda("x", call("isNotEmpty", col(value))));
-        return new Valued(new Line(rel, instrument, split, AT), value);
+        return new Valued(new Line(rel, instrument, split, AT, !day), value);
     }
 
     /** Lines spread onto every period any of them has ({@link #spread}): the line, and each line's own number in
@@ -177,8 +178,9 @@ final class TsLines {
      * EVERY PERIOD ANY OF {@code nodes} HAS (R6): each (instrument, period) one of them has a row in -- a line of one
      * instrument under every instrument of the lines per instrument (R2's broadcast, the instruments those lines have)
      * -- dated at its latest line's date and number in time (R5: one date for every line), each line's value LEFT-joined
-     * onto them under its own name with its own number in time. Each line is read twice, linearly: no FULL join nested
-     * in another (H2, which writes one as a UNION, plans a nesting of them exponentially).
+     * onto them under its own name with its own number in time (a line several nodes read, a struct's fields, joined
+     * once with all their values). Each line is read twice, linearly: no FULL join nested in another (H2, which writes
+     * one as a UNION, plans a nesting of them exponentially).
      */
     static Spread spread(Writer w, List<Valued> nodes, SqlAst.Pos pos) {
         List<Valued> split = nodes.stream().filter(n -> n.line().byInstrument()).toList();
@@ -189,13 +191,18 @@ final class TsLines {
                         + " meet on no instrument: pick one line of one with a subscript (R2)", pos);
             }
         }
+        // each line once, with the values the nodes read of it
+        List<Line> distinct = new ArrayList<>();
+        List<List<String>> values = distinct(nodes, distinct);
         String at = w.fresh("sp_at");
         String ord = w.fresh("sp_ord");
         // the instruments the lines per instrument have
         ValueSpecification instruments = null;
-        for (Valued n : split) {
-            ValueSpecification own = call("select", n.line().rel(), new ColSpecArray(List.of(new ColSpec(part))));
-            instruments = instruments == null ? own : call("concatenate", instruments, own);
+        for (Line l : distinct) {
+            if (l.byInstrument()) {
+                ValueSpecification own = call("select", l.rel(), new ColSpecArray(List.of(new ColSpec(part))));
+                instruments = instruments == null ? own : call("concatenate", instruments, own);
+            }
         }
         String k1 = w.fresh("sp_k");
         String k2 = w.fresh("sp_k");
@@ -206,8 +213,7 @@ final class TsLines {
         }
         // the periods each line has, keyed alike
         ValueSpecification keys = null;
-        for (Valued n : nodes) {
-            Line l = n.line();
+        for (Line l : distinct) {
             ValueSpecification k = call("rename", call("rename", call("select", l.rel(), new ColSpecArray(List.of(
                     new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at()), new ColSpec(ORD)))),
                     new ColSpec(l.at()), new ColSpec(at)), new ColSpec(ORD), new ColSpec(ord));
@@ -228,12 +234,12 @@ final class TsLines {
                 new ColSpec(PERIOD))), new ColSpecArray(List.of(
                 new ColSpec(at, lambda("x", col(at)), lambda("y", call("max", new Variable("y")))),
                 new ColSpec(ord, lambda("x", col(ord)), lambda("y", call("max", new Variable("y")))))));
-        // each line's value onto them
-        List<String> ords = new ArrayList<>();
+        // each line's values onto them
+        List<String> owns = new ArrayList<>();
         List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
                 new ColSpec(ord)));
-        for (Valued n : nodes) {
-            Line l = n.line();
+        for (int d = 0; d < distinct.size(); d++) {
+            Line l = distinct.get(d);
             boolean byLine = l.byInstrument() || instruments == null;
             String p = w.fresh("sp_p");
             String per = w.fresh("sp_per");
@@ -244,7 +250,7 @@ final class TsLines {
             }
             cols.add(new ColSpec(PERIOD));
             cols.add(new ColSpec(ORD));
-            cols.add(new ColSpec(n.value()));
+            values.get(d).forEach(v -> cols.add(new ColSpec(v)));
             ValueSpecification r = call("select", l.rel(), new ColSpecArray(cols));
             if (byLine) {
                 r = call("rename", r, new ColSpec(l.part()), new ColSpec(p));
@@ -258,12 +264,13 @@ final class TsLines {
             spine = call("join", spine, r, new EnumValue("meta::pure::functions::relation::JoinKind", "LEFT"),
                     lambda2("l", "r", on));
             kept.add(new ColSpec(own));
-            kept.add(new ColSpec(n.value()));
+            values.get(d).forEach(v -> kept.add(new ColSpec(v)));
             spine = call("select", spine, new ColSpecArray(List.copyOf(kept)));
-            ords.add(own);
+            owns.add(own);
         }
         spine = call("rename", spine, new ColSpec(ord), new ColSpec(ORD));
-        return new Spread(new Line(spine, part, instruments != null, at), ords);
+        List<String> ords = nodes.stream().map(n -> owns.get(indexOf(distinct, n.line()))).toList();
+        return new Spread(new Line(spine, part, instruments != null, at, nodes.get(0).line().seconds()), ords);
     }
 
     /**
@@ -281,9 +288,101 @@ final class TsLines {
         return l;
     }
 
+    /** Each line of {@code nodes} once, in order, into {@code lines} (several nodes may read one: a struct's fields);
+     *  the values the nodes read of each, in its place. */
+    private static List<List<String>> distinct(List<Valued> nodes, List<Line> lines) {
+        List<List<String>> values = new ArrayList<>();
+        for (Valued n : nodes) {
+            int i = indexOf(lines, n.line());
+            if (i < 0) {
+                lines.add(n.line());
+                values.add(new ArrayList<>());
+                i = lines.size() - 1;
+            }
+            if (!values.get(i).contains(n.value())) {
+                values.get(i).add(n.value());
+            }
+        }
+        return values;
+    }
+
+    /** Where {@code line} is in {@code lines}, the very line (none: -1). */
+    private static int indexOf(List<Line> lines, Line line) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i) == line) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * X ON Y'S DATES (the tile's interpolate, gs-quant's datetime.interpolate): every period either has ({@link #spread}),
+     * then y's alone kept -- those x has too ({@code intersect}), none where x has none ({@code nan}), 0 there
+     * ({@code zero}); {@code step} as gs-quant walks the dates asked: at the first, x's value as of it (its first, before
+     * x starts), at each later its own, else the one before among them -- an x date between two asked never read.
+     */
+    static Valued interpolated(Writer w, Valued x, Valued y, String method, SqlAst.Pos pos) {
+        Spread s = spread(w, List.of(x, y), pos);
+        Line l = s.line();
+        String hx = s.ords().get(0);
+        String hy = s.ords().get(1);
+        String v = x.value();
+        String asOf = null;
+        String firstY = null;
+        if ("step".equals(method)) {
+            String[] made = new String[1];
+            l = stepped(w, l, v, made);
+            asOf = made[0];
+            firstY = w.fresh("ip_first");
+            l = l.with(call(TsToPure.LIBRARY + "firstValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
+                    new ColSpec(hy), new ColSpec(firstY)));
+        }
+        // y's dates kept after the windows above read every date
+        ValueSpecification keep = call("isNotEmpty", col(hy));
+        if ("intersect".equals(method)) {
+            keep = call("and", keep, call("isNotEmpty", col(hx)));
+        }
+        l = l.with(call("filter", l.rel(), lambda("x", keep)));
+        if ("zero".equals(method)) {
+            l = fill(w, l, List.of(v), hx, "ZERO");
+        }
+        if (asOf != null && firstY != null) {
+            // its own value where it has one; at the first date asked, its value as of it; then each carried on
+            String raw = w.fresh("ip_raw");
+            l = l.with(call("rename", l.rel(), new ColSpec(v), new ColSpec(raw)));
+            l = l.with(call("extend", l.rel(), new ColSpec(v, lambda("x", call("if", call("isNotEmpty", col(raw)),
+                    thunk(col(raw)), thunk(call("if", call("equal", col(PERIOD), col(firstY)), thunk(col(asOf)),
+                            thunk(new PureCollection(List.of())))))))));
+            String[] made = new String[1];
+            l = stepped(w, l, v, made);
+            l = replaced(w, l, v, made[0]);
+        }
+        return new Valued(l, v);
+    }
+
+    /** {@code l} with {@code value} as gs-quant's step fills it -- its last value at or before each date, else its first
+     *  (before it starts) -- as a fresh column named in {@code out[0]}: the library's (the tile's fill 'step'). */
+    private static Line stepped(Writer w, Line l, String value, String[] out) {
+        String lastP = w.fresh("al_lastp");
+        String firstP = w.fresh("al_firstp");
+        Line m = l.with(call(TsToPure.LIBRARY + "lastValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
+                new ColSpec(value), new ColSpec(lastP)));
+        m = m.with(call(TsToPure.LIBRARY + "firstValued", m.rel(), new ColSpec(m.part()), new ColSpec(PERIOD),
+                new ColSpec(value), new ColSpec(firstP)));
+        String[] last = new String[1];
+        String[] first = new String[1];
+        m = valueAt(w, m, lastP, value, last);
+        m = valueAt(w, m, firstP, value, first);
+        out[0] = w.fresh("al_step");
+        return m.with(call(TsToPure.LIBRARY + "orElse", m.rel(), new ColSpec(last[0]), new ColSpec(first[0]),
+                new ColSpec(out[0])));
+    }
+
     /** THE ANSWER'S ROWS (R6): every period any item has a value in ({@link #spread}), the items' columns as named. */
     static Line answer(Writer w, List<Valued> items, SqlAst.Pos pos) {
-        Line l = items.size() == 1 ? items.get(0).line() : spread(w, items, pos).line();
+        Line l = items.stream().allMatch(v -> v.line() == items.get(0).line()) ? items.get(0).line()
+                : spread(w, items, pos).line();
         List<ColSpec> keep = new ArrayList<>(List.of(new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at())));
         items.forEach(v -> keep.add(new ColSpec(v.value())));
         return l.with(call("select", l.rel(), new ColSpecArray(keep)));
@@ -360,9 +459,12 @@ final class TsLines {
         }
         List<Valued> order = new ArrayList<>(nodes.stream().filter(n -> n.line().byInstrument()).toList());
         order.addAll(nodes.stream().filter(n -> !n.line().byInstrument()).toList());
-        Line left = order.get(0).line();
-        for (Valued right : order.subList(1, order.size())) {
-            Line r = right.line();
+        // each line once (a struct's fields read one line), with the values the nodes read of it
+        List<Line> distinct = new ArrayList<>();
+        List<List<String>> values = distinct(order, distinct);
+        Line left = distinct.get(0);
+        for (int d = 1; d < distinct.size(); d++) {
+            Line r = distinct.get(d);
             boolean both = left.byInstrument() && r.byInstrument();
             if (both && !left.part().equals(r.part())) {
                 throw SqlTranslationException.invalid("lines by " + left.part() + " and lines by " + r.part()
@@ -378,7 +480,7 @@ final class TsLines {
                 rel = call("rename", rel, new ColSpec(r.part()), new ColSpec(l));
                 kept.add(new ColSpec(l));
             }
-            kept.add(new ColSpec(right.value()));
+            values.get(d).forEach(v -> kept.add(new ColSpec(v)));
             rel = call("select", rel, new ColSpecArray(kept));
             ValueSpecification on = call("equal", prop("l", PERIOD), prop("r", p));
             if (l != null) {
@@ -389,7 +491,7 @@ final class TsLines {
             String at = w.fresh("at");
             met = call("extend", met, new ColSpec(at, lambda("x", call("if", call("greaterThanEqual", one(left.at()),
                     one(a)), thunk(col(left.at())), thunk(col(a))))));
-            left = new Line(met, left.part(), left.byInstrument(), at);
+            left = new Line(met, left.part(), left.byInstrument(), at, left.seconds());
         }
         return left;
     }
@@ -418,7 +520,7 @@ final class TsLines {
         return new LambdaFunction(List.of(new Variable(parameter)), List.of(body));
     }
 
-    private static LambdaFunction lambda2(String a, String b, ValueSpecification body) {
+    static LambdaFunction lambda2(String a, String b, ValueSpecification body) {
         return new LambdaFunction(List.of(new Variable(a), new Variable(b)), List.of(body));
     }
 
@@ -431,7 +533,7 @@ final class TsLines {
         return new AppliedProperty(new Variable("x"), c);
     }
 
-    private static ValueSpecification prop(String v, String c) {
+    static ValueSpecification prop(String v, String c) {
         return new AppliedProperty(new Variable(v), c);
     }
 

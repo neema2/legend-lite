@@ -149,8 +149,13 @@ class TsIslandTest {
 
     /** {@code query}'s rows on {@code backend}, each by its column's name: a value's text, or null where it has none. */
     private static List<Map<String, String>> rows(TestBackend backend, String query) throws Exception {
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(backend, true)), query)
-                .executionPlan("ts::RT");
+        return rows(backend, Compiler.compileModel(model(backend, true)), query);
+    }
+
+    /** {@code query}'s rows on {@code backend} over {@code model}, compiled once. */
+    private static List<Map<String, String>> rows(TestBackend backend, com.legend.compiler.element.ModelContext model,
+            String query) throws Exception {
+        ExecutionPlan plan = Compiler.query(model, query).executionPlan("ts::RT");
         String text;
         try (Connection c = backend.open()) {
             seed(backend, c);
@@ -579,6 +584,182 @@ class TsIslandTest {
         }
     }
 
+    private static double sampleStd(double[] v, int from, int to) {
+        double mean = 0;
+        for (int i = from; i <= to; i++) {
+            mean += v[i];
+        }
+        mean /= to - from + 1;
+        double sum = 0;
+        for (int i = from; i <= to; i++) {
+            sum += (v[i] - mean) * (v[i] - mean);
+        }
+        return Math.sqrt(sum / (to - from));
+    }
+
+    @Test
+    void theCatalogsFunctionsAreTheTilesLibraryCalls() throws Exception {
+        // P4: the tile's functions of the same names (timeseries-query.ts call), each the library's call
+        double[] x = AAA;
+        double[] r = new double[x.length];
+        for (int i = 1; i < x.length; i++) {
+            r[i] = x[i] / x[i - 1] - 1;
+        }
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT rebase(CLOSE['AAA']) AS rb,"
+                    + " change(CLOSE['AAA']) AS ch, percent_change(CLOSE['AAA']) AS pc, range_of(CLOSE['AAA'], 3) AS rg,"
+                    + " volatility(CLOSE['AAA'], 3) AS vol FROM PRICES ON DAY BY SYMBOL}#");
+            String of = backend + ": ";
+            assertClose(each(x.length, i -> x[i] / x[0] * 100), column(got, null, null, "rb"), of + "rebased to 100");
+            assertClose(each(x.length, i -> x[i] - x[0]), column(got, null, null, "ch"), of + "the change from the first");
+            assertClose(each(x.length, i -> x[i] / x[0] - 1), column(got, null, null, "pc"), of + "the % change");
+            assertClose(each(x.length, i -> i < 2 ? null : Math.max(x[i], Math.max(x[i - 1], x[i - 2]))
+                    - Math.min(x[i], Math.min(x[i - 1], x[i - 2]))), column(got, null, null, "rg"), of + "the range");
+            // three returns' deviation, annualized by the 252 days a year the daily dates infer, in percent
+            assertClose(each(x.length, i -> i < 3 ? null : sampleStd(r, i - 2, i) * Math.sqrt(252) * 100),
+                    column(got, null, null, "vol"), of + "volatility over three returns");
+        }
+    }
+
+    @Test
+    void pairsConditionsAndBandsAreTheTilesLibraryCalls() throws Exception {
+        // P4 part 2: a pair's statistics over the dates both lines have, a condition's branch, a band's fields
+        double[] ra = new double[AAA.length];
+        double[] rb = new double[BBB.length];
+        for (int i = 1; i < AAA.length; i++) {
+            ra[i] = AAA[i] / AAA[i - 1] - 1;
+            rb[i] = BBB[i] / BBB[i - 1] - 1;
+        }
+        for (TestBackend backend : deep()) {
+            String of = backend + ": ";
+            List<Map<String, String>> pairs = rows(backend, "|#TS{SELECT correlation(CLOSE['AAA'], CLOSE['BBB'], 3)"
+                    + " AS c, beta(CLOSE['AAA'], CLOSE['BBB'], 3) AS b FROM PRICES ON DAY BY SYMBOL}#");
+            // three returns of each, from the fourth day (R6: the days before have no value)
+            assertClose(each(AAA.length - 3, i -> pearson(ra, rb, i + 1, i + 3)), column(pairs, null, null, "c"),
+                    of + "the correlation of three returns");
+            assertClose(each(AAA.length - 3, i -> covariance(ra, rb, i + 1, i + 3) / covariance(rb, rb, i + 1, i + 3)),
+                    column(pairs, null, null, "b"), of + "the beta of three returns");
+            List<Map<String, String>> chosen = rows(backend, "|#TS{SELECT compare(CLOSE['AAA'], 100) AS cmp,"
+                    + " if(CLOSE['AAA'] > 100, CLOSE['AAA'], 0) AS f FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length, i -> (double) Double.compare(AAA[i], 100)), column(chosen, null, null, "cmp"),
+                    of + "compare");
+            assertClose(each(AAA.length, i -> AAA[i] > 100 ? AAA[i] : 0.0), column(chosen, null, null, "f"),
+                    of + "a condition's branch");
+            List<Map<String, String>> band = rows(backend, "|#TS{SELECT bollinger_bands(CLOSE['AAA'], 3, 2) AS bb,"
+                    + " bb.upper - bb.lower AS spread FROM PRICES ON DAY BY SYMBOL FILTER bb.width > 0}#");
+            // a band's fields each the answer's column (R10)
+            assertEquals(List.of("DAY", "bb_lower", "bb_upper", "bb_width", "spread"), List.copyOf(band.get(0).keySet()),
+                    of + "the answer's columns");
+            Double[] mean = each(AAA.length - 2, i -> mean3(AAA, i + 2));
+            Double[] std = each(AAA.length - 2, i -> sampleStd(AAA, i, i + 2));
+            assertClose(each(mean.length, i -> mean[i] - 2 * std[i]), column(band, null, null, "bb_lower"),
+                    of + "the band's lower");
+            assertClose(each(mean.length, i -> mean[i] + 2 * std[i]), column(band, null, null, "bb_upper"),
+                    of + "the band's upper");
+            assertClose(each(mean.length, i -> 4 * std[i]), column(band, null, null, "bb_width"), of + "its width");
+            assertClose(each(mean.length, i -> 4 * std[i]), column(band, null, null, "spread"),
+                    of + "an item of its fields");
+            // as of a date (R9): the last value on or before it, its first before it starts; a candle's fields
+            List<Map<String, String>> asOf = rows(backend, "|#TS{SELECT value_at(CLOSE['AAA'], '2024-01-25') AS va,"
+                    + " value_at(CLOSE['AAA'], DATE '2024-01-01') AS vb, ohlc(CLOSE['AAA'], CLOSE['BBB'], CLOSE['AAA'],"
+                    + " CLOSE['BBB']) AS c FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length, i -> AAA[5]), column(asOf, null, null, "va"), of + "as of the 25th");
+            assertClose(each(AAA.length, i -> AAA[0]), column(asOf, null, null, "vb"), of + "as of before the first");
+            assertEquals(List.of("DAY", "va", "vb", "c_open", "c_high", "c_low", "c_close"),
+                    List.copyOf(asOf.get(0).keySet()), of + "a candle's columns");
+            assertClose(each(AAA.length, i -> BBB[i]), column(asOf, null, null, "c_high"), of + "the candle's high");
+        }
+    }
+
+    @Test
+    void everyFunctionOfTheCatalogPlansAndRuns() throws Exception {
+        // P4: each of §6's functions the builder writes, as the tile writes it, planned and run (its numbers are the
+        // library's own tests' and the tile's; here each call's arguments and columns are held to the library's types)
+        String x = "CLOSE['AAA']";
+        String y = "CLOSE['BBB']";
+        List<String> calls = new ArrayList<>();
+        for (String f : List.of("prices", "annualize", "index", "rebase", "change", "percent_change", "winsorize",
+                "drawdown", "max_drawdown", "exponential_moving_average", "exponential_std", "exponential_volatility",
+                "exponential_spread_volatility", "geometrically_aggregate", "smooth_spikes", "consecutive", "first_of",
+                "last_of", "day_of", "month_of", "year_of", "quarter_of", "weekday_of")) {
+            calls.add(f + "(" + x + ")");
+        }
+        for (String f : List.of("range_of", "zscores", "volatility", "sharpe_ratio", "rsi", "smoothed_moving_average",
+                "percentiles", "median", "product", "vol_swap_volatility")) {
+            calls.add(f + "(" + x + ", 3)");
+        }
+        for (String f : List.of("range_of", "zscores", "volatility", "sharpe_ratio", "median", "drawdown")) {
+            calls.add(f + "(" + x + ", 1w)");
+        }
+        for (String method : List.of("intersect", "nan", "zero", "step")) {
+            calls.add("interpolate(" + x + ", " + y + ", '" + method + "')");
+        }
+        calls.addAll(List.of("value_at(" + x + ", '2024-01-25')", "value_at(" + x + ", DATE '2024-01-01')",
+                "ohlc(" + x + ", " + y + ", " + x + ", " + y + ")", "ohlc(" + x + ", " + x + ", " + x + ", " + x + ")"));
+        calls.addAll(List.of("macd(" + x + ", 2, 4, 1)", "percentile(" + x + ", 50, 3)", "dickey_fuller(" + x + ", 5)",
+                "half_life(" + x + ", 5)", "filter_values(" + x + ", 'less_than', 100)",
+                "volatility(" + x + ", 3, type => 'log')", "smooth_spikes(" + x + ", 0.5, 'absolute')"));
+        for (String f : List.of("correlation", "beta", "cov", "alpha", "r_squared", "hedge_ratio", "residual",
+                "tracking_error", "information_ratio", "up_capture", "down_capture", "vwap", "donchian_channels")) {
+            calls.add(f + "(" + x + ", " + y + ", 3)");
+            calls.add(f + "(" + x + ", " + y + ", 1w)");
+        }
+        for (String f : List.of("obv", "total_return", "excess_returns", "compare", "union_of", "append", "prepend")) {
+            calls.add(f + "(" + x + ", " + y + ")");
+        }
+        calls.addAll(List.of("lead_lag(" + x + ", " + y + ", 1, 3)", "total_return(" + x + ", 0.01)",
+                "excess_returns(" + x + ", 0.01)", "atr(" + x + ", " + y + ", " + x + ", 3)",
+                "stochastic(" + x + ", " + y + ", " + x + ", 3)", "keltner_channels(" + x + ", " + y + ", " + x
+                        + ", 3, 3, 2)", "if(" + x + " > 100, " + x + ", " + y + ")", "weighted_sum(" + x + ", 0.6, " + y
+                        + ", 0.4)", "basket(" + x + ", 0.6, " + y + ", 0.4)", "basket(" + x + ", 0.5, " + y
+                        + ", 0.5, rebalance => 'weekly')", "bollinger_bands(" + x + ", 3)", "bollinger_bands(" + x
+                        + ", 1w, 1)"));
+        calls.replaceAll(c -> c + " AS v FROM PRICES ON DAY BY SYMBOL");
+        // a decomposition counts its cycle in the query's periods; a candle under SAMPLE BY takes each period's own
+        String last = "last(" + x + ")";
+        calls.addAll(List.of("trend(" + last + ", freq => 'week') AS v FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1d",
+                "seasonally_adjusted(" + last + ", freq => 'week') AS v FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1d",
+                "seasonally_adjusted(" + last + ", 'multiplicative', 'week') AS v FROM PRICES ON DAY BY SYMBOL"
+                        + " SAMPLE BY 1d",
+                "ohlc(first(" + x + "), max(" + x + "), min(" + x + "), " + last + ") AS v FROM PRICES ON DAY BY SYMBOL"
+                        + " SAMPLE BY 1w"));
+        TestBackend backend = TestBackends.platform();
+        com.legend.compiler.element.ModelContext model = Compiler.compileModel(model(backend, true));
+        List<String> failed = new ArrayList<>();
+        for (String call : calls) {
+            try {
+                List<Map<String, String>> got = rows(backend, model, "|#TS{SELECT " + call + "}#");
+                if (got.isEmpty()) {
+                    failed.add(call + ": no row has a value");
+                }
+            } catch (RuntimeException e) {
+                failed.add(call + ": " + e.getMessage());
+            }
+        }
+        assertEquals(List.of(), failed, "every function plans and runs on " + backend);
+    }
+
+    /** The sample covariance of {@code x} and {@code y} from {@code from} to {@code to}, both included. */
+    private static double covariance(double[] x, double[] y, int from, int to) {
+        double mx = 0;
+        double my = 0;
+        for (int i = from; i <= to; i++) {
+            mx += x[i];
+            my += y[i];
+        }
+        mx /= to - from + 1;
+        my /= to - from + 1;
+        double sum = 0;
+        for (int i = from; i <= to; i++) {
+            sum += (x[i] - mx) * (y[i] - my);
+        }
+        return sum / (to - from);
+    }
+
+    private static double pearson(double[] x, double[] y, int from, int to) {
+        return covariance(x, y, from, to) / Math.sqrt(covariance(x, x, from, to) * covariance(y, y, from, to));
+    }
+
     @Test
     void anEnumerationsValueIsWrittenAsAString() throws Exception {
         // R13: 'TECH' is ts::Sector.TECH, which the mapping stores as 'T' -- not the stored code compared with a string
@@ -617,7 +798,27 @@ class TsIslandTest {
         refusals.put("SELECT avg(CLOSE, 3) m FROM PRICES ON DAY BY SYMBOL", "name an item with AS: ... AS m");
         refusals.put("SELECT avg(CLOSE) AS m FROM PRICES ON DAY BY SYMBOL", "a avg over what? add SAMPLE BY 1w");
         refusals.put("SELECT avg(CLOSE, 0) AS m FROM PRICES ON DAY BY SYMBOL", "a window counts observations");
-        refusals.put("SELECT volatility(CLOSE, 3) AS v FROM PRICES ON DAY BY SYMBOL", "volatility is v1's");
+        refusals.put("SELECT rank(CLOSE) AS v FROM PRICES ON DAY BY SYMBOL",
+                "rank is one of the catalog's (§6) still to come");
+        refusals.put("SELECT value_at(CLOSE['AAA']) AS v FROM PRICES ON DAY BY SYMBOL",
+                "value_at reads a date: value_at(x, '2024-01-01') (R9)");
+        refusals.put("SELECT value_at(CLOSE['AAA'], '2024-13-01') AS v FROM PRICES ON DAY BY SYMBOL",
+                "value_at's date is a date");
+        refusals.put("SELECT trend(CLOSE['AAA']) AS v FROM PRICES ON DAY BY SYMBOL",
+                "trend counts its cycle in the query's periods: add SAMPLE BY 1mo (R5)");
+        refusals.put("SELECT trend(last(CLOSE['AAA']), freq => 'week') AS v FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1mo",
+                "trend: a week is no cycle of months");
+        refusals.put("SELECT bollinger_bands(CLOSE['AAA'], 3) AS bb, bb * 2 AS d FROM PRICES ON DAY BY SYMBOL",
+                "bb has lower, upper, width: read one, bb.lower (R10)");
+        refusals.put("SELECT bollinger_bands(CLOSE['AAA'], 3) * 2 AS d FROM PRICES ON DAY BY SYMBOL",
+                "bollinger_bands has lower, upper, width: name it");
+        refusals.put("SELECT CLOSE['AAA'] AS a, a.lower AS d FROM PRICES ON DAY BY SYMBOL", "a is one value");
+        refusals.put("SELECT bollinger_bands(CLOSE['AAA'], 3) AS bb, bb.middle AS d FROM PRICES ON DAY BY SYMBOL",
+                "bb has lower, upper, width, not middle");
+        refusals.put("SELECT volatility(CLOSE, 3, 'ln') AS v FROM PRICES ON DAY BY SYMBOL",
+                "volatility's type is 'simple', 'log', 'absolute'");
+        refusals.put("SELECT volatility(CLOSE, 3, 'log', 1) AS v FROM PRICES ON DAY BY SYMBOL",
+                "volatility takes 1 line and its parameters w, type");
         refusals.put("SELECT CLOSE['AAA', 'BBB'] AS a FROM PRICES ON DAY BY SYMBOL", "a subscript names one instrument");
         refusals.put("SELECT close['AAA'] AS a FROM (PRICES WHERE SYMBOL = 'AAA') ON DAY",
                 "has no BY: it has no instrument to pick");

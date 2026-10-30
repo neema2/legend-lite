@@ -233,16 +233,47 @@ public final class TsToPure {
             // THE ITEMS' LINES (R2, R4, R6), each in turn, a later one reading an earlier one's
             Lines lines = new Lines(opened);
             List<TsLines.Valued> answered = new ArrayList<>();
+            List<String> columns = new ArrayList<>();
             for (int i = 0; i < exprs.size(); i++) {
-                TsLines.Node n = lines.node(exprs.get(i));
+                TsLines.Node n = lines.item(exprs.get(i));
                 if (!(n instanceof TsLines.Valued v)) {
                     throw invalid(names.get(i) + " reads no line: an item is a line of a source's column, or a"
                             + " figure of one (R2)", aliases.get(i).pos());
                 }
-                TsLines.Valued item = new TsLines.Valued(v.line().with(call("rename", v.line().rel(),
-                        new ColSpec(v.value()), new ColSpec(names.get(i)))), names.get(i));
-                lines.items.put(names.get(i), item);
-                answered.add(item);
+                String name = names.get(i);
+                Map<String, String> struct = lines.structOf(v);
+                if (struct == null) {
+                    TsLines.Valued item = new TsLines.Valued(v.line().with(call("rename", v.line().rel(),
+                            new ColSpec(v.value()), new ColSpec(name))), name);
+                    lines.items.put(name, item);
+                    answered.add(item);
+                    columns.add(name);
+                    continue;
+                }
+                // a struct (R10): each field the answer's column <item>_<field>, read in the query as item.field
+                ValueSpecification rel = v.line().rel();
+                Map<String, String> fields = new LinkedHashMap<>();
+                for (Map.Entry<String, String> f : struct.entrySet()) {
+                    String column = name + "_" + f.getKey();
+                    if (names.stream().anyMatch(c -> c.equalsIgnoreCase(column))
+                            || own.stream().anyMatch(c -> c.equalsIgnoreCase(column))) {
+                        throw invalid(name + "'s " + f.getKey() + " is the answer's column " + column + ", a name"
+                                + " the query has already (R10): name the item another name", aliases.get(i).pos());
+                    }
+                    // a column two fields are (ohlc(x, x, x, x)) renamed once, copied for the next
+                    String before = fields.entrySet().stream().filter(o -> f.getValue().equals(
+                            struct.get(o.getKey()))).map(Map.Entry::getValue).findFirst().orElse(null);
+                    rel = before == null ? call("rename", rel, new ColSpec(f.getValue()), new ColSpec(column))
+                            : call("extend", rel, new ColSpec(column, lambda("x", new AppliedProperty(
+                                    new Variable("x"), before))));
+                    fields.put(f.getKey(), column);
+                    columns.add(column);
+                }
+                TsLines.Line line = v.line().with(rel);
+                lines.fields.put(name, java.util.Collections.unmodifiableMap(fields));
+                lines.items.put(name, new TsLines.Valued(line, java.util.Objects.requireNonNull(fields.get(
+                        struct.keySet().iterator().next()))));
+                fields.values().forEach(c -> answered.add(new TsLines.Valued(line, c)));
             }
             TsLines.Line all = TsLines.answer(lines, answered, aliases.get(0).pos());
             String instrument = all.byInstrument() ? all.part() : null;
@@ -252,17 +283,24 @@ public final class TsToPure {
             if (instrument != null) {
                 answer.add(instrument);
             }
-            answer.addAll(names);
+            answer.addAll(columns);
             rel = call("select", rel, new ColSpecArray(answer.stream().map(ColSpec::new).toList()));
             // a row where at least one item has a value (R6)
             ValueSpecification some = null;
-            for (String n : names) {
+            for (String n : columns) {
                 ValueSpecification has = call("isNotEmpty", new AppliedProperty(new Variable("x"), n));
                 some = some == null ? has : call("or", some, has);
             }
             rel = call("filter", rel, lambda("x", java.util.Objects.requireNonNull(some)));
             if (query.filter() != null) {
-                SqlAst.Expr condition = intervals(perPoint(query.filter()));
+                // a struct's field as the answer names it: bb.lower its column bb_lower (R10)
+                SqlAst.Expr condition = map(intervals(perPoint(query.filter())), x -> x instanceof SqlAst.ColumnRef c
+                        && c.parts().size() == 2 && lines.fields.containsKey(c.parts().get(0).text())
+                        && java.util.Objects.requireNonNull(lines.fields.get(c.parts().get(0).text()))
+                                .containsKey(c.parts().get(1).text())
+                        ? TsToPure.column(java.util.Objects.requireNonNull(java.util.Objects.requireNonNull(
+                                lines.fields.get(c.parts().get(0).text())).get(c.parts().get(1).text())), c.pos())
+                        : x);
                 // latest (R9): the data's last date, the answer's (an item's own name where one is called so)
                 String latest = null;
                 if (answer.stream().noneMatch(c -> c.equalsIgnoreCase("latest"))) {
@@ -397,6 +435,15 @@ public final class TsToPure {
                 }
                 if (c.parts().size() == 1 && names.contains(text(c))) {
                     throw invalid(text(c) + " is a later item: an item reads the items before it (R7)", c.pos());
+                }
+                String first = c.parts().get(0).text();
+                if (c.parts().size() == 2 && names.subList(0, i).contains(first)) {
+                    // an earlier item's field (R10): bb.lower
+                    if (opening.stream().anyMatch(x -> x.alias().equals(first))) {
+                        throw invalid(first + " names an item and a source: name the item another name (R7)",
+                                c.pos());
+                    }
+                    return c;
                 }
                 Opening o;
                 SqlAst.ColumnRef own = c;
@@ -691,9 +738,13 @@ public final class TsToPure {
          * line's rows, any other expression of lines the lines met on their dates and the expression Postgres's over
          * them, an expression of no line a constant.
          */
-        private final class Lines implements TsLines.Writer {
+        private final class Lines implements TsFunctions.Ctx {
             private final Map<String, TsLines.Source> opened;
             final Map<String, TsLines.Valued> items = new LinkedHashMap<>();
+            /** Each struct's fields (R10), by the column a function answered it as. */
+            private final Map<String, Map<String, String>> structs = new LinkedHashMap<>();
+            /** Each item that is a struct: its fields' answer columns ({@code bb_lower}), by field. */
+            final Map<String, Map<String, String>> fields = new LinkedHashMap<>();
             private int fresh;
 
             Lines(Map<String, TsLines.Source> opened) {
@@ -711,9 +762,52 @@ public final class TsToPure {
                 return "__ts_" + what + "_" + fresh++;
             }
 
+            @Override
+            public TsAst.Query query() {
+                return query;
+            }
+
+            @Override
+            public void struct(String value, Map<String, String> of) {
+                structs.put(value, of);
+            }
+
+            /** The fields of {@code v}, a function's answer, where it is a struct (R10); else null. */
+            @com.legend.base.Nullable Map<String, String> structOf(TsLines.Valued v) {
+                return structs.get(v.value());
+            }
+
+            /** An item's node: a struct allowed where the item is a function's whole answer (R10). */
+            TsLines.Node item(SqlAst.Expr e) {
+                if (e instanceof SqlAst.FunctionCall fc && alongTime(fc)
+                        && TsFunctions.has(java.util.Objects.requireNonNull(fn(fc)))) {
+                    Arguments a = arguments(fc);
+                    return TsFunctions.call(this, fc, a.positional(), a.named());
+                }
+                return node(e);
+            }
+
             /** The node {@code e}, an item's expression with its columns resolved ({@link Resolver}), is. */
-            TsLines.Node node(SqlAst.Expr e) {
+            @Override
+            public TsLines.Node node(SqlAst.Expr e) {
                 if (e instanceof SqlAst.ColumnRef c) {
+                    Map<String, String> struct = fields.get(c.parts().get(0).text());
+                    if (c.parts().size() == 1 && struct != null) {
+                        throw invalid(text(c) + " has " + String.join(", ", struct.keySet()) + ": read one, " + text(c)
+                                + "." + struct.keySet().iterator().next() + " (R10)", c.pos());
+                    }
+                    if (c.parts().size() == 2 && items.containsKey(c.parts().get(0).text())) {
+                        String field = c.parts().get(1).text();
+                        String column = struct == null ? null : struct.get(field);
+                        if (column == null) {
+                            throw invalid(struct == null ? c.parts().get(0).text() + " is one value: " + text(c)
+                                    + " reads a field of a function's several (R10)" : c.parts().get(0).text()
+                                    + " has " + String.join(", ", struct.keySet()) + ", not " + field + " (R10)",
+                                    c.pos());
+                        }
+                        TsLines.Valued whole = java.util.Objects.requireNonNull(items.get(c.parts().get(0).text()));
+                        return new TsLines.Valued(whole.line(), column);
+                    }
                     TsLines.Valued item = c.parts().size() == 1 ? items.get(text(c)) : null;
                     if (item != null) {
                         return item;
@@ -735,6 +829,18 @@ public final class TsToPure {
                     return period(fc);
                 }
                 if (e instanceof SqlAst.FunctionCall fc && alongTime(fc)) {
+                    String name = fn(fc);
+                    if (TsFunctions.has(java.util.Objects.requireNonNull(name))) {
+                        Arguments a = arguments(fc);
+                        TsLines.Node n = TsFunctions.call(this, fc, a.positional(), a.named());
+                        Map<String, String> struct = n instanceof TsLines.Valued v ? structs.get(v.value()) : null;
+                        if (struct != null) {
+                            throw invalid(name + " has " + String.join(", ", struct.keySet()) + ": name it, " + name
+                                    + "(...) AS b, and read b." + struct.keySet().iterator().next() + " (R10)",
+                                    fc.pos());
+                        }
+                        return n;
+                    }
                     return along(fc);
                 }
                 return computed(e);
@@ -864,11 +970,11 @@ public final class TsToPure {
                 if (name == null) {
                     return false;
                 }
-                if (LATER.contains(name)) {
-                    throw unsupported(name + " is v1's (§6, P4): v0's functions along time are avg, sum, min, max,"
-                            + " count, std, var, lag, diff and returns", fc.pos());
+                if (LATER.contains(name) && !TsFunctions.has(name)) {
+                    throw unsupported(name + " is one of the catalog's (§6) still to come", fc.pos());
                 }
-                return WINDOWED.containsKey(name) || BACK.containsKey(name) || "count".equals(name);
+                return WINDOWED.containsKey(name) || BACK.containsKey(name) || "count".equals(name)
+                        || TsFunctions.has(name);
             }
 
             /** A figure along time (R4): the library's call over its line's rows, its window the line's periods. */
@@ -926,9 +1032,10 @@ public final class TsToPure {
                                     + " 3mo) counts a span's, count(x, all) a line's to date", w.pos());
                         }
                         int n = observations(w, "a window", name + "(x, 20)");
-                        // a value once its window is full (R4): n of them
+                        // a value once its window is full (R4): n of them -- a deviation's two at least (the tile's)
+                        int ramp = "std".equals(stat) || "var".equals(stat) ? Math.max(n, 2) : n;
                         rel = call(LIBRARY + stat, l.rel(), TsLines.over(l, call("rows", new CInteger((long) -(n - 1)),
-                                new CInteger(0L))), new ColSpec(v.value()), new CInteger((long) n), new ColSpec(out));
+                                new CInteger(0L))), new ColSpec(v.value()), new CInteger((long) ramp), new ColSpec(out));
                     }
                 } else {
                     boolean returns = "returns".equals(name);
@@ -1266,6 +1373,11 @@ public final class TsToPure {
 
     private static SqlAst.ColumnRef column(String name, SqlAst.Pos pos) {
         return new SqlAst.ColumnRef(List.of(new SqlAst.Ident(name, true, pos)), pos);
+    }
+
+    /** A call's name, folded as Postgres folds an unquoted one; null for a qualified name. */
+    static @com.legend.base.Nullable String name(SqlAst.FunctionCall fc) {
+        return fn(fc);
     }
 
     /** A call's name, folded as Postgres folds an unquoted one; null for a qualified name. */
