@@ -36,23 +36,24 @@ for r in prof:
             ok_engine[f] += 1
 
 # corpus declarations (anything in the model, whether or not a service reaches it) -- from analysis
+# (the M2M rows, the enumeration mappings and the merges re-counted 2026-10-30, the improvement plan's Phase 5)
 DECL = {
     'scaffolding:class': '2,330 classes', 'scaffolding:relational-store': '30 databases',
     'scaffolding:relational-connection': '16', 'scaffolding:relational-mapping': '2,358 class mappings',
     'scaffolding:relation-function': '2 functions', 'scaffolding:relation-mapping': '2 class mappings',
-    'scaffolding:m2m-mapping': '5 class mappings', 'scaffolding:runtime': '26',
-    'scaffolding:model-connection': '3 (2 JSON, 1 XML)', 'scaffolding:model-chain-connection': '1',
+    'scaffolding:m2m-mapping': '23 class mappings', 'scaffolding:runtime': '26',
+    'scaffolding:model-connection': '3 (2 JSON, 1 XML)', 'scaffolding:model-chain-connection': '3',
     'grammar:association': '250', 'grammar:class-inheritance': '1,849 subclasses (depth <= 2)',
     'grammar:constraint': '8 on 3 classes', 'grammar:derived-property': '206', 'grammar:enumeration': '21',
     'grammar:function': '21', 'grammar:measure': '3', 'grammar:nested-association': 'yes',
     'grammar:profile': '2', 'grammar:qualified-property': '89',
     'mapping:aggregation-aware-mapping': '1', 'mapping:cross-store': '1 XStore association',
-    'mapping:enumeration-mapping': '13', 'mapping:m2m-chained-relational': '2 (ModelChainConnection)',
-    'mapping:m2m-derived-source-property': '-', 'mapping:m2m-local-property': '1 (surface, no service)',
-    'mapping:m2m-target-instantiation': '-', 'mapping:m2m-transform': '17 property mappings',
+    'mapping:enumeration-mapping': '21', 'mapping:m2m-chained-relational': '6 mappings (3 ModelChainConnections)',
+    'mapping:m2m-derived-source-property': '1 (m2m::TradeRef)', 'mapping:m2m-local-property': '1 (75-surface-gaps)',
+    'mapping:m2m-target-instantiation': '1 (m2m::TradeStamp)', 'mapping:m2m-transform': '75 property mappings',
     'mapping:mapping': '179 mappings', 'mapping:mapping-include': '158 includes',
-    'mapping:operation-mapping': '1 inheritance op', 'mapping:operation-mapping-merge': '1',
-    'mapping:operation-mapping-merge-validation': '1', 'mapping:relational-association-implementation': '238',
+    'mapping:operation-mapping': '1 inheritance op', 'mapping:operation-mapping-merge': '2',
+    'mapping:operation-mapping-merge-validation': '2', 'mapping:relational-association-implementation': '238',
     'mapping:relational-distinct': '3', 'mapping:relational-embedded': '30', 'mapping:relational-group-by': '-',
     'mapping:relational-inline-embedded': '1', 'mapping:relational-joined-table-inheritance': '-',
     'mapping:relational-literal': '138', 'mapping:relational-literal-list': '2',

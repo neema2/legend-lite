@@ -4,7 +4,8 @@ Proposed 2026-10-19. The user took the five decisions on 2026-10-21 ([Decisions]
 that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done on 2026-10-23, on `stress_test/corpus`.
 Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28, and Phase 4 started that day
 and was done on 2026-10-29, in six stages (see its record). Phase 7 started on 2026-10-29 and was done on
-2026-10-30, in three stages (see its record).
+2026-10-30, in three stages (see its record). Phase 5 started and was done on 2026-10-30, in one stage (see its
+record).
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -1167,6 +1168,121 @@ Report §7 (M2M) and §10 item 4. The corpus has 5 M2M class mappings, and lite 
   m2m-transform, m2m-chained-relational, m2m-target-instantiation, m2m-derived-source-property and
   m2m-complex-property-passthrough.
 
+Phase 5 landed in one stage, committed on `stress_test/corpus` when green. `stress_test/corpus` was first rebased onto
+`upstream/main` (`7bc0797d9`), with no conflicts.
+
+**Stage 1: M2M chained over relational sources (2026-10-30, `fd92254d6`).**
+
+- **The split.** `55-canonical-store.pure` keeps the Money measure's mapping and `stress::MoneyRT`. Its M2M mapping
+  without a measure (`canonical::M2MMapping`), `stress::TradeChain` and `stress::CanonicalRT` move to a new
+  `55-canonical-chain.pure`, which lite loads, so `M1_TradeCanonical` and `M2_CanonicalWithEnum` load in lite.
+  `94-canonical-services.pure` keeps `MU0_MonetaryTrade` alone and stays excluded with 55, for the measure only.
+- **The pack.** A hand-written `8114-m2m.pure`. Its source classes (`m2m::src::`) map the seeded TRADE, COUNTERPARTY,
+  BOOK and ALLOCATION relationally, with derived and qualified properties, raw codes beside the same columns through
+  relational enumeration mappings, and three associations; its target classes (`m2m::`) map them in Pure through one
+  `ModelChainConnection`, `m2m::SourceChain`, so every test reads the corpus's seed (`stress::TestData`). The sets
+  cover transforms (arithmetic, concatenation, a comparison, a function of a value, a function through `map` of an
+  optional one, a conditional), derived source properties, nested sets (over an association, and from the source
+  object itself, `economics[economics]: $src`), `^` target instantiation read back directly and through a function, a
+  `~filter` on a property and through a navigation, a union of two Pure sets, a transform over a to-many end, and a
+  merge (`m2m::Merged`). No seed changed.
+- **Probed first.** Every shape ran on 4.145.0 in a model of its own before its services were written. Over a
+  `ModelChainConnection` the engine inlines a TDS projection's transforms into the source's SQL (`chain.pure`'s
+  `reprocess`), and runs a graph fetch in memory over the fetched source, so the two forms fail apart:
+  - A projection refuses an Operation set (union, merge), a passthrough and a `^` ("Cast exception ...
+    OperationSetImplementation", "Cannot cast a collection of size 0 to multiplicity [1]"), and a `size()` in a
+    transform writes a COUNT without its GROUP BY. A Relation projection is refused outright (F11, as before).
+  - A graph fetch runs those, but reads a source's derived property as absent (F84), and a `^` over a concatenation
+    keeps its first operand (F85).
+  - A merge has no form that runs over a chain (F86). Two `ModelChainConnection`s in one runtime are refused ("not
+    supported yet"), so neither a chain of two M2M steps nor a merge inside the chain runs either.
+
+  Each service uses the form its feature runs in.
+- **Expected results by invariance.** Each M2M service (`MX_`) mirrors a relational twin (`MXR_`) over the source
+  classes that computes the same values in SQL: a derived or qualified property, a function applied in the query,
+  the source's own relational enumeration mapping, or the same graph tree over the source. `m2m.py` builds the pairs,
+  each a group in `battery.INVARIANCE_GROUPS`, and `build.py` fails if a pair's sides ever expect different rows.
+  The oracle evaluates only the twins.
+- **The services.** 49 M2M services and 41 twins. `99-m2m-services.pure` holds what lite loads: 34 `MX_` and 40
+  twins, with M1 and M2. `94-gap-services.pure` holds the 15 `MX_` over mappings lite excludes (below) and the local
+  property's twin.
+- **Lite's two refusals (the user's choice, 2026-10-30).** lite refuses an M2M enumeration transform ("a roadmap
+  feature", raised as a strict model error) and a complex property passthrough ("targets unmapped class") when it
+  builds the model, and either one stopped its whole corpus loading. Asked, the user chose to exclude them rather than
+  defer them in lite. Their sets and target classes are in `8115-m2m-gaps.pure`, which `StressExclusions` excludes,
+  each refusal with a case in `LegendLiteGapTest`; their 13 services are in `94-gap-services.pure`, excluded with it,
+  and their twins run in both engines. Eleven more query shapes over what lite loads (filters on a date, on a
+  transform through map, on a conditional, on an absent transform and on a function's transform; a filter, a cut and
+  a group on derived source properties; a filter through the `$src` nested set; a cut over each `~filter`ed target)
+  keep more than 30 engine-passing M2M services there.
+- **The local property.** `75-surface-gaps.pure`'s `+localTag` gets a relational source mapping (`GapSrc` over GAP),
+  a chain, a connection and runtimes, and its value is computed from the source (`$src.v->map(s | $s->toLower())`,
+  where it was the constant 'from-m2m'), so a twin computes it too. Its two services and twin are in
+  `94-gap-services.pure`; both pass on the engine.
+- **Readers and writers.** `model.py` reads an enumeration mapping's unquoted integer as an Integer source value (the
+  INTEGER column's value had matched nothing). `emit.py` writes a TDS's sort and cut in its own spelling
+  (`sort([desc('a'), asc('b')])`, `take(n)`); no TDS spec had sorted. `spread.py` takes no template over a class no
+  table maps. The pack's names avoid the short names the deep generators disambiguate by (`org::Desk`,
+  `typedvalues::Grade`); with them the deep stacks are unchanged. `spread.py`'s coverage baseline grew with the twins,
+  so it now selects `SP_defExposureLineGraph` where it selected `SP_defReportableLineGraph`, and orders two others
+  differently. `executed.py` ratchets eleven M5 features: chained relational, transform, derived source property,
+  enumeration transform, nested set, passthrough, target instantiation, `~filter`, union, transform over a to-many,
+  local property.
+- **F84 to F87, new, each with a repro** (`scripts/corpus/repro/m2m-*`):
+  - F84: fetched as a graph over a chain, a source's derived property reads as absent (`MX_TradeRefTree`).
+  - F85: `^Class(prop = a + b).prop` answers `a`, on a JSON source too (`MX_TradeStampJoined`).
+  - F86: a merge over a chain fails at test setup (`MX_PartyProfileTree`).
+  - F87: an absent code's enumeration transform, projected, answers '' (`MX_PartyGrade`).
+
+  F12 gains a note: an object passed through to a graph fetch keeps its enumeration mapping's translation
+  (`MX_TradeLinkTier` passes).
+- **The engine verdict.** A model moved between files, so the whole corpus ran (112 minutes, beside the gate): 5,787
+  pass, 105 known-fail, 1 not run (F15), 0 unexpected, of 5,893 testables. 45 `MX_` pass and 4 are known-fail under
+  F84 to F87; with M1, 46 M2M services pass, 32 of them in what lite loads.
+- **Lite.** DuckDB 5,479 to 5,519 and H2 5,403 to 5,443, on each a rise of exactly the 40 twins it loads. Every
+  M2M service lite loads, the 34 `MX_` with M1 and M2, runs and fails on one lite gap: the test runtime it builds
+  (`m2m::ViewsRT$test$1`) loses the chain's mapping ("has 0 mappings binding class 'm2m::src::Deal'"); the merge
+  fails as an implicit union, Phase 7's bucket. Both `MIN_PASS` rose, each with a dated note.
+- **The gate:** 397 pass and 2 are skipped. 66 fail on this desk alone, none depending on a changed file: 58 diff
+  tests (the stress corpus's 18 equal to Bazel's output ignoring CR, the rest the desk's `fc.exe` path-case and CR
+  false reds) and 8 datacube browser timeouts beside the engine run, 5 of which pass alone. The corpus gates pass
+  (scoreboard, executed, stacking, density, functions). With `MIN_PASS` raised, both stress suites pass again.
+
+**Phase 5 done (2026-10-30).** At least 30 M2M services pass on the engine and lite runs them, and the five features
+are covered. The measures come from the report's `tools/run.sh` at the pin, given the whole run's pass list:
+
+- **M2M services lite runs rather than skips: 36** (target 30; 0 before the phase), every one failing on lite's
+  chain gap above. 32 of them pass on the engine. lite skips 15 more, the ones over the mappings it refuses (13 in
+  `8115-m2m-gaps.pure`, 2 over 75's local property).
+- **The features, as services that pass on the engine with rows:**
+  - m2m-transform: 47
+  - m2m-chained-relational: 47
+  - m2m-derived-source-property: 4
+  - m2m-complex-property-passthrough: 3
+  - m2m-target-instantiation: 1
+  - m2m-local-property: 2
+
+  None of them passes in lite. The report branch's `profile.py` now finds an M2M set chained through a runtime's
+  `ModelChainConnection` (before, only a source mapped in the service's own mapping counted), a transform that reads a
+  derived property of its source, and a class-typed property passed through with no set. Its `lib.py` now walks a
+  TDS projection's and groupBy's lambdas, which travel in a collection; it had resolved no path in a TDS projection,
+  so M1 counted for no transform. With that fix, m2m-transform counts 47 rather than 28, m2m-derived-source-property
+  4 rather than 1, and m2m-local-property 2 rather than 1. A handful of other features gained a TDS service
+  (grammar:enumeration and enumeration-mapping 3 each on the engine, dynafunction-property 1); EMIT's totals did not
+  move. `matrix.py`'s declared column is re-counted for the M2M rows: 23 class mappings, 75 property mappings, 3
+  `ModelChainConnection`s.
+- **Features in the model that no service reaches (○): 1** (2 before), `store:relational-semistructured` (Phase 9's).
+  `mapping:m2m-local-property` is reached on the engine; lite excludes its file.
+- **EMIT 53 of 109 on the engine and 43 in lite** (51 and 43 before): m2m-derived-source-property and
+  m2m-local-property count on the engine alone. m2m-chained-relational, m2m-target-instantiation and
+  m2m-complex-property-passthrough are not in the pinned taxonomy.
+- PCT 162 of 321 (161 before).
+- **The engine's standing verdict**: 5,787 pass, 105 known-fail, 1 not run (F15), 0 unexpected, of 5,893 testables.
+  Phase 5 added 90 services (49 M2M and 41 twins).
+- **Lite**: 5,519 tests pass on DuckDB and 5,443 on H2 (5,479 and 5,403 before the phase).
+- **Left open:** lite's chain gap, which every M2M service it loads meets, and its two refusals (the enumeration
+  transform and the passthrough). A merge over relational data has no form the pinned engine runs (F86).
+
 ### Phase 6: relation (`~func`) mappings (about 5 days, about 40 services)
 
 Report §3 and §7. One of the 13 relation-mapping features is covered.
@@ -1425,7 +1541,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 2 | 2026-10-27 | — | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 3 | 2026-10-28 | — | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
 | 4 | 2026-10-28 | 2026-10-29, six stages | stage 1 (`0bb5fca71`) 0; stage 2 (`b9f0d212c`) 258; stage 3 (`94c3f5a0c`) 77; stage 4 (`939d4c40b`) 40; stage 5 (`0496e6966`) 64; D8 reversed (`5cabca0a4`) 0; stage 6 (`880243bbb`) 49 | 25 vocabulary services under F35, F38, F68, F71-F74 (stage 2); 30 under F75 and F76, 24 of them deep-stack totals whose expectation moved to Pure's 0 (stage 3); 2 under F37 and F77 (stage 4); 5 under F78 and F79 (stage 5); F75 withdrawn with D8's reversal, its 28 services out (2026-10-29); 8 under F68, F80, F81 and F82 (stage 6); F37's property-mapping half withdrawn, `F37_SubstringSql` out (`12795b348`); F68-F82 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's), an aggregate over nothing as SQL's NULL (F76's; F75's withdrawn), `last` and `wavgRowMapper` in a groupBy, `substring(start)` one-based in an `extend`, `olapGroupBy`'s ranking `func`, `parseDecimal` as DECIMAL(5,2), `sum` over no trades as NULL (F82's); on H2 alone, functions the dialect lacks (`MAKE_DATE`, `greatest`/`least` over a list), a non-ISO `weekOfYear`, a Sunday-first `firstDayOfWeek`, `AVG` of integers to eleven digits, and `regexpReplace` refusing `replaceAll` or replacing every match for the first | platform functions in service queries 183 (178 on the engine, 165 in lite); PCT 161 of 321; EMIT 45 of 109 on the engine, 39 in lite |
-| 5 | — | — | — | — | — | — |
+| 5 | 2026-10-30 | 2026-10-30, one stage | stage 1 (`fd92254d6`) 90: 49 M2M services and 41 relational twins; M1 and M2 moved where lite loads them | F84-F87 found, each with a repro (4 services: `MX_TradeRefTree`, `MX_TradeStampJoined`, `MX_PartyProfileTree`, `MX_PartyGrade`) | the test runtime losing the `ModelChainConnection`'s mapping (every M2M service lite loads, 36); refused at model build, so excluded with their file (the user's choice): an M2M enumeration transform and a complex property passthrough (`8115-m2m-gaps.pure`, 13 services) | M2M services lite runs 36, 32 of them passing on the engine; passing on the engine m2m-transform 47, m2m-chained-relational 47, m2m-derived-source-property 4, m2m-complex-property-passthrough 3, m2m-target-instantiation 1, m2m-local-property 2; features no service reaches 1 (relational-semistructured); EMIT 53 of 109 on the engine, 43 in lite; PCT 162 of 321 |
 | 6 | — | — | — | — | — | — |
 | 7 | 2026-10-29 | 2026-10-29, three stages | stage 1 (`3ab506f9a`) 120; stage 2 (`bdd36b575`) 12; stage 3 (`a9e19fe1f`) 31 | F83 found, with a repro: a literal list in a relational property mapping or a join fails at test setup (3 services: `UO_LiteralListCoalesce`, `UO_LiteralListIn`, `UJ_JoinArrayArg`) | a literal list over an optional column; the merge, a class mapped by several sets, read as an implicit union; a runtime holding two mappings that bind one class; a join's `!=` or `<>` over a NULL read as Pure's `not(equal(...))` | features no service reaches 2 (m2m-local-property, relational-semistructured); unused joins 0 of 386; EMIT 51 of 109 on the engine, 43 in lite; PCT 161 of 321 |
 | 8 | — | — | — | — | — | — |

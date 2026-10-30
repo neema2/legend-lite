@@ -242,6 +242,15 @@ class Walk:
                         env2[lp[0].get('name')] = recv_t
                         self.walk(p, env2, depth, node)
                         continue
+                # A legacy TDS projection's or groupBy's lambdas travel in a collection, `project([x|$x.a], ['a'])`,
+                # `groupBy([x|$x.k], [agg(x|$x.v, y|$y->sum())], ...)`: each is over the receiver's class too. Walked
+                # unbound, no path in a TDS projection resolved (added 2026-10-30, the improvement plan's Phase 5).
+                if (isinstance(p, dict) and p.get('_type') == 'collection' and recv_t
+                        and any(self.binds(v) for v in p.get('values') or [])):
+                    self.collections += 1
+                    for v in p.get('values') or []:
+                        self.walk_bound(v, env, depth, p, recv_t)
+                    continue
                 if isinstance(p, dict) and p.get('_type') == 'classInstance' and recv_t:
                     self.class_instance(p, env, depth, recv_t)
                     continue
@@ -259,6 +268,32 @@ class Walk:
         for k, v in node.items():
             if isinstance(v, (dict, list)):
                 self.walk(v, env, depth, node)
+
+    @staticmethod
+    def binds(v):
+        """A lambda over the receiver, or an `agg` whose first argument is one."""
+        if not isinstance(v, dict):
+            return False
+        if v.get('_type') == 'lambda':
+            return True
+        ps = v.get('parameters') or []
+        return v.get('_type') == 'func' and v.get('function') == 'agg' and bool(ps) and ps[0].get('_type') == 'lambda'
+
+    def walk_bound(self, v, env, depth, parent, recv_t):
+        """Walk one value of a TDS collection, its lambda's parameter bound to the receiver's class."""
+        if isinstance(v, dict) and v.get('_type') == 'func' and v.get('function') == 'agg':
+            self.funcs['agg'] += 1
+            ps = v.get('parameters') or []
+            self.walk_bound(ps[0], env, depth, v, recv_t)
+            self.walk(ps[1:], env, depth, v)
+            return
+        lp = (v.get('parameters') or []) if isinstance(v, dict) and v.get('_type') == 'lambda' else []
+        if lp:
+            env2 = dict(env)
+            env2[lp[0].get('name')] = recv_t
+            self.walk(v, env2, depth, parent)
+        else:
+            self.walk(v, env, depth, parent)
 
     def class_instance(self, node, env, depth, recv_t):
         ty = node.get('type')

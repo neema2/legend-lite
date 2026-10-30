@@ -39,6 +39,32 @@ DB = {fp(d): d for d in dbs}
 CONN = {fp(e): e for e in E if e['_type'] == 'connection'}
 RT = {fp(e): e for e in E if e['_type'] == 'runtime'}
 
+
+def chain_mappings(rt):
+    """The mappings the ModelChainConnections of a runtime name. An M2M set's source class is mapped there, not in the
+    service's mapping, when the M2M mapping is chained to its source through the runtime (added 2026-10-30, the
+    improvement plan's Phase 5: m2m::SourceChain, stress::TradeChain, surface::GapChain)."""
+    out = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            if 'chain' in str(o.get('_type') or '').lower() and isinstance(o.get('mappings'), list):
+                out.extend(m if isinstance(m, str) else (m or {}).get('path') for m in o['mappings'])
+            for v in o.values():
+                if isinstance(v, str) and v in CONN:
+                    walk(CONN[v].get('connectionValue') or {})
+                else:
+                    walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(RT.get(rt) or {})
+    return [m for m in out if m]
+
+
+# the chained mappings of the service being profiled (set per service below)
+CHAIN = []
+
 # ------------------------------------------------------------------ store facts
 table_facts = {}   # (db, schema, table) -> set(features)
 view_names = set()
@@ -286,14 +312,37 @@ def set_feats(s, m, feats, tables):
         if s.get('filter'):
             feats.add('x-mapping:m2m-filter')
         src = s.get('srcClass')
-        if src and root_set(m, src) is not None and root_set(m, src).get('_type') == 'relational':
+        if src and any(root_set(x, src) is not None and root_set(x, src).get('_type') == 'relational'
+                       for x in [m] + CHAIN):
             feats.add('mapping:m2m-chained-relational')
     elif t == 'relation':
         feats.add('scaffolding:relation-mapping')
         feats.add('scaffolding:relation-function')
 
 
-def prop_feats(pm, feats, tables, m, db_hint):
+def reads_derived(transform, src_cls):
+    """Whether an M2M transform reads a derived or qualified property of its source class, `$src.ref` where the source
+    declares `ref() { ... }` (EMIT's m2m-derived-source-property; added 2026-10-30, the improvement plan's Phase 5)."""
+    found = []
+
+    def walk(o):
+        if isinstance(o, dict):
+            ps = o.get('parameters') or []
+            if (o.get('_type') == 'property' and ps and isinstance(ps[0], dict) and ps[0].get('_type') == 'var'
+                    and ps[0].get('name') == 'src'):
+                info = lookup(src_cls, o.get('property'))
+                if info and info[2] in ('derived', 'qualified'):
+                    found.append(o.get('property'))
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(transform)
+    return bool(found)
+
+
+def prop_feats(pm, feats, tables, m, db_hint, src_cls=None):
     t = pm.get('_type')
     if pm.get('localMappingProperty'):
         feats.add({'relationalPropertyMapping': 'x-mapping:relational-local-property',
@@ -332,6 +381,14 @@ def prop_feats(pm, feats, tables, m, db_hint):
             feats.add('mapping:m2m-target-instantiation')
         if pm.get('explodeProperty'):
             feats.add('x-mapping:m2m-explode')
+        # added 2026-10-30, the improvement plan's Phase 5
+        if src_cls and reads_derived(pm.get('transform'), src_cls):
+            feats.add('mapping:m2m-derived-source-property')
+        prop = pm.get('property') or {}
+        info = lookup(prop.get('class'), prop.get('property')) if prop.get('class') else None
+        # a class-typed property mapped with no set of its own and none for its class: the source object passes through
+        if info and info[0] in classes and not pm.get('target') and root_set(m, info[0]) is None:
+            feats.add('mapping:m2m-complex-property-passthrough')
     elif t == 'relationFunctionPropertyMapping':
         pass
 
@@ -383,6 +440,7 @@ for s in services:
     else:
         mp = ex.get('mapping')
     lam = ex.get('func') or {}
+    CHAIN[:] = chain_mappings((ex.get('runtime') or {}).get('runtime')) if ex.get('_type') == 'pureSingleExecution' else []
     if lam.get('parameters'):
         feats.add('execution:service-parameter')
     if s.get('postValidations'):
@@ -471,7 +529,7 @@ for s in services:
                 pm, owner = pm_in(cur_set, pname, mp)
                 db_hint = ((cur_set.get('mainTable') or {}).get('database'))
                 if pm is not None:
-                    prop_feats(pm, feats, tables, mp, db_hint)
+                    prop_feats(pm, feats, tables, mp, db_hint, (owner or cur_set).get('srcClass'))
                     if pm.get('_type') in ('embeddedPropertyMapping', 'otherwiseEmbeddedPropertyMapping'):
                         nxt_set = dict(pm.get('classMapping') or {})
                         nxt_set['_type'] = 'embedded'
@@ -531,7 +589,7 @@ for s in services:
                     pm, owner = pm_in(cur_set, pname, mp)
                     db_hint = (cur_set.get('mainTable') or {}).get('database')
                     if pm is not None:
-                        prop_feats(pm, feats, tables, mp, db_hint)
+                        prop_feats(pm, feats, tables, mp, db_hint, (owner or cur_set).get('srcClass'))
                     else:
                         by_class, by_id, assoc_pm, _ = index(mp)
                         for am, apm in assoc_candidates(assoc_pm, cls, pname, cur_set):
