@@ -3232,6 +3232,7 @@ TEST_IMPORTS = {
         "src/format-code.ts",
         "src/format.ts",
         "src/generate-rows.ts",
+        "src/generated/library-enums.ts",
         "src/generated/offer-facts.ts",
         "src/grid-commands.ts",
         "src/grid-edits.ts",

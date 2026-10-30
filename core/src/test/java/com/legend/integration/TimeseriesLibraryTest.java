@@ -4,7 +4,6 @@
 package com.legend.integration;
 
 import com.legend.Compiler;
-import com.legend.TypedQuery;
 import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testbackend.TestBackend;
@@ -109,11 +108,11 @@ class TimeseriesLibraryTest {
     /** {@code query}'s rows on {@code backend}, each by its column's name: a value's text, or null where it has none. */
     private static List<Map<String, String>> rows(TestBackend backend, String query) throws Exception {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(backend)), query)
-                .executionPlan("ts::RT", TypedQuery.Output.CSV);
+                .executionPlan("ts::RT");
         String text;
         try (Connection c = backend.open()) {
             seed(backend, c);
-            text = PlanCases.run(plan, c);
+            text = PlanCases.write(plan, c, Map.of(), PlanCases.Written.CSV::writer);
         }
         List<String> lines = new ArrayList<>(Arrays.asList(text.split("\r\n")));
         List<String> header = Arrays.asList(lines.remove(0).split(",", -1));
