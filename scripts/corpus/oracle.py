@@ -300,8 +300,8 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None,
         if len(path) > 1:
             prefix, _t = c.owner_hops(root, path[:-1])
             base = walk(c, data, row, prefix)
-        return _dynafunction(fn, [_arg_value(c, data, base, owner, path[-1], a)
-                                  for a in fnargs])
+        # As a call nested in another is: one rule for an ARRAY argument, spread for coalesce alone
+        return _arg_value(c, data, base, owner, path[-1], ("call", (fn, fnargs)))
     chain = c.chains.get((owner, path[-1]))
     if chain is not None:
         return _chain_value(c, data, row, root, path, chain)
@@ -448,7 +448,9 @@ def _arg_value(c: Corpus, data, base, owner: str, prop: str, node):
             # An ARRAY argument is spread only for the functions where that is what it
             # MEANS. coalesce([a, b]) is coalesce(a, b); `in(x, [a, b])` is not `in(x, a, b)`,
             # so spreading blindly would quietly change the call.
-            if isinstance(a, tuple) and a[0] == "array":
+            if isinstance(a, tuple) and a[0] == "array" and fn == "in":
+                vals.append(v)        # the list `in` tests against, whole
+            elif isinstance(a, tuple) and a[0] == "array":
                 if fn != "coalesce":
                     raise Unsupported(
                         f"{fn}() takes an ARRAY argument and the oracle only knows how to "
@@ -2501,7 +2503,17 @@ def _rows_for(c: Corpus, root: str, data: dict[str, list[dict]]) -> list[dict]:
     """
     members = c.unions.get(root)
     if members:
-        return [r for m in members for r in data[m]]
+        # A member answers nothing for a property its own set does not map, whatever its row holds there: a merge's
+        # two sets each map half of the class, and legend-engine's router reads a merge as its sets, a union's way
+        # (router_operations.pure), so each side's other half is absent (the improvement plan's Phase 7).
+        props = c.union_props.get(root) or [None] * len(members)
+        cols = c.columns.get(root, {})
+        out = []
+        for m, mapped in zip(members, props):
+            read = {cols[p] for p in mapped or () if p in cols}
+            blank = {cols[p]: None for p in cols if mapped and p not in mapped and cols[p] not in read}
+            out += [{**r, **blank} for r in data[m]] if blank else data[m]
+        return out
     return data[c.main_table[root]]
 
 
@@ -3423,7 +3435,7 @@ def render(value, kind: str):
 # here is type-preserving (toUpper, trim, abs, coalesce, plus...), which is why the map is
 # short rather than 228 entries long: only the exceptions have to be stated.
 DYNA_RETURN = {"length": "int", "sign": "int", "sqrt": "float",
-               "isNull": "bool", "isNotNull": "bool"}
+               "isNull": "bool", "isNotNull": "bool", "in": "bool"}
 
 
 def _node_kind(c: Corpus, owner: str, node) -> str:
@@ -3436,6 +3448,9 @@ def _node_kind(c: Corpus, owner: str, node) -> str:
         return c.tables[body[1]].columns[body[2]].kind
     if tag == "call":
         return _dyna_kind(c, owner, body)
+    if tag == "array" and body:
+        # a literal list, `coalesce([a, b])`: typed by its first element, as a call by its first argument
+        return _node_kind(c, owner, body[0])
     raise Unsupported(f"cannot type dynafunction argument {tag!r}")
 
 

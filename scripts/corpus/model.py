@@ -444,6 +444,9 @@ class Corpus:
     # (class, property) -> ([join names in order], target table, target column) for a
     # property mapped through a JOIN CHAIN rather than a column of the main table.
     chains: dict[tuple[str, str], tuple[list[str], str, str]] = field(default_factory=dict)
+    # (class, property) mapped by a join chain ENDING IN AN EXPRESSION, `@J1 > @J2 | fn(...)`: its entry is in `dyna`,
+    # the call over the chain's columns (rhs.py)
+    chain_exprs: set[tuple[str, str]] = field(default_factory=set)
 
     # (class, property) the reader saw but cannot model -- join chains, Binding transformers.
     # Visible so a service using one fails with a reason rather than a mystery.
@@ -460,6 +463,15 @@ class Corpus:
     enum_props: dict[tuple[str, str], str] = field(default_factory=dict)
     # class fqn -> the member TABLES of an Operation union mapping, in declared order
     unions: dict[str, list[str]] = field(default_factory=dict)
+    # class fqn -> the properties each member SET maps, in the order of `unions`. A member answers nothing for a
+    # property its own set does not map: a merge's two sets each map half of the class (74-surface-last.pure), and
+    # reading the row's every column would answer a value where the set maps none.
+    union_props: dict[str, list[set[str]]] = field(default_factory=dict)
+    # set id -> the properties its class mapping maps (the improvement plan's Phase 7)
+    set_props: dict[str, set[str]] = field(default_factory=dict)
+    # class fqn -> the mapping whose Operation set is `inheritance()`: resolved, once every mapping is read, to the
+    # class's mapped leaf subtypes (legend-engine's meta::pure::router::operations::inheritance)
+    inheritance_ops: dict[str, str] = field(default_factory=dict)
     views: dict[str, View] = field(default_factory=dict)
     # store filter name -> (table, column, op, literal)
     filters: dict[str, tuple[str, str, str, object]] = field(default_factory=dict)
@@ -782,6 +794,9 @@ _UNION = re.compile(r"(?:special_|)(?:union|inheritance)"
                     r"_OperationSetImplementation_1__SetImplementation_MANY_"
                     r"\s*\(([^)]*)\)")
 _COLMAP = re.compile(r'(\w+)\s*:\s*\[[\w:]+\]\s*(?:\w+\.)?(\w+|"[^"]+")\.(\w+|"[^"]+")')
+# Every property mapping's head on a line inside a set, `prop: ...` (not a qualified name's `pkg::`; several heads
+# share a line in most of the corpus's mappings), for union_props.
+_SET_PROP = re.compile(r"(?:^|,)\s*\+?(\w+)\s*(?:\[[^\]]*\])?\s*:(?!:)")
 # `+name: Type[mult]: [db]TABLE.COL` -- a LOCAL property, declared in the mapping rather than
 # on the class. Three of them were in the corpus and the reader recorded none: not as a
 # column, not as a chain, not even in `unparsed`. So nothing could project one, and nothing
@@ -798,8 +813,12 @@ _LOCALPROP = re.compile(
 # transform into a copy, which the oracle would then agree with for the wrong reason.
 # `prop: fn(` -- the ANCHOR for a dynafunction property mapping. Only the head is matched
 # by pattern; the extent of the call is found by balancing parentheses and the contents are
-# parsed by rhs.py, because the argument list can nest and can mix chains with columns.
-_CALL_START = re.compile(r"(\w+)\s*:\s*(\w+)\s*\(")
+# parsed by rhs.py, because the argument list can nest and can mix chains with columns. The call
+# may be DB-SCOPED, `prop: [db]fn(...)` (71-operation-surface.pure writes one).
+_CALL_START = re.compile(r"(\w+)\s*:\s*(?:\[[\w:]+\]\s*)?(\w+)\s*\(")
+# `prop: [db]@J1 > @J2 | fn(` -- the anchor for a join chain ENDING IN AN EXPRESSION (71-operation-surface.pure writes
+# one), read by rhs.py as the call over the chain's columns.
+_CHAIN_CALL_START = re.compile(r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:]*?\|\s*(?:\[[\w:]+\]\s*)?\w+\s*\()")
 # A property mapping whose right-hand side this reader has no rule for: a join chain
 # (`prop: @A > @B | T.col`), a Binding transformer, an embedded block opener.
 # `prop: [db]@J1 > @J2 | [db]T.COL` -- a JOIN CHAIN property mapping. The value comes from a
@@ -1460,6 +1479,8 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         line = _strip(raw)
         if not line.strip():
             continue
+        if cur is not None and cur_id and not in_assoc:
+            c.set_props.setdefault(cur_id, set()).update(_SET_PROP.findall(line))
 
         m = _ENUMMAP_HEAD.match(line)
         if m:
@@ -1506,7 +1527,14 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     f"{op_buf.strip()!r}. An unrecognised operation body falls through to "
                     f"the property parser, which reads its qualified name as a property.")
             ids = [i.strip(" []") for i in m_op.group(1).split(",") if i.strip(" []")]
+            if not ids and "inheritance_OperationSetImplementation" in op_buf:
+                # `inheritance()` names no sets: the router resolves the class's mapped leaf subtypes, so it is
+                # resolved in load(), once every mapping has been read
+                c.inheritance_ops[cur_op] = mapping_name or ""
+                cur_op, op_buf = None, ""
+                continue
             c.unions[cur_op] = [set_tables[i] for i in ids if i in set_tables]
+            c.union_props[cur_op] = [c.set_props.get(i, set()) for i in ids if i in set_tables]
             cur_op, op_buf = None, ""
             continue
         m = _CLSMAP.match(line)
@@ -1794,6 +1822,15 @@ def _value_forms(line: str, c: "Corpus", owner: str, tbl: str,
     copies of "how a property mapping is written" is one copy too many.
     """
     while True:
+        m = _CHAIN_CALL_START.search(line)
+        if m is None:
+            break
+        close = rhs.find_call(line, m.end() - 1)
+        _tag, call = rhs.parse(line[m.start(2):close + 1], default_table=bare)
+        c.dyna[(owner, m.group(1))] = call
+        c.chain_exprs.add((owner, m.group(1)))
+        line = line[:m.start(1)] + line[close + 1:]
+    while True:
         m = _CALL_START.search(line)
         if m is None:
             break
@@ -1995,8 +2032,40 @@ def load() -> Corpus:
                 if owner == parent and (cls, prop) not in c.embedded:
                     c.embedded[(cls, prop)] = child
             parent = c.classes[parent].supertype if parent in c.classes else None
-
+    _resolve_inheritance_ops(c)
     return c
+
+
+def _resolve_inheritance_ops(c: Corpus) -> None:
+    """An `inheritance()` Operation set reads every mapped LEAF subtype of its class, as legend-engine's router does
+    (meta::pure::router::operations::getMappedLeafTypes): a union of the leaves' tables, the parent's properties read
+    through the columns every leaf maps them to. Leaves that disagree on a column are refused rather than guessed."""
+    for parent in sorted(c.inheritance_ops):
+        subs = [k for k in c.classes if k != parent and parent in _ancestors(c, k)]
+        leaves = sorted(k for k in subs if k in c.main_table
+                        and not any(o != k and k in _ancestors(c, o) and o in c.main_table for o in subs))
+        if not leaves:
+            raise ValueError(f"{parent}: inheritance() resolves no mapped leaf subtype")
+        ids = {cls: sid for sid, cls in c.setid_class.items()}
+        c.unions[parent] = [c.main_table[k] for k in leaves]
+        c.union_props[parent] = [c.set_props.get(ids.get(k, ""), set()) for k in leaves]
+        props = c.classes[parent].props if parent in c.classes else {}
+        for p in props:
+            cols = {c.columns.get(k, {}).get(p) for k in leaves}
+            if len(cols) != 1 or None in cols:
+                raise ValueError(f"{parent}.{p}: its leaves {leaves} read it from {sorted(map(str, cols))}")
+            c.columns.setdefault(parent, {})[p] = cols.pop()
+        c.main_table.setdefault(parent, c.unions[parent][0])
+        if c.inheritance_ops[parent]:
+            c.declared_in.setdefault(parent, c.inheritance_ops[parent])
+
+
+def _ancestors(c: Corpus, cls: str) -> set[str]:
+    out, cur = set(), c.classes[cls].supertype if cls in c.classes else None
+    while cur and cur not in out:
+        out.add(cur)
+        cur = c.classes[cur].supertype if cur in c.classes else None
+    return out
 
 
 # ---------------------------------------------------------------- self-check

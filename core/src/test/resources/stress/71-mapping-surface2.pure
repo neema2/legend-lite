@@ -1,73 +1,11 @@
-// The remaining MAPPING-DSL constructs: Operation set implementations, the Pure/M2M forms,
-// and the Relation (function-based) mapping.
+// The remaining MAPPING-DSL constructs: the Pure/M2M forms, and the Relation (function-based) mapping. The Operation
+// set implementations moved to 71-operation-surface.pure on 2026-10-29 (the improvement plan's Phase 7), where lite
+// loads them and services reach them; this file stays excluded for the M2M explosion below.
 ###Pure
-Class surface::Op { k: String[1]; v: String[0..1]; }
 Class surface::SrcA { k: String[1]; v: String[0..1]; note: String[0..1]; parts: String[*]; }
 Class surface::M2M { k: String[1]; v: String[0..1]; part: String[0..1]; }
 
-###Relational
-Database surface::OpDB
-(
-   Table OP_A ( K VARCHAR(64) PRIMARY KEY, V VARCHAR(64), NEXT_K VARCHAR(64) )
-   Table OP_B ( K VARCHAR(64) PRIMARY KEY, V VARCHAR(64) )
-   Table OP_C ( K VARCHAR(64) PRIMARY KEY, V VARCHAR(64) )
-   Join opA_opB(OP_A.NEXT_K = OP_B.K)
-   Join opB_opC(OP_B.K = OP_C.K)
-)
-
 ###Mapping
-Mapping surface::OperationSurface
-(
-   surface::Op[opA]: Relational
-   {
-      ~mainTable [surface::OpDB]OP_A
-      k: [surface::OpDB]OP_A.K,
-      // A NULL TEST as a mapped value, and a DB-SCOPED dynafunction call.
-      v: [surface::OpDB]coalesce([[surface::OpDB]OP_A.V, [surface::OpDB]OP_A.K])
-   }
-
-   surface::Op[opB]: Relational
-   {
-      ~mainTable [surface::OpDB]OP_B
-      k: [surface::OpDB]OP_B.K,
-      // A join chain terminated by an EXPRESSION rather than a column.
-      v: [surface::OpDB]@opB_opC | equal([surface::OpDB]OP_C.V, [surface::OpDB]OP_C.K)
-   }
-
-   surface::Op[opC]: Relational
-   {
-      ~mainTable [surface::OpDB]OP_C
-      k: [surface::OpDB]OP_C.K,
-      v: [surface::OpDB]OP_C.V
-   }
-
-   // The two Operation forms the corpus never used. `union` it had; these it did not.
-   *surface::Op[opSpecial]: Operation
-   {
-      meta::pure::router::operations::special_union_OperationSetImplementation_1__SetImplementation_MANY_(opA, opB)
-   }
-)
-
-Mapping surface::InheritanceSurface
-(
-   surface::Op[iA]: Relational
-   {
-      ~mainTable [surface::OpDB]OP_A
-      k: [surface::OpDB]OP_A.K,
-      v: [surface::OpDB]OP_A.V
-   }
-   surface::Op[iB]: Relational
-   {
-      ~mainTable [surface::OpDB]OP_B
-      k: [surface::OpDB]OP_B.K,
-      v: [surface::OpDB]OP_B.V
-   }
-   *surface::Op[iRoot]: Operation
-   {
-      meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_(iA, iB)
-   }
-)
-
 Mapping surface::PureSurface
 (
    surface::M2M: Pure

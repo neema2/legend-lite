@@ -396,7 +396,8 @@ def generate() -> dict[Path, str]:
         results.append((s, "expected_rows", expected))
         nulls = sum(1 for r in expected for v in r.values() if v is None)
         unreached_svc.append(emit.service(s, expected, f"{len(expected)} rows; {nulls} absent cells."))
-    unreached_text = UNREACHED_HEADER + "\n###Service\n" + "\n\n".join(unreached_svc) + "\n"
+    unreached_text = (UNREACHED_HEADER + "\n" + unreached.data_elements(c, TABLES) + "\n\n"
+                      + "###Service\n" + "\n\n".join(unreached_svc) + "\n")
 
     # Rule 4 of the improvement plan: an empty or hollow expected result only in a declared
     # emptiness family (emptiness.py).

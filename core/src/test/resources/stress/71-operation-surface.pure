@@ -1,0 +1,174 @@
+// The mapping DSL's Operation forms and its literal lists, with rows and services (the improvement plan's Phase 7,
+// docs/STRESS_CORPUS_PLAN_2026_10_19.md). They lived in 71-mapping-surface2.pure, which lite excludes for an M2M
+// construct of its own, so the engine compiled them and no service reached them; moved here 2026-10-29. The rows are
+// the seed's (OP_CAR and OP_TRUCK in seed.py, the others the expansion's); the services are scripts/corpus/unreached.py's
+// UO_.
+###Pure
+// A profile of the corpus's own, on the classes these services reach (EMIT's grammar:profile): a stereotype and a
+// tagged value on a class, and both on a property. They change no answer; what is tested is that a model carrying
+// them still compiles, routes and executes.
+Profile surface::OpGovernance
+{
+   stereotypes: [routed, audited];
+   tags: [owner, reviewedOn];
+}
+
+Class <<surface::OpGovernance.routed>> {surface::OpGovernance.owner = 'ops-surface'} surface::Op
+{
+   k: String[1];
+   <<surface::OpGovernance.audited>> {surface::OpGovernance.reviewedOn = '2026-10-29'} v: String[0..1];
+}
+
+// The inheritance dispatch's hierarchy. The parent has no table of its own: its set is `inheritance()`, which
+// legend-engine resolves at routing time to the mapped leaf subtypes (meta::pure::router::operations::inheritance
+// reads the class's specializations and ignores any parameters -- the form 71-mapping-surface2.pure had,
+// `inheritance(iA, iB)` over two sets of a class with no subtypes, routed to nothing).
+Class surface::OpVehicle
+{
+   k: String[1];
+   label: String[0..1];
+}
+
+Class surface::OpCar extends surface::OpVehicle
+{
+   doors: Integer[0..1];
+}
+
+Class surface::OpTruck extends surface::OpVehicle
+{
+   payload: Integer[0..1];
+}
+
+// Literal lists in property mappings: a list as a dynafunction's one argument, and as the list `in` tests against.
+Class surface::OpCode
+{
+   k: String[1];
+   firstOf: String[0..1];
+   listed: Boolean[0..1];
+}
+
+// The two joins of the store as one chain: a row of OP_A to the OP_B its NEXT_K names, and on to the OP_C sharing
+// that key; and the same chain ending in an expression, evaluated on the row it lands on.
+Class <<surface::OpGovernance.audited>> surface::OpLink
+{
+   k: String[1];
+   nextV: String[0..1];
+   nextCode: String[0..1];
+   codeLower: String[0..1];
+}
+
+###Relational
+Database surface::OpDB
+(
+   Table OP_A ( K VARCHAR(64) PRIMARY KEY, V VARCHAR(64), NEXT_K VARCHAR(64) )
+   Table OP_B ( K VARCHAR(64) PRIMARY KEY, V VARCHAR(64) )
+   Table OP_C ( K VARCHAR(64) PRIMARY KEY, V VARCHAR(64) )
+   Table OP_CAR ( K VARCHAR(64) PRIMARY KEY, LABEL VARCHAR(64), DOORS INTEGER )
+   Table OP_TRUCK ( K VARCHAR(64) PRIMARY KEY, LABEL VARCHAR(64), PAYLOAD INTEGER )
+   Join opA_opB(OP_A.NEXT_K = OP_B.K)
+   Join opB_opC(OP_B.K = OP_C.K)
+)
+
+###Mapping
+Mapping surface::OperationSurface
+(
+   surface::Op[opA]: Relational
+   {
+      ~mainTable [surface::OpDB]OP_A
+      k: [surface::OpDB]OP_A.K,
+      v: [surface::OpDB]OP_A.V
+   }
+
+   surface::Op[opB]: Relational
+   {
+      ~mainTable [surface::OpDB]OP_B
+      k: [surface::OpDB]OP_B.K,
+      v: [surface::OpDB]OP_B.V
+   }
+
+   // The ROUTER union: unlike `union`, which is pushed down as one store query, `special_union` is resolved by the
+   // router, which executes each set implementation in its own right and concatenates the results.
+   *surface::Op[opSpecial]: Operation
+   {
+      meta::pure::router::operations::special_union_OperationSetImplementation_1__SetImplementation_MANY_(opA, opB)
+   }
+
+   *surface::OpCode[opCode]: Relational
+   {
+      ~mainTable [surface::OpDB]OP_C
+      k: [surface::OpDB]OP_C.K,
+      // A NULL TEST as a mapped value, over a literal list, and a DB-SCOPED dynafunction call.
+      firstOf: [surface::OpDB]coalesce([[surface::OpDB]OP_C.V, [surface::OpDB]OP_C.K]),
+      listed: in([surface::OpDB]OP_C.K, ['OB-0001', 'OB-0004'])
+   }
+
+   *surface::OpLink[opLink]: Relational
+   {
+      ~mainTable [surface::OpDB]OP_A
+      k: [surface::OpDB]OP_A.K,
+      nextV: [surface::OpDB]@opA_opB | [surface::OpDB]OP_B.V,
+      nextCode: [surface::OpDB]@opA_opB > @opB_opC | [surface::OpDB]OP_C.V,
+      // A join chain terminated by an EXPRESSION rather than a column.
+      codeLower: [surface::OpDB]@opA_opB > @opB_opC | toLower([surface::OpDB]OP_C.V)
+   }
+)
+
+Mapping surface::InheritanceSurface
+(
+   *surface::OpCar[iCar]: Relational
+   {
+      ~primaryKey ( [surface::OpDB]OP_CAR.K )
+      ~mainTable [surface::OpDB]OP_CAR
+      k: [surface::OpDB]OP_CAR.K,
+      label: [surface::OpDB]OP_CAR.LABEL,
+      doors: [surface::OpDB]OP_CAR.DOORS
+   }
+
+   *surface::OpTruck[iTruck]: Relational
+   {
+      ~primaryKey ( [surface::OpDB]OP_TRUCK.K )
+      ~mainTable [surface::OpDB]OP_TRUCK
+      k: [surface::OpDB]OP_TRUCK.K,
+      label: [surface::OpDB]OP_TRUCK.LABEL,
+      payload: [surface::OpDB]OP_TRUCK.PAYLOAD
+   }
+
+   *surface::OpVehicle[iRoot]: Operation
+   {
+      meta::pure::router::operations::inheritance_OperationSetImplementation_1__SetImplementation_MANY_()
+   }
+)
+
+###Connection
+RelationalDatabaseConnection surface::OpConn
+{
+   store: surface::OpDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+}
+
+###Runtime
+Runtime surface::OpRT
+{
+   mappings:
+   [
+      surface::OperationSurface
+   ];
+   connections:
+   [
+      surface::OpDB: [ opEnv: surface::OpConn ]
+   ];
+}
+
+Runtime surface::InheritanceRT
+{
+   mappings:
+   [
+      surface::InheritanceSurface
+   ];
+   connections:
+   [
+      surface::OpDB: [ opEnv: surface::OpConn ]
+   ];
+}

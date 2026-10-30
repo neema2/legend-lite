@@ -21194,6 +21194,17 @@ BOOK += [
          DESCRIPTION="Cash credit and CDS, wound down in 2024", DESK_ID='DSK-CASH'),
 ]
 
+# ---- the inheritance dispatch's leaves (71-operation-surface.pure; the improvement plan's Phase 7) ----
+#
+# The pack's other tables (OP_A, OP_B, OP_C, MG_A, MG_B) take the expansion's rows, which already hold what its
+# services need: a NULL key, an orphan and matching keys on each join, an absent value in each table, and each merge
+# side filling the column its own set does not map. Seeded by hand, they would leave the expansion's candidates and
+# shift every later table's generated values. These two are new, with no join to be expanded across: each holds an
+# absent label, which the dispatch's filter drops.
+OP_CAR = [dict(K="CAR-1", LABEL="Saloon", DOORS=4), dict(K="CAR-2", LABEL=None, DOORS=2),
+          dict(K="CAR-3", LABEL="Estate", DOORS=None)]
+OP_TRUCK = [dict(K="TRK-1", LABEL="Tipper", PAYLOAD=12), dict(K="TRK-2", LABEL=None, PAYLOAD=None)]
+
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,
     "TYPED_VALUE": TYPED_VALUE,
@@ -21202,6 +21213,8 @@ TABLES: dict[str, list[dict]] = {
     "MARK_REVISION_BI": MARK_REVISION_BI,
     "LIMIT_CHECK": LIMIT_CHECK,
     "VALUATION_RUN": VALUATION_RUN,
+    "OP_CAR": OP_CAR,
+    "OP_TRUCK": OP_TRUCK,
     "CFX_CURRENCY_PAIR": CFX_CURRENCY_PAIR,
     "CFX_FIXING_SOURCE": CFX_FIXING_SOURCE,
     "CFX_RATE": CFX_RATE,

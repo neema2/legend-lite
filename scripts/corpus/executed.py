@@ -351,17 +351,34 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     _query_features(specs, quarantined, add)
     _milestoning_features(c, specs, quarantined, add)
     _vocabulary_features(specs, quarantined, add)
-    _unreached_features(specs, quarantined, add)
+    _unreached_features(c, specs, quarantined, add)
     return out
 
 
-def _unreached_features(specs, quarantined: set[str], add) -> None:
+def _unreached_features(c: model.Corpus, specs, quarantined: set[str], add) -> None:
     """Constructs declared but reached by no service before the improvement plan's Phase 7 (unreached.py), executed
     when a passing service reaches them -- held here so a change that stops executing one fails the build (the plan's
     rule 6)."""
     live = [s for s in specs if s.name not in quarantined]
 
     add("U1  DenseMapping respelling", [s.short for s in live if s.mapping == "stress::DenseMapping"])
+    # The literal lists (UO_LiteralList*) have no entry: legend-engine cannot execute one (F83), so no passing service
+    # reaches them.
+    add("U2  router union", [s.short for s in live
+                             if s.mapping == "surface::OperationSurface" and s.root == "surface::Op"])
+    add("U3  inheritance dispatch", [s.short for s in live if s.root in c.inheritance_ops])
+    add("U4  merge operation", [s.short for s in live
+                                if s.mapping == "surface::LastSurface" and s.root == "surface::MergeTgt"])
+
+    def profiled(cls):
+        # a stereotype of a profile the corpus declares, not the platform's (temporal., meta::pure::profiles)
+        k = c.classes.get(cls)
+        return k is not None and any("::" in st.split(".")[0] and not st.startswith("meta::")
+                                     for st in k.stereotypes)
+
+    add("U5  corpus profile", [s.short for s in live if any(profiled(k) for k in _spec_touches(c, s)[0])])
+    add("U6  join chain ending in an expression", [s.short for s in live if any(
+        (s.root, p.path[0]) in c.chain_exprs for p in s.projections if p.path)])
 
 
 def _vocabulary_features(specs, quarantined: set[str], add) -> None:
@@ -643,7 +660,8 @@ BASELINE = {
     "Q4  function over a list", "Q4  function as an argument", "Q4  relation window offset",
     # 2026-10-29, the improvement plan's Phase 7 (unreached.py): constructs declared but reached by no service, each
     # executed by passing services on legend-engine 4.145.0.
-    "U1  DenseMapping respelling",
+    "U1  DenseMapping respelling", "U2  router union", "U3  inheritance dispatch", "U4  merge operation",
+    "U5  corpus profile", "U6  join chain ending in an expression",
 }
 
 

@@ -54,8 +54,11 @@ MAPPING = "stress::AllMapping"
 # The intraday milestoning pack's tables (8113-intraday.pure, Phase 3) are apart for the same reason:
 # walked, its milestoned classes and navigations would be dated at %latest by generators that know
 # no other date, and its services are intraday.py's.
+# The Operation forms' tables (71-operation-surface.pure and 74-surface-last.pure, Phase 7) are apart too: their
+# services are unreached.py's, each through the mapping that holds the form.
 FIXTURE_TABLES = frozenset({"TYPED_VALUE", "BOOK_LIMIT_PT", "BOOK_STATUS_PT", "MARK_REVISION_BI",
-                            "LIMIT_CHECK", "VALUATION_RUN"})
+                            "LIMIT_CHECK", "VALUATION_RUN", "OP_A", "OP_B", "OP_C", "OP_CAR", "OP_TRUCK",
+                            "MG_A", "MG_B"})
 
 
 def walked(tables: dict[str, list[dict]]) -> set[str]:

@@ -2314,3 +2314,18 @@ native never reduces an empty group, where this is a plain Pure function over an
 F6. Pinned by `stress::VC_MapSumTrades` (quarantined), whose six books with no trades total null; the three with
 trades agree. Repro: `scripts/corpus/repro/sum-over-empty-to-many/` (`IsEmpty` passes; `MapSum` and `PathSum` fail on
 the parent with no children).
+
+## F83 — A literal list in a relational property mapping fails at test setup
+
+**Not a wrong answer: a construct that cannot execute.** Found 2026-10-29 by the improvement plan's Phase 7, which
+gave the corpus's two literal lists services. The relational grammar writes a list as `[a, b]`, as a dynafunction's
+argument: `coalesce([[db]T.V, [db]T.K])`, `in([db]T.K, ['K1', 'K3'])`. legend-engine 4.145.0's parser wraps each
+element in a protocol `Literal` whose value is the parsed element itself, a `TableAliasColumn` or another `Literal`
+(`RelationalParseTreeWalker`, its `LiteralList` branch), and the compiler copies those values unconverted into the
+metamodel (`HelperRelationalBuilder`, its `LiteralList` branch: `convertLiteral(l.value)`, which converts only an
+Integer). The model compiles; SQL generation then meets a Java object and the test session fails to start: `ERROR
+unhandled type for value: ...TableAliasColumn` for the coalesce, `...Literal` for the `in`. The same `coalesce`
+written with two arguments and no list passes. Pinned by `stress::UO_LiteralListCoalesce` and `UO_LiteralListIn`
+(quarantined), which assert the answers SQL's `coalesce(V, K)` and `K IN ('OB-0001', 'OB-0004')` give. Repro:
+`scripts/corpus/repro/literal-list-mapping/` (`Plain` passes; `Coalesce` and `In` fail at "Error initializing test
+suite session").
