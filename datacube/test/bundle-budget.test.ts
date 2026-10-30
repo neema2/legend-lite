@@ -499,8 +499,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  page is read by as it opens; no startup file added). Measured 413,496.
  *  425,000 / 414,000 -> 430,500 (2026-10-28, main merged into the flow mode's PR #79: the two chains above, each grown
  *  from 408,500 apart -- the flow mode's roadmap and main's timeseries work -- in one bundle; no startup file added by
- *  the merge). Measured 430,054. */
-const BUDGET = 430_500;
+ *  the merge). Measured 430,054.
+ *  430,500 -> 431,000 (2026-10-30, the timeseries language's P5, docs/TS_LANGUAGE_BUILD_2026_10_30.md: a query holding a
+ *  #TS{...}# island is planned over the timeseries library, every figure of the island being the library's
+ *  (pure-library.ts callsLibrary reads the island); no startup file added). Measured 430,509. */
+const BUDGET = 431_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

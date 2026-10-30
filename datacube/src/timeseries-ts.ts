@@ -30,7 +30,7 @@ const OWN: ReadonlySet<string> = new Set(['mean', 'sum', 'min', 'max', 'std', 'v
 const SAMPLE: Readonly<Record<TimeGrain, string>> = { day: '1d', week: '1w', month: '1mo', quarter: '1q', year: '1y' };
 
 const FILL: Readonly<Record<string, string | undefined>> = {
-  intersect: undefined, nan: 'NULL', zero: '0', time: 'LINEAR', step: 'PREV',
+  intersect: undefined, nan: 'NULL', zero: '0', time: 'LINEAR', step: 'STEP',
 };
 
 /** A period's aggregate, as the language names it (R5). */
@@ -115,8 +115,9 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries): string {
           case 'log': return `ln(${args[0]})`;
           case 'exp': case 'sqrt': case 'abs': return `${e.fn}(${args[0]})`;
           case 'power': return `power(${args[0]}, ${param('y')})`;
-          case 'floor': return `greatest(${args[0]}, ${param('value')})`;
-          case 'ceil': return `least(${args[0]}, ${param('value')})`;
+          // held at a value, none where the line has none (SQL's greatest and least take the value there)
+          case 'floor': return `(CASE WHEN ${args[0]} < ${param('value')} THEN ${param('value')} ELSE ${args[0]} END)`;
+          case 'ceil': return `(CASE WHEN ${args[0]} > ${param('value')} THEN ${param('value')} ELSE ${args[0]} END)`;
           case 'not': return `(CASE WHEN ${args[0]} IS NULL THEN NULL WHEN ${args[0]} = 0 THEN 1 ELSE 0 END)`;
           // a running count from the line's first (the tile's count)
           case 'count': return `count(${args[0]}, all)`;

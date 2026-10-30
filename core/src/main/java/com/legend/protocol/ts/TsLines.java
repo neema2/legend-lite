@@ -403,6 +403,15 @@ final class TsLines {
             }
             return l;
         }
+        if ("STEP".equals(how)) {
+            // gs-quant's step: PREV, and before a line's first value its first
+            for (String v : values) {
+                String[] out = new String[1];
+                l = stepped(w, l, v, out);
+                l = replaced(w, l, v, out[0]);
+            }
+            return l;
+        }
         String lastP = w.fresh("al_lastp");
         l = l.with(call(TsToPure.LIBRARY + "lastValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
                 new ColSpec(values.get(0)), new ColSpec(lastP)));

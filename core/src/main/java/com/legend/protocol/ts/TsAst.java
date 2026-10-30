@@ -40,8 +40,9 @@ public final class TsAst {
     public record Span(int n, String unit, SqlAst.Pos pos) {
     }
 
-    /** How lines meet on dates one has and another has not (R6): {@code PREV}, {@code LINEAR}, {@code NULL},
-     *  {@code ZERO} ({@code FILL(0)}), where it is written. */
+    /** How lines meet on dates one has and another has not (R6): {@code PREV}, {@code STEP} (gs-quant's: PREV, and a
+     *  line's first value before it starts), {@code LINEAR}, {@code NULL}, {@code ZERO} ({@code FILL(0)}), where it is
+     *  written. */
     public record Fill(String how, SqlAst.Pos pos) {
     }
 

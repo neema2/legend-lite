@@ -589,11 +589,10 @@ final class TsFunctions {
             TsLines.Valued ra = simple(c, line(c, fn, args.get(0), 0));
             TsLines.Valued rb = simple(c, line(c, fn, args.get(1), 1));
             if (k != 0) {
-                if (k < 0) {
-                    throw unsupported("a lead (a lag below 0) is the library's to add: lead_lag(x, y, 1)", pos);
-                }
+                // the second's k observations before (a lag), or after (a lead), on its own dates (the tile's)
                 Lib l = new Lib(c, rb.line());
-                rb = l.done(l.library("lag", "lag", rb.value(), null, new CInteger((long) k)));
+                rb = l.done(k > 0 ? l.library("lag", "lag", rb.value(), null, new CInteger((long) k))
+                        : l.lead(rb.value(), -k));
             }
             Lib w = new Lib(c, TsLines.joined(c, List.of(ra, rb), pos, null));
             List<String> ab = w.many("pairs", List.of("pa", "pb"), new ColSpec(ra.value()), new ColSpec(rb.value()));
@@ -953,6 +952,23 @@ final class TsFunctions {
             return then(name, what, List.of(args));
         }
 
+        /** {@code value} {@code k} observations later along its line ({@code $p->lead($r, k)}, the tile's): a fresh
+         *  column, none after the line's last. */
+        String lead(String value, int k) {
+            String out = c.fresh("lead");
+            List<ValueSpecification> args = new ArrayList<>(List.of(new com.legend.protocol.spec.Variable("p"),
+                    new com.legend.protocol.spec.Variable("r")));
+            if (k != 1) {
+                args.add(new CInteger((long) k));
+            }
+            line = line.with(TsLines.call("extend", line.rel(), TsLines.over(line, null), new ColSpec(out,
+                    new com.legend.protocol.spec.LambdaFunction(List.of(new com.legend.protocol.spec.Variable("p"),
+                            new com.legend.protocol.spec.Variable("w"), new com.legend.protocol.spec.Variable("r")),
+                            List.of(new com.legend.protocol.spec.AppliedProperty(TsLines.call("lead", args),
+                                    value))))));
+            return out;
+        }
+
         /** Each row's number in time along its line, from 1: a fresh column. */
         String rowNumber() {
             String out = c.fresh("rn");
@@ -1110,9 +1126,5 @@ final class TsFunctions {
 
     private static SqlTranslationException invalid(String message, SqlAst.Pos pos) {
         return SqlTranslationException.invalid(message, pos);
-    }
-
-    private static SqlTranslationException unsupported(String message, SqlAst.Pos pos) {
-        return SqlTranslationException.unsupported(message, pos);
     }
 }

@@ -657,9 +657,45 @@ public final class TsToPure {
          * ({@code trading::Side.BUY}), the mapping's to turn into its stored code (R13: the language says the value's
          * name; a string the enumeration has not refused, naming its values).
          */
+        /** A relation's columns as the per-point SQL reads them (R3): a figure the library types Number a float (double
+         *  precision) -- every figure is one, on every database, as the tile computes it; Postgres's numeric is exact
+         *  decimal, which no figure is. */
+        private record Figures(SqlToPure.Sources of) implements SqlToPure.Sources {
+            @Override
+            public void columns(ValueSpecification source, SqlToPure.Column column) {
+                of.columns(source, (name, type, nullable, storeType) -> column.column(name,
+                        "Number".equals(type) ? "Float" : type, nullable, storeType));
+            }
+
+            @Override
+            public @com.legend.base.Nullable List<String> primaryKey(String database, String table) {
+                return of.primaryKey(database, table);
+            }
+
+            @Override
+            public void tables(SqlToPure.Table table) {
+                of.tables(table);
+            }
+
+            @Override
+            public boolean variable(String name, SqlToPure.Scoped type) {
+                return of.variable(name, type);
+            }
+
+            @Override
+            public void variables(java.util.function.Consumer<String> names) {
+                of.variables(names);
+            }
+
+            @Override
+            public ValueSpecification inlineView(ValueSpecification relation) {
+                return of.inlineView(relation);
+            }
+        }
+
         private LambdaFunction rowLambda(SqlAst.Expr e, ValueSpecification relation, SqlToPure.Sources sources,
                 boolean condition, String clause) {
-            LambdaFunction l = SqlToPure.rowLambda(e, relation, sources, dialect, condition, clause);
+            LambdaFunction l = SqlToPure.rowLambda(e, relation, new Figures(sources), dialect, condition, clause);
             Map<String, List<String>> enums = new LinkedHashMap<>();
             Map<String, String> paths = new LinkedHashMap<>();
             sources.columns(relation, (name, type, nullable, storeType) -> {

@@ -694,6 +694,9 @@ class TsIslandTest {
         for (String method : List.of("intersect", "nan", "zero", "step")) {
             calls.add("interpolate(" + x + ", " + y + ", '" + method + "')");
         }
+        // a window of everything by name, a lead, a per-point power of a figure (the gallery's, P5)
+        calls.addAll(List.of("drawdown(" + x + ", w => all)", "lead_lag(" + x + ", " + y + ", lag => -1, w => 3)",
+                "power(std(" + x + ", 3), 2)"));
         calls.addAll(List.of("value_at(" + x + ", '2024-01-25')", "value_at(" + x + ", DATE '2024-01-01')",
                 "ohlc(" + x + ", " + y + ", " + x + ", " + y + ")", "ohlc(" + x + ", " + x + ", " + x + ", " + x + ")"));
         calls.addAll(List.of("macd(" + x + ", 2, 4, 1)", "percentile(" + x + ", 50, 3)", "dickey_fuller(" + x + ", 5)",
@@ -737,6 +740,25 @@ class TsIslandTest {
             }
         }
         assertEquals(List.of(), failed, "every function plans and runs on " + backend);
+    }
+
+    @Test
+    void stepFillsALinesStartWithItsFirstValueAndPrevLeavesItEmpty() throws Exception {
+        // FILL(STEP), gs-quant's step (the tile's): PREV, and before a line's first value its first; FILL(PREV) none there
+        String from = " FROM PRICES a ON DAY BY SYMBOL, (PRICES WHERE DAY >= DATE '2024-01-24') b ON DAY BY SYMBOL";
+        for (TestBackend backend : deep()) {
+            List<Map<String, String>> step = rows(backend, "|#TS{SELECT a.CLOSE['AAA'] - b.CLOSE['BBB'] AS d" + from
+                    + " FILL(STEP)}#");
+            assertClose(each(AAA.length, i -> AAA[i] - BBB[Math.max(i, 4)]), column(step, null, null, "d"),
+                    backend + ": BBB's first value before it starts");
+            List<Map<String, String>> prev = rows(backend, "|#TS{SELECT a.CLOSE['AAA'] - b.CLOSE['BBB'] AS d" + from
+                    + " FILL(PREV)}#");
+            assertClose(each(AAA.length - 4, i -> AAA[i + 4] - BBB[i + 4]), column(prev, null, null, "d"),
+                    backend + ": none before BBB's first value (R6: a row where an item has one)");
+            assertEquals(rows(backend, "|#TS{SELECT drawdown(CLOSE['AAA']) AS dd FROM PRICES ON DAY BY SYMBOL}#"),
+                    rows(backend, "|#TS{SELECT drawdown(CLOSE['AAA'], w => all) AS dd FROM PRICES ON DAY BY SYMBOL}#"),
+                    backend + ": a window of everything by name");
+        }
     }
 
     /** The sample covariance of {@code x} and {@code y} from {@code from} to {@code to}, both included. */

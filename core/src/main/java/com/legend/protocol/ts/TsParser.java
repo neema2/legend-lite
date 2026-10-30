@@ -62,7 +62,7 @@ public final class TsParser {
     private static final Set<String> PERIODS = Set.of("d", "w", "mo", "q", "y");
 
     /** FILL's ways (R6). */
-    private static final Set<String> FILLS = Set.of("PREV", "LINEAR", "NULL", "ZERO");
+    private static final Set<String> FILLS = Set.of("PREV", "STEP", "LINEAR", "NULL", "ZERO");
 
     private final List<Token> tokens;
     private final Set<SqlAst.Pos> variables;
@@ -94,7 +94,8 @@ public final class TsParser {
         List<Token> tokens = new ArrayList<>(lexed.size());
         for (int i = 0; i < lexed.size(); i++) {
             Token t = lexed.get(i);
-            if (t.is("all") && i > 0 && lexed.get(i - 1).kind() == Kind.COMMA && i + 1 < lexed.size()
+            if (t.is("all") && i > 0 && (lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).isOp("=>"))
+                    && i + 1 < lexed.size()
                     && (lexed.get(i + 1).kind() == Kind.RPAREN || lexed.get(i + 1).kind() == Kind.COMMA)) {
                 // a window of everything to date (R4): read as a column the builder knows by its place
                 tokens.add(new Token(Kind.IDENT, ALL, t.pos()));
@@ -290,7 +291,7 @@ public final class TsParser {
                 String mode = how.kind() == Kind.INTEGER && "0".equals(how.text()) ? "ZERO"
                         : how.kind() == Kind.IDENT ? how.text().toUpperCase(Locale.ROOT) : "";
                 if (open.kind() != Kind.LPAREN || close.kind() != Kind.RPAREN || !FILLS.contains(mode)) {
-                    throw invalid("FILL is FILL(PREV), FILL(LINEAR), FILL(NULL) or FILL(0) (R6)", t.pos());
+                    throw invalid("FILL is FILL(PREV), FILL(STEP), FILL(LINEAR), FILL(NULL) or FILL(0) (R6)", t.pos());
                 }
                 fill = new TsAst.Fill(mode, t.pos());
                 at += 4;

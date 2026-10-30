@@ -15,7 +15,7 @@ import {
   seriesQuery, seriesSources, TS_DATE, TS_HIGH, TS_LOW, TS_LOWER, TS_OPEN, TS_SPLIT, TS_UPPER, TS_VALUE, TS_WIDTH,
   type TsInput, type TsInputs,
 } from '../src/timeseries-query.ts';
-import type { TimeseriesSpec, TsSeries } from '../src/timeseries-spec.ts';
+import type { TimeseriesSpec, TsSeries, TsView } from '../src/timeseries-spec.ts';
 import { TS_ITEM, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import { catalogColumns, ingestFile } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -108,7 +108,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
       for (const view of page.views) {
         if (view.kind !== 'timeseries') continue;
         // the series as the tile computes it, before its view's compare (the view's, around the answer: P6)
-        const ts: TimeseriesSpec = { ...view.spec, ...(view.spec.view === undefined ? {} : { view: { ...view.spec.view, compare: undefined } }) };
+        const ts: TimeseriesSpec = view.spec.view === undefined ? view.spec : { ...view.spec, view: uncompared(view.spec.view) };
         const cubeOf = (alias: string): string => ts.sources.find((x) => x.alias === alias)!.cube;
         for (const series of ts.series) {
           const id = `${view.id} ${series.id}`;
@@ -145,6 +145,13 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   assert.deepEqual(unexpected, [], 'every series answers the same, or is listed in DIFFERS with why');
   assert.deepEqual(agreed, [], 'a series listed in DIFFERS that now answers the same: delete its row');
 });
+
+/** A tile's view without its compare: the series as computed. */
+function uncompared(v: TsView): TsView {
+  const { compare, ...rest } = v;
+  void compare;
+  return rest;
+}
 
 function tsQueryTextOrWhy(ts: TimeseriesSpec, series: TsSeries): string {
   try {

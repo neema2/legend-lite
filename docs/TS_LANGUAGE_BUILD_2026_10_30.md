@@ -181,3 +181,23 @@ that moves moves with its reason in the commit (AGENTS.md).
   `//core:ts_island_test`: twenty tests -- every function plans and runs on the platform's database (with spans, by
   name, under SAMPLE BY), and arithmetic for a pair's correlation and beta, `compare`, `if`, a band's fields, `value_at`
   and a candle's columns. P5 (the gallery both ways) next.
+- 2026-10-30: P5 built. `datacube/src/timeseries-ts.ts` writes a tile's series as its `#TS` query -- each source bound by
+  `let` and read as `$alias`, the tile's frequency its SAMPLE BY and its alignment its FILL, each function the
+  language's of the same name with the catalog's parameters by name, a candle's or a technical's series each taken by
+  its role under SAMPLE BY (an open its first, a high its most, a low its least, a close its last, a volume its total),
+  the tile's per-point rules in SQL (a division none where its divisor is 0, a comparison 1 or 0, a floor or a ceiling
+  none where the line has none). `//datacube:timeseries_ts_parity_test` plans and answers every series of the gallery
+  and the markets example both ways on DuckDB-WASM, each date's and each line's values the same: **197 of 197**, its
+  DIFFERS list empty (a series that comes to differ fails until it is listed with why). The first run's nine
+  differences, each fixed where it was:
+  - `w => all` (a window of everything by name) was not read as the window: TsParser now marks `all` after `=>` too.
+  - The tile's `step` back-fills a line's start with its first value (gs-quant's `Interpolate.STEP`); R6's `PREV`
+    never takes a later value. **`FILL(STEP)`** is added to the language as gs-quant's step (the spec's R6), and the
+    tile's `step` is written as it.
+  - `lead_lag(x, y, lag => -1)` (a lead) was refused: it is the tile's `$p->lead($r, k)` on the second line's dates.
+  - `power(std(x, 63), 2)`: a library figure is typed `Number`, which the per-point SQL read as Postgres's exact
+    `numeric`; #TS reads a figure as a float (double precision), as every database computes it.
+  - `floor`/`ceil` (gs-quant's, the tile's) are none where the line has none; SQL's `greatest`/`least` take the value
+    there, so the writer writes each as a CASE.
+  `callsLibrary` holds a query with a `#TS` island as calling the library (its planner the one over it): the grid-only
+  page's bundle grows 9 bytes, its budget 430,500 -> 431,000 with its reason. P6 (the surfaces switched) next.
