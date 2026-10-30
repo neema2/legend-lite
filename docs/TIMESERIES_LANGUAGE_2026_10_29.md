@@ -1,8 +1,9 @@
 # A query language for timeseries (2026-10-29)
 
-**Status: design, not built. Version 3**, after two rounds of paper tests (§13) and the user's decisions of
+**Status: design, not built. Version 3.1**, after two rounds of paper tests (§13) and the user's decisions of
 2026-10-29; §14 lists what changed in each version. Step C of docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md, worked out with the
 user on 2026-10-28 and 2026-10-29. It replaces that note's `#Quant` sketch (its D1-D3).
+The same language for quants, with worked examples and charts: docs/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md.
 
 ## 1. What it is for
 
@@ -369,7 +370,9 @@ an instrument with no value is not ranked.
 
 The tile and Python keep reading today's formulas, and write them in the new form: under a grain, the tile wraps each
 line in its column's aggregate from the grid's settings, so existing tiles and notebooks keep their numbers (§12,
-decision 7).
+decision 7). Likewise an `index`, `rebase`, `change` or `percent_change` written with no date is written with the first
+date of the range shown, `rebase(x, '<the range's first date>')`, as `compare` is (§8): the base still moves with the
+range, as it does today (the user, 2026-10-30). With no range, that date is the data's first, so the form is the same.
 
 ## 8. From today's tile and Python
 
@@ -599,6 +602,12 @@ right, one called "not covered" (the same question). Request 27 was again report
 with a plain-SQL source. Their findings are version 3's changes (§14). The next run waits for the quants' review.
 
 ## 14. What changed
+
+### Version 3.1 (2026-10-30, from writing the guide for quants)
+
+- `alpha` is annualized, as gs-quant's and the library's are (§6; the short definition had left it out).
+- Today's `index`, `rebase`, `change` and `percent_change` with no date keep their numbers: the tile and Python write
+  them with the first date of the range shown (§7), as `compare` is written (§8).
 
 ### Version 3 (from the second test)
 
