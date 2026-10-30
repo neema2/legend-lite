@@ -8,7 +8,7 @@
  * {@code ArchitectureTest.theDriverHasOneCaller}), the body compiler, the judges' arms and their plans
  * ({@code HostJudge}, {@code DatabaseJudge}, {@code AgreementArm}, {@code AssertVerdicts}, {@code JudgePlans},
  * {@code SqlTextVerdicts}), the seeds and loads ({@code CsvLoad}, {@code SeedSqlForms}, {@code PlanEnvelope},
- * {@code PlanAllocations}), the schema probes ({@code ColumnProbe}, {@code GridProbe}, {@code DynamicPivot},
+ * {@code PlanAllocations}), the schema probes ({@code GridProbe}, {@code DynamicPivot},
  * {@code WireProbe}: a probe asks the plan runner) and the graph's system database ({@code SystemDatabase}). This is
  * the one layer that holds a compiled model and a session at once: it depends on the planner and on the runtime
  * ({@code exec}), and neither depends on it. Until D73 these files shared the root package with the doors and with the

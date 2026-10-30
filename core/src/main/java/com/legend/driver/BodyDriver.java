@@ -2100,22 +2100,15 @@ public final class BodyDriver {
                         env.postProcessors().extractCtes(),
                         env.postProcessors().nonExecutable()),
                 dialect, env.planSessions(), env.target(), keyReader(env));
-        // DEFERRED relation-toString (dynamic-pivot inners): the column
-        // list exists only NOW, post-staticize. The LOWERING layer owns
-        // the composition pass (invariant 6d — exec never calls the
-        // middle-end); THIS orchestrator supplies the LIMIT-0 probe
-        // (a SCHEMA read, DynamicPivot's two-phase discipline).
+        // A relation's TEXT whose columns nothing names (a dynamic pivot's templates unresolved, a raw grid's late-bound
+        // schema): its columns exist only once the database is asked, and planning asks the database nothing (the seam
+        // program's S3a, 2026-10-30: the LIMIT-0 column probe deleted; the six channel B bodies that reached it named
+        // their columns by a cast, F10). Refused by name until the keyed form gives it a first step whose rows name the
+        // columns (S3c); no body in the corpus or channel B reaches it (step H's H1).
         if (!lowerer.deferredTds().isEmpty()) {
-            final var fDialect = dialect;
-            final var fSessions = env.planSessions();
-            final var fTarget = env.target();
-            // the seam: ColumnProbe asks the plan runner for the probe's reported columns (PlanRunner.columns) and
-            // raises DataError (unchecked) itself
-            plan = com.legend.lowering.Render.resolveAllDeferredTds(
-                    plan, lowerer.deferredTds(),
-                    inner -> ColumnProbe.probe(
-                            inner, fDialect, fSessions, fTarget),
-                    WireProbe::pureOfSqlType);
+            throw new com.legend.error.NotImplementedException("a relation's text (toString/toCSV) over columns"
+                    + " nothing names -- a dynamic pivot's or a raw grid's: its columns exist only once the database is"
+                    + " asked, and planning asks the database nothing (the keyed form is pending)");
         }
         return named ? lowerer.namedColumns(plan) : plan;
     }

@@ -83,9 +83,8 @@ public final class Render {
         // a pivot inner: the column list exists only at the execution
         // boundary — DEFER the CSV composition exactly like the '#TDS'
         // toString (resolveDeferredTds composes by form)
-        if ((inner.outputs().isEmpty() || hasDynamicPivot(inner))
-                && Type.relationSchema(tc.args().get(0).info().type())
-                        instanceof Type.RelationType drt) {
+        if (Type.relationSchema(tc.args().get(0).info().type()) instanceof Type.RelationType drt
+                && (inner.outputs().isEmpty() || (hasDynamicPivot(inner) && !drt.dynamicColumns().isEmpty()))) {
             int id = deferredTds.size();
             deferredTds.put(id, drt);
             return new SqlExpr.DeferredTdsString(inner, alias, id,
@@ -326,13 +325,15 @@ public final class Render {
                     + " the literal-false form");
         }
         SqlSelect inner = relation.apply(tc.args().get(0));
-        // DYNAMIC-PIVOT inner: the column list only exists at the
-        // execution boundary (DynamicPivot's two-phase discipline) —
-        // DEFER the '#TDS' composition; the boundary resolver rebuilds
-        // it from the LIMIT-0 probe + this typed schema.
+        // A PIVOT inner whose columns NOTHING names (its typed schema still carries the pivot's templates): the
+        // column list exists only once the database is asked -- DEFER the '#TDS' composition (the keyed form, the
+        // seam program's S3c). A pivot whose columns a cast names is an ordinary relation here: the compiler has its
+        // columns, and the composition is direct (the seam program's S3a, 2026-10-30; F10: until then ANY pivot
+        // deferred, and the six channel B composition bodies asked the database for columns the compiler had).
         if (hasDynamicPivot(inner)
                 && Type.relationSchema(tc.args().get(0).info().type())
-                        instanceof Type.RelationType drt) {
+                        instanceof Type.RelationType drt
+                && !drt.dynamicColumns().isEmpty()) {
             int id = deferredTds.size();
             deferredTds.put(id, drt);
             return new SqlExpr.DeferredTdsString(inner, alias, id);
@@ -381,7 +382,8 @@ public final class Render {
         };
     }
 
-    /** The WHOLE-PLAN deferred-TDS pass (called by the K-orchestrator
+    /** (No caller since the seam program's S3a, 2026-10-30, deleted the LIMIT-0 column probe that fed it: the keyed form
+     *  of S3c feeds it a first step's rows instead.) The WHOLE-PLAN deferred-TDS pass (called by the K-orchestrator
      * after staticize — the dynamic-pivot two-phase discipline's second
      * consumer): every {@link SqlExpr.DeferredTdsString} resolves via
      * the supplied LIMIT-0 probe (a SCHEMA read the exec layer

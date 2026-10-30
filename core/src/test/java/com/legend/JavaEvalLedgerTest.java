@@ -802,7 +802,7 @@ class JavaEvalLedgerTest {
             // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
             // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
             // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
-            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2322),   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
+            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2317),   // 2322 -> 2317 (2026-10-30, the seam program's S3a): the column probe's call deleted, a refusal by name in its place   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1423,8 +1423,9 @@ class JavaEvalLedgerTest {
                     "SqlTextInputs.java",
                     "EngineText.java",
                     "CsvLoad.java",
-                    // the schema probes (D71) and the graph's system database (D72), out of exec
-                    "ColumnProbe.java", "GridProbe.java", "DynamicPivot.java", "WireProbe.java",
+                    // the schema probes (D71) and the graph's system database (D72), out of exec; ColumnProbe deleted
+                    // 2026-10-30 (the seam program's S3a: a cast-named pivot's columns are the compiler's, F10)
+                    "GridProbe.java", "DynamicPivot.java", "WireProbe.java",
                     "SystemDatabase.java",
                     "package-info.java");
 

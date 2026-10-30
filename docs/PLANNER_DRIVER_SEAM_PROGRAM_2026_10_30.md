@@ -412,4 +412,7 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   own step next (the quantified assert the database way; the version check decided at planning), then S2g (frames).
   **The step after S2f built 2026-10-30** (D85; GATES "The seam program's step after S2f"): the quantified assert
   judged from one read, the unroll reading nothing, the if site deleted as dead (its shape is S2i's). The user's go
-  for the whole remainder, through full severance, the same day. Next: S2g (frames).
+  for the whole remainder, through full severance, the same day. **S3a's first part built 2026-10-30** (D86): the
+  column probe deleted, a cast-named pivot's text from the compiler's columns; the order moved, S3 before the
+  remaining S2 kinds (the probes keep planning impure; the kinds already run as plans). Next: S3b (wire-decided kinds
+  at the row), S3c (the raw grid's keyed form), the staticizer's keyed form with the heavy lanes.

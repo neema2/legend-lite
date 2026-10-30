@@ -16583,6 +16583,31 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's S3a, first part: the LIMIT-0 column probe deleted; a cast-named pivot's text composed from the compiler's columns
+
+The decisions log D86; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3a) and its F10. The order
+moved (the user's go for the whole remainder, 2026-10-30): S3 before the remaining S2 kinds, because those kinds
+already run as plans through the runner (track B) and what keeps their planning impure is the four probes, which
+send statements in the middle of planning.
+
+1. **Built:** `lowering/Render`'s two deferral triggers (a relation's `toString` and `toCSV`) defer only where the
+   relation's typed schema still carries a pivot's TEMPLATES (columns nothing names) or the inner is a late-bound raw
+   grid; a pivot whose columns a cast names composes directly from the compiler's columns (F10: until now ANY pivot
+   deferred). `driver/ColumnProbe` DELETED; `BodyDriver.lowerAndPrepare` refuses a remaining deferral by name ("a
+   relation's text ... over columns nothing names ... planning asks the database nothing"): no body in the corpus or
+   channel B reaches it (step H's H1), and the refusal would fail any that did. `Render.resolveAllDeferredTds` and
+   `sql.PlanProbe` stay, without a caller, for S3c's keyed form (a first step's rows feed them instead of a probe).
+   The ledger's driver register drops the class; `BodyDriver`'s line pin 2322 -> 2317, dated.
+2. **Measured locally before the commit:** `//gates:pct_channel_b` 5 of 5 with the committed censuses (Relation 469
+   of 469: the six `composition::test_*` cast-pivot bodies render the same `#TDS` text from the compiler's columns,
+   and channel B's 12 LIMIT-0 reads per Relation run, F9, are gone with the class); `//gates:corpus_duckdb`,
+   `//gates:corpus_h2`: zero roster movement, every pass's statement census equal to the previous step's
+   (`probe` 8/8/8/7: the column probe was never in it, F9); `//core:core_tests_driver`, `core_tests_root`,
+   `core_tests_lowering`, `core_tests_exec`, `core_tests_judge`, `core_tests_planner`, `core_tests_integration`,
+   `//core:census`, `//core:guardrails`: green.
+3. **Left of S3a:** `DynamicPivot.staticize` (the key read a database without native dynamic PIVOT needs: H2,
+   Postgres, SQLite) to the keyed form the product path has, with the heavy lanes by hand.
+
 ## 2026-10-30 — The seam program's step after S2f: the quantified assert judged from one read; the unroll reads nothing; the dead if site gone
 
 The decisions log D85; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (the deferred asserts, the step
