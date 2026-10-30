@@ -718,6 +718,9 @@ no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- 
   primitive). `//core:exec` depends on base, json, cache, diagnostics, error, execution_plan, model, result, sql and
   values; the ratchet map is deleted and `ArchitectureTest.execReachesNoPlanning` asserts the empty set. Zero roster
   movement in every lane.
+- **LANDED ON MAIN 2026-10-30: PR #82 merged by the user as `efff0406`** (steps 1 to 3 of the java.sql revamp and steps
+  A, B1, B2, C; 51 of 51 CI checks green on its head 86d60625; the five heavy lanes identical per test, D81). The
+  planner-driver seam program continues on PR #83, retargeted to `main` that day.
 - **Step C built 2026-10-30** (the decisions log D73; GATES, step C's entry): the root dissolved -- the five doors at
   the root (`Compiler`, `TypedQuery`, `HeldModels`; `Execution`, `ExecuteOptions`), the plan machinery
   `com.legend.planner` (six files), the execution side `com.legend.driver` (twenty-five), the members that crossed a
