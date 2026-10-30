@@ -36,7 +36,6 @@ meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels ||| 
 meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing ||| statement=1 tdg=60
 meta::relational::testDataGeneration::tests::testUnionViewOnView ||| statement=1 tdg=38
 meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| statement=1 tdg=17
-meta::relational::tests::ddl::dropAndCreateTable ||| fallback=1 probe=2
 meta::relational::tests::ddl::dropAndCreateTempTable ||| probe=1
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwice ||| fallback=1
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwiceUsingQualifier ||| fallback=1

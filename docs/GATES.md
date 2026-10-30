@@ -16583,6 +16583,34 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's S3c, first part: a by-name read over a raw grid probes nothing; its cell decoded by the wire
+
+The decisions log D88; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 (item 3: "no first step where
+nothing needs the names before the grid runs") and §4 (S3c).
+
+1. **Measured first (the stamp switched off, reverted):** exactly the four raw-grid bodies of step H's H2 newly fail
+   (DuckDB host and database; H2 host three, `in::H2Test` failing there already), each for its own reason: a by-name
+   read's `Any` cell declared in a JSON slot while the raw read hands an integer (`dropAndCreateTable`,
+   `testExecuteInDbToTDS`'s first assert); `columnNames` evaluated at the assert, after `dropTempTable`
+   (`dropAndCreateTempTable`); `rows.values` lowered as a column (`in::H2Test`). The `dates` tests stand: their
+   setup's `println(... .rows.values)` judges nothing.
+2. **Built:** `RawGridSchema.demands` no longer counts a by-name field read (a relation's text over a late-bound grid,
+   `toString`/`toCSV`, demands the stamp until S3c's keyed form spells the header). `ColumnFacts.rawGridCell`: a
+   column whose provenance, through subselects, CTEs, joins and a one-cell scalar select, is a late-bound raw grid's
+   column carries no slot, and the runner decodes the driver's own kind (`JdbcDecode.byPureType`'s `Any` arm) -- the
+   engine reads a raw result set's cell by the type the database reports. `BodyDriver.wrapSide` no longer frames a
+   late-bound grid by `WireProbe.staticized` (a describe at planning): the canon declines a late-bound schema by name
+   and the row count reads the rows unwrapped. `ExecuteInDbProbeCountTest`'s by-name case now pins ZERO probes and the
+   cell typed from the real run (the §4bZ-U ruling of 2026-08-25 superseded by D76, dated in the test).
+3. **Measured locally:** `corpus_duckdb`, `corpus_h2`: zero roster movement; `probe` 8 -> 5 on every pass
+   (`dropAndCreateTable`'s three reads gone; in database mode its three verdicts are the database's, unchanged); the
+   database passes' outside-body registers lose `dropAndCreateTable` (DuckDB 43 -> 42, H2 52 -> 51 lines: it sends
+   nothing outside its plan now); `pct_channel_b` 5 of 5; `core_tests_{exec,judge,driver,root,planner,lowering,
+   integration}`, `census`, `guardrails`, `core_layering_test` green; `BodyDriver`'s pin 2,309 -> 2,304, dated.
+4. **Left of S3c:** the relation whose columns the real run reports (`streamResult`'s and `tabularPlanned`'s
+   `staticized`); the reported-columns keys step and the keyed `columnNames`, `rows.values` and `toCSV`; the staged
+   raw-grid let (`dropAndCreateTempTable`); then the stamp, `GridProbe` and `staticized` deleted.
+
 ## 2026-10-30 — The seam program's S3b: the wire probe's reconcile deleted; a String-declared integral cell spelled by the kind the database holds
 
 The decisions log D87; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3b). The user's go of 2026-10-30

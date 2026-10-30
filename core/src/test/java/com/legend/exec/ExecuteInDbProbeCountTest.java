@@ -110,20 +110,18 @@ class ExecuteInDbProbeCountTest {
     }
 
     @Test
-    @DisplayName("named cell read DEMANDS the schema: exactly ONE probe, typed cells")
-    void namedReadProbesOnce() throws Exception {
-        // §4bZ-U RULING (2026-08-25, wire-ledger burn): a by-name FIELD
-        // read over a late-bound grid IS a static schema demand — the
-        // old trust-name path typed such cells Any (JSON labels, the
-        // last 2 corpus wire-diverge rows); the probe's typed columns
-        // give the cell the database's own type. Cost: one LIMIT-0
-        // metadata read per demanded grid. The bare .rows egress stays
-        // probe-free (the test above pins that surviving P3-2 case).
+    @DisplayName("named cell read: ZERO probes, the cell typed by the wire at the row")
+    void namedReadProbesNothing() throws Exception {
+        // the planner-driver seam program's S3c (2026-10-30; the user's D76: "no step where nothing needs the names
+        // before the grid runs"): a by-name field read over a late-bound grid names its column, the database resolves
+        // it, and the cell is decoded by the wire -- its column carries no slot (ColumnFacts.rawGridCell), so the
+        // runner reads the driver's own kind. Until then (the §4bZ-U ruling of 2026-08-25) the read demanded one
+        // LIMIT-0 probe at planning to type the cell; the cell is typed the same, from the real run.
         Lean.Result r = run(
                 "meta::relational::metamodel::execute::executeInDb("
                 + "'select 3 as V', $c, 0, 1000).rows->map(x|$x.V);}");
-        assertEquals(1, probes(), "a by-name field read demands the"
-                + " typed schema (one LIMIT-0); probe traffic: " + executed);
+        assertEquals(0, probes(), "a by-name field read demands no schema at planning; probe traffic: "
+                + executed);
         Object v = r.values().get(0);
         assertEquals(3L, ((Number) v).longValue());
     }

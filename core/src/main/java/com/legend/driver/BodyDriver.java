@@ -2822,13 +2822,10 @@ public final class BodyDriver {
             // fusion-spike F2 shape); the tabular decode strips it into
             // the rider, row-aligned.
             var schema = com.legend.compiler.element.type.Type.schemaView(shapeInfo.type());
-            if (plan.outputs().isEmpty() && (schema == null || schema.isLateBound())) {
-                // leg 3.3: a raw grid (executeInDbToTDS) has no typed outputs —
-                // the database's reported columns frame it (WireTypes)
-                plan = WireProbe.staticized(plan, env.dialect(),
-                        env.planSessions(), env.target(), env.session().state().wireTypes());
-                schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
-            }
+            // a raw grid with no typed outputs (executeInDbToTDS, an unstamped executeInDb) is not framed by a
+            // planning-time read of its columns (the seam program's S3c, 2026-10-30: WireProbe.staticized's call
+            // here deleted): the canon wrap declines a late-bound schema by name, and what only counts the grid's
+            // rows reads them unwrapped
             var gw = com.legend.lowering.CanonicalRenderSql.wrapTdsCanon(plan, schema);
             if (gw.declineReason() != null) {
                 rider.decline(gw.declineReason());

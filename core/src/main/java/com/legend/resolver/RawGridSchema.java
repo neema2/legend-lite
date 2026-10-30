@@ -127,17 +127,15 @@ public final class RawGridSchema {
                         || pa.property().equals("values"))) {
             return true;
         }
-        // a BY-NAME FIELD read over a LATE-BOUND source is a static
-        // schema demand too (§4bZ-U ruling: burn the wire ledger — the
-        // trust-name rule typed such cells Any/JSON, the probe's typed
-        // columns replace that with the database's own type). The bare
-        // {@code .rows} egress stays probe-free — no field is named,
-        // the executed query's own headers are the authority (P3-2's
-        // surviving case, still pinned by ExecuteInDbProbeCountTest).
-        if (n instanceof TypedPropertyAccess pa2
-                && !pa2.property().equals(PlatformTypes.ROWS_MARKER)
-                && Type.schemaView(pa2.source().info().type())
-                        instanceof Type.RelationType rt2
+        // a by-name field read over a late-bound source demands nothing (the planner-driver seam program's S3c,
+        // 2026-10-30): the read names its column, the database resolves it at the row, and the cell is decoded by
+        // the wire (a column whose provenance is a raw grid's carries no slot: ColumnFacts). Until then it demanded
+        // the probe for typed cells (the §4bZ-U ruling). A relation's TEXT over a late-bound grid (toString, toCSV)
+        // still demands it until S3c's keyed form spells the header from the reported columns.
+        if (n instanceof TypedNativeCall c && !c.args().isEmpty()
+                && (com.legend.builtin.Pure.AT_RELATIONAL_TESTS_CSV_TO_CSV.contains(c.callee().id())
+                        || com.legend.builtin.Pure.AT_RELATION_TO_STRING.contains(c.callee().id()))
+                && Type.relationSchema(c.args().get(0).info().type()) instanceof Type.RelationType rt2
                 && rt2.isLateBound()) {
             return true;
         }
