@@ -6,7 +6,7 @@ dynafn.unsupported	41
 engine.handlers.undeclared	142
 implementation.kinds.Body	2034
 implementation.kinds.Form	223
-implementation.kinds.Intrinsic	716
+implementation.kinds.Intrinsic	717
 implementation.kinds.PlatformPure	35
 implementation.kinds.Refused	131
 implementation.kinds.Unimplemented	70

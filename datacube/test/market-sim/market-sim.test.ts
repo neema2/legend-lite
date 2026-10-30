@@ -71,14 +71,39 @@ describe('the market world in the tab', () => {
   it('writes every table the trading model declares, every column, of its type', () => {
     const model = readFileSync(runfile(process.env.TRADING_MODEL!), 'utf8');
     const kinds: Record<string, ColumnKind> = { VARCHAR: 'text', DOUBLE: 'double', INTEGER: 'integer', TIMESTAMP: 'instant', BIT: 'truth', DATE: 'day' };
-    for (const table of MARKET_TABLES.filter((t: MarketTable) => t.name !== 'world')) {
-      const declared = new RegExp(`^\\s*Table ${table.name} \\((.*)\\)\\s*$`, 'm').exec(model)?.[1];
-      assert.ok(declared !== undefined, `the model declares ${table.name}`);
-      const columns = Object.fromEntries(declared.split(/,\s*(?![^(]*\))/).map((c) => {
-        const [name, type] = c.trim().split(/\s+/) as [string, string];
-        return [name, kinds[type.replace(/\(.*$/, '')]];
+    const precise: Record<string, ColumnKind> = { Varchar: 'text', Double: 'double', Int: 'integer', Timestamp: 'instant', Boolean: 'truth', StrictDate: 'day' };
+    const split = (columns: string): string[] => columns.split(/,\s*(?![^(]*\))/).map((c) => c.trim());
+    const table = (name: string): string | undefined =>
+      new RegExp(`^\\s*Table ${name.replace(/[.]/g, '\\.')} \\((.*)\\)\\s*$`, 'm').exec(model)?.[1];
+    // a table the store declares itself, or an ingest's dataset (docs/DESK_DATA_ROADMAP_2026_10_29.md A2): one that
+    // reads a source's table takes its columns, one written out its own
+    const declared = (name: string): Record<string, ColumnKind> | undefined => {
+      const own = table(name);
+      if (own !== undefined) {
+        return Object.fromEntries(split(own).map((c) => {
+          const [column, type] = c.split(/\s+/) as [string, string];
+          return [column, kinds[type.replace(/\(.*$/, '')]!];
+        }));
+      }
+      const dataset = new RegExp(`^\\s*${name}\\( (.*) \\) pk=`, 'm').exec(model)?.[1];
+      if (dataset === undefined) return undefined;
+      const read = /^\|#>\{[\w:]+\.(\w+|"[^"]+")\}#$/.exec(dataset);
+      if (read) {
+        const source = table(read[1]!);
+        return source === undefined ? undefined : Object.fromEntries(split(source).map((c) => {
+          const [column, type] = c.split(/\s+/) as [string, string];
+          return [column, kinds[type.replace(/\(.*$/, '')]!];
+        }));
+      }
+      return Object.fromEntries(split(dataset).map((c) => {
+        const [column, type] = c.split(/\s*:\s*/) as [string, string];
+        return [column, precise[type.replace(/[([].*$/, '')]!];
       }));
-      assert.deepEqual(table.shape, columns, table.name);
+    };
+    for (const t of MARKET_TABLES.filter((m: MarketTable) => m.name !== 'world')) {
+      const columns = declared(t.name);
+      assert.ok(columns !== undefined, `the model declares ${t.name}`);
+      assert.deepEqual(t.shape, columns, t.name);
     }
   });
 

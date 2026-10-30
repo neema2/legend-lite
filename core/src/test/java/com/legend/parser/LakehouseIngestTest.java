@@ -263,6 +263,14 @@ class LakehouseIngestTest {
                         new RelationalDataType.Decimal(18, 4)),
                 position.columns().stream().map(c -> c.dataType()).toList());
         assertTrue(ctx.findTableDefinition("desk::DB", "RISK.RISK_LIMIT").isPresent(), "a dataset group's schema");
+        // the model's layout: no schema recorded for the default one, every table in the flat list
+        DatabaseDefinition feed = ctx.findDatabase("desk::Feed").orElseThrow();
+        assertEquals(List.of(), feed.schemas());
+        assertEquals(List.of("MARKET_TRADE", "MARKET_QUOTE", "WORLD"),
+                feed.defaultSchemaTables().stream().map(t -> t.name()).toList());
+        DatabaseDefinition limits = ctx.findDatabase("desk::Limits").orElseThrow();
+        assertEquals(List.of("RISK"), limits.schemas().stream().map(s -> s.name()).toList());
+        assertEquals(List.of(), limits.defaultSchemaTables());
 
         String sql = Compiler.query(ctx, "|#>{desk::DB.MARKET_TRADE}#->filter(r|$r.SYMBOL == 'AAPL')->select(~[PRICE])")
                 .plan("desk::RT").sql();

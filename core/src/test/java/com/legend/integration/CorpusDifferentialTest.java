@@ -258,15 +258,30 @@ class CorpusDifferentialTest {
      *  another's); they must declare it alike. */
     private static Map<String, DatabaseDefinition.TableDefinition> declarations(List<PackageableElement> elements) {
         Map<String, DatabaseDefinition.TableDefinition> out = new HashMap<>();
+        Map<String, DatabaseDefinition> stores = new HashMap<>();
         for (PackageableElement element : elements) {
             if (element instanceof DatabaseDefinition db) {
-                for (var t : db.defaultSchemaTables()) {
-                    declare(out, key(null, t.name()), t);
-                }
-                for (var s : db.schemas()) {
-                    for (var t : s.tables()) {
-                        declare(out, key(s.name(), t.name()), t);
-                    }
+                stores.put(db.qualifiedName(), db);
+            }
+        }
+        List<DatabaseDefinition> all = new ArrayList<>(stores.values());
+        // an ingest's datasets are tables too (docs/DESK_DATA_ROADMAP_2026_10_29.md A2): of the database it makes, a
+        // read dataset's columns its source table's
+        for (PackageableElement element : elements) {
+            if (element instanceof com.legend.model.IngestDefinition ingest) {
+                all.add(ingest.database((db, schema, table) -> java.util.Optional.ofNullable(stores.get(db))
+                        .flatMap(d -> (schema == null ? d.tables() : d.schemas().stream()
+                                .filter(sc -> sc.name().equals(schema)).flatMap(sc -> sc.tables().stream()).toList())
+                                .stream().filter(t -> t.name().equals(table)).findFirst())));
+            }
+        }
+        for (DatabaseDefinition db : all) {
+            for (var t : db.defaultSchemaTables()) {
+                declare(out, key(null, t.name()), t);
+            }
+            for (var s : db.schemas()) {
+                for (var t : s.tables()) {
+                    declare(out, key(s.name(), t.name()), t);
                 }
             }
         }

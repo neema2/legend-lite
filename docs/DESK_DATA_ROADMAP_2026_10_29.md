@@ -121,7 +121,9 @@ real Kafka) is later work.
 - **Done when:** core tests of each form and each refusal pass, and the JSON round trips.
 - *Medium to large.*
 
-**A2. The desk's tables declared by ingests.**
+**A2. The desk's tables declared by ingests.** *Built 2026-10-30:* `stress/29-desk-sources.pure` (eight source
+stores, nine ingests), `store::DB` including them; `DeskTablesTest` holds the twenty tables unchanged; the corpus's
+Python model reads `###Lakehouse` (its generated files byte-identical).
 
 - **Build:** in the trading model:
   - the topic stores (`tickerplant::Topics`, `newswire::Topics`, `oms::Topics`);

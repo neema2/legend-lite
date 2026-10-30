@@ -487,6 +487,12 @@ class Corpus:
     # table nobody seeded.
     store_includes: dict = field(default_factory=dict)
 
+    # ###Lakehouse (2026-10-29, docs/DESK_DATA_ROADMAP_2026_10_29.md A2): each ingest's datasets, as read
+    # (_read_lakehouse), and the tables they read -- a source system's (a topic, a master's view), which no mapping
+    # binds and no seed fills, so it is kept here and never among `tables`. (database, table) -> Table.
+    ingests: dict = field(default_factory=dict)
+    source_tables: dict = field(default_factory=dict)
+
     # Mapping fqn -> the Mappings it `include`s DIRECTLY. Needed because "these two sets are
     # in different Mappings" says nothing on its own -- the corpus's ~150 domain mappings are
     # all siblings under stress::AllMapping and graph-fetch across them is fine. What is not
@@ -943,6 +949,109 @@ def _parse_milestoning(body: str):
     return specs, body[:i] + body[j:]
 
 
+# ###Lakehouse (2026-10-29, docs/DESK_DATA_ROADMAP_2026_10_29.md A2): an Ingest's datasets, one a line, each made by
+# a read of another store's table or with its columns written out.
+_INGEST = re.compile(r"^\s*Ingest\s+([\w:]+)\b")
+_DATASET = re.compile(r"^\s*(\w+)\(")
+_DATASET_READ = re.compile(r'^\|#>\{([\w:]+)\.(\w+|"[^"]+")\}#$')
+_DATASET_PK = re.compile(r"\bpk=\[\s*([\w\s,]*)\]")
+_DATASET_COLUMN = re.compile(r"^(\w+)\s*:\s*(\w+)(?:\(([^)]*)\))?(\[[^\]]*\])?$")
+# A written column's precise type as the DDL type the rest of this reader knows (the compiler's
+# IngestDefinition.columnType, the other way round).
+_PRECISE = {"Int": "INTEGER", "BigInt": "BIGINT", "SmallInt": "SMALLINT", "TinyInt": "TINYINT",
+            "Double": "DOUBLE", "Float4": "FLOAT", "Timestamp": "TIMESTAMP", "DateTime": "TIMESTAMP",
+            "StrictDate": "DATE", "Date": "DATE", "Boolean": "BIT"}
+
+
+def _split_top(s: str) -> list[str]:
+    """`s` split at its commas outside parentheses (Decimal(18, 4) is one column)."""
+    out, depth, cur = [], 0, ""
+    for ch in s:
+        depth += (ch == "(") - (ch == ")")
+        if ch == "," and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    if cur.strip():
+        out.append(cur.strip())
+    return out
+
+
+def _read_lakehouse(text: str, c: Corpus) -> None:
+    """Each Ingest's datasets, as written: (name, the table read as (database, table) or None, the written columns or
+    None, the key). Read before the stores (load), so a store knows which of its tables a source declares."""
+    ingest = None
+    for raw in text.splitlines():
+        line = _strip(raw).strip()
+        if not line or line in ("[", "]"):
+            continue
+        m = _INGEST.match(line)
+        if m:
+            ingest = m.group(1)
+            c.ingests[ingest] = []
+            continue
+        m = _DATASET.match(line)
+        if m is None or ingest is None or not line.endswith(";"):
+            raise ValueError(f"###Lakehouse: form not modelled by this reader -- {line!r}")
+        # the source runs to the parenthesis that closes the dataset's own
+        i, depth = m.end(), 1
+        while depth and i < len(line):
+            depth += (line[i] == "(") - (line[i] == ")")
+            i += 1
+        name, source, options = m.group(1), line[m.end():i - 1].strip(), line[i:-1]
+        pk_m = _DATASET_PK.search(options)
+        pk = [k.strip() for k in pk_m.group(1).split(",") if k.strip()] if pk_m else []
+        read = _DATASET_READ.match(source)
+        c.ingests[ingest].append((name, (read.group(1), read.group(2).strip('"')) if read else None,
+                                  None if read else source, pk))
+
+
+def _materialise_ingests(c: Corpus) -> None:
+    """Each ingest's datasets as tables -- the compiler's reading (model/IngestDefinition.java): a read of a table takes
+    that table's columns, its key the dataset's; written columns take their precise types' DDL types. A table is
+    addressed through the store that includes its ingest (the corpus's mappings write `[store::DB]T`), and is
+    registered there in the order that store includes the ingests. A key column's `[1]` is the key's own NOT NULL,
+    which a PRIMARY KEY declaration never wrote, so it is not recorded as a NOT NULL of its own (as _parse_store
+    reads one)."""
+    includers = {}
+    for db, incs in c.store_includes.items():
+        for inc in incs:
+            if inc in c.ingests:
+                includers.setdefault(inc, []).append(db)
+    for ingest, datasets in c.ingests.items():
+        if len(includers.get(ingest, [])) != 1:
+            raise ValueError(f"ingest {ingest} is included by {includers.get(ingest, [])}: one store, which "
+                             f"addresses its tables, is modelled")
+        for name, read, written, pk in datasets:
+            if name in c.tables:
+                raise ValueError(f"ingest {ingest}'s dataset {name} is a table {c.tables[name].database} declares too")
+            t = Table(name, database=includers[ingest][0])
+            if read is not None:
+                src = c.source_tables.get(read)
+                if src is None:
+                    raise ValueError(f"ingest {ingest}'s dataset {name} reads {read[0]}.{read[1]}, which is not declared")
+                for col in src.columns.values():
+                    t.columns[col.name] = Column(col.name, col.type, col.name in pk, col.not_null)
+            else:
+                for spec in _split_top(written):
+                    cm = _DATASET_COLUMN.match(spec)
+                    if cm is None:
+                        raise ValueError(f"ingest {ingest}'s dataset {name}: column form not modelled -- {spec!r}")
+                    col, typ, args, mult = cm.groups()
+                    if typ in ("Varchar", "Decimal", "Numeric"):
+                        ddl = typ.upper() + "(" + ",".join(a.strip() for a in args.split(",")) + ")"
+                    elif typ in _PRECISE and args is None:
+                        ddl = _PRECISE[typ]
+                    else:
+                        raise ValueError(f"ingest {ingest}'s dataset {name}: column type not modelled -- {spec!r}")
+                    t.columns[col] = Column(col, ddl, col in pk, mult == "[1]" and col not in pk)
+            for key in pk:
+                if key not in t.columns:
+                    raise ValueError(f"ingest {ingest}'s dataset {name}: key {key} is not a column")
+            c.tables[name] = t
+
+
 def _table_bodies(text: str) -> list[tuple[str, str, int]]:
     """(name, body) for every Table, matching parentheses so a declaration may span lines.
 
@@ -1095,6 +1204,10 @@ def _parse_store(text: str, c: Corpus) -> None:
     if m:
         c.store_includes.setdefault(m.group(1), []).extend(
             n for n in re.findall(r"^\s*include\s+([\w:]+)\s*$", text, re.M))
+        # `include Ingest x::Y` (2026-10-29, docs/DESK_DATA_ROADMAP_2026_10_29.md A2): the ingest's datasets are tables
+        # of a database named for it (_parse_lakehouse), included like any
+        c.store_includes.setdefault(m.group(1), []).extend(
+            n for n in re.findall(r"^\s*include\s+Ingest\s+([\w:]+)\s*$", text, re.M))
     for name, body in _view_bodies(text):
         _parse_view(name, body, c)
     for name, body, at in _table_bodies(text):
@@ -1138,6 +1251,9 @@ def _parse_store(text: str, c: Corpus) -> None:
             u = spec.upper()
             t.columns[name] = Column(name, ctype, u.endswith("PRIMARY KEY"),
                                      "NOT NULL" in u)
+        if any(read == (t.database, t.name) for ds in c.ingests.values() for _, read, _, _ in ds):
+            c.source_tables[(t.database, t.name)] = t     # a source's table: an ingest's dataset lands it
+            continue
         c.tables[t.name] = t
 
     for raw in text.splitlines():
@@ -1951,12 +2067,19 @@ def load() -> Corpus:
     # the corpus's own files are read.
     files = linked_files() + stress_sources()
     parsed = [(f, sections(f.read_text())) for f in files]
+    # The ingests first (2026-10-29): a store's table a dataset reads is a source's, kept apart from the tables.
+    for _, secs in parsed:
+        for kind, body in secs:
+            if kind == "Lakehouse":
+                _read_lakehouse(body, c)
     # Three passes: stores define the tables mappings point at, and mappings bind
     # associations that must already exist.
     for _, secs in parsed:
         for kind, body in secs:
             if kind == "Relational":
                 _parse_store(body, c)
+    # the ingests' datasets, once the stores they read are in (2026-10-29)
+    _materialise_ingests(c)
     _materialise_view_schemas(c)
     for _, secs in parsed:
         for kind, body in secs:

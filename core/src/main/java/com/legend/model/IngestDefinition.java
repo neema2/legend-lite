@@ -119,12 +119,11 @@ public record IngestDefinition(String qualifiedName, Protocol.PIngest ingest) im
             }
             made.add(new DatabaseDefinition.TableDefinition(d.name(), columns));
         }
-        String schema = ingest.datasetGroup() == null ? "default" : ingest.datasetGroup();
-        List<DatabaseDefinition.SchemaDefinition> schemas = List.of(
-                new DatabaseDefinition.SchemaDefinition(schema, made, List.of(), List.of()));
-        // the flat lists mirror the DEFAULT schema only (FromProtocol.toDatabaseDefinition's convention)
-        List<DatabaseDefinition.TableDefinition> flat = ingest.datasetGroup() == null ? made : List.of();
-        return new DatabaseDefinition(qualifiedName, List.of(), schemas, flat, List.of(), List.of(), List.of(),
+        // the model's layout (FromProtocol.toDatabaseDefinition): a schema is recorded only when named -- the dataset
+        // group -- and the flat list holds every table, the bare-name lookup's mirror
+        List<DatabaseDefinition.SchemaDefinition> schemas = ingest.datasetGroup() == null ? List.of()
+                : List.of(new DatabaseDefinition.SchemaDefinition(ingest.datasetGroup(), made, List.of(), List.of()));
+        return new DatabaseDefinition(qualifiedName, List.of(), schemas, made, List.of(), List.of(), List.of(),
                 List.of(), List.of());
     }
 
