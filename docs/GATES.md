@@ -16604,9 +16604,11 @@ PR").
    sequence of the keyed step alone answers the root keyed plan's CSV, reads back from its JSON, and on the platform's
    database a check step before it runs in the same transaction), `//core:core_tests_exec`, `//core:core_tests_root`,
    `//core:guardrails`, `//tools/deps:core_layering_test`: 5 of 5.
-3. **Not measured yet:** the corpus and channel B lanes (step H's measurement runs them next on this tree, with its
-   temporary prints; zero roster movement expected: no caller makes a keyed step yet), the rest of the chain; CI on the
-   stacked PR.
+3. **Measured after the commit, on this head with step H's temporary prints applied (D79):** `//gates:corpus_duckdb`
+   (185 s), `//gates:corpus_h2` (213 s), `//gates:pct_channel_b` (75 s): every pass's rosters identical to the committed
+   ones (the five DuckDB and five H2 roster files diffed; the five channel B censuses equal), 2,575 bodies through the
+   driver per corpus pass. Zero roster movement.
+4. **Not measured yet:** the rest of the chain locally; CI on the stacked PR #83 runs on this head.
 
 ## 2026-10-30 — Step C, the root dissolved: the five doors at the root; the plan machinery com.legend.planner, the execution side com.legend.driver
 

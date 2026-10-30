@@ -1,0 +1,147 @@
+diff --git a/core/src/main/java/com/legend/driver/BodyDriver.java b/core/src/main/java/com/legend/driver/BodyDriver.java
+index cef209de..6c348c85 100644
+--- a/core/src/main/java/com/legend/driver/BodyDriver.java
++++ b/core/src/main/java/com/legend/driver/BodyDriver.java
+@@ -2056,6 +2056,7 @@ public final class BodyDriver {
+                 new IllegalStateException("the system metamodel store is"
+                         + " not in the model — injection regressed"));
+         ModelContext ctx = env.ctx();
++        System.err.println("[H5-SYSTEM-ROUTE] stores=" + stores);
+         return env.withSystemRoute(SystemDatabase.of(ctx)
+                 .routeFor(Compiler.executesOn(ctx, env.runtimeFqn()).type(), env.dialect(), store,
+                         table -> MetamodelSeeds.rows(table, ctx), env.options().systemConnections()));
+@@ -2093,6 +2094,7 @@ public final class BodyDriver {
+         com.legend.sql.SqlQuery plan =
+                 lowerer.lower(com.legend.lowering.SeedableLets
+                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
++        if (!lowerer.deferredTds().isEmpty()) { System.err.println("[H1-LOWERED] deferred=" + lowerer.deferredTds().size() + " dynamicPivotInPlan=" + plan.toString().contains("in=[], named=[]") + " hasPivot=" + plan.toString().contains("Pivot[")); }
+         // post-process, then two-phase dynamic pivot (DynamicPivot doc)
+         plan = DynamicPivot.staticize(
+                 com.legend.lowering.SqlPostProcessors.applyRecorded(plan,
+diff --git a/core/src/main/java/com/legend/driver/ColumnProbe.java b/core/src/main/java/com/legend/driver/ColumnProbe.java
+index 5f030f54..6e7481aa 100644
+--- a/core/src/main/java/com/legend/driver/ColumnProbe.java
++++ b/core/src/main/java/com/legend/driver/ColumnProbe.java
+@@ -34,6 +34,7 @@ public final class ColumnProbe {
+      *  this class ran the probe on a JDBC connection itself). */
+     public static PlanProbe probe(SqlQuery plan, com.legend.sql.dialect.SqlDialect dialect,
+             PlanSessions.Source sessions, ExecutionPlan.Target target) {
++        System.err.println("[H1-PROBE] innerDynamicPivot=" + plan.toString().contains("in=[], named=[]") + " innerHasPivot=" + plan.toString().contains("Pivot[") + " innerOutputsEmpty=" + plan.outputs().isEmpty());
+         SqlSelect probe = SqlSelect.starOf(new SqlSource.Subselect(plan,
+                 "_pct_probe", null)).withLimit(0L);
+         List<Statements.Reported> reported = PlanRunner.columns(ExecutionPlan.Sql.of(dialect.render(probe), target),
+diff --git a/core/src/main/java/com/legend/driver/GridProbe.java b/core/src/main/java/com/legend/driver/GridProbe.java
+index bb37aaf7..8254eaf0 100644
+--- a/core/src/main/java/com/legend/driver/GridProbe.java
++++ b/core/src/main/java/com/legend/driver/GridProbe.java
+@@ -77,6 +77,7 @@ public final class GridProbe {
+                 new SqlSource.RawSql(sql, "_p", List.of(), writtenFor))
+                 .withLimit(0L);
+         StatementOrigin.count(StatementOrigin.PROBE);
++        System.err.println("[H2-GRIDPROBE] " + sql.replace('\n', ' ').replace('\r', ' ').substring(0, Math.min(160, sql.length())));
+         List<String[]> cols = new ArrayList<>();
+         for (Statements.Reported r : PlanRunner.columns(ExecutionPlan.Sql.of(dialect.render(probe), target),
+                 sessions)) {
+diff --git a/core/src/main/java/com/legend/driver/JudgePlans.java b/core/src/main/java/com/legend/driver/JudgePlans.java
+index eb3ca4e6..9510e875 100644
+--- a/core/src/main/java/com/legend/driver/JudgePlans.java
++++ b/core/src/main/java/com/legend/driver/JudgePlans.java
+@@ -63,6 +63,7 @@ final class JudgePlans {
+      *  the doors, 2026-10-29). */
+     static ExecutionPlan.Target target(com.legend.database.Target decided, String version,
+             com.legend.sql.dialect.SqlDialect dialect) {
++        System.err.println("[H7-TARGET] " + decided);
+         ExecutionPlan.Database database = switch (decided) {
+             case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
+             case com.legend.database.Target.Declared d ->
+diff --git a/core/src/main/java/com/legend/driver/WireProbe.java b/core/src/main/java/com/legend/driver/WireProbe.java
+index 1ba70905..068e18bf 100644
+--- a/core/src/main/java/com/legend/driver/WireProbe.java
++++ b/core/src/main/java/com/legend/driver/WireProbe.java
+@@ -137,9 +137,11 @@ public final class WireProbe {
+             // the cell carries the value's real scale (the calendar rows)
+             if (!(p.expr() instanceof SqlExpr.Column ref) || labelCarrier(col.type())) {
+                 Census.inc(Census.Key.WIRE_SLOT_SKEW);   // the slot stands; counted
++                System.err.println("[H3-SKEW] " + col.name() + " " + col.type() + "->" + wire + " totals retyped=" + Census.count(Census.Key.WIRE_RETYPED) + " skew=" + Census.count(Census.Key.WIRE_SLOT_SKEW));
+                 continue;
+             }
+             Census.inc(Census.Key.WIRE_RETYPED);
++            System.err.println("[H3-RETYPE] " + col.name() + " " + col.type() + "->" + wire + " totals retyped=" + Census.count(Census.Key.WIRE_RETYPED) + " skew=" + Census.count(Census.Key.WIRE_SLOT_SKEW));
+             if (com.legend.diagnostics.Diagnostics.dumpSql()) {
+                 System.err.println("[wire] " + col.name() + ": stamped " + col.type()
+                         + ", the database reports " + wire);
+diff --git a/core/src/main/java/com/legend/test/PureTestRunner.java b/core/src/main/java/com/legend/test/PureTestRunner.java
+index 2f9ab4d4..a07279af 100644
+--- a/core/src/main/java/com/legend/test/PureTestRunner.java
++++ b/core/src/main/java/com/legend/test/PureTestRunner.java
+@@ -351,11 +351,13 @@ public final class PureTestRunner implements AutoCloseable {
+             // as it always did — the declared-footprint guard above still
+             // refuses the known clashes
+         }
++        System.err.println("[H-SETUP] " + fqn);
+         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+             // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
+             Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
+                     com.legend.Execution.Source.given(target), null, null, options);
+         } finally {
++            System.err.println("[H-SETUP-END] " + fqn);
+             if (isolated) {
+                 observer.fixtureIsolated(conn);
+             }
+@@ -472,6 +474,7 @@ public final class PureTestRunner implements AutoCloseable {
+         try {
+             String failure = null;
+             try {
++                System.err.println("[H-BODY] " + t.fqn());
+                 Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn,
+                         com.legend.Execution.Source.given(conn),
+                         new AssertListener() {
+diff --git a/core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java b/core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java
+index daa9bb50..4bdf4d23 100644
+--- a/core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java
++++ b/core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java
+@@ -46,10 +46,12 @@ public final class TestDataGenerationNatives {
+             com.legend.sql.dialect.SqlDialect engineText,
+             TestDataGenerator.ViewSql viewSql) {
+         if (stmt instanceof TypedCsvCensus cc) {
++            System.err.println("[H5-FOLD] csvCensus");
+             return literal(cc, ctx);
+         }
+         if (stmt instanceof com.legend.compiler.spec.typed
+                 .TypedTestDataGen g) {
++            System.err.println("[H5-FOLD] testDataGen flavor=" + g.flavor());
+             if ("plan".equals(g.flavor())) {
+                 // a PLAN is a value (its planToString reads it) — nothing
+                 // executes here
+diff --git a/pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelB.java b/pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelB.java
+index e1c17c7d..7248e37a 100644
+--- a/pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelB.java
++++ b/pct/src/test/java/org/finos/legend/lite/pct/channelb/ChannelB.java
+@@ -212,6 +212,7 @@ public final class ChannelB {
+             }
+             out.add(runOne(fd, module, ctx));
+         }
++        System.err.println("[H3-SNAPSHOT] retyped=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_RETYPED) + " skew=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_SLOT_SKEW) + " " + com.legend.exec.Census.snapshot());
+         return out;
+     }
+ 
+@@ -225,6 +226,7 @@ public final class ChannelB {
+     private static Outcome runOne(FunctionDefinition fd,
+             Compiler.ParsedModule module, ModelContext ctx) {
+         String fqn = fd.qualifiedName();
++        System.err.println("[H-BODY] " + fqn);
+         com.legend.lowering.StampCensus.CONTEXT.set(fqn);
+         com.legend.probe.Shadow.CONTEXT.set(fqn);
+         com.legend.judge.SqlTypeCensus.CONTEXT.set(fqn);
+diff --git a/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java b/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
+index 6049e338..47de063c 100644
+--- a/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
++++ b/spec/src/test/java/com/legend/rcorpus/MinimalCorpusTest.java
+@@ -429,6 +429,7 @@ public class MinimalCorpusTest {
+         }
+         System.out.println("[corpus2] accepted divergences " + accepted.size()
+                 + " " + acceptedByBucket);
++        System.err.println("[H3-SNAPSHOT] retyped=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_RETYPED) + " skew=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_SLOT_SKEW) + " " + com.legend.exec.Census.snapshot());
+         // the referee's ORDER census (Phase 0.5): two tags, both COMPILE-TIME
+         // facts of a verdict's chain, both pinned as EXACT sets — an ORDERED
+         // chain whose sort keys the compared output could not carry, and an

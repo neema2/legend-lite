@@ -93,6 +93,43 @@ Upstream, as spec input (UPSTREAM):
     runs through plans and the verdict is the database's (or the host judge's, D7). This program keeps that form and
     changes WHO makes the plan and WHEN.
 
+## 1b. Step H's facts (measured 2026-10-30; `docs/planner-driver-seam-homework/H_REPORT_2026_10_30.md`, D79)
+
+The seven measurements, static over the pinned inputs and dynamic over the three local lanes with temporary prints
+(the rosters unchanged by the run, on S1a's head `c3ae9784`):
+
+1. **Denominators.** The corpus: 2,761 test bodies, 12,301 statements (4.46 per body); 2,575 reach the body driver per
+   pass. Channel B: 1,249 bodies, 4,051 statements, every one adapter-shaped.
+2. **The corpus body is "a frame let, then asserts"**: 2,099 of 2,761 bodies hold a let bound to `execute(...)` (a
+   frame); 1,631 read it before the last statement, 1,187 of those only through asserts, 444 through another let, an
+   effect or a value. Asserts stand at a statement root in 2,620 bodies (5,659 statements). **Channel B is "value lets,
+   then asserts"**: no frame, no effect, no staged let, no raw grid.
+3. **Kinds that do not occur**: alias lets 0, staged lets 0 (both inputs); a dynamic pivot in the corpus 0; a frame
+   in channel B 0; `assertError` in the corpus 0.
+4. **Effects are rare and concentrated**: 18 direct effect statements in 5 corpus bodies, 53 prints in 24; the
+   "via a helper" count (570) is an upper bound whose bulk (380) is `assertEqualsH2Compatible`, an ENGINE-TEXT assert
+   the driver's `SqlTextVerdicts` claims (no `RAW` statement origin in any pass).
+5. **Engine-text asserts are a class of their own**: `assertSameSQL` 482, `assertSqlEquals` 45,
+   `assertEqualsH2Compatible` 380 statements; `assertSameSQL` is the LAST statement of 394 bodies.
+6. **The deferred TDS fires in 6 bodies, all channel B Relation, all NAMED pivots rendered by `toString`**, whose
+   columns the compiler already has; 0 dynamic, 0 other. The trigger (`Render.hasDynamicPivot`, true for any pivot)
+   over-fires (F10): 12 needless LIMIT-0 reads per channel B run. The 10 real dynamic pivots (H6) are never rendered:
+   each sits in a value let (`let expr = {| ... ->pivot(...) }`), evaluated by `$f->eval($expr)` and compared by an
+   `assertTdsEquivalent` whose own cast names the columns. ColumnProbe's reads are not in the `PROBE` census (F9).
+7. **Raw grids**: 2,241 `executeInDb` sites in 84 files; 8 typed as grids, 5 of them in 4 test bodies; the reads that
+   need the names before the real run are ONE `columnNames` (`ddl::dropAndCreateTempTable`) and TWO `rows.values`
+   flattens (`in::H2Test`; the setup `dates::setUp`). Two bodies read a cell by a written name or render the grid
+   whole. No typed overload exists (four shapes, none declares columns). GridProbe fires for exactly those (6 probes
+   per pass, 5 on the H2 database judge).
+8. **The wire retype is 7 columns per database-judge pass in 6 corpus bodies, one shape**: a bare `id` the mapping
+   stamps Integer and the fixture holds as text; 0 in every host pass and in channel B. The slot-skew census (49
+   bodies on H2, the calendar aggregations' DOUBLE against a Decimal) is a separate fact no retype touches.
+9. **The system route**: 97 corpus bodies (plus one channel B Grammar body); only one sends a statement under the
+   SYSTEM origin, the other 96 switch the environment and send nothing there. **The generator's fold**: 44 bodies, 37
+   of which execute (S2j's denominator).
+10. **Targets**: every statement and every judge side of every body, in all nine passes, is planned for ONE declared
+    connection; 0 bodies mix; a platform target appears nowhere. Per-step targets are closed: no.
+
 ## 2. Findings posted to the user (defects and gaps the homework found)
 
 - **F1 (invariant 4, the product path).** A raw SQL grid of unknown schema on the product path is neither stamped
@@ -105,10 +142,15 @@ Upstream, as spec input (UPSTREAM):
   corpus and channel B (CODE §7b). Step H1 measures its origins before step S3a touches it.
 - **F3.** `TypedQuery.planStreaming` has zero callers in main and test (CODE §6a). Dead public API; deleted in S5.
 - **F4.** `GridProbe.probeNames` has no caller (CODE §3b). Deleted with GridProbe in S3c, or earlier as a nit.
-- **F5.** `Keyed` inside a `Sequence` is refused by name, so a write program whose answer is an uncast dynamic pivot
-  is refused on the product path today (CODE §4). S1 lifts the refusal: a pivot test body is a let, the pivot and an
-  assert, so the body plan holds a `Keyed` step beside a `Verdict` step from the first pivot body onward (the user's
-  question of 2026-10-30; H6 only counts how many).
+- **F5.** `Keyed` inside a `Sequence` was refused by name (CODE §4). Lifted in S1a (D78). H6 then showed that no
+  body makes a keyed step today: a dynamic pivot sits in a value let spliced under the assert's cast, so the plan's
+  first reading ("a pivot body is a let, the pivot and an assert") was right about the shape and wrong about the
+  step. The arm stays: it is the form a staged or mid-body pivot answer takes, and a write program ending in one.
+- **F9.** ColumnProbe's LIMIT-0 reads are not counted under `StatementOrigin.PROBE` (GridProbe's and DynamicPivot's
+  are), so the oracle "`PROBE` shrinks to zero" cannot see them. S3a deletes ColumnProbe, which closes it.
+- **F10.** `lowering/Render.hasDynamicPivot` answers true for ANY `SqlSource.Pivot`, so a deferred TDS is registered
+  for a NAMED pivot rendered by `toString` whose columns the compiler already has: 12 needless LIMIT-0 reads per
+  channel B Relation run (H1). Narrowed in S3a to a pivot with no names.
 - **F6.** The test-data generator's fold reads the session before planning the next statement (`foldCensus`, CODE
   §5a; the named residue D30 said to revisit as "a two-plan body"). Step S2j.
 
@@ -150,9 +192,10 @@ Added to `executionplan/ExecutionPlan.java`, each a record with a runner arm and
   is added beyond reading reported columns as rows. The same step names a deferred TDS's column list where H1 shows
   one outside a pivot. No step at all where nothing needs the names before the grid runs: a column read by the name
   the program wrote, a grid that is the answer or a judge's side (its columns read from the real run at the row).
-- `Keyed` inside a `Sequence` (F5): required, lifted in S1.
-- A step's `Target` may differ inside one `Sequence` where H7 shows bodies that mix the platform (a verdict's
-  canonical rows) and a declared database; otherwise the one-target rule stays and the mixing refusal stays.
+- `Keyed` inside a `Sequence` (F5): lifted in S1a (D78); no body makes one today (H6), the arm kept as the form a
+  staged or mid-body pivot answer takes.
+- A step's `Target`: ONE per sequence, closed by H7 (every statement and every side of every body in all nine
+  passes names one declared connection; 0 bodies mix): the one-target rule and the mixing refusal stay.
 
 No allocation node, no variable map, no text hole: a let is a staged table or a splice (§3.1), and a step's rows go
 to the database (a staged table) or to a sink (the judge, the caller), never into a Java-held environment the next
@@ -163,7 +206,8 @@ step reads.
 `planner/BodyPlanner.plan(TypedQuery, runtime, options) → ExecutionPlan` (the name is provisional), grown out of
 `PlanMaker.program` (the write program's `Sequence`, CODE §1d), which already plans a program in one pass: each
 statement resolved with the lets before it, a let bound to rows staged. The kinds, each a step, in the order H4's
-census ranks them (provisional order here, by the driver's branches at `driver/BodyCompiler.java:71-176`, CODE §5a):
+census ranks them (the order is H4's, 2026-10-30, §1b: asserts, frames, value lets, engine-text asserts, the system
+route, the generator's fold, effects, raw grids, pivots; the table keeps the driver's branch order, CODE §5a):
 
 | kind (the driver's branch today) | the step after | the ruling it follows |
 |---|---|---|
@@ -204,7 +248,8 @@ runtime's libraries plus `:planner`'s doors, `:judge` and `:execution_plan`").
 ### 3.5 The raw grid: the pivot's pattern, not a probe and not an oracle
 
 The first draft asked whether the RAW GRID (the rows of a SQL string a test author typed, `executeInDb('select
-...', $c)`: 2,252 calls in 86 of legend-engine's relational test files, the corpus input) needs a database answer
+...', $c)`: 2,241 call sites in 84 of legend-engine's relational test files, H2's count; the first draft's "2,252
+in 86" was a looser grep) needs a database answer
 during planning, because a later statement may ask for its `columnNames` or flatten its `rows.values`, and offered
 two forms: columns declared in the program, or a schema oracle door the planner owns. Both are withdrawn (the user's
 questions of 2026-10-30: "Is this similar to dynamic pivot? Does it make sense to use that pattern?").
@@ -263,10 +308,10 @@ only; no credentials read, printed or copied).
 | **H** | the homework completions, read-only, lanes measure only: **H1** deferred TDS registrations by origin (pivot vs other) on the corpus and channel B; **H2** raw grids demanded vs undemanded, and whether each demanding body declares its columns; **H3** `WIRE_RETYPED` / `WIRE_SLOT_SKEW` per lane; **H4** a statement-kind census per body (the table in §3.3) and the frame lets whose rows are read before the end; **H5** bodies on the system route, bodies with the generator's fold; **H6** bodies whose non-last statement is an uncast dynamic pivot; **H7** bodies mixing the platform and a declared target | 2 to 3 days | none: measurements, posted as a report |
 | **S0** | F1 closed inside the program (the user, 2026-10-30: "We will do the grid fix as part of the program"): the plan side refuses a late-bound raw grid by name until S3c gives it its real form, then plans it; built with S3c, not as its own commit | folded into S3c | a planner test; no roster moves (the product lanes never plan one) |
 | **S1** | the vocabulary: `Verdict.Database`, `Verdict.Host`, the wire-decided column fact, the reported-columns-as-rows step with its per-column regions (`Keyed` or a sibling, S1's brief), `Keyed` inside a `Sequence` (F5, required: **S1a built 2026-10-30, D78**), per-step targets if H7 says so; runner arms; JSON round trip (`testcases/PlanRoundTrip`); no caller yet | 3 days | `core_tests_planner`, `exec`, `testcases`; nothing in the driver changes |
-| **S2a–S2j** | the body planner, kind by kind, as a strangler: the driver keeps its loop but, kind by kind, asks the body planner for the step and runs it through the runner; the driver's own branch for that kind is deleted in the same commit. Order from H4's frequencies; provisional: a (values), b (value, handle, alias lets), c (staged lets), d (effects), e (database-judge asserts), f (host-judge asserts, BOTH), g (frames), h (the system route), i (engine-text asserts), j (the generator's fold) | 1 to 3 days each, 2 to 3 weeks in all | each: zero roster movement; `BodyDriver`'s size pin shrinks (dated); the `JavaEvalLedgerTest` registers move by name; D30's residue list re-pinned |
-| **S3a** | the dynamic pivot in bodies as `Keyed` (the product path's form, S110); `DynamicPivot.staticize` deleted; ColumnProbe deleted, the deferred TDS's column list a per-key region of the `Keyed` body (S110's form) where H1 shows the pivot is its origin, else the rows-fill-regions step of S1 | 3 to 5 days | zero roster movement; `PROBE` census drops by the pivots' count; `DynamicPivotKeyLiteralH2Test` becomes a planner test; `JavaEvalLedgerTest:217` (DynamicPivot's pin) deleted |
-| **S3b** | wire-decided kinds decoded by the wire at the row (§3.2); `WireProbe.reconcile`/`staticized` deleted; `describe` has no caller in the driver | 3 to 5 days | `WIRE_RETYPED` before equals the wire-decoded count after; zero roster movement; `WireProbeTest` rewritten as a decode test in `exec` |
-| **S3c** | raw grids as the pivot's pattern (§3.5): a read by a written name and a grid as the answer or a side with their columns from the real run; `columnNames` and `rows.values` as the reported-columns step plus per-column regions; `GridProbe`, `RawGridSchema.stamp` and `SchemaReferee` deleted; `RawSqlLedgerTest:122`'s one `RawSql` → 0 | 1 week | zero roster movement (a `String[*]` multiplicity loosening posted if any verdict reads it); `PROBE` census 0 |
+| **S2a–S2j** | the body planner, kind by kind, as a strangler: the driver keeps its loop but, kind by kind, asks the body planner for the step and runs it through the runner; the driver's own branch for that kind is deleted in the same commit. Order by H4's frequencies (§1b, 2026-10-30): **e** database-judge asserts and **f** host-judge asserts (2,620 corpus bodies, 1,248 channel B), **g** frames (2,099), **b** value and handle lets (1,356 / 612; alias and staged lets occur in neither input: no arm), **i** engine-text asserts (907 statements), **h** the system route (97), **j** the generator's fold (44, 37 executing), **d** effects (5 bodies direct, 24 prints; the segment script), **a** value statements (60); the raw grids are S3c (4 bodies), the pivots S3a (10, channel B) | 1 to 3 days each, 2 to 3 weeks in all | each: zero roster movement; `BodyDriver`'s size pin shrinks (dated); the `JavaEvalLedgerTest` registers move by name; D30's residue list re-pinned |
+| **S3a** | ColumnProbe DELETED outright: its reads are for six NAMED pivots rendered by `toString`, whose columns the compiler has (H1), the trigger narrowed to a pivot with no names (F10); no body in either input renders a dynamic pivot's text, so no region form is needed. `DynamicPivot.staticize` deleted: the heavy channel B lanes (H2, Postgres, SQLite) take the `Keyed` form the product path has (S110); the 10 real dynamic pivots (H6, channel B Relation) are value lets spliced under the assert's cast, so no keyed step is made by any body today (S1a stays) | 2 to 3 days | zero roster movement on the local lanes AND the three heavy channel B lanes by hand; `JavaEvalLedgerTest:217` (DynamicPivot's pin) and ColumnProbe's register row deleted; the 12 LIMIT-0 reads gone from the Relation lane (a count, F9 closed) |
+| **S3b** | wire-decided kinds decoded by the wire at the row (§3.2); `WireProbe.reconcile`/`staticized` deleted; `describe` has no caller in the driver. H3's denominator: 7 retyped columns per database-judge pass in 6 corpus bodies, one shape (a bare `id` the mapping stamps Integer, text in the fixture); 0 in the host passes and in channel B; the slot-skew census (49 bodies on H2) untouched | 2 to 3 days | `WIRE_RETYPED` before (7) equals the wire-decoded count after; zero roster movement; `WireProbeTest` rewritten as a decode test in `exec` |
+| **S3c** | raw grids as the pivot's pattern (§3.5): a read by a written name and a grid as the answer or a side with their columns from the real run (H2: `dropAndCreateTable`, `testExecuteInDbToTDS`); `columnNames` and `rows.values` as the reported-columns step plus per-column regions (H2: one `columnNames` in `ddl::dropAndCreateTempTable`, two `rows.values` flattens in `in::H2Test` and the setup `dates::setUp`); `GridProbe`, `RawGridSchema.stamp` and `SchemaReferee` deleted; `RawSqlLedgerTest:122`'s one `RawSql` → 0 | 3 to 5 days | zero roster movement (a `String[*]` multiplicity loosening posted if any verdict reads it); `PROBE` census 0 |
 | **S4** | the driver as the runner and the judges: `BodyCompiler` and `Segments` deleted; `BodyDriver.execute` = plan once, run the sequence, judge at the verdicts; `specs()`/`resolved()` no longer called | 1 week | zero roster movement; `theDriverCompilesNothing` added; the driver's size pins shrink to the residue |
 | **S5** | the boundary: `TypedQuery`'s internals into `planner/` (package-private again), `PlanMaker`'s three driver statics package-private, `JudgePlans` in `planner/`, F3 and F4 deleted, `core-layers.txt`'s driver line cut, the registers closed; the JPMS spike if the user says so | 3 days (+1 for the spike) | `//tools/deps:core_layering_test`; `ArchitectureTest`; `JavaEvalLedgerTest` |
 | **Z** | the final audit and the landing handed to the user | 2 days | CI on every OS on the branch; the PR; the user's word |
@@ -341,7 +386,9 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   plan?"): the raw grid as the pivot's pattern and the oracle door withdrawn (§3.5), `Keyed` in a `Sequence` required
   (F5), the heavy lanes by hand at S2d and S3 (D76). The user's rulings on §6 the same day (D77): GO; the raw grid
   defect inside the program; the pivot's pattern; no JPMS spike; the order by frequency; and, later that day, the
-  work started at once on a STACKED branch (`claude/wizardly-dirac-rw6tim-seam`, on PR #82's head) rather than
-  waiting for the merge ("so we not wasting yet another hour"). **Step H started 2026-10-30** (read-only
-  measurements). **S1a built 2026-10-30** (D78; GATES "The seam program's S1a"): a keyed result as a step of a
-  sequence runs; F5 closed. Next: S1b's brief (the verdict steps and the program sink) to the user.
+  work started at once on a STACKED branch (`claude/wizardly-dirac-rw6tim-seam`, on PR #82's head, PR #83) rather
+  than waiting for the merge ("so we not wasting yet another hour"). **S1a built 2026-10-30** (D78; GATES "The seam
+  program's S1a"): a keyed result as a step of a sequence runs. **Step H done 2026-10-30** (D79; §1b; the report
+  `docs/planner-driver-seam-homework/H_REPORT_2026_10_30.md`): the order of S2 is H4's, S3a shrinks to two deletions,
+  S3b and S3c have small named denominators, per-step targets are closed, F9 and F10 found. Next: S1b's brief (the
+  verdict steps and the program sink) on the user's answers.

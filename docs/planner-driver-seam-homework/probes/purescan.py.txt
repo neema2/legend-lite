@@ -1,0 +1,183 @@
+"""Static scanner for Pure test sources: functions, bodies, statements (step H, read-only)."""
+import re, sys, json, pathlib, collections
+
+EXT = '/root/.cache/bazel/_bazel_root/<output base hash>/external'
+ENGINE = EXT + '/+http_archive+legend_engine_src'
+PURE = EXT + '/+http_archive+legend_pure_src'
+RELATIONAL = ENGINE + '/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational'
+ENGINE_IMPL_SKIP = {'lineage/scanRelations/scanRelations.pure'}
+CHB = {
+ 'Essential': (PURE + '/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential'),
+ 'Grammar': (PURE + '/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions'),
+ 'Relation': (ENGINE + '/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation'),
+ 'Standard': (ENGINE + '/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-standard/legend-engine-pure-functions-standard-pure/src/main/resources/core_functions_standard'),
+ 'Unclassified': (ENGINE + '/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified'),
+}
+
+def clean(text):
+    """Comments replaced by spaces (offsets kept); strings kept verbatim."""
+    out = list(text); i = 0; n = len(text)
+    while i < n:
+        c = text[i]
+        if c == "'":
+            i += 1
+            while i < n and text[i] != "'":
+                if text[i] == '\\': i += 1
+                i += 1
+            i += 1
+        elif c == '/' and i + 1 < n and text[i+1] == '/':
+            while i < n and text[i] != '\n':
+                out[i] = ' '; i += 1
+        elif c == '/' and i + 1 < n and text[i+1] == '*':
+            while i < n and not (text[i] == '*' and i + 1 < n and text[i+1] == '/'):
+                if text[i] != '\n': out[i] = ' '
+                i += 1
+            if i < n: out[i] = ' '; out[i+1] = ' '; i += 2
+        else:
+            i += 1
+    return ''.join(out)
+
+def match_balanced(s, i, open_, close):
+    """s[i] == open_; return index just past the matching close (strings skipped)."""
+    depth = 0; n = len(s)
+    while i < n:
+        c = s[i]
+        if c == "'":
+            i += 1
+            while i < n and s[i] != "'":
+                if s[i] == '\\': i += 1
+                i += 1
+        elif c == open_: depth += 1
+        elif c == close:
+            depth -= 1
+            if depth == 0: return i + 1
+        i += 1
+    return -1
+
+def split_statements(body):
+    """Top-level statements of a body (text between the outer braces)."""
+    stmts = []; depth = 0; i = 0; n = len(body); start = 0
+    while i < n:
+        c = body[i]
+        if c == "'":
+            i += 1
+            while i < n and body[i] != "'":
+                if body[i] == '\\': i += 1
+                i += 1
+        elif c in '([{': depth += 1
+        elif c in ')]}': depth -= 1
+        elif c == ';' and depth == 0:
+            stmts.append(body[start:i]); start = i + 1
+        i += 1
+    tail = body[start:].strip()
+    if tail: stmts.append(tail)
+    return [s.strip() for s in stmts if s.strip()]
+
+FUNC_RE = re.compile(r'\bfunction\b')
+NAME_RE = re.compile(r'\s*((?:[A-Za-z_][\w$]*::)*[A-Za-z_][\w$]*)')
+
+def functions(path):
+    raw = pathlib.Path(path).read_text(encoding='utf-8', errors='replace')
+    text = clean(raw)
+    imports = sorted(set(re.findall(r'(?m)^\s*import\s+([\w:]+)::\*\s*;', text)))
+    out = []
+    for m in FUNC_RE.finditer(text):
+        i = m.end()
+        # must be at a statement start: preceding non-space char is not a letter/identifier (skip 'native function' as well -> no body)
+        before = text[:m.start()].rstrip()
+        if before.endswith('native'):
+            continue
+        stereos = []
+        j = i
+        # stereotypes and tagged values, in any order
+        while True:
+            k = j
+            while k < len(text) and text[k].isspace(): k += 1
+            if text.startswith('<<', k):
+                e = text.find('>>', k)
+                stereos += [s.strip() for s in text[k+2:e].split(',')]
+                j = e + 2; continue
+            if k < len(text) and text[k] == '{':
+                j = match_balanced(text, k, '{', '}'); continue
+            break
+        nm = NAME_RE.match(text, j)
+        if not nm: continue
+        name = nm.group(1); j = nm.end()
+        while j < len(text) and text[j].isspace(): j += 1
+        if j < len(text) and text[j] == '<':
+            j = match_balanced(text, j, '<', '>')
+            if j < 0: continue
+        while j < len(text) and text[j].isspace(): j += 1
+        if j >= len(text) or text[j] != '(': continue
+        pe = match_balanced(text, j, '(', ')')
+        params = text[j+1:pe-1]
+        # return type up to the body's '{' at angle depth 0
+        k = pe; ang = 0
+        while k < len(text):
+            c = text[k]
+            if c == '<': ang += 1
+            elif c == '>' and text[k-1] != '-': ang -= 1
+            elif c == '{' and ang <= 0: break
+            elif c == ';' and ang <= 0: k = -1; break
+            k += 1
+        if k < 0 or k >= len(text): continue
+        be = match_balanced(text, k, '{', '}')
+        if be < 0: continue
+        body = text[k+1:be-1]
+        nparams = 0 if not params.strip() else len(split_top(params, ','))
+        line = raw.count('\n', 0, m.start()) + 1
+        out.append({'name': name, 'stereos': stereos, 'nparams': nparams, 'body': body,
+                    'file': path, 'line': line, 'bodyline': raw.count('\n', 0, k) + 1,
+                    'pkg': name.rsplit('::', 1)[0] if '::' in name else '', 'imports': imports})
+    return out
+
+def split_top(s, sep):
+    parts = []; depth = 0; i = 0; n = len(s); start = 0
+    while i < n:
+        c = s[i]
+        if c == "'":
+            i += 1
+            while i < n and s[i] != "'":
+                if s[i] == '\\': i += 1
+                i += 1
+        elif c in '([{<': depth += 1
+        elif c in ')]}': depth -= 1
+        elif c == '>' and s[i-1] != '-': depth -= 1
+        elif c == sep and depth == 0:
+            parts.append(s[start:i]); start = i + 1
+        i += 1
+    parts.append(s[start:])
+    return parts
+
+def corpus_files():
+    root = pathlib.Path(RELATIONAL)
+    fs = sorted(str(p) for p in root.rglob('*.pure') if p.is_file())
+    return [f for f in fs if str(pathlib.Path(f).relative_to(root)) not in ENGINE_IMPL_SKIP]
+
+def chb_files(suite):
+    root = pathlib.Path(CHB[suite])
+    return sorted(str(p) for p in root.rglob('*.pure') if p.is_file())
+
+def is_corpus_test(f):
+    return any(s in ('test.Test', 'meta::pure::profiles::test.Test') for s in f['stereos'])
+def is_corpus_setup(f):
+    return any(s in ('test.BeforePackage', 'meta::pure::profiles::test.BeforePackage') for s in f['stereos'])
+def is_pct_test(f):
+    return any(s.endswith('PCT.test') for s in f['stereos'])
+
+if __name__ == '__main__':
+    cf = corpus_files()
+    allf = [fn for f in cf for fn in functions(f)]
+    tests = [f for f in allf if is_corpus_test(f)]
+    setups = [f for f in allf if is_corpus_setup(f)]
+    print('corpus files', len(cf), 'functions', len(allf), 'test.Test', len(tests), 'BeforePackage', len(setups),
+          'ToFix among tests', sum(1 for f in tests if any(s.endswith('.ToFix') for s in f['stereos'])),
+          'ExcludeAlloy among tests', sum(1 for f in tests if any(s.endswith('.ExcludeAlloy') for s in f['stereos'])),
+          'tests with params', sum(1 for f in tests if f['nparams']))
+    names = collections.Counter(f['name'] for f in tests)
+    print('duplicate test fqns', sum(1 for k, v in names.items() if v > 1))
+    for suite in CHB:
+        fs = chb_files(suite)
+        fn = [x for f in fs for x in functions(f)]
+        pct = [x for x in fn if is_pct_test(x)]
+        print(suite, 'files', len(fs), 'functions', len(fn), 'PCT.test', len(pct), 'adapter(1 param)', sum(1 for x in pct if x['nparams'] == 1))
