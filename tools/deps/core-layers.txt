@@ -96,7 +96,7 @@ setup	base cache compiler execution_plan model protocol sql sql_dialect
 # sql_dialect gone with the judges' column and row (`judge`), the driver's decode facts (the connector's), the session source
 # and the system database (the driver's), and the wire table's compiler type (a name in the plan's vocabulary).
 exec	base cache diagnostics error execution_plan json model result sql values
-judge	base compiler compiler_element_type diagnostics error exec lowering sql sql_dialect values
+judge	base compiler compiler_element_type diagnostics error exec execution_plan lowering result sql sql_dialect values
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its

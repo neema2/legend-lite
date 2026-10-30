@@ -116,6 +116,13 @@ public final class PlanRunner {
          *  nothing there). Delivered in the group's order. */
         void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) throws IOException;
 
+        /** The group's fused statement ran ({@code rejected} null: every verdict's row came from it) or the database
+         *  rejected it ({@code rejected} the error: the split rung, each verdict's own wrapper runs instead, in the
+         *  group's order). Once per group that has a fused statement, before its verdicts; the sink's accounting (the
+         *  runner counts nothing). */
+        void fused(ExecutionPlan.Verdicts group, com.legend.error.@com.legend.base.Nullable DataError rejected)
+                throws IOException;
+
         /** The HOST judge's sides for {@code verdict}: each base side's typed rows in the base's order -- a rows
          *  side's and a keyed side's read from the database, a constant side's its columns and its TEXT cells as the
          *  program wrote them (the sink reads them by the columns' facts). */
@@ -233,7 +240,7 @@ public final class PlanRunner {
             };
             if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
                 st.inSnapshot(snapshot, work);
-            } else {
+            } else if (changes) {
                 try {
                     st.inTransaction(() -> {
                         try {
@@ -246,6 +253,13 @@ public final class PlanRunner {
                 } catch (java.io.UncheckedIOException e) {
                     throw e.getCause();
                 }
+            } else {
+                // reads alone, no snapshot asked: each statement as the session sends it, no bracket -- a verdict
+                // group's statements ran so before they were a plan's steps (S2e, 2026-10-30), and a bracket would
+                // carry a rejected fused statement's abort into the wrappers that follow it on a database that aborts
+                // the transaction on any error (Postgres); a program that changes the database is S4's to settle
+                // (the plan's F11)
+                work.run();
             }
         }
         if (answered[0]) {
@@ -306,15 +320,13 @@ public final class PlanRunner {
                         throw new IllegalStateException("the fused verdict statement answered " + rows.size()
                                 + " rows for " + group.verdicts().size() + " verdicts");
                     }
-                    Census.inc(Census.Key.VERDICT_FUSED);
+                    sink.fused(group, null);
                 } catch (com.legend.error.DataError e) {
                     // the split rung: the database rejected the fused statement, so each verdict's own wrapper runs
-                    // below and the error lands on the verdict that owns it; counted, never a verdict change
+                    // below and the error lands on the verdict that owns it; the sink's accounting, never a verdict
+                    // change
                     rows.clear();
-                    Census.inc(Census.Key.VERDICT_FALLBACKS);
-                    String m = String.valueOf(e.getMessage());
-                    Census.FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
-                            + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' '));
+                    sink.fused(group, e);
                 }
             }
             for (int i = 0; i < group.verdicts().size(); i++) {

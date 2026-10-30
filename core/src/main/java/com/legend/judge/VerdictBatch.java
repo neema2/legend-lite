@@ -5,9 +5,11 @@ package com.legend.judge;
 
 import com.legend.exec.Census;
 import com.legend.exec.ExecutionTrace;
+import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.PrepTrace;
 import com.legend.exec.Sessions;
+import com.legend.executionplan.ExecutionPlan;
 
 import com.legend.sql.SqlQuery;
 
@@ -54,14 +56,48 @@ public final class VerdictBatch {
         void judge(String name, boolean wantEqual, List<Object> row);
     }
 
-    /** The plan side's runner for a verdict statement: {@code statement} sent on a session of {@code on} as a
-     *  typed-rows plan, its rows decoded by the verdict schema ({@code fused}: the batch schema, an index column
-     *  first). */
+    /** The plan side's PLANNER for a verdict statement (the planner-driver seam program's S2e, 2026-10-30; until then
+     *  its runner): {@code statement} as a typed-rows plan of the verdict schema ({@code fused}: the batch schema, an
+     *  index column first), rendered for the body's session. The batch runs the plans itself, as a verdict group
+     *  through the plan runner ({@link PlanRunner#program}); a wrapper the dialect cannot spell raises here. */
     public interface Runner {
-        List<List<Object>> rows(SqlQuery statement, PlanSessions.Source on, boolean fused);
+        ExecutionPlan.TdsResult plan(SqlQuery statement, boolean fused);
 
         /** The statement's rendered length (the prepare trace's census). */
         int chars(SqlQuery statement);
+    }
+
+    /** The arm a verdict's name spells: the assert function's simple name (the name is its callee's FQN, or the
+     *  arm's own word where there is none). */
+    static String armOf(String name) {
+        int i = name.lastIndexOf("::");
+        String simple = i < 0 ? name : name.substring(i + 2);
+        int u = simple.indexOf('_');
+        return u > 0 ? simple.substring(0, u) : simple;
+    }
+
+    /** A program sink for a verdict group alone: no answer, no host sides (a verdict group answers no rows and the
+     *  host judge is not asked here); the rows and the fused outcome are the batch's to take. */
+    private abstract static class VerdictSink implements PlanRunner.ProgramSink {
+        @Override
+        public void columns(List<ExecutionPlan.Column> columns) {
+            throw new IllegalStateException("a verdict group answers no rows");
+        }
+
+        @Override
+        public void batch(com.legend.result.Batch batch) {
+            throw new IllegalStateException("a verdict group answers no rows");
+        }
+
+        @Override
+        public void end() {
+            throw new IllegalStateException("a verdict group answers no rows");
+        }
+
+        @Override
+        public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> sides) {
+            throw new IllegalStateException("the host judge is not asked through the batch");
+        }
     }
 
     /** A deferred verdict statement, or an outcome the arm decided
@@ -262,25 +298,54 @@ public final class VerdictBatch {
         Map<Integer, List<Object>> rows = new HashMap<>();
         for (var g : groups.entrySet()) {
             List<Pending> ps = g.getValue();
+            if (PrepTrace.on()) {
+                for (Pending p : ps) {
+                    PrepTrace.branch(p.name(), runner.chars(p.query()));
+                }
+            }
+            // the group as a plan value (S2e): the fused statement its wrapper over wrappers, each verdict a step with
+            // no wrapper of its own here -- a single wrapper is planned and run lazily in the root loop below, at the
+            // place the split rung reaches it, so nothing is sent past the first failure
+            ExecutionPlan.TdsResult fusedPlan;
             try {
-                if (PrepTrace.on()) {
-                    for (Pending p : ps) {
-                        PrepTrace.branch(p.name(), runner.chars(p.query()));
+                fusedPlan = runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true);
+            } catch (com.legend.sql.dialect.DialectCapability e) {
+                // the split rung at planning: a canon the dialect cannot spell; counted as the run-time one is
+                fallback(e);
+                continue;
+            }
+            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(ps.size());
+            for (Pending p : ps) {
+                verdicts.add(new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(), List.of(), null));
+            }
+            ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(verdicts, fusedPlan);
+            int[] next = {0};
+            VerdictSink sink = new VerdictSink() {
+                @Override
+                public void fused(ExecutionPlan.Verdicts g, com.legend.error.@com.legend.base.Nullable DataError rejected) {
+                    if (rejected == null) {
+                        Census.inc(Census.Key.VERDICT_FUSED);
+                    } else {
+                        // the split rung: the database rejected the fused statement; this batch judges statement by
+                        // statement below, so the error lands on the assert that owns it
+                        fallback(rejected);
                     }
                 }
-                for (List<Object> row : executeFused(ps.stream().map(Pending::query).toList(), g.getKey())) {
-                    int local = ((Number) row.get(0)).intValue();
-                    rows.put(ps.get(local).ix(), row.subList(1, row.size()));
+
+                @Override
+                public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
+                    int local = next[0]++;
+                    if (row != null) {
+                        rows.put(ps.get(local).ix(), row);
+                    }
                 }
-                Census.inc(Census.Key.VERDICT_FUSED);
-            } catch (com.legend.error.DataError | com.legend.sql.dialect.DialectCapability e) {
-                // the split rung: this batch judges statement by statement
-                // below, so the error lands on the assert that owns it
-                Census.inc(Census.Key.VERDICT_FALLBACKS);
-                String m = String.valueOf(e.getMessage());
-                Census.FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
-                        + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' ')
-                        + attribute(m));
+            };
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
+                // the body's fused statement carries the stamp its frames' activities reserved (ExecutionTrace.reserve)
+                PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(g.getKey(), trace),
+                        PlanRunner.Judging.DATABASE, sink);
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
             }
         }
         for (Root r : batch) {
@@ -293,8 +358,8 @@ public final class VerdictBatch {
                     if (s instanceof Pending p) {
                         List<Object> row = rows.get(p.ix());
                         if (row == null) {
-                            row = executeOne(p.name(), com.legend.sql.FrameCtes.attach(p.query(), frames),
-                                    p.on(), runner);
+                            row = executeOne(p.name(), p.wantEqual(),
+                                    com.legend.sql.FrameCtes.attach(p.query(), frames), p.on(), runner);
                         }
                         try {
                             judge.judge(p.name(), p.wantEqual(), row);
@@ -331,40 +396,53 @@ public final class VerdictBatch {
         }
     }
 
-    private List<List<Object>> executeFused(List<SqlQuery> statements, Sessions.Session on) {
-        SqlQuery b = fusion.fuse(statements, frames);
-        List<List<Object>> rows;
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-            // the body's fused statement carries the stamp its frames' activities reserved (ExecutionTrace.reserve)
-            rows = runner.rows(b, PlanSessions.of(on, trace), true);
-        }
-        if (rows.size() != statements.size()) {
-            throw new IllegalStateException("the batch verdict statement returned " + rows.size() + " rows for "
-                    + statements.size() + " asserts");
-        }
-        return rows;
+    /** The split rung's accounting: counted, with the reason's head and the frames the message names. */
+    private void fallback(RuntimeException e) {
+        Census.inc(Census.Key.VERDICT_FALLBACKS);
+        String m = String.valueOf(e.getMessage());
+        Census.FALLBACK_REASONS.add(e.getClass().getSimpleName() + ": "
+                + m.substring(0, Math.min(m.length(), 160)).replace('\n', ' ')
+                + attribute(m));
     }
 
-    /** Execute ONE verdict statement on {@code on}, as a plan, and return its one row;
-     * a statement the database rejects, or a canon the dialect cannot spell,
-     * is counted UNJUDGED with the database's own words and surfaces as
-     * itself — never a bare re-run, never a host rescue. */
-    public static List<Object> executeOne(String name, SqlQuery vq, Sessions.Session on, Runner runner) {
-        List<List<Object>> rows;
+    /** Execute ONE verdict statement on {@code on}, as a verdict group of one step through the plan runner (its
+     * wrapper under the FALLBACK origin), and return its one row; a statement the database rejects, or a canon the
+     * dialect cannot spell, is counted UNJUDGED with the database's own words and surfaces as itself — never a bare
+     * re-run, never a host rescue. */
+    public static List<Object> executeOne(String name, boolean wantEqual, SqlQuery vq, Sessions.Session on,
+            Runner runner) {
+        ExecutionPlan.TdsResult wrapper;
         try {
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
-                rows = runner.rows(vq, PlanSessions.of(on, null), false);
-            }
-        } catch (com.legend.error.DataError e) {
-            CanonicalDivergence.sqlUnjudged(name, "statement-error: "
-                    + String.valueOf(e.getMessage()).split("\n")[0]);
-            throw e;
+            wrapper = runner.plan(vq, false);
         } catch (com.legend.sql.dialect.DialectCapability e) {
             CanonicalDivergence.sqlUnjudged(name, "dialect-capability: "
                     + String.valueOf(e.getMessage()).split("\n")[0]);
             throw e;
         }
-        if (rows.size() != 1) {
+        ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(
+                new ExecutionPlan.Verdict(name, armOf(name), wantEqual, List.of(), wrapper)), null);
+        List<List<Object>> rows = new ArrayList<>(1);
+        try {
+            PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(on, null),
+                    PlanRunner.Judging.DATABASE, new VerdictSink() {
+                        @Override
+                        public void fused(ExecutionPlan.Verdicts g, com.legend.error.@com.legend.base.Nullable DataError rejected) {
+                            throw new IllegalStateException("a group of one wrapper has no fused statement");
+                        }
+
+                        @Override
+                        public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
+                            rows.add(row);
+                        }
+                    });
+        } catch (com.legend.error.DataError e) {
+            CanonicalDivergence.sqlUnjudged(name, "statement-error: "
+                    + String.valueOf(e.getMessage()).split("\n")[0]);
+            throw e;
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        if (rows.size() != 1 || rows.get(0) == null) {
             throw new IllegalStateException(name + ": the verdict statement returned " + rows.size() + " rows");
         }
         return rows.get(0);

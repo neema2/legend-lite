@@ -125,6 +125,11 @@ final class ProgramRunnerTest {
         }
 
         @Override
+        public void fused(ExecutionPlan.Verdicts group, com.legend.error.DataError rejected) {
+            events.add(rejected == null ? "fused" : "fused rejected: " + rejected.getMessage().split("\n")[0]);
+        }
+
+        @Override
         public void columns(List<ExecutionPlan.Column> columns) {
             events.add("columns");
             answerColumns = columns;
@@ -145,29 +150,27 @@ final class ProgramRunnerTest {
     }
 
     @Test
-    @DisplayName("database judging: the fused statement's rows, one per verdict, in the group's order; counted fused")
+    @DisplayName("database judging: the fused statement's rows, one per verdict, in the group's order; the sink told it ran")
     void databaseJudgingReadsTheFusedStatement() throws IOException {
-        long fusedBefore = Census.count(Census.Key.VERDICT_FUSED);
         Recording sink = new Recording();
         PlanRunner.program(new ExecutionPlan(List.of(), group(fused(FUSED))), Map.of(), sessions(),
                 PlanRunner.Judging.DATABASE, sink);
-        assertEquals(List.of("verdict assertEquals@2", "verdict assertEquals@3"), sink.events);
+        assertEquals(List.of("fused", "verdict assertEquals@2", "verdict assertEquals@3"), sink.events);
         assertEquals(java.util.Arrays.asList(true, "x", "x", null, false), cells(sink.verdictRows.get(0)));
         assertEquals(java.util.Arrays.asList(false, "a", "b", null, false), cells(sink.verdictRows.get(1)));
-        assertEquals(fusedBefore + 1, Census.count(Census.Key.VERDICT_FUSED));
     }
 
     @Test
-    @DisplayName("the split rung: the database rejects the fused statement, so each verdict's own wrapper runs; counted")
+    @DisplayName("the split rung: the database rejects the fused statement, the sink told, each verdict's own wrapper runs")
     void aRejectedFusedStatementFallsToEachWrapper() throws IOException {
-        long fallbacksBefore = Census.count(Census.Key.VERDICT_FALLBACKS);
         Recording sink = new Recording();
         PlanRunner.program(new ExecutionPlan(List.of(), group(fused("SELECT * FROM no_such_table_s1b"))), Map.of(),
                 sessions(), PlanRunner.Judging.DATABASE, sink);
-        assertEquals(List.of("verdict assertEquals@2", "verdict assertEquals@3"), sink.events);
+        assertEquals(3, sink.events.size(), sink.events.toString());
+        assertTrue(sink.events.get(0).startsWith("fused rejected: "), sink.events.get(0));
+        assertEquals(List.of("verdict assertEquals@2", "verdict assertEquals@3"), sink.events.subList(1, 3));
         assertEquals(java.util.Arrays.asList(true, "x", "x", null, false), cells(sink.verdictRows.get(0)));
         assertEquals(java.util.Arrays.asList(false, "a", "b", null, false), cells(sink.verdictRows.get(1)));
-        assertEquals(fallbacksBefore + 1, Census.count(Census.Key.VERDICT_FALLBACKS));
     }
 
     @Test
@@ -190,7 +193,6 @@ final class ProgramRunnerTest {
     @Test
     @DisplayName("host judging: each verdict's sides as typed rows, a constant side its text cells; nothing fused is sent")
     void hostJudgingHandsTheSides() throws IOException {
-        long fusedBefore = Census.count(Census.Key.VERDICT_FUSED);
         Recording sink = new Recording();
         PlanRunner.program(new ExecutionPlan(List.of(), group(fused(FUSED))), Map.of(), sessions(),
                 PlanRunner.Judging.HOST, sink);
@@ -200,7 +202,6 @@ final class ProgramRunnerTest {
         assertEquals(List.of(3L), first.get(0).rows().get(0), "the rows side, read from the database");
         assertEquals(List.of("3"), first.get(1).rows().get(0), "the constant side, its text cell as written");
         assertEquals("Integer", first.get(1).columns().get(0).type());
-        assertEquals(fusedBefore, Census.count(Census.Key.VERDICT_FUSED));
     }
 
     @Test
@@ -209,7 +210,7 @@ final class ProgramRunnerTest {
         Recording sink = new Recording();
         PlanRunner.program(new ExecutionPlan(List.of(), group(fused(FUSED))), Map.of(), sessions(),
                 PlanRunner.Judging.BOTH, sink);
-        assertEquals(List.of("sides assertEquals@2", "sides assertEquals@3", "verdict assertEquals@2",
+        assertEquals(List.of("sides assertEquals@2", "sides assertEquals@3", "fused", "verdict assertEquals@2",
                 "verdict assertEquals@3"), sink.events);
     }
 
@@ -223,7 +224,7 @@ final class ProgramRunnerTest {
         Recording sink = new Recording();
         PlanRunner.program(new ExecutionPlan(List.of(), body), Map.of(), sessions(), PlanRunner.Judging.DATABASE,
                 sink);
-        assertEquals(List.of("verdict assertEquals@2", "verdict assertEquals@3", "columns", "batch", "end"),
+        assertEquals(List.of("fused", "verdict assertEquals@2", "verdict assertEquals@3", "columns", "batch", "end"),
                 sink.events);
         assertEquals(List.of(List.of(7L)), sink.answerRows);
         assertEquals("value", sink.answerColumns.get(0).name());
@@ -236,7 +237,7 @@ final class ProgramRunnerTest {
         PlanRunner.program(new ExecutionPlan(List.of(), new ExecutionPlan.Sequence(List.of(
                 new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", target)), group(fused(FUSED))))),
                 Map.of(), sessions(), PlanRunner.Judging.DATABASE, sink);
-        assertEquals(List.of("verdict assertEquals@2", "verdict assertEquals@3"), sink.events);
+        assertEquals(List.of("fused", "verdict assertEquals@2", "verdict assertEquals@3"), sink.events);
         assertNull(sink.answerColumns);
     }
 

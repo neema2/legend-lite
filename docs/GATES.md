@@ -16583,6 +16583,45 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's S2e: the database judge's batch runs its verdicts as a verdict group through the plan runner
+
+The decisions log D82; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2e, the body planner's
+first kind: the asserts the database judges). The stacked branch `claude/wizardly-dirac-rw6tim-seam`, PR #83.
+
+1. **Built:** `VerdictBatch.flush` builds, per session its pendings run on (the grouping it had), one
+   `ExecutionPlan.Verdicts`: each pending a `Verdict` (its name, the arm the name spells, `wantEqual`, no sides, no
+   wrapper), the group's fused statement the plan of the fusion over the group's statements and the frames (the batch
+   schema), and runs it through `PlanRunner.program` under `Judging.DATABASE` on the body's session under the BODY
+   origin; its sink (a program sink that answers no rows and is never asked for sides) records each verdict's row by
+   its place in the group and counts the census in `fused`: `VERDICT_FUSED` when the fused statement ran,
+   `VERDICT_FALLBACKS` with the reason's head and the frames it names when the database rejected it, and likewise when
+   the dialect refuses the fused statement at planning. A verdict whose row the fused statement did not give is judged
+   in the root loop as before, through `executeOne`: the wrapper planned (`Runner.plan(statement, false)`; a dialect's
+   refusal counted UNJUDGED `dialect-capability` and raised) and run as a verdict group of one step through `program`
+   (the runner sends it under the FALLBACK origin; the database's rejection counted UNJUDGED `statement-error` and
+   raised), so nothing is sent past a root's first failure and the statement sequence is the one it was.
+   `VerdictBatch.Runner` is a planner now (`plan(statement, fused)`, `chars`); `JudgePlans.runner` implements it with
+   `rowsPlan` and the verdict schemas; `executeFused` and the batch's rows path are deleted; `DatabaseJudge.runVerdict`
+   hands `executeOne` the verdict's `wantEqual`. `PlanRunner.ProgramSink.fused(group, rejected)` is new: the runner
+   counts nothing (the census left `PlanRunner.verdicts`). `PlanRunner.program` brackets a program in a transaction
+   only where a step changes the database or asks a snapshot (its javadoc's words; S1b's code bracketed always): a
+   verdict group's statements run unbracketed as they did before they were a plan's steps, and F11 names the split
+   rung inside a transaction for S4's brief. `//core:judge` gains `:execution_plan` and `:result` (`core/BUILD.bazel`,
+   `tools/deps/core-layers.txt`, dated). `ProgramRunnerTest` records the `fused` events.
+2. **Measured locally before the commit, twice (once with S1b's always-on bracket, once with the fix; identical):**
+   the seven lanes `//core:core_tests_exec`, `core_tests_judge`, `core_tests_driver`, `core_tests_root`,
+   `core_tests_planner`, `//core:guardrails`, `//tools/deps:core_layering_test`: 7 of 7; then `//gates:corpus_duckdb`,
+   `//gates:corpus_h2`, `//gates:pct_channel_b`, `//core:core_tests_integration`: 18 of 18 (the two corpus verdicts:
+   every roster identical to the committed one; the five channel B censuses the committed lines, `[chB]
+   census={PASS=336, ERROR=9} total=345`, `[chB-gram] 137`, `[chB-Relation] 469`, `[chB-std] 205`,
+   `[chB-Unclassified] 93`). **The statement-origin and verdict censuses equal step H's snapshot (D79) to the
+   statement:** the DuckDB database pass `body=6551 fallback=0 probe=8`, `batch-statements=2579 batch-fallbacks=0`;
+   the H2 database pass `body=6334 fallback=141 probe=7`, `batch-statements=2354 batch-fallbacks=210`
+   (`bazel-bin/spec/judge_database_{duckdb,h2}/database.log`, the `[corpus2] statement-origins` and `sql-census`
+   lines). Zero roster movement.
+3. **Not measured yet:** the rest of the chain locally; CI on PR #83 on this head. The heavy lanes are not S2e's
+   (the plan's §4: by hand at S2d and S3; no effect or wire change here).
+
 ## 2026-10-30 — The heavy lanes on PR #82's head: every server and cloud backend identical per test (five lane sessions)
 
 The user, 2026-10-30: "use the other warm sessions here to run all the tests on the other server and cloud backends so
@@ -16615,6 +16654,11 @@ Observed on the way, none the PR's:
    changed); a finding, not a behavior.
 4. **Snowflake channel B essential exceeds the 900 s default test timeout** when five suites run at once (the base
    takes 1,027 s too; alone with a 3600 s timeout it passes in 1,065 s): the lane's size, pre-existing.
+5. **BigQuery's wall-clock is variance, not a cost** (the lane session's second run of 86d60625, same ten targets,
+   same flags, reported 15:35 UTC): the first run's 31m01s against main's 24m19s came from a bigger rebuild (153
+   build actions from a two-week-old tree, against 112) and slower BigQuery answers in two channel B suites; the
+   second run is 26m52s, its summed JUnit time 3,498 s against main's 3,590 s, each suite on both sides of main by
+   up to 13 s, the pass counts unchanged. Nothing scales with what the PR changed.
 
 ## 2026-10-30 — The seam program's S1b: the verdict steps and the program sink (no caller yet)
 

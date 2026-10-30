@@ -313,14 +313,15 @@ final class JudgePlans {
         }
     }
 
-    /** The database judge's statements as plans ({@link com.legend.judge.VerdictBatch.Runner}): a verdict statement's
-     *  one row, or a fused batch's rows, decoded by the verdict schema. */
+    /** The database judge's statements as plans ({@link com.legend.judge.VerdictBatch.Runner}): a verdict statement,
+     *  or a fused batch's, as a typed-rows plan of the verdict schema the batch runs as a verdict group (the seam
+     *  program's S2e, 2026-10-30; until then the batch asked this for the rows). */
     static com.legend.judge.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
         return new com.legend.judge.VerdictBatch.Runner() {
             @Override
-            public List<List<Object>> rows(SqlQuery statement, PlanSessions.Source on, boolean fused) {
+            public ExecutionPlan.TdsResult plan(SqlQuery statement, boolean fused) {
                 Type.RelationType schema = fused ? VerdictSql.batchSchema() : VerdictSql.schema();
-                return run(rowsPlan(statement, schema, env), on).rows();
+                return rowsPlan(statement, schema, env);
             }
 
             @Override

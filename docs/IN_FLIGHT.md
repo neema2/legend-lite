@@ -2938,7 +2938,7 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   user's correction (D75: no allocation node, no variable map; the database executes, the verdict is its or the host
   judge's, the `Keyed` pattern for a shape the planner cannot know). **Ruled a GO 2026-10-30 (D77)**; the work on the
   stacked branch `claude/wizardly-dirac-rw6tim-seam` (PR #83), S1a and S1b built that day (D78, D80), step H measured
-  (D79). **PR #82 merged by the user 2026-10-30 as `efff0406`**; PR #83 retargeted to `main`.
+  (D79). **PR #82 merged by the user 2026-10-30 as `efff0406`**; PR #83 retargeted to `main`. **S2e built 2026-10-30 (D82)**: `judge/VerdictBatch.java` runs its verdicts as a verdict group through `PlanRunner.program` (`driver/JudgePlans.java`, `driver/DatabaseJudge.java`, `exec/PlanRunner.java`'s sink and transaction bracket; `//core:judge` gains `:execution_plan` and `:result`).
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,
