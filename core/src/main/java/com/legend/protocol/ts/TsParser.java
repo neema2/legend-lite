@@ -58,6 +58,9 @@ public final class TsParser {
     /** The spans of §5: {@code 30d}, {@code 3mo}, {@code 1y}; {@code m} too, which it refuses. */
     private static final Set<String> SPANS = Set.of("d", "w", "mo", "q", "y", "h", "min", "s", "m");
 
+    /** The dates SAMPLE BY's periods are answered at (R5). */
+    private static final Set<String> DATED = Set.of("LAST", "START", "END");
+
     /** The calendar periods SAMPLE BY takes (R5). */
     private static final Set<String> PERIODS = Set.of("d", "w", "mo", "q", "y");
 
@@ -262,6 +265,7 @@ public final class TsParser {
         at = sourcesEnd;
         SqlAst.Expr filter = null;
         TsAst.Span sample = null;
+        String dated = "LAST";
         TsAst.Fill fill = null;
         while (peek().kind() != Kind.EOF) {
             Token t = peek();
@@ -282,6 +286,17 @@ public final class TsParser {
                 }
                 sample = s;
                 at += 3;
+                // the date each period is answered at (R5): its last observation's day, its first day, its last day
+                if (peek().is("at")) {
+                    Token label = tokens.get(at + 1);
+                    String date = label.kind() == Kind.IDENT ? label.text().toUpperCase(Locale.ROOT) : "";
+                    if (!DATED.contains(date)) {
+                        throw invalid("SAMPLE BY's periods are dated AT LAST (the last observation's day), AT START or"
+                                + " AT END (R5)", label.pos());
+                    }
+                    dated = date;
+                    at += 2;
+                }
                 continue;
             }
             if (t.is("fill") && fill == null && filter == null) {
@@ -318,7 +333,7 @@ public final class TsParser {
             }
             throw invalid("syntax error at or near \"" + t.text() + "\"", t.pos());
         }
-        return new TsAst.Query(withs, items, sources, sample, fill, filter, alls, spans);
+        return new TsAst.Query(withs, items, sources, sample, dated, fill, filter, alls, spans);
     }
 
     /** {@code WITH name AS (source), ...}, up to its SELECT. */

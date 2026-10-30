@@ -434,6 +434,31 @@ class TsIslandTest {
     }
 
     @Test
+    void aPeriodIsDatedAtItsLastObservationsDayOrItsFirstOrItsLast() throws Exception {
+        // R5 (the user, 2026-10-30: "configurable with sensible default"): AT LAST, the default, the day of the period's
+        // last observation; AT START its first day; AT END its last day -- 2024-01-20 a Saturday, the 31st a Wednesday
+        Map<String, List<String>> dated = Map.of(
+                "", List.of("2024-01-21", "2024-01-28", "2024-01-31"),
+                " AT LAST", List.of("2024-01-21", "2024-01-28", "2024-01-31"),
+                " AT START", List.of("2024-01-15", "2024-01-22", "2024-01-29"),
+                " AT END", List.of("2024-01-21", "2024-01-28", "2024-02-04"));
+        for (TestBackend backend : deep()) {
+            for (Map.Entry<String, List<String>> d : dated.entrySet()) {
+                List<Map<String, String>> got = rows(backend, "|#TS{SELECT last(CLOSE['AAA']) AS c FROM PRICES ON DAY BY"
+                        + " SYMBOL SAMPLE BY 1w" + d.getKey() + "}#");
+                assertEquals(d.getValue(), got.stream().map(r -> r.get("DAY")).toList(), backend + ":" + d.getKey());
+                assertClose(weeks().stream().map(w -> AAA[w.get(w.size() - 1)]).toArray(Double[]::new),
+                        column(got, null, null, "c"), backend + ": each week's last close" + d.getKey());
+            }
+            List<Map<String, String>> month = rows(backend, "|#TS{SELECT last(CLOSE['AAA']) AS c FROM PRICES ON DAY BY"
+                    + " SYMBOL SAMPLE BY 1mo AT END}#");
+            assertEquals(List.of("2024-01-31"), month.stream().map(r -> r.get("DAY")).toList(), backend + ": a month's end");
+        }
+        assertTrue(refused("SELECT last(CLOSE['AAA']) AS c FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1w AT MIDDLE", true)
+                .contains("dated AT LAST (the last observation's day), AT START or AT END"), "a date it has not");
+    }
+
+    @Test
     void sampleByAWeekTakesEachWeeksRowsByItsAggregate() throws Exception {
         // R5: a row a week, each line taken by its aggregate, a window then counting weeks
         List<List<Integer>> weeks = weeks();

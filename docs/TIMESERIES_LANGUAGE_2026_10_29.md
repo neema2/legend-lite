@@ -100,7 +100,11 @@ A line is one instrument's column along its dates.
 - A single line **broadcasts** against per-instrument lines: `close / close['SPX']` is each instrument relative to SPX.
 - With several sources, a line names its source: `px.close['SPX']`. With one, the alias is optional.
 - A source with many rows per date per instrument (trades) has no line until `SAMPLE BY` aggregates it (R5):
-  without it, a line is its column's rows, each one answered.
+  without it, a line is its column's rows, **each row a point** -- several rows on one date are several points, a
+  window counting each (the user, 2026-10-30, as kdb+, QuestDB and TimescaleDB read a table; pandas and gs-quant
+  assume one value a date and break on duplicates). One value a date is asked for: `SAMPLE BY 1d` with `last(...)`.
+  A host that draws the answer says where a line has several rows on a date (the tile's warning: "AAPL has 3 rows
+  on 2024-01-02: SAMPLE BY 1d to take each day's last"); the language never takes one of them quietly.
 
 ### R3. Four kinds of function
 
@@ -163,9 +167,13 @@ date, that date included.
   monthly return each need a different aggregate (sum, sum, compounded), and the wrong one gives plausible numbers.
 - **An aggregate with no window and no `SAMPLE BY` is refused**: "a sum over what? add SAMPLE BY 1w for each week's
   total, or write sum(volume['SPX'], 20) for the last 20, or sum(volume['SPX'], all) for the total to date."
-- **A period has one date for every line**: its last date on which any line of the query has data (a week's Friday,
-  or its Thursday in a holiday week). Two instruments whose last trades in a month fall on different days still share
-  the month's row.
+- **A period has one date for every line**: by default its last date on which any line of the query has data (a
+  week's Friday, or its Thursday in a holiday week) -- a day, whatever its source's dates are (a date-time's day).
+  Two instruments whose last trades in a month fall on different days still share the month's row. `AT` says the
+  date otherwise (the user, 2026-10-30: "configurable with sensible default"): `SAMPLE BY 1w AT LAST` (the default:
+  the last observation's day, as the tile and Bloomberg's "actual" periodicity date), `AT START` (the period's first
+  day: Monday, the 1st, as QuestDB's `SAMPLE BY`, TimescaleDB's `time_bucket` and kdb+'s `xbar` label a bucket),
+  `AT END` (its last day: Sunday, the month's end, as pandas labels a week or a month).
 - **A period with no data for a line gives that line no value there**, not 0 (`coalesce(wk_volume, 0)` where a 0 is
   wanted). A period in which no line has data is not a row: under `SAMPLE BY 1d`, a holiday is no period.
 - A window then counts periods: `avg(wk_close, 4)` is the average of the last 4 weekly closes.

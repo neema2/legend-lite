@@ -19,13 +19,14 @@ public final class TsAst {
     private TsAst() {
     }
 
-    /** A query: its WITH sources, its items, its FROM sources, its periods ({@code SAMPLE BY}; none: null), how lines
-     *  meet ({@code FILL}; none: null), its FILTER (none: null), where {@code all} stands as a window
-     *  ({@code sum(x, all)}, read as a column of the name {@link TsParser#ALL}), and each span it writes ({@code 3mo},
-     *  read as a column of its place's). */
+    /** A query: its WITH sources, its items, its FROM sources, its periods ({@code SAMPLE BY}; none: null) and the date
+     *  each is answered at ({@code AT}: {@code LAST}, its last observation's day, the default; {@code START}, its first
+     *  day; {@code END}, its last day), how lines meet ({@code FILL}; none: null), its FILTER (none: null), where
+     *  {@code all} stands as a window ({@code sum(x, all)}, read as a column of the name {@link TsParser#ALL}), and each
+     *  span it writes ({@code 3mo}, read as a column of its place's). */
     public record Query(List<With> withs, List<Item> items, List<From> sources, @com.legend.base.Nullable Span sample,
-            @com.legend.base.Nullable Fill fill, SqlAst.@com.legend.base.Nullable Expr filter, Set<SqlAst.Pos> alls,
-            Map<SqlAst.Pos, Span> spans) {
+            String dated, @com.legend.base.Nullable Fill fill, SqlAst.@com.legend.base.Nullable Expr filter,
+            Set<SqlAst.Pos> alls, Map<SqlAst.Pos, Span> spans) {
         public Query {
             withs = List.copyOf(withs);
             items = List.copyOf(items);

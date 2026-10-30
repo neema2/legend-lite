@@ -131,7 +131,7 @@ final class TsLines {
      * period dated at its last row's day -- the tile's frequency (timeseries-query.ts columnPart, periodOf).
      */
     static Valued sampled(Writer w, Source s, String column, List<SqlAst.Expr> matches, boolean split, String unit,
-            String taken) {
+            String taken, String dated) {
         ValueSpecification rel = s.relation();
         for (SqlAst.Expr m : matches) {
             rel = call("filter", rel, w.rowLambda(m, rel, true, "a subscript"));
@@ -166,7 +166,27 @@ final class TsLines {
             rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
         }
         rel = call("filter", rel, lambda("x", call("isNotEmpty", col(value))));
+        if (!"LAST".equals(dated)) {
+            // dated at the period's first day, or its last (R5: AT START, AT END)
+            String last = w.fresh("ar_last");
+            rel = call("rename", rel, new ColSpec(AT), new ColSpec(last));
+            rel = call("extend", rel, new ColSpec(AT, lambda("x", "START".equals(dated) ? one(PERIOD)
+                    : periodEnd(unit))));
+        }
         return new Valued(new Line(rel, instrument, split, AT, !day), value);
+    }
+
+    /** The last day of the period of {@code unit} {@code $x}'s period starts: the day before the next one's first. */
+    private static ValueSpecification periodEnd(String unit) {
+        ValueSpecification start = one(PERIOD);
+        // a day, as the period's start is (a date plus an interval is a timestamp on some databases)
+        return switch (unit) {
+            case "d" -> start;
+            case "w" -> call("datePart", call("adjust", start, new CInteger(6L), new EnumValue(DURATION, "DAYS")));
+            default -> call("datePart", call("adjust", call("adjust", start, new CInteger("mo".equals(unit) ? 1L
+                    : "q".equals(unit) ? 3L : 12L), new EnumValue(DURATION, "MONTHS")), new CInteger(-1L),
+                    new EnumValue(DURATION, "DAYS")));
+        };
     }
 
     /** Lines spread onto every period any of them has ({@link #spread}): the line, and each line's own number in

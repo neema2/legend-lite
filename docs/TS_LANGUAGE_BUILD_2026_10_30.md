@@ -38,6 +38,13 @@ starts at §5's status.
    surface, unchanged; what changes is underneath: a series' expression becomes a `#TS{…}#` query (the thin writer of
    P5), planned by the compiler, instead of the Pure `timeseries-query.ts` writes today. The tile's expression language
    is the same surface on the screen. So "the TypeScript writer is deleted" means the Pure writer, not the vocabulary.
+8. **Several rows on one date are several points** (the user, 2026-10-30, after the expert tools were compared: kdb+,
+   QuestDB and TimescaleDB read every row; pandas and gs-quant assume one a date): a line without SAMPLE BY is its
+   column's rows; one value a date is `SAMPLE BY 1d` with `last(...)`. The tile, which took a date's last row quietly
+   and marked it, instead warns where a line has several rows on a date and says to choose a frequency of Daily.
+9. **A period's date is configurable, with a sensible default** (the user, 2026-10-30): `SAMPLE BY 1w AT LAST` (the
+   default, the last observation's day: the tile's, Bloomberg's "actual"), `AT START` (the period's first day:
+   QuestDB, TimescaleDB, kdb+), `AT END` (its last day: pandas' weeks and months).
 
 **Open, to the user before it lands:** whether a model that names `#TS` must depend on the `timeseries` project (as a
 DataCube page sends the library with its model today), or the platform loads it for every model. The world-map tenet

@@ -917,7 +917,7 @@ public final class TsToPure {
                         && opened.containsKey(c.parts().get(0).text())) {
                     TsLines.Source s = java.util.Objects.requireNonNull(opened.get(c.parts().get(0).text()));
                     return TsLines.sampled(this, s, c.parts().get(1).text(), List.of(), s.instrument() != null,
-                            java.util.Objects.requireNonNull(query.sample()).unit(), taken);
+                            java.util.Objects.requireNonNull(query.sample()).unit(), taken, query.dated());
                 }
                 throw invalid("a period's " + taken + " is of a source's column, " + taken + "(close['SPX']); of an"
                         + " expression of a source's rows, a flat source's column: FROM (SELECT *, price * qty AS"
@@ -955,7 +955,7 @@ public final class TsToPure {
                 boolean split = instrument != null && !one;
                 return taken == null ? TsLines.column(this, s, base.parts().get(1).text(), matches, split)
                         : TsLines.sampled(this, s, base.parts().get(1).text(), matches, split,
-                                java.util.Objects.requireNonNull(query.sample()).unit(), taken);
+                                java.util.Objects.requireNonNull(query.sample()).unit(), taken, query.dated());
             }
 
             /** {@code e}, an expression of lines: its lines met on their dates (R6), {@code e} Postgres's over them;
