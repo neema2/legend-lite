@@ -96,3 +96,6 @@ that moves moves with its reason in the commit (AGENTS.md).
   (`//datacube:ts_examples_measure`): five charts, their Pure and numbers; found the tile's `side="BUY"` matching no
   trade (the stored code is 'B'), which R13 settles for `#TS`. The spec at 3.2 (class sources, `WITH`, names,
   enumerations). P1 next.
+- 2026-10-30: P1 done: the library is `projects/timeseries/model.pure`, package `timeseries::`; every caller renamed,
+  the page's text and option table regenerated; 162 of 163 targets green (1 skipped), the projects harness compiling it
+  alone and with every project, `timeseries_queries_test` and the library test with every number unchanged. P2 next.

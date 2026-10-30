@@ -1,5 +1,10 @@
 # Timeseries right and expert on the platform (2026-10-28)
 
+> **Renamed 2026-10-30** (the user: the library is not DataCube's, and `#TS{…}#` imports it):
+> `datacube::ts` is the project `timeseries`, package `timeseries::`, its file `projects/timeseries/model.pure`
+> (docs/TS_LANGUAGE_BUILD_2026_10_30.md P1). This note keeps the old names where it records what was done.
+
+
 The user, 2026-10-28, after PR #77: "the 3 values, query writer, moving more into lib functions, and inconsistent
 options all as next PR as 'do timeseries RIGHT and EXPERT on platform'". Built on `claude/timeseries-platform`, stacked
 on PR #77. This note says what each item is, what is decided, and what waits on the user (§5).
