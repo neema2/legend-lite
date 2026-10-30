@@ -643,7 +643,7 @@ final class StaticFold {
                 }
                 Object x = eval(ps.get(0), scope);
                 List<Object> coll = evalList(ps.get(1), scope);
-                return x == null || coll == null || !comparableWithAll(x, coll) ? null : coll.contains(x);
+                return x == null || coll == null ? null : coll.contains(x);
             }
             case CONCATENATE -> {
                 List<Object> args = evalAll(ps, scope);
@@ -661,7 +661,7 @@ final class StaticFold {
                 }
                 List<Object> coll = evalList(ps.get(0), scope);
                 Object x = eval(ps.get(1), scope);
-                return coll == null || x == null || !comparableWithAll(x, coll) ? null : coll.contains(x);
+                return coll == null || x == null ? null : coll.contains(x);
             }
             case INDEX_OF -> {
                 if (ps.size() != 2) {
@@ -669,7 +669,7 @@ final class StaticFold {
                 }
                 List<Object> coll = evalList(ps.get(0), scope);
                 Object x = eval(ps.get(1), scope);
-                return coll == null || x == null || !comparableWithAll(x, coll) ? null : (long) coll.indexOf(x);
+                return coll == null || x == null ? null : (long) coll.indexOf(x);
             }
             case MAP -> {
                 if (ps.size() != 2 || !(ps.get(1) instanceof LambdaFunction lam)
@@ -868,25 +868,13 @@ final class StaticFold {
         };
     }
 
-    /** Whether the fold may compare {@code a} with {@code b}: an enumeration's value only with another of the same
-     *  enumeration. Any other comparison with one -- a string, another enumeration's -- is left to the database, which
-     *  compares the value's name, so the expression answers the same in a generic body and in a query (the second
-     *  review, 2026-10-28: {@code Stat.mean == 'mean'} folded false in a body, where the database answers true). */
-    private static boolean comparable(Object a, Object b) {
-        if (a instanceof EnumToken ea) {
-            return b instanceof EnumToken eb && ea.enumeration().equals(eb.enumeration());
-        }
-        return !(b instanceof EnumToken);
-    }
-
-    /** Whether {@code x} is comparable with every element of {@code coll} ({@link #comparable}). */
-    private static boolean comparableWithAll(Object x, List<Object> coll) {
-        return coll.stream().allMatch(e -> comparable(x, e));
-    }
-
+    /** Two static values compared. An enumeration's value equals only itself (an EnumToken's equality), so against a
+     *  string or another enumeration's value it is false, as legend-pure answers and as a query's spelled comparison
+     *  does (the user, 2026-10-30, S128: {@code LiteralUnroll.neverEqual}); the fold had left those to the database,
+     *  which compared the value's name, since the second review of 2026-10-28 held a body and a query to one answer. */
     private static @com.legend.base.Nullable Boolean staticEquals(Object a, Object b) {
-        if (!comparable(a, b)) {
-            return null;
+        if (a instanceof EnumToken || b instanceof EnumToken) {
+            return a.equals(b);
         }
         if (a instanceof TypeToken ta && b instanceof TypeToken tb) {
             return ta.path().equals(tb.path());

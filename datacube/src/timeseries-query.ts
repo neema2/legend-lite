@@ -25,6 +25,7 @@ import {
   agg, and, asc, collection, colSpec, derive, desc, enumValue, fn, lambda, lit, or, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { LIBRARY_ENUMS, type LibraryEnum } from './generated/library-enums.ts';
 import { LIBRARY_PACKAGE } from './pure-library.ts';
 import { filterNode, literalNode, sourceWithDerived } from './query.ts';
 import { columnType, CubeRefusal, type CubeSnapshot, type FilterNode } from './snapshot.ts';
@@ -229,28 +230,16 @@ const PERIOD = '__ts_p0';
 const ORD = '__ts_ord';
 const AT = '__ts_at';
 
-/** The return types (gs-quant's), each a value of the library's Returns (pure-library-text.ts). */
-const RETURN_TYPES: ReadonlySet<string> = new Set(['simple', 'log', 'absolute']);
-
-/** The library's other options (pure-library-text.ts), each an enumeration's values: a rolled statistic of a calendar
- *  period's, a basket's rebalance, a spike's threshold, a run's direction, a decomposition's model, a period's grain,
- *  a seasonality's compare. */
-const STATISTICS: ReadonlySet<string> = new Set(['mean', 'sum', 'min', 'max', 'range', 'std', 'var', 'count']);
-const REBALANCES: ReadonlySet<string> = new Set(['daily', 'weekly', 'monthly']);
-const THRESHOLD_TYPES: ReadonlySet<string> = new Set(['percentage', 'absolute']);
-const DIRECTIONS: ReadonlySet<string> = new Set(['positive', 'negative']);
-const SEASONAL_MODELS: ReadonlySet<string> = new Set(['additive', 'multiplicative']);
-const GRAINS: ReadonlySet<string> = new Set(['day', 'week', 'month', 'quarter']);
-const COMPARES: ReadonlySet<string> = new Set(['none', 'rebase', 'percent']);
-
 /**
  * AN OPTION OF THE LIBRARY'S, AS ITS ENUMERATION'S VALUE (`datacube::ts::Returns.log`; the user, 2026-10-28: a parameter
  * checked when the query compiles, never in its SQL): the type checker refuses a value the enumeration has not, and the
- * static fold takes the branch it names. The tile's own reader has checked the word (the catalog's words), so one not
- * among `values` is a bug here, said as one.
+ * static fold takes the branch it names. Its values are the library's own (generated/library-enums.ts, read from its
+ * declarations); the tile's reader has checked the word against the same list (the catalog's words), so one not among
+ * them is a bug here, said as one.
  */
-function libraryOption(enumeration: string, value: string, values: ReadonlySet<string>): ValueSpecification {
-  if (!values.has(value)) throw new Error(`${value} is no ${LIBRARY_PACKAGE}::${enumeration} (${[...values].join(', ')})`);
+function libraryOption(enumeration: LibraryEnum, value: string): ValueSpecification {
+  const values: readonly string[] = LIBRARY_ENUMS[enumeration];
+  if (!values.includes(value)) throw new Error(`${value} is no ${LIBRARY_PACKAGE}::${enumeration} (${values.join(', ')})`);
   return enumValue(`${LIBRARY_PACKAGE}::${enumeration}`, value);
 }
 
@@ -263,9 +252,6 @@ const PAIRWISE: Readonly<Record<string, string>> = {
 const BENCHMARKED: Readonly<Record<string, string>> = {
   tracking_error: 'trackingError', information_ratio: 'informationRatio', up_capture: 'upCapture', down_capture: 'downCapture',
 };
-
-/** gs-quant's filter_ operators, each a value of the library's FilterOperator (pure-library-text.ts). */
-const FILTER_OPERATORS: ReadonlySet<string> = new Set(['less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals', 'empty']);
 
 /**
  * What every part of one series' query shares: the tile, the frequency its periods are of (the tile's; none inside a
@@ -426,7 +412,7 @@ class Writer {
    * rolling_offset and apply_ramp).
    */
   libraryPeriod(stat: string, what: string, value: string, t: TsTenor): string {
-    return this.libraryOfPeriod('overPeriod', what, value, t, [libraryOption('Statistic', stat, STATISTICS)]);
+    return this.libraryOfPeriod('overPeriod', what, value, t, [libraryOption('Statistic', stat)]);
   }
 
   /** A column `n` periods back, or a calendar period back as of that date (gs-quant's lag): the library's. */
@@ -547,9 +533,10 @@ class Writer {
   /** Returns over `obs` periods, or a calendar period back as of its date, of a type (gs-quant's econometrics.returns):
    *  the library's (pure-library.ts returns, returnsPeriod). */
   returns(a: string, obs: Span, type: string): string {
-    if (!RETURN_TYPES.has(type)) throw new CubeRefusal(`there is no ${JSON.stringify(type)} return (simple, log or absolute)`);
-    return typeof obs === 'number' ? this.library('returns', 'ret', a, null, [lit.integer(obs), libraryOption('Returns', type, RETURN_TYPES)])
-      : this.libraryOfPeriod('returnsPeriod', 'ret', a, obs, [libraryOption('Returns', type, RETURN_TYPES)]);
+    const types: readonly string[] = LIBRARY_ENUMS.Returns;
+    if (!types.includes(type)) throw new CubeRefusal(`there is no ${JSON.stringify(type)} return (${types.join(', ')})`);
+    return typeof obs === 'number' ? this.library('returns', 'ret', a, null, [lit.integer(obs), libraryOption('Returns', type)])
+      : this.libraryOfPeriod('returnsPeriod', 'ret', a, obs, [libraryOption('Returns', type)]);
   }
 
   /**
@@ -564,7 +551,7 @@ class Writer {
     if (grain !== undefined) return lit.integer(PERIODS_PER_YEAR[grain]);
     if (this.#perYear === undefined) {
       // the library's (periodsPerYear: its buckets gs-quant's), over the line's time -- its days, or its seconds
-      this.#perYear = this.libraryOfRow('periodsPerYear', 'per_year', [colSpec(this.part), colSpec(ORD), lit.integer(this.seconds ? 86400 : 1)]);
+      this.#perYear = this.libraryOfRow('periodsPerYear', 'per_year', [colSpec(this.part), colSpec(ORD), enumValue(DURATION, this.seconds ? 'SECONDS' : 'DAYS')]);
       this.years.push(this.#perYear);
     }
     return one(this.#perYear);
@@ -864,38 +851,35 @@ function merged(sh: Shared, a: Aligned, b: Aligned): Merged {
  */
 function fill(w: Writer, values: readonly string[], ord: string, how: Exclude<TsAlign, 'intersect'>): void {
   if (how === 'nan' || values.length === 0) return;
-  const fresh = (what: string): string => w.fresh(what);
-  const R = Writer.read;
-  // each column replaced under its own name: the merged one kept under another
-  const replace = (c: string, body: (raw: string) => ValueSpecification): void => {
-    const raw = fresh('al_raw');
-    w.rel = w.rel.rename(c, raw);
-    w.rel = w.rel.extend([derive(c, row(body(raw)))]);
+  // each column replaced under its own name by the library's (its alignment functions, the platform step, 2026-10-28):
+  // the merged one kept under another
+  const replaced = (made: readonly (readonly [string, string])[]): void => {
+    for (const [v, filled] of made) w.rel = w.rel.rename(v, w.fresh('al_raw')).rename(filled, v);
   };
   if (how === 'zero') {
-    for (const v of values) replace(v, (raw) => when(fn('isEmpty', col(raw)), lit.integer(0), col(raw)));
+    replaced(values.map((v) => [v, w.libraryOfRow('fillZero', 'al_zero', [colSpec(v)])] as const));
     return;
   }
-  const valued = w.row('al_vp', when(fn('isNotEmpty', col(values[0]!)), col(PERIOD), none()));
-  const lastP = w.window('al_lastp', 'max', R(valued), 'running');
-  const at = (p: string, c: string): string => w.window('al_v', 'max', R(w.row('al_at', when(fn('equal', col(PERIOD), col(p)), col(c), none()))), 'all', p);
+  // its last and next valued periods, each once for all its columns (each window a level more the database plans
+  // through), its first column saying where it has a row: a part's columns are one row's
+  const line = colSpec(w.part);
+  const order = colSpec(PERIOD);
+  const marker = colSpec(values[0]!);
+  const lastP = w.libraryOfRow('lastValued', 'al_lastp', [line, order, marker]);
+  const at = (p: string, c: string): string => w.libraryOfRow('valueAt', 'al_v', [line, order, colSpec(p), colSpec(c)]);
   // its carried columns (the rows a value was one of, its periods a year) where it has a row alone: a date filled took
   // none of its rows -- each merge filling every one before it grew the query faster than its parts
   if (how === 'step') {
-    const firstP = w.window('al_firstp', 'min', R(valued), 'all');
+    const firstP = w.libraryOfRow('firstValued', 'al_firstp', [line, order, marker]);
     const made = values.map((v) => [v, at(lastP, v), at(firstP, v)] as const);
-    for (const [v, last, first] of made) replace(v, () => when(fn('isEmpty', col(last)), col(first), col(last)));
+    replaced(made.map(([v, last, first]) => [v, w.libraryOfRow('orElse', 'al_step', [colSpec(last), colSpec(first)])] as const));
   } else {
-    const nextP = w.window('al_nextp', 'min', R(valued), 'rest');
+    const nextP = w.libraryOfRow('nextValued', 'al_nextp', [line, order, marker]);
     const t0 = at(lastP, ord);
     const t1 = at(nextP, ord);
     const made = values.map((v) => [v, at(lastP, v), at(nextP, v)] as const);
-    for (const [v, a, b] of made) {
-      // inside its values alone, at one of its own dates its own value: the library's (linearAt), each column replaced
-      // under its own name
-      const between = w.libraryOfRow('linearAt', 'al_lin', [colSpec(t0), colSpec(a), colSpec(t1), colSpec(b), colSpec(ORD)]);
-      w.rel = w.rel.rename(v, fresh('al_raw')).rename(between, v);
-    }
+    // inside its values alone, at one of its own dates its own value: the library's (linearAt)
+    replaced(made.map(([v, a, b]) => [v, w.libraryOfRow('linearAt', 'al_lin', [colSpec(t0), colSpec(a), colSpec(t1), colSpec(b), colSpec(ORD)])] as const));
   }
 }
 
@@ -1125,7 +1109,7 @@ function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | un
         // in seconds over 86400 of a date-time's -- never its date's (the library review, 2026-10-27)
         const w = x.w;
         return { w, v: { column: w.libraryOfLine('excessReturns', 'er', columnOfValue(x.v),
-          [colSpec(ORD), lit.integer(w.seconds ? 86400 : 1), float(rate.value)]) } };
+          [colSpec(ORD), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'), float(rate.value)]) } };
       }
       // over a cash index: on the dates both have, x's first value times the product of (1 + x's return - y's) -- the
       // library's (excessReturnsOver)
@@ -1264,7 +1248,7 @@ function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | 
         // -- the library's (pure-library.ts totalReturn), a period's days its last observation's time's difference (ORD)
         const w = x.w;
         return { w, v: { column: w.libraryOfLine('totalReturn', 'tr', px,
-          [colSpec(ORD), lit.integer(w.seconds ? 86400 : 1), float(told.value)]) } };
+          [colSpec(ORD), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'), float(told.value)]) } };
       }
       // dividends on their dates: (price + the dividends since the price before) / the price before, on the price's
       // dates -- a dividend of a date the price has none of paid at its next: every date either has (the align's), then
@@ -1304,7 +1288,7 @@ function basket(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
   const long = w.members(series.map((p) => columnOfValue(p.v)), weights);
   const out = w.fresh('basket');
   w.joinByDate(long.rel.call(`${LIBRARY_PACKAGE}::basket`, colSpec(w.part), colSpec(w.at), colSpec(ORD), colSpec(long.member),
-    colSpec(long.value), colSpec(long.weight), lit.integer(series.length), libraryOption('Rebalance', rebalance, REBALANCES), lit.integer(w.seconds ? 86400 : 1),
+    colSpec(long.value), colSpec(long.weight), lit.integer(series.length), libraryOption('Rebalance', rebalance), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'),
     colSpec(out)));
   return { w, v: { column: out } };
 }
@@ -1393,7 +1377,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       // initial at the first date, and every other from there: gs-quant's product (and sum) over the returns to date
       // skips an empty one, as pandas' prod does -- a return of none (the first, which has no date before it) leaves the
       // level where it was (the second audit's S5); the library's (pure-library.ts prices)
-      return done(w.libraryOfLine('prices', 'px', a, [float(n('initial')), libraryOption('Returns', word('type'), RETURN_TYPES)]));
+      return done(w.libraryOfLine('prices', 'px', a, [float(n('initial')), libraryOption('Returns', word('type'))]));
     // the levels and lags, the library's (pure-library.ts): a lag or a change over a count of periods or a calendar
     // period back, a base over the whole line (its first value, or the value as of the first date shown)
     case 'diff': {
@@ -1549,8 +1533,9 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
       // after every figure before it is computed over them all (a filter of a window's figure is the database's
       // QUALIFY), so a figure after it reads the dates left
       const how = word('operator');
-      if (!FILTER_OPERATORS.has(how)) throw new CubeRefusal(`there is no ${JSON.stringify(how)} filter (${[...FILTER_OPERATORS].join(', ')})`);
-      w.rel = w.rel.call(`${LIBRARY_PACKAGE}::filterValues`, colSpec(a), libraryOption('FilterOperator', how, FILTER_OPERATORS), float(n('value')));
+      const operators: readonly string[] = LIBRARY_ENUMS.FilterOperator;
+      if (!operators.includes(how)) throw new CubeRefusal(`there is no ${JSON.stringify(how)} filter (${operators.join(', ')})`);
+      w.rel = w.rel.call(`${LIBRARY_PACKAGE}::filterValues`, colSpec(a), libraryOption('FilterOperator', how), float(n('value')));
       return done(a);
     }
     case 'product': {
@@ -1565,7 +1550,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     case 'smooth_spikes':
       // gs-quant's: a value beyond both neighbours (by 1 + threshold times, or threshold beyond) their mean -- beside none
       // no spike (a comparison with NaN never holds: kept, the Phase 1 review's 6); its first and last rows dropped (none)
-      return done(w.libraryOfLine('smoothSpikes', 'smooth', a, [float(n('threshold')), libraryOption('ThresholdType', word('type'), THRESHOLD_TYPES)]));
+      return done(w.libraryOfLine('smoothSpikes', 'smooth', a, [float(n('threshold')), libraryOption('ThresholdType', word('type'))]));
     case 'vol_swap_volatility': {
       // gs-quant's: the root mean square of log returns (a mean of zero) over the window, times the root of 252, in percent
       const size = span('w');
@@ -1576,7 +1561,7 @@ function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
     }
     case 'consecutive':
       // a run of values above 0 (below), counted to each date; 0 where it breaks -- each break begins a group
-      return done(w.libraryOfLine('consecutive', 'cs', a, [libraryOption('Direction', word('direction'), DIRECTIONS)]));
+      return done(w.libraryOfLine('consecutive', 'cs', a, [libraryOption('Direction', word('direction'))]));
     case 'trend':
     case 'seasonally_adjusted':
       return done(decomposed(sh, w, a, e.fn, word('method'), word('freq')));
@@ -1639,9 +1624,9 @@ function decomposed(sh: Shared, w: Writer, a: string, what: 'trend' | 'seasonall
   // 4) -- its row's number at days, a cycle of business days (a place is read modulo the cycle: where it starts counting
   // moves no value to another place)
   const place = grain === 'month' || grain === 'quarter' || grain === 'week'
-    ? w.libraryOfRow('periodIndex', 'dc_i', [colSpec(PERIOD), libraryOption('Grain', grain, GRAINS)]) : w.rowNumber();
+    ? w.libraryOfRow('periodIndex', 'dc_i', [colSpec(PERIOD), libraryOption('Grain', grain)]) : w.rowNumber();
   return w.libraryOfLine('seasonallyAdjusted', 'dc_sa', a,
-    [colSpec(place), lit.integer(p), lit.integer(k), libraryOption('SeasonalModel', method, SEASONAL_MODELS)]);
+    [colSpec(place), lit.integer(p), lit.integer(k), libraryOption('SeasonalModel', method)]);
 }
 
 /** A base's aggregate over a period's rows (`ord`: the row's number in time, which `last` and `first` order by). */
@@ -2207,7 +2192,7 @@ export function seasonalityQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeri
   // the latest
   const how = compare !== undefined && b.level ? compare : 'none';
   const rel = w.rel.call(`${LIBRARY_PACKAGE}::seasonality`, colSpec(w.part), colSpec(b.at), colSpec(ORD), colSpec(b.value),
-    libraryOption('Grain', ts.grain ?? 'day', GRAINS), libraryOption('Compare', how, COMPARES), lit.integer(years), colSpec(TS_SEA_YEAR), colSpec(TS_SEA_PLACE), colSpec(TS_VALUE),
+    libraryOption('Grain', ts.grain ?? 'day'), libraryOption('Compare', how), lit.integer(years), colSpec(TS_SEA_YEAR), colSpec(TS_SEA_PLACE), colSpec(TS_VALUE),
     colSpec(TS_SEA_LOW), colSpec(TS_SEA_HIGH), colSpec(TS_SEA_MEAN), colSpec(TS_SEA_SPAN), colSpec(TS_SEA_LATEST))
     .extend([derive(TS_DATE, row(col(b.at)))])
     .select([TS_DATE, TS_SEA_YEAR, TS_SEA_PLACE, TS_VALUE, TS_SEA_LOW, TS_SEA_HIGH, TS_SEA_SPAN, TS_SEA_MEAN, TS_SEA_LATEST])

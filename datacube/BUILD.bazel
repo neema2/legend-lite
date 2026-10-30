@@ -737,6 +737,24 @@ node_test(
     wasm = True,
 )
 
+# A MEASUREMENT, not a test (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.6): the SQL a timeseries tile's queries
+# plan to -- its bytes, its CASEs copied, its windows -- and DuckDB's time to run it. Manual: `bazel test
+# //datacube:timeseries_sql_measure --test_output=all` prints its numbers; each query's SQL is in its undeclared outputs.
+node_test(
+    name = "timeseries_sql_measure",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        ":src",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "test/catalog-builder.ts",
+        "test/host/node.ts",
+        "test/lite-compiler.ts",
+    ],
+    entry_point = "test/timeseries-sql.measure.ts",
+    wasm = True,
+)
+
 test_suite(
     name = "tests",
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [
@@ -956,10 +974,62 @@ js_run_binary(
     tool = ":test_imports_tool",
 )
 
+# THE LIBRARY'S OPTIONS (the user, 2026-10-28: one source): each enumeration of datacube::ts, read from the library's
+# text, written as src/generated/library-enums.ts for the catalog and the writer, diff-tested below
+js_binary(
+    name = "library_enums_tool",
+    entry_point = "tools/library-enums.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "library_enums",
+    srcs = ["src/pure/datacube_ts.pure"],
+    outs = ["library_enums_generated.ts"],
+    args = [
+        "$(rootpath src/pure/datacube_ts.pure)",
+        package_name() + "/library_enums_generated.ts",
+    ],
+    tool = ":library_enums_tool",
+)
+
+# THE LIBRARY, A PURE FILE (the platform step's B, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md): src/pure/datacube_ts.pure
+# the source, which the platform loads as it is; the page's module of it (src/pure-library-text.ts) written from it,
+# diff-tested below
+exports_files(
+    ["src/pure/datacube_ts.pure"],
+    visibility = ["//visibility:public"],
+)
+
+js_binary(
+    name = "library_text_tool",
+    entry_point = "tools/library-text.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "library_text",
+    srcs = ["src/pure/datacube_ts.pure"],
+    outs = ["library_text_generated.ts"],
+    args = [
+        "$(rootpath src/pure/datacube_ts.pure)",
+        package_name() + "/library_text_generated.ts",
+    ],
+    tool = ":library_text_tool",
+)
+
 write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
     files = {
+        "src/generated/library-enums.ts": ":library_enums",
+        "src/pure-library-text.ts": ":library_text",
         "src/generated/offer-facts.ts": ":offer_facts",
         "test_imports.bzl": ":test_imports",
     },

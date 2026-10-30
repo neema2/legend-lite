@@ -158,6 +158,24 @@ that names S104 for functions generic over relations means S112).
 | S126 | outcome (resolved by the driver, 2026-10-29: core's DuckDB bumped 1.4.4.0 to 1.5.6.0 on the user's ask, D60; 1.5.6 keeps the left rows against a proven-empty derived table, as the spec and the emulation do; `testAsOfJoinEmptyRight` asserts the two rows, the two lane floors lost their line) -- as found on 1.4.4: | `asOfJoin` is a LEFT join (legend-engine `processRelationJoin`: `JoinKind.LEFT`; DuckDB's `asof left join`); the PCT's `testSimpleAsOfJoin` keeps an unmatched left row with nulls; legend-engine's H2 dialect refuses the function (`H2 SQL Dialect does not support AsOfJoin!`) | DuckDB 1.3.0 and 1.4.4 (measured 2026-10-29, `probes/asof_empty_right.txt`) keep the left rows against an empty TABLE and against a derived table that empties at run time, and DROP them against a derived table the planner proves empty (`WHERE 1 = 0`, `WHERE FALSE`, `LIMIT 0`) -- a DuckDB defect, which lite's empty TDS literal (`VALUES (NULL, ...) WHERE 1 = 0`) meets: `AsOfJoinCheckerTest.testAsOfJoinEmptyRight` asserts DuckDB's 0 rows; lite's emulation on SQLite, H2, Trino and the rest (`AsOfAsPick`) answers the spec's 2 rows, on the lanes' floors as 'a wrong answer' until this row | the question: keep DuckDB's own answer on DuckDB (the test pins a defect, the floors name it) or spell the empty literal so DuckDB's planner cannot prove it empty (a workaround of a database defect in the lowering) | the result boundary program (track F) |
 | S127 | pending the user's ruling | compiled legend-pure equates two NUMBERS of different kinds by their TEXTS (`CompiledSupport.eq(Number, Number)`: `equals`, then `toString`): `3 == 3D`, `1.5 == 1.5D` and `[3, 'a']->contains(3D)` are true there, `1 == 1.0` and `1.5 == 1.50D` false | lite's tagged list REFUSES by name the pairs that can cross -- an Integer against a scale-zero Decimal, a Float against a Decimal -- in `contains`, `sameElement` and `sameListByKinds` (`lowering/TaggedLists.refuseCrossingNumbers`, the L2 audit's fold, D54 (4)), where a static false stood before; the plain scalar rule (`3 == 3D` outside a list, D50c) is unmeasured | found 2026-10-29 (the L2 audit, finding 5; the Z audit, finding 3): building the text rule costs the float's shortest digits in SQL (the platform's canon) -- Integer vs Decimal(0) by value is exact | the result boundary program (track F posted it; the user's call) |
 
+**Renumbered 2026-10-30, at main's merge into the timeseries platform branch (PR #81's review).** Main and the
+branch had each given S115 to a row of its own: main's (a Variant cell's wire text) keeps S115, which main's code and
+GATES cite; the branch's (an enumeration's value equals its name's string) is S128 now. A commit or a document of
+2026-10-28 on the timeseries platform branch that names S115 for that row means S128.
+
+**S128 retired 2026-10-30, the same day, by the user's ruling ("false, matching"), the difference gone.** It had read:
+legend-pure's `equal` of an enumeration's value and a string, or of two enumerations' values named alike, is false;
+lite's was true (the database compared the value's name, S6). Now a SPELLED comparison of an enumeration's value with
+another kind's value is false, as legend-pure's (`EqualityUtilities.equal:99-107`, interpreted; `CompiledSupport.equal`,
+compiled: a `PureEnum` equals only itself), through `==`, `!=`, `in`, `contains` and `indexOf`, in a query and in a
+body's static fold alike (`LiteralUnroll.neverEqual`, `StaticFold.staticEquals`;
+`UserFunctionIntegrationTest$FoldOfABody.anEnumerationAgainstAString`). A column or parameter of an enumeration's type
+compared with a string stays the database's: legend-engine's SQL compares the stored value with the string
+(`pureToSQLQuery.pure` `processEquals`, :8363-8462, which converts only an enumeration's literal through its mapping,
+`enumToStoreValue`, :8561; its test `testTdsProjectWithEnumToStringEqualityComparison`, `testEnumerationMapping.pure`
+:432-446, pins `"root".type = 'FTE'`), and lite's `EnumSourceValues` compares the same way. Upstream answers both; lite
+follows each where it answers.
+
 **Renumbered 2026-10-28, at main's merge into the result boundary branch (S1.0 of
 `docs/RESULT_BOUNDARY_START_HERE.md`).** Main had given S112 to S114 to the timeseries line's rows (above); the
 result boundary branch's S112 to S114 of 2026-10-28 (a Variant cell's digits, `toVariant()` of an empty value, the

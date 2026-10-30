@@ -627,6 +627,80 @@ final class Fold {
         }
     }
 
+    /** THE COPIES A PASS WRITES (2026-10-30, //datacube:timeseries_sql_measure). {@link Budget#spend} charges a read
+     * once, but a rule may write its argument more than once: sqrt's domain guard writes it some 27 times (its
+     * message spells the value, {@code Scalars.floatRepr}), so a computed projection read once under a sqrt is
+     * written 27 times, and the budget never sees 26 of them -- a 63-day volatility wrote its periods-a-year
+     * projection 59 times, 74% of 25 KB of SQL. So the pass's columns are counted as written: each copy of one of
+     * {@code base}'s computed projections (found by identity: a read writes the projection's own expression, and a
+     * rule its argument as it was given) past the free ones -- each written whole as a column of its own, an extend's
+     * kept projection among them, and at least the first -- costs its nodes less the read it replaces, against the
+     * same {@link Budget#BLOAT}. Over it, the name of the projection whose copies cost most, and the pass is
+     * unfoldable: its base isolated, the reads are reads of the subselect's column, as for every unfoldable read.
+     * What a dialect writes more than once from one node is counted once: the message's {@code FLOAT_PRINT} is one
+     * call here and some 23 copies in DuckDB's text, a spelling the lowering may not know (invariant 3), so a sqrt
+     * costs three copies of its argument here, not 27. */
+    static @com.legend.base.Nullable String overCopied(SqlSelect base, List<SqlSelect.Projection> written) {
+        if (!isolatesAsItReads(base)) {
+            return null;
+        }
+        java.util.Map<SqlExpr, String> computed = new java.util.IdentityHashMap<>();
+        for (SqlSelect.Projection p : base.projections()) {
+            if (!(p.expr() instanceof SqlExpr.Column) && p.outputName() != null) {
+                computed.put(p.expr(), p.outputName());
+            }
+        }
+        if (computed.isEmpty()) {
+            return null;
+        }
+        java.util.Map<SqlExpr, Integer> copies = new java.util.IdentityHashMap<>();
+        // the writes that cost nothing: each projection written whole as a column of its own (an extend's kept
+        // projection, or a read that moves one), and at least the first write
+        java.util.Map<SqlExpr, Integer> free = new java.util.IdentityHashMap<>();
+        for (SqlSelect.Projection p : written) {
+            countCopies(p.expr(), computed, copies);
+            if (computed.containsKey(p.expr())) {
+                free.merge(p.expr(), 1, Integer::sum);
+            }
+        }
+        int growth = 0;
+        int most = 0;
+        String worst = null;
+        for (java.util.Map.Entry<SqlExpr, Integer> c : copies.entrySet()) {
+            int g = Math.max(0, c.getValue() - free.getOrDefault(c.getKey(), 1)) * (nodes(c.getKey()) - 1);
+            growth += g;
+            if (g > most) {
+                most = g;
+                worst = computed.get(c.getKey());
+            }
+        }
+        return growth > Budget.BLOAT ? worst : null;
+    }
+
+    /** Whether {@code s} isolated reads as it did (PR #81's review, 2026-10-30): {@link #overCopied} refuses a fold only
+     *  then, the copies left written where an isolation would change an answer -- a select with an order (a window or
+     *  an aggregate over the isolated select computes outside it, and its order is the subselect's alone), a limit, an
+     *  offset or DISTINCT (which an extend's isolation keeps by {@code Lowerer.extendOver}'s own rules, not the
+     *  plain isolation a refused fold retries over), or two names alike without regard to case (DuckDB binds a read
+     *  of either to the first: {@link #namesApartWithoutCase}). */
+    static boolean isolatesAsItReads(SqlSelect s) {
+        return s.orderBy().isEmpty() && s.limit() == null && s.offset() == null && !s.distinct()
+                && namesApartWithoutCase(s);
+    }
+
+    /** Counts into {@code copies} each of {@code computed}'s expressions written in {@code e}, not looking inside one:
+     *  a copy of a projection that holds another is one copy, its nodes the other's too. */
+    private static void countCopies(SqlExpr e, java.util.Map<SqlExpr, String> computed,
+            java.util.Map<SqlExpr, Integer> copies) {
+        if (computed.containsKey(e)) {
+            copies.merge(e, 1, Integer::sum);
+            return;
+        }
+        for (SqlExpr ch : e.children()) {
+            countCopies(ch, computed, copies);
+        }
+    }
+
     /** An expression's size as the budget counts it: its nodes. */
     static int nodes(SqlExpr e) {
         int n = 1;

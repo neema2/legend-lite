@@ -1086,8 +1086,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  429,200 -> 429,900 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date -- and the drawing
  *  box's style, app.css .dc-ts-draw). Measured 429,265.
  *  441,000 / 429,900 -> 446,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
- *  same date). Measured 446,209. */
-const WIDGET_BUDGET = 446_500;
+ *  same date). Measured 446,209.
+ *  446,500 -> 447,000 (2026-10-30, main -- PR #80, the plan path -- merged into the timeseries platform branch: main's
+ *  module and the branch's together, the library enumerations among the branch's, src/generated/library-enums.ts;
+ *  neither measured alone). Measured 446,637. */
+const WIDGET_BUDGET = 447_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
