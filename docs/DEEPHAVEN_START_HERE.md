@@ -104,8 +104,31 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
    law's. Not a clear violation; counsel's call. Proposed: ask Deephaven (license@deephaven.io) to confirm an independent
    client is fine or to license the definitions under Apache; failing that, split the Deephaven backend into a separately
    licensed add-on. Meanwhile: no release with the Deephaven backend, and the table holds only what we read or write.
+   **2026-10-30: Deephaven says it will publish the protos under Apache-2.0.** What that covers, read from
+   deephaven-core at `05897ca` (a module is Apache only with its own `LICENSE` and `NOTICE`, `buildSrc/.../License.groovy`;
+   every other module is under the Community License -- today `proto/`, the JS client `web/client-api` (`dh-core.js`),
+   the server and its scripting API, the Python client; already Apache: the C++, Go and R clients, `grpc-java`, and the
+   JS client's type declarations, the npm package `@deephaven/jsapi-types`):
+   - **Covered: everything lite's own code is written from.** The message table, the JSON vocabulary, and every query,
+     export and table creation the target sends (all spoken in those messages). Closes when a release carries the
+     Apache protos (`proto/` with `LICENSE` and `NOTICE`, the jar's metadata saying Apache) and `@deephaven_proto_jar` is
+     re-pinned to it and the message test passes against it -- or Deephaven says in writing the grant reaches 42.7's.
+   - **The JS client need not be Apache.** Lite neither copies nor ships it: `engine-client/src/deephaven-live.ts` loads
+     it from the user's own server at run time and declares by hand only the names it calls, a surface Deephaven already
+     publishes under Apache (`@deephaven/jsapi-types`). Apache would add: bundling it (an offline demo, a pinned version)
+     and type-checking against the real declarations. Keep DH11 (never bundled) until then.
+   - **Not covered: the programs that run inside the server.** `market.groovy`, `risk.groovy`, the bench's `tick.groovy`
+     and B2's generated program call the server's own API (`KafkaTools`, table operations), which stays under the
+     Community License. Like the JS client they call it and copy nothing, but the licence's wide Derivative Work wording
+     is the same open point.
+   - **The one written line still to ask for:** that a program which calls Deephaven's JS client or its server API,
+     without copying Deephaven's code, is not a Derivative Work. That closes the JS client and the server programs
+     together; an Apache JS client would close only the first.
 2. **Section 4 of the licence:** no third party may define or change the schema of input tables. Internal users are
-   unlimited. The target can already write table creation (input tables, DH15); nothing enforces "internal only" yet. A
+   unlimited. The protos' licence does not change it: it binds the server. Its words are "input tables (including
+   source tables, or other input objects)", so the tables the desk's ingests make on Deephaven from topics (roadmap B2)
+   count, though they are not Deephaven input tables: fine where the people writing ingests are the deploying firm's
+   own; a hosted service where a customer's ingest makes Deephaven tables needs Deephaven's commercial licence. The target can already write table creation (input tables, DH15); nothing enforces "internal only" yet. A
    deployment setting that refuses it must land before writes or uploads reach Deephaven.
 3. **Sign-in and authorization for the whole system** (the user: "needs a bigger auth design"). The fact it must start
    from: Deephaven Community has no per-table permissions -- whoever signs in reads every table, and runs code if the
