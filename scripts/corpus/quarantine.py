@@ -304,14 +304,16 @@ ENGINE_QUARANTINE["stress::VC_LetColumn"] = ("F81", "a let inside a column lambd
 # F82 -- sum over a to-many navigation that lands on nothing is SQL's NULL, where legend-pure's collection sum is 0.
 # Minimized in repro/sum-over-empty-to-many/.
 ENGINE_QUARANTINE["stress::VC_MapSumTrades"] = ("F82", "sum over no trades is NULL, not 0")
-# F83 -- a literal list in a relational property mapping, `coalesce([a, b])` or `in(col, ['x', 'y'])`, fails at test
-# setup: the compiler keeps each element as the protocol object the parser wrapped (HelperRelationalBuilder's
+# F83 -- a literal list in a relational property mapping or join, `coalesce([a, b])` or `in(col, ['x', 'y'])`, fails
+# at test setup: the compiler keeps each element as the protocol object the parser wrapped (HelperRelationalBuilder's
 # LiteralList branch converts only Integers), and SQL generation meets a Java object, "unhandled type for value" (the
 # improvement plan's Phase 7, unreached.py). Minimized in repro/literal-list-mapping/.
 ENGINE_QUARANTINE.update({
     f"stress::UO_{k}": ("F83", "a literal list in a property mapping fails: unhandled type for value")
     for k in ("LiteralListCoalesce", "LiteralListIn")
 })
+# The same branch builds a join's condition: a literal list in a join fails alike (stage 3, the joins' services).
+ENGINE_QUARANTINE["stress::UJ_JoinArrayArg"] = ("F83", "a literal list in a join fails: unhandled type for value")
 
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the

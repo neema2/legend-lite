@@ -2315,7 +2315,7 @@ F6. Pinned by `stress::VC_MapSumTrades` (quarantined), whose six books with no t
 trades agree. Repro: `scripts/corpus/repro/sum-over-empty-to-many/` (`IsEmpty` passes; `MapSum` and `PathSum` fail on
 the parent with no children).
 
-## F83 — A literal list in a relational property mapping fails at test setup
+## F83 — A literal list in a relational property mapping or join fails at test setup
 
 **Not a wrong answer: a construct that cannot execute.** Found 2026-10-29 by the improvement plan's Phase 7, which
 gave the corpus's two literal lists services. The relational grammar writes a list as `[a, b]`, as a dynafunction's
@@ -2329,3 +2329,11 @@ written with two arguments and no list passes. Pinned by `stress::UO_LiteralList
 (quarantined), which assert the answers SQL's `coalesce(V, K)` and `K IN ('OB-0001', 'OB-0004')` give. Repro:
 `scripts/corpus/repro/literal-list-mapping/` (`Plain` passes; `Coalesce` and `In` fail at "Error initializing test
 suite session").
+
+**A join's condition too** (added 2026-10-29, Phase 7's stage 3, which gave the corpus's unused joins services). The
+compiler builds a join's operation through the same branch, so `Join j_ArrayArg(in(J1.N, [1, 2, 3]) and J2.K = J1.K)`
+(`70-surface-store2.pure`) fails the same way, and an Integer list as much as a String one: the parser's element for
+`1` is itself a `Literal`, which the list wraps in a second, and `convertLiteral` receives the inner `Literal`, not an
+Integer. Pinned by `stress::UJ_JoinArrayArg` (quarantined), which asserts the answer `J1.N IN (1, 2, 3)` gives; the
+repro's `JoinPlain`, the same join with no list, passes, and `JoinIn`, under `in(D.N, [1, 3])`, fails with
+`...Literal`.

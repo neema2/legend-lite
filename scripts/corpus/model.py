@@ -404,6 +404,8 @@ class AssocEnd:
     # navigation through it silently failed to resolve. Two of this corpus's
     # associations were in that state.
     assoc: str = ""
+    # The mappings whose AssociationMapping bound `join` (walked() reads them).
+    mappings: set = field(default_factory=set)
 
 
 @dataclass
@@ -472,6 +474,8 @@ class Corpus:
     # class fqn -> the mapping whose Operation set is `inheritance()`: resolved, once every mapping is read, to the
     # class's mapped leaf subtypes (legend-engine's meta::pure::router::operations::inheritance)
     inheritance_ops: dict[str, str] = field(default_factory=dict)
+    # stress::AllMapping and every mapping it includes (walked() computes it once)
+    walked_mappings: set | None = None
     views: dict[str, View] = field(default_factory=dict)
     # store filter name -> (table, column, op, literal)
     filters: dict[str, tuple[str, str, str, object]] = field(default_factory=dict)
@@ -972,7 +976,9 @@ def _table_bodies(text: str) -> list[tuple[str, str, int]]:
     out = []
     # A table name may be QUOTED, which admits spaces and reserved words. `\w+` skipped such
     # a declaration entirely -- the table did not exist, and neither did any mapping over it.
-    for m in re.finditer(r'\bTable\s+(\w+|"[^"]+")\s*\(', text):
+    # Stereotypes and tagged values may precede the name, `Table <<p.s>> {p.t = 'x'} J1 (` (70-surface-store2.pure):
+    # skipped the same way, so J1 was unseen until the improvement plan's Phase 7 mapped it.
+    for m in re.finditer(r'\bTable\s+(?:<<[^>]*>>\s*)?(?:\{[^}]*\}\s*)?(\w+|"[^"]+")\s*\(', text):
         i, depth = m.end(), 1
         while depth and i < len(text):
             if text[i] == "(":
@@ -1636,6 +1642,7 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 for (owner, name), end in c.ends.items():
                     if name == prop and _assoc_matches(cur, owner, end):
                         end.join = join
+                        end.mappings.add(mapping_name or "")
             continue
         if cur and cur in c.main_table:
             tbl = c.main_table[cur]
@@ -2034,6 +2041,28 @@ def load() -> Corpus:
             parent = c.classes[parent].supertype if parent in c.classes else None
     _resolve_inheritance_ops(c)
     return c
+
+
+# The mapping the model-walking generators write their services against (stacks, deepstack, graphs, aggregates, tomany,
+# spread): a service of theirs can navigate only an end this mapping resolves.
+WALK_MAPPING = "stress::AllMapping"
+
+
+def walked(c: Corpus, end: AssocEnd) -> bool:
+    """Whether a model-walking generator may navigate `end`: mapped, and by a mapping stress::AllMapping includes.
+
+    An association mapped only outside it -- the improvement plan's Phase 7 maps the corpus's unused joins in mappings
+    of their own, each with its own services -- cannot be navigated by a service over stress::AllMapping, and walked,
+    it re-routed twenty deep services through new ends their seed spines do not reach.
+    """
+    if not end.join:
+        return False
+    if c.walked_mappings is None:
+        c.walked_mappings = mapping_closure(c, WALK_MAPPING) | {WALK_MAPPING}
+    if end.assoc:
+        return bool(end.mappings & c.walked_mappings)
+    # a class-typed property over a join belongs to its owner's class mapping
+    return c.declared_in.get(end.owner) in c.walked_mappings
 
 
 def _resolve_inheritance_ops(c: Corpus) -> None:

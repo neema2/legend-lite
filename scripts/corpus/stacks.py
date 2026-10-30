@@ -160,7 +160,7 @@ def _chains(c: model.Corpus, root: str, seeded: set[str], depth: int = 3):
             # the depth it reaches. So the exclusion is per-END rather than per-root.
             inherited = _inherited_ends(c, cls)
             for (owner, name), end in c.ends.items():
-                if owner != cls or end.to_many or not end.join:
+                if owner != cls or end.to_many or not model.walked(c, end):
                     continue
                 if name in inherited:
                     continue

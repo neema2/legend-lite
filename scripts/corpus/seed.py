@@ -21205,6 +21205,35 @@ OP_CAR = [dict(K="CAR-1", LABEL="Saloon", DOORS=4), dict(K="CAR-2", LABEL=None, 
           dict(K="CAR-3", LABEL="Estate", DOORS=None)]
 OP_TRUCK = [dict(K="TRK-1", LABEL="Tipper", PAYLOAD=12), dict(K="TRK-2", LABEL=None, PAYLOAD=None)]
 
+# ---- surface::JoinDB's J1 (70-surface-store2.pure; Phase 7) ----
+#
+# The host of every join condition the store declares. J2, J3 and MapDB's LEG keep the expansion's rows (J-0001 to
+# J-0005; J2's N 157, 164, absent, 178, 185 and NEXT_K absent, an orphan, J-0001, J-0002, J-0003; J3's N 87, 94,
+# absent, 108, 115; LEG L-0001 to L-0005), and unreached.check holds what each J1 row is for when they move. Each lands
+# on some conditions and misses the others:
+#   J-0001  no NEXT_K, so `is null` lands on J2 J-0001 and `is not null` does not; N 170 is at or above two of J2's
+#   J-0002  N -5, the numeric constant's; `is not null` lands on J3 J-0002; NEXT_K J-0004, whose own NEXT_K is J-0002,
+#           so the not-equal conditions refuse it
+#   J-0003  NEXT_K J-0002, whose NEXT_K is an orphan; LEG_ID an orphan
+#   J-0004  N 1, in the literal list; NEXT_K J-0005, then J3 J-0003, an absent N
+#   J-0005  NEXT_K J-0001, whose NEXT_K is absent: SQL's `!=` over NULL matches nothing
+#   j-000   toUpper(K) and NEXT_K concatenate to J-0004, the nested dynafunction's
+#   J-0009  no NEXT_K and no J2 of its key; N 160 is at or above one of J2's
+#   J-0010  nothing at all: an absent N is at or above nothing
+J1 = [dict(K="J-0001", N=170, NEXT_K=None, LEG_ID="L-0001"),
+      dict(K="J-0002", N=-5, NEXT_K="J-0004", LEG_ID="L-0003"),
+      dict(K="J-0003", N=2, NEXT_K="J-0002", LEG_ID="L-0009-GONE"),
+      dict(K="J-0004", N=1, NEXT_K="J-0005", LEG_ID="L-0004"),
+      dict(K="J-0005", N=50, NEXT_K="J-0001", LEG_ID="L-0002"),
+      dict(K="j-000", N=3, NEXT_K="4", LEG_ID=None),
+      dict(K="J-0009", N=160, NEXT_K=None, LEG_ID=None),
+      dict(K="J-0010", N=None, NEXT_K=None, LEG_ID=None)]
+
+# The tables a Phase 7 pack writes by hand, apart from the expansion (expand.candidates, expand._reserved) and joined to
+# the seed after it (flat.all_tables). A hand-written table joins the expansion's base, so J1's joins made it reach J2
+# and LEG from J1 in its first ring, rings earlier than before, which moved every later table's generated values.
+PACK_TABLES: dict[str, list[dict]] = {"OP_CAR": OP_CAR, "OP_TRUCK": OP_TRUCK, "J1": J1}
+
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,
     "TYPED_VALUE": TYPED_VALUE,
@@ -21213,8 +21242,6 @@ TABLES: dict[str, list[dict]] = {
     "MARK_REVISION_BI": MARK_REVISION_BI,
     "LIMIT_CHECK": LIMIT_CHECK,
     "VALUATION_RUN": VALUATION_RUN,
-    "OP_CAR": OP_CAR,
-    "OP_TRUCK": OP_TRUCK,
     "CFX_CURRENCY_PAIR": CFX_CURRENCY_PAIR,
     "CFX_FIXING_SOURCE": CFX_FIXING_SOURCE,
     "CFX_RATE": CFX_RATE,

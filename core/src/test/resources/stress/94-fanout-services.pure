@@ -10862,7 +10862,7 @@ Service stress::GG_TradeTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","currency":"USD","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0,"closePrice":1150.0},"block":{"blockId":"B-0001","broker":null,"completedTime":"2024-07-04T07:15:00.000000000+0000"}},{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","currency":"USD","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0,"closePrice":1150.0},"block":{"blockId":"B-0001","broker":null,"completedTime":"2024-07-04T07:15:00.000000000+0000"}},{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","currency":"USD","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0,"closePrice":1150.0},"block":{"blockId":"B-0001","broker":null,"completedTime":"2024-07-04T07:15:00.000000000+0000"}},{"tradeId":"TRD-0004","commission":125.0,"createdTime":"2024-06-03T09:28:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0005","commission":100.0,"createdTime":"2024-06-03T09:35:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0006","commission":80.0,"createdTime":"2024-06-03T09:42:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0007","commission":142.5,"createdTime":"2024-06-03T09:49:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0008","commission":null,"createdTime":"2024-06-04T09:56:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0009","commission":285.0,"createdTime":"2024-06-04T09:03:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0010","commission":249.0,"createdTime":"2024-06-04T09:10:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0011","commission":41.8,"createdTime":"2024-06-04T09:17:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0012","commission":90.0,"createdTime":"2024-06-05T09:24:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0013","commission":171.25,"createdTime":"2024-06-05T09:31:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0014","commission":69.0,"createdTime":"2024-06-05T09:38:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0015","commission":35.0,"createdTime":"2024-06-06T09:45:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0016","commission":132.3,"createdTime":"2024-06-06T09:52:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0017","commission":192.5,"createdTime":"2024-06-06T09:59:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0018","commission":null,"createdTime":"2024-06-07T09:06:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0019","commission":1960.0,"createdTime":"2024-06-07T09:13:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0020","commission":null,"createdTime":"2024-06-07T09:20:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","currency":"USD","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5,"closePrice":1187.5},"block":{"blockId":"B-0001","broker":null,"completedTime":"2024-08-05T08:15:00.000000000+0000"}},{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","currency":"USD","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5,"closePrice":1187.5},"block":{"blockId":"B-0001","broker":null,"completedTime":"2024-08-05T08:15:00.000000000+0000"}},{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","currency":"USD","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5,"closePrice":1187.5},"block":{"blockId":"B-0001","broker":null,"completedTime":"2024-08-05T08:15:00.000000000+0000"}},{"tradeId":"TRD-0004","commission":125.0,"createdTime":"2024-06-03T09:28:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0005","commission":100.0,"createdTime":"2024-06-03T09:35:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0006","commission":80.0,"createdTime":"2024-06-03T09:42:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0007","commission":142.5,"createdTime":"2024-06-03T09:49:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0008","commission":null,"createdTime":"2024-06-04T09:56:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0009","commission":285.0,"createdTime":"2024-06-04T09:03:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0010","commission":249.0,"createdTime":"2024-06-04T09:10:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0011","commission":41.8,"createdTime":"2024-06-04T09:17:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0012","commission":90.0,"createdTime":"2024-06-05T09:24:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0013","commission":171.25,"createdTime":"2024-06-05T09:31:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0014","commission":69.0,"createdTime":"2024-06-05T09:38:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0015","commission":35.0,"createdTime":"2024-06-06T09:45:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0016","commission":132.3,"createdTime":"2024-06-06T09:52:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0017","commission":192.5,"createdTime":"2024-06-06T09:59:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0018","commission":null,"createdTime":"2024-06-07T09:06:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0019","commission":1960.0,"createdTime":"2024-06-07T09:13:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null},{"tradeId":"TRD-0020","commission":null,"createdTime":"2024-06-07T09:20:00.000000000+0000","currency":"USD","avgPriceTrade":null,"block":null}]}';
                   }#;
               }#
           ]
@@ -11488,7 +11488,7 @@ Service stress::GG_SalesPersonTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"salesPersonId":"SLS-002","clientCount":374,"phone":"PHONE-001","revenueTarget":2050.0,"commissionStructure":null,"desk":null},{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"revenueTarget":null,"commissionStructure":null,"desk":null},{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","revenueTarget":2125.0,"commissionStructure":{"structureId":"CS-0001","acceleratorPct":null,"capAmount":1337.5},"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY","building":"200 West","businessUnit":{"buId":"BU-CR-SP1","budget":null}}},{"salesPersonId":"SLS-003-SP1","clientCount":381,"phone":null,"revenueTarget":null,"commissionStructure":{"structureId":"CS-0001","acceleratorPct":null,"capAmount":1337.5},"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY","building":"200 West","businessUnit":{"buId":"BU-CR-SP1","budget":null}}},{"salesPersonId":"SLS-003-SP2","clientCount":381,"phone":null,"revenueTarget":null,"commissionStructure":null,"desk":{"deskId":"DSK-CASH-SP3","assetClass":"EQUITY","building":"200 West","businessUnit":{"buId":"BU-CR-SP3","budget":null}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"salesPersonId":"SLS-002","clientCount":374,"phone":"PHONE-001","revenueTarget":2050.0,"commissionStructure":null,"desk":null},{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"revenueTarget":null,"commissionStructure":null,"desk":null},{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","revenueTarget":2125.0,"commissionStructure":{"structureId":"CS-0001","acceleratorPct":null,"capAmount":1375.0},"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY","building":"200 West","businessUnit":{"buId":"BU-CR-SP1","budget":null}}},{"salesPersonId":"SLS-003-SP1","clientCount":381,"phone":null,"revenueTarget":null,"commissionStructure":{"structureId":"CS-0001","acceleratorPct":null,"capAmount":1375.0},"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY","building":"200 West","businessUnit":{"buId":"BU-CR-SP1","budget":null}}},{"salesPersonId":"SLS-003-SP2","clientCount":381,"phone":null,"revenueTarget":null,"commissionStructure":null,"desk":{"deskId":"DSK-CASH-SP3","assetClass":"EQUITY","building":"200 West","businessUnit":{"buId":"BU-CR-SP3","budget":null}}}]}';
                   }#;
               }#
           ]
@@ -11678,7 +11678,7 @@ Service stress::GG_JournalEntryTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"entryId":"JE-0001","approvedBy":"APPROVED-BY-001","reference":"REFERENCE-001","reversalOf":"REVERSAL-OF-001","costCenter":null,"glAccount":null},{"entryId":"JE-0002","approvedBy":null,"reference":"REFERENCE-002","reversalOf":"REVERSAL-OF-002","costCenter":null,"glAccount":null},{"entryId":"JE-0003","approvedBy":"APPROVED-BY-003","reference":"REFERENCE-003","reversalOf":"REVERSAL-OF-003","costCenter":{"costCenterId":"CC-0001","approvalThreshold":null,"remainingAmount":437.5},"glAccount":{"accountId":"GLA-0001","closeDate":"2024-02-02","description":"primary record"}},{"entryId":"JE-0004","approvedBy":"APPROVED-BY-004","reference":null,"reversalOf":null,"costCenter":{"costCenterId":"CC-0002","approvalThreshold":475.0,"remainingAmount":null},"glAccount":{"accountId":"GLA-0002","closeDate":null,"description":"secondary record"}},{"entryId":"JE-0005","approvedBy":"APPROVED-BY-005","reference":"REFERENCE-005","reversalOf":"REVERSAL-OF-005","costCenter":{"costCenterId":"CC-0003","approvalThreshold":512.5,"remainingAmount":512.5},"glAccount":{"accountId":"GLA-0003","closeDate":"2024-04-04","description":null}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"entryId":"JE-0001","approvedBy":"APPROVED-BY-001","reference":"REFERENCE-001","reversalOf":"REVERSAL-OF-001","costCenter":null,"glAccount":null},{"entryId":"JE-0002","approvedBy":null,"reference":"REFERENCE-002","reversalOf":"REVERSAL-OF-002","costCenter":null,"glAccount":null},{"entryId":"JE-0003","approvedBy":"APPROVED-BY-003","reference":"REFERENCE-003","reversalOf":"REVERSAL-OF-003","costCenter":{"costCenterId":"CC-0001","approvalThreshold":null,"remainingAmount":400.0},"glAccount":{"accountId":"GLA-0001","closeDate":"2024-01-01","description":"primary record"}},{"entryId":"JE-0004","approvedBy":"APPROVED-BY-004","reference":null,"reversalOf":null,"costCenter":{"costCenterId":"CC-0002","approvalThreshold":437.5,"remainingAmount":null},"glAccount":{"accountId":"GLA-0002","closeDate":null,"description":"secondary record"}},{"entryId":"JE-0005","approvedBy":"APPROVED-BY-005","reference":"REFERENCE-005","reversalOf":"REVERSAL-OF-005","costCenter":{"costCenterId":"CC-0003","approvalThreshold":475.0,"remainingAmount":475.0},"glAccount":{"accountId":"GLA-0003","closeDate":"2024-03-03","description":null}}]}';
                   }#;
               }#
           ]
@@ -11900,7 +11900,7 @@ Service stress::GG_ClearedTradeTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"clearedTradeId":"CT-0001","compressionDate":"2024-03-15","maturityDate":"2024-03-15","novationDate":"2024-03-15","clearingMember":null,"trade":null},{"clearedTradeId":"CT-0002","compressionDate":null,"maturityDate":"2024-04-16","novationDate":"2024-04-16","clearingMember":null,"trade":null},{"clearedTradeId":"CT-0003","compressionDate":"2024-05-17","maturityDate":"2024-05-17","novationDate":null,"clearingMember":{"memberId":"CM-0003","creditRating":"CREDIT-RATING-003","defaultFundContribution":null,"clearingHouse":{"clearingHouseId":"CH-0001","dailyVolume":175.0}},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"clearedTradeId":"CT-0004","compressionDate":"2024-06-18","maturityDate":"2024-06-18","novationDate":"2024-06-18","clearingMember":{"memberId":"CM-0003","creditRating":"CREDIT-RATING-003","defaultFundContribution":null,"clearingHouse":{"clearingHouseId":"CH-0001","dailyVolume":175.0}},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"clearedTradeId":"CT-0005","compressionDate":"2024-07-19","maturityDate":null,"novationDate":"2024-07-19","clearingMember":{"memberId":"CM-0003","creditRating":"CREDIT-RATING-003","defaultFundContribution":null,"clearingHouse":{"clearingHouseId":"CH-0001","dailyVolume":175.0}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"clearedTradeId":"CT-0001","compressionDate":"2024-03-15","maturityDate":"2024-03-15","novationDate":"2024-03-15","clearingMember":null,"trade":null},{"clearedTradeId":"CT-0002","compressionDate":null,"maturityDate":"2024-04-16","novationDate":"2024-04-16","clearingMember":null,"trade":null},{"clearedTradeId":"CT-0003","compressionDate":"2024-05-17","maturityDate":"2024-05-17","novationDate":null,"clearingMember":{"memberId":"CM-0003","creditRating":"CREDIT-RATING-003","defaultFundContribution":null,"clearingHouse":{"clearingHouseId":"CH-0001","dailyVolume":137.5}},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"clearedTradeId":"CT-0004","compressionDate":"2024-06-18","maturityDate":"2024-06-18","novationDate":"2024-06-18","clearingMember":{"memberId":"CM-0003","creditRating":"CREDIT-RATING-003","defaultFundContribution":null,"clearingHouse":{"clearingHouseId":"CH-0001","dailyVolume":137.5}},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"clearedTradeId":"CT-0005","compressionDate":"2024-07-19","maturityDate":null,"novationDate":"2024-07-19","clearingMember":{"memberId":"CM-0003","creditRating":"CREDIT-RATING-003","defaultFundContribution":null,"clearingHouse":{"clearingHouseId":"CH-0001","dailyVolume":137.5}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}}]}';
                   }#;
               }#
           ]
@@ -12829,7 +12829,7 @@ Service stress::GG_FxRateTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"rateId":"FR-0001","askRate":null,"bidRate":1150.0,"dailyChange":1150.0,"baseCurrency":null,"snapshot":null},{"rateId":"FR-0002","askRate":1187.5,"bidRate":1187.5,"dailyChange":1187.5,"baseCurrency":null,"snapshot":null},{"rateId":"FR-0003","askRate":1225.0,"bidRate":1225.0,"dailyChange":1225.0,"baseCurrency":{"code":"USD","centralBank":"Federal Reserve","fixingSource":"WMR","country":{"countryCode":"US","capitalCity":"Washington"}},"snapshot":{"snapshotId":"MDS-0001","description":"primary record","processingTimeMs":325}},{"rateId":"FR-0004","askRate":1262.5,"bidRate":1262.5,"dailyChange":1262.5,"baseCurrency":{"code":"GBP","centralBank":"Bank of England","fixingSource":"WMR","country":{"countryCode":"GB","capitalCity":"London"}},"snapshot":{"snapshotId":"MDS-0002","description":null,"processingTimeMs":332}},{"rateId":"FR-0005","askRate":1300.0,"bidRate":null,"dailyChange":null,"baseCurrency":{"code":"EUR","centralBank":"European Central Bank","fixingSource":"ECB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"snapshot":{"snapshotId":"MDS-0003","description":"archived record","processingTimeMs":339}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"rateId":"FR-0001","askRate":null,"bidRate":1150.0,"dailyChange":1150.0,"baseCurrency":null,"snapshot":null},{"rateId":"FR-0002","askRate":1187.5,"bidRate":1187.5,"dailyChange":1187.5,"baseCurrency":null,"snapshot":null},{"rateId":"FR-0003","askRate":1225.0,"bidRate":1225.0,"dailyChange":1225.0,"baseCurrency":{"code":"USD","centralBank":"Federal Reserve","fixingSource":"WMR","country":{"countryCode":"US","capitalCity":"Washington"}},"snapshot":{"snapshotId":"MDS-0001","description":"primary record","processingTimeMs":332}},{"rateId":"FR-0004","askRate":1262.5,"bidRate":1262.5,"dailyChange":1262.5,"baseCurrency":{"code":"GBP","centralBank":"Bank of England","fixingSource":"WMR","country":{"countryCode":"GB","capitalCity":"London"}},"snapshot":{"snapshotId":"MDS-0002","description":null,"processingTimeMs":339}},{"rateId":"FR-0005","askRate":1300.0,"bidRate":null,"dailyChange":null,"baseCurrency":{"code":"EUR","centralBank":"European Central Bank","fixingSource":"ECB","country":{"countryCode":"DE","capitalCity":"Berlin"}},"snapshot":{"snapshotId":"MDS-0003","description":"archived record","processingTimeMs":346}}]}';
                   }#;
               }#
           ]
@@ -12930,7 +12930,7 @@ Service stress::GG_MarketQuoteTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"quoteId":"MQ-0001","closePrice":1525.0,"highPrice":1525.0,"last":1525.0,"instrument":null,"snapshot":null},{"quoteId":"MQ-0002","closePrice":null,"highPrice":1562.5,"last":null,"instrument":null,"snapshot":null},{"quoteId":"MQ-0003","closePrice":1600.0,"highPrice":1600.0,"last":1600.0,"instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","exchange":{"mic":"XNAS","city":"New York"}},"snapshot":{"snapshotId":"MDS-0001","description":"primary record","processingTimeMs":325}},{"quoteId":"MQ-0004","closePrice":1637.5,"highPrice":1637.5,"last":1637.5,"instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","exchange":{"mic":"XNAS","city":"New York"}},"snapshot":{"snapshotId":"MDS-0002","description":null,"processingTimeMs":332}},{"quoteId":"MQ-0005","closePrice":1675.0,"highPrice":null,"last":1675.0,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","exchange":{"mic":"XLON","city":"London"}},"snapshot":{"snapshotId":"MDS-0003","description":"archived record","processingTimeMs":339}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"quoteId":"MQ-0001","closePrice":1525.0,"highPrice":1525.0,"last":1525.0,"instrument":null,"snapshot":null},{"quoteId":"MQ-0002","closePrice":null,"highPrice":1562.5,"last":null,"instrument":null,"snapshot":null},{"quoteId":"MQ-0003","closePrice":1600.0,"highPrice":1600.0,"last":1600.0,"instrument":{"instrumentId":"INST-AAPL","assetClass":"EQUITY","currency":"USD","exchange":{"mic":"XNAS","city":"New York"}},"snapshot":{"snapshotId":"MDS-0001","description":"primary record","processingTimeMs":332}},{"quoteId":"MQ-0004","closePrice":1637.5,"highPrice":1637.5,"last":1637.5,"instrument":{"instrumentId":"INST-MSFT","assetClass":"EQUITY","currency":"USD","exchange":{"mic":"XNAS","city":"New York"}},"snapshot":{"snapshotId":"MDS-0002","description":null,"processingTimeMs":339}},{"quoteId":"MQ-0005","closePrice":1675.0,"highPrice":null,"last":1675.0,"instrument":{"instrumentId":"INST-HSBA","assetClass":"EQUITY","currency":"GBP","exchange":{"mic":"XLON","city":"London"}},"snapshot":{"snapshotId":"MDS-0003","description":"archived record","processingTimeMs":346}}]}';
                   }#;
               }#
           ]
@@ -13031,7 +13031,7 @@ Service stress::GG_TradeExceptionTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"exceptionId":"TE-0001","ageInDays":451,"assignedTo":"ASSIGNED-TO-001","resolution":null,"incident":null,"trade":null},{"exceptionId":"TE-0002","ageInDays":null,"assignedTo":"ASSIGNED-TO-002","resolution":"RESOLUTION-002","incident":null,"trade":null},{"exceptionId":"TE-0003","ageInDays":465,"assignedTo":null,"resolution":"RESOLUTION-003","incident":{"incidentId":"OI-0001","currency":"USD","impactAssessment":"IMPACT-ASSESSM-001"},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"exceptionId":"TE-0004","ageInDays":472,"assignedTo":"ASSIGNED-TO-004","resolution":"RESOLUTION-004","incident":{"incidentId":"OI-0002","currency":"GBP","impactAssessment":null},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"exceptionId":"TE-0005","ageInDays":479,"assignedTo":"ASSIGNED-TO-005","resolution":"RESOLUTION-005","incident":{"incidentId":"OI-0003","currency":null,"impactAssessment":"IMPACT-ASSESSM-003"},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"exceptionId":"TE-0001","ageInDays":451,"assignedTo":"ASSIGNED-TO-001","resolution":null,"incident":null,"trade":null},{"exceptionId":"TE-0002","ageInDays":null,"assignedTo":"ASSIGNED-TO-002","resolution":"RESOLUTION-002","incident":null,"trade":null},{"exceptionId":"TE-0003","ageInDays":465,"assignedTo":null,"resolution":"RESOLUTION-003","incident":{"incidentId":"OI-0001","currency":"USD","impactAssessment":"IMPACT-ASSESSM-001"},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"exceptionId":"TE-0004","ageInDays":472,"assignedTo":"ASSIGNED-TO-004","resolution":"RESOLUTION-004","incident":{"incidentId":"OI-0002","currency":"GBP","impactAssessment":null},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"exceptionId":"TE-0005","ageInDays":479,"assignedTo":"ASSIGNED-TO-005","resolution":"RESOLUTION-005","incident":{"incidentId":"OI-0003","currency":null,"impactAssessment":"IMPACT-ASSESSM-003"},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}}]}';
                   }#;
               }#
           ]
@@ -13132,7 +13132,7 @@ Service stress::GG_DepartmentTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"departmentId":"D-0001","budget":475.0,"building":"BUILDING-001","establishedDate":null,"businessUnit":null,"costCenter":null},{"departmentId":"D-0002","budget":null,"building":"BUILDING-002","establishedDate":"2024-12-12","businessUnit":null,"costCenter":null},{"departmentId":"D-0003","budget":550.0,"building":"BUILDING-003","establishedDate":"2024-01-13","businessUnit":{"buId":"BU-CR-SP1","budget":null,"description":null,"legalEntity":{"leId":"LE-0003","capitalBase":400.0}},"costCenter":{"costCenterId":"CC-0001","approvalThreshold":null,"remainingAmount":437.5}},{"departmentId":"D-0004","budget":587.5,"building":null,"establishedDate":"2024-02-14","businessUnit":{"buId":"BU-CR-SP1","budget":null,"description":null,"legalEntity":{"leId":"LE-0003","capitalBase":400.0}},"costCenter":{"costCenterId":"CC-0002","approvalThreshold":475.0,"remainingAmount":null}},{"departmentId":"D-0005","budget":625.0,"building":"BUILDING-005","establishedDate":"2024-03-15","businessUnit":{"buId":"BU-CR-SP1","budget":null,"description":null,"legalEntity":{"leId":"LE-0003","capitalBase":400.0}},"costCenter":{"costCenterId":"CC-0003","approvalThreshold":512.5,"remainingAmount":512.5}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"departmentId":"D-0001","budget":475.0,"building":"BUILDING-001","establishedDate":null,"businessUnit":null,"costCenter":null},{"departmentId":"D-0002","budget":null,"building":"BUILDING-002","establishedDate":"2024-12-12","businessUnit":null,"costCenter":null},{"departmentId":"D-0003","budget":550.0,"building":"BUILDING-003","establishedDate":"2024-01-13","businessUnit":{"buId":"BU-CR-SP1","budget":null,"description":null,"legalEntity":{"leId":"LE-0003","capitalBase":400.0}},"costCenter":{"costCenterId":"CC-0001","approvalThreshold":null,"remainingAmount":400.0}},{"departmentId":"D-0004","budget":587.5,"building":null,"establishedDate":"2024-02-14","businessUnit":{"buId":"BU-CR-SP1","budget":null,"description":null,"legalEntity":{"leId":"LE-0003","capitalBase":400.0}},"costCenter":{"costCenterId":"CC-0002","approvalThreshold":437.5,"remainingAmount":null}},{"departmentId":"D-0005","budget":625.0,"building":"BUILDING-005","establishedDate":"2024-03-15","businessUnit":{"buId":"BU-CR-SP1","budget":null,"description":null,"legalEntity":{"leId":"LE-0003","capitalBase":400.0}},"costCenter":{"costCenterId":"CC-0003","approvalThreshold":475.0,"remainingAmount":475.0}}]}';
                   }#;
               }#
           ]
@@ -14000,7 +14000,7 @@ Service stress::GG_SalesCreditTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"creditId":"SC-0001","creditAmount":76.2,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-002","clientCount":374,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"creditId":"SC-0002","creditAmount":191.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"creditId":"SC-0003","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"creditId":"SC-0004","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003-SP2","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0004","commission":125.0,"createdTime":"2024-06-03T09:28:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0005","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0005","commission":100.0,"createdTime":"2024-06-03T09:35:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0006","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0006","commission":80.0,"createdTime":"2024-06-03T09:42:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0007","creditAmount":112.8,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-002","clientCount":374,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0007","commission":142.5,"createdTime":"2024-06-03T09:49:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0008","creditAmount":7.59,"creditDate":"2024-06-04","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0008","commission":null,"createdTime":"2024-06-04T09:56:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0009","creditAmount":230.7,"creditDate":"2024-06-04","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0009","commission":285.0,"createdTime":"2024-06-04T09:03:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0010","creditAmount":199.2,"creditDate":"2024-06-04","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-002","clientCount":374,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0010","commission":249.0,"createdTime":"2024-06-04T09:10:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0011","creditAmount":66.92,"creditDate":"2024-06-04","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0011","commission":41.8,"createdTime":"2024-06-04T09:17:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0012","creditAmount":147.6,"creditDate":"2024-06-05","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0012","commission":90.0,"createdTime":"2024-06-05T09:24:00.000000000+0000","avgPriceTrade":null}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"creditId":"SC-0001","creditAmount":76.2,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-002","clientCount":374,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0001","commission":95.25,"createdTime":"2024-06-03T09:07:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"creditId":"SC-0002","creditAmount":191.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"creditId":"SC-0003","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"creditId":"SC-0004","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003-SP2","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0004","commission":125.0,"createdTime":"2024-06-03T09:28:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0005","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0005","commission":100.0,"createdTime":"2024-06-03T09:35:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0006","creditAmount":100.0,"creditDate":"2024-06-03","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0006","commission":80.0,"createdTime":"2024-06-03T09:42:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0007","creditAmount":112.8,"creditDate":"2024-06-03","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-002","clientCount":374,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0007","commission":142.5,"createdTime":"2024-06-03T09:49:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0008","creditAmount":7.59,"creditDate":"2024-06-04","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0008","commission":null,"createdTime":"2024-06-04T09:56:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0009","creditAmount":230.7,"creditDate":"2024-06-04","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0009","commission":285.0,"createdTime":"2024-06-04T09:03:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0010","creditAmount":199.2,"creditDate":"2024-06-04","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-002","clientCount":374,"phone":"PHONE-001","commissionStructure":null},"trade":{"tradeId":"TRD-0010","commission":249.0,"createdTime":"2024-06-04T09:10:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0011","creditAmount":66.92,"creditDate":"2024-06-04","creditType":"PRIMARY","salesPerson":{"salesPersonId":"SLS-003","clientCount":381,"phone":null,"commissionStructure":null},"trade":{"tradeId":"TRD-0011","commission":41.8,"createdTime":"2024-06-04T09:17:00.000000000+0000","avgPriceTrade":null}},{"creditId":"SC-0012","creditAmount":147.6,"creditDate":"2024-06-05","creditType":"SPLIT","salesPerson":{"salesPersonId":"SLS-001","clientCount":null,"phone":"PHONE-003","commissionStructure":{"structureId":"CS-0001","acceleratorPct":null}},"trade":{"tradeId":"TRD-0012","commission":90.0,"createdTime":"2024-06-05T09:24:00.000000000+0000","avgPriceTrade":null}}]}';
                   }#;
               }#
           ]
@@ -14111,7 +14111,7 @@ Service stress::GG_AllocationTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"allocationId":"A-0001","commission":212.5,"fees":212.5,"settlementDate":null,"book":null,"trade":null},{"allocationId":"A-0002","commission":250.0,"fees":250.0,"settlementDate":"2024-05-05","book":null,"trade":null},{"allocationId":"A-0003","commission":287.5,"fees":287.5,"settlementDate":"2024-06-06","book":{"bookId":"BK-CASH-US","bookType":"TRADING","closeDate":null,"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY"}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"allocationId":"A-0004","commission":null,"fees":325.0,"settlementDate":"2024-07-07","book":{"bookId":"BK-CASH-EU","bookType":"TRADING","closeDate":null,"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY"}},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}},{"allocationId":"A-0005","commission":362.5,"fees":null,"settlementDate":"2024-08-08","book":{"bookId":"BK-VOL-01","bookType":"TRADING","closeDate":null,"desk":{"deskId":"DSK-DERIV","assetClass":"EQUITY"}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1150.0}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"allocationId":"A-0001","commission":212.5,"fees":212.5,"settlementDate":null,"book":null,"trade":null},{"allocationId":"A-0002","commission":250.0,"fees":250.0,"settlementDate":"2024-05-05","book":null,"trade":null},{"allocationId":"A-0003","commission":287.5,"fees":287.5,"settlementDate":"2024-06-06","book":{"bookId":"BK-CASH-US","bookType":"TRADING","closeDate":null,"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY"}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"allocationId":"A-0004","commission":null,"fees":325.0,"settlementDate":"2024-07-07","book":{"bookId":"BK-CASH-EU","bookType":"TRADING","closeDate":null,"desk":{"deskId":"DSK-CASH","assetClass":"EQUITY"}},"trade":{"tradeId":"TRD-0002","commission":238.75,"createdTime":"2024-06-03T09:14:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}},{"allocationId":"A-0005","commission":362.5,"fees":null,"settlementDate":"2024-08-08","book":{"bookId":"BK-VOL-01","bookType":"TRADING","closeDate":null,"desk":{"deskId":"DSK-DERIV","assetClass":"EQUITY"}},"trade":{"tradeId":"TRD-0003","commission":null,"createdTime":"2024-06-03T09:21:00.000000000+0000","avgPriceTrade":{"avgTradeId":"APT-0001","arrivalPrice":1187.5}}}]}';
                   }#;
               }#
           ]
@@ -14210,7 +14210,7 @@ Service stress::GG_RegulatoryCapitalTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"capitalId":"RC-0001","leverageRatio":887.5,"tier2Capital":887.5,"filing":null,"legalEntity":null},{"capitalId":"RC-0002","leverageRatio":925.0,"tier2Capital":null,"filing":null,"legalEntity":null},{"capitalId":"RC-0003","leverageRatio":962.5,"tier2Capital":962.5,"filing":{"filingId":"RF-0001","approvedBy":"APPROVED-BY-001","previousFilingId":null},"legalEntity":{"leId":"LE-0003","capitalBase":400.0,"incorporationDate":"2024-09-09","region":{"regionId":"R-0001","costTarget":587.5}}},{"capitalId":"RC-0004","leverageRatio":1000.0,"tier2Capital":1000.0,"filing":{"filingId":"RF-0002","approvedBy":"APPROVED-BY-002","previousFilingId":"PREVIOUS-FILIN-002"},"legalEntity":{"leId":"LE-0003","capitalBase":400.0,"incorporationDate":"2024-09-09","region":{"regionId":"R-0001","costTarget":587.5}}},{"capitalId":"RC-0005","leverageRatio":null,"tier2Capital":1037.5,"filing":{"filingId":"RF-0003","approvedBy":"APPROVED-BY-003","previousFilingId":"PREVIOUS-FILIN-003"},"legalEntity":{"leId":"LE-0003","capitalBase":400.0,"incorporationDate":"2024-09-09","region":{"regionId":"R-0001","costTarget":587.5}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"capitalId":"RC-0001","leverageRatio":925.0,"tier2Capital":925.0,"filing":null,"legalEntity":null},{"capitalId":"RC-0002","leverageRatio":962.5,"tier2Capital":null,"filing":null,"legalEntity":null},{"capitalId":"RC-0003","leverageRatio":1000.0,"tier2Capital":1000.0,"filing":{"filingId":"RF-0001","approvedBy":"APPROVED-BY-001","previousFilingId":null},"legalEntity":{"leId":"LE-0003","capitalBase":400.0,"incorporationDate":"2024-09-09","region":{"regionId":"R-0001","costTarget":587.5}}},{"capitalId":"RC-0004","leverageRatio":1037.5,"tier2Capital":1037.5,"filing":{"filingId":"RF-0002","approvedBy":"APPROVED-BY-002","previousFilingId":"PREVIOUS-FILIN-002"},"legalEntity":{"leId":"LE-0003","capitalBase":400.0,"incorporationDate":"2024-09-09","region":{"regionId":"R-0001","costTarget":587.5}}},{"capitalId":"RC-0005","leverageRatio":null,"tier2Capital":1075.0,"filing":{"filingId":"RF-0003","approvedBy":"APPROVED-BY-003","previousFilingId":"PREVIOUS-FILIN-003"},"legalEntity":{"leId":"LE-0003","capitalBase":400.0,"incorporationDate":"2024-09-09","region":{"regionId":"R-0001","costTarget":587.5}}}]}';
                   }#;
               }#
           ]
@@ -14309,7 +14309,7 @@ Service stress::GG_CashSettlementTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"cashSettlementId":"CS-0001","confirmedDate":"2024-01-13T12:15:00.000000000+0000","reference":"REFERENCE-001","nostroAccount":null,"settlement":null},{"cashSettlementId":"CS-0002","confirmedDate":"2024-02-14T13:15:00.000000000+0000","reference":null,"nostroAccount":null,"settlement":null},{"cashSettlementId":"CS-0003","confirmedDate":null,"reference":"REFERENCE-003","nostroAccount":{"accountId":"NA-0001","dailyLimit":1937.5,"description":"primary record"},"settlement":{"settlementId":"STL-0001","amount":190500.0,"currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}}},{"cashSettlementId":"CS-0004","confirmedDate":"2024-04-16T15:15:00.000000000+0000","reference":"REFERENCE-004","nostroAccount":{"accountId":"NA-0002","dailyLimit":null,"description":"secondary record"},"settlement":{"settlementId":"STL-0002","amount":477500.0,"currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}}},{"cashSettlementId":"CS-0005","confirmedDate":"2024-05-17T16:15:00.000000000+0000","reference":"REFERENCE-005","nostroAccount":{"accountId":"NA-0003","dailyLimit":2012.5,"description":null},"settlement":{"settlementId":"STL-0003","amount":250000.0,"currency":"USD","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"cashSettlementId":"CS-0001","confirmedDate":"2024-01-13T12:15:00.000000000+0000","reference":"REFERENCE-001","nostroAccount":null,"settlement":null},{"cashSettlementId":"CS-0002","confirmedDate":"2024-02-14T13:15:00.000000000+0000","reference":null,"nostroAccount":null,"settlement":null},{"cashSettlementId":"CS-0003","confirmedDate":null,"reference":"REFERENCE-003","nostroAccount":{"accountId":"NA-0001","dailyLimit":1975.0,"description":"primary record"},"settlement":{"settlementId":"STL-0001","amount":190500.0,"currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}}},{"cashSettlementId":"CS-0004","confirmedDate":"2024-04-16T15:15:00.000000000+0000","reference":"REFERENCE-004","nostroAccount":{"accountId":"NA-0002","dailyLimit":null,"description":"secondary record"},"settlement":{"settlementId":"STL-0002","amount":477500.0,"currency":"USD","counterparty":{"counterpartyId":"CP-0001","counterpartyType":"ASSET_MANAGER"}}},{"cashSettlementId":"CS-0005","confirmedDate":"2024-05-17T16:15:00.000000000+0000","reference":"REFERENCE-005","nostroAccount":{"accountId":"NA-0003","dailyLimit":2050.0,"description":null},"settlement":{"settlementId":"STL-0003","amount":250000.0,"currency":"USD","counterparty":{"counterpartyId":"CP-0002","counterpartyType":"BROKER_DEALER"}}}]}';
                   }#;
               }#
           ]
@@ -14388,7 +14388,7 @@ Service stress::GG_AccountingRuleTree
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '{"builder":{"_type":"json"},"values":[{"ruleId":"AR-0001","condition":null,"description":"primary record","expiryDate":"2024-02-02","glAccount":null},{"ruleId":"AR-0002","condition":"CONDITION-002","description":null,"expiryDate":"2024-03-03","glAccount":null},{"ruleId":"AR-0003","condition":"CONDITION-003","description":"archived record","expiryDate":null,"glAccount":{"accountId":"GLA-0001","closeDate":"2024-02-02","description":"primary record"}},{"ruleId":"AR-0004","condition":"CONDITION-004","description":"pending review","expiryDate":"2024-05-05","glAccount":{"accountId":"GLA-0002","closeDate":null,"description":"secondary record"}},{"ruleId":"AR-0005","condition":"CONDITION-005","description":"closed","expiryDate":"2024-06-06","glAccount":{"accountId":"GLA-0003","closeDate":"2024-04-04","description":null}}]}';
+                    data: '{"builder":{"_type":"json"},"values":[{"ruleId":"AR-0001","condition":null,"description":"primary record","expiryDate":"2024-01-01","glAccount":null},{"ruleId":"AR-0002","condition":"CONDITION-002","description":null,"expiryDate":"2024-02-02","glAccount":null},{"ruleId":"AR-0003","condition":"CONDITION-003","description":"archived record","expiryDate":null,"glAccount":{"accountId":"GLA-0001","closeDate":"2024-01-01","description":"primary record"}},{"ruleId":"AR-0004","condition":"CONDITION-004","description":"pending review","expiryDate":"2024-04-04","glAccount":{"accountId":"GLA-0002","closeDate":null,"description":"secondary record"}},{"ruleId":"AR-0005","condition":"CONDITION-005","description":"closed","expiryDate":"2024-05-05","glAccount":{"accountId":"GLA-0003","closeDate":"2024-03-03","description":null}}]}';
                   }#;
               }#
           ]
@@ -268855,7 +268855,7 @@ Service stress::DSLocal_OrderRoute
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"routeId":"OR-0001","status":"ACTIVE","latencyMs":136},{"routeId":"OR-0003","status":"CLOSED","latencyMs":150}]';
+                    data: '[{"routeId":"OR-0001","status":"ACTIVE","latencyMs":143},{"routeId":"OR-0003","status":"CLOSED","latencyMs":157}]';
                   }#;
               }#
           ]
@@ -268916,7 +268916,7 @@ Service stress::DSAgg_OrderRoute
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"ACTIVE","n":2,"total":136},{"status":"CLOSED","n":1,"total":150},{"status":"SUSPENDED","n":1,"total":157}]';
+                    data: '[{"status":"ACTIVE","n":2,"total":143},{"status":"CLOSED","n":1,"total":157},{"status":"SUSPENDED","n":1,"total":164}]';
                   }#;
               }#
           ]
@@ -273843,7 +273843,7 @@ Service stress::DSLocal_SubledgerEntry
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"subledgerEntryId":"SE-0001","currency":"USD","lineNumber":199}]';
+                    data: '[{"subledgerEntryId":"SE-0001","currency":"USD","lineNumber":206}]';
                   }#;
               }#
           ]
@@ -273904,7 +273904,7 @@ Service stress::DSAgg_SubledgerEntry
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":213}]';
+                    data: '[{"currency":"EUR","n":1,"total":220}]';
                   }#;
               }#
           ]
@@ -274544,7 +274544,7 @@ Service stress::DSLocal_CtnDatedItem
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"itemId":"CDI-0001","currency":"USD","daysAway":276},{"itemId":"CDI-0003","currency":"EUR","daysAway":290}]';
+                    data: '[{"itemId":"CDI-0001","currency":"USD","daysAway":283},{"itemId":"CDI-0003","currency":"EUR","daysAway":297}]';
                   }#;
               }#
           ]
@@ -274605,7 +274605,7 @@ Service stress::DSAgg_CtnDatedItem
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"USD","n":2,"total":573}]';
+                    data: '[{"currency":"USD","n":2,"total":587}]';
                   }#;
               }#
           ]
@@ -274742,7 +274742,7 @@ Service stress::DSLocal_CounterpartyAccount
     execution: Single
     {
     query: |counterparty::Account.all()
-        ->filter({x|($x.currency >= 'JPY')})
+        ->filter({x|($x.currency > 'GBP')})
         ->project(~[
             accountId:x|$x.accountId,
             currency:x|$x.currency
@@ -276196,7 +276196,7 @@ Service stress::DSLocal_PeerComparison
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"comparisonId":"PC-0001","currency":"USD","peerGroupSize":150}]';
+                    data: '[{"comparisonId":"PC-0001","currency":"USD","peerGroupSize":157}]';
                   }#;
               }#
           ]
@@ -276257,7 +276257,7 @@ Service stress::DSAgg_PeerComparison
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"USD","n":2,"total":321}]';
+                    data: '[{"currency":"USD","n":2,"total":335}]';
                   }#;
               }#
           ]
@@ -276486,7 +276486,7 @@ Service stress::DSLocal_AccountingRule
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"ruleId":"AR-0002","condition":"CONDITION-002","priority":24},{"ruleId":"AR-0003","condition":"CONDITION-003","priority":31}]';
+                    data: '[{"ruleId":"AR-0002","condition":"CONDITION-002","priority":17},{"ruleId":"AR-0003","condition":"CONDITION-003","priority":24}]';
                   }#;
               }#
           ]
@@ -276547,7 +276547,7 @@ Service stress::DSAgg_AccountingRule
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"condition":"CONDITION-002","n":1,"total":24}]';
+                    data: '[{"condition":"CONDITION-002","n":1,"total":17}]';
                   }#;
               }#
           ]
@@ -276724,7 +276724,7 @@ Service stress::DSLocal_IncomeStatement
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"statementId":"IS-0001","currency":"USD","version":108}]';
+                    data: '[{"statementId":"IS-0001","currency":"USD","version":115}]';
                   }#;
               }#
           ]
@@ -276785,7 +276785,7 @@ Service stress::DSAgg_IncomeStatement
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":115}]';
+                    data: '[{"currency":"GBP","n":1,"total":122}]';
                   }#;
               }#
           ]
@@ -278531,7 +278531,7 @@ Service stress::DSAgg_NettingResult
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":129}]';
+                    data: '[{"currency":"EUR","n":1,"total":136}]';
                   }#;
               }#
           ]
@@ -279579,7 +279579,7 @@ Service stress::DSLocal_ResearchReport
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"reportId":"RR-0001","region":"Americas","downloadCount":null},{"reportId":"RR-0002","region":"EMEA","downloadCount":185}]';
+                    data: '[{"reportId":"RR-0001","region":"Americas","downloadCount":null},{"reportId":"RR-0002","region":"EMEA","downloadCount":192}]';
                   }#;
               }#
           ]
@@ -279640,7 +279640,7 @@ Service stress::DSAgg_ResearchReport
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"region":"APAC","n":1,"total":192}]';
+                    data: '[{"region":"APAC","n":1,"total":199}]';
                   }#;
               }#
           ]
@@ -279988,7 +279988,7 @@ Service stress::DSLocal_TaxReclaim
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"reclaimId":"TR-0002","currency":"GBP","ageInDays":227}]';
+                    data: '[{"reclaimId":"TR-0002","currency":"GBP","ageInDays":234}]';
                   }#;
               }#
           ]
@@ -280049,7 +280049,7 @@ Service stress::DSAgg_TaxReclaim
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"USD","n":2,"total":241}]';
+                    data: '[{"currency":"USD","n":2,"total":248}]';
                   }#;
               }#
           ]
@@ -280450,7 +280450,7 @@ Service stress::DSLocal_GeneralLedgerAccount
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"accountId":"GLA-0003","currency":"EUR","level":31}]';
+                    data: '[{"accountId":"GLA-0003","currency":"EUR","level":24}]';
                   }#;
               }#
           ]
@@ -280511,7 +280511,7 @@ Service stress::DSAgg_GeneralLedgerAccount
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"USD","n":2,"total":55}]';
+                    data: '[{"currency":"USD","n":2,"total":41}]';
                   }#;
               }#
           ]
@@ -280569,7 +280569,7 @@ Service stress::DSLocal_TrialBalance
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"trialBalanceId":"TB-0001","currency":"USD","version":80}]';
+                    data: '[{"trialBalanceId":"TB-0001","currency":"USD","version":73}]';
                   }#;
               }#
           ]
@@ -280630,7 +280630,7 @@ Service stress::DSAgg_TrialBalance
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":87},{"currency":"JPY","n":1,"total":108}]';
+                    data: '[{"currency":"GBP","n":1,"total":80},{"currency":"JPY","n":1,"total":101}]';
                   }#;
               }#
           ]
@@ -281038,7 +281038,7 @@ Service stress::DSLocal_ClearingHouse
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"clearingHouseId":"CH-0001","currency":"USD","memberCount":null},{"clearingHouseId":"CH-0002","currency":"GBP","memberCount":31}]';
+                    data: '[{"clearingHouseId":"CH-0001","currency":"USD","memberCount":null},{"clearingHouseId":"CH-0002","currency":"GBP","memberCount":24}]';
                   }#;
               }#
           ]
@@ -281099,7 +281099,7 @@ Service stress::DSAgg_ClearingHouse
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":31}]';
+                    data: '[{"currency":"GBP","n":1,"total":24}]';
                   }#;
               }#
           ]
@@ -281157,7 +281157,7 @@ Service stress::DSLocal_ClearingPortfolioReconciliation
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"reconId":"PR-0002","currency":"GBP","daysToResolve":374}]';
+                    data: '[{"reconId":"PR-0002","currency":"GBP","daysToResolve":381}]';
                   }#;
               }#
           ]
@@ -281218,7 +281218,7 @@ Service stress::DSAgg_ClearingPortfolioReconciliation
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"JPY","n":1,"total":null},{"currency":"USD","n":2,"total":755}]';
+                    data: '[{"currency":"JPY","n":1,"total":null},{"currency":"USD","n":2,"total":769}]';
                   }#;
               }#
           ]
@@ -281276,7 +281276,7 @@ Service stress::DSLocal_PositionTransfer
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"transferId":"PT-0001","currency":"USD","tradeCount":381}]';
+                    data: '[{"transferId":"PT-0001","currency":"USD","tradeCount":388}]';
                   }#;
               }#
           ]
@@ -281337,7 +281337,7 @@ Service stress::DSAgg_PositionTransfer
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":395},{"currency":"JPY","n":1,"total":409},{"currency":"USD","n":2,"total":783}]';
+                    data: '[{"currency":"EUR","n":1,"total":402},{"currency":"JPY","n":1,"total":416},{"currency":"USD","n":2,"total":797}]';
                   }#;
               }#
           ]
@@ -281395,7 +281395,7 @@ Service stress::DSLocal_TradeCompression
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"compressionId":"TC-0002","currency":"GBP","tradesAfter":437},{"compressionId":"TC-0003","currency":"EUR","tradesAfter":444}]';
+                    data: '[{"compressionId":"TC-0002","currency":"GBP","tradesAfter":444},{"compressionId":"TC-0003","currency":"EUR","tradesAfter":451}]';
                   }#;
               }#
           ]
@@ -281456,7 +281456,7 @@ Service stress::DSAgg_TradeCompression
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":437}]';
+                    data: '[{"currency":"GBP","n":1,"total":444}]';
                   }#;
               }#
           ]
@@ -284668,7 +284668,7 @@ Service stress::DSLocal_CorporateSpread
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"spreadId":"CS-0002","currency":"GBP","numberOfBonds":255},{"spreadId":"CS-0003","currency":"EUR","numberOfBonds":null}]';
+                    data: '[{"spreadId":"CS-0002","currency":"GBP","numberOfBonds":262},{"spreadId":"CS-0003","currency":"EUR","numberOfBonds":null}]';
                   }#;
               }#
           ]
@@ -284729,7 +284729,7 @@ Service stress::DSAgg_CorporateSpread
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"USD","n":1,"total":269}]';
+                    data: '[{"currency":"USD","n":1,"total":276}]';
                   }#;
               }#
           ]
@@ -284901,7 +284901,7 @@ Service stress::DSLocal_MarketDataSnapshot
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"snapshotId":"MDS-0001","status":"ACTIVE","itemCount":null},{"snapshotId":"MDS-0003","status":"CLOSED","itemCount":339}]';
+                    data: '[{"snapshotId":"MDS-0001","status":"ACTIVE","itemCount":null},{"snapshotId":"MDS-0003","status":"CLOSED","itemCount":346}]';
                   }#;
               }#
           ]
@@ -284962,7 +284962,7 @@ Service stress::DSAgg_MarketDataSnapshot
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"ACTIVE","n":2,"total":353},{"status":"CLOSED","n":1,"total":339}]';
+                    data: '[{"status":"ACTIVE","n":2,"total":360},{"status":"CLOSED","n":1,"total":346}]';
                   }#;
               }#
           ]
@@ -285077,7 +285077,7 @@ Service stress::DSLocal_MarketdataYieldCurve
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"curveId":"YC-0001","currency":"USD","pointCount":122}]';
+                    data: '[{"curveId":"YC-0001","currency":"USD","pointCount":115}]';
                   }#;
               }#
           ]
@@ -285374,7 +285374,7 @@ Service stress::DSLocal_NettingSet
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"nettingSetId":"NS-0002","currency":"GBP","memberCount":164},{"nettingSetId":"NS-0003","currency":"EUR","memberCount":null}]';
+                    data: '[{"nettingSetId":"NS-0002","currency":"GBP","memberCount":171},{"nettingSetId":"NS-0003","currency":"EUR","memberCount":null}]';
                   }#;
               }#
           ]
@@ -285435,7 +285435,7 @@ Service stress::DSAgg_NettingSet
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":164}]';
+                    data: '[{"currency":"GBP","n":1,"total":171}]';
                   }#;
               }#
           ]
@@ -285550,7 +285550,7 @@ Service stress::DSLocal_ProcessingQueue
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"queueId":"PQ-0003","status":"CLOSED","avgProcessingTimeMs":402}]';
+                    data: '[{"queueId":"PQ-0003","status":"CLOSED","avgProcessingTimeMs":409}]';
                   }#;
               }#
           ]
@@ -285611,7 +285611,7 @@ Service stress::DSAgg_ProcessingQueue
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"CLOSED","n":1,"total":402},{"status":"SUSPENDED","n":1,"total":null}]';
+                    data: '[{"status":"CLOSED","n":1,"total":409},{"status":"SUSPENDED","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -285730,7 +285730,7 @@ Service stress::DSAgg_ReconciliationRun
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"SUSPENDED","n":1,"total":157}]';
+                    data: '[{"status":"SUSPENDED","n":1,"total":150}]';
                   }#;
               }#
           ]
@@ -285788,7 +285788,7 @@ Service stress::DSLocal_STPRate
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"stpId":"S-0001","region":"Americas","manualTrades":null},{"stpId":"S-0002","region":"EMEA","manualTrades":423}]';
+                    data: '[{"stpId":"S-0001","region":"Americas","manualTrades":null},{"stpId":"S-0002","region":"EMEA","manualTrades":430}]';
                   }#;
               }#
           ]
@@ -285849,7 +285849,7 @@ Service stress::DSAgg_STPRate
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"region":"APAC","n":1,"total":430},{"region":"Americas","n":1,"total":null}]';
+                    data: '[{"region":"APAC","n":1,"total":437},{"region":"Americas","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -286027,7 +286027,7 @@ Service stress::DSLocal_CostCenter
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"costCenterId":"CC-0001","currency":"USD","fiscalYear":73},{"costCenterId":"CC-0003","currency":"EUR","fiscalYear":null}]';
+                    data: '[{"costCenterId":"CC-0001","currency":"USD","fiscalYear":66},{"costCenterId":"CC-0003","currency":"EUR","fiscalYear":null}]';
                   }#;
               }#
           ]
@@ -286088,7 +286088,7 @@ Service stress::DSAgg_CostCenter
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"JPY","n":1,"total":101}]';
+                    data: '[{"currency":"JPY","n":1,"total":94}]';
                   }#;
               }#
           ]
@@ -286326,7 +286326,7 @@ Service stress::DSAgg_YTDPnL
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":465}]';
+                    data: '[{"currency":"EUR","n":1,"total":472}]';
                   }#;
               }#
           ]
@@ -287261,7 +287261,7 @@ Service stress::DSLocal_Index
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"indexId":"I-0002","currency":"GBP","numberOfConstituents":94}]';
+                    data: '[{"indexId":"I-0002","currency":"GBP","numberOfConstituents":87}]';
                   }#;
               }#
           ]
@@ -287322,7 +287322,7 @@ Service stress::DSAgg_Index
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"GBP","n":1,"total":94},{"currency":"JPY","n":1,"total":115}]';
+                    data: '[{"currency":"GBP","n":1,"total":87},{"currency":"JPY","n":1,"total":108}]';
                   }#;
               }#
           ]
@@ -287619,7 +287619,7 @@ Service stress::DSLocal_RegulatoryBestExecutionReport
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"reportId":"BER-0001","currency":"USD","avgLatencyMs":213}]';
+                    data: '[{"reportId":"BER-0001","currency":"USD","avgLatencyMs":220}]';
                   }#;
               }#
           ]
@@ -287680,7 +287680,7 @@ Service stress::DSAgg_RegulatoryBestExecutionReport
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":227}]';
+                    data: '[{"currency":"EUR","n":1,"total":234}]';
                   }#;
               }#
           ]
@@ -287738,7 +287738,7 @@ Service stress::DSLocal_ComplianceAlert
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"alertId":"CA-0001","status":"ACTIVE","escalationLevel":66},{"alertId":"CA-0003","status":"CLOSED","escalationLevel":null}]';
+                    data: '[{"alertId":"CA-0001","status":"ACTIVE","escalationLevel":59},{"alertId":"CA-0003","status":"CLOSED","escalationLevel":null}]';
                   }#;
               }#
           ]
@@ -287799,7 +287799,7 @@ Service stress::DSAgg_ComplianceAlert
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"status":"ACTIVE","n":2,"total":160},{"status":"CLOSED","n":1,"total":null},{"status":"SUSPENDED","n":1,"total":87}]';
+                    data: '[{"status":"ACTIVE","n":2,"total":146},{"status":"CLOSED","n":1,"total":null},{"status":"SUSPENDED","n":1,"total":80}]';
                   }#;
               }#
           ]
@@ -287971,7 +287971,7 @@ Service stress::DSLocal_AnalystCoverage
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"coverageId":"AC-0002","region":"EMEA","publishedReportCount":80},{"coverageId":"AC-0003","region":"APAC","publishedReportCount":87}]';
+                    data: '[{"coverageId":"AC-0002","region":"EMEA","publishedReportCount":73},{"coverageId":"AC-0003","region":"APAC","publishedReportCount":80}]';
                   }#;
               }#
           ]
@@ -288032,7 +288032,7 @@ Service stress::DSAgg_AnalystCoverage
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"region":"APAC","n":1,"total":87},{"region":"Americas","n":1,"total":null}]';
+                    data: '[{"region":"APAC","n":1,"total":80},{"region":"Americas","n":1,"total":null}]';
                   }#;
               }#
           ]
@@ -288562,7 +288562,7 @@ Service stress::DSLocal_StressScenario
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"scenarioId":"SS-0001","name":"Northbridge","riskFactorCount":171},{"scenarioId":"SS-0002","name":"Kestrel","riskFactorCount":null}]';
+                    data: '[{"scenarioId":"SS-0001","name":"Northbridge","riskFactorCount":178},{"scenarioId":"SS-0002","name":"Kestrel","riskFactorCount":null}]';
                   }#;
               }#
           ]
@@ -288623,7 +288623,7 @@ Service stress::DSAgg_StressScenario
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"name":"Thameside","n":1,"total":199}]';
+                    data: '[{"name":"Thameside","n":1,"total":206}]';
                   }#;
               }#
           ]
@@ -288795,7 +288795,7 @@ Service stress::DSLocal_SalesTerritory
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"territoryId":"ST-0002","name":"Kestrel","headcount":402}]';
+                    data: '[{"territoryId":"ST-0002","name":"Kestrel","headcount":409}]';
                   }#;
               }#
           ]
@@ -288856,7 +288856,7 @@ Service stress::DSAgg_SalesTerritory
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"name":"Fenwick","n":1,"total":416}]';
+                    data: '[{"name":"Fenwick","n":1,"total":423}]';
                   }#;
               }#
           ]
@@ -289439,7 +289439,7 @@ Service stress::DSLocal_TaxReport
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"reportId":"TR-0001","currency":"USD","reportYear":178}]';
+                    data: '[{"reportId":"TR-0001","currency":"USD","reportYear":185}]';
                   }#;
               }#
           ]
@@ -289500,7 +289500,7 @@ Service stress::DSAgg_TaxReport
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"USD","n":2,"total":178}]';
+                    data: '[{"currency":"USD","n":2,"total":185}]';
                   }#;
               }#
           ]
@@ -289854,7 +289854,7 @@ Service stress::DSAgg_AveragePriceTrade
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"JPY","n":1,"total":234}]';
+                    data: '[{"currency":"JPY","n":1,"total":241}]';
                   }#;
               }#
           ]
@@ -289912,7 +289912,7 @@ Service stress::DSLocal_Block
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"blockId":"B-0001","currency":"USD","numberOfAllocations":220}]';
+                    data: '[{"blockId":"B-0001","currency":"USD","numberOfAllocations":227}]';
                   }#;
               }#
           ]
@@ -289973,7 +289973,7 @@ Service stress::DSAgg_Block
                   ExternalFormat
                   #{
                     contentType: 'application/json';
-                    data: '[{"currency":"EUR","n":1,"total":234},{"currency":"GBP","n":1,"total":null},{"currency":"USD","n":2,"total":461}]';
+                    data: '[{"currency":"EUR","n":1,"total":241},{"currency":"GBP","n":1,"total":null},{"currency":"USD","n":2,"total":475}]';
                   }#;
               }#
           ]

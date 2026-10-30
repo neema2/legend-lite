@@ -1856,10 +1856,10 @@ Database store::DB
 
     Filter QuotedPillarRows(RATE_CURVE_POINT.IS_INTERPOLATED = 0)
 
-    // A RANGE join: which band the notional falls in. No key, and none possible.
-    // A RANGE join FROM a milestoned table. The engine adds the milestoning
-    // predicate; the band membership is the join's own condition.
-    Join TierVersion_Trade(TRADE.NOTIONAL >= BROKERAGE_TIER_MS.MIN_NOTIONAL and TRADE.NOTIONAL < BROKERAGE_TIER_MS.MAX_NOTIONAL)
+    // TierVersion_Trade, a range join from the milestoned BROKERAGE_TIER_MS to TRADE, was here
+    // and deleted 2026-10-29 (the improvement plan's Phase 7, the user's decision): no mapping
+    // used it, and its natural use, an association with an end on trading::Trade, gives Trade a
+    // milestoned property, which stops external::EntityMapping compiling on the engine (F66).
     Filter ReportableLineRows(regrpt.EXPOSURE_LINE.PCT_OF_CAPITAL >= 5.0)
 
     // A RANGE join from a composite-key table: which band applies is a

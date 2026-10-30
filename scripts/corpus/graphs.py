@@ -90,7 +90,7 @@ def _branches(c: model.Corpus, root: str, seeded: set[str]) -> list[tuple[str, s
     """
     out = []
     for (owner, name), end in sorted(c.ends.items()):
-        if owner != root or end.to_many or not end.join:
+        if owner != root or end.to_many or not model.walked(c, end):
             continue
         if c.main_table.get(end.target) not in seeded:
             continue

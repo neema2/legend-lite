@@ -380,6 +380,27 @@ def _unreached_features(c: model.Corpus, specs, quarantined: set[str], add) -> N
     add("U6  join chain ending in an expression", [s.short for s in live if any(
         (s.root, p.path[0]) in c.chain_exprs for p in s.projections if p.path)])
 
+    # the join conditions surface::JoinDB declared and nothing followed (70-surface-store2.pure), each followed by a
+    # passing service; its null tests and its hop into an included store were already met elsewhere (Combo_Or,
+    # Book_Rollup), so only the operators no executed join had are entries
+    followed = set()
+    for s in live:
+        followed |= _spec_joins(c, s, _spec_touches(c, s)[0])
+
+    def nodes(node):
+        tag, body = node
+        if tag in ("and", "or"):
+            return [node] + nodes(body[0]) + nodes(body[1])
+        return [node]
+
+    def joins_with(pred):
+        return sorted(n for n in followed if c.joins[n].condition is not None
+                      and any(pred(x) for x in nodes(c.joins[n].condition)))
+
+    add("U7  join not-equal", joins_with(lambda x: x[0] == "cmp" and x[1][1] in ("!=", "<>")))
+    add("U8  join numeric constant", joins_with(lambda x: x[0] == "cmp" and any(
+        o[0] == "lit" and isinstance(o[1], (int, float)) for o in (x[1][0], x[1][2]))))
+
 
 def _vocabulary_features(specs, quarantined: set[str], add) -> None:
     """Platform functions applied in a query (the improvement plan's Phase 4, vocab.py), executed when a passing
@@ -661,7 +682,7 @@ BASELINE = {
     # 2026-10-29, the improvement plan's Phase 7 (unreached.py): constructs declared but reached by no service, each
     # executed by passing services on legend-engine 4.145.0.
     "U1  DenseMapping respelling", "U2  router union", "U3  inheritance dispatch", "U4  merge operation",
-    "U5  corpus profile", "U6  join chain ending in an expression",
+    "U5  corpus profile", "U6  join chain ending in an expression", "U7  join not-equal", "U8  join numeric constant",
 }
 
 

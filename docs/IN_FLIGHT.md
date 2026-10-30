@@ -3292,11 +3292,14 @@ Status lives in the plan's Progress table (rule 0b.16).
   (`core/stress.bzl`'s `STRESS_GENERATED` and the layout JSON); runtimes for `stress::DenseMapping` in
   `91-runtime.pure` and `28-external.pure`; the router union and the inheritance operation moved out of
   `71-mapping-surface2.pure` into a hand-written pack lite loads, with the merge services' store in
-  `74-surface-last.pure`; mappings for the unused joins (the products, counterparty, back-office, OTC, hier and
-  surface stores and mappings), and the eight joins the user agreed to delete (2026-10-29: the five `dense_*` in
-  `dense_store.py`, `HierInstrument_Issuer`, `surface_AnsiNotEqual`, `TierVersion_Trade`); a profile on the new
-  pack's classes; their seed in `seed.py`; `model.py` and the oracle for the operation forms; `executed.py`,
-  `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+  `74-surface-last.pure`; mappings for the unused joins (a hand-written `89-join-links.pure` over the products,
+  counterparty, back-office, OTC, core-fx and hier stores, and `70-surface-store2.pure`'s join conditions), and the ten
+  joins the user agreed to delete (2026-10-29: the six `dense_*` in `dense_store.py`, `HierInstrument_Issuer`,
+  `surface_TestNotEqual`, `surface_AnsiNotEqual`, `TierVersion_Trade`); a profile on the new pack's classes; their
+  seed in `seed.py`, apart from the expansion (`expand.py`, `flat.py`); `model.py` and the oracle for the operation
+  forms; the model-walking generators (`stacks.py`, `graphs.py`, `aggregates.py`, `tomany.py`, `spread.py`) walk only
+  the ends `stress::AllMapping` maps (`model.walked`); `executed.py`, `quarantine.py`, repros under
+  `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
 - **Cross-area, Phase 7 (announced 2026-10-29, before it lands):**
   - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (fourteen to fifteen).
   - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out

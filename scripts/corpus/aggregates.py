@@ -86,7 +86,7 @@ def _usable_ends(c: model.Corpus, tables: dict[str, list[dict]],
                  seeded: set[str]) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {}
     for (owner, prop), end in sorted(c.ends.items()):
-        if not end.to_many or not end.join:
+        if not end.to_many or not model.walked(c, end):
             continue
         if c.main_table.get(owner) not in seeded or c.main_table.get(end.target) not in seeded:
             continue

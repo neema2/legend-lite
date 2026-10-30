@@ -1098,9 +1098,10 @@ def derive_alt(c: model.Corpus, tables: dict[str, list[dict]]) -> None:
 
     Generated independently, none of these conditions matches anything: a multi-column
     equality needs both columns to agree, and `concat(a, b) = x` needs a column literally
-    holding that concatenation. The corpus's generated dense joins are in exactly that
-    state -- `dense_DynaOneSide` and `dense_DynaBothSides` pair ZERO rows with zero, which
-    is why declaring them was never the same as executing them.
+    holding that concatenation. The corpus's generated dense joins were in exactly that
+    state -- `dense_DynaOneSide` and `dense_DynaBothSides` paired ZERO rows with zero, which
+    is why declaring them was never the same as executing them (they were deleted on
+    2026-10-29, the improvement plan's Phase 7: these forms are executed here).
 
     So the far side is derived from the near side, in the open:
 

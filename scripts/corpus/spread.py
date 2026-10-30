@@ -303,7 +303,7 @@ def _shape_variants(c: model.Corpus, t: Spec, seeded: set[str],
     # guard belongs on both rather than on whichever one failed first.
     default_map = getattr(t, "mapping", None) in (None, executed.DEFAULT_MAPPING)
     tm_end = next((prop for (cls_, prop), end in c.ends.items()
-                   if cls_ == root and end.to_many and _key_joined(c, root, prop)),
+                   if cls_ == root and end.to_many and model.walked(c, end) and _key_joined(c, root, prop)),
                   None) if default_map else None
     if tm_end:
         add("Empty", projections=enriched() + [Proj("hasNone", [tm_end], agg="isEmpty")],

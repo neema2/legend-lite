@@ -90,10 +90,9 @@ Database <<meta::pure::profiles::typemodifiers.abstract>> {doc.doc = 'surface co
       VAL VARCHAR(64)
    )
 
-   // JOIN operators the corpus never wrote: != (test not-equal) and <> (ANSI not-equal),
-   // and a condition whose operands are both dynafunctions over a grouped disjunction.
-   Join surface_TestNotEqual(SURFACE_TYPES.C_VARCHAR != SURFACE_BITEMP.VAL)
-   Join surface_AnsiNotEqual(SURFACE_TYPES.C_VARCHAR <> SURFACE_SNAPSHOT.VAL)
+   // The != and <> join operators were here, over the unseeded SURFACE_BITEMP and
+   // SURFACE_SNAPSHOT, and no mapping used them; they moved to surface::JoinDB on 2026-10-29
+   // (70-surface-store2.pure, the improvement plan's Phase 7), where they are mapped and run.
 
    View SURFACE_VIEW
    (

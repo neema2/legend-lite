@@ -51,8 +51,9 @@ Class <<temporal.businesstemporal>> schedule::TierVersion
    feeOn(notional: Float[1]) { $notional * coalesce($this.bpsRate, 0.0) / 10000.0 } : Float[1];
 }
 
-// The trades whose notional falls in this band. A range join from a milestoned table -- the
-// combination that did not exist anywhere in the corpus.
+// (The range join from this milestoned table to the trades in each band, TierVersion_Trade, was
+// deleted 2026-10-29: an association to trading::Trade would give Trade a milestoned property,
+// F66.)
 ###Mapping
 Mapping schedule::ScheduleMapping
 (

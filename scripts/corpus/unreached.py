@@ -18,6 +18,12 @@ while nothing could detect it behaving wrongly (report §3's ○ rows, §8's unu
              union's way (router_operations.pure), each row absent where its own set maps nothing; it merges
              instances only in an M2M graph fetch, and a graph fetch over these relational sets fails at plan
              generation, so none is written. The classes reached carry a profile of the corpus's own.
+  UJ_        the joins no mapping used (report §8), each mapped and followed: both ends of the products' and the
+             counterparty's associations (declared and never mapped), of new ones over the back office's, the OTC
+             trades' and core-fx's joins (89-join-links.pure), an issuer's country through the hop HIER_COUNTRY was
+             declared for, and each of surface::JoinDB's join conditions from J1 on its own (70-surface-store2.pure),
+             its two not-equal operators moved there from tables no row was seeded into. Ten joins went instead (the
+             user's decision, 2026-10-29); check() fails the build if a join is left that nothing names.
 """
 from __future__ import annotations
 
@@ -68,7 +74,11 @@ OPERATIONS = "surface::OperationSurface", "surface::OpRT"
 INHERITANCE = "surface::InheritanceSurface", "surface::InheritanceRT"
 MERGE = "surface::LastSurface", "surface::LastRT"
 # database -> (its ###Data element, the connection id its runtimes give it): written into 99-unreached-services.pure
-DATA = {"surface::OpDB": ("surface::OpData", "opEnv"), "surface::LastDB": ("surface::LastData", "lastEnv")}
+DATA = {"surface::OpDB": ("surface::OpData", "opEnv"), "surface::LastDB": ("surface::LastData", "lastEnv"),
+        "surface::JoinDB": ("surface::JoinData", "joinEnv")}
+# A store whose data element also carries tables of a store it INCLUDES: JoinDB's joins reach MapDB's LEG, one
+# physical database through the include, so its connection's data must create LEG too
+DATA_TABLES = {"surface::JoinDB": ["J1", "J2", "J3", "LEG"]}
 
 
 def _op(name: str, doc: str, root: str, binding: tuple[str, str], db: str, cols: list[str],
@@ -125,11 +135,104 @@ def data_elements(c, tables) -> str:
     """The ###Data the UO_ services' connections reference, one element per store."""
     import emit
 
-    return "\n\n".join(emit.store_data_element(c, tables, db, elem) for db, (elem, _conn) in sorted(DATA.items()))
+    return "\n\n".join(emit.store_data_element(c, tables, db, elem, only=DATA_TABLES.get(db))
+                       for db, (elem, _conn) in sorted(DATA.items()))
+
+
+LINKS = "stress::LinksRT"
+# J2's least N: the range service keeps the hosts at or above it, each reaching one J2 row or more
+RANGE_FLOOR = 157
+
+
+def _link(name: str, doc: str, root: str, mapping: str, cols: list, filters=(), runtime: str = LINKS,
+          data: tuple[str, str] | None = None) -> Spec:
+    s = Spec(f"stress::UJ_{name}", f"/stress/unreached/joins/{name.lower()}", doc, root)
+    s.projections = [p if isinstance(p, Proj) else Proj(p.replace(".", "_"), p.split(".")) for p in cols]
+    s.filters = list(filters)
+    s.mapping, s.runtime = mapping, runtime
+    if data:
+        s.data_element, s.connection = data
+    return s
+
+
+# products::Instrument's end -> (its subclass, that class's identifier), behind the joins *_Instrument
+_LEGS = {"equity": ("products::Equity", "equityId"), "bond": ("products::Bond", "bondId"),
+         "future": ("products::Future", "futureId"), "fxForward": ("products::FxForward", "forwardId"),
+         "swap": ("products::Swap", "swapId"), "cds": ("products::CreditDefaultSwap", "cdsId"),
+         "structuredProduct": ("products::StructuredProduct", "productId"), "etf": ("products::ETF", "etfId")}
+
+
+def joins() -> list[Spec]:
+    """The joins no mapping used before Phase 7, each through the mapping 89-join-links.pure or 70-surface-store2.pure
+    gives it: both ends of every association, and each of J1's join conditions on its own."""
+    legs, cpty, recon, otc, fx = ("products::InstrumentLegsMapping", "counterparty::ClassificationLinkMapping",
+                                  "backoffice::ReconLinksMapping", "derivatives::OtcCounterpartyMapping",
+                                  "fxlinks::FxLinksMapping")
+    out = [_link("InstrumentLegs", "Each instrument's equity, bond, future, FX forward, swap, CDS, structured product "
+                                   "and ETF, through the subclass tables' joins to INSTRUMENT.", "products::Instrument",
+                 legs, ["instrumentId"] + [f"{end}.{ident}" for end, (_cls, ident) in _LEGS.items()])]
+    for end, (cls, ident) in _LEGS.items():
+        short = cls.split("::")[-1]
+        out.append(_link(f"{short}Instrument", f"Each {short} row's instrument: its key absent, an orphan, or "
+                                               f"an instrument's.", cls, legs, [ident, "instrument.ticker"]))
+    out += [
+        _link("CounterpartyClassification", "A counterparty's classification, through Counterparty_Classification.",
+              "counterparty::Counterparty", cpty, ["counterpartyId", "classification.classificationType"]),
+        _link("ClassificationCounterparty", "A classification's counterparty, its key absent or an orphan or a "
+                                            "counterparty's.", "counterparty::Classification", cpty,
+              ["classificationId", "counterparty.legalName"]),
+        _link("ReconItemLinks", "A reconciliation item's payment and movement: an unmatched item has one and not the "
+                                "other.", "backoffice::ReconciliationItem", recon,
+              ["reconId", "reconPayment.amount", "reconMovement.amount"]),
+        _link("PaymentReconItems", "Whether a payment has a reconciliation item.", "backoffice::Payment", recon,
+              ["paymentId", Proj("noRecon", ["paymentReconItems"], agg="isEmpty")]),
+        _link("MovementReconItems", "Whether a nostro movement has a reconciliation item.", "backoffice::NostroMovement",
+              recon, ["movementId", Proj("noRecon", ["movementReconItems"], agg="isEmpty")]),
+        _link("OtcTradeCounterparty", "An OTC trade's counterparty, through OtcTrade_Counterparty.",
+              "derivatives::OtcTrade", otc, ["otcId", "otcCounterparty.legalName"]),
+        _link("CounterpartyOtcTrades", "Whether a counterparty has an OTC trade.", "counterparty::Counterparty", otc,
+              ["counterpartyId", Proj("noOtc", ["otcTrades"], agg="isEmpty")]),
+        _link("FxRateLinks", "A rate's pair and its publisher, through Cfx_RatePair and Cfx_RateSource.",
+              "core_fx::CfxRate", fx, ["pairCode", "cobDate", "rateType", "ratePair.baseCurrency",
+                                       "fixingSource.sourceName"]),
+        _link("FxCrossLegs", "A cross rate's two legs' pairs, through Cfx_CrossLegOnePair and Cfx_CrossLegTwoPair.",
+              "core_fx::CfxCrossRate", fx, ["crossCode", "cobDate", "legOnePair.baseCurrency",
+                                            "legTwoPair.quoteCurrency"]),
+        _link("FxPairUses", "Whether a pair has rates, and crosses through either leg.", "core_fx::CfxCurrencyPair", fx,
+              ["pairCode", Proj("noRates", ["pairRates"], agg="isEmpty"),
+               Proj("noLegOne", ["legOneCrosses"], agg="isEmpty"), Proj("noLegTwo", ["legTwoCrosses"], agg="isEmpty")]),
+        _link("FxSourceRates", "Whether a fixing source publishes a rate.", "core_fx::CfxFixingSource", fx,
+              ["sourceCode", Proj("noRates", ["sourceRates"], agg="isEmpty")]),
+        _link("IssuerCountry", "An issuer's country name through HierIssuer_Country, the hop HIER_COUNTRY was declared "
+                               "for.", "hier::IssuerCountry", "hier::IssuerCountryMapping",
+              ["issuerId", "countryCode", "countryName"], runtime="hier::IssuerCountryRT",
+              data=("hier::IssuerData", "issuerEnv")),
+    ]
+    host, join_data = "surface::JoinHost", DATA["surface::JoinDB"]
+    for name, prop, doc in (
+            ("JoinIsNull", "nullLeg", "`J1.NEXT_K is null and J2.K = J1.K`"),
+            ("JoinIsNotNull", "notNullTail", "`J1.NEXT_K is not null and J3.K = J1.K`"),
+            ("JoinNumericConst", "constLeg", "`J1.N = -5 and J2.K = J1.K`, a numeric constant"),
+            ("JoinArrayArg", "listedLeg", "`in(J1.N, [1, 2, 3]) and J2.K = J1.K`, a literal list"),
+            ("JoinNestedDyna", "dynaLeg", "`concat(toUpper(J1.K), J1.NEXT_K) = J2.K`, a function over a function"),
+            ("JoinCrossDb", "legLabel", "`[JoinDB]J1.LEG_ID = [MapDB]LEG.LEG_ID`, a hop into the included database"),
+            ("JoinNotEqual", "neLeg", "`J1.NEXT_K = J2.K and J2.NEXT_K != J1.K`: SQL's `!=`, matching nothing on a "
+                                      "NULL"),
+            ("JoinAnsiNotEqual", "ansiNeLeg", "`J1.NEXT_K = J2.K and J2.NEXT_K <> J1.K`, the ANSI spelling")):
+        out.append(_link(name, f"J1's row through the join {doc}.", host, "surface::JoinSurface", ["k", prop],
+                         runtime="surface::JoinRT", data=join_data))
+    out.append(_link("JoinThreeLinks", "J1 to J2 to J3, a chain of two joins over three tables.", host,
+                     "surface::JoinSurface", ["k", "nextN", "tailN"], runtime="surface::JoinRT", data=join_data))
+    # count() over the range's ends, only where every host has one: F6 makes count() of an empty to-many 1
+    out.append(_link("JoinRange", "The J2 rows at or below J1's N, `J1.N >= J2.N`: a to-many end over a range, counted "
+                                  "for the hosts that reach one.", host, "surface::JoinSurface",
+                     ["k", "n", Proj("atOrBelowCount", ["atOrBelow"], agg="count")],
+                     filters=[Pred(["n"], ">=", RANGE_FLOOR)], runtime="surface::JoinRT", data=join_data))
+    return out
 
 
 def build(c, tables) -> list[Spec]:
-    return [s for pair in dense_pairs(c, tables) for s in pair] + operations()
+    return [s for pair in dense_pairs(c, tables) for s in pair] + operations() + joins()
 
 
 def invariance_groups(specs: list[Spec]) -> list[list[Spec]]:
@@ -138,8 +241,38 @@ def invariance_groups(specs: list[Spec]) -> list[list[Spec]]:
     return [[by[n], by["DMD_" + n[len("DMF_"):]]] for n in sorted(by) if n.startswith("DMF_")]
 
 
+def unused_joins(c) -> list[str]:
+    """Joins no mapping, view or filter names (`@J`; comments stripped). The improvement plan's Phase 7 left none: each
+    was mapped or deleted, and this keeps it so."""
+    import re
+
+    import model
+
+    used = set()
+    for f in model.linked_files() + model.stress_sources():
+        for line in f.read_text(encoding="utf-8").splitlines():
+            used.update(re.findall(r"@(\w+)", model._strip(line)))
+    return sorted(set(c.joins) - used)
+
+
 def check(c, specs: list[Spec], tables) -> list[str]:
-    """Every pair has rows: a pair that agrees on nothing asserts nothing."""
+    """Every pair has rows: a pair that agrees on nothing asserts nothing. Each of J1's join conditions lands on a value
+    for one row and misses for another (seed.J1's rows are built against the expansion's J2, J3 and LEG, which move
+    with the seed), and the range counts at least one J2 row for every host it keeps (F6 makes count() of nothing 1)."""
     import oracle
 
-    return [f"{s.short}: no rows" for s in specs if s.short.startswith("DMF_") and not oracle.evaluate(c, s, tables)]
+    problems = [f"{s.short}: no rows" for s in specs if s.short.startswith("DMF_") and not oracle.evaluate(c, s, tables)]
+    problems += [f"join {j} is used by no mapping, view or filter: map it or delete it" for j in unused_joins(c)]
+    for s in specs:
+        if not s.short.startswith("UJ_Join"):
+            continue
+        rows = oracle.evaluate(c, s, tables)
+        if s.short == "UJ_JoinRange":
+            if len(rows) < 2 or any(not r["atOrBelowCount"] for r in rows):
+                problems.append(f"{s.short}: every kept host must reach a J2 row: {rows}")
+            continue
+        for p in s.projections[1:]:
+            vals = [r[p.alias] for r in rows]
+            if all(v is None for v in vals) or all(v is not None for v in vals):
+                problems.append(f"{s.short}: {p.alias} must land for one row and miss for another: {vals}")
+    return problems

@@ -209,6 +209,8 @@ def all_tables(c: model.Corpus) -> dict[str, list[dict]]:
     combos.derive_alt(c, tables)
     # and its cbrt cells' sources, perfect cubes, so their roots are exact on every platform
     combos.seed_cubes(tables)
+    # and the packs' hand-written tables, which the expansion never sees (seed.PACK_TABLES says why)
+    tables.update({name: list(rows) for name, rows in seed.PACK_TABLES.items()})
     _narrow_single_precision(c, tables)
     return tables
 
