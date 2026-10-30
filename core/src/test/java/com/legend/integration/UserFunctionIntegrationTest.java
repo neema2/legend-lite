@@ -1582,25 +1582,43 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
-        @DisplayName("an enumeration's value against a string answers as the query does: the database compares the name")
+        @DisplayName("an enumeration's value against a string or another enumeration's is false, in a body and a query")
         void anEnumerationAgainstAString() throws SQLException {
-            // the fold compares two values of one enumeration; Stat.mean == 'mean' it leaves to the database, which
-            // compares the value's name -- the fold had answered false where the same query answers true
+            // legend-pure's equal compares values of one classifier only (EqualityUtilities.equal, CompiledSupport.equal):
+            // Stat.mean == 'mean' is false (the user, 2026-10-30, S128). The database, given the value's name, had
+            // answered true, and the fold had left it to the database so a body and a query answered alike
             String model = modelWith("""
                     Enum test::Stat
                     {
                       mean, total
                     }
+                    Enum test::Other
+                    {
+                      mean
+                    }
                     function test::said(t: TabularDataSet[1]): TabularDataSet[1]
                     {
                         $t->extend([col(r:TDSRow[1]|if(test::Stat.mean == 'mean', |'eq', |'ne'), 'mixed'),
-                                    col(r:TDSRow[1]|if(test::Stat.mean == test::Stat.total, |'eq', |'ne'), 'two')])
+                                    col(r:TDSRow[1]|if(test::Stat.mean == test::Stat.total, |'eq', |'ne'), 'two'),
+                                    col(r:TDSRow[1]|if(test::Stat.mean == test::Other.mean, |'eq', |'ne'), 'others'),
+                                    col(r:TDSRow[1]|if(test::Stat.mean->in(['mean']), |'eq', |'ne'), 'in'),
+                                    col(r:TDSRow[1]|if(['mean']->contains(test::Stat.mean), |'eq', |'ne'), 'contains'),
+                                    col(r:TDSRow[1]|[test::Stat.total, test::Stat.mean]->indexOf(test::Stat.mean), 'at')])
                     }
                     """);
-            var asked = column(exec(model, "|if(test::Stat.mean == 'mean', |'eq', |'ne')"), 0);
+            for (String q : List.of("test::Stat.mean == 'mean'", "test::Stat.mean == test::Other.mean",
+                    "test::Stat.mean->in(['mean'])", "['mean']->contains(test::Stat.mean)",
+                    "[test::Stat.mean]->contains('mean')")) {
+                assertEquals(List.of("ne"), column(exec(model, "|if(" + q + ", |'eq', |'ne')"), 0), q);
+            }
+            assertEquals(List.of("eq"), column(exec(model, "|if(test::Stat.mean != 'mean', |'eq', |'ne')"), 0));
+            assertEquals(List.of("eq"), column(exec(model, "|if([test::Stat.total, test::Stat.mean]"
+                    + "->contains(test::Stat.mean), |'eq', |'ne')"), 0), "one enumeration's values compare");
             var result = exec(model, PEOPLE + "->test::said()->sort('first')");
-            assertEquals(List.of(asked.get(0), asked.get(0), asked.get(0)), column(result, 1), "as the query answers it");
-            assertEquals(List.of("ne", "ne", "ne"), column(result, 2));
+            for (int i = 1; i <= 5; i++) {
+                assertEquals(List.of("ne", "ne", "ne"), column(result, i), "column " + i);
+            }
+            assertEquals(List.of(1L, 1L, 1L), column(result, 6));
         }
     }
 

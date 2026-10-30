@@ -383,7 +383,8 @@ final class LiteralUnroll {
     }
 
     /** {@code equal}/{@code eq} over spelled operands — element references,
-     * TDS null carriers, same-kind scalars; anything else stays the
+     * TDS null carriers, same-kind scalars, an enumeration's value against
+     * another kind's ({@link #neverEqual}); anything else stays the
      * database's compare. */
     private static TypedSpec equalityFold(TypedNativeCall c, List<TypedSpec> a) {
         // ELEMENT references (a class or enumeration used as a value —
@@ -414,10 +415,25 @@ final class LiteralUnroll {
                         && literal(a.get(0)).filter(l -> l instanceof Scalar).isPresent())) {
             return bool(false);
         }
+        if (neverEqual(a.get(0), a.get(1))) {
+            return bool(false);
+        }
         return literal(a.get(0)).flatMap(l -> literal(a.get(1))
                 .filter(r -> l instanceof Scalar && r instanceof Scalar && l.cls().equals(r.cls()))
                 .<TypedSpec>map(r -> bool(((Scalar) l).value().equals(((Scalar) r).value()))))
                 .orElse(c);
+    }
+
+    /** Whether two spelled scalars are of two kinds one of which is an enumeration: never equal (the user, 2026-10-30,
+     *  S128). legend-pure's {@code equal} compares values of one classifier only (EqualityUtilities.equal,
+     *  CompiledSupport.equal), so {@code Stat.mean == 'mean'} and {@code E1.a == E2.a} are false; the database, given
+     *  the value's name (S6), had answered true. Spelled operands only: a column or parameter of an enumeration's type
+     *  against a string stays the database's, which compares its stored value with the string, as legend-engine's SQL
+     *  does (pureToSQLQuery's processEquals; EnumSourceValues' raw compare). */
+    private static boolean neverEqual(TypedSpec l, TypedSpec r) {
+        return (l instanceof TypedEnumValue || r instanceof TypedEnumValue)
+                && literal(l).filter(x -> x instanceof Scalar).flatMap(x -> literal(r)
+                        .filter(y -> y instanceof Scalar && !x.cls().equals(y.cls()))).isPresent();
     }
 
     /** The TDS null cell in either spelling: the instance {@code ^TDSNull()}
@@ -459,11 +475,11 @@ final class LiteralUnroll {
             if (needle.isPresent()) {
                 Scalar n = (Scalar) needle.get();
                 boolean allScalar = elements(a.get(0)).stream()
-                        .allMatch(e -> literal(e).filter(l -> l instanceof Scalar
+                        .allMatch(e -> neverEqual(e, a.get(1)) || literal(e).filter(l -> l instanceof Scalar
                                 && l.cls().equals(n.cls())).isPresent());
                 if (allScalar) {
-                    return bool(elements(a.get(0)).stream().anyMatch(e ->
-                            literal(e).map(l -> ((Scalar) l).value().equals(n.value())).orElse(false)));
+                    return bool(elements(a.get(0)).stream().anyMatch(e -> !neverEqual(e, a.get(1))
+                            && literal(e).map(l -> ((Scalar) l).value().equals(n.value())).orElse(false)));
                 }
             }
         }
@@ -579,7 +595,7 @@ final class LiteralUnroll {
         if (is(c, Pure.AT_COLLECTION_IN, Pure.AT_RELATION_IN) && a.size() == 2 && a.get(1) instanceof TypedCollection coll
                 && coll.elements().stream().allMatch(e -> scalar(e).isPresent())) {
             return scalar(a.get(0)).<TypedSpec>map(needle -> bool(coll.elements().stream()
-                    .anyMatch(e -> scalar(e).filter(needle::equals).isPresent()))).orElse(c);
+                    .anyMatch(e -> !neverEqual(a.get(0), e) && scalar(e).filter(needle::equals).isPresent()))).orElse(c);
         }
         if ((is(c, Pure.AT_COLLECTION_IS_EMPTY) || is(c, Pure.AT_COLLECTION_IS_NOT_EMPTY)) && a.size() == 1
                 && spelledList(a.get(0))) {
