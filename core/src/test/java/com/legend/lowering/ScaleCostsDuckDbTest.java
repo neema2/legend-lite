@@ -126,29 +126,50 @@ class ScaleCostsDuckDbTest {
     }
 
     @Test
-    @DisplayName("a computed column read once under a rule that writes its argument many times is written once")
+    @DisplayName("a computed column a rule writes again and again stays in the select below, read by name")
     void aRuleCopiedArgumentIsReadByName() throws SQLException {
-        // sqrt's domain guard writes its argument some 27 times (its message spells the value), so a CASE read once
-        // under a sqrt was written 27 times within the budget's one charge (2026-10-30: a 63-day volatility wrote its
-        // periods-a-year CASE 59 times, 74% of its SQL); the copies are counted as written (Fold.overCopied), and past
-        // the budget the CASE stays in the select below, read by name
-        String sql = "SELECT sqrt(q.x) AS r FROM (SELECT CASE WHEN age < 26 THEN 1 WHEN age < 31 THEN 4"
-                + " WHEN age < 36 THEN 9 ELSE 16 END AS x FROM " + EMP + ") q ORDER BY r";
-        String rendered = render(sql);
-        assertEquals(1, count(rendered, "age < 26"), rendered);
-        assertEquals(direct(sql), island(sql));
+        // sqrt's domain guard writes its argument three times here (its test, its message's print, its value), and
+        // the budget charged each read once (2026-10-30: a 63-day volatility read its periods-a-year CASE under two
+        // sqrts, its warm-up's count and its deviation, and wrote it 59 times, 74% of its SQL); the copies are counted
+        // as written (Fold.overCopied), and past the budget the column stays in the select below, read by name. The
+        // volatility's shape: a band of the ages, as the periods a year is of the gaps, read under two sqrts. An
+        // extend, as the timeseries library writes one (a SQL island writes a subquery's column into its reader itself)
+        String age = "$r.age->toOne()";
+        String band = "if(" + age + " < 26, |1, |if(" + age + " < 28, |2, |if(" + age + " < 30, |3, |if(" + age
+                + " < 32, |4, |if(" + age + " < 34, |5, |if(" + age + " < 36, |6, |7))))))";
+        String query = "|#>{store::HR.EMP}#->filter(r|$r.age->isNotEmpty())->extend(~x: r|" + band + ")"
+                + "->extend(~[s: r|$r.x->sqrt(), t: r|$r.x->sqrt() + 1])->select(~[ID, s, t])->sort(~ID->ascending())";
+        String rendered = renderQuery(query);
+        assertEquals(1, count(rendered, "< 26"), rendered);
+        List<List<Double>> roots = new ArrayList<>();
+        for (List<Object> row : Lean.run(MODEL, query, SqlIslandCases.RUNTIME, session).rows()) {
+            roots.add(List.of(((Number) row.get(1)).doubleValue(), ((Number) row.get(2)).doubleValue()));
+        }
+        // (ID, age): (1, 30), (2, 40), (3, 25), (5, 35), (6, 30) -- bands 4, 7, 1, 6, 4
+        List<List<Double>> expected = new ArrayList<>();
+        for (int b : new int[] {4, 7, 1, 6, 4}) {
+            expected.add(List.of(Math.sqrt(b), Math.sqrt(b) + 1));
+        }
+        assertEquals(expected, roots);
     }
 
     @Test
     @DisplayName("an integer division by a written literal other than 0 carries no zero guard")
     void aLiteralDivisorNeedsNoGuard() throws SQLException {
         // the literal's token is compared, nothing computed (2026-10-30: Wilder's (w - 1) / w was guarded at each
-        // of RSI's 64 terms); a divisor of 0, or one read from a row, keeps the guard that raises Pure's error
-        String byTwo = "SELECT age / 2 AS h FROM " + EMP + " ORDER BY h";
-        assertEquals(0, count(render(byTwo), "Division by zero"), render(byTwo));
-        assertEquals(direct(byTwo), island(byTwo));
-        assertEquals(1, count(render("SELECT age / 0 AS h FROM " + EMP), "Division by zero"));
-        assertEquals(1, count(render("SELECT age / id AS h FROM " + EMP), "Division by zero"));
+        // of RSI's 64 terms); a divisor of 0, or one read from a row, keeps the guard that raises Pure's error. Pure's
+        // Integer / Integer (a SQL island's integer division is SQL's, not this rule)
+        String rows = "|#>{store::HR.EMP}#->filter(r|$r.age->isNotEmpty())";
+        String byTwo = rows + "->extend(~h: r|$r.age->toOne() / 2)->select(~[ID, h])->sort(~ID->ascending())";
+        assertEquals(0, count(renderQuery(byTwo), "Division by zero"), renderQuery(byTwo));
+        List<Double> halves = new ArrayList<>();
+        for (List<Object> row : Lean.run(MODEL, byTwo, SqlIslandCases.RUNTIME, session).rows()) {
+            halves.add(((Number) row.get(1)).doubleValue());
+        }
+        // the ages 30, 40, 25, 35 and 30 halved: a Float, as Pure divides two integers
+        assertEquals(List.of(15.0, 20.0, 12.5, 17.5, 15.0), halves);
+        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / 0)"), "Division by zero"));
+        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / $r.ID)"), "Division by zero"));
     }
 
     private static SqlSource.Table table(String alias, OutputCol column) {
@@ -191,8 +212,13 @@ class ScaleCostsDuckDbTest {
     }
 
     private static String render(String sql) {
+        return renderQuery("|#SQL{" + sql + "}#");
+    }
+
+    /** {@code query}, a Pure lambda's text, as DuckDB's SQL. */
+    private static String renderQuery(String query) {
         // parsed through the suite's door (Own), as every test parses query text
-        var parsed = com.legend.testing.Own.spec("|#SQL{" + sql + "}#");
+        var parsed = com.legend.testing.Own.spec(query);
         List<com.legend.protocol.spec.ValueSpecification> statements =
                 parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
                         ? lf.body() : List.of(parsed);
