@@ -688,7 +688,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             assertTrue(sql.contains("JOIN") && !sql.contains("LEFT OUTER JOIN"),
                     "Should generate an INNER join: " + sql);
 
-            // Execute E2E through QueryService
+            // Execute E2E through Execution.run
             var result = executeRelation(pureQuery);
 
             // No matches expected (no one's firstName equals a city name)
@@ -712,7 +712,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
             String sql = generateSql(pureQuery);
             assertTrue(sql.contains("LEFT OUTER JOIN"), "Should generate LEFT OUTER JOIN");
 
-            // Execute E2E through QueryService
+            // Execute E2E through Execution.run
             var result = executeRelation(pureQuery);
 
             // LEFT JOIN preserves all left rows even with no matches
@@ -741,7 +741,7 @@ class RelationApiIntegrationTest extends AbstractDatabaseTest {
                         )
                     """;
 
-            // Execute E2E through QueryService
+            // Execute E2E through Execution.run
             var result = executeRelation(pureQuery);
 
             // Self-join on firstName: John=John, Jane=Jane, Bob=Bob = 3 exact matches

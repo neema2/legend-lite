@@ -45,7 +45,7 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = Execution.run(LaneFloor.model(model, c), query, runtime, Sessions.given(c), PlanSessions.given(c),
+            plan = Execution.run(LaneFloor.model(model, c), query, runtime, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
                     p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -53,9 +53,9 @@ public final class Lean {
         return Result.of(plan.answerShape(), sink.columns, out.toString());
     }
 
-    /** {@code query} over {@code model} on {@code runtime} as the query service runs it with no caller's connection
-     *  ({@code QueryService.execute(model, query, runtime, sinkOf)}, the route of its {@code execute(..., out,
-     *  format)}): on the connection the runtime declares, leased from the server's resolver, the plan sessions
+    /** {@code query} over {@code model} on {@code runtime} as the server runs it with no caller's connection (the
+     *  route {@code QueryService.execute(model, query, runtime, sinkOf)} was until D67, 2026-10-30): on the connection
+     *  the runtime declares, leased from the server's resolver ({@code ConnectionResolver.SOURCE}), the plan sessions
      *  shared -- the session the COMPILER decided, which is what a test of the server's sessions judges. Lite's JSON
      *  rows, read back. */
     public static Result service(String model, String query, @com.legend.base.Nullable String runtime) {
@@ -63,7 +63,8 @@ public final class Lean {
         Capturing sink = new Capturing(out);
         ExecutionPlan plan;
         try {
-            plan = new com.legend.server.QueryService().execute(LaneFloor.model(model), query, runtime, p -> sink.of(p));
+            plan = Execution.run(LaneFloor.model(model), query, runtime, com.legend.server.ConnectionResolver.SOURCE,
+                    PlanSessions.shared(), p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -72,7 +73,7 @@ public final class Lean {
 
     /** {@code query} over {@code model} on {@code runtime}, on the caller's connection {@code c}, the runtime's
      *  DECLARED test data established on it first, as the engine-shaped API establishes a connection on every
-     *  acquisition ({@code QueryService.executeUpstream}: {@code Execution.Establish.DECLARED_SETUP}); a test of the
+     *  acquisition ({@code ConnectionResolver.RUNNER}: {@code Execution.Establish.DECLARED_SETUP}); a test of the
      *  declared data's loading judges this route. Lite's JSON rows, read back. */
     public static Result established(String model, String query, @com.legend.base.Nullable String runtime,
             Connection c) {
@@ -82,7 +83,7 @@ public final class Lean {
         try {
             plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query),
                     runtime,
-                    Sessions.given(c), PlanSessions.given(c), Execution.Establish.DECLARED_SETUP, p -> sink.of(p));
+                    com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), Execution.Establish.DECLARED_SETUP, p -> sink.of(p));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

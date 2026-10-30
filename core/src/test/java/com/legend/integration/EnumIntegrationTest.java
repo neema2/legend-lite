@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests the complete flow:
  * 1. Define enum in Pure source
  * 2. Store in registry via PureModelBuilder
- * 3. Execute queries through QueryService
+ * 3. Execute queries through the execution front door
  * 4. Filter and project using enum values
  */
 @DisplayName("User-Defined Enum Integration Tests")
@@ -308,11 +308,11 @@ class EnumIntegrationTest {
 
     // ==================== EnumDefinition Unit Tests ====================
 
-    // ==================== QueryService Integration Tests ====================
+    // ==================== Execution Integration Tests ====================
 
     @Nested
-    @DisplayName("QueryService: Full Pipeline Execution")
-    class QueryServiceTests {
+    @DisplayName("Execution.run: Full Pipeline Execution")
+    class ExecutionTests {
 
         @Test
         @DisplayName("Query with enum filter executes through full pipeline")
@@ -402,7 +402,7 @@ class EnumIntegrationTest {
                     Runtime app::TaskRuntime { mappings: [ model::TaskMapping ]; connections: [ store::TaskDB: [ environment: store::TaskConnection ] ]; }
                     """;
 
-            // WHEN: We query for PENDING tasks through QueryService
+            // WHEN: We query for PENDING tasks through Execution.run
             String pureQuery = """
                     model::Task.all()
                         ->filter({t | $t.status == 'PENDING'})

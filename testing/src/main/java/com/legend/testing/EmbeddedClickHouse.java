@@ -86,7 +86,7 @@ public final class EmbeddedClickHouse {
      * {@link #jdbcUrl} in a session of its own: a new {@code session_id} each call, which the driver passes as an HTTP
      * parameter like a setting, so the connection's temporary tables live as long as the session (an hour idle at
      * most, the server's default {@code max_session_timeout}) and no other connection sees them. The system
-     * database's connection is one (exec.SystemDatabase). A session runs one statement at a time.
+     * database's connection is one (the root's SystemDatabase, D72). A session runs one statement at a time.
      */
     public String sessionJdbcUrl(String database) {
         return jdbcUrl(database) + "&clickhouse_setting_session_id=legendlite_" + java.util.UUID.randomUUID()

@@ -106,7 +106,7 @@ class ServiceTestProvisionKeyTest {
 
     private static ServiceTestRunner runner(com.legend.compiler.element.ModelContext ctx,
             ServiceTestRunner.Sessions policy) {
-        return new ServiceTestRunner(ctx, () -> LaneFloor.backend().open(),
+        return new ServiceTestRunner(ctx, () -> LaneFloor.backend().openSession(),
                 policy, LaneFloor.backend().type());
     }
 

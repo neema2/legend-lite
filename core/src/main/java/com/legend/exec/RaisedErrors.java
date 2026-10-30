@@ -140,4 +140,20 @@ public final class RaisedErrors {
         }
         return new java.sql.SQLException(clean, e.getSQLState(), e);
     }
+
+    /** A failed statement's or open's error as the {@link com.legend.error.DataError} the platform tells: its raise
+     *  unwrapped ({@link #unwrapped(java.sql.SQLException)}). Here since D70 (2026-10-30; the plan sessions' until
+     *  then): the one class that constructs from a {@code SQLException}. */
+    static com.legend.error.DataError dataError(java.sql.SQLException e) {
+        java.sql.SQLException un = unwrapped(e);
+        return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
+    }
+
+    /** {@link #dataError(java.sql.SQLException)} with the raise the session holds read back where the error carries
+     *  none ({@link #unwrapped(java.sql.SQLException, java.util.function.Supplier)}). */
+    static com.legend.error.DataError dataError(java.sql.SQLException e,
+            java.util.function.Supplier<@com.legend.base.Nullable String> held) {
+        java.sql.SQLException un = unwrapped(e, held);
+        return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
+    }
 }

@@ -6,7 +6,6 @@ package com.legend.exec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
-import java.sql.Connection;
 
 /** Snowflake's sessions: the platform opens no declared connection to it yet (its sessions are the test harnesses');
  *  a session handed to execution is checked against its driver's product name. */
@@ -42,5 +41,13 @@ final class SnowflakeConnector implements DatabaseConnector {
     @Override
     public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
+    }
+
+    /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
+     *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
+     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
+    @Override
+    public DatabaseConnector.Decoding decoding() {
+        return new DatabaseConnector.Decoding(false, false, false, false);
     }
 }

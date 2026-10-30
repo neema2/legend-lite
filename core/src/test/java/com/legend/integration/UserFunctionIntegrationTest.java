@@ -5,7 +5,6 @@ import com.legend.testing.LaneFloor;
 import com.legend.testing.Lean;
 import com.legend.error.LegendCompileException;
 import com.legend.plan.QueryPlan;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -88,7 +87,6 @@ class UserFunctionIntegrationTest {
     // ==================== Shared DuckDB Connection ====================
 
     private static Connection connection;
-    private static final QueryService queryService = new QueryService();
 
     @BeforeAll
     static void initDb() throws SQLException {

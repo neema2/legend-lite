@@ -1962,11 +1962,4 @@ public final class Trino extends AnsiSqlRenderer {
     public boolean deliversOwn(SqlType label, String wire) {
         return label instanceof SqlType.Struct && wire.equals("JSON");
     }
-
-    /** {@inheritDoc} Measured 2026-10-12: a date 12,345,678,912 days on opens with no columns, its error on the first
-     *  read; a statement that succeeds always reports its columns. */
-    @Override
-    public boolean opensFailedResultsWithoutColumns() {
-        return true;
-    }
 }

@@ -3,6 +3,10 @@
 
 package com.legend;
 
+import com.legend.planner.CrossStoreGuard;
+import com.legend.planner.PlanMaker;
+import com.legend.planner.QueryParameters;
+
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -34,13 +38,17 @@ public final class TypedQuery {
     }
 
     /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). */
-    SpecCompiler specs() {
+    /** The spec compiler the query was typed by. This and the members below (resolved, lower, Resolved, resolve,
+     *  lowerer, writes) are the planner's and the driver's internals, public since step C (D73, 2026-10-30) because
+     *  the machinery left this package; the product API of a typed query is plan, lower(runtime), resultType,
+     *  expression, target and parameters. */
+    public SpecCompiler specs() {
         return specs;
     }
 
     /** The name-resolved query the body is typed from (the body driver reads a parameterless lambda's protocol
      *  statements off it: the source-shaped lets a handle's rows are built from; track B's B2, 2026-10-29). */
-    com.legend.protocol.spec.ValueSpecification resolved() {
+    public com.legend.protocol.spec.ValueSpecification resolved() {
         return resolved;
     }
 
@@ -119,7 +127,7 @@ public final class TypedQuery {
     /** {@link #lower(String, boolean)} with the query's declared parameters as {@code slots}: each {@code $name} of a
      *  slot lowers to it, a value the statement binds (a plan's parameters, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
      *  §9, step 2's landing 2). */
-    Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
+    public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
             List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
         Resolved r = resolve(new java.util.ArrayList<>(body()), runtime);
         return new Compiler.LoweredQuery(lowerer(r.temporal(), streaming, slots, features).lower(r.body()), r.root(),
@@ -128,8 +136,8 @@ public final class TypedQuery {
 
     /** Statements inlined (G½) and resolved (H) for a runtime, every store they touch bound to it: what a lowering
      *  reads. {@code temporal}: whether a temporal class is read (the exists-join form is the engine's otherwise). */
-    record Resolved(List<TypedSpec> body, boolean temporal) {
-        TypedSpec root() {
+    public record Resolved(List<TypedSpec> body, boolean temporal) {
+        public TypedSpec root() {
             return body.get(body.size() - 1);
         }
     }
@@ -137,7 +145,7 @@ public final class TypedQuery {
     /** {@code statements} (a query's body, or one statement of a program with the lets before it: a write plan's step,
      *  docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) inlined, resolved against {@code runtime}, every touched store
      *  checked against its connections -- every planning step before the lowering, no database. */
-    Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
+    public Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
         List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
                 new java.util.ArrayList<>(statements));   // Phase G½
         boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
@@ -154,7 +162,7 @@ public final class TypedQuery {
      *  relation on every lane, the plan's too), the engine's exists-join form unless a temporal class is read
      *  ({@code temporal}), the streaming graph root if asked, the query's feature flags, each slot a value the
      *  statement binds. */
-    com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
+    public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
             List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
         com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
@@ -178,7 +186,7 @@ public final class TypedQuery {
 
     /** Whether the query is a program that changes a store (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): a statement
      *  writes a store table ({@code StatementEffects.writesStore}), or a let stages rows for the writes after it. */
-    boolean writes() {
+    public boolean writes() {
         java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
         for (TypedSpec s : body()) {
             if (com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo)

@@ -43,7 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * <p>Since C3 (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md, the guard at zero 2026-10-04) every
  * per-database decision has one owner, and the censuses below pin each shape to it: a declared type becomes a dialect
- * in {@code com.legend.database.Databases} (legend-engine's golden text in {@code com.legend.EngineText}, root layer
+ * in {@code com.legend.database.Databases} (legend-engine's golden text in {@code com.legend.driver.EngineText}, root layer
  * only); a session is opened by its database's connector ({@code exec/<Db>Connector.java}, found by
  * {@code exec.Connectors}; the dialect program's Phase 5, 2026-10-16), which this census does not walk, as it does not
  * walk the dialects; a driver's own types live beside the driver ({@code exec.DriverCells}). What remains outside them
@@ -88,7 +88,7 @@ class DialectBoundaryTest {
     // Compiler.java 1 -> 0, Databases.java 0 -> 2, EngineText.java 0 -> 1 (2026-10-03, C3a of
     // docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): every per-database decision on the plan side
     // has ONE owner, com.legend.database.Databases — except legend-engine's golden text, whose renderers are
-    // root-layer only (invariant 4d), so its one owner is com.legend.EngineText; the names left are platform facts
+    // root-layer only (invariant 4d), so its one owner is com.legend.driver.EngineText; the names left are platform facts
     // Sessions.java 0 -> 1 (2026-10-04, C3b): the execution side's one session owner names the in-process
     // databases it keeps a connection for (an in-memory DuckDB; SQLite, which this census does not count)
     private static final Map<String, Integer> DATABASE_TYPE_DECISIONS = Map.of(
@@ -185,7 +185,7 @@ class DialectBoundaryTest {
                         + "|SQLite|Databricks|Snowflake|BigQuery|MariaDb|MySql|Trino|ClickHouse|MongoDb"
                         + "|AnsiSqlRenderer|EngineStyleH2|EngineStyleDB2|EngineStyleComposite)\\s*\\(")),
                 "a dialect constructed outside its owner — ask com.legend.database.Databases (the SQL a"
-                        + " query runs) or com.legend.EngineText (legend-engine's golden text)");
+                        + " query runs) or com.legend.driver.EngineText (legend-engine's golden text)");
         assertEquals(new TreeMap<>(JDBC_URLS), census(Pattern.compile("\"jdbc:")),
                 "a JDBC URL outside a database's connector (exec/<Db>Connector.java) — it opens that database's"
                         + " sessions");

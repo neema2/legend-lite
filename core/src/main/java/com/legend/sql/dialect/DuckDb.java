@@ -141,13 +141,6 @@ public final class DuckDb extends AnsiSqlRenderer {
         return true;
     }
 
-    /** {@inheritDoc} Yes: DuckDB's JSON writes a double that is not finite as {@code NaN}, {@code Infinity} or
-     *  {@code -Infinity} (a float divided by a zero inside a list; the Cypher TCK's ordered values of every type). */
-    @Override
-    public boolean jsonSpellsNonFiniteNumbers() {
-        return true;
-    }
-
     /** {@inheritDoc} Written beside this dialect ({@code DuckDbHostOperations}). */
     @Override
     public HostOperations hostOperations() {

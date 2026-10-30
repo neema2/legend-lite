@@ -6,16 +6,14 @@ package com.legend.test;
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.ExecuteOptions;
-import com.legend.ProgramFacts;
+import com.legend.planner.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
-import com.legend.exec.AssertListener;
-import com.legend.exec.SqlReplayReferee;
+import com.legend.judge.AssertListener;
+import com.legend.judge.SqlReplayReferee;
 import com.legend.model.ImportScope;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
 import com.legend.protocol.spec.ValueSpecification;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -54,10 +52,12 @@ import java.util.Set;
  */
 public final class PureTestRunner implements AutoCloseable {
 
-    /** How a session's connection is opened (DuckDB in memory, H2, …). */
+    /** How a session is opened (DuckDB in memory, H2, …): a session the runner OWNS -- closing it closes what it
+     *  opened ({@code Sessions.owned}; a test backend's {@code openSession}). D68, 2026-10-30: until then a
+     *  connection, which the runner closed itself. */
     @FunctionalInterface
     public interface Sessions {
-        Connection open() throws SQLException;
+        com.legend.exec.Sessions.Session open();
     }
 
     public enum Status { PASS, FAIL, SKIPPED }
@@ -106,7 +106,7 @@ public final class PureTestRunner implements AutoCloseable {
     private final Map<String, List<String>> setupsByPackage;
     private final TestObserver observer;
 
-    private @com.legend.base.Nullable Connection sessionConn;
+    private com.legend.exec.Sessions.@com.legend.base.Nullable Session sessionConn;
     private @com.legend.base.Nullable String sessionPkg;
     private final Set<String> setupsDone = new LinkedHashSet<>();
     /** Each setup's resolved program (or {@link #INERT_SETUP}) — derived once. */
@@ -123,7 +123,7 @@ public final class PureTestRunner implements AutoCloseable {
      * @param ctx            the compiled model the tests live in (with its execution overlay)
      * @param runtimeFqn     the runtime the bodies execute against: a test executes on its declared
      *                       connection, as any query does (a storeless model's: {@link StorelessRuntime})
-     * @param sessions       how a package session's connection opens
+     * @param sessions       how a package session opens (a session the runner owns)
      * @param sharedSetups   zero-parameter functions every package's session runs first
      *                       (a corpus-wide fixture); may be empty
      * @param setupsByPackage {@code BeforePackage} functions by package ({@link PureTests.Discovery})
@@ -166,7 +166,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     // ---- SESSION + SEED ---------------------------------------------------
 
-    private void beginSession(String pkg) throws SQLException {
+    private void beginSession(String pkg) {
         endSession();
         sessionConn = sessions.open();
         observer.sessionBegan(pkg, sessionConn);
@@ -181,7 +181,7 @@ public final class PureTestRunner implements AutoCloseable {
         if (sessionConn != null) {
             try {
                 sessionConn.close();
-            } catch (SQLException ignored) {
+            } catch (com.legend.error.DataError ignored) {
                 // a session that fails to close cannot poison the next
             }
         }
@@ -289,7 +289,7 @@ public final class PureTestRunner implements AutoCloseable {
      * rows on the first measurement. A setup that fails raises: a fixture
      * the platform named but could not seed is a fault of ours, never a
      * quiet decline. */
-    private boolean provideFixture(String storeFqn, Connection conn,
+    private boolean provideFixture(String storeFqn, com.legend.exec.Sessions.Session conn,
             java.util.Collection<String> ran, boolean shared, ExecuteOptions options) {
         List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
         if (setups.size() != 1) {
@@ -337,17 +337,12 @@ public final class PureTestRunner implements AutoCloseable {
      *  isolated. Without the primitive (an H2 session) the fixture runs in
      *  the session as before. Package-start fixtures keep the engine's own
      *  rule — the later one wins the name. */
-    private boolean runFixture(String fqn, ValueSpecification call, Connection conn,
+    private boolean runFixture(String fqn, ValueSpecification call, com.legend.exec.Sessions.Session conn,
             ExecuteOptions options, boolean onDemand) {
-        Connection target = conn;
+        com.legend.exec.Sessions.Session target = conn;
         boolean isolated = false;
         if (onDemand) {
-            Connection aside;
-            try {
-                aside = observer.isolateFixture(conn, fqn);
-            } catch (SQLException e) {
-                throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
-            }
+            com.legend.exec.Sessions.Session aside = observer.isolateFixture(conn, fqn);
             if (aside != null) {
                 target = aside;
                 isolated = true;
@@ -359,7 +354,7 @@ public final class PureTestRunner implements AutoCloseable {
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
             // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
             Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
-                    com.legend.exec.Sessions.given(target), null, null, options);
+                    com.legend.Execution.Source.given(target), null, null, options);
         } finally {
             if (isolated) {
                 observer.fixtureIsolated(conn);
@@ -368,7 +363,7 @@ public final class PureTestRunner implements AutoCloseable {
         return true;
     }
 
-    private List<String> runSetups(PureTests.TestCase t, Connection conn, boolean shared,
+    private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
             ExecuteOptions options) {
         List<String> failures = new ArrayList<>();
         for (String fqn : setupCandidates(t.pkg())) {
@@ -408,7 +403,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     /** Run one test: its package session (opened on demand), its setups once,
      *  its body through the platform, one result. */
-    public Result run(PureTests.TestCase t) throws SQLException {
+    public Result run(PureTests.TestCase t) {
         observer.testStarted(t);
         if (!t.pkg().equals(sessionPkg)) {
             beginSession(t.pkg());
@@ -434,7 +429,7 @@ public final class PureTestRunner implements AutoCloseable {
         bodyShapes.put(t.fqn(), facts.shape());
         boolean shared = !facts.seedsInlineCsv();
         observer.privateWorkspace(!shared);
-        Connection conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
+        com.legend.exec.Sessions.Session conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
         ExecuteOptions options = observer.options(t, shared).withJudgeMode(judgeMode);
         SqlReplayReferee referee = observer.referee(t);
         try {
@@ -454,7 +449,7 @@ public final class PureTestRunner implements AutoCloseable {
             if (!shared) {
                 try {
                     conn.close();
-                } catch (SQLException ignored) {
+                } catch (com.legend.error.DataError ignored) {
                     // private workspace; nothing depends on it after this
                 }
             }
@@ -462,8 +457,7 @@ public final class PureTestRunner implements AutoCloseable {
     }
 
     private Result judge(PureTests.TestCase t, ValueSpecification resolved, ProgramFacts facts,
-            Connection conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayReferee referee)
-            throws SQLException {
+            com.legend.exec.Sessions.Session conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayReferee referee) {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();
@@ -479,7 +473,7 @@ public final class PureTestRunner implements AutoCloseable {
             String failure = null;
             try {
                 Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn,
-                        com.legend.exec.Sessions.given(conn),
+                        com.legend.Execution.Source.given(conn),
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {

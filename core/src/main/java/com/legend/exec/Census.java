@@ -37,8 +37,6 @@ public final class Census {
         SQL_CHARS("sql.chars"),
         /** Row loads an engine's own bulk API took ({@link BulkLoad}). */
         BULK_LOADS("sql.bulk-loads"),
-        /** Read through to the SQL layer's own counter (see {@link #count}). */
-        SCAN_ORDER_FIRINGS("test-lane.scan-order-firings"),
         ULP_FIRINGS("host.ulp-firings"),
         EFFECTS_IN_SCRIPT("effects.in-script"),
         DIVERGENCE_AGREE("divergence.agree"),
@@ -86,11 +84,8 @@ public final class Census {
     }
 
     public static long count(Key k) {
-        // the one count stored outside this class: the test-lane scan-order pass
-        // lives in the standalone SQL layer, which may not reach exec — read through
-        if (k == Key.SCAN_ORDER_FIRINGS) {
-            return com.legend.sql.dialect.StableScanOrder.firings();
-        }
+        // D71, 2026-10-30: the test-lane scan-order pass's firings were read through here from the SQL layer's own
+        // counter (StableScanOrder.firings), the census's one name of a dialect; the corpus lane reads that counter
         return COUNTS[k.ordinal()].sum();
     }
 

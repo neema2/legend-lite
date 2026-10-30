@@ -9,7 +9,6 @@ import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Compiler;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;

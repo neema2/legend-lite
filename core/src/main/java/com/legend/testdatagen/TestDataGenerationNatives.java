@@ -211,7 +211,7 @@ public final class TestDataGenerationNatives {
     /** planToString over a TDG carrier: the {@code plan} flavor prints
      * the engine's MultiResultSequence text; any other flavor is not a
      * plan (loud). */
-    public static com.legend.exec.TypedSide planTextResult(
+    public static com.legend.judge.TypedSide planTextResult(
             com.legend.compiler.spec.typed.TypedTestDataGen g,
             ModelContext ctx, com.legend.sql.dialect.EngineTextDialect text, String connection) {
         if (!"plan".equals(g.flavor())) {
@@ -219,7 +219,7 @@ public final class TestDataGenerationNatives {
                     "planToString over a non-plan test-data carrier ("
                             + g.flavor() + ")");
         }
-        return new com.legend.exec.TypedSide.Scalar(planText(g, ctx, text, connection),
+        return new com.legend.judge.TypedSide.Scalar(planText(g, ctx, text, connection),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 

@@ -24,7 +24,22 @@
 > mechanical, with known limits (guards catch drift, not adversaries —
 > the audit's §3): `JavaEvalLedgerTest` (shrink-only pins on the
 > registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
-> (JDBC only at the chartered seams),
+> (JDBC and the drivers only in the JDBC census's registered classes: one
+> list with `JdbcSurfaceCensusTest.REGISTER`, each class pinned to the acts
+> it may perform -- opens, checks, sends, loads, decodes, transacts, closes
+> -- and no `java.sql` or driver type in a public signature outside `exec`,
+> `noJdbcTypeInAPublicSignatureOutsideTheSeam`; D69, 2026-10-30; a session
+> is made by `exec` alone -- its connection the seam's, its state its own --
+> `onlyTheSeamMakesSessions`, D70, 2026-10-30; the judges and the
+> probes are planning-side work the runtime does not carry --
+> `com.legend.judge` and the driver (the root until step C), D71,
+> 2026-10-30 -- and THE WALL:
+> `exec` depends on no planning library: `//core:exec`'s deps are base,
+> json, the records (model, execution_plan, sql, values, result) and the
+> switchboards (cache, diagnostics, error), pinned by
+> `tools/deps/core-layers.txt`, and the class-level rule
+> `ArchitectureTest.execReachesNoPlanning` allows an exec class those
+> packages and no other of `com.legend` -- D72, 2026-10-30),
 > `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
 > statement a session runs is the plan runner's: the probes, the seeds,
 > the system store's rows, the plan path's and the server's held database's
@@ -32,8 +47,9 @@
 > three routings, D65; a raise a MariaDB session holds is read back by the
 > seam from the two statements its connector declares as data; in core's
 > main sources the seam `JdbcStatements` and its DuckDB bulk loader are
-> the only JDBC senders -- the warehouse's server and client, the
-> datacube's Postgres tool and the test harnesses send their own) and
+> the only JDBC senders, the census's SENDS act -- the warehouse's server
+> and client, the datacube's Postgres tool and the test harnesses send
+> their own) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
 > cannot reach a connection — grid chains COMPILE to SQL at the exec
 > seam, `GridReads.tryLower`, scheduled for deletion by the
@@ -170,8 +186,11 @@ and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
-`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is **package-private by design** — reachable
-only through `Execution.runProgram`. The driver never re-implements a step; the body driver never decides pipeline
+`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is the driver's (`com.legend.driver`, step C,
+D73, 2026-10-30) and **has one caller by design**, `Execution.runProgram` (`ArchitectureTest.theDriverHasOneCaller`;
+package-private while it shared the root package with the door). The root package holds the five public doors alone:
+`Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the
+machinery is `planner/` and `driver/`, and the planner depends on no execution class (`plannerIsExecutionFree`). The driver never re-implements a step; the body driver never decides pipeline
 order.
 
 ## Layer ownership (the contract)
@@ -188,6 +207,7 @@ order.
 | **Lowerer** | `TypedSpec` → `SqlQuery` | naming SQL functions; SQL syntax; importing a dialect; any `String` field encoding a SQL operation |
 | **SqlDialect** | `SqlQuery` → SQL string | inferring types; rewriting HIR; consulting the model |
 | **PlanRunner / the writers** | a plan + a session → typed rows; a cell's text at the boundary (`result/`) | everything above; a writer decides nothing (`WriterCarriageGuardTest`) |
+| **The judges** (`judge/`, D71 2026-10-30) | a test body's verdict over typed rows: the host lattice, the grid compare, the canonical instruments, the referee, the verdict batch | sending a statement; reaching a connection; a product query's path (reachable from the verdict seam alone: `hostVerdictIsReachableOnlyFromTheVerdictSeam`) |
 
 ## Invariants
 
@@ -398,6 +418,7 @@ otherwise, which is how it drifted:
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
 | `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
 | `docs/RESULT_BOUNDARY_START_HERE.md` | **The result boundary program, start here** (rewritten 2026-10-28 for a session from any account): the whole remaining roadmap in order with a brief per item (stage 1's S1.4 to S1.6; tracks B the body runner, T core's tests as the LEAN twin of PCT and the corpus, C the corpus on plans, D the deletions, L mixed lists, A Arrow, F open findings), the state with every commit, the rules, how to run every check, how to raise the lanes, the traps, the user's rulings verbatim; its evidence is `docs/result-boundary-homework/` (the audit, the code maps, the measurements, every probe's source); the program and its rulings are `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` (§8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md` |
+| `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` | **The planner-driver seam program** (planned 2026-10-30, NOT ratified; the user rules on its §6 first): lite's execution model applied to the test body -- planned once as one `Sequence` the database executes, the verdict the database's (or the host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed` pattern), the driver the runner plus the judges, the four probes retired shape by shape, step C's widenings reverted; its evidence `docs/planner-driver-seam-homework/` (the code measured; upstream read in the pinned sources as spec input, not as a model to copy) |
 | `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |

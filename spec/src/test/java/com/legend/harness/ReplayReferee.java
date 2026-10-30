@@ -3,7 +3,7 @@
 
 package com.legend.harness;
 
-import com.legend.exec.TypedSide;
+import com.legend.judge.TypedSide;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -22,11 +22,11 @@ import java.util.List;
  * only (the §6 normalization inventory, the census instruments).
  *
  * <p>Also the harness's implementation of the platform SPI
- * {@link com.legend.exec.SqlReplayReferee} ({@code INSTANCE}),
+ * {@link com.legend.judge.SqlReplayReferee} ({@code INSTANCE}),
  * registered per run beside the AssertListener; the platform's
  * verdict arms (charter §8 slice 3) read it off ExecEnv.
  */
-public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
+public final class ReplayReferee implements com.legend.judge.SqlReplayReferee {
     /** Row-verdict outcomes by SPI entry — DISPLAY only (the harness prints it). */
     public static final java.util.concurrent.ConcurrentHashMap<String,
             java.util.concurrent.atomic.LongAdder> OUTCOMES = new java.util.concurrent.ConcurrentHashMap<>();
@@ -121,20 +121,20 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             new java.util.HashMap<>();
 
     @Override
-    public com.legend.exec.SqlReplayReferee.RowVerdict verifyFetchChain(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verifyFetchChain(
             com.legend.exec.Sessions.Session session, int hopIndex, String goldenSql,
             String ourSql,
-            java.util.function.Supplier<com.legend.exec.SqlReplayReferee
+            java.util.function.Supplier<com.legend.judge.SqlReplayReferee
                     .FetchTranscript> transcript) {
-        com.legend.exec.SqlReplayReferee.RowVerdict v = verifyFetchChain0(session, hopIndex, goldenSql, ourSql, transcript);
+        com.legend.judge.SqlReplayReferee.RowVerdict v = verifyFetchChain0(session, hopIndex, goldenSql, ourSql, transcript);
         OUTCOMES.computeIfAbsent("verifyFetchChain " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
     }
 
-    public com.legend.exec.SqlReplayReferee.RowVerdict verifyFetchChain0(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verifyFetchChain0(
             com.legend.exec.Sessions.Session session, int hopIndex, String goldenSql,
             String ourSql,
-            java.util.function.Supplier<com.legend.exec.SqlReplayReferee
+            java.util.function.Supplier<com.legend.judge.SqlReplayReferee
                     .FetchTranscript> transcript) {
         if (hopIndex >= 0) {
             ATTEMPT_GOLDENS.put(hopIndex, goldenSql);
@@ -143,9 +143,9 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             return verifyFetchTexts(session, goldenSql, ourSql);
         }
         try {
-            com.legend.exec.SqlReplayReferee.FetchTranscript r =
+            com.legend.judge.SqlReplayReferee.FetchTranscript r =
                     transcript.get();
-            List<com.legend.exec.SqlReplayReferee.FetchHop> fetches =
+            List<com.legend.judge.SqlReplayReferee.FetchHop> fetches =
                     r.hops();
             if (hopIndex < 0 || hopIndex >= fetches.size()) {
                 throw new RefereeVerify.Unverifiable(
@@ -158,7 +158,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                 throw new RefereeVerify.Unverifiable("chained fetch — transcript"
                         + " text mismatch (determinism receipt failed)", null);
             }
-            com.legend.exec.SqlReplayReferee.FetchHop f =
+            com.legend.judge.SqlReplayReferee.FetchHop f =
                     fetches.get(hopIndex);
             if (f.parentIndex() < 0) {
                 throw new RefereeVerify.Unverifiable("chained fetch — view fetch"
@@ -192,8 +192,8 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                     ancestors, goldenSql,
                     RefereeVerify.transcriptRows(f.columns(), f.rows()));
             return d == null
-                    ? com.legend.exec.SqlReplayReferee.RowVerdict.match()
-                    : com.legend.exec.SqlReplayReferee.RowVerdict
+                    ? com.legend.judge.SqlReplayReferee.RowVerdict.match()
+                    : com.legend.judge.SqlReplayReferee.RowVerdict
                             .diverged(d);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm-tdg: ", u);
@@ -343,7 +343,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
         if (!RefereeVerify.ready()) {
             throw new RefereeVerify.Unverifiable("h2 driver not on classpath",
                     null);
@@ -394,7 +394,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts)
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
         return com.legend.testbackend.TestBackends.of(session) == com.legend.testbackend.TestBackends.referee()
                 ? verifyOnSession(session, goldenSql, ours, enumDecode,
@@ -412,7 +412,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             Connection session, String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
         RefereeVerify.enumPrecheck(ours, enumDecode);
         try (Statement st = session.createStatement()) {
             return RefereeVerify.compareFrame(st, goldenSql, ours, enumDecode,
@@ -570,24 +570,24 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * children — never AST re-discovery here). Declines COUNT through
      * the one funnel ({@link RefereeVerify#decline}). */
     @Override
-    public com.legend.exec.SqlReplayReferee.RowVerdict verify(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verify(
             com.legend.exec.Sessions.Session session, String goldenSql,
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts,
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
-        com.legend.exec.SqlReplayReferee.RowVerdict v = verify0(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, ctx);
+        com.legend.judge.SqlReplayReferee.RowVerdict v = verify0(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, ctx);
         OUTCOMES.computeIfAbsent("verify " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
     }
 
-    public com.legend.exec.SqlReplayReferee.RowVerdict verify0(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verify0(
             com.legend.exec.Sessions.Session session, String goldenSql,
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts,
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
         // the STATIC extent-subset fact of the verified chain (computed on
         // the platform's typed chain — a class extent through subset-
@@ -602,27 +602,27 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * behind the SPI): PER-VERIFY statements, never the mirror's cursor
      * (verifyAuto's extraSeeds). */
     @Override
-    public com.legend.exec.SqlReplayReferee.RowVerdict verify(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verify(
             com.legend.exec.Sessions.Session session, String goldenSql,
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts,
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx,
-            List<com.legend.exec.SqlReplayReferee.TempTable> temps) {
-        com.legend.exec.SqlReplayReferee.RowVerdict v = verify1(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, ctx, temps);
+            List<com.legend.judge.SqlReplayReferee.TempTable> temps) {
+        com.legend.judge.SqlReplayReferee.RowVerdict v = verify1(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, ctx, temps);
         OUTCOMES.computeIfAbsent("verify8 " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
     }
 
-    public com.legend.exec.SqlReplayReferee.RowVerdict verify1(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verify1(
             com.legend.exec.Sessions.Session session, String goldenSql,
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts,
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx,
-            List<com.legend.exec.SqlReplayReferee.TempTable> temps) {
+            List<com.legend.judge.SqlReplayReferee.TempTable> temps) {
         try {
             List<String> seeds = tempSeeds(temps);
             // a POPULATION temp (batch 67): the engine's two-statement
@@ -654,7 +654,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                 }
             }
             ATTEMPT_SQL_GOLDENS.add(goldenSql);
-            return verifyArmed(session.connection(), goldenSql, ours, mappingFqn,
+            return verifyArmed(connectionOf(session), goldenSql, ours, mappingFqn,
                     rootClassFqn, ctx, seeds, facts);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm: ", u);
@@ -667,15 +667,15 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * FAULT of the referee's own machinery is counted apart and never
      * lets the text stand in. No broad catch remains in the referee — a
      * bug in the compare propagates and fails the test. */
-    private static com.legend.exec.SqlReplayReferee.RowVerdict outcome(String arm,
+    private static com.legend.judge.SqlReplayReferee.RowVerdict outcome(String arm,
             RefereeVerify.Unverifiable u) {
         String m = arm + u.getMessage();
         if (u.fault()) {
             RefereeVerify.fault(m);
-            return com.legend.exec.SqlReplayReferee.RowVerdict.fault(String.valueOf(u.getMessage()));
+            return com.legend.judge.SqlReplayReferee.RowVerdict.fault(String.valueOf(u.getMessage()));
         }
         RefereeVerify.decline(m);
-        return com.legend.exec.SqlReplayReferee.RowVerdict.declined(String.valueOf(u.getMessage()));
+        return com.legend.judge.SqlReplayReferee.RowVerdict.declined(String.valueOf(u.getMessage()));
     }
 
     /** Every golden verified in the attempt, in order — a later
@@ -689,39 +689,34 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * here, template operations evaluated by the engine's published
      * bodies) and the final node's filled SQL replays for rows. */
     @Override
-    public com.legend.exec.SqlReplayReferee.RowVerdict verifyPlan(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verifyPlan(
             com.legend.exec.Sessions.Session session, String goldenPlan,
             java.util.Map<String, List<String>> bindings,
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts,
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
-        com.legend.exec.SqlReplayReferee.RowVerdict v = verifyPlan0(session, goldenPlan, bindings, ours, mappingFqn, rootClassFqn, facts, ctx);
+        com.legend.judge.SqlReplayReferee.RowVerdict v = verifyPlan0(session, goldenPlan, bindings, ours, mappingFqn, rootClassFqn, facts, ctx);
         OUTCOMES.computeIfAbsent("verifyPlan " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
     }
 
-    public com.legend.exec.SqlReplayReferee.RowVerdict verifyPlan0(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verifyPlan0(
             com.legend.exec.Sessions.Session session, String goldenPlan,
             java.util.Map<String, List<String>> bindings,
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts,
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
         // allocation tables materialized on the referee for THIS replay —
         // dropped after the verdict (the family mirror is shared state)
         List<String> allocTables = new java.util.ArrayList<>();
         try {
-            String sql = PlanReplay.finalSql(goldenPlan, bindings, s -> {
-                try {
-                    return rows(s);
-                } catch (SQLException e) {
-                    throw new RefereeVerify.Unverifiable("plan-text: allocation"
-                            + " node replay: " + e.getMessage(), e);
-                }
-            }, (name, allocSql, labels) -> {
+            // a driver failure on the referee is already Unverifiable (onReferee's bracket); the SPI's rows contract
+            // declares no SQLException since 2026-10-30 (D69)
+            String sql = PlanReplay.finalSql(goldenPlan, bindings, this::rows, (name, allocSql, labels) -> {
                 // the placeholder's columns read BARE downstream
                 // (`"tdsvar_0_1".eID`): the table is created with bare
                 // names so the referee folds them exactly as the engine's
@@ -745,7 +740,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                 allocTables.add(name);
                 return "select * from " + name;
             });
-            return verifyArmed(session.connection(), sql, ours, mappingFqn, rootClassFqn,
+            return verifyArmed(connectionOf(session), sql, ours, mappingFqn, rootClassFqn,
                     ctx, null, facts);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm-plan: ", u);
@@ -764,7 +759,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * literal values: drop-first (re-runnable on the live mirror), the
      * engine's own column name, the literal kind's H2 type. */
     static @com.legend.base.Nullable List<String> tempSeeds(
-            List<com.legend.exec.SqlReplayReferee.TempTable> temps) {
+            List<com.legend.judge.SqlReplayReferee.TempTable> temps) {
         if (temps.isEmpty()) {
             return null;
         }
@@ -796,14 +791,14 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
         return out;
     }
 
-    private com.legend.exec.SqlReplayReferee.RowVerdict verifyArmed(
+    private com.legend.judge.SqlReplayReferee.RowVerdict verifyArmed(
             java.sql.Connection session, String goldenSql,
             TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             com.legend.compiler.element.ModelContext ctx,
             @com.legend.base.Nullable List<String> extraSeeds,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
         java.util.Map<Integer, java.util.Map<String, String>> enumDecode =
                 new java.util.LinkedHashMap<>();
         if (mappingFqn != null
@@ -838,8 +833,8 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                     recorder.seeds(),
                     extraSeeds, goldenSql, ours, enumDecode, enumProp, facts);
             return r == null
-                    ? com.legend.exec.SqlReplayReferee.RowVerdict.match()
-                    : com.legend.exec.SqlReplayReferee.RowVerdict
+                    ? com.legend.judge.SqlReplayReferee.RowVerdict.match()
+                    : com.legend.judge.SqlReplayReferee.RowVerdict
                             .diverged(r);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm: ", u);
@@ -847,7 +842,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
             // the session itself failed us (metadata, statement): a FAULT
             String m = "verdict-arm: " + String.valueOf(e.getMessage()).replace('\n', ' ');
             RefereeVerify.fault(m);
-            return com.legend.exec.SqlReplayReferee.RowVerdict.fault(m);
+            return com.legend.judge.SqlReplayReferee.RowVerdict.fault(m);
         }
     }
 
@@ -858,22 +853,22 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
      * surface as DECLINED with their own names. Seeds = the recorded
      * raw-SQL history (testing-side policy, exactly the walk's). */
     @Override
-    public com.legend.exec.SqlReplayReferee.RowVerdict verifyFetchTexts(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verifyFetchTexts(
             com.legend.exec.Sessions.Session session, String goldenSql, String ourSql) {
-        com.legend.exec.SqlReplayReferee.RowVerdict v = verifyFetchTexts0(session, goldenSql, ourSql);
+        com.legend.judge.SqlReplayReferee.RowVerdict v = verifyFetchTexts0(session, goldenSql, ourSql);
         OUTCOMES.computeIfAbsent("verifyFetchTexts " + v.outcome(), k -> new java.util.concurrent.atomic.LongAdder()).increment();
         return v;
     }
 
-    public com.legend.exec.SqlReplayReferee.RowVerdict verifyFetchTexts0(
+    public com.legend.judge.SqlReplayReferee.RowVerdict verifyFetchTexts0(
             com.legend.exec.Sessions.Session session, String goldenSql, String ourSql) {
         try {
             String d = tdgSqlReplay(
                     recorder.seeds(),
-                    goldenSql, session.connection(), ourSql);
+                    goldenSql, connectionOf(session), ourSql);
             return d == null
-                    ? com.legend.exec.SqlReplayReferee.RowVerdict.match()
-                    : com.legend.exec.SqlReplayReferee.RowVerdict
+                    ? com.legend.judge.SqlReplayReferee.RowVerdict.match()
+                    : com.legend.judge.SqlReplayReferee.RowVerdict
                             .diverged(d);
         } catch (RefereeVerify.Unverifiable u) {
             return outcome("verdict-arm-tdg: ", u);
@@ -896,9 +891,21 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                 });
     }
 
+    /** The driver's connection beneath the body's session, for the referee's own JDBC on it ({@code TestSessions}:
+     *  the test side's, D70). A session the test side did not make -- the system database's, a product-owned session
+     *  a body reading the metamodel store is routed to -- is DECLINED, never refereed: the referee has no connection
+     *  to send on (the D70 audit's finding; until D70 the session answered for its connection). */
+    private static Connection connectionOf(com.legend.exec.Sessions.Session session) {
+        try {
+            return com.legend.testbackend.TestSessions.connectionOf(session);
+        } catch (IllegalStateException e) {
+            throw new RefereeVerify.Unverifiable("referee: the side's session is the product's own (the system"
+                    + " database's route): no connection to send on", e);
+        }
+    }
+
     @Override
-    public com.legend.exec.SqlReplayReferee.RefereeRows rows(String sql)
-            throws SQLException {
+    public com.legend.judge.SqlReplayReferee.RefereeRows rows(String sql) {
         return onReferee(recorder.seeds(),
                 VERIFY_SESSION, st -> {
                     try (java.sql.ResultSet rs = st.executeQuery(sql)) {
@@ -922,7 +929,7 @@ public final class ReplayReferee implements com.legend.exec.SqlReplayReferee {
                             }
                             rows.add(row);
                         }
-                        return new com.legend.exec.SqlReplayReferee
+                        return new com.legend.judge.SqlReplayReferee
                                 .RefereeRows(labels, types, rows);
                     }
                 });

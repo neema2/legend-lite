@@ -126,9 +126,9 @@ class ChannelBRelationTest {
         // verdict of record and the host-lattice referee may never
         // disagree silently; a disagreement fails the suite with the
         // census line (CANONICAL_FORM_SPEC §0, ratified design).
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDisagreeCount() == 0,
+        assertTrue(com.legend.judge.CanonicalDivergence.sqlDisagreeCount() == 0,
                 "DUAL-VERDICT DISAGREEMENT: "
-                        + com.legend.exec.CanonicalDivergence.summary());
+                        + com.legend.judge.CanonicalDivergence.summary());
 
         // V6b (OPEN_REGISTER): the decline CEILING — the surviving
         // declines are DECLARED residue (class instances + wire-tree
@@ -152,15 +152,15 @@ class ChannelBRelationTest {
         // this pin guards is the asserts the DATABASE judge names UNJUDGED, printed here and pinned by the lane
         // (ChannelBLane) once measured
         System.out.println("[chB relation] database judge: judged="
-                + com.legend.exec.CanonicalDivergence.sqlJudgedInDatabaseCount() + " unjudged="
-                + com.legend.exec.CanonicalDivergence.sqlUnjudgedCount() + " "
-                + com.legend.exec.CanonicalDivergence.sqlCensus().entrySet().stream()
+                + com.legend.judge.CanonicalDivergence.sqlJudgedInDatabaseCount() + " unjudged="
+                + com.legend.judge.CanonicalDivergence.sqlUnjudgedCount() + " "
+                + com.legend.judge.CanonicalDivergence.sqlCensus().entrySet().stream()
                         .filter(e -> e.getKey().startsWith("unjudged ")).toList() + " | "
-                + com.legend.exec.CanonicalDivergence.summary());
+                + com.legend.judge.CanonicalDivergence.summary());
         // the UNJUDGED ceiling, shrink-only (measured 2026-10-18 under the agreement gate: 5)
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlUnjudgedCount() <= 5,
+        assertTrue(com.legend.judge.CanonicalDivergence.sqlUnjudgedCount() <= 5,
                 "the database judge's UNJUDGED asserts grew past the measured residue (5): "
-                        + com.legend.exec.CanonicalDivergence.sqlCensus());
+                        + com.legend.judge.CanonicalDivergence.sqlCensus());
         // CONTRACT PROGRAM wire ratchets (adjudicated 2026-08-23,
         // shrink-only): DIVERGE = the true residue (hash UBIGINT,
         // percentile input-type, Number-erasure decimal delivery —
@@ -178,9 +178,9 @@ class ChannelBRelationTest {
         // not cover this JVM); the judge-vs-node pins retired WITH the
         // judge (parity pinned zero on every lane first).
         org.junit.jupiter.api.Assertions.assertEquals(0,
-                com.legend.exec.SqlTypeCensus.mismatchCount(),
+                com.legend.judge.SqlTypeCensus.mismatchCount(),
                 "a label lie escaped reconciliation (the flip): "
-                        + com.legend.exec.SqlTypeCensus.summary());
+                        + com.legend.judge.SqlTypeCensus.summary());
 
 
 

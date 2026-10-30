@@ -11,7 +11,7 @@ package com.legend;
  * @param recorder  the raw-SQL ledger the executor appends to (null = none)
  * @param resources the test-input resource resolver (path → text; null = none)
  * @param systemConnections the host's system connections, by engine: a query reading the system metamodel store on a
- *                  server engine runs on that engine's (exec.SystemDatabase); an in-process engine needs none
+ *                  server engine runs on that engine's (SystemDatabase); an in-process engine needs none
  */
 public record ExecuteOptions(
         com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,
@@ -56,7 +56,7 @@ public record ExecuteOptions(
     }
 
     /** The host's system connections, by engine: where a server engine's system database lives, configured apart from
-     *  every runtime's connection (the platform holds no server credential; exec.SystemDatabase). */
+     *  every runtime's connection (the platform holds no server credential; SystemDatabase). */
     public ExecuteOptions withSystemConnections(java.util.Map<com.legend.model.ConnectionDefinition.DatabaseType,
             com.legend.exec.Sessions.Opener> connections) {
         return new ExecuteOptions(recorder, resources, features, judgeMode, connections);

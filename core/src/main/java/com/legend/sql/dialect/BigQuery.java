@@ -2946,15 +2946,6 @@ public final class BigQuery extends AnsiSqlRenderer {
     // Values: what the driver hands back
     // ==================================================================
 
-    /** {@inheritDoc} The driver hands an ARRAY as a java.sql.Array and a STRUCT as a java.sql.Struct (measured:
-     *  BigQueryJsonArray, BigQueryJsonStruct), DATETIME and TIMESTAMP as java.sql.Timestamp, and NUMERIC and BIGNUMERIC
-     *  as a BigDecimal with its trailing zeros dropped ({@code BIGNUMERIC '3.0'} reads 3, measured): the column's
-     *  declared scale is the value's own, so the reader pads the digits back, never rounding. */
-    @Override
-    public boolean dropsDecimalTrailingZeros() {
-        return true;
-    }
-
     // ==================================================================
     // DDL and DML (test fixtures)
     // ==================================================================

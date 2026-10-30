@@ -154,7 +154,7 @@ final class SeamBenchmark {
     private static Drained textRows(Connection c, String sql, boolean decode) throws Exception {
         long[] n = {0};
         long[] chars = {0};
-        new JdbcStatements(c).query(sql, List.of(), List.of(), row -> {
+        new JdbcStatements(c, new SessionState()).query(sql, List.of(), List.of(), row -> {
             n[0]++;
             chars[0] += row == null ? 0 : row.length();
             if (decode) {

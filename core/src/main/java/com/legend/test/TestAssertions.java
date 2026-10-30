@@ -45,6 +45,6 @@ public final class TestAssertions {
      *  above, else the path and values of the FIRST difference found. */
     public static @com.legend.base.Nullable String equalToJson(
             @com.legend.base.Nullable Object expected, @com.legend.base.Nullable Object actual) {
-        return com.legend.exec.Equality.serviceJson(expected, actual);
+        return com.legend.judge.Equality.serviceJson(expected, actual);
     }
 }

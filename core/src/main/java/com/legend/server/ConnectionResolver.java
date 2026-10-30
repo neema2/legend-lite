@@ -5,9 +5,6 @@ import com.legend.model.ConnectionDefinition;
 import com.legend.cache.HandleStore;
 import com.legend.cache.Hash;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-
 /**
  * The server's sessions: it opens the target the compiler decided from the
  * compiled model ({@code Compiler.executesOn}, C3b) — never a connection of
@@ -21,118 +18,46 @@ import java.sql.SQLException;
  * gets a fresh one (an FQN-only key desynced: engine planCache scar). A specification or database type not built is
  * refused by name (the folds to in-memory are gone, C3b).
  */
-final class ConnectionResolver {
+public final class ConnectionResolver {
 
     private ConnectionResolver() {
     }
 
-    private static final HandleStore<Connection> STORE = new HandleStore<>();
+    private static final HandleStore<com.legend.exec.Sessions.Session> STORE = new HandleStore<>();
 
-    /**
-     * A BORROWED connection. {@code close()} RELEASES it, and what releasing
-     * means is the lease's business, not the caller's:
-     *
-     * <ul>
-     *   <li>a STORE-OWNED handle (the in-memory arms) is released by doing
-     *       NOTHING — {@link HandleStore} owns it for the life of the process
-     *       because evicting it would silently drop its tables, and closing it
-     *       here would break the persistence feature
-     *       {@code ConnectionIsolationTest} pins;</li>
-     *   <li>every other arm is a fresh {@code DriverManager} connection that
-     *       this lease closes. Before leases nobody closed them, so each call
-     *       through an auto-resolving {@link QueryService} method leaked one
-     *       connection — 25 calls, 25 file descriptors, measured
-     *       (ConnectionLeaseTest). Silent on POSIX, and on Windows the symptom
-     *       was a database file that could not be deleted.</li>
-     * </ul>
-     *
-     * <p>Callers always close. That is the whole contract, and it is the
-     * engine's (a Hikari connection's {@code close} returns it to the pool)
-     * reached without the engine's pool — which cannot be ported here because
-     * the engine RE-SEEDS per acquisition and never persists across requests.
-     * See docs/CONNECTION_LEASE_DESIGN_2026_09_09.md.
-     */
-    static final class Lease implements AutoCloseable {
-
-        private final Connection connection;
-        private final boolean storeOwned;
-
-        private Lease(Connection connection, boolean storeOwned) {
-            this.connection = connection;
-            this.storeOwned = storeOwned;
-        }
-
-        /** A handle the {@link HandleStore} owns: releasing is a no-op. */
-        static Lease borrowed(Connection c) {
-            return new Lease(c, true);
-        }
-
-        /** A connection opened for this call alone: the lease closes it. */
-        static Lease owned(Connection c) {
-            return new Lease(c, false);
-        }
-
-        Connection connection() {
-            return connection;
-        }
-
-        @Override
-        public void close() throws SQLException {
-            if (!storeOwned) {
-                connection.close();
-            }
-        }
-    }
-
-    /** A connection is DEAD when closed — or unanswerable, which only a
-     * broken handle produces; treating it live would cache the wreck. */
-    private static boolean dead(Connection c) {
-        try {
-            return c.isClosed();
-        } catch (SQLException e) {
-            return true;
-        }
-    }
+    // The Lease (docs/CONNECTION_LEASE_DESIGN_2026_09_09.md) left 2026-10-30 (D70, the seam's step A): a session the
+    // store owns is handed out as a non-closing VIEW (Sessions.view: releasing it closes nothing, HandleStore owns it
+    // for the life of the process because evicting it would silently drop its tables), every other arm is an OWNED
+    // session that closes its connection (before leases nobody closed them: 25 calls, 25 file descriptors, measured
+    // by ConnectionLeaseTest). The contract is the same -- callers always close -- and the seam's session carries it.
 
     /** The server's session source (C3b): the compiler decides the target from the compiled model
      *  ({@code Compiler.executesOn}), this opens exactly it — a declared connection by {@code Sessions}' opening,
      *  the platform's DuckDB for a runtime binding only model data. One session per query: a runtime whose
-     *  connections are DIFFERENT definitions is refused by name. */
-    static final com.legend.exec.Sessions.Source SOURCE = (target, ctx) -> {
-        try {
-            Lease lease = open(target, ctx);
-            return new com.legend.exec.Sessions.Session() {
-                @Override
-                public Connection connection() {
-                    return lease.connection();
-                }
+     *  connections are DIFFERENT definitions is refused by name. Public since D67 (2026-10-30): the tests' twin reads
+     *  the server's route through it ({@code testing.Lean.service}). */
+    public static final com.legend.Execution.Source SOURCE = ConnectionResolver::open;
 
-                @Override
-                public void close() {
-                    try {
-                        lease.close();
-                    } catch (SQLException e) {
-                        throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
-                    }
-                }
-            };
-        } catch (SQLException e) {
-            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
-        }
-    };
+    /** Upstream {@code pure/v1/execution/execute} (E8), the {@link PureV1Api.Runner} the server hands the API (D67,
+     *  2026-10-30; {@code QueryService.executeUpstream} until then, that class's one production caller): a query that
+     *  reads runs on its runtime's connection, leased, established first as legend-engine establishes it on every
+     *  acquisition (its declared test data run on it); a program that writes runs from its plan on the plan's sessions
+     *  (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7). A database failure is a {@link com.legend.error.DataError}. */
+    public static final PureV1Api.Runner RUNNER = (query, runtime, sinkOf) -> com.legend.Execution.run(query, runtime,
+            SOURCE, com.legend.exec.PlanSessions.shared(), com.legend.Execution.Establish.DECLARED_SETUP, sinkOf);
 
-    /** The session for {@code runtimeFqn} of the compiled model {@code ctx}: the same lease a query on that runtime
-     *  executes on (a caller that seeds tables before querying shares the database). */
-    static Lease lease(com.legend.compiler.element.ModelContext ctx, String runtimeFqn) throws SQLException {
+    /** The session for {@code runtimeFqn} of the compiled model {@code ctx}: the same session a query on that runtime
+     *  executes on (a caller that seeds tables before querying shares the database). The caller closes it. */
+    static com.legend.exec.Sessions.Session session(com.legend.compiler.element.ModelContext ctx, String runtimeFqn) {
         return open(com.legend.Compiler.executesOn(ctx, runtimeFqn), ctx);
     }
 
-    private static Lease open(com.legend.database.Target target, com.legend.compiler.element.ModelContext ctx)
-            throws SQLException {
+    private static com.legend.exec.Sessions.Session open(com.legend.database.Target target,
+            com.legend.compiler.element.ModelContext ctx) {
         Hash stores = storesKey(ctx);
         return switch (target) {
-            case com.legend.database.Target.Platform p -> Lease.borrowed(STORE.getOrOpen(
-                    Hash.combine(stores, Hash.ofUtf8("platform")), ConnectionResolver::dead,
+            case com.legend.database.Target.Platform p -> com.legend.exec.Sessions.view(STORE.getOrOpen(
+                    Hash.combine(stores, Hash.ofUtf8("platform")), com.legend.exec.Sessions::closed,
                     () -> com.legend.exec.Sessions.openPrivate(p.type())));
             case com.legend.database.Target.Declared d -> {
                 var distinct = new java.util.LinkedHashSet<String>();
@@ -151,8 +76,8 @@ final class ConnectionResolver {
      *  setup steps of a target on the definition's database, run by the plan runner as any seed is (D65, 2026-10-29:
      *  until then this class sent each with a statement of its own) -- the dialect's session statements first, then
      *  each step, under the SEED mark. */
-    private static void filled(Connection made, com.legend.compiler.element.ModelContext ctx, ConnectionDefinition def)
-            throws SQLException {
+    private static void filled(com.legend.exec.Sessions.Session made, com.legend.compiler.element.ModelContext ctx,
+            ConnectionDefinition def) {
         boolean done = false;
         try {
             com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(def.databaseType());
@@ -164,13 +89,21 @@ final class ConnectionResolver {
                     new com.legend.executionplan.ExecutionPlan.Database.Declared(def),
                     new com.legend.executionplan.ExecutionPlan.Servers.Every(), dialect.sessionSetup(), steps);
             try (var origin = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
-                com.legend.exec.PlanRunner.setUp(steps, target, com.legend.exec.PlanSessions.given(made), null);
+                com.legend.exec.PlanRunner.setUp(steps, target, com.legend.exec.PlanSessions.of(made), null);
             }
             done = true;
         } finally {
-            // a Data element refused (a table no Database declares), or a statement: the database made is let go
+            // a Data element refused (a table no Database declares), or a statement: the database made is let go;
+            // a close that fails is told with the setup's failure, not instead of it (the D70 audit)
             if (!done) {
-                made.close();
+                try {
+                    made.close();
+                } catch (com.legend.error.DataError closing) {
+                    // the setup's own failure is in flight: closing's rides with it as a message, since a
+                    // finally cannot reach the thrown one
+                    System.err.println("[connection resolver] closing the database made for '" + def.qualifiedName()
+                            + "' after its fill failed: " + closing.getMessage());
+                }
             }
         }
     }
@@ -212,14 +145,14 @@ final class ConnectionResolver {
                 Hash.ofUtf8(def.toString()));
     }
 
-    private static Lease connect(Hash storesKey, ConnectionDefinition def, com.legend.compiler.element.ModelContext ctx)
-            throws SQLException {
+    private static com.legend.exec.Sessions.Session connect(Hash storesKey, ConnectionDefinition def,
+            com.legend.compiler.element.ModelContext ctx) {
         return switch (com.legend.exec.Sessions.openingFor(def)) {
-            case com.legend.exec.Sessions.Opening.Url u -> Lease.owned(com.legend.exec.Sessions.open(u));
+            case com.legend.exec.Sessions.Opening.Url u -> com.legend.exec.Sessions.open(u);
             // a named in-memory database is kept alive by its name — the user's EmbeddedH2 name, else one
             // per model stores + definition (D5): each use opens a connection the lease closes
-            case com.legend.exec.Sessions.Opening.Named n -> Lease.owned(com.legend.exec.Sessions.openNamed(n,
-                    n.name() != null ? n.name() : "c_" + contentKey(storesKey, def).hex().substring(0, 16)));
+            case com.legend.exec.Sessions.Opening.Named n -> com.legend.exec.Sessions.openNamed(n,
+                    n.name() != null ? n.name() : "c_" + contentKey(storesKey, def).hex().substring(0, 16));
             // a held one lives as long as its connection: the HandleStore owns it -- made holding the
             // model's own Data rows, as a tab's or Python's project database does (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md
             // C5), so it is kept by them too: an edited row is a fresh database
@@ -229,8 +162,8 @@ final class ConnectionResolver {
                         : Hash.combine(contentKey(storesKey, def), Hash.ofUtf8(rows));
                 // opened outside the store's lock (Compiler Rewrite's review): a database loaded with its rows, as
                 // PlanSessions opens its held ones -- a failed open forgotten, a later caller for the key waiting
-                yield Lease.borrowed(STORE.getOrOpenSlowly(key, ConnectionResolver::dead, () -> {
-                    Connection made = com.legend.exec.Sessions.openHeld(h);
+                yield com.legend.exec.Sessions.view(STORE.getOrOpenSlowly(key, com.legend.exec.Sessions::closed, () -> {
+                    com.legend.exec.Sessions.Session made = com.legend.exec.Sessions.openHeld(h);
                     if (!rows.isEmpty()) {
                         filled(made, ctx, def);
                     }

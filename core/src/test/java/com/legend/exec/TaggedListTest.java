@@ -58,7 +58,7 @@ class TaggedListTest {
     private static List<Object> values(Connection c, String q) throws Exception {
         ExecutionPlan plan = query(q).executionPlan("s::RT");
         PlanRoundTrip.assertRoundTrips(plan, q);
-        return PlanRunner.rows(plan, java.util.Map.of(), PlanSessions.setUp(c, plan.answerSql().target())).rows()
+        return PlanRunner.rows(plan, java.util.Map.of(), PlanSessions.setUp(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target())).rows()
                 .stream().map(r -> r.get(0)).toList();
     }
 

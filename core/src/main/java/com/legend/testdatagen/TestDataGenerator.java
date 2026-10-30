@@ -477,7 +477,7 @@ public final class TestDataGenerator {
      *  the driver's objects): the statement DESCRIBED by the database first ({@link PlanRunner#describe}: a prepare,
      *  no row), then run as a relation of the columns it reported, each cell read by its reported kind's slot
      *  ({@link PlanRunner#rows}, the typed method's carriers); a column the database reports in no kind of the
-     *  vocabulary is read as text, as a raw grid's is ({@code WireTypes.staticized}). {@code colsOut}, when given,
+     *  vocabulary is read as text, as a raw grid's is ({@code WireProbe.staticized}). {@code colsOut}, when given,
      *  takes the reported labels. */
     private static List<List<Object>> captureRows(Session st, String sql,
             @com.legend.base.Nullable List<String> colsOut) {
@@ -1112,7 +1112,7 @@ public final class TestDataGenerator {
         // the cells arrive as the typed method's carriers (a temporal as PureDateLiteral, the one wire temporal:
         // the doors, 2026-10-29; until then this generator read its own result set and converted the driver's
         // temporals here), so the one repr owner spells them as it spells every judged value
-        return com.legend.exec.PureAsserts.repr(v);
+        return com.legend.judge.PureAsserts.repr(v);
     }
 
     /** The engine's generateSeedDataString: execute the demanded

@@ -77,7 +77,7 @@ class WritePlansH2Test {
             NotImplementedException refused = assertThrows(NotImplementedException.class,
                     () -> com.legend.Execution.run(delete, "w::RT", (target, ctx) -> {
                         throw new AssertionError("a program that writes opens no query session");
-                    }, PlanSessions.given(c), com.legend.Execution.Establish.DECLARED_SETUP,
+                    }, PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), com.legend.Execution.Establish.DECLARED_SETUP,
                             plan -> com.legend.server.PureV1Api.engineWriter(delete, plan, new StringWriter())));
             assertTrue(refused.getMessage().contains("SCALAR result's serialization is unprobed"),
                     refused.getMessage());

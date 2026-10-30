@@ -23,14 +23,14 @@ class WireTypeNamesTest {
 
     private static @com.legend.base.Nullable Type typed(SqlDialect dialect, String driverName) {
         String wire = dialect.typingWireName(driverName);
-        return wire == null ? null : WireTypes.pureOfSqlTypeOrNull(wire);
+        return wire == null ? null : com.legend.driver.WireProbe.pureOfSqlTypeOrNull(wire);
     }
 
     /** The three names the defect named: none has a type as the driver gives it, each has one through its dialect. */
     @Test
     void theDefectsThreeNamesAreTypedThroughTheirDialects() {
         for (String name : new String[] {"int8", "Nullable(Int64)", "INT64"}) {
-            assertNull(WireTypes.pureOfSqlTypeOrNull(name), name + " as the driver gives it");
+            assertNull(WireTypes.pureTypeNameOrNull(name), name + " as the driver gives it");
         }
         assertEquals(Type.Primitive.INTEGER, typed(new com.legend.sql.dialect.Postgres(), "int8"));
         assertEquals(Type.Primitive.INTEGER, typed(new com.legend.sql.dialect.ClickHouse(), "Nullable(Int64)"));
@@ -100,7 +100,7 @@ class WireTypeNamesTest {
     void aNameThatDoesNotSayItsTypeTypesNothing() {
         SqlDialect snowflake = new com.legend.sql.dialect.Snowflake();
         assertNull(snowflake.typingWireName("NUMBER"));
-        assertNull(WireTypes.pureOfSqlTypeOrNull("NUMBER"));
+        assertNull(WireTypes.pureTypeNameOrNull("NUMBER"));
         assertEquals("DECIMAL", snowflake.wireTypeName("NUMBER"));
         // no other database's driver gives the name, so the names every driver's reading folds do not hold it
         assertEquals("NUMBER", WireNames.fold("NUMBER"));

@@ -3,8 +3,8 @@
 
 package com.legend.harness;
 
-import com.legend.exec.TypedSide;
-import com.legend.exec.Row;
+import com.legend.judge.TypedSide;
+import com.legend.judge.Row;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -341,7 +341,7 @@ public final class RefereeVerify {
             String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts)
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
         if (facts.population() != null) {
             // a PAGED chain (batch 0.5b): the page's contents over ties or
@@ -444,7 +444,7 @@ public final class RefereeVerify {
             String goldenSql, TypedSide.Graph g,
             java.util.function.Function<String,
                     java.util.Map<String, String>> enumProp,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts) {
         java.util.TreeSet<String> keys = new java.util.TreeSet<>();
         List<java.util.Map<String, Object>> objs = flatObjects(g, keys);
         // the PAGE-MEMBERSHIP population (batch 0.5b): our unpaged frame,
@@ -689,7 +689,7 @@ public final class RefereeVerify {
     private static @com.legend.base.Nullable String goldenRowsCompare(Statement st,
             String goldenSql, TypedSide tab,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts)
+            com.legend.judge.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
                 List<Cells> theirs = new ArrayList<>();
                 int[] theirsCols = {0};
@@ -936,7 +936,7 @@ public final class RefereeVerify {
         }
         try {
             // the ONE home of the rule (Equality, §5a)
-            return com.legend.exec.Equality.withinTwoUlp(Double.parseDouble(a), Double.parseDouble(b));
+            return com.legend.judge.Equality.withinTwoUlp(Double.parseDouble(a), Double.parseDouble(b));
         } catch (NumberFormatException e) {
             return false;
         }

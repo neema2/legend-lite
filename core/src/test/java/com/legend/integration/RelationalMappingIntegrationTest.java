@@ -3,7 +3,6 @@ package com.legend.integration;
 import com.legend.testing.LaneFloor;
 
 import com.legend.testing.Lean;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -15,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Comprehensive integration tests for relational mappings.
  * Every test creates real DuckDB tables, defines Pure models, executes queries
- * through QueryService, and asserts on actual results.
+ * through Execution.run, and asserts on actual results.
  *
  * Organized by feature area with ~150+ tests covering:
  * - Simple column mappings (all types)
@@ -34,7 +33,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class RelationalMappingIntegrationTest {
 
     private Connection conn;
-    private final QueryService qs = new QueryService();
 
     @BeforeEach
     void setUp() throws SQLException {

@@ -456,7 +456,7 @@ function <<access.private>> meta::legend::lite::pct::exprClosed(a:Any[1], bound:
 
 // PCT Adapter for Legend-Lite
 // This adapter serializes Pure functions to grammar text, executes through
-// legend-lite's QueryService, and converts results back to Pure values.
+// legend-lite's execution front door, and converts results back to Pure values.
 function <<PCT.adapter>> {PCT.adapterName='LegendLite'} 
     meta::legend::lite::pct::testAdapterForLegendLiteExecution<X|o>(f:Function<{->X[o]}>[1]):X[o]
 {

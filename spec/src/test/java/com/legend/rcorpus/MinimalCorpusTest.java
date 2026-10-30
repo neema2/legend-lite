@@ -225,7 +225,7 @@ public class MinimalCorpusTest {
                 }
                 MinimalCorpus.Result r;
                 long tStart = System.nanoTime();
-                long firingsBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.SCAN_ORDER_FIRINGS);
+                long firingsBefore = com.legend.sql.dialect.StableScanOrder.firings();
                 long[] originsBefore = com.legend.exec.StatementOrigin.snapshot();
                 int fallbacksBefore = com.legend.exec.Census.FALLBACK_REASONS.size();
                 long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
@@ -290,7 +290,7 @@ public class MinimalCorpusTest {
                 for (int fi = fallbacksBefore; fi < com.legend.exec.Census.FALLBACK_REASONS.size(); fi++) {
                     fallbackRows.add(r.fqn() + "\t" + com.legend.exec.Census.FALLBACK_REASONS.get(fi));
                 }
-                long fired = com.legend.exec.Census.count(com.legend.exec.Census.Key.SCAN_ORDER_FIRINGS) - firingsBefore;
+                long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
                 if (fired > 0) {
                     engineOrder.add(ENGINE_ORDER + " " + r.fqn() + " :: x" + fired);
                 }
@@ -746,19 +746,19 @@ public class MinimalCorpusTest {
         // canon's CLAIM / DECLINE census per assert family and reason, the
         // host-vs-byte disagreements (database mode's bug list now that
         // host is the verdict of record), the policy counts. Printed only.
-        com.legend.exec.CanonicalDivergence.sqlCensus().forEach(
+        com.legend.judge.CanonicalDivergence.sqlCensus().forEach(
                 (k, v) -> System.out.println("[corpus2] sql-census " + k + "=" + v));
         System.out.println("[corpus2] sql-census policy ulp="
-                + com.legend.exec.CanonicalDivergence.sqlUlpPolicyCount()
-                + " tdsnull=" + com.legend.exec.CanonicalDivergence.sqlTdsNullPolicyCount()
-                + " decimal-scale-only=" + com.legend.exec.CanonicalDivergence.decimalScaleOnlyCount()
-                + " disagree=" + com.legend.exec.CanonicalDivergence.sqlDisagreeCount()
-                + " declined=" + com.legend.exec.CanonicalDivergence.sqlDeclinedCount()
+                + com.legend.judge.CanonicalDivergence.sqlUlpPolicyCount()
+                + " tdsnull=" + com.legend.judge.CanonicalDivergence.sqlTdsNullPolicyCount()
+                + " decimal-scale-only=" + com.legend.judge.CanonicalDivergence.decimalScaleOnlyCount()
+                + " disagree=" + com.legend.judge.CanonicalDivergence.sqlDisagreeCount()
+                + " declined=" + com.legend.judge.CanonicalDivergence.sqlDeclinedCount()
                 + " wire-retyped=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_RETYPED)
                 + " wire-slot-skew=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_SLOT_SKEW)
                 + " batch-statements=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FUSED)
                 + " batch-fallbacks=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FALLBACKS)
-                + " frames[" + com.legend.exec.VerdictBatch.frameCensus() + "]");
+                + " frames[" + com.legend.judge.VerdictBatch.frameCensus() + "]");
         System.out.println("[corpus2] sql-census round-trips="
                 + com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_ROUND_TRIPS) + " (every statement the executor"
                 + " sent this JVM: setups, sides, frames, referee replays)"
@@ -766,7 +766,7 @@ public class MinimalCorpusTest {
                 + " detaches=" + com.legend.testbackend.WorkspaceCensus.DETACHES.get()
                 + " detach-ms=" + com.legend.testbackend.WorkspaceCensus.DETACH_NANOS.get() / 1_000_000L
                 + " detach-max-ms=" + com.legend.testbackend.WorkspaceCensus.DETACH_MAX_NANOS.get() / 1_000_000L);
-        com.legend.exec.CanonicalDivergence.sqlDisagreeSamples().forEach(
+        com.legend.judge.CanonicalDivergence.sqlDisagreeSamples().forEach(
                 r -> System.out.println("[corpus2] sql-disagree " + r.family() + " " + r.detail()));
         if (!only.isEmpty()) {
             return;

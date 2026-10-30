@@ -54,13 +54,13 @@ class RowLoadDuckDbTest {
     /** {@code load} on {@code c} through the plan runner: the bulk path (the doors, 2026-10-29; SetupRunner's load
      *  until then). */
     private static void bulk(Connection c, RowLoad load) {
-        PlanRunner.setUp(List.of(load.staged(DUCK)), TARGET, PlanSessions.given(c), null);
+        PlanRunner.setUp(List.of(load.staged(DUCK)), TARGET, PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), null);
     }
 
     /** {@code load}'s one INSERT on {@code c} through the plan runner: the text path. */
     private static void text(Connection c, RowLoad load) {
         PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(
-                DUCK.render(load.values()))), TARGET, PlanSessions.given(c), null);
+                DUCK.render(load.values()))), TARGET, PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), null);
     }
 
     private static Connection duck() throws SQLException {

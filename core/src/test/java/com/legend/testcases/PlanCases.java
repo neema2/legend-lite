@@ -224,7 +224,7 @@ public final class PlanCases {
      *  {@code null}: the value text a judge of a value compares. */
     public static String pureText(ExecutionPlan plan, Connection c) throws java.io.IOException {
         com.legend.exec.PlanRunner.Rows rows = com.legend.exec.PlanRunner.rows(plan, java.util.Map.of(),
-                com.legend.exec.PlanSessions.setUp(c, plan.answerSql().target()));
+                com.legend.exec.PlanSessions.setUp(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()));
         StringBuilder out = new StringBuilder();
         for (List<Object> row : rows.rows()) {
             out.append(out.isEmpty() ? "" : "\n");
@@ -242,8 +242,8 @@ public final class PlanCases {
     public static String today(String model, String query, String runtime, Connection c, Written written)
             throws java.io.IOException {
         java.io.StringWriter out = new java.io.StringWriter();
-        com.legend.Execution.run(model, query, runtime, com.legend.exec.Sessions.given(c),
-                com.legend.exec.PlanSessions.given(c), p -> written.writer(out, p.answerShape()));
+        com.legend.Execution.run(model, query, runtime, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(c)),
+                com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), p -> written.writer(out, p.answerShape()));
         return out.toString();
     }
 
@@ -255,7 +255,7 @@ public final class PlanCases {
                     writerOf) throws java.io.IOException {
         java.io.StringWriter out = new java.io.StringWriter();
         com.legend.exec.PlanRunner.stream(plan, values,
-                com.legend.exec.PlanSessions.setUp(c, plan.answerSql().target()), writerOf.apply(out, plan.answerShape()));
+                com.legend.exec.PlanSessions.setUp(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()), writerOf.apply(out, plan.answerShape()));
         return out.toString();
     }
 

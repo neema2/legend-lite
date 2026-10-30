@@ -4,7 +4,7 @@
 package com.legend.lowering;
 
 import com.legend.compiler.element.type.Type;
-import com.legend.exec.CanonicalForm;
+import com.legend.judge.CanonicalForm;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlSelect;

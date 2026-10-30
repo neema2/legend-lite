@@ -4,7 +4,6 @@ import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
 import com.legend.plan.ResultShape;
 
-import com.legend.Compiler;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;
@@ -23,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * Phase K end-to-end: {@code Compiler.execute} — the core QueryService —
+ * Phase K end-to-end: {@code Compiler.execute} — the core's execution front door —
  * over a real connection, one test per {@link ResultShape}. The typed-result
  * contract is pinned: Pure types ride the result; consumers never sniff.
  */

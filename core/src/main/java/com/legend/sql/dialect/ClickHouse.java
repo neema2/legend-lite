@@ -2837,7 +2837,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
 
     /** A session's own table is a TEMPORARY table, and ClickHouse keeps one only in an HTTP session: the connection
      *  names it ({@code session_id}, which the driver passes as a {@code clickhouse_setting_} property). That is the
-     *  host's to open (exec.SystemDatabase's system connection). Over a connection with no session the table is made
+     *  host's to open (SystemDatabase's system connection). Over a connection with no session the table is made
      *  and gone with its request, so the read after it is refused (an unknown table, measured), never answered from
      *  another session, which does not see it. The table and its INSERT are this interface's own renders;
      *  ClickHouse's temporary table is a Memory one without saying so (measured). */

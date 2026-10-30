@@ -20,8 +20,6 @@ import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -112,7 +110,7 @@ public final class ServiceTestRunner implements AutoCloseable {
      *  runtime whose connections declare anything else). */
     private final ConnectionDefinition.DatabaseType sessionType;
     /** test runtime name → the shared session (SHARED policy). */
-    private final Map<String, Connection> shared = new LinkedHashMap<>();
+    private final Map<String, com.legend.exec.Sessions.Session> shared = new LinkedHashMap<>();
     /** the runtime and its provisioning, BY VALUE → the test runtime (an
      *  overlay context + its runtime name). Value records, never a hash of
      *  the data: two suites whose CSVs differ but hash alike ("Aa"/"BB")
@@ -198,7 +196,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 } catch (Skip s) {
                     r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.SKIPPED,
                             String.valueOf(s.getMessage()), 0);
-                } catch (RuntimeException | SQLException e) {
+                } catch (RuntimeException e) {
                     r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.FAIL,
                             "harness: " + e.getClass().getSimpleName() + ": "
                                     + PureTestRunner.whole(e.getMessage()), 0);
@@ -211,7 +209,7 @@ public final class ServiceTestRunner implements AutoCloseable {
     }
 
     private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
-            Protocol.PServiceTestSuite.PSuiteTest test) throws SQLException {
+            Protocol.PServiceTestSuite.PSuiteTest test) {
         String runtimeFqn = runtimeOf(svc);
         RuntimeDefinition runtime = ctx.findRuntime(runtimeFqn).orElseThrow(
                 () -> new Skip("runtime '" + runtimeFqn + "' is not in the model"));
@@ -235,7 +233,7 @@ public final class ServiceTestRunner implements AutoCloseable {
         }
         boolean privateSession = policy == Sessions.FRESH_PER_TEST
                 || Compiler.hasStatementEffects(resolved, rt.ctx());
-        Connection conn = privateSession ? opener.open() : shared(rt.runtimeFqn());
+        com.legend.exec.Sessions.Session conn = privateSession ? opener.open() : shared(rt.runtimeFqn());
         try {
             java.io.StringWriter out = new java.io.StringWriter();
             try {
@@ -244,7 +242,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 // (the doors, 2026-10-29) -- what the service would serve, read back below as the tree the
                 // assertions compare
                 Execution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
-                        com.legend.exec.Sessions.given(conn), null, null, com.legend.ExecuteOptions.NONE,
+                        com.legend.Execution.Source.given(conn), null, null, com.legend.ExecuteOptions.NONE,
                         shape -> writer(out, shape, test.serializationFormat()));
             } catch (Skip s) {
                 throw s;
@@ -433,8 +431,8 @@ public final class ServiceTestRunner implements AutoCloseable {
         return built;
     }
 
-    private Connection shared(String testRuntimeFqn) throws SQLException {
-        Connection conn = shared.get(testRuntimeFqn);
+    private com.legend.exec.Sessions.Session shared(String testRuntimeFqn) {
+        com.legend.exec.Sessions.Session conn = shared.get(testRuntimeFqn);
         if (conn == null) {
             conn = opener.open();
             shared.put(testRuntimeFqn, conn);
@@ -491,16 +489,16 @@ public final class ServiceTestRunner implements AutoCloseable {
     // ---- SESSIONS -------------------------------------------------------------
 
     /** The shared sessions opened so far, by test runtime. */
-    public Map<String, Connection> sessions() {
+    public Map<String, com.legend.exec.Sessions.Session> sessions() {
         return Collections.unmodifiableMap(shared);
     }
 
     @Override
     public void close() {
-        for (Connection c : shared.values()) {
+        for (com.legend.exec.Sessions.Session c : shared.values()) {
             try {
                 c.close();
-            } catch (SQLException ignored) {
+            } catch (com.legend.error.DataError ignored) {
                 // a session that fails to close cannot poison the next
             }
         }

@@ -8,7 +8,7 @@ import java.util.function.Predicate;
 
 /**
  * Live handles keyed by content {@link Hash} — Invariant 3's home for
- * the ONE cache whose values are stateful handles (JDBC connections)
+ * the ONE cache whose values are stateful handles (sessions over JDBC connections)
  * rather than recomputable results. Content-keyed like
  * {@link ContentStore} (the caller hashes the handle's DEFINITION, so
  * an edited definition can never desync onto a stale handle — the

@@ -3,7 +3,6 @@
 
 package com.legend.sql;
 
-
 /**
  * Every source alias of a query, and every reference to one, under a
  * PREFIX — the statement-wide alias uniqueness the renderers rely on

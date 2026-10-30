@@ -3,7 +3,6 @@ package com.legend.integration;
 import com.legend.testing.LaneFloor;
 
 import com.legend.testing.Lean;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,7 +38,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RelationMappingWindowSeamTest {
 
     private Connection conn;
-    private final QueryService qs = new QueryService();
 
     @BeforeEach
     void setUp() throws SQLException {

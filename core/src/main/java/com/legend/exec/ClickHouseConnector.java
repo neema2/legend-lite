@@ -6,7 +6,6 @@ package com.legend.exec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
-import java.sql.Connection;
 
 /** ClickHouse's sessions: the platform opens no declared connection to it yet (its sessions are the test harnesses');
  *  a session handed to execution is checked against its driver's product name. */

@@ -115,7 +115,7 @@ public final class MongoDbConnector implements DatabaseConnector {
     }
 
     /** A session on a MongoDB: no JDBC connection, its statements the connector's; closing it closes the client. */
-    private static final class MongoDbSession implements Sessions.Session {
+    private static final class MongoDbSession extends Sessions.Session {
         private final MongoClient client;
         private final MongoDbStatements statements;
         private final SessionState state = new SessionState();
@@ -126,7 +126,7 @@ public final class MongoDbConnector implements DatabaseConnector {
         }
 
         @Override
-        public Connection connection() {
+        Connection connection() {
             throw new IllegalStateException("a MongoDB session has no JDBC connection: it runs the plan's commands"
                     + " through its own statements (Sessions.Session.statements)");
         }

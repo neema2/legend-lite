@@ -3,7 +3,6 @@ package com.legend.integration;
 import com.legend.testing.LaneFloor;
 
 import com.legend.testing.Lean;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +28,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class WindowFunctionTest {
 
     private Connection connection;
-    private QueryService queryService;
 
     // Complete Pure model for Employee tests
     private static final String COMPLETE_MODEL = """
@@ -106,7 +104,6 @@ class WindowFunctionTest {
     @BeforeEach
     void setUp() throws Exception {
         connection = LaneFloor.backend().open();
-        queryService = new QueryService();
 
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
@@ -157,7 +154,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute ROW_NUMBER via Pure → QueryService → DuckDB")
+    @DisplayName("Execute ROW_NUMBER via Pure → the plan → DuckDB")
     void testExecuteRowNumberViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -191,7 +188,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute RANK via Pure → QueryService → DuckDB")
+    @DisplayName("Execute RANK via Pure → the plan → DuckDB")
     void testExecuteRankViaPure() throws Exception {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("INSERT INTO T_EMPLOYEE VALUES (7, 'Grace', 'Engineering', 90000)");
@@ -233,7 +230,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute SUM running total via Pure → QueryService → DuckDB")
+    @DisplayName("Execute SUM running total via Pure → the plan → DuckDB")
     void testExecuteRunningSumViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -265,7 +262,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute DENSE_RANK via Pure → QueryService → DuckDB")
+    @DisplayName("Execute DENSE_RANK via Pure → the plan → DuckDB")
     void testExecuteDenseRankViaPure() throws Exception {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("INSERT INTO T_EMPLOYEE VALUES (7, 'Grace', 'Engineering', 90000)");
@@ -297,7 +294,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute SUM with ROWS frame via Pure → QueryService → DuckDB")
+    @DisplayName("Execute SUM with ROWS frame via Pure → the plan → DuckDB")
     void testExecuteSumWithRowsFrameViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -318,7 +315,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute LAG via Pure → QueryService → DuckDB")
+    @DisplayName("Execute LAG via Pure → the plan → DuckDB")
     void testExecuteLagViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -346,7 +343,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute LEAD via Pure → QueryService → DuckDB")
+    @DisplayName("Execute LEAD via Pure → the plan → DuckDB")
     void testExecuteLeadViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -374,7 +371,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute FIRST_VALUE via Pure → QueryService → DuckDB")
+    @DisplayName("Execute FIRST_VALUE via Pure → the plan → DuckDB")
     void testExecuteFirstValueViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -399,7 +396,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute LAST_VALUE via Pure → QueryService → DuckDB")
+    @DisplayName("Execute LAST_VALUE via Pure → the plan → DuckDB")
     void testExecuteLastValueViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -425,7 +422,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute NTILE via Pure → QueryService → DuckDB")
+    @DisplayName("Execute NTILE via Pure → the plan → DuckDB")
     void testExecuteNtileViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -450,7 +447,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute FIRST_VALUE with unbounded frame via Pure → QueryService → DuckDB")
+    @DisplayName("Execute FIRST_VALUE with unbounded frame via Pure → the plan → DuckDB")
     void testExecuteFirstValueWithUnboundedFrameViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -481,7 +478,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute LAST_VALUE with unbounded frame via Pure → QueryService → DuckDB")
+    @DisplayName("Execute LAST_VALUE with unbounded frame via Pure → the plan → DuckDB")
     void testExecuteLastValueWithUnboundedFrameViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -704,7 +701,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute STDDEV window aggregate via Pure → QueryService → DuckDB")
+    @DisplayName("Execute STDDEV window aggregate via Pure → the plan → DuckDB")
     void testExecuteStdDevWindowViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -726,7 +723,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute VARIANCE window aggregate via Pure → QueryService → DuckDB")
+    @DisplayName("Execute VARIANCE window aggregate via Pure → the plan → DuckDB")
     void testExecuteVarianceWindowViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -744,7 +741,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute PERCENT_RANK via Pure → QueryService → DuckDB")
+    @DisplayName("Execute PERCENT_RANK via Pure → the plan → DuckDB")
     void testExecutePercentRankViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()
@@ -775,7 +772,7 @@ class WindowFunctionTest {
     }
 
     @Test
-    @DisplayName("Execute CUME_DIST via Pure → QueryService → DuckDB")
+    @DisplayName("Execute CUME_DIST via Pure → the plan → DuckDB")
     void testExecuteCumeDistViaPure() throws Exception {
         String pureQuery = """
                 model::Employee.all()

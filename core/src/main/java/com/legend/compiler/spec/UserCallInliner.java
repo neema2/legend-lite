@@ -1,6 +1,5 @@
 package com.legend.compiler.spec;
 
-
 import com.legend.platform.WalledBodies;
 import com.legend.compiler.spec.typed.TypedAggCol;
 import com.legend.compiler.spec.typed.TypedCBoolean;

@@ -26,7 +26,7 @@ import org.finos.legend.pure.m3.pct.shared.provider.PCTReportProvider;
  * 
  * This enables legend-engine's PCT framework to dispatch test execution
  * to legend-lite's Pure execution engine. Unlike Python/SQL reverse adapters,
- * legend-lite executes Pure directly (like DuckDB) via QueryService.
+ * legend-lite executes Pure directly (like DuckDB) via its execution front door.
  */
 public class LegendLitePCTReportProvider implements PCTReportProvider {
 

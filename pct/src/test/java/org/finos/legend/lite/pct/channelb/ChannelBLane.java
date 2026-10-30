@@ -192,9 +192,9 @@ final class ChannelBLane {
                 + " > " + pins.wireBug());
         assertTrue(c.trueWireBug() <= pins.trueWireBug(), lane + " " + suite + " TRUE-WIRE-BUG census grew: "
                 + c.trueWireBug() + " > " + pins.trueWireBug());
-        assertTrue(com.legend.exec.CanonicalDivergence.sqlDisagreeCount() == 0,
-                "DUAL-VERDICT DISAGREEMENT: " + com.legend.exec.CanonicalDivergence.summary());
-        assertEquals(0, com.legend.exec.SqlTypeCensus.mismatchCount(),
-                "a label lie escaped reconciliation: " + com.legend.exec.SqlTypeCensus.summary());
+        assertTrue(com.legend.judge.CanonicalDivergence.sqlDisagreeCount() == 0,
+                "DUAL-VERDICT DISAGREEMENT: " + com.legend.judge.CanonicalDivergence.summary());
+        assertEquals(0, com.legend.judge.SqlTypeCensus.mismatchCount(),
+                "a label lie escaped reconciliation: " + com.legend.judge.SqlTypeCensus.summary());
     }
 }

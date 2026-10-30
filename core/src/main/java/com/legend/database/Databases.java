@@ -11,7 +11,7 @@ import com.legend.sql.dialect.SqlDialect;
  * C3): given a DECLARED {@link DatabaseType}, the dialect this platform writes its SQL in, which answers every plan
  * fact of its database itself (its server versions, how its rows load: the dialect program's Phase 5, 2026-10-16,
  * when this class shrank to type to dialect). legend-engine's golden TEXT for a type is not here: its renderers are
- * quarantined to the root layer (AGENTS invariant 4d), so their one owner is {@code com.legend.EngineText}.
+ * quarantined to the root layer (AGENTS invariant 4d), so their one owner is {@code com.legend.driver.EngineText}.
  * Upstream's own split: SQL generation per database type ({@code dbExtension.pure}, {@code loadDbExtension}) apart
  * from connection management (the execution side, {@code com.legend.exec.Connectors}). Every type is listed in the
  * switch, none has a {@code default} arm, and a database with no dialect is refused by name. Nothing here touches

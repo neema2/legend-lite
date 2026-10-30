@@ -227,23 +227,23 @@ public final class ChannelB {
         String fqn = fd.qualifiedName();
         com.legend.lowering.StampCensus.CONTEXT.set(fqn);
         com.legend.probe.Shadow.CONTEXT.set(fqn);
-        com.legend.exec.SqlTypeCensus.CONTEXT.set(fqn);
+        com.legend.judge.SqlTypeCensus.CONTEXT.set(fqn);
         // dual-verdict attribution: name the test that grows the
         // disagreement census (the alarm's diagnosis needs the WHO) —
         // and the DECLINE census likewise (the burn targets tests, not
         // a bare histogram; the F10 census rides this)
         long disagreeBefore =
-                com.legend.exec.CanonicalDivergence.sqlDisagreeCount();
+                com.legend.judge.CanonicalDivergence.sqlDisagreeCount();
         long declineBefore =
-                com.legend.exec.CanonicalDivergence.sqlDeclinedCount();
+                com.legend.judge.CanonicalDivergence.sqlDeclinedCount();
         try {
             return runOneInner(fd, module, ctx, fqn);
         } finally {
-            if (com.legend.exec.CanonicalDivergence.sqlDisagreeCount()
+            if (com.legend.judge.CanonicalDivergence.sqlDisagreeCount()
                     > disagreeBefore) {
                 System.out.println("[chB] DUAL-VERDICT-DISAGREE in " + fqn);
             }
-            long dd = com.legend.exec.CanonicalDivergence.sqlDeclinedCount()
+            long dd = com.legend.judge.CanonicalDivergence.sqlDeclinedCount()
                     - declineBefore;
             if (dd > 0) {
                 System.out.println("[chB] DECLINES+" + dd + " in " + fqn);
@@ -279,7 +279,7 @@ public final class ChannelB {
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
             Execution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.test.StorelessRuntime.RUNTIME, com.legend.exec.Sessions.given(conn), null, null,
+                    com.legend.test.StorelessRuntime.RUNTIME, com.legend.Execution.Source.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
                             .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.BOTH)

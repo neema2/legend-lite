@@ -105,7 +105,7 @@ public final class PureV1Api {
      * How a host runs an execute: the query, typed once by the route, planned as typed rows and run on its runtime's
      * connection, its rows streamed to the sink {@code sinkOf} makes from the plan that runs -- made before any
      * statement runs, so an answer the engine's API has no form for is refused before a program's writes land.
-     * legend-lite's server hands in its driver ({@code QueryService.executeUpstream}).
+     * legend-lite's server hands in its driver ({@code ConnectionResolver.RUNNER}).
      */
     @FunctionalInterface
     public interface Runner {

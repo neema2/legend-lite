@@ -172,7 +172,7 @@ public final class LadderRender {
         List<String> sent = new ArrayList<>();
         // the run's judge mode is the runner's (one mode per run, on its options)
         try (PureTestRunner runner = new PureTestRunner(CTX, "l::RT",
-                () -> recording(freshDuck(), sent),
+                () -> com.legend.testbackend.TestSessions.owning(recording(freshDuck(), sent)),
                 List.of(), FOUND.setupsByPackage(), TestObserver.NONE,
                 com.legend.ExecuteOptions.JudgeMode.DATABASE)) {
             PureTestRunner.Result r = runner.run(test);

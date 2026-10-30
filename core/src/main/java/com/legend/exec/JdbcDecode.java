@@ -49,21 +49,9 @@ final class JdbcDecode {
     private JdbcDecode() {
     }
 
-    /** What reading typed rows needs of a session's driver beyond the plan's columns, its database's facts
-     *  ({@code SqlDialect}): {@code javaTime}, the driver re-reads a timestamp cell as
-     *  {@code java.time} ({@code SqlDialect.refetchesTimestampAsJavaTime});
-     *  {@code dropsDecimalZeros}, it hands a decimal back with its trailing zeros dropped, padded back here to its
-     *  slot's declared scale, never rounded ({@code SqlDialect.dropsDecimalTrailingZeros});
-     *  {@code failedWithoutColumns}, it opens a failing statement's result with no columns, its error raised on the
-     *  first read ({@code SqlDialect.opensFailedResultsWithoutColumns}); {@code nonFiniteJson}, its JSON spells a double
-     *  that is not finite as a bare token ({@code SqlDialect.jsonSpellsNonFiniteNumbers}, read by
-     *  {@link NonFiniteJson}). The session's statements read them off the dialect ({@link JdbcStatements#check}). */
-    record Driver(boolean javaTime, boolean dropsDecimalZeros, boolean failedWithoutColumns, boolean nonFiniteJson) {
-    }
-
     /** The cells of the row {@code rs} stands on, one per column of {@code columns}, the i-th column read from the
      *  i-th result column: a typed-rows statement answers the plan's columns in their order. */
-    static List<Object> row(ResultSet rs, List<ExecutionPlan.Column> columns, Driver driver) throws SQLException {
+    static List<Object> row(ResultSet rs, List<ExecutionPlan.Column> columns, DatabaseConnector.Decoding driver) throws SQLException {
         List<Object> out = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
             ExecutionPlan.Column c = columns.get(i);
@@ -94,7 +82,7 @@ final class JdbcDecode {
     }
 
     /** Result column {@code i} as the cell of {@code c}. */
-    static @com.legend.base.Nullable Object cell(ResultSet rs, int i, ExecutionPlan.Column c, Driver driver)
+    static @com.legend.base.Nullable Object cell(ResultSet rs, int i, ExecutionPlan.Column c, DatabaseConnector.Decoding driver)
             throws SQLException {
         Object v;
         switch (com.legend.result.RowDecode.slotWord(c.slot())) {
@@ -112,7 +100,7 @@ final class JdbcDecode {
                 if (v instanceof java.sql.Timestamp && driver.javaTime()) {
                     v = reread(rs, i, LocalDateTime.class, c);
                 } else if (v instanceof java.sql.Date && driver.javaTime()) {
-                    // a date too (SqlDialect.refetchesTimestampAsJavaTime): java.sql.Date drops a BC date's era, 44 BC
+                    // a date too (DatabaseConnector.decoding().javaTime): java.sql.Date drops a BC date's era, 44 BC
                     // read as 44 AD (the legacy executor re-read it; PostgresArmTest, 2026-10-27)
                     v = reread(rs, i, LocalDate.class, c);
                 } else if (v instanceof java.sql.Time) {
@@ -136,7 +124,7 @@ final class JdbcDecode {
     /** {@code v}, a driver's value (a cell, or a structure's element), as the cell of {@code c}: by the slot first,
      *  then by the Pure type. */
     static @com.legend.base.Nullable Object decode(@com.legend.base.Nullable Object v, ExecutionPlan.Column c,
-            Driver driver) throws SQLException {
+            DatabaseConnector.Decoding driver) throws SQLException {
         if (v == null) {
             return null;
         }
@@ -349,7 +337,7 @@ final class JdbcDecode {
         return s;
     }
 
-    private static Object array(Object v, ExecutionPlan.Column c, Driver driver) throws SQLException {
+    private static Object array(Object v, ExecutionPlan.Column c, DatabaseConnector.Decoding driver) throws SQLException {
         ExecutionPlan.Column element = com.legend.result.RowDecode.element(c);
         // a driver's Array, or a list inside ClickHouse's Tuple, which its driver hands as a java.util.List (channel
         // B's testHeadComplex and testFirstComplex, 2026-10-20)
@@ -376,7 +364,7 @@ final class JdbcDecode {
         throw refused(v, c);
     }
 
-    private static @com.legend.base.Nullable Object struct(Object v, ExecutionPlan.Column c, Driver driver)
+    private static @com.legend.base.Nullable Object struct(Object v, ExecutionPlan.Column c, DatabaseConnector.Decoding driver)
             throws SQLException {
         List<ExecutionPlan.Column> fields = com.legend.result.RowDecode.fields(c);
         Map<String, Object> out = new LinkedHashMap<>();
@@ -413,7 +401,7 @@ final class JdbcDecode {
         throw refused(v, c);
     }
 
-    private static @com.legend.base.Nullable Object map(Object v, ExecutionPlan.Column c, Driver driver)
+    private static @com.legend.base.Nullable Object map(Object v, ExecutionPlan.Column c, DatabaseConnector.Decoding driver)
             throws SQLException {
         ExecutionPlan.Column[] kv = com.legend.result.RowDecode.mapSlots(c);
         ExecutionPlan.Column key = kv[0];
@@ -461,7 +449,7 @@ final class JdbcDecode {
 
     /** A cell with no slot: the Pure type decides, and where it is a class, an enumeration or Any, the driver's own
      *  kind (a structure's JSON text parsed as a document's cell is). */
-    private static @com.legend.base.Nullable Object byPureType(Object v, ExecutionPlan.Column c, Driver driver)
+    private static @com.legend.base.Nullable Object byPureType(Object v, ExecutionPlan.Column c, DatabaseConnector.Decoding driver)
             throws SQLException {
         String type = c.type();
         if (type.equals(com.legend.result.RowDecode.VARIANT)) {

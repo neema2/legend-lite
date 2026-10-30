@@ -64,9 +64,9 @@ library in the product.
 | The plan | `core/src/main/java/com/legend/executionplan/ExecutionPlan.java` (nodes `Sequence`, `TdsResult`, `Keyed`, `Update`, `Check`, `Effect`; `Column`), `ColumnFacts.java`, `PlanJson.java` (format 18; `PlanJsonTest` pins it), `MirJson.java`; `com/legend/PlanMaker.java`, `TypedQuery.java` (`executionPlan(...)`), `plan/QueryPlan.java`, `plan/UpstreamRelationType.java` (legend-engine's spellings of a column) |
 | Running a plan | `exec/PlanRunner.java` (`stream`, `rows`, `update`, `effect`), `exec/JdbcStatements.java` (the JDBC boundary; stamps the trace comment), `exec/JdbcDecode.java` (a JDBC cell by the plan's facts; `Driver` holds the drivers' quirks as facts), `exec/PlanSessions.java`, `exec/NonFiniteJson.java`, `core/src/main/mongodb/.../MongoDbDecode.java` |
 | The result and the writers | `result/`: `ResultSink`, `Batch`, `Batcher`, `Collector` (collect into memory), `RowDecode` (a cell from a JSON row), `HostRows` (rows a host ran), `CellText` (every cell spelling: Pure's print forms, legend-engine's tokens, lite's), `PureV1Writer` (LEGACY), `JsonRowsWriter` and `CsvWriter` (LEAN) |
-| The production entry | `Execution.run(...)` (plan, run, stream to the sink a caller makes from the plan); `server/PureV1Api.java` (`engineWriter`, `jsonPlan`, `arrowPlan`, `execute`), `server/QueryService.java` (`executeUpstream`, and the streaming `execute(..., OutputStream, OutputFormat)`) |
-| The old door (DELETED, track D, 2026-10-29) | `Execution.execute*`, `executeResolved`, the materialized `ExecutionResult`, `QueryService`'s three materialized `execute` methods: gone; `exec/TypedSide` is the judges' collected side, `BodyDriver` (`StatementExecutor` until then) the body driver behind `Execution.runProgram` |
-| The judges | `HostJudge`, `DatabaseJudge`, `AgreementArm`, `AssertVerdicts`, `VerdictArm`, `JudgePlans` (each side a plan), `SqlTextVerdicts`, `exec/VerdictBatch`, `exec/TdsCompare`, `lowering/CanonicalRenderSql` (the database judge's canon; stays) |
+| The production entry | `Execution.run(...)` (plan, run, stream to the sink a caller makes from the plan); `server/PureV1Api.java` (`engineWriter`, `jsonPlan`, `arrowPlan`, `execute`); the HTTP door's runner `server/ConnectionResolver.RUNNER` over `Execution.run` (`QueryService` and its streaming text routes deleted 2026-10-30, D67) |
+| The old door (DELETED, track D, 2026-10-29) | `Execution.execute*`, `executeResolved`, the materialized `ExecutionResult`, `QueryService`'s three materialized `execute` methods: gone; `judge/TypedSide` is the judges' collected side, `driver/BodyDriver` (`StatementExecutor` until then; the root's until step C) the body driver behind `Execution.runProgram` |
+| The judges | `driver/HostJudge`, `driver/DatabaseJudge`, `driver/AgreementArm`, `driver/AssertVerdicts`, `driver/VerdictArm`, `driver/JudgePlans` (each side a plan), `driver/SqlTextVerdicts` (the root's until step C, D73), `judge/VerdictBatch`, `judge/TdsCompare`, `lowering/CanonicalRenderSql` (the database judge's canon; stays) |
 | The PCT harness | `pct/src/test/java/org/finos/legend/lite/pct/extension/`: `PctExecuteNative` (the native the reference calls), `PctPlanRoute` (plan, run; a relation through `PureV1Api.engineWriter`), `ValueBridge` (`engineTDS` for a relation, `values` for a value), `PctBackend` (the lane's sessions, `LEGENDLITE_PCT_BACKEND`); `pct/src/main/resources/core_legend_lite_pct/pct_adapter.pure` (the Pure adapter; `engineTDS` = legend-engine's `getTDSResultFromProtocol`), `pct_types.pure`; `pct/.../channelb/ChannelB.java` (channel B); the ledgers `Test_LegendLite_<Lane>_<Suite>_PCT.java` |
 | The corpus | `spec/src/test/java/com/legend/rcorpus/` (`MinimalCorpus`, `JudgeLedger`), its rosters `spec/src/test/resources/rcorpus/`, the referee `spec/src/test/java/com/legend/harness/ReplayReferee.java`, `RefereeVerify.java` |
 | What the twin (track T) changes | `core/src/test/java/com/legend/integration/AbstractDatabaseTest.java` (28 subclasses), and the other helpers on the old door (`CheckerResults.collect`, `SqlParity`, `CypherParity`, `IqParity`, `PlanCases`, `testing/src/main/java/com/legend/testing/Rows.java` (the `//testing` module; 23 call sites in 7 test files -- a row-sorting and multiset-comparing helper that executes nothing, the Z audit's correction); the census `docs/result-boundary-homework/test-census-2026-10-28.tsv` |
@@ -108,6 +108,11 @@ audit itself and what it found: the homework README §1.
 - Door 1 (2026-10-29, D63; GATES, the door 1 entry): the full local chain on the patch alone.
 - The doors' audit fold (2026-10-29, D64; GATES, the fold entry): the full local chain on the patch alone.
 - The three routings (2026-10-29, D65; GATES, the three routings' entry): the full local chain on the patch alone.
+- The java.sql revamp, step 1 (2026-10-30, D66; GATES, the step 1 entry): the full local chain on the patch alone.
+- The java.sql revamp, step 2a (2026-10-30, D67; GATES, the step 2a entry): the full local chain on the patch alone.
+- The java.sql revamp, step 2b (2026-10-30, D68; GATES, the step 2b entry): the full local chain on the patch alone.
+- The java.sql revamp, step 3 (2026-10-30, D69; GATES, the step 3 entry): the full local chain on the patch alone.
+- The seam's step A (2026-10-30, D70; GATES, step A's entry): the full local chain on the patch alone.
 - `f883d42b` (phase 5 green), six lane sessions against `7b8c89dc`, per test: channel A exact on Postgres, SQLite,
   MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and Snowflake; channel B identical (one MySQL gain); one
   pin open (Snowflake's `testAdjustByMinutesBigNumber`, a driver limit).
@@ -665,7 +670,81 @@ a class that reaches `Statements` or a JDBC connection around it. The map (the d
   its connector as data and read by the seam (`JdbcStatements.held`); `DatabaseConnector.raisedMessage` and
   `Sessions.raisedMessage` deleted. In core's main sources the seam and its DuckDB bulk loader are the only JDBC
   senders. The audit of the routings (twelve findings, one on the code: the held raise read in HEAD's order again)
-  is folded in D65.
+  is folded in D65. **PR #80 merged 2026-10-30 (`7bc0797d`)**; the branch restarted from main.
+
+**The java.sql revamp (the user, 2026-10-29/30: "all the sql fixes ... the session values and deleting or fixing all
+the places that use java.sql, pin the rest by class"):**
+
+- **Step 1 built 2026-10-30** (the decisions log D66; GATES, the step 1 entry): a target's session statements run once
+  per connection (the session's memo; a rollback clears it, Postgres's `SET` being transactional), where the runner
+  re-sent them before every statement.
+- **Step 2a built 2026-10-30** (the decisions log D67; GATES, the step 2a entry): the execution front door on
+  sessions (no JDBC); `QueryService` and `OutputFormat` deleted (the HTTP door's runner is `ConnectionResolver.RUNNER`
+  over `Execution.run`; the text conveniences were tests' alone); the free tier (six unused connector imports, the
+  runner's JDBC type number into the seam). The census register shrank by nine files.
+- **Step 2b built 2026-10-30** (the decisions log D68; GATES, the step 2b entry): the test runners, the observer and
+  the corpus harness on `Sessions.Session` (an owning session from the opener, non-closing views to the program
+  entry); core's `test` package holds no `java.sql`. The census register shrank by three more files.
+- **Step 3 built 2026-10-30** (the decisions log D69; GATES, the step 3 entry): the JDBC census is a table of rows,
+  each registered class pinned to the acts it may perform (opens, checks, sends, loads, decodes, transacts, closes)
+  and measured in its source; the funnel exempts the register's classes and nothing else (one list for the two
+  guards); a new rule lets no public class outside `exec` offer a `java.sql` or driver type in a public signature;
+  the referee's SPI names no JDBC; F1.3b, the root's class-list pin, deleted as subsumed; `PostgresCells` judged
+  at last (it was not on the product jars). The revamp's three steps are built: the register held 22 files then (18
+  since step A), each with its acts; the seam's own public API, where a connection changes hands, is the one left open by design.
+
+**The seam and the wall (the user, 2026-10-30, on the revamp's assessment: "We have to do 1, 2, and 3 ... 3 is the
+huge payoff of this whole program"; the plan ratified that day: step A then B in two commits, `judge` its own package,
+no refusal registry, the roster lanes the oracle for B2, and B1's cost named -- mostly dated guard edits):**
+
+- **Step A built 2026-10-30** (the decisions log D70; GATES, step A's entry): one way in (`Sessions.owned`,
+  `Sessions.borrowed`, `Sessions.view`, the openers returning sessions; `PlanSessions.of` and `setUp`), the driver's
+  connection the seam's alone (`Sessions.Session` an abstract class no class outside `exec` can extend:
+  `onlyTheSeamMakesSessions`), the session's state the owning session's own and the process-wide map keyed by the
+  connection deleted; the server's lease a session; the test side keeps one session per connection it opened
+  (`TestSessions`). Four more files off the census (18 rows; the server package holds no `java.sql`).
+- **Step B1 built 2026-10-30** (the decisions log D71; GATES, step B1's entry): a move, no behavior. The judge layer
+  out of `exec` into `com.legend.judge` (`//core:judge`; thirteen classes, each diff a package line and imports), the
+  schema probes to the root (`ColumnProbe`, `GridProbe`, `DynamicPivot`, and `WireProbe` split from the wire table
+  `exec/WireTypes`), the census's one dialect name gone (`StableScanOrder` read by the corpus lane itself);
+  `//core:exec` loses lowering, plan and platform, and the ratchet (`EXEC_PLANNING_REFERENCES`) shrinks from sixteen
+  rows to the runtime's five (`Column`, `JdbcStatements`, `Sessions`, `SystemDatabase`, `WireTypes`). Zero roster
+  movement in every lane.
+- **Step B2 built 2026-10-30, THE WALL** (the decisions log D72; GATES, step B2's entry): `exec` depends on no
+  planning library. The judges' column and row to `judge` (the runtime's rows were the plan's columns already), the
+  four driver decode facts from the dialect to the connector (`DatabaseConnector.decoding`; the dialect's seam is
+  rendering alone), the session source to the execution door (`Execution.Source`), the system database to the driver
+  (the root), the wire table a NAME of a type (`WireTypes.pureTypeNameOf`; the root's `WireProbe` rebuilds the typer's
+  primitive). `//core:exec` depends on base, json, cache, diagnostics, error, execution_plan, model, result, sql and
+  values; the ratchet map is deleted and `ArchitectureTest.execReachesNoPlanning` asserts the empty set. Zero roster
+  movement in every lane.
+- **Step C built 2026-10-30** (the decisions log D73; GATES, step C's entry): the root dissolved -- the five doors at
+  the root (`Compiler`, `TypedQuery`, `HeldModels`; `Execution`, `ExecuteOptions`), the plan machinery
+  `com.legend.planner` (six files), the execution side `com.legend.driver` (twenty-five), the members that crossed a
+  package line public and marked as not the API's, two rules keeping the design (`theDriverHasOneCaller`,
+  `plannerIsExecutionFree`), two new lanes, the registers split in three. A move: zero roster movement. The plan as
+  ratified, for the record:
+- **Step C after B2 (the user, 2026-10-30: "Step C is fine, let's make sure we do it"):** the root dissolved. The
+  root package `com.legend` holds two layers in one Java package today (the plan side's nine files, `//core:planner`;
+  the execution side's twenty-eight since D72, `//core:driver`), told apart by Bazel alone. Step C keeps only the public doors
+  at the root (`Compiler`, `Execution`, `TypedQuery`, `ExecuteOptions`, `HeldModels`), moves the plan machinery into
+  `planner/` and the execution loop, the judges' arms, the seeds and the probes into `driver/` (one public entry on
+  the driver side for the front door, pinned by an ArchUnit rule as the verdict seam is), so the package names say
+  the layers (`planner`, `driver`, `judge`, `exec`, `result`) and the planner-driver wall is a language wall as well
+  as a build wall. A B1-sized rename, about twice the surface; the root tests that rely on package-private access
+  move with the driver. After B2, because B2 moves root-adjacent pieces that a rename first would re-do.
+
+- **Next program, PLANNED 2026-10-30, not ratified: the planner-driver seam** (`docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`,
+  its evidence `docs/planner-driver-seam-homework/`; the decisions log D74). Step C left the driver talking to the planner
+  through a wide informal interface (it takes `specs()` and `resolved()` off the query and re-runs G½/H/I/J itself; four
+  probes read the session to finish planning, their answers re-entering the compiler). The plan: lite's own execution
+  model applied to the body -- planned ONCE as one `Sequence` the database executes, the verdict the database's (or the
+  host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed`
+  pattern, the user 2026-10-20), the driver the runner plus the judges, the probes retired shape by shape, the widenings
+  reverted. Upstream was read as spec input (a body with lets needs no result to plan the next statement; planning
+  reaches no database), not as an execution model (the user's correction, D75). **RULED 2026-10-30 (D77): a GO**, on a
+  fresh branch from `main` after PR #82 lands (the user merges when green); step H (read-only measurements) started
+  that day; the raw grid takes the pivot's pattern (D76); the defect F1 closes inside S3c; no JPMS spike.
 
 ## 5. How we work (the user's rules; each learned the hard way)
 

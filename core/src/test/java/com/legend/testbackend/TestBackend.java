@@ -31,6 +31,17 @@ public interface TestBackend {
      *  server's database; a cloud, the suite's one session (closing it is a no-op). */
     Connection open() throws SQLException;
 
+    /** {@link #open()} as a session the runner owns: closing it closes the connection (D68, 2026-10-30: the test
+     *  runners hold sessions, not connections); a connection the driver refuses is a {@code DataError} (a backend
+     *  that opens no JDBC session refuses by its own name, as before). */
+    default com.legend.exec.Sessions.Session openSession() {
+        try {
+            return TestSessions.owning(open());
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+    }
+
     /** Whether it runs in-process (the platform opens its own private instances of it), or is a server. */
     boolean inProcess();
 

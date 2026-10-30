@@ -1,7 +1,5 @@
 package com.legend.compiler.spec;
 
-
-
 import com.legend.platform.WalledBodies;
 import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;

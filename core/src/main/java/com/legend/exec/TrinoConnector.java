@@ -7,7 +7,6 @@ import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.ConnectionSpecification;
 
-import java.sql.Connection;
 
 /** Trino's sessions: a declared connection of a Trino specification is opened by its URL (the plan path program's step
  *  9, 2026-10-19: the Trino lane on the plan route); a session handed to execution is checked against its driver's
@@ -84,5 +83,12 @@ final class TrinoConnector implements DatabaseConnector {
     @Override
     public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
+    }
+
+    /** {@inheritDoc} The dialect's {@code opensFailedResultsWithoutColumns} until D72 (2026-10-30), carried: Measured 2026-10-12: a date 12,345,678,912 days on opens with no columns, its error on the first
+     *  read; a statement that succeeds always reports its columns. */
+    @Override
+    public DatabaseConnector.Decoding decoding() {
+        return new DatabaseConnector.Decoding(true, false, true, false);
     }
 }

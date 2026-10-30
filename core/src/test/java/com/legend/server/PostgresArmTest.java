@@ -67,13 +67,30 @@ class PostgresArmTest {
         loginRole();
         String model = ARM_MODEL.formatted(POSTGRES.connectionBody());
 
-        try (ConnectionResolver.Lease lease = ConnectionResolver.lease(com.legend.Compiler.compileModel(model), "test::PgRuntime");
-                Statement s = lease.connection().createStatement();
-                ResultSet r = s.executeQuery("SELECT 41 + 1")) {
-            assertTrue(lease.connection().getMetaData().getURL().startsWith("jdbc:postgresql://127.0.0.1:"),
-                    lease.connection().getMetaData().getURL());
-            assertTrue(r.next());
-            assertEquals(42, r.getInt(1));
+        // the server's session for the runtime (D70: a session, no raw connection): on Postgres, as the resolver's
+        // check against the declared database proves, and on the arm's OWN server, as the port the session reports
+        // through the seam's statements proves (the URL read from the raw connection until D70)
+        try (com.legend.exec.Sessions.Session session =
+                ConnectionResolver.session(com.legend.Compiler.compileModel(model), "test::PgRuntime")) {
+            com.legend.exec.Sessions.check(session, POSTGRES.type());
+            java.util.List<java.util.List<Object>> rows = new java.util.ArrayList<>();
+            // the statements check the session against a plan target before any typed read (the driver's facts
+            // are the database's)
+            com.legend.exec.Statements statements = session.statements();
+            statements.check(new com.legend.executionplan.ExecutionPlan.Target(
+                    new com.legend.executionplan.ExecutionPlan.Database.Platform(POSTGRES.type()),
+                    new com.legend.executionplan.ExecutionPlan.Servers.Every(), java.util.List.of(),
+                    java.util.List.of()));
+            statements.rows("SELECT inet_server_port() AS port, 41 + 1 AS answer", java.util.List.of(),
+                    java.util.List.of(), java.util.List.of(
+                            new com.legend.executionplan.ExecutionPlan.Column("port", "Integer",
+                                    new com.legend.executionplan.ExecutionPlan.Multiplicity(1, 1), null, null, null),
+                            new com.legend.executionplan.ExecutionPlan.Column("answer", "Integer",
+                                    new com.legend.executionplan.ExecutionPlan.Multiplicity(1, 1), null, null, null)),
+                    rows::add);
+            assertEquals(1, rows.size());
+            assertEquals(java.util.List.of(String.valueOf(com.legend.testing.EmbeddedPostgres.shared().port()), "42"),
+                    rows.get(0).stream().map(String::valueOf).toList());
         }
     }
 

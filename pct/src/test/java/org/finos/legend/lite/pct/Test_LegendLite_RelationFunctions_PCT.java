@@ -20,7 +20,7 @@ import static org.finos.legend.engine.test.shared.framework.PureTestHelperFramew
  * 
  * This test class integrates with legend-engine's PCT framework to run
  * actual PCT test functions. The tests are dispatched through our adapter
- * function which calls legend-lite's QueryService via native function bridge.
+ * function which calls legend-lite's execution front door via native function bridge.
  * 
  * Pattern following: legend-engine-xt-python-reversePCT-legendQL
  */

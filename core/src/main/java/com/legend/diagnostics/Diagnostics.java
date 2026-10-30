@@ -22,7 +22,7 @@ import java.util.Map;
  *   <li>{@code corpus-containing=TEXT}: parser-equivalence's corpus, only the sources containing TEXT (iteration)</li>
  *   <li>{@code chb-only=TEXT}: Channel B, only the PCT tests whose name contains TEXT (iteration; no pins)</li>
  *   <li>{@code primitives}: tally the MIR primitives of every statement the executor sends, by outcome, printed at
- *       the JVM's exit (the coverage map's input, exec/PrimitiveCensus)</li>
+ *       the JVM's exit (the coverage map's input, judge/PrimitiveCensus)</li>
  *   <li>{@code plan-sizes}: record, for every plan the round-trip gate judges, its JSON's size with and without the
  *       typed tree and its statements' characters (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18)</li>
  * </ul>

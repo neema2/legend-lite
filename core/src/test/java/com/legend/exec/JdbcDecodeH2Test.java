@@ -55,16 +55,15 @@ class JdbcDecodeH2Test {
         }
     }
 
-    /** A database whose JSON spells a double that is not finite as a bare token ({@code SqlDialect
-     *  .jsonSpellsNonFiniteNumbers}) has its Variant read with the token, written back as read; another database's
+    /** A database whose JSON spells a double that is not finite as a bare token ({@code DatabaseConnector.decoding().nonFiniteJson}) has its Variant read with the token, written back as read; another database's
      *  JSON is JSON alone (2026-10-27: the Cypher TCK's ordered values of every type, NaN among them). */
     @Test
     void aNonFiniteTokenIsReadWhereTheDatabaseSpellsOne() throws Exception {
         ExecutionPlan.Column variant = JdbcDecodeCases.col("V", "meta::pure::metamodel::variant::Variant", "JSON");
         assertEquals("[1.0,NaN,-Infinity]", JdbcDecode.decode("[1.0, NaN, -Infinity]", variant,
-                new JdbcDecode.Driver(false, false, false, true)));
+                new DatabaseConnector.Decoding(false, false, false, true)));
         assertThrows(IllegalArgumentException.class, () -> JdbcDecode.decode("[1.0, NaN]", variant,
-                new JdbcDecode.Driver(false, false, false, false)));
+                new DatabaseConnector.Decoding(false, false, false, false)));
     }
 
     /** A driver's Timestamp is read as its wall clock with its era: a BC year is negative, never the year of its era
@@ -73,7 +72,7 @@ class JdbcDecodeH2Test {
     @Test
     void aTimestampKeepsItsEra() throws Exception {
         ExecutionPlan.Column ts = JdbcDecodeCases.col("TS", "DateTime", "TIMESTAMP");
-        JdbcDecode.Driver driver = new JdbcDecode.Driver(false, false, false, false);
+        DatabaseConnector.Decoding driver = new DatabaseConnector.Decoding(false, false, false, false);
         java.time.LocalDateTime bc = java.time.LocalDateTime.of(-21457, 1, 8, 20, 48);
         java.sql.Timestamp held = java.sql.Timestamp.valueOf(bc);
         assertEquals(21458, held.toLocalDateTime().getYear(), "the year of the era, as the JDK reads it");
@@ -87,7 +86,7 @@ class JdbcDecodeH2Test {
                 driver));
     }
 
-    /** A driver that drops a decimal's trailing zeros (BigQuery's, {@code SqlDialect.dropsDecimalTrailingZeros}) has
+    /** A driver that drops a decimal's trailing zeros (BigQuery's, {@code DatabaseConnector.decoding().dropsDecimalZeros}) has
      *  them padded back to the slot's declared scale, never rounded; another driver's decimal is as it answers
      *  (2026-10-27, found by the BigQuery lane: {@code abs(3.0D)} answered {@code 3D}). H2 answers a scale-0 decimal,
      *  standing for the stripped one. */
@@ -99,19 +98,19 @@ class JdbcDecodeH2Test {
             rs.next();
             List<ExecutionPlan.Column> cols = List.of(JdbcDecodeCases.col("D", "Decimal", "DECIMAL(2,1)"),
                     JdbcDecodeCases.col("E", "Decimal", "DECIMAL"));
-            List<Object> padded = JdbcDecode.row(rs, cols, new JdbcDecode.Driver(false, true, false, false));
+            List<Object> padded = JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, true, false, false));
             assertEquals(new BigDecimal("3.0"), padded.get(0));
             assertEquals(1, ((BigDecimal) padded.get(0)).scale());
             // a slot with no declared scale pads nothing
             assertEquals(new BigDecimal("2"), padded.get(1));
-            List<Object> kept = JdbcDecode.row(rs, cols, new JdbcDecode.Driver(false, false, false, false));
+            List<Object> kept = JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false));
             assertEquals(0, ((BigDecimal) kept.get(0)).scale());
         }
     }
 
     /** A database whose driver re-reads no timestamp as java.time keeps the driver's Timestamp, the same date-time
      *  for an AD year (2026-10-21: Snowflake's driver refuses the re-read, and the typed seam re-read every timestamp
-     *  regardless; the legacy executor's rule, {@code SqlDialect.refetchesTimestampAsJavaTime}). */
+     *  regardless; the legacy executor's rule, {@code DatabaseConnector.decoding().javaTime}). */
     @Test
     void aTimestampTheDriverDoesNotReReadIsTheDriversOwn() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:h2:mem:jdbcdecode_keep" + H2Connector.SETTINGS);
@@ -121,9 +120,9 @@ class JdbcDecodeH2Test {
             assertTrue(rs.getObject(1) instanceof java.sql.Timestamp, "H2 hands a TIMESTAMP back as a Timestamp");
             List<ExecutionPlan.Column> cols = List.of(JdbcDecodeCases.col("TS", "DateTime", "TIMESTAMP"));
             assertEquals(List.of(PureDateLiteral.parse("2024-01-02T10:30:00.123456000")),
-                    JdbcDecode.row(rs, cols, new JdbcDecode.Driver(false, false, false, false)));
-            assertEquals(JdbcDecode.row(rs, cols, new JdbcDecode.Driver(true, false, false, false)),
-                    JdbcDecode.row(rs, cols, new JdbcDecode.Driver(false, false, false, false)));
+                    JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false)));
+            assertEquals(JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(true, false, false, false)),
+                    JdbcDecode.row(rs, cols, new DatabaseConnector.Decoding(false, false, false, false)));
         }
     }
 }

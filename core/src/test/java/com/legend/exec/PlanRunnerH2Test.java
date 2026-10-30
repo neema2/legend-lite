@@ -47,10 +47,10 @@ class PlanRunnerH2Test {
         ExecutionPlan h2ForNine = counting(inMemory("s::H2", H2, new ConnectionSpecification.LocalH2(null)),
                 "T", new ExecutionPlan.Servers.Versions(List.of("9.")));
         try (Connection h2 = TestBackends.of(H2).open()) {
-            var otherDatabase = assertThrows(RuntimeException.class, () -> run(another, PlanSessions.given(h2)));
+            var otherDatabase = assertThrows(RuntimeException.class, () -> run(another, PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
             assertTrue(otherDatabase.getMessage().contains("dialect/connection mismatch"), otherDatabase.getMessage());
             var otherVersion = assertThrows(com.legend.error.NotImplementedException.class,
-                    () -> run(h2ForNine, PlanSessions.given(h2)));
+                    () -> run(h2ForNine, PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
             assertTrue(otherVersion.getMessage().contains("written for H2 [9.], and the session is H2 2.1"),
                     otherVersion.getMessage());
         }
@@ -109,16 +109,16 @@ class PlanRunnerH2Test {
         try (Connection h2 = TestBackends.of(H2).open()) {
             for (var e : literals.entrySet()) {
                 assertEquals(literalText(h2, e.getValue()), PlanRunnerTest.run(holed("Number"), Map.of("v", e.getKey()),
-                        PlanSessions.given(h2)), String.valueOf(e.getKey()));
+                        PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))), String.valueOf(e.getKey()));
             }
             Map<Object, String> dates = Map.of(LocalDate.of(2024, 1, 2), "DATE '2024-01-02'",
                     LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "TIMESTAMP '2024-01-02 10:30:00.123456789'");
             for (var e : dates.entrySet()) {
                 assertEquals(literalText(h2, e.getValue()), PlanRunnerTest.run(holed("Date"), Map.of("v", e.getKey()),
-                        PlanSessions.given(h2)), String.valueOf(e.getKey()));
+                        PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))), String.valueOf(e.getKey()));
             }
             // an absent value: a null of its absent kind's type, by name alone
-            assertEquals(null, PlanRunnerTest.run(holed("Number"), Map.of(), PlanSessions.given(h2)));
+            assertEquals(null, PlanRunnerTest.run(holed("Number"), Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2))));
         }
     }
 
@@ -148,7 +148,7 @@ class PlanRunnerH2Test {
                     new ExecutionPlan.Sql("SELECT CAST(? AS BIGINT) AS N, 'a' AS S, DATE '2024-01-02' AS D",
                             List.of(new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null))), target,
                             null)));
-            PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.given(h2));
+            PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.of(com.legend.testbackend.TestSessions.over(h2)));
             assertEquals(List.of(List.of(7L, "a", com.legend.values.PureDateLiteral.parse("2024-01-02"))), rows.rows());
             assertEquals(List.of("N", "S", "D"), rows.columns().stream().map(ExecutionPlan.Column::name).toList());
         }

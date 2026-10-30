@@ -397,7 +397,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertFalse(sql.contains("EXISTS"), "Implicit crossing should NOT use EXISTS");
         assertFalse(sql.contains("INNER JOIN"), "Should NOT use INNER JOIN for filtering");
 
-        // AND: Execute via QueryService and verify results
+        // AND: Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         java.util.Set<String> people = new java.util.HashSet<>();
         for (var row : result.rows()) {
@@ -430,7 +430,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(sql.contains("STREET"), "Should project STREET column");
         assertFalse(sql.contains("EXISTS"), "Should NOT use EXISTS for projection");
 
-        // AND: Execute via QueryService and verify results
+        // AND: Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         java.util.List<String> results = new java.util.ArrayList<>();
         for (var row : result.rows()) {
@@ -473,7 +473,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(sql.contains("STREET"), "Should project STREET");
         assertTrue(sql.contains("CITY"), "Should project CITY");
 
-        // AND: Execute via QueryService and verify results
+        // AND: Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         int count = 0;
         for (var row : result.rows()) {
@@ -508,7 +508,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(sql.contains("CITY"), "Should project CITY from joined table");
         assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN");
 
-        // AND: Execute via QueryService and verify results
+        // AND: Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         int count = 0;
         for (var row : result.rows()) {
@@ -558,7 +558,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertFalse(sql.contains("EXISTS"), "Implicit crossing should NOT use EXISTS");
         assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN shared by filter and projection");
 
-        // AND: Execute via QueryService and verify results
+        // AND: Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         java.util.List<String> results = new java.util.ArrayList<>();
         for (var row : result.rows()) {
@@ -598,7 +598,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertFalse(sql.contains("EXISTS"), "Implicit crossing should NOT use EXISTS");
         assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN shared by filter and projection");
 
-        // Execute via QueryService and verify results
+        // Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         java.util.List<String> results = new java.util.ArrayList<>();
         for (var row : result.rows()) {
@@ -636,7 +636,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for projection");
         assertTrue(sql.contains("LAST_NAME") && sql.contains("'Smith'"), "Should filter by LAST_NAME");
 
-        // Execute via QueryService and verify results
+        // Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         java.util.List<String> results = new java.util.ArrayList<>();
         java.util.Set<String> people = new java.util.HashSet<>();
@@ -683,7 +683,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         System.out.println("Pure Query: " + pureQuery);
         System.out.println("Generated SQL: " + sql);
 
-        // Execute via QueryService and verify results
+        // Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         int johnCount = 0;
         int totalCount = 0;
@@ -722,7 +722,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String sql = generateSql(pureQuery);
         System.out.println("Generated SQL: " + sql);
 
-        // Execute via QueryService and verify results
+        // Execute via Execution.run and verify results
         var result = executeRelation(pureQuery);
         int count = 0;
         for (var row : result.rows()) {
@@ -1033,7 +1033,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Pure query
         String pureQuery = "model::Emp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->sum()})], ['dept', 'totalSal'])";
 
-        // Execute via QueryService
+        // Execute via Execution.run
         var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         java.util.Map<String, Integer> results = new java.util.HashMap<>();
@@ -1148,7 +1148,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     "INSERT INTO T_EMP VALUES (1, 'John', 50000), (2, 'Jane', 80000), (3, 'Bob', 60000), (4, 'Alice', 70000)");
         }
 
-        // Execute via QueryService
+        // Execute via Execution.run
         String pureQuery = "model::Emp.all()->sortByReversed({e | $e.sal})->limit(3)";
         var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
@@ -1221,7 +1221,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     "INSERT INTO T_EMP VALUES (1, 'John', 50000), (2, 'Jane', 80000), (3, 'Bob', 60000), (4, 'Alice', 70000), (5, 'Eve', 55000), (6, 'Charlie', 65000)");
         }
 
-        // Execute via QueryService
+        // Execute via Execution.run
         String pureQuery = "model::Emp.all()->project([{e | $e.name}, {e | $e.sal}], ['name', 'sal'])->sort('sal', SortDirection.ASC)->slice(0, 5)";
         var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
@@ -1296,7 +1296,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         connection.createStatement().execute(
                 "INSERT INTO T_ADULT VALUES (1, 'Alice', 25), (2, 'Bob', 15), (3, 'Charlie', 30)");
 
-        // Execute the function body via QueryService
+        // Execute the function body via Execution.run
         String functionBody = "model::Adult.all()->filter({p | $p.age >= 18})";
         var result = Lean.run(pureSource, functionBody, "test::TestRuntime", connection);
 
@@ -1374,7 +1374,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         connection.createStatement().execute(
                 "INSERT INTO T_WORKER VALUES (1, 'Engineering', 100000), (2, 'Engineering', 120000), (3, 'Sales', 80000)");
 
-        // Execute the function body via QueryService
+        // Execute the function body via Execution.run
         String functionBody = "model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
         var result = Lean.run(pureSource, functionBody, "test::TestRuntime", connection);
 
@@ -1385,7 +1385,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     // ==================== Relation API Tests ====================
 
     @Test
-    @DisplayName("Relation API: #>{DB.TABLE}#->from(runtime) - execute via QueryService")
+    @DisplayName("Relation API: #>{DB.TABLE}#->from(runtime) - execute via Execution.run")
     void testRelationApiDirectTableQuery() throws Exception {
         // GIVEN: A Relation query with ->from(runtime)
         // The query: #>{store::PersonDatabase.T_PERSON}#->from(test::TestRuntime)
@@ -1393,7 +1393,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String pureSource = getCompletePureModelWithRuntime();
         String relationQuery = "#>{store::PersonDatabase.T_PERSON}#->from(test::TestRuntime)";
 
-        // WHEN: Execute through QueryService (parse → compile → SQL → execute)
+        // WHEN: Execute through Execution.run (parse → compile → SQL → execute)
         var result = Lean.run(
                 pureSource,
                 relationQuery,
@@ -1410,7 +1410,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertTrue(columns.stream().anyMatch(c -> c.name().equals("LAST_NAME")),
                 "Should have LAST_NAME column");
 
-        System.out.println("Relation API via QueryService: Retrieved " + result.rows().size() + " rows");
+        System.out.println("Relation API via Execution.run: Retrieved " + result.rows().size() + " rows");
         System.out.println("Columns: " + columns.stream().map(c -> c.name()).toList());
     }
 
@@ -1618,7 +1618,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Pure query using stdDev() aggregate
         String pureQuery = "model::Stats.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevSample()})], ['dept', 'stdDevSal'])";
 
-        // Execute via QueryService
+        // Execute via Execution.run
         var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         System.out.println("StdDev results:");

@@ -198,7 +198,18 @@ class HarnessDisciplineTest {
             // batch 115 — their rows left this list)
             // 4 -> 3 -> 2 (JUDGING_TWO_MODES step 2a/2b): the row-multiset
             // match and its pool moved to Equality
-            Map.entry("TdsCompare.java", 2));
+            Map.entry("TdsCompare.java", 2),
+            // ---- src/main/com/legend/driver (step C, D73, 2026-10-30; the D73 audit): the judges' arms sat at
+            // the root, which this guard never walked; the root dissolved into a package the walk now covers. ----
+            // HostJudge: the host arm's compare sorts both sides' element lists (two sites, twice) before an
+            // order-insensitive equality -- comparison policy, two-sided, the same on each side
+            Map.entry("HostJudge.java", 4),
+            // BodyDriver: a distinct() over the stores a body names (a set of names, not a result), and the canon's
+            // JSON key order (JsonKeyOrder.sort, the plan's spelling, not a value's order)
+            Map.entry("BodyDriver.java", 2),
+            // PlanAllocations: sel.distinct() is the SqlSelect record's DISTINCT accessor, read to rebuild the
+            // select -- the regex's one false positive here, registered rather than special-cased
+            Map.entry("PlanAllocations.java", 1));
             // (JsonCompare.java's graph-root message sort left this list in
             // step 2: the JSON rules moved to Equality, counted there)
 
@@ -237,7 +248,13 @@ class HarnessDisciplineTest {
                 // audit-of-audits #9: the comparison policy lives in
                 // PRODUCTION exec now (TdsCompare/PureAsserts moved
                 // from the harness) — the discipline follows the code
-                "core/src/main/java/com/legend/exec"}) {
+                "core/src/main/java/com/legend/exec",
+                // D71 (2026-10-30): the comparison policy moved on, out of exec into
+                // the judge layer (com.legend.judge) -- the discipline follows it
+                "core/src/main/java/com/legend/judge",
+                // step C (D73, 2026-10-30): the judges' arms, the body driver and the
+                // plan allocations in the driver package -- the discipline follows the code
+                "core/src/main/java/com/legend/driver"}) {
             try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
