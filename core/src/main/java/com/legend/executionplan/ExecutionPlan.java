@@ -73,6 +73,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             case Update u -> throw new IllegalStateException("a plan that only changes its database answers no rows");
             case Effect e -> throw new IllegalStateException("a plan that only sends an effect answers no rows");
             case Check c -> throw new IllegalStateException("a plan that only checks answers no rows");
+            case Verdicts v -> throw new IllegalStateException("a plan that only judges answers no rows: its verdicts"
+                    + " go to the program's sink");
         };
     }
 
@@ -105,7 +107,101 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Verdicts {
+    }
+
+    /**
+     * A run of consecutive ASSERTS as one step (the planner-driver seam program's S1b, 2026-10-30,
+     * docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md §3.3: a test body's verdicts as steps the database executes; a
+     * program's step, run by {@code PlanRunner.program}, never a plan's answer). Each {@link Verdict} is one assert.
+     * {@code fused}: the group's wrapper over its verdicts' wrappers -- the verdict statements as ONE statement
+     * answering one row per verdict, the verdict's index in the group first (the lowering's fusion, composed when the
+     * plan was made); null where the planner made none, and then each verdict's own wrapper runs. The runner sends
+     * what the judging mode asks ({@code PlanRunner.Judging}) and hands every row to the program's sink; it judges
+     * nothing: the comparison rules, the messages and the agreement of the two judges are the judges' own, outside
+     * the plan.
+     */
+    public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) implements Node {
+        public Verdicts {
+            verdicts = List.copyOf(verdicts);
+            if (verdicts.isEmpty()) {
+                throw new IllegalArgumentException("a verdict group holds at least one verdict");
+            }
+            if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
+                throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
+            }
+        }
+    }
+
+    /**
+     * One assert of a {@link Verdicts} group, as data: {@code name}, the label the test listener reports under;
+     * {@code arm}, the assert function's name as the program spells it ({@code assertEquals},
+     * {@code assertSameElements}, ...), which comparison the judges apply -- the judges' own vocabulary, never read by
+     * the runner; {@code wantEqual}, whether the assert holds on equality or on its negation; {@code base}, the sides
+     * in the assert's order, each a statement with its column facts (what the HOST judge runs) or a typed constant
+     * the program wrote; {@code wrapper}, the verdict statement the planner composed around the base for the
+     * DATABASE judge -- the canonical spelling of the cells and the comparison, answering one row of the verdict
+     * schema (the verdict, the expected and actual texts, an unjudged reason, a leniency flag) -- null where the
+     * database judge cannot express the arm, and then the database judges nothing here (the row the sink receives is
+     * null).
+     */
+    public record Verdict(String name, String arm, boolean wantEqual, List<Side> base,
+            @com.legend.base.Nullable TdsResult wrapper) {
+        public Verdict {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(arm, "arm");
+            if (arm.isEmpty()) {
+                throw new IllegalArgumentException("a verdict names its arm");
+            }
+            base = List.copyOf(base);
+            if (wrapper != null && wrapper.shape() != TdsResult.Shape.RELATION) {
+                throw new IllegalArgumentException("a verdict's wrapper answers a relation: the verdict's one row");
+            }
+        }
+    }
+
+    /** A side of an assert: a result the database answers (typed rows, or a keyed result's), or a constant the
+     *  program wrote. */
+    public sealed interface Side permits Side.Rows, Side.KeyedRows, Side.Constant {
+
+        /** A statement with its column facts, run as any typed result is. */
+        record Rows(TdsResult result) implements Side {
+            public Rows {
+                Objects.requireNonNull(result, "result");
+            }
+        }
+
+        /** A keyed result (a dynamic pivot's), its keys read first. */
+        record KeyedRows(Keyed keyed) implements Side {
+            public KeyedRows {
+                Objects.requireNonNull(keyed, "keyed");
+            }
+        }
+
+        /**
+         * A constant the program wrote (a literal side: {@code assertEquals(3, ...)}'s 3): its columns with their
+         * type facts, and its rows as TEXT cells, each cell the literal's spelling as the program wrote it (null an
+         * absent value); nothing is sent for it, the sink reads the cells by the columns' facts. The program's own
+         * text, never a value the runner computed.
+         */
+        record Constant(List<Column> columns, List<List<String>> cells) implements Side {
+            public Constant {
+                columns = List.copyOf(columns);
+                if (columns.isEmpty()) {
+                    throw new IllegalArgumentException("a constant side has at least one column");
+                }
+                List<List<String>> copied = new java.util.ArrayList<>(cells.size());
+                for (List<String> row : cells) {
+                    if (row.size() != columns.size()) {
+                        throw new IllegalArgumentException("a constant side's row of " + row.size() + " cells under "
+                                + columns.size() + " columns");
+                    }
+                    // a cell may be null (an absent value), which List.of refuses
+                    copied.add(java.util.Collections.unmodifiableList(new java.util.ArrayList<>(row)));
+                }
+                cells = java.util.Collections.unmodifiableList(copied);
+            }
+        }
     }
 
     /**
@@ -115,7 +211,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * drop what the steps before it staged), passed on once its changes have committed: no answer leaves for a change
      * rolled back. A keyed result may be a step (the seam program's S1a, 2026-10-30: a test body's dynamic pivot
      * beside its lets and its verdicts): its snapshot is the sequence's transaction, opened at the isolation the keyed
-     * result asks where the session owns it.
+     * result asks where the session owns it. A verdict group may be a step (S1b): a program's, run by
+     * {@code PlanRunner.program}, whose answer may be no rows at all (a body ending in an assert).
      */
     public record Sequence(List<Node> steps) implements Node {
         public Sequence {

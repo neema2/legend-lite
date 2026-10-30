@@ -63,6 +63,19 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Update u -> new ExecutionPlan.Update(withoutTree(u.sql()), u.count());
             case ExecutionPlan.Check c -> new ExecutionPlan.Check(withoutTree(c.sql()));
             case ExecutionPlan.Effect e -> new ExecutionPlan.Effect(withoutTree(e.sql()));
+            case ExecutionPlan.Verdicts v -> new ExecutionPlan.Verdicts(v.verdicts().stream().map(each ->
+                    new ExecutionPlan.Verdict(each.name(), each.arm(), each.wantEqual(),
+                            each.base().stream().map(PlanRoundTrip::withoutTrees).toList(),
+                            each.wrapper() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(each.wrapper())))
+                    .toList(), v.fused() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(v.fused()));
+        };
+    }
+
+    private static ExecutionPlan.Side withoutTrees(ExecutionPlan.Side side) {
+        return switch (side) {
+            case ExecutionPlan.Side.Rows r -> new ExecutionPlan.Side.Rows((ExecutionPlan.TdsResult) withoutTrees(r.result()));
+            case ExecutionPlan.Side.KeyedRows k -> new ExecutionPlan.Side.KeyedRows((ExecutionPlan.Keyed) withoutTrees(k.keyed()));
+            case ExecutionPlan.Side.Constant c -> c;
         };
     }
 
@@ -78,6 +91,20 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Update u -> u.sql().statement().length();
             case ExecutionPlan.Check c -> c.sql().statement().length();
             case ExecutionPlan.Effect e -> e.sql().statement().length();
+            case ExecutionPlan.Verdicts v -> {
+                long chars = v.fused() == null ? 0 : statementChars(v.fused());
+                for (ExecutionPlan.Verdict each : v.verdicts()) {
+                    chars += each.wrapper() == null ? 0 : statementChars(each.wrapper());
+                    for (ExecutionPlan.Side side : each.base()) {
+                        chars += switch (side) {
+                            case ExecutionPlan.Side.Rows r -> statementChars(r.result());
+                            case ExecutionPlan.Side.KeyedRows k -> statementChars(k.keyed());
+                            case ExecutionPlan.Side.Constant c -> 0;
+                        };
+                    }
+                }
+                yield chars;
+            }
         };
     }
 
@@ -97,6 +124,25 @@ public final class PlanRoundTrip {
             }
             case ExecutionPlan.Check c -> assertRenders(c.sql(), what);
             case ExecutionPlan.Effect e -> assertRenders(e.sql(), what);
+            case ExecutionPlan.Verdicts v -> {
+                if (v.fused() != null) {
+                    assertRenders(v.fused(), what);
+                }
+                for (ExecutionPlan.Verdict each : v.verdicts()) {
+                    if (each.wrapper() != null) {
+                        assertRenders(each.wrapper(), what);
+                    }
+                    for (ExecutionPlan.Side side : each.base()) {
+                        switch (side) {
+                            case ExecutionPlan.Side.Rows r -> assertRenders(r.result(), what);
+                            case ExecutionPlan.Side.KeyedRows k -> assertRenders(k.keyed(), what);
+                            case ExecutionPlan.Side.Constant c -> {
+                                // a constant is the program's text: no statement, no tree
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 

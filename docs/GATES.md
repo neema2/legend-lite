@@ -16583,6 +16583,41 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's S1b: the verdict steps and the program sink (no caller yet)
+
+The decisions log D80; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.2 to §3.4 and §4 (S1), as the user
+ruled it that day ("fusion with the fallback, both in the plan"; "judging stays out of the runner, both judges"; "no
+Java in the plan, the host judge an exception called by the receiver"; the program sink; the format bump), and in the
+user's own words for the verdict step: a BASE (the sides, what the host judge runs) and a WRAPPER (the verdict statement
+the planner composes around the base for the database judge), the group's fused statement the wrapper over wrappers.
+The stacked branch `claude/wizardly-dirac-rw6tim-seam`, PR #83.
+
+1. **Built:** `ExecutionPlan.Verdicts` (a run of asserts as one step: its verdicts and the fused statement, a typed
+   result of the batch schema or null) and `ExecutionPlan.Verdict` (name, arm, wantEqual, the base sides, the wrapper
+   as a typed result of the verdict schema or null where the database judge declines the arm); `ExecutionPlan.Side`
+   sealed: `Rows` (a typed result), `KeyedRows` (a keyed result), `Constant` (columns with their facts and TEXT cells
+   as the program wrote them; nothing sent). `PlanRunner.program(plan, values, sessions, judging, sink)`: the steps on
+   one session, in one transaction where one changes the database and at a keyed step's snapshot (S1a's rule),
+   every verdict group delivered as `Judging` asks -- DATABASE: the fused statement's rows, one per verdict by its
+   index, each verdict's own wrapper under the FALLBACK origin where the database rejects the fused one (the split
+   rung, counted `VERDICT_FALLBACKS` with its reason, as the batch counts today) or where there is none, a verdict
+   without a wrapper handed a null row; HOST: each base side's rows (a constant's its text cells); BOTH: the sides
+   first, then the rows -- and the program's answer, its at most one result step's rows, streamed after the steps (a
+   program may answer no rows). `PlanRunner.ProgramSink` (a result sink plus `verdict` and `sides`): the judges' door;
+   the runner judges nothing. The answer path refuses a verdict group by name (as a root, and as a step of a
+   sequence run by `stream`). `PlanJson` format 20 (`verdicts` node, the side tags); `PlanRoundTrip` and the plan
+   tests' switches gain the arm; the TypeScript plan runner's pin moves to 20 (it refuses the node by name, as any
+   step it never runs). The steps' sends (`update`, `check`, `effect`, `result`) are one helper each, shared by the
+   answer path and the program path.
+2. **Measured locally before the commit:** `//core:core_tests_exec` (the new `ProgramRunnerTest`: database judging
+   from the fused statement, the split rung on a rejected fused statement, no fused statement, host judging with a
+   constant side, both, a program with an answer and one without, the refusals, the JSON round trip of every side
+   kind), `//core:core_tests_planner`, `//core:core_tests_root` (the two format pins moved, dated),
+   `//core:core_tests_integration`, `//core:guardrails`, `//tools/deps:core_layering_test`,
+   `//engine-client:plan_runner_test`: 7 of 7.
+3. **Not measured yet:** the corpus and channel B lanes (no caller makes a verdict step: the roster oracle is S2e's),
+   the rest of the chain; CI on PR #83.
+
 ## 2026-10-30 — The seam program's S1a: a keyed result as a step of a sequence runs (the refusal lifted)
 
 The decisions log D78; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S1) and its F5. The stacked branch
