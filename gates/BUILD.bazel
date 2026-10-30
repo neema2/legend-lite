@@ -338,6 +338,7 @@ test_suite(
         # the timeseries SQL's measurement (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md, the SQL's size, 2026-10-30):
         # manual, its numbers printed
         "//datacube:timeseries_sql_measure",
+        "//datacube:ts_examples_measure",
         # the DataCube screenshot tour (docs/DATACUBE_TOUR.md, 2026-10-17): manual, run from time to time; its gallery
         # in the test's outputs
         "//datacube:tour_test",

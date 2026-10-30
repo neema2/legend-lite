@@ -755,6 +755,31 @@ node_test(
     wasm = True,
 )
 
+# Real examples of the timeseries language over the markets project's classes (docs/TS_LANGUAGE_BUILD_2026_10_30.md;
+# the user, 2026-10-30): each #TS query's design beside the tile's writer drawing the same chart over the page's saved
+# grids (MarketQuote and Trade through stress::AllMapping), planned and answered on DuckDB-WASM. Manual, in //gates:heavy:
+# `bazel test //datacube:ts_examples_measure --test_output=all` prints each query's Pure and its last rows.
+node_test(
+    name = "ts_examples_measure",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        ":src",
+        ":markets_project",
+        "demo/config.json",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "test/catalog-builder.ts",
+        "test/host/node.ts",
+        "test/lite-compiler.ts",
+    ],
+    env = {
+        "DEMO_CONFIG": "$(rlocationpath demo/config.json)",
+        "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
+    },
+    entry_point = "test/ts-examples.measure.ts",
+    wasm = True,
+)
+
 test_suite(
     name = "tests",
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [
