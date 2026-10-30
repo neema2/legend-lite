@@ -54,8 +54,8 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
                     #->sort(ascending(~id))->limit(2)""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals("Alice", result.rows().get(0).values().get(1));
-            assertEquals("Bob", result.rows().get(1).values().get(1));
+            assertEquals("Alice", result.rows().get(0).get(1));
+            assertEquals("Bob", result.rows().get(1).get(1));
         }
 
         @Test
@@ -70,8 +70,8 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
                     #->sort(ascending(~id))->drop(1)""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals("Bob", result.rows().get(0).values().get(1));
-            assertEquals("Charlie", result.rows().get(1).values().get(1));
+            assertEquals("Bob", result.rows().get(0).get(1));
+            assertEquals("Charlie", result.rows().get(1).get(1));
         }
 
         @Test
@@ -88,8 +88,8 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // slice(1,3) = rows at indices 1,2 (0-based) = Bob, Charlie
-            assertEquals("Bob", result.rows().get(0).values().get(1));
-            assertEquals("Charlie", result.rows().get(1).values().get(1));
+            assertEquals("Bob", result.rows().get(0).get(1));
+            assertEquals("Charlie", result.rows().get(1).get(1));
         }
 
         @Test
@@ -123,7 +123,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Bob, Jane (first 2 alphabetically)
-            var names = result.rows().stream().map(r -> r.values().get(0)).toList();
+            var names = result.rows().stream().map(r -> r.get(0)).toList();
             assertEquals(List.of("Bob", "Jane"), names);
         }
 
@@ -138,7 +138,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(1, result.rows().size());
             // John (last 1 alphabetically after dropping Bob, Jane)
-            assertEquals("John", result.rows().get(0).values().get(0));
+            assertEquals("John", result.rows().get(0).get(0));
         }
 
         @Test
@@ -153,7 +153,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
                     #->sort(ascending(~id))->first()""");
             assertNotNull(result);
             assertEquals(1, result.rows().size());
-            assertEquals("Alice", result.rows().get(0).values().get(1));
+            assertEquals("Alice", result.rows().get(0).get(1));
         }
 
         @Test
@@ -166,7 +166,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
                       ->project(~[name:p|$p.firstName, age:p|$p.age])""");
             assertNotNull(result);
             assertEquals(1, result.rows().size());
-            assertEquals("Jane", result.rows().get(0).values().get(0));
+            assertEquals("Jane", result.rows().get(0).get(0));
         }
     }
 
@@ -188,7 +188,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Jane(28), John(30) — sorted by age, limited to 2
-            var names = result.rows().stream().map(r -> r.values().get(0)).toList();
+            var names = result.rows().stream().map(r -> r.get(0)).toList();
             assertEquals(List.of("Jane", "John"), names);
         }
 
@@ -203,7 +203,7 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Jane(28), John(30)
-            var names = result.rows().stream().map(r -> r.values().get(0)).toList();
+            var names = result.rows().stream().map(r -> r.get(0)).toList();
             assertEquals(List.of("Jane", "John"), names);
         }
 
@@ -221,8 +221,8 @@ public class SlicingCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Takes first 3 (Alice,Bob,Charlie), then filters id>1 → Bob(2), Charlie(3)
-            assertEquals(2, result.rows().get(0).values().get(0));
-            assertEquals(3, result.rows().get(1).values().get(0));
+            assertEquals(2L, result.rows().get(0).get(0));
+            assertEquals(3L, result.rows().get(1).get(0));
         }
 
         @Test

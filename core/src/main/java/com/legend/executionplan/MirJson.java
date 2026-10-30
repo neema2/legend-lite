@@ -420,6 +420,9 @@ public final class MirJson {
             }
             case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value (SqlExpr.Tagged) is resolved"
                     + " at its query's root before a plan is written: its tag and slots are the plan's columns");
+            case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list (SqlExpr.TaggedList) is"
+                    + " resolved at its query's root before a plan is written: its rows' tag and slots are the plan's"
+                    + " columns");
             case SqlExpr.DeferredTdsString d -> {
                 tag(o, ExprTag.deferredTdsString, d.type());
                 o.put("inner", query(d.inner()));

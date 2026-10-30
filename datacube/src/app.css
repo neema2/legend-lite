@@ -93,6 +93,16 @@
 .dc-page-filter-form[hidden] { display: none; }
 .dc-page-filter-form select, .dc-page-filter-form input { font: inherit; height: 18px; }
 .dc-page-filter-said { color: var(--dc-muted); }
+/* THE PAGE'S PARAMETERS (page-parameters.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M8, an analytic app's inputs):
+   beneath the filters, each an input of its type in a chip, its x; Add a Parameter's form inline */
+.dc-page-parameters { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--dc-pad-1);
+  padding: 2px var(--dc-pad-2); border-bottom: 1px solid var(--dc-border-color); font-size: var(--dc-text-sm-size); }
+.dc-page-parameters[hidden] { display: none; }
+.dc-page-parameter { border-color: var(--tw-green-600, #16a34a); background: var(--tw-green-50); height: 22px; }
+.dc-page-parameter-value { font: inherit; height: 18px; max-width: 12em; border: 1px solid var(--dc-border-color); border-radius: 3px; }
+.dc-page-parameter-value[type="checkbox"] { height: auto; }
+.dc-page-parameter-form input, .dc-page-parameter-form select { font: inherit; height: 18px; }
+.dc-page-parameter-choices { min-width: 16em; }
 /* a grid the page's filters reach says so in its status bar, beside its own filter: a chip in the filter's colours (as
    a chip's own: .dc-status-chip, later in this sheet, took them -- the 2026-10-25 audit) */
 .dc-status-chip.dc-status-page-filter { background: var(--tw-sky-100); color: var(--tw-sky-700); }
@@ -3964,6 +3974,9 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-join-remove { padding: 2px 0; font-size: 15px; line-height: 1; color: var(--tw-neutral-400); }
 .dc-join-remove:hover { color: var(--tw-red-600); }
 .dc-join-add { align-self: flex-start; padding: 3px 0; font-size: 12px; }
+.dc-join-once { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--tw-neutral-600); }
+.dc-join-once[hidden] { display: none; }
+.dc-join-score-name { width: 8em; padding: 2px 6px; font-size: 12px; }
 .dc-join-pure-label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--tw-neutral-600); white-space: nowrap; }
 .dc-join-pure { min-height: 4.5em; font-family: var(--dc-mono, ui-monospace, monospace); font-size: 12px; }
 .dc-join-hint { margin: 0; font-size: 11px; color: var(--tw-neutral-500); }
@@ -5167,7 +5180,8 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-sample-word { color: var(--dc-muted-strong); }
 /* a part of the Sample window its way has no use for: hidden, whatever its own display */
 .dc-sample [hidden] { display: none !important; }
-.dc-sample-seed { width: 64px; }
+.dc-sample-seed, .dc-sample-over-seed { width: 64px; }
+.dc-sample-value { width: 9em; }
 .dc-sample-n { width: 6em; }
 /* a Test's result, once its rows have landed: amber with the checks it fails, its words green when every one passes */
 .dc-flow-box.dc-flow-failing { border-color: var(--tw-amber-500, #f59e0b); box-shadow: 0 0 0 1px var(--tw-amber-500, #f59e0b); }
@@ -5177,6 +5191,30 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 .dc-flow-box.dc-flow-failing.dc-flow-stops { border-color: var(--tw-red-500); box-shadow: 0 0 0 1px var(--tw-red-500); }
 .dc-flow-box.dc-flow-failing.dc-flow-stops .dc-flow-says { color: var(--tw-red-600); }
 .dc-flow-stops-check { margin-top: 8px; }
+.dc-flow-cache-check { margin-top: 8px; }
+.dc-flow-cache-said { display: block; margin-top: 4px; font-size: 12px; color: var(--dc-muted); }
+.dc-flow-cache-said:empty { display: none; }
+/* Block Until Done and a Message (M8): a box's checkbox, and its words with when and how it says them */
+.dc-flow-block-check { margin-top: 8px; }
+.dc-flow-message { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.dc-flow-message-text { width: 100%; box-sizing: border-box; }
+.dc-flow-message-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.dc-flow-message-said { font-size: 12px; color: var(--tw-red-600); }
+.dc-flow-message-said:empty { display: none; }
+/* a Dynamic Input's Keep the rows of (M8) */
+.dc-flow-pick { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.dc-flow-pick-label { color: var(--dc-muted-strong); }
+.dc-flow-pick-said { font-size: 12px; color: var(--dc-muted); }
+/* the run log's history and a Message's words in it */
+.dc-flow-log-history { display: flex; align-items: center; gap: 8px; padding: 4px 10px; border-bottom: 1px solid var(--dc-line-faint); }
+.dc-flow-log-history-label { color: var(--dc-muted); font-size: 12px; }
+.dc-flow-log-runs { flex: 1; min-width: 0; font: inherit; font-size: 12px; }
+.dc-flow-log-said { display: block; padding: 0 6px 3px; font-size: 12px; color: var(--dc-muted-strong); white-space: normal; }
+.dc-flow-log-said-warning .dc-flow-log-said { color: var(--tw-amber-700, #b45309); }
+.dc-flow-log-said-error .dc-flow-log-said { color: var(--tw-red-600); }
+/* a cached box (FL10): a rail along its left edge, filled once its rows are copied */
+.dc-flow-box.dc-flow-cached { box-shadow: inset 3px 0 0 var(--tw-sky-300, #7dd3fc); }
+.dc-flow-box.dc-flow-cached[data-cached="copied"], .dc-flow-box.dc-flow-cached[data-cached="here"] { box-shadow: inset 3px 0 0 var(--tw-sky-600, #0284c7); }
 /* a Test's checks: a row each, and Add a check below them */
 .dc-test-checks { display: flex; flex-direction: column; gap: 6px; }
 .dc-test-check .dc-sample-n[hidden] { display: none; }
@@ -5355,6 +5393,16 @@ button.dc-status-filtered:hover { background: var(--tw-sky-50); }
 }
 .dc-flow-profile-table td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--tw-neutral-100); white-space: nowrap; }
 .dc-flow-profile-name { font-weight: 600; }
+.dc-flow-profile-open { border: 0; padding: 0; background: none; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.dc-flow-profile-open::before { content: '▸'; color: var(--dc-muted); font-size: 10px; }
+.dc-flow-profile-open[aria-expanded="true"]::before { content: '▾'; }
+.dc-flow-profile-open:hover, .dc-flow-profile-open:focus-visible { color: var(--dc-active); }
+.dc-flow-profile-table tr.dc-flow-profile-top > td { padding: 4px 14px 8px 16px; background: var(--tw-neutral-50); white-space: normal; }
+.dc-flow-top-list { display: grid; grid-template-columns: minmax(80px, max-content) 72px max-content; gap: 3px 10px; align-items: center; }
+.dc-flow-top-line { display: contents; }
+.dc-flow-top-value { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-flow-top-count { text-align: right; color: var(--dc-muted-strong); }
+.dc-flow-top-more { margin-top: 4px; color: var(--dc-muted); font-size: 11px; }
 .dc-flow-profile-type { color: var(--dc-muted); }
 .dc-flow-profile-num { text-align: right; }
 .dc-flow-profile-value { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }

@@ -3,7 +3,8 @@
 
 package com.legend.integration;
 
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlParity;
@@ -46,11 +47,10 @@ class SqlParityTest {
         Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
         try (Connection session = platform.open()) {
             SqlParity.seed(platform, session, tables);
-            QueryService service = new QueryService();
             SqlParity.Legend legend = new SqlParity.Legend() {
                 @Override
-                public com.legend.exec.ExecutionResult run(String island) throws Exception {
-                    return service.execute(model, island, SqlParity.RUNTIME, session);
+                public Lean.Result run(String island) throws Exception {
+                    return Lean.run(model, island, SqlParity.RUNTIME, session);
                 }
 
                 @Override

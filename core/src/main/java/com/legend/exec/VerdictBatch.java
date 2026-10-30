@@ -5,7 +5,6 @@ package com.legend.exec;
 
 import com.legend.sql.SqlQuery;
 
-import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -66,14 +65,14 @@ public final class VerdictBatch {
     }
 
     private record Pending(int ix, String name, boolean wantEqual, SqlQuery query,
-            Connection on, @com.legend.base.Nullable Appeal appeal) implements Step {
+            Sessions.Session on, @com.legend.base.Nullable Appeal appeal) implements Step {
     }
 
     /** A verdict row's APPEAL (block-compiler rung 2a): run at the flush when the
      * row FAILED — returns on a pass by another judgment (the SQL-text referee's
      * rows), raises its own failure otherwise. Never consulted on a held row. */
     public interface Appeal {
-        ExecutionResult appeal();
+        TypedSide appeal();
     }
 
     private record Resolved(RuntimeException failure) implements Step {
@@ -124,10 +123,14 @@ public final class VerdictBatch {
      * plan (leg 3.4 step 2), defined once per body. */
     private final Map<String, SqlQuery> frames = new LinkedHashMap<>();
 
-    public VerdictBatch(Fusion fusion, Judge judge, Runner runner) {
+    /** The body's execution trace: its fused statement publishes its stamp there. */
+    private final ExecutionTrace trace;
+
+    public VerdictBatch(Fusion fusion, Judge judge, Runner runner, ExecutionTrace trace) {
         this.fusion = fusion;
         this.judge = judge;
         this.runner = runner;
+        this.trace = trace;
     }
 
     /** A statement-root assert begins: its steps accrue until {@link #close}. */
@@ -157,11 +160,11 @@ public final class VerdictBatch {
         return java.util.Collections.unmodifiableMap(frames);
     }
 
-    public void defer(String name, boolean wantEqual, SqlQuery query, Connection on) {
+    public void defer(String name, boolean wantEqual, SqlQuery query, Sessions.Session on) {
         defer(name, wantEqual, query, on, null);
     }
 
-    public void defer(String name, boolean wantEqual, SqlQuery query, Connection on,
+    public void defer(String name, boolean wantEqual, SqlQuery query, Sessions.Session on,
             @com.legend.base.Nullable Appeal appeal) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         int ix = 0;
@@ -242,7 +245,7 @@ public final class VerdictBatch {
         List<Root> batch = new ArrayList<>(roots);
         roots.clear();
         current = null;
-        Map<Connection, List<Pending>> groups = new LinkedHashMap<>();
+        Map<Sessions.Session, List<Pending>> groups = new LinkedHashMap<>();
         for (Root r : batch) {
             for (Step s : r.steps) {
                 if (s instanceof Pending p) {
@@ -322,11 +325,12 @@ public final class VerdictBatch {
         }
     }
 
-    private List<List<Object>> executeFused(List<SqlQuery> statements, Connection on) {
+    private List<List<Object>> executeFused(List<SqlQuery> statements, Sessions.Session on) {
         SqlQuery b = fusion.fuse(statements, frames);
         List<List<Object>> rows;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-            rows = runner.rows(b, PlanSessions.given(on), true);
+            // the body's fused statement carries the stamp its frames' activities reserved (ExecutionTrace.reserve)
+            rows = runner.rows(b, PlanSessions.of(on, trace), true);
         }
         if (rows.size() != statements.size()) {
             throw new IllegalStateException("the batch verdict statement returned " + rows.size() + " rows for "
@@ -339,11 +343,11 @@ public final class VerdictBatch {
      * a statement the database rejects, or a canon the dialect cannot spell,
      * is counted UNJUDGED with the database's own words and surfaces as
      * itself — never a bare re-run, never a host rescue. */
-    public static List<Object> executeOne(String name, SqlQuery vq, Connection on, Runner runner) {
+    public static List<Object> executeOne(String name, SqlQuery vq, Sessions.Session on, Runner runner) {
         List<List<Object>> rows;
         try {
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
-                rows = runner.rows(vq, PlanSessions.given(on), false);
+                rows = runner.rows(vq, PlanSessions.of(on, null), false);
             }
         } catch (com.legend.error.DataError e) {
             CanonicalDivergence.sqlUnjudged(name, "statement-error: "

@@ -3,10 +3,11 @@
 
 package com.legend;
 
+import com.legend.testing.Program;
+
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
 import com.legend.platform.Feature;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -56,28 +57,26 @@ class SubstrIndexingTest {
     @DisplayName("substr is corrected with no flag; substring only under the flag")
     void substrAlwaysCorrected() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            QueryService qs = new QueryService();
             // the PCT's own example: 'the quick brown fox'->substr(4, 9) == 'quick'
-            assertEquals("quick", scalar(qs.execute(MODEL,
+            assertEquals("quick", scalar(Lean.run(MODEL,
                     "|'the quick brown fox'->substr(4, 9)", "t::RT", c)));
-            assertEquals("quick brown fox", scalar(qs.execute(MODEL,
+            assertEquals("quick brown fox", scalar(Lean.run(MODEL,
                     "|'the quick brown fox'->substr(4)", "t::RT", c)));
             // substring passes its indexes straight to SQL by default: SQL's
             // substring(s, 4, 9) starts at the 4th character and takes 9
-            assertEquals(" quick br", scalar(qs.execute(MODEL,
+            assertEquals(" quick br", scalar(Lean.run(MODEL,
                     "|'the quick brown fox'->substring(4, 9)", "t::RT", c)));
             // … and is corrected under the flag
-            assertEquals("quick", scalar(qs.execute(MODEL,
+            assertEquals("quick", scalar(Program.last(MODEL,
                     "|'the quick brown fox'->substring(4, 9)", "t::RT", c, CORRECTED)));
             // the flag never changes substr
-            assertEquals("quick", scalar(qs.execute(MODEL,
+            assertEquals("quick", scalar(Program.last(MODEL,
                     "|'the quick brown fox'->substr(4, 9)", "t::RT", c, CORRECTED)));
         }
     }
 
-    private static Object scalar(ExecutionResult r) {
-        assertTrue(r instanceof ExecutionResult.Scalar,
-                "expected a scalar frame, got " + r.getClass().getSimpleName());
-        return ((ExecutionResult.Scalar) r).value();
+    private static Object scalar(Lean.Result r) {
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE, r.shape(), "expected a scalar frame");
+        return r.one();
     }
 }

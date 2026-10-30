@@ -134,6 +134,20 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** A lambda's protocol JSON planned over a model held as an execution plan ({@code Boundary.executionPlanJsonHeld}). */
+    @CEntryPoint(name = "lite_execution_plan_json_held")
+    static CCharPointer executionPlanJsonHeld(IsolateThread thread, CCharPointer handle, CCharPointer lambdaJson,
+            CCharPointer runtime) {
+        String a;
+        try {
+            String h = text(handle), l = text(lambdaJson), r = text(runtime);
+            a = Folded.of(() -> Boundary.executionPlanJsonHeld(Integer.parseInt(h), l, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A lambda's protocol JSON typed, compile-only, over a model held ({@code Boundary.relationTypeJsonHeld}). */
     @CEntryPoint(name = "lite_relation_type_held")
     static CCharPointer relationTypeHeld(IsolateThread thread, CCharPointer handle, CCharPointer lambdaJson) {
@@ -310,13 +324,27 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** That plan's answer from the one value the host's database wrote ({@code Boundary.executeJsonAnswer}; C2). */
+    /** That plan's answer from the rows the host's database answered ({@code Boundary.executeJsonAnswer}; C2). */
     @CEntryPoint(name = "lite_execute_json_answer")
-    static CCharPointer executeJsonAnswer(IsolateThread thread, CCharPointer plan, CCharPointer wire) {
+    static CCharPointer executeJsonAnswer(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
         String a;
         try {
-            String p = text(plan), w = text(wire);
-            a = Folded.http(() -> Boundary.executeJsonAnswer(p, w));
+            String p = text(plan), r = text(rows);
+            a = Folded.http(() -> Boundary.executeJsonAnswer(p, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** That plan's answer in upstream's Arrow format from the rows the host's database answered
+     *  ({@code Boundary.executeArrowAnswer}; track A, 2026-10-29): the zstd frame folded as base64. */
+    @CEntryPoint(name = "lite_execute_arrow_answer")
+    static CCharPointer executeArrowAnswer(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
+        String a;
+        try {
+            String p = text(plan), r = text(rows);
+            a = Folded.http(() -> Boundary.executeArrowAnswer(p, r));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }

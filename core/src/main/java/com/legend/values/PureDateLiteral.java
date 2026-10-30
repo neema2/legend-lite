@@ -369,10 +369,11 @@ public sealed interface PureDateLiteral
             return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d", year, month, day, hour);
         }
 
-        /** Pure's print form: time-bearing values carry the
-         * GMT-normalized {@code +0000} suffix (H1 toString spec);
-         * {@link #toEngineString} stays the literal body. */
-        @Override public String toString() { return toEngineString() + "+0000"; }
+        /** Pure's print form: an hour-only date prints WITHOUT a zone -- legend-pure's {@code DateFormat.append}
+         * writes {@code +0000} inside its minute branch ({@code 2014-03-10T16} in its {@code TestDateFormat});
+         * corrected 2026-10-29 (the result boundary program's S1.5, the upstream-fidelity tenet) from the
+         * "H1 toString spec" that put the zone on every time-bearing value, which named no upstream. */
+        @Override public String toString() { return toEngineString(); }
     }
 
     record DateWithMinute(int year, int month, int day, int hour, int minute) implements PureDateLiteral {
@@ -380,9 +381,9 @@ public sealed interface PureDateLiteral
             return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d", year, month, day, hour, minute);
         }
 
-        /** Pure's print form: time-bearing values carry the
-         * GMT-normalized {@code +0000} suffix (H1 toString spec);
-         * {@link #toEngineString} stays the literal body. */
+        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
+         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
+         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
         @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
@@ -392,9 +393,9 @@ public sealed interface PureDateLiteral
                     year, month, day, hour, minute, second);
         }
 
-        /** Pure's print form: time-bearing values carry the
-         * GMT-normalized {@code +0000} suffix (H1 toString spec);
-         * {@link #toEngineString} stays the literal body. */
+        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
+         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
+         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
         @Override public String toString() { return toEngineString() + "+0000"; }
     }
 
@@ -406,9 +407,9 @@ public sealed interface PureDateLiteral
                     year, month, day, hour, minute, second, subsecond);
         }
 
-        /** Pure's print form: time-bearing values carry the
-         * GMT-normalized {@code +0000} suffix (H1 toString spec);
-         * {@link #toEngineString} stays the literal body. */
+        /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
+         * {@code DateFormat.append} writes it inside its minute branch (the citation corrected 2026-10-29, S1.5: the
+         * "H1 toString spec" cited until then named no upstream); {@link #toEngineString} stays the literal body. */
         @Override public String toString() { return toEngineString() + "+0000"; }
     }
 

@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -61,8 +61,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @DisplayName("a row's column read through ~col is the column")
         void readIsTheColumn() throws SQLException {
             var result = executeRelation(SCORES + "->extend(~twice:r|$r->read(~score)->toOne() * 2)->sort(ascending(~id))");
-            assertEquals(190, ((Number) result.rows().get(0).values().get(3)).intValue());
-            assertEquals(174, ((Number) result.rows().get(1).values().get(3)).intValue());
+            assertEquals(190, ((Number) result.rows().get(0).get(3)).intValue());
+            assertEquals(174, ((Number) result.rows().get(1).get(3)).intValue());
         }
 
         @Test
@@ -78,8 +78,8 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         void aWindowsRow() throws SQLException {
             var result = executeRelation(SCORES + "->extend(over([~id->ascending()]), ~before:{p,w,r|$p->lag($r)->read(~score)})"
                     + "->sort(ascending(~id))");
-            assertNull(result.rows().get(0).values().get(3));
-            assertEquals(95, ((Number) result.rows().get(1).values().get(3)).intValue());
+            assertNull(result.rows().get(0).get(3));
+            assertEquals(95, ((Number) result.rows().get(1).get(3)).intValue());
         }
 
         @Test
@@ -2042,17 +2042,18 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("now() — current datetime in extend")
         void testNow() throws SQLException {
-            // the year of DuckDB's own clock either side of the query, not the JVM's (P3-15)
-            String before = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
-            String beforeUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
+            // the year of the database's own clock either side of the query, not the JVM's (P3-15), by the backend's
+            // own probe (T-d2: DuckDB's spelling ran on every lane); the UTC year from the launcher's clock (one zone)
+            String before = dbScalar(backend().yearOfNowSql());
+            String beforeUtc = String.valueOf(java.time.Year.now(java.time.ZoneOffset.UTC).getValue());
             var r = executeRelation("""
                     |#TDS
                     id
                     1
                     #->extend(~ts: x | now())""");
             assertEquals(1, r.rowCount());
-            String after = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
-            String afterUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
+            String after = dbScalar(backend().yearOfNowSql());
+            String afterUtc = String.valueOf(java.time.Year.now(java.time.ZoneOffset.UTC).getValue());
             String ts = r.rows().get(0).get(colIdx(r, "ts")).toString();
             // the value may be rendered in the session's zone or in UTC: either year, either side of the query
             assertTrue(java.util.stream.Stream.of(before, after, beforeUtc, afterUtc).anyMatch(ts::startsWith),
@@ -2309,7 +2310,7 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     // ========================================================================
 
     /** Finds column index by name. */
-    private int colIdx(ExecutionResult result, String name) {
+    private int colIdx(Lean.Result result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name()))
                 return i;

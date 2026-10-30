@@ -13,6 +13,7 @@ import {
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { add, NEW_SHEET, type Bands } from '../src/layout/bands.ts';
 import { afterWhatTheyRead, gridInput, liveGrids, liveProblem, resolvedSource } from '../src/live-inputs.ts';
+import { openedLeaves } from '../src/join-open.ts';
 import { joinInputOf } from '../src/page-commands.ts';
 import {
   openingOrder, pageToJson, readPage, writePageOf, type PageDocument, type PageView,
@@ -136,6 +137,28 @@ describe('a live input resolved against its page', () => {
     assert.equal(inner.input.name, 'trades.csv', 'an untitled tile is called by its source');
     assert.deepEqual(inner.input.source, FILE);
     assert.deepEqual(liveGrids(resolved), [], 'no link is left');
+  });
+
+  it("to be opened, a snapped grid's input reads its copy (a cached box, FL10) -- through a chain too; asked otherwise, what it is a copy of", () => {
+    const p = CHAIN();
+    const snapped: PageDocument = { ...p, copies: { 'grid-2': { table: 'snap_7', label: 'Snap 14:02', takenAt: '2026-10-26T14:02:00.000Z', rowCount: 3 } } };
+    // grid-3 over grid-2, which is snapped: its input reads the copy, its query over it
+    const opened = resolvedSource(snapped, snapped.cubes[2]!.cube.source, 'grid-3', { copies: true });
+    if (opened._type !== 'rows' || 'grid' in opened.input) throw new Error('not resolved');
+    assert.deepEqual(opened.input.copy, { table: 'snap_7', label: 'Snap 14:02', takenAt: '2026-10-26T14:02:00.000Z' });
+    assert.deepEqual(opened.input.query.filter, { kind: 'condition', column: 'notional', operator: 'greaterThan', value: 100 }, 'its query over its copy');
+    assert.deepEqual(openedLeaves(opened), [{ _type: 'copy', table: 'snap_7', label: 'Snap 14:02', takenAt: '2026-10-26T14:02:00.000Z' }], 'one leaf: the copy');
+    // not asked: what it is a copy of (a class maps those tables: §18.8), its leaves the file's
+    const of = resolvedSource(snapped, snapped.cubes[2]!.cube.source, 'grid-3');
+    if (of._type !== 'rows' || 'grid' in of.input) throw new Error('not resolved');
+    assert.equal(of.input.copy, undefined);
+    assert.deepEqual(leavesOf(of), [FILE]);
+    // grid-1 snapped, grid-3 two boxes on: the chain reads grid-1's copy at its end
+    const first: PageDocument = { ...p, copies: { 'grid-1': { table: 'snap_1', label: 'Snap', takenAt: '2026-10-26T14:00:00.000Z', rowCount: 9 } } };
+    assert.deepEqual(openedLeaves(resolvedSource(first, first.cubes[2]!.cube.source, 'grid-3', { copies: true })).map((l) => l._type === 'copy' ? l.table : l._type), ['snap_1']);
+    // a page keeps no copy in an input: one written is refused as it is read
+    const kept = { name: 'x', source: FILE, query: cube(FILE).query, copy: { table: 'snap_7', label: 'Snap', takenAt: '2026-10-26T14:02:00.000Z' } };
+    assert.throws(() => readCube(cubeToJson(cube({ _type: 'rows', name: 'x', input: kept, columns: COLUMNS }))), /keeps a copy: a copy lasts its session/);
   });
 
   it("a flow's box gives the columns it shows: the ones it hides left out (omit), kept in a copy; a board's grid all", () => {

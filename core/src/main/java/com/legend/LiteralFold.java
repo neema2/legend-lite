@@ -6,7 +6,7 @@ package com.legend;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 
 import java.util.Set;
 
@@ -48,12 +48,12 @@ public final class LiteralFold {
     private LiteralFold() {
     }
 
-    static @com.legend.base.Nullable ExecutionResult fold(TypedSpec root) {
+    static @com.legend.base.Nullable TypedSide fold(TypedSpec root) {
         if (root instanceof TypedCString s) {
-            return new ExecutionResult.Scalar(s.value(), root.info().type());
+            return new TypedSide.Scalar(s.value(), root.info().type());
         }
         if (root instanceof TypedCBoolean b) {
-            return new ExecutionResult.Scalar(b.value(), root.info().type());
+            return new TypedSide.Scalar(b.value(), root.info().type());
         }
         return null;
     }

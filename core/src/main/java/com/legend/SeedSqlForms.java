@@ -4,7 +4,7 @@
 package com.legend;
 
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 
 /**
  * The TWO faces of {@code setUpDataSQLs} (engine toDDL.pure): the
@@ -30,9 +30,9 @@ final class SeedSqlForms {
 
     /** The ENGINE-TEXT statement list (golden-asserted). Unresolvable
      *  db keeps the CsvSeed execution form (nothing asserts its text). */
-    static ExecutionResult assertForm(java.util.List<TypedSpec> body,
+    static TypedSide assertForm(java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall gen,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         java.util.List<java.util.List<String>> records =
                 recordsArg(gen.args().get(0));
         if (records != null) {
@@ -42,22 +42,22 @@ final class SeedSqlForms {
             var seedDb = dbFqn2 == null ? null
                     : env.ctx().findDatabase(dbFqn2).orElse(null);
             if (seedDb != null) {
-                return new ExecutionResult.Collection(new java.util.ArrayList<>(
+                return new TypedSide.Collection(new java.util.ArrayList<>(
                         com.legend.setup.Ddl.setUpDataSqlsTextFromRecords(
                                 records, seedDb,
-                                f -> env.ctx().findDatabase(f), StatementExecutor.ENGINE_TEXT)),
+                                f -> env.ctx().findDatabase(f), BodyDriver.ENGINE_TEXT)),
                         com.legend.compiler.element.type.Type.Primitive.STRING);
             }
         }
-        String csv = StatementExecutor.evalStringArg(body, gen.args().get(0), env);
+        String csv = BodyDriver.evalStringArg(body, gen.args().get(0), env);
         String dbFqn = gen.args().get(1)
                 instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
                 ? pr.fullPath() : null;
         var dbDef = dbFqn == null ? null
                 : env.ctx().findDatabase(dbFqn).orElse(null);
-        return new ExecutionResult.Collection(new java.util.ArrayList<>(
+        return new TypedSide.Collection(new java.util.ArrayList<>(
                 dbDef != null ? com.legend.setup.Ddl.setUpDataSqlsText(csv,
-                        dbDef, f -> env.ctx().findDatabase(f), StatementExecutor.ENGINE_TEXT)
+                        dbDef, f -> env.ctx().findDatabase(f), BodyDriver.ENGINE_TEXT)
                         : com.legend.setup.CsvSeed.sqls(csv, dbFqn, env.ctx(), env.dialect())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
@@ -96,19 +96,19 @@ final class SeedSqlForms {
 
     /** The EXECUTION form for a mapped {@code ->map(executeInDb)} source;
      *  null when the source is not a setUpDataSQLs call. */
-    static ExecutionResult.@com.legend.base.Nullable Collection mappedExecutionForm(
+    static TypedSide.@com.legend.base.Nullable Collection mappedExecutionForm(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedMap tm,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         if (!(tm.source() instanceof com.legend.compiler.spec.typed.TypedNativeCall sg)
                 || !isSetUpDataSqls(sg)) {
             return null;
         }
-        String seedCsv = StatementExecutor.evalStringArg(body, sg.args().get(0), env);
+        String seedCsv = BodyDriver.evalStringArg(body, sg.args().get(0), env);
         String seedDb = sg.args().get(1)
                 instanceof com.legend.compiler.spec.typed.TypedPackageableRef spr
                 ? spr.fullPath() : null;
-        return new ExecutionResult.Collection(new java.util.ArrayList<>(
+        return new TypedSide.Collection(new java.util.ArrayList<>(
                 com.legend.setup.CsvSeed.sqls(seedCsv, seedDb, env.ctx(), env.dialect())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }

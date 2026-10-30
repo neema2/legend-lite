@@ -53,6 +53,27 @@ export interface ArrowishConnection {
     buffer: Uint8Array,
     options: { name: string; schema?: string; create?: boolean },
   ): void | Promise<void>;
+  /**
+   * A statement prepared, to run with its `?`s bound in order: how a plan's step binds the values it is given (a write's
+   * count into the query that answers it: plan-runner.ts). DuckDB-WASM's bindings send the values as JSON, so a value
+   * bound is text, a number, true or false, or null.
+   */
+  prepare?(sql: string): ArrowishPrepared | Promise<ArrowishPrepared>;
+  close?(): void | Promise<void>;
+}
+
+/** The connection as a plan holds it (DuckDbEngine.exclusive): no other query between its statements. */
+export interface HeldConnection {
+  /** A statement's rows, each its values by column; one with values to bind, prepared and run with them (refused by
+   *  name where the connection prepares none). */
+  rows(sql: string, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
+  /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold). */
+  table(sql: string): Promise<RawTable>;
+}
+
+/** A prepared statement, as DuckDB-WASM's connections give one. */
+export interface ArrowishPrepared {
+  query(...params: unknown[]): ArrowishTable | Promise<ArrowishTable>;
   close?(): void | Promise<void>;
 }
 
@@ -193,7 +214,45 @@ function decoderFor(type: unknown): Decode {
   };
   if (/^Timestamp</.test(name)) return nonNull((v, r) => timestampText(toMicros(rawAt(v, r))));
   if (/^Time(32|64)</.test(name)) return nonNull((v, r) => timeText(toMicros(rawAt(v, r))));
+  if (/^(Struct|List|FixedSizeList|Map)</.test(name)) return nonNull((v, r) => nestedJson(v.get(r), type));
   return (v, r) => toScalar(v.get(r));
+}
+
+/**
+ * A nested value (a struct's, a list's, a map's) as JSON text, each leaf by its Arrow STORAGE type exactly as a
+ * top-level cell of that type is read (decoderFor): a decimal its exact text, never the unscaled integer its row view
+ * hands out; a date its day and a timestamp its text, never the epoch milliseconds the row view hands out; a 64-bit
+ * integer its digits. A nested timestamp keeps the milliseconds the row view keeps (its raw storage is the child
+ * vector's). The phase 3 audit, 2026-10-27: a nested decimal crossed mis-scaled and a nested date failed to parse.
+ */
+function nestedJson(value: unknown, type: unknown): string {
+  if (value === null || value === undefined) return 'null';
+  const name = String(type ?? '');
+  const t = type as { children?: readonly { name: string; type: unknown }[]; scale?: unknown; unit?: unknown };
+  if (/^Decimal/.test(name) && typeof t.scale === 'number') {
+    const exact = decimalToScalar(value, t.scale);
+    return typeof exact === 'string' ? JSON.stringify(exact) : String(exact);
+  }
+  if (/^Date(32|64)</.test(name)) return JSON.stringify(dayText(Math.floor(Number(value) / 86_400_000)));
+  if (/^Timestamp</.test(name)) return JSON.stringify(timestampText(BigInt(Math.trunc(Number(value))) * 1000n));
+  const children = t.children ?? [];
+  if (/^Struct</.test(name)) {
+    const row = typeof (value as { toJSON?: unknown }).toJSON === 'function'
+      ? (value as { toJSON(): Record<string, unknown> }).toJSON() : value as Record<string, unknown>;
+    return `{${children.map((f) => `${JSON.stringify(f.name)}:${nestedJson(row[f.name], f.type)}`).join(',')}}`;
+  }
+  if (/^(List|FixedSizeList)</.test(name)) {
+    const element = children[0]?.type;
+    return `[${Array.from(value as Iterable<unknown>, (x) => nestedJson(x, element)).join(',')}]`;
+  }
+  if (/^Map</.test(name)) {
+    const entry = children[0]?.type as { children?: readonly { name: string; type: unknown }[] } | undefined;
+    const valueType = entry?.children?.[1]?.type;
+    const entries = typeof (value as { toJSON?: unknown }).toJSON === 'function'
+      ? (value as { toJSON(): Record<string, unknown> }).toJSON() : value as Record<string, unknown>;
+    return `{${Object.entries(entries).map(([k, x]) => `${JSON.stringify(k)}:${nestedJson(x, valueType)}`).join(',')}}`;
+  }
+  return exactJson(value) ?? JSON.stringify(String(value));
 }
 
 /** An Arrow table's columns and values; the PLAN types them (engine.ts typedByPlan). */
@@ -341,6 +400,30 @@ export class DuckDbEngine implements QueryEngine {
    * stream now always streams; the signal only decides whether the
    * stream can be cut short.
    */
+  /**
+   * THE CONNECTION HELD FOR A PLAN (plan-runner.ts: an Output into a table, docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): its
+   * steps run one after another with no query of any grid between them -- the queue's (#serialised) for the whole plan,
+   * so its transaction holds its own statements alone (HeldConnection).
+   */
+  exclusive<T>(work: (held: HeldConnection) => Promise<T>): Promise<T> {
+    const conn = this.#conn;
+    const rowsOf = (t: ArrowishTable): unknown[][] => Array.from({ length: t.numRows }, (_, r) =>
+      t.schema.fields.map((_f, c) => t.getChildAt(c)?.get(r)));
+    return this.#serialised(() => work({
+      rows: async (sql, params) => {
+        if (params.length === 0) return rowsOf(await conn.query(sql));
+        if (conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
+        const prepared = await conn.prepare(sql);
+        try {
+          return rowsOf(await prepared.query(...params));
+        } finally {
+          await prepared.close?.();
+        }
+      },
+      table: (sql) => this.#whole(sql, 0, undefined, performance.now()),
+    }));
+  }
+
   async execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable> {
     return { ...typedByPlan(await this.run(plan.sql, epoch, signal), plan), receipt: this.receipt() };
   }

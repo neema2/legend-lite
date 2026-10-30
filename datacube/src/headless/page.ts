@@ -18,9 +18,10 @@ import { toFilterNode } from '../filter-operators.ts';
 import { drillDown, drillLevels, drillRefusal, drillUp, markConditions, namedMark } from '../chart-spec.ts';
 import { chartPicked } from '../page-filters.ts';
 import { PAGE_GESTURES, isPageGesture } from '../page-gestures.ts';
-import { baseOnHost, draftFrom, gridApply, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
+import { baseOnHost, draftFrom, gridApply, pageLensText, readGivenFilter, untagged, type HeldCopy } from './grid.ts';
 import { onHost, type HostTables } from './host-tables.ts';
-import { resolvedSource } from '../live-inputs.ts';
+import { liveGrids, resolvedSource } from '../live-inputs.ts';
+import { messageSaid, runStages } from '../layout/flow.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { defaultLabel } from '../../../engine-client/src/snap.ts';
 
@@ -254,6 +255,38 @@ export function pageGesture(name: string, given: string): string {
 }
 
 /**
+ * A FLOW'S RUN AS PYTHON RUNS IT (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8; the canvas's Run's rule, page/cube-page.ts
+ * #runFlow): flow sheet `sheet`'s boxes in stages (layout/flow.ts runStages: Block Until Done), and what each Message
+ * says of `counts` (JSON: each box's rows counted) -- `{stages, messages: [{box, level, said}]}` -- or `{problems}`, in
+ * DataCube's words.
+ */
+export function flowRun(text: string, sheet: string, counts: string): string {
+  try {
+    const page = readPage(text, { empty: true });
+    const at = page.sheets.find((x) => x.id === sheet);
+    if (at === undefined || at.layout.kind !== 'flow') throw new CubeRefusal(`'${sheet}' is no flow of the page`);
+    const cubeOf = (id: string) => {
+      const view = page.views.find((v) => v.id === id);
+      return view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube)?.cube : undefined;
+    };
+    const reads = (id: string): readonly string[] => {
+      const cube = cubeOf(id);
+      return cube === undefined ? [] : liveGrids(cube.source);
+    };
+    const stages = runStages(at.layout, reads, (id) => cubeOf(id) !== undefined);
+    const n = JSON.parse(counts) as Readonly<Record<string, number>>;
+    const messages = at.layout.boxes.flatMap((b) => {
+      const said = b.message === undefined ? undefined : messageSaid(b.message, n[b.tile]);
+      return said === undefined ? [] : [{ box: b.tile, level: b.message!.level, said }];
+    });
+    return JSON.stringify({ stages, messages });
+  } catch (e) {
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError) && !(e instanceof CubeRefusal)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
  * A CHART'S MARK SELECTED AS PYTHON NAMES ONE (chart.select; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D8): `given`,
  * `{value, split?}` -- the mark's value across and, on a split chart, its series', each tagged where JSON has no form
  * for it (D12) -- or `{value: null}`: the selection cleared. Named as a click names it (chart-spec.ts namedMark) and
@@ -402,9 +435,15 @@ export function exactly(plainly: unknown, exact: unknown): unknown {
 export function heldPage(text: string): PageDocument {
   const { cubes, ...rest } = JSON.parse(text) as Record<string, unknown> & { cubes: { id: string }[] };
   const exact = (fromJson(text) as { cubes: { id: string; cube: unknown }[] }).cubes;
-  const { kind, version, name, views, sheets, model, filters, copies, record, ...unknown } = rest;
+  const { kind, version, name, views, sheets, model, filters, parameters, macros: _macros, copies, record, ...unknown } = rest;
+  // its macros' functions exact (macros.ts), as its cubes are read
+  const macros = (fromJson(text) as { macros?: unknown }).macros;
   return {
     kind, version, name, views, sheets, ...(model !== undefined ? { model } : {}), ...(filters !== undefined ? { filters } : {}),
+    // its parameters (page-parameters.ts): a field of the page, which its setParameter and removeParameter edit
+    ...(parameters !== undefined ? { parameters } : {}),
+    // its macros (macros.ts): a field of the page, which its setMacro edits
+    ...(macros !== undefined ? { macros } : {}),
     // the copies its snapped grids read (§18.8): a field of the page, which its snap and live commands edit
     ...(copies !== undefined ? { copies } : {}),
     // the saved page it is (B13): a field of the page, which the savedAs command edits
@@ -496,7 +535,8 @@ export async function pageRebase(page: string, held: string, edits: string,
         // a snapped grid's edit over its copy, as the writer applied it (baseOnHost: the one rule)
         // over its page as the edit found it: a grid over another grid's rows reads that grid there
         const base = await baseOnHost(text, (at.copies ?? {})[id], host, copies, at, id);
-        const said = JSON.parse(await gridApply({ cube: text, ...base } as Parameters<typeof gridApply>[0],
+        // through its page's lens, as its writer applied it (its parameters bound, its filters put on it)
+        const said = JSON.parse(await gridApply({ cube: text, ...base, lens: pageLensText(at, id) } as Parameters<typeof gridApply>[0],
           `[${commands.map((c) => toJson(c)).join(',')}]`)) as { cube?: string; problems?: string[] };
         if (said.problems) throw new CubeRefusal(said.problems.join('; '));
         return readCube(fromJson(said.cube!));

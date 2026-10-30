@@ -45,28 +45,34 @@ class WireTypesTest {
                 Multiplicity.Bounded.ONE);
     }
 
-    private static void battery(Connection c, SqlDialect dialect) throws Exception {
-        c.createStatement().execute("create table t(\"id\" varchar(200))");
-        c.createStatement().execute("insert into t values ('7')");
+    private static void battery(Connection conn, com.legend.model.ConnectionDefinition.DatabaseType type,
+            SqlDialect dialect) throws Exception {
+        conn.createStatement().execute("create table t(\"id\" varchar(200))");
+        conn.createStatement().execute("insert into t values ('7')");
         Map<String, List<WireTypes.ReportedColumn>> memo = new HashMap<>();
+        // the plan runner the reader goes through (the doors, 2026-10-29; the session seam since track B's B1a)
+        PlanSessions.Source c = PlanSessions.given(conn);
+        com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
+                new com.legend.executionplan.ExecutionPlan.Database.Platform(type),
+                new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of());
         // a String-declared column stamped INTEGER (the store's declaration)
         // over a physical VARCHAR: reconciled to the wire
         SqlQuery r = WireTypes.reconcile(plan(SqlType.Scalar.INTEGER), grid(Type.Primitive.STRING),
-                dialect, c, memo);
+                dialect, c, target, memo);
         assertEquals(SqlType.Scalar.VARCHAR, r.outputs().get(0).type());
         assertTrue(((SqlSelect) r).projections().get(0).expr() instanceof SqlExpr.Column ref
                 && ref.type() instanceof com.legend.sql.TypeFact.Typed tf
                 && tf.type() == SqlType.Scalar.VARCHAR, "the reference re-typed, never cast");
         assertEquals(1, memo.size(), "one prepare, memoized by statement text");
         // the same statement again: no second prepare
-        WireTypes.reconcile(plan(SqlType.Scalar.INTEGER), grid(Type.Primitive.STRING), dialect, c, memo);
+        WireTypes.reconcile(plan(SqlType.Scalar.INTEGER), grid(Type.Primitive.STRING), dialect, c, target, memo);
         assertEquals(1, memo.size());
         // a numeric declaration converts the wire cell — never reconciled
         SqlSelect p = plan(SqlType.Scalar.INTEGER);
-        assertSame(p, WireTypes.reconcile(p, grid(Type.Primitive.INTEGER), dialect, c, memo));
+        assertSame(p, WireTypes.reconcile(p, grid(Type.Primitive.INTEGER), dialect, c, target, memo));
         // a stamp the database agrees with: untouched
         SqlSelect q = plan(SqlType.Scalar.VARCHAR);
-        assertSame(q, WireTypes.reconcile(q, grid(Type.Primitive.STRING), dialect, c, memo));
+        assertSame(q, WireTypes.reconcile(q, grid(Type.Primitive.STRING), dialect, c, target, memo));
         // a COMPUTED projection keeps the compiler's type (never cast: H2 reports a
         // computed DECIMAL at scale 0 while the cell carries the real scale)
         OutputCol n = new OutputCol("n", SqlType.Scalar.DOUBLE, true);
@@ -75,14 +81,14 @@ class WireTypesTest {
                                 OutputCol.Origin.DERIVED), SqlType.Scalar.DOUBLE), "n", n)),
                 false, new SqlSource.Table("t", "t", List.of(n), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE), null, List.of(), null, null,
                 List.of(), null, null, List.of(n));
-        assertSame(computed, WireTypes.reconcile(computed, grid(Type.Primitive.NUMBER), dialect, c, memo));
+        assertSame(computed, WireTypes.reconcile(computed, grid(Type.Primitive.NUMBER), dialect, c, target, memo));
         // a plan the compiler could not type, framed by the database's columns
-        SqlQuery framed = WireTypes.staticized(plan(SqlType.Scalar.INTEGER), dialect, c, memo);
+        SqlQuery framed = WireTypes.staticized(plan(SqlType.Scalar.INTEGER), dialect, c, target, memo);
         assertEquals("id", framed.outputs().get(0).name());
         assertEquals(SqlType.Scalar.VARCHAR, framed.outputs().get(0).type());
         // the one-column value shape (no relation view) reconciles by the root kind
         SqlQuery v = WireTypes.reconcile(plan(SqlType.Scalar.INTEGER),
-                new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE), dialect, c, memo);
+                new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE), dialect, c, target, memo);
         assertEquals(SqlType.Scalar.VARCHAR, v.outputs().get(0).type());
     }
 
@@ -91,7 +97,7 @@ class WireTypesTest {
     @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     void eachDatabaseReportsTheWire(com.legend.testbackend.TestBackend backend) throws Exception {
         try (Connection c = backend.open()) {
-            battery(c, backend.dialect());
+            battery(c, backend.type(), backend.dialect());
         }
     }
 

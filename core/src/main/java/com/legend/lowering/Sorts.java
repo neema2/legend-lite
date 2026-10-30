@@ -88,7 +88,7 @@ final class Sorts {
      * name when {@code src} shows it; else, for a plain column key, the name
      * of the projection of that very column (its alias, a fresh internal one
      * too), or the column's own through a star; null when there is none. */
-    private static @com.legend.base.Nullable String carriedName(SqlSelect src, SqlSelect.SortKey k) {
+    static @com.legend.base.Nullable String carriedName(SqlSelect src, SqlSelect.SortKey k) {
         if (k.outputName() != null && Fold.resolveInto(src, k.outputName()) != null) {
             return k.outputName();
         }

@@ -549,6 +549,47 @@ try {
   }
   check(await show(union.id) === fewer + all, 'a Union of two again: the rows of both');
 
+  // A DYNAMIC INPUT (M8, dynamic-input.ts): the palette's Dynamic Input dragged onto the Filter -- the window at Append,
+  // the Input picked; made, a Union that keeps the rows of the one a new parameter of the page names, `source` (the two
+  // boxes no one named, read under one file's name, named as the canvas names them in the same step), the Filter's
+  // first; its value set on the parameters bar, the Input's rows; its settings' Keep the rows of, every input's again;
+  // each undone, the box, its parameter and the names gone
+  const beforeDynamic = (await boxes()).map((b) => b.id);
+  await drag('dynamicInput', filter.id);
+  await joinWindow.waitFor({ timeout: 20_000 });
+  check(await joinWindow.locator('.dc-join-kind[data-kind="append"]').getAttribute('aria-checked') === 'true', 'a Dynamic Input\'s window starts at Append');
+  await joinWindow.locator('.dc-join-their').selectOption(input.id);
+  await page.waitForFunction(() => { const b = document.querySelector('.dc-join .dc-save-foot .dc-primary'); return b instanceof HTMLButtonElement && !b.disabled; }, undefined, { timeout: 60_000 });
+  check(await joinWindow.locator('.dc-save-foot .dc-primary').textContent() === 'Add Dynamic Input', 'its window adds a Dynamic Input');
+  await joinWindow.locator('.dc-save-foot .dc-primary').click();
+  await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
+  await boxCount(beforeDynamic.length + 1);
+  const dynamic = await added(beforeDynamic);
+  check(dynamic.tool === 'dynamicInput' && dynamic.says === 'the rows of the one $source names', `a Dynamic Input box: ${JSON.stringify(dynamic)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Add Dynamic Input', 'one step: Add Dynamic Input');
+  const sourceChoice = page.locator('.dc-page-parameter[data-parameter="source"] select');
+  await sourceChoice.waitFor({ timeout: 20_000 });
+  check(JSON.stringify(await sourceChoice.locator('option').allTextContents()) === '["Filter","Input"]', `its choices, its inputs' names: ${await sourceChoice.locator('option').allTextContents()}`);
+  check(await show(dynamic.id) === fewer, `the Filter's rows, the first it names: ${fewer}`);
+  await sourceChoice.selectOption({ label: 'Input' });
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Set source', undefined, { timeout: 20_000 });
+  await settled();
+  check(await resultRows() === all, `its value set, the Input's rows: ${all}`);
+  const keep = page.locator('.dc-flow-pick-select');
+  check(await keep.inputValue() === 'p:source', 'its settings say what picks it');
+  await keep.selectOption('');
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Union', undefined, { timeout: 20_000 });
+  await settled();
+  check(await resultRows() === fewer + all, 'every input\'s rows again: a Union');
+  check((await boxes()).find((b) => b.id === dynamic.id)?.tool === 'union', 'drawn as a Union');
+  await page.screenshot({ path: outPath('flow-dynamic-input.png') });
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
+  await boxCount(beforeDynamic.length);
+  check(await page.locator('.dc-page-parameter[data-parameter="source"]').count() === 0, 'undone: its parameter gone');
+  check(await page.evaluate((ids) => ids.map((id) => window.__dataPage.document('x').views.find((v) => v.id === id)?.title ?? null), [filter.id, input.id])
+    .then((t) => t.every((x) => x === null)), 'undone: the names it gave gone');
+
   // AN APPEND FIELDS BOX, dragged onto the Filter: the window at Every pair, no condition asked; the dropped targets'
   // four rows beside each of the Filter's
   const beforeAppend = (await boxes()).map((b) => b.id);
@@ -587,9 +628,11 @@ try {
   await joinWindow.waitFor({ state: 'detached', timeout: 60_000 });
   await boxCount(beforeFuzzy.length + 1);
   const fuzzy = await added(beforeFuzzy);
-  check(fuzzy.tool === 'fuzzyMatch' && fuzzy.says === 'matching rows only, on region ≈ region (within 1)', `a Fuzzy Match box: ${JSON.stringify(fuzzy)}`);
+  check(fuzzy.tool === 'fuzzyMatch' && fuzzy.says === 'matching rows only, on region ≈ region (within 1), scored as score', `a Fuzzy Match box: ${JSON.stringify(fuzzy)}`);
   await settled();
   check(await resultRows() > 0, 'its pairs, alike regions matched');
+  // each pair scored as its window started (Alteryx's Score): the database's likeness, 0 to 100
+  check(await page.locator('.dc-flow-results:visible .dc-th[data-column="score"]').count() === 1, 'its pairs scored: a score column');
 
   // A FIND REPLACE (M2), dragged onto the Filter: a file of region names dropped, the Join window at all of mine on
   // region, then its window docked -- region replaced by their name where found
@@ -925,6 +968,73 @@ try {
   check(/region/.test(printed) && /EMEA/.test(printed), `set again: its condition as the compiler prints it: ${printed}`);
   await page.locator('.dc-flow-dock .dc-sample-foot .dc-quiet').click();
 
+  // A PARAMETER OF THE PAGE (M8, an analytic app's input): the palette's Parameter opens the parameters bar's form -- a
+  // pick-list of regions -- and a Custom Filter reads it as $region_of; its value picked again, the box's rows are read so
+  await page.locator('.dc-flow-tool[data-tool="parameter"]').click();
+  const paramForm = page.locator('.dc-page-parameter-form');
+  await paramForm.waitFor({ timeout: 20_000 });
+  await paramForm.locator('.dc-page-parameter-name').fill('region_of');
+  await paramForm.locator('.dc-page-parameter-type').selectOption('String');
+  await paramForm.locator('.dc-page-parameter-first').fill('EMEA');
+  await paramForm.locator('.dc-page-parameter-choices').fill('EMEA, AMER');
+  await paramForm.locator('.dc-page-filter-apply').click();
+  await page.locator('.dc-page-parameter[data-parameter="region_of"] select').waitFor({ timeout: 20_000 });
+  const paramsSaved = await page.evaluate(() => window.__dataPage.document('x')?.parameters);
+  check(JSON.stringify(paramsSaved) === JSON.stringify([{ name: 'region_of', type: 'String', value: 'EMEA', choices: ['EMEA', 'AMER'] }]),
+    `the page writes it: ${JSON.stringify(paramsSaved)}`);
+  const beforeParam = (await boxes()).map((b) => b.id);
+  await drag('customFilter', filter.id);
+  await boxCount(beforeParam.length + 1);
+  const paramBox = await added(beforeParam);
+  await docked('Custom Filter');
+  await page.locator('.dc-flow-dock .dc-custom-filter-condition').fill('$x.region == $region_of');
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  check(await resultRows() === inEmea, `read as EMEA, its value: ${await resultRows()} of ${inEmea}`);
+  await page.locator('.dc-page-parameter[data-parameter="region_of"] select').selectOption({ label: 'AMER' });
+  await page.waitForFunction(() => window.__dataPage.document('x')?.parameters?.[0]?.value === 'AMER', undefined, { timeout: 30_000 });
+  await settled();
+  const inAmer = await resultRows();
+  check(inAmer > 0 && inAmer !== inEmea, `its value picked again, read so: ${inAmer} AMER trades`);
+  // a box after it reads its rows with the value as it is; picked again, the box shown is opened again over them
+  const beforeParamAfter = (await boxes()).map((b) => b.id);
+  await drag('browse', paramBox.id);
+  await boxCount(beforeParamAfter.length + 1);
+  await added(beforeParamAfter);
+  await settled();
+  check(await resultRows() === inAmer, `the box after it: its ${inAmer} AMER trades`);
+  await page.locator('.dc-page-parameter[data-parameter="region_of"] select').selectOption({ label: 'EMEA' });
+  await page.waitForFunction((n) => {
+    const t = document.querySelector('.dc-flow-results')?.textContent ?? '';
+    const m = /of ([\d,]+) rows/.exec(t) ?? /([\d,]+) rows ×/.exec(t);
+    return m !== null && Number(m[1].replace(/,/g, '')) === n;
+  }, inEmea, { timeout: 60_000 }).catch(() => undefined);
+  check(await resultRows() === inEmea, `picked again: the box after it opened again over EMEA's ${inEmea}: ${await resultRows()}`);
+
+  // A STANDARD MACRO (M8): the parameter's Custom Filter saved as a macro from its menu -- its steps one box -- then the
+  // palette's Macro clicked and picked: a Pure box of its function after the box shown, named after it, its rows the region's
+  await page.locator(`.dc-flow-box[data-tile="${paramBox.id}"]`).click({ button: 'right' });
+  await page.locator('.dc-menu .dc-menu-item', { hasText: 'Save as Macro' }).first().click();
+  const macroForm = page.locator('.dc-flow-macro-form');
+  await macroForm.waitFor({ timeout: 10_000 });
+  await macroForm.locator('.dc-flow-macro-name').fill('Region trades');
+  await macroForm.locator('button[type="submit"]').click();
+  await macroForm.waitFor({ state: 'detached', timeout: 60_000 });
+  const macrosSaved = await page.evaluate(() => window.__dataPage.document('x')?.macros?.map((m) => m.name));
+  check(JSON.stringify(macrosSaved) === '["Region trades"]', `the page writes it: ${JSON.stringify(macrosSaved)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Save Macro', 'one step: Save Macro');
+  const beforeMacro = (await boxes()).map((b) => b.id);
+  // clicked: after the box shown (the Custom Filter, shown again once it was read)
+  await page.locator('.dc-flow-tool[data-tool="macro"]').scrollIntoViewIfNeeded();
+  await page.locator('.dc-flow-tool[data-tool="macro"]').click();
+  await page.locator('.dc-menu .dc-menu-item', { hasText: 'Region trades' }).first().click();
+  await boxCount(beforeMacro.length + 1);
+  const macroBox = await added(beforeMacro);
+  await settled();
+  const macroTitle = await page.locator(`.dc-flow-box[data-tile="${macroBox.id}"]`).textContent();
+  check(macroBox.tool === 'pure' && /Region trades/.test(macroTitle ?? ''), `a Pure box named after it: ${JSON.stringify(macroBox)} ${macroTitle}`);
+  check(await resultRows() === inEmea, `its rows the region's: ${await resultRows()} of ${inEmea}`);
+
   // A PURE BOX (FL12), dragged onto the Filter: its rows a function of the Filter's, in Pure over $input -- a step put in
   // by its button, one that is no relation refused in words; set, its box says its functions and its rows are theirs;
   // set again, its Pure as the compiler prints it; taken off in one step, undone
@@ -963,6 +1073,22 @@ try {
   await page.keyboard.press('Control+z');
   await page.waitForFunction((id) => document.querySelector(`.dc-flow-box[data-tile="${id}"]`)?.textContent?.includes('filter → limit'), pured.id, { timeout: 30_000 });
   check((await boxes()).find((b) => b.id === pured.id)?.says === 'filter → limit', 'undone: its Pure back');
+  // IMPORT PURE (FL12): its Pure taken apart by Import as Boxes -- this box its filter, a box after it of its limit
+  await page.locator(`.dc-flow-box[data-tile="${pured.id}"]`).click();
+  await settled();
+  // its window docked already (it stays after Take Its Pure Off and its undo), or opened from its settings
+  const openPure = page.locator('.dc-flow-settings button:visible', { hasText: 'Open its settings' });
+  if (await openPure.count() > 0) await openPure.click();
+  await docked('Pure');
+  const beforeImport = (await boxes()).map((b) => b.id);
+  await page.locator('.dc-flow-dock .dc-pure-import').click();
+  await boxCount(beforeImport.length + 1);
+  const imported = await added(beforeImport);
+  await page.waitForFunction((id) => document.querySelector(`.dc-flow-box[data-tile="${id}"]`)?.textContent?.includes('filter'), pured.id, { timeout: 30_000 });
+  check((await boxes()).find((b) => b.id === pured.id)?.says === 'filter' && imported.tool === 'pure' && imported.says === 'limit',
+    `imported as boxes: a filter, then a limit after it: ${JSON.stringify([(await boxes()).find((b) => b.id === pured.id), imported])}`);
+  const importedInput = await page.evaluate((id) => window.__dataPage.document('x')?.cubes.find((c) => c.id === id)?.cube.source.input, imported.id);
+  check(JSON.stringify(importedInput) === JSON.stringify({ grid: pured.id }), `the limit reads the filter: ${JSON.stringify(importedInput)}`);
 
   // NEW BOX AFTER (FL9): a cell of the Filter's rows right-clicked, its region filtered by -- in a box of its own after
   // the Filter, the Filter left doing its one thing
@@ -1470,6 +1596,44 @@ try {
   const ratesAt = await page.evaluate((id) => window.__dataPage.document('x').sheets.find((s) => s.layout.kind === 'flow').layout.boxes.find((b) => b.tile === id), rates.id);
   check(Math.abs(ratesAt.x + 92 - textSpot.canvasX) <= 2, `made where it was let go: its middle at ${ratesAt.x + 92}`);
 
+  // DYNAMIC REPLACE (§4, Alteryx's): its rules a Text Input's rows -- a column, a condition in Pure, a value each -- the
+  // rules box picked in its window and read (that box shown, then this one again, its window opened on its rows), loaded:
+  // region replaced in place by the rule's value where its condition holds
+  const beforeRules = (await boxes()).map((b) => b.id);
+  const rulesSpot = await emptyCanvasPoint();
+  const rulesTool = await page.locator('.dc-flow-tool[data-tool="textInput"]').boundingBox();
+  await page.mouse.move(rulesTool.x + rulesTool.width / 2, rulesTool.y + rulesTool.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rulesSpot.x, rulesSpot.y, { steps: 12 });
+  await page.mouse.up();
+  const rulesIn = page.locator('.dc-text-input');
+  await rulesIn.waitFor({ timeout: 10_000 });
+  await rulesIn.locator('.dc-text-input-name input').fill('region rules');
+  await rulesIn.locator('.dc-text-input-head').first().evaluate((field) => {
+    const data = new DataTransfer();
+    data.setData('text/plain', "Column\tCondition\tValue\r\nregion\t$x.region == 'EMEA'\tEurope\r\n");
+    field.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  await rulesIn.locator('.dc-save-foot .dc-primary').click();
+  await boxCount(beforeRules.length + 1);
+  const rulesBox = await added(beforeRules);
+  const beforeReplace = (await boxes()).map((b) => b.id);
+  await drag('dynamicReplace', filter.id);
+  await boxCount(beforeReplace.length + 1);
+  const replaceBox = await added(beforeReplace);
+  await docked('Dynamic Replace');
+  await page.locator('.dc-flow-dock .dc-replace-from').selectOption(rulesBox.id);
+  await page.waitForFunction(() => document.querySelector('.dc-flow-dock .dc-replace-read')?.textContent === '1 rule, replacing region',
+    undefined, { timeout: 60_000 });
+  check(await page.locator('.dc-flow-dock .dc-replace-condition').inputValue() === 'Condition', "read: its parts picked in its columns' order");
+  await page.locator('.dc-flow-dock .dc-sample-foot .dc-primary').click();
+  await settled();
+  const replacedBox = (await boxes()).find((b) => b.id === replaceBox.id);
+  const replaceRefused = await page.locator('.dc-flow-dock .dc-sample-status').last().textContent().catch(() => '');
+  check(replacedBox?.tool === 'dynamicReplace' && replacedBox.says === 'region by 1 rule in place',
+    `a Dynamic Replace box: ${JSON.stringify(replacedBox)}${replaceRefused ? `, refused: ${replaceRefused}` : ''}`);
+  check(await page.locator('.dc-flow-results .dc-th[data-column="region_replaced"]').count() > 0, 'its column in its rows, handed on as region');
+
   // A BOX'S PROFILE (M5): the Input shown (Enter on it: other boxes cover it by now), its Profile -- each column
   // summarised by the database; its Rows again
   await page.locator(`.dc-flow-box[data-tile="${input.id}"]`).focus();
@@ -1494,6 +1658,19 @@ try {
   check(names.includes('notional') && names.includes('pnl') && corr.notional[names.indexOf('notional')] === '1'
     && names.every((n, i) => corr[n][i] === '1' || corr[n][i] === '')
     && names.every((n) => corr[n].every((r) => r === '' || (Number(r) >= -1 && Number(r) <= 1))), `its correlations: ${JSON.stringify(corr)}`);
+  // a column opened: its most frequent values, counted by the database (profile.ts topValuesLambda) -- region's three,
+  // the most first, their counts its 5,000 rows; closed again
+  const regionOpen = page.locator('.dc-flow-profile-table tr[data-column="region"] .dc-flow-profile-open');
+  await regionOpen.click();
+  await page.locator('.dc-flow-top-list .dc-flow-top-line').first().waitFor({ timeout: 60_000 });
+  const tops = await page.locator('.dc-flow-top-line').evaluateAll((lines) => lines.map((l) => [
+    l.querySelector('.dc-flow-top-value')?.textContent, Number((l.querySelector('.dc-flow-top-count')?.textContent ?? '').replace(/\D/g, '')),
+  ]));
+  check(tops.length === 3 && tops.reduce((sum, [, n]) => sum + n, 0) === 5000 && tops.every(([, n], i) => i === 0 || n <= tops[i - 1][1])
+    && await regionOpen.getAttribute('aria-expanded') === 'true', `region's top values: ${JSON.stringify(tops)}`);
+  await page.screenshot({ path: outPath('flow-profile-top-values.png') });
+  await regionOpen.click();
+  check(await page.locator('.dc-flow-top-list').count() === 0, 'closed again');
   await page.screenshot({ path: outPath('flow-profile.png') });
   await page.locator('.dc-flow-corr').scrollIntoViewIfNeeded();
   await page.screenshot({ path: outPath('flow-correlations.png') });
@@ -1581,6 +1758,56 @@ try {
   await page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), undefined, { timeout: 180_000 });
   check(/wrote big trades\.csv/.test(await page.locator('.dc-flow-log').textContent() ?? ''), 'its log says it wrote it');
   await page.locator('.dc-flow-log-close').click();
+
+  // A MESSAGE AND BLOCK UNTIL DONE (M8), AND THE RUN HISTORY: the palette's Message clicked after the Output -- a box whose
+  // words a run's log says, its rows counted; set to an error, a run stopped, nothing written; the Output set to block (its
+  // settings' checkbox), a run in two stages, its Output written before the Message stops what is after it; the log's
+  // history of runs; each undone
+  const runDone = () => page.waitForFunction(() => /Run$/.test(document.querySelector('.dc-flow-run')?.textContent ?? ''), undefined, { timeout: 180_000 });
+  const beforeMessage = (await boxes()).map((b) => b.id);
+  await show(outBox.id);
+  await page.locator('.dc-flow-tool[data-tool="message"]').scrollIntoViewIfNeeded();
+  await page.locator('.dc-flow-tool[data-tool="message"]').click();
+  await boxCount(beforeMessage.length + 1);
+  const messageBox = await added(beforeMessage);
+  check(messageBox.tool === 'message' && messageBox.says === '“{rows} rows”', `a Message box: ${JSON.stringify(messageBox)}`);
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Add Message', 'one step: Add Message');
+  const [ranMessage] = await Promise.all([page.waitForEvent('download', { timeout: 180_000 }), page.locator('.dc-flow-run').click()]);
+  check(ranMessage.suggestedFilename() === 'big trades.csv', 'a Message that informs: the Output written');
+  await runDone();
+  const saidRows = await page.locator('.dc-flow-log .dc-flow-log-said').allTextContents();
+  check(JSON.stringify(saidRows) === JSON.stringify([`${fewer.toLocaleString('en-US')} rows`]), `its words in the log, its rows counted: ${saidRows}`);
+  await show(messageBox.id);
+  await page.locator('.dc-flow-message-level').selectOption('error');
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Set Message', undefined, { timeout: 20_000 });
+  await page.locator('.dc-flow-run').click();
+  await runDone();
+  const messageStopped = await page.locator('.dc-flow-log-title').textContent() ?? '';
+  check(/stopped by Message: nothing written/.test(messageStopped), `an error stops the run: ${messageStopped}`);
+  check(/not written: .*said/.test(await page.locator('.dc-flow-log').textContent() ?? ''), 'its Output not written, saying why');
+  // the run history: every run this session, an earlier one read again
+  const runs = await page.locator('.dc-flow-log-runs option').count();
+  check(runs >= 4, `the runs listed: ${runs}`);
+  await page.locator('.dc-flow-log-runs').selectOption(String(runs - 2));
+  check(!/stopped/.test(await page.locator('.dc-flow-log-title').textContent() ?? ''), 'the run before it, read again: it ran through');
+  await page.locator('.dc-flow-log-runs').selectOption(String(runs - 1));
+  // the Output blocks: written in its stage before the Message's stops the rest
+  await show(outBox.id);
+  await page.locator('.dc-flow-block-check input').check();
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Block Until Done', undefined, { timeout: 20_000 });
+  check((await boxes()).find((b) => b.id === outBox.id)?.tool === 'output', 'an Output still, that blocks');
+  const [ranStaged] = await Promise.all([page.waitForEvent('download', { timeout: 180_000 }), page.locator('.dc-flow-run').click()]);
+  check(ranStaged.suggestedFilename() === 'big trades.csv', 'its stage written before the Message is judged');
+  await runDone();
+  const stagedTitle = await page.locator('.dc-flow-log-title').textContent() ?? '';
+  check(/in 2 stages/.test(stagedTitle) && /nothing after it written/.test(stagedTitle), `a run in two stages: ${stagedTitle}`);
+  await page.screenshot({ path: outPath('flow-message-block.png') });
+  await page.locator('.dc-flow-log-close').click();
+  await page.locator('.dc-flow-canvas').click({ position: { x: 5, y: 5 } });
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Control+z');
+  await boxCount(beforeMessage.length);
+  check(await page.evaluate((t) => window.__dataPage.document('x').sheets.flatMap((sh) => sh.layout.kind === 'flow' ? sh.layout.boxes : [])
+    .find((b) => b.tile === t)?.blocks === undefined, outBox.id), 'undone: it blocks no more');
 
   // THE PALETTE'S FIND: its tools narrowed to what is typed
   await page.fill('.dc-flow-find', 'join');
@@ -1689,12 +1916,14 @@ try {
   await page.locator('.dc-flow-box[data-tile="grid-23"]').click();
   await settled();
   const lackingSaid = await page.locator('.dc-flow-settings:visible .dc-flow-pin-lacking').textContent();
-  check(lackingSaid === 'region APAC has no column of its own: Load values again to add it', `its settings name it: ${lackingSaid}`);
+  check(lackingSaid === 'region APAC has no column of its own: add it to its columns, or Load values again', `its settings name it: ${lackingSaid}`);
   check(/^Its columns: AMER, EMEA\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: AMER, EMEA');
-  await page.locator('.dc-flow-settings:visible .dc-flow-pin-load').click();
+  // the fix offered (FL8's "Add to the cast"): the value it lacks given a column after its own, one step
+  await page.locator('.dc-flow-settings:visible .dc-flow-pin-add').click();
   await page.waitForFunction(() => document.querySelector('.dc-flow-box[data-tile="grid-23"] .dc-flow-says')?.textContent === 'every value has a column', undefined, { timeout: 60_000 });
-  check(await page.locator('.dc-flow-box[data-tile="grid-23"].dc-flow-passing').count() === 1, 'loaded again: every region a column, passing');
-  check(/^Its columns: AMER, APAC, EMEA\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: all three');
+  check(await page.locator('.dc-flow-box[data-tile="grid-23"].dc-flow-passing').count() === 1, 'added: every region a column, passing');
+  check(/^Its columns: AMER, EMEA, APAC\.$/.test(await page.locator('.dc-flow-settings:visible .dc-flow-pin-words').textContent() ?? ''), 'its columns: its two, then APAC after them');
+  check(await page.locator('.dc-flow-settings:visible .dc-flow-pin-add').count() === 0, 'nothing more to add: the fix gone');
   // A DRY RUN (M6): every box counted and judged, nothing written -- its stopping Test failing, 2024's orders would not
   // be; set to warn, they would be, and still nothing is written
   const dryRun = async () => {
@@ -1715,6 +1944,47 @@ try {
   const dryWarned = await dryRun();
   check(/; nothing written$/.test(dryWarned), `a dry run writes nothing: ${dryWarned}`);
   check(/would write orders of 2024\.csv/.test(await logRow('Orders of 2024') ?? ''), 'its Output would be written, and is not');
+  // A CACHE (FL10): the Union set to cache its rows, one step -- its rows are this tab's own already (files read into
+  // it: a held copy, whose plane cannot move), so nothing is copied, and its settings and its box say so; ticked off,
+  // no longer cached. (A copy made and read by the box after it: Python's host, test_page.py's cached box.)
+  await page.locator('.dc-flow-log-close:visible').click();
+  await page.locator('.dc-flow-box[data-tile="grid-20"]').click();
+  await settled();
+  await page.locator('.dc-flow-settings:visible .dc-flow-cache-check input').check();
+  check(await page.evaluate(() => window.__dataPage.undoLabel) === 'Cache Rows', 'one step: Cache Rows');
+  await page.waitForFunction(() => /^Nothing to copy: its rows are in this page's database already/.test(
+    [...document.querySelectorAll('.dc-flow-settings .dc-flow-cache-said')].find((e) => e.offsetParent !== null)?.textContent ?? ''), undefined, { timeout: 60_000 });
+  check(await page.locator('.dc-flow-box[data-tile="grid-20"].dc-flow-cached[data-cached="here"]').count() === 1, 'its box marked cached, its rows here');
+  const cacheSaved = await page.evaluate(() => window.__dataPage.document('x')?.sheets.flatMap((s) => s.layout.boxes ?? []).find((b) => b.tile === 'grid-20')?.cache);
+  check(cacheSaved === true, `the page writes it so: ${cacheSaved}`);
+  await page.locator('.dc-flow-settings:visible .dc-flow-cache-check input').uncheck();
+  await page.waitForFunction(() => window.__dataPage.undoLabel === 'Stop Caching', undefined, { timeout: 30_000 });
+  check(await page.locator('.dc-flow-box[data-tile="grid-20"].dc-flow-cached').count() === 0, 'no longer cached');
+  await page.screenshot({ path: outPath('flow-example-cache.png') });
+  // AN OUTPUT INTO A TABLE (M6, FL13): the Date Filter's Output made a table of the tab's database -- its name carried
+  // over -- written now in one transaction; written again as a new table, refused in the database's words; appended
+  await page.locator('.dc-flow-box[data-tile="grid-21"]').click();
+  await settled();
+  await page.locator('.dc-flow-settings:visible .dc-flow-output-kind').selectOption('table');
+  await page.waitForFunction(() => window.__dataPage.document('x')?.sheets.flatMap((s) => s.layout.boxes ?? [])
+    .find((b) => b.tile === 'grid-21')?.output?.format === 'table', undefined, { timeout: 30_000 });
+  const tableOut = await page.evaluate(() => window.__dataPage.document('x').sheets.flatMap((s) => s.layout.boxes ?? []).find((b) => b.tile === 'grid-21').output);
+  check(JSON.stringify(tableOut) === JSON.stringify({ format: 'table', name: 'orders_of_2024', mode: 'create' }), `a table, its name carried over: ${JSON.stringify(tableOut)}`);
+  const writeSaid = async () => {
+    await page.locator('.dc-flow-settings:visible .dc-flow-output-write').click();
+    await page.waitForFunction(() => {
+      const said = [...document.querySelectorAll('.dc-flow-output-said')].find((e) => e.offsetParent !== null)?.textContent ?? '';
+      return said !== '' && said !== 'Writing…';
+    }, undefined, { timeout: 120_000 });
+    return page.locator('.dc-flow-settings:visible .dc-flow-output-said').textContent();
+  };
+  check(await writeSaid() === 'Wrote table orders_of_2024', 'written into its table now');
+  check(/already exists/i.test(await writeSaid() ?? ''), 'a new table again: refused, the database\'s words');
+  await page.locator('.dc-flow-settings:visible .dc-flow-output-mode').selectOption('append');
+  await page.waitForFunction(() => window.__dataPage.document('x')?.sheets.flatMap((s) => s.layout.boxes ?? [])
+    .find((b) => b.tile === 'grid-21')?.output?.mode === 'append', undefined, { timeout: 30_000 });
+  check(await writeSaid() === 'Wrote table orders_of_2024', 'appended to it');
+  await page.screenshot({ path: outPath('flow-example-table-output.png') });
 } catch (e) {
   bad(`threw: ${e.stack ?? e}`);
   // the page as it was when it threw, beside the test's other outputs

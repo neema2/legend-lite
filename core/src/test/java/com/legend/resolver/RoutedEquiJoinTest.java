@@ -3,9 +3,10 @@
 
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
-import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -103,7 +104,7 @@ class RoutedEquiJoinTest {
                 st.execute("INSERT INTO OPS VALUES (1,'A',10), (2,'B',20), (3,'A',30), (4,'B',NULL)");
                 st.execute("INSERT INTO TYS VALUES (10,'I','INT'), (20,'S','VARCHAR'), (30,'B','BIT')");
             }
-            var r = Execution.execute(MODEL, QUERY, "x::RT", c);
+            var r = Lean.run(MODEL, QUERY, "x::RT", c);
             assertEquals(List.of("1|INT", "2|VARCHAR", "3|BIT", "4|null"),
                     r.rows().stream().map(row -> row.get(0) + "|" + row.get(1)).toList());
         }

@@ -48,9 +48,9 @@ public final class Boundary {
      */
     public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
         return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
-                (model, lambda, runtime, rows) -> {
-                    throw new IllegalArgumentException("this engine answers execute in upstream's Arrow format: "
-                            + "ask with ?serializationFormat=ARROW_IPC");
+                (query, runtime, sinkOf) -> {
+                    throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
+                            + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
                 }, HELD);
     }
 
@@ -73,9 +73,10 @@ public final class Boundary {
     }
 
     /**
-     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): everything the answer holds but its rows -- the
-     * SQL, the TDS builder, the activities, the result's columns, or a graph fetch's JSON builder -- for a host whose
-     * executor runs the SQL and types the rows (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
+     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): the statement to run, the answer's shape and its
+     * result columns with their type facts, and everything the answer holds but its rows -- the TDS builder, the
+     * activities, the columns' names, or a graph fetch's JSON builder -- for a host whose database runs the statement
+     * (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
      * {@code modelsJson}: the only models the host runs, a JSON array of their texts.
      */
     public static com.legend.server.PureV1Api.Answer executeJsonPlan(String body, String modelsJson) {
@@ -83,11 +84,23 @@ public final class Boundary {
     }
 
     /**
-     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} SQL (PureV1Api.jsonAnswer): that
-     * plan's answer and the one value its database wrote, arranged by the writers legend-lite's server answers with.
+     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} statement (PureV1Api.jsonAnswer):
+     * that plan's answer and the host's rows (a JSON array of objects, each a column's name and its cell as the
+     * host's driver read it), decoded by the plan's columns and written by the writer legend-lite's server answers
+     * with.
      */
-    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String wire) {
-        return com.legend.server.PureV1Api.jsonAnswer(plan, wire);
+    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String rows) {
+        return com.legend.server.PureV1Api.jsonAnswer(plan, rows);
+    }
+
+    /**
+     * Execute's answer in upstream's Arrow format for a host that ran {@link #executeJsonPlan}'s {@code run}
+     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29): that plan's answer and the host's rows, decoded by the
+     * plan's columns and written by lite's Arrow writer as the one zstd frame upstream sends -- folded as base64
+     * (Folded.http).
+     */
+    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String rows) {
+        return com.legend.server.PureV1Api.arrowAnswer(plan, rows);
     }
 
     /** The models a host runs, from their JSON array of texts. */
@@ -183,6 +196,19 @@ public final class Boundary {
     public static String planJsonHeld(int handle, String lambdaJson, String runtime) {
         return MODELS.with(handle, ctx -> planned(com.legend.Compiler.query(ctx,
                 com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime)));
+    }
+
+    /**
+     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text, version 19): a program
+     * that writes -- a store write's {@code Update}, its count bound into the query that answers it, in one
+     * {@code Sequence} -- or a query's one {@code TdsResult}, its answer TYPED rows the host reads by the plan's
+     * columns (the result boundary program, 2026-10-27: a plan names no output format; a writer at the edge spells
+     * the rows), the plan its host's runner runs step by step (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
+     * into a table; docs/WRITES_DESIGN_2026_10_18.md leg 7).
+     */
+    public static String executionPlanJsonHeld(int handle, String lambdaJson, String runtime) {
+        return MODELS.with(handle, ctx -> com.legend.executionplan.PlanJson.write(com.legend.Compiler.query(ctx,
+                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).executionPlan(runtime)));
     }
 
     /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */

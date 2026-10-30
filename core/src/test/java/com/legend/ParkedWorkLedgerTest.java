@@ -183,11 +183,6 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-28 a ~func descriptor's signature is not matched against the function's",
                     new Anchor("sig < 0 \\? funcRef : funcRef\\.substring\\(0, sig\\)",
                             List.of("MappingFromProtocol.java"))),
-            // PARK-34 (2026-10-13, C1's audit): a column type whose TDS relational spelling legend-engine was never
-            // asked for (a Variant's) refuses execute's answer -- the server's since E8, the tab's since C1
-            Map.entry("PARK-34 an execute over a column whose relational spelling is unprobed is refused",
-                    new Anchor("is unprobed -- probe legend-engine, do not guess",
-                            List.of("UpstreamRelationType.java"))),
             // PARK-37 (2026-10-14, the iq-finds audit): a spelled integer at or above 2^63 read as an index
             // (an offset, a precision) wraps; the at() read over a spelled collection is the anchor
             Map.entry("PARK-37 a spelled integer at or above 2^63 read as an index, an offset or a precision wraps",

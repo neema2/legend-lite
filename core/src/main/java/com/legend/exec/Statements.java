@@ -23,8 +23,9 @@ public interface Statements {
      *  version, of a version they are written for; anything else is refused by name, never run. */
     void check(ExecutionPlan.Target target);
 
-    /** A statement run for its effect: a session statement, a setup statement. */
-    void execute(String statement);
+    /** A statement run for its effect -- a session statement, a setup statement, an effect a body sends
+     *  ({@link ExecutionPlan.Effect}): whether it answered rows, which are not read. */
+    boolean execute(String statement);
 
     /**
      * The plan's statement, each slot bound to its parameter's checked value as the slot says, and each row's one text
@@ -39,9 +40,42 @@ public interface Statements {
     long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values)
             throws IOException;
 
-    /** {@code work} inside one transaction of this session (a caller's open one joined, {@code Executor.inTransaction}):
+    /** {@code work} inside one transaction of this session (a caller's open one joined, {@link Sessions#inTransaction}):
      *  committed when it returns, rolled back when it throws. */
     <T> T inTransaction(java.util.function.Supplier<T> work);
+
+    /** Whether the session commits each statement itself, so a transaction is its holder's to open
+     *  ({@link Sessions#ownsTransaction}): a caller that turned autocommit off holds it, and an effect script's bracket
+     *  must not nest inside (the body driver asks through the seam, B1b, 2026-10-29). */
+    boolean ownsTransaction();
+
+    /**
+     * The columns {@code statement} answers: the statement run and its result's columns read, no row read (the
+     * caller's text is a {@code LIMIT 0} probe: a schema read, never values -- the E1 probe discipline). The body
+     * driver's three schema probes (a raw grid's roster, a deferred relation's columns, a wire-decided kind's
+     * reported type) and the static pivot's key typing read through this, so the driver holds no JDBC itself (track B
+     * of the result boundary program, B1a, 2026-10-29; until then each probe ran its own JDBC statement, and the
+     * wire-type reader a prepare, whose metadata a driver may withhold).
+     */
+    List<Reported> columns(String statement);
+
+    /** The columns {@code statement} would answer, as the database DESCRIBES it before running it (a JDBC session:
+     *  the prepared statement's metadata), none where the driver withholds them: the wire-type reader's reading
+     *  ({@code WireTypes}: a prepare, no execution, since leg 3.3), kept as it was when it moved onto the seam
+     *  (B1a); {@link #columns} is the probe that runs. */
+    List<Reported> describe(String statement);
+
+    /** A column a statement reports: its label; the driver's own name for its type (what a dialect's typing reads,
+     *  {@code SqlDialect.typingWireName}); the SQL vocabulary's type where JDBC's type code names one (null
+     *  otherwise); whether it may be null. */
+    record Reported(String name, String driverType, com.legend.sql.@com.legend.base.Nullable SqlType type,
+            boolean nullable) {
+    }
+
+    /** {@code rows} loaded through the session's database's bulk loader where it has one ({@link BulkLoad}): false
+     *  when it has none, and the caller sends the one INSERT its dialect writes instead. A body's seeds and the system
+     *  database's rows load so (B1a). */
+    boolean load(ExecutionPlan.SetupStep.Rows rows);
 
     @FunctionalInterface
     interface Rows {

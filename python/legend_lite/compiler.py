@@ -258,16 +258,62 @@ def execute_plan(body: str, models: list[str]) -> Answer:
 
 def execute_json_plan(body: str, models: list[str]) -> Answer:
     """The plan half of execute in legend-engine's JSON, for a host that runs the SQL on its own database (the tab's, and
-    Python's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an answer whose body is ``{"sql", "run", "builder", ...}`` --
-    ``run`` the SQL whose one value is the whole result as the database writes it (a relation's JSON wire); any other
-    answer is a refusal, to be sent as it is."""
+    Python's: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an answer whose body is ``{"sql", "run", "shape",
+    "resultColumns", "builder", ...}`` -- ``run`` the typed statement the server runs, whose rows go back to
+    :func:`execute_json_answer`; any other answer is a refusal, to be sent as it is."""
     return _http(library().call('lite_execute_json_plan', body, _json.dumps(models)))
 
 
-def execute_json_answer(plan: str, wire: str) -> Answer:
-    """Execute's answer in legend-engine's JSON: ``plan`` the plan half's body, ``wire`` the one value the database wrote
-    running its ``run`` SQL, arranged by legend-lite's server's own writers -- the server's answer text."""
-    return _http(library().call('lite_execute_json_answer', plan, wire))
+def execute_json_answer(plan: str, rows: str) -> Answer:
+    """Execute's answer in legend-engine's JSON: ``plan`` the plan half's body, ``rows`` the rows the database answered
+    its ``run`` statement with (a JSON array of objects, each a column's name and its cell as the driver read it:
+    :func:`host_rows`), decoded by the plan's columns and written by legend-lite's server's own writer -- the server's
+    answer text."""
+    return _http(library().call('lite_execute_json_answer', plan, rows))
+
+
+def host_rows(names: list[str], rows: list[tuple]) -> str:
+    """A result's rows as the compiler reads a host's rows back (``PureV1Api.jsonAnswer``): a JSON array of objects,
+    each a column's name and its cell exactly as the driver read it -- an integer's digits, a float's shortest digits
+    (a non-finite one as its name in a string), a decimal, a date, a time and a date-time as their text, a text, a
+    boolean, null, a structure as its JSON with the same rules. The plan's columns say how each reads."""
+    return '[' + ','.join('{' + ','.join(_json.dumps(n) + ':' + _cell(v) for n, v in zip(names, row)) + '}'
+                          for row in rows) + ']'
+
+
+def _cell(v) -> str:
+    import datetime
+    import decimal
+    import math
+    import uuid
+    if v is None:
+        return 'null'
+    if isinstance(v, bool):
+        return 'true' if v else 'false'
+    if isinstance(v, int):
+        return str(v)
+    if isinstance(v, float):
+        if math.isfinite(v):
+            return repr(v)
+        return _json.dumps('NaN' if math.isnan(v) else ('Infinity' if v > 0 else '-Infinity'))
+    if isinstance(v, decimal.Decimal):
+        return _json.dumps(str(v))
+    if isinstance(v, datetime.datetime):
+        # a zoned value at UTC, its offset dropped: the plan's session is UTC (Boundary.sessionSetup)
+        if v.tzinfo is not None:
+            v = v.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return _json.dumps(v.isoformat())
+    if isinstance(v, (datetime.date, datetime.time)):
+        return _json.dumps(v.isoformat())
+    if isinstance(v, str):
+        return _json.dumps(v)
+    if isinstance(v, uuid.UUID):
+        return _json.dumps(str(v))
+    if isinstance(v, (list, tuple)):
+        return '[' + ','.join(_cell(x) for x in v) + ']'
+    if isinstance(v, dict):
+        return '{' + ','.join(_json.dumps(str(k)) + ':' + _cell(x) for k, x in v.items()) + '}'
+    raise TypeError(f'a cell of {type(v).__name__} has no form a host hands its rows back in')
 
 
 def refusal(message: str) -> Answer:

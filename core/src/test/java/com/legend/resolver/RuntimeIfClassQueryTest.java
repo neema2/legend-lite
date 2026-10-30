@@ -3,9 +3,9 @@
 
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -50,12 +50,8 @@ class RuntimeIfClassQueryTest {
                 st.execute("CREATE TABLE FIRM (ID INTEGER, NAME VARCHAR)");
                 st.execute("INSERT INTO FIRM VALUES (1, 'Acme'), (2, 'Default')");
             }
-            ExecutionResult r = Execution.execute(MODEL, query, "x::RT", c);
-            if (r instanceof ExecutionResult.Collection coll) {
-                return coll.values();
-            }
-            Object v = ((ExecutionResult.Scalar) r).value();
-            return v == null ? List.of() : List.of(v);
+            Lean.Result r = Lean.run(MODEL, query, "x::RT", c);
+            return r.values();
         }
     }
 

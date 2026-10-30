@@ -42,10 +42,10 @@ class PureReprTest {
 
     @Test
     void datesTakeThePercentForm() {
+        // the carrier the plan runner's typed read hands (the doors, 2026-10-29: the generator reads no result set of
+        // its own, so a driver's java.sql.Date or java.time day never reaches it)
         assertEquals("%2020-01-02", TestDataGenerator.pureRepr(
-                java.sql.Date.valueOf("2020-01-02")));
-        assertEquals("%2020-01-02", TestDataGenerator.pureRepr(
-                java.time.LocalDate.of(2020, 1, 2)));
+                com.legend.values.PureDateLiteral.fromLocalDate(java.time.LocalDate.of(2020, 1, 2))));
     }
 
     @Test

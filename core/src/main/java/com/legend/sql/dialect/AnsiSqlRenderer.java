@@ -142,9 +142,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return false;
     }
 
-    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} and
-     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} itself; else they are expanded before every other pass
-     *  ({@link FloatPrintText.Expansion}) to the portable spellings over the double's text. */
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} itself; else it is expanded before every
+     *  other pass ({@link FloatPrintText.Expansion}) to the portable spelling over the double's text. */
     protected boolean spellsFloatPrint() {
         return false;
     }
@@ -179,6 +178,32 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         throw new DialectCapability("this dialect reads a column stored as " + r.stored()
                 + " as the database holds it: a stored read of it is a pass defect");
+    }
+
+    /** {@code s}'s projections with each star over {@code alias} spelled as {@code source}'s own columns (an empty
+     *  projection list is a star), for a dialect that puts helper columns beside a source under its alias: a counted
+     *  MODE's counts, or a quantile's ranks (MariaDB's, MySQL's and BigQuery's). A star there would answer the helpers
+     *  too, and a typed-rows statement answers its plan's columns alone (2026-10-27, the result boundary program:
+     *  measured on the MariaDB, MySQL and BigQuery lanes, the window mode, median and percentile). A star with
+     *  exceptions over that source is refused by name. */
+    protected static List<SqlSelect.Projection> starsAsSourceColumns(SqlSelect s, SqlSource source, String alias,
+            String product) {
+        List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
+        List<SqlSelect.Projection> projections = s.projections().isEmpty()
+                ? List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null, null)) : s.projections();
+        for (SqlSelect.Projection p : projections) {
+            if (p.expr() instanceof SqlExpr.Star st && (st.table() == null || st.table().equals(alias))) {
+                for (com.legend.sql.OutputCol oc : source.outputs()) {
+                    spelled.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, oc), oc.name(), oc));
+                }
+            } else if (p.expr() instanceof SqlExpr.StarExcept se && (se.table() == null || se.table().equals(alias))) {
+                throw new DialectCapability("a star with exceptions over a source with helper columns beside it"
+                        + " reached " + product);
+            } else {
+                spelled.add(p);
+            }
+        }
+        return spelled;
     }
 
     /** A type Pure cannot name: a Pure String, read as text on every dialect. */
@@ -747,6 +772,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
+            // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
+            // consuming it reads its channels; no dialect writes it
+            case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
+                    + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
+                    + " other consumer of it is not lowered (channels of kinds "
+                    + tl.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"
@@ -1069,11 +1100,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.expr(FloatCanonText.of(a.get(0)), parentPrec);
     }
 
-    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} or
-     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} call): the portable decomposition over the double's text (a
-     *  dialect whose double text is long spells it once, its own way). */
+    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} call): the portable decomposition
+     *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        return writer.expr(FloatPrintText.of(c.fn(), c.args().get(0)), parentPrec);
+        return writer.expr(FloatPrintText.of(c.args().get(0)), parentPrec);
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----
@@ -1549,7 +1579,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 case DATE -> "DATE";
                 case TIMESTAMP -> "TIMESTAMP";
                 case TIME -> "TIME";
-                case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
+                case HUGEINT, TIMESTAMPTZ, JSON, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
                         "plan parameter '" + parameter + "' is typed " + scalar + ", which no parameter is bound as");
             };
             case com.legend.sql.SqlType.Decimal d -> "DECIMAL";

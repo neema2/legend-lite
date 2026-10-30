@@ -100,10 +100,9 @@ public final class CapabilityReach {
 
     /**
      * The case planned as its lane plans it, up to the dialect: on the storeless runtime ({@code StorelessRuntime},
-     * the PCT adapter's), through the plan-only seam ({@code TypedQuery.lower}: G½, H, the runtime's checks, I), a
-     * relation result wrapped in the PCT wire text ({@code TdsTextWrap}) as the lane wraps it. Not applied: the lane's
-     * feature flags and its database-side probes (a dynamic pivot's wrap needs the database's answer, so a pivoting
-     * relation stays unwrapped).
+     * the PCT adapter's), through the plan-only seam ({@code TypedQuery.lower}: G½, H, the runtime's checks, I), as
+     * the lane plans its typed rows (no wrapper since the result boundary program's phase 4: the PCT writes Pure's TDS
+     * text from them). Not applied: the lane's feature flags.
      */
     private static SqlQuery lower(Map<String, Object> models, String model, String expression) {
         Object built = models.computeIfAbsent(model, m -> {
@@ -116,16 +115,8 @@ public final class CapabilityReach {
         if (built instanceof RuntimeException e) {
             throw e;
         }
-        Compiler.LoweredQuery l = Compiler.query((ModelContext) built, expression)
-                .lower(com.legend.test.StorelessRuntime.RUNTIME, false);
-        var type = l.root().info().type();
-        if (com.legend.compiler.element.type.Type.isRelation(type)
-                && com.legend.lowering.TdsTextWrap.pivots(l.plan()).isEmpty()) {
-            return com.legend.lowering.TdsTextWrap.wrap(l.plan(),
-                    com.legend.compiler.element.type.Type.requireRelationSchema(type), null,
-                    com.legend.exec.Executor::pureOfSqlType);
-        }
-        return l.plan();
+        return Compiler.query((ModelContext) built, expression)
+                .lower(com.legend.test.StorelessRuntime.RUNTIME, true).plan();
     }
 
     /** Records every function and aggregate a statement holds, changing nothing. */

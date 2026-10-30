@@ -55,7 +55,7 @@ class SqlTextRatchetTest {
 
     private static final Pattern SQL_SHAPE = Pattern.compile(
             "(?i)(\\bselect\\s+\\S.*\\s+from\\b"
-            // create schema (2026-10-13, the dialect program's Phase 0: its blind spot let StatementExecutor's
+            // create schema (2026-10-13, the dialect program's Phase 0: its blind spot let StatementExecutor's (BodyDriver since 2026-10-29)
             // dropAndCreateSchemaInDb text through)
             + "|^\"\\s*(select|create table|create schema|insert into|drop table"
             + "|delete from|alter table)\\s+\\S"
@@ -65,12 +65,12 @@ class SqlTextRatchetTest {
     /** The register: file &rarr; exact SQL-text site count, measured
      * 2026-08-18 (audit §8 seeded 33 with a narrower rule; this rule
      * also counts Ddl — the one registered DDL owner — and
-     * StatementExecutor's engine-text sites). */
+     * StatementExecutor's engine-text sites; BodyDriver since 2026-10-29). */
     private static final Map<String, Integer> REGISTER =
             new LinkedHashMap<>();
 
     static {
-        // (StatementExecutor.java: its two sites were the record-only PRIMARY KEY
+        // (StatementExecutor.java, BodyDriver since 2026-10-29: its two sites were the record-only PRIMARY KEY
         // ALTER strings of a write-only meta ledger — deleted in batch 137)
         // (LineageTreeVerdicts.java: its one site — the tree-print → rows
         // query, DuckDB-only — DELETED in task #14 leg 1, 2026-09-21: the
@@ -132,7 +132,10 @@ class SqlTextRatchetTest {
         // exec/Sessions.java -> exec/MariaDbConnector.java (2026-10-16, the dialect program's Phase 5): the
         // read is MariaDB's connector's (DatabaseConnector.raisedMessage), the owner of its sessions' state
         // (the plan's §4: the connector owns the held raise). exec may not reach the dialect for it
-        // (ArchitectureTest.execsReachIntoPlanningOnlyShrinks), so the statement stays on the execution side
+        // (ArchitectureTest.execsReachIntoPlanningOnlyShrinks), so the statement stays on the execution side.
+        // 2026-10-29 (D65, the three routings): the connector DECLARES the read and the reset as data
+        // (DatabaseConnector.raiseRecovery) and the seam runs them (JdbcStatements.held); the one SQL-shaped
+        // literal is the same SELECT, the count unmoved
         REGISTER.put("exec/MariaDbConnector.java", 1);
         // 0 -> 1 (2026-10-16, the Cypher island's zoned date-time leg, docs/CYPHER_STUDY_2026_10_15.md §12.8): no
         // SQL -- Neo4j's own error text "Cannot select datetime from: <value>", which the translator raises as

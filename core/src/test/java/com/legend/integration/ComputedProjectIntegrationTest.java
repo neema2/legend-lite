@@ -1,7 +1,9 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -18,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Without the fix, this fails with:
  *   NullPointerException: Cannot invoke "RelationType.columns()" because "sourceType" is null
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 public class ComputedProjectIntegrationTest {
 
     /**
@@ -81,13 +84,14 @@ public class ComputedProjectIntegrationTest {
 
     @Test
     void testSimpleProjectList_pctExpression() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
-            QueryService qs = new QueryService();
-            var result = qs.execute(MODEL, PCT_EXPRESSION, "test::TestRuntime", connection);
+            var result = Lean.run(MODEL, PCT_EXPRESSION, "test::TestRuntime", connection);
 
             assertNotNull(result, "Result should not be null");
             assertEquals(3, result.columns().size(), "Should have 3 columns: one, two, three");
@@ -101,7 +105,7 @@ public class ComputedProjectIntegrationTest {
             assertTrue(result.rows().size() > 0, "Should have rows");
             System.out.println("Rows: " + result.rows().size());
             for (var row : result.rows()) {
-            System.out.println("  " + row.values());
+            System.out.println("  " + row);
             }
         }
     }
@@ -145,13 +149,14 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testFilterPostProject() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
-            QueryService qs = new QueryService();
-            var result = qs.execute(
+            var result = Lean.run(
                     COMPOSITION_MODEL,
                     "|[^meta::pure::functions::relation::tests::composition::FirmTypeForCompositionTests(legalName='Firm X', employees=[^meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests(firstName='Peter', lastName='Smith'), ^meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests(firstName='John', lastName='Johnson'), ^meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests(firstName='John', lastName='Hill'), ^meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests(firstName='Anthony', lastName='Allen')]), ^meta::pure::functions::relation::tests::composition::FirmTypeForCompositionTests(legalName='Firm A', employees=^meta::pure::functions::relation::tests::composition::PersonTypeForCompositionTests(firstName='Fabrice', lastName='Roberts'))]->"
                     + "meta::pure::functions::relation::project(~[legalName:x: meta::pure::functions::relation::tests::composition::FirmTypeForCompositionTests[1]|$x.legalName,firstName:x: meta::pure::functions::relation::tests::composition::FirmTypeForCompositionTests[1]|$x.employees.firstName])->"
@@ -172,16 +177,16 @@ public class ComputedProjectIntegrationTest {
             assertEquals(4, rows.size(), "Should have 4 rows for Firm X employees");
 
             // Sort by firstName for deterministic ordering (matches PCT ->sort(~firstName->ascending()))
-            rows.sort((a, b) -> String.valueOf(a.values().get(1)).compareTo(String.valueOf(b.values().get(1))));
+            rows.sort((a, b) -> String.valueOf(a.get(1)).compareTo(String.valueOf(b.get(1))));
 
-            assertEquals("Firm X", rows.get(0).values().get(0));
-            assertEquals("Anthony", rows.get(0).values().get(1));
-            assertEquals("Firm X", rows.get(1).values().get(0));
-            assertEquals("John", rows.get(1).values().get(1));
-            assertEquals("Firm X", rows.get(2).values().get(0));
-            assertEquals("John", rows.get(2).values().get(1));
-            assertEquals("Firm X", rows.get(3).values().get(0));
-            assertEquals("Peter", rows.get(3).values().get(1));
+            assertEquals("Firm X", rows.get(0).get(0));
+            assertEquals("Anthony", rows.get(0).get(1));
+            assertEquals("Firm X", rows.get(1).get(0));
+            assertEquals("John", rows.get(1).get(1));
+            assertEquals("Firm X", rows.get(2).get(0));
+            assertEquals("John", rows.get(2).get(1));
+            assertEquals("Firm X", rows.get(3).get(0));
+            assertEquals("Peter", rows.get(3).get(1));
         }
     }
 
@@ -209,13 +214,14 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testGroupByCastBeforeAgg() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
-            QueryService qs = new QueryService();
-            var result = qs.execute(
+            var result = Lean.run(
                     TDS_MODEL,
                     "|#TDS\nid, grp\n1, 2\n2, 1\n3, 3\n4, 4\n5, 2\n6, 1\n7, 3\n8, 1\n9, 5\n10, 0\n#->"
                     + "meta::pure::functions::relation::groupBy(~grp, "
@@ -234,22 +240,22 @@ public class ComputedProjectIntegrationTest {
 
             // Sort by grp for deterministic ordering
             rows.sort((a, b) -> Integer.compare(
-                    ((Number) a.values().get(0)).intValue(),
-                    ((Number) b.values().get(0)).intValue()));
+                    ((Number) a.get(0)).intValue(),
+                    ((Number) b.get(0)).intValue()));
 
             // PCT expected: grp=0→10, 1→16, 2→6, 3→10, 4→4, 5→9
-            assertEquals(0, ((Number) rows.get(0).values().get(0)).intValue());
-            assertEquals(10, ((Number) rows.get(0).values().get(1)).intValue());
-            assertEquals(1, ((Number) rows.get(1).values().get(0)).intValue());
-            assertEquals(16, ((Number) rows.get(1).values().get(1)).intValue());
-            assertEquals(2, ((Number) rows.get(2).values().get(0)).intValue());
-            assertEquals(6, ((Number) rows.get(2).values().get(1)).intValue());
-            assertEquals(3, ((Number) rows.get(3).values().get(0)).intValue());
-            assertEquals(10, ((Number) rows.get(3).values().get(1)).intValue());
-            assertEquals(4, ((Number) rows.get(4).values().get(0)).intValue());
-            assertEquals(4, ((Number) rows.get(4).values().get(1)).intValue());
-            assertEquals(5, ((Number) rows.get(5).values().get(0)).intValue());
-            assertEquals(9, ((Number) rows.get(5).values().get(1)).intValue());
+            assertEquals(0, ((Number) rows.get(0).get(0)).intValue());
+            assertEquals(10, ((Number) rows.get(0).get(1)).intValue());
+            assertEquals(1, ((Number) rows.get(1).get(0)).intValue());
+            assertEquals(16, ((Number) rows.get(1).get(1)).intValue());
+            assertEquals(2, ((Number) rows.get(2).get(0)).intValue());
+            assertEquals(6, ((Number) rows.get(2).get(1)).intValue());
+            assertEquals(3, ((Number) rows.get(3).get(0)).intValue());
+            assertEquals(10, ((Number) rows.get(3).get(1)).intValue());
+            assertEquals(4, ((Number) rows.get(4).get(0)).intValue());
+            assertEquals(4, ((Number) rows.get(4).get(1)).intValue());
+            assertEquals(5, ((Number) rows.get(5).get(0)).intValue());
+            assertEquals(9, ((Number) rows.get(5).get(1)).intValue());
         }
     }
 
@@ -261,13 +267,14 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testGroupByCastAfterAgg() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
-            QueryService qs = new QueryService();
-            var result = qs.execute(
+            var result = Lean.run(
                     TDS_MODEL,
                     "|#TDS\nid, grp\n1, 2\n2, 1\n3, 3\n4, 4\n5, 2\n6, 1\n7, 3\n8, 1\n9, 5\n10, 0\n#->"
                     + "meta::pure::functions::relation::groupBy(~grp, "
@@ -283,22 +290,22 @@ public class ComputedProjectIntegrationTest {
             assertEquals(6, rows.size(), "Should have 6 groups");
 
             rows.sort((a, b) -> Integer.compare(
-                    ((Number) a.values().get(0)).intValue(),
-                    ((Number) b.values().get(0)).intValue()));
+                    ((Number) a.get(0)).intValue(),
+                    ((Number) b.get(0)).intValue()));
 
             // Same expected results — cast is a no-op
-            assertEquals(0, ((Number) rows.get(0).values().get(0)).intValue());
-            assertEquals(10, ((Number) rows.get(0).values().get(1)).intValue());
-            assertEquals(1, ((Number) rows.get(1).values().get(0)).intValue());
-            assertEquals(16, ((Number) rows.get(1).values().get(1)).intValue());
-            assertEquals(2, ((Number) rows.get(2).values().get(0)).intValue());
-            assertEquals(6, ((Number) rows.get(2).values().get(1)).intValue());
-            assertEquals(3, ((Number) rows.get(3).values().get(0)).intValue());
-            assertEquals(10, ((Number) rows.get(3).values().get(1)).intValue());
-            assertEquals(4, ((Number) rows.get(4).values().get(0)).intValue());
-            assertEquals(4, ((Number) rows.get(4).values().get(1)).intValue());
-            assertEquals(5, ((Number) rows.get(5).values().get(0)).intValue());
-            assertEquals(9, ((Number) rows.get(5).values().get(1)).intValue());
+            assertEquals(0, ((Number) rows.get(0).get(0)).intValue());
+            assertEquals(10, ((Number) rows.get(0).get(1)).intValue());
+            assertEquals(1, ((Number) rows.get(1).get(0)).intValue());
+            assertEquals(16, ((Number) rows.get(1).get(1)).intValue());
+            assertEquals(2, ((Number) rows.get(2).get(0)).intValue());
+            assertEquals(6, ((Number) rows.get(2).get(1)).intValue());
+            assertEquals(3, ((Number) rows.get(3).get(0)).intValue());
+            assertEquals(10, ((Number) rows.get(3).get(1)).intValue());
+            assertEquals(4, ((Number) rows.get(4).get(0)).intValue());
+            assertEquals(4, ((Number) rows.get(4).get(1)).intValue());
+            assertEquals(5, ((Number) rows.get(5).get(0)).intValue());
+            assertEquals(9, ((Number) rows.get(5).get(1)).intValue());
         }
     }
 
@@ -330,13 +337,14 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testOLAPAggCastWithPartitionWindow() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
-            QueryService qs = new QueryService();
-            var result = qs.execute(
+            var result = Lean.run(
                     TDS_3COL_MODEL,
                     "|#TDS\nid, grp, name\n1, 2, A\n2, 1, B\n3, 3, C\n4, 4, D\n5, 2, E\n6, 1, F\n7, 3, G\n8, 1, H\n9, 5, I\n10, 0, J\n#->"
                     + "meta::pure::functions::relation::extend("
@@ -368,8 +376,8 @@ public class ComputedProjectIntegrationTest {
             // Build expected sums by grp: 0->10, 1->16, 2->6, 3->10, 4->4, 5->9
             int grpIdx = 1; // grp is second column
             for (var row : rows) {
-                int grp = ((Number) row.values().get(grpIdx)).intValue();
-                int newCol = ((Number) row.values().get(newColIdx)).intValue();
+                int grp = ((Number) row.get(grpIdx)).intValue();
+                int newCol = ((Number) row.get(newColIdx)).intValue();
                 int expectedSum = switch (grp) {
                     case 0 -> 10;
                     case 1 -> 16;
@@ -403,13 +411,14 @@ public class ComputedProjectIntegrationTest {
      */
     @Test
     void testSimpleRelationProject_computedColumn() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
-                stmt.execute("SET timezone='UTC'");
+                for (String sql : LaneFloor.backend().sessionSetUp()) {
+                    stmt.execute(sql);
+                }
             }
 
-            QueryService qs = new QueryService();
-            var result = qs.execute(
+            var result = Lean.run(
                     TDS_MODEL,
                     "|#TDS\nval, str\n1, a\n3, ewe\n4, qw\n5, wwe\n6, weq\n#->"
                     + "meta::pure::functions::relation::project("
@@ -427,11 +436,11 @@ public class ComputedProjectIntegrationTest {
             assertEquals(5, rows.size(), "Should have 5 rows");
 
             // Expected: str + toString(val) = "a1", "ewe3", "qw4", "wwe5", "weq6"
-            assertEquals("a1", rows.get(0).values().get(0));
-            assertEquals("ewe3", rows.get(1).values().get(0));
-            assertEquals("qw4", rows.get(2).values().get(0));
-            assertEquals("wwe5", rows.get(3).values().get(0));
-            assertEquals("weq6", rows.get(4).values().get(0));
+            assertEquals("a1", rows.get(0).get(0));
+            assertEquals("ewe3", rows.get(1).get(0));
+            assertEquals("qw4", rows.get(2).get(0));
+            assertEquals("wwe5", rows.get(3).get(0));
+            assertEquals("weq6", rows.get(4).get(0));
         }
     }
 }

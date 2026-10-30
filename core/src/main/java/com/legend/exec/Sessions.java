@@ -39,6 +39,40 @@ public final class Sessions {
             return new JdbcStatements(connection());
         }
 
+        /** The body driver's statements on this session: as {@link #statements()}, each query's execution-trace
+         *  stamp published to {@code trace} (an activity row records the comment its statement carried,
+         *  {@link ExecutionTrace}); as {@link #statements()} when {@code trace} is null. A session whose statements
+         *  carry no SQL comment refuses by name (track B's B1b, 2026-10-29: the driver holds a session, never a
+         *  connection, and reaches the database only through its statements). */
+        default Statements statements(@com.legend.base.Nullable ExecutionTrace trace) {
+            return new JdbcStatements(connection(), trace);
+        }
+
+        /** What a body driver established on this session ({@link SessionState}): the seeds it ran, the database's
+         *  reported column types per statement, whether a write ran since -- facts that live exactly as long as the
+         *  session's connection, however many times the connection is wrapped as a session (B1b). */
+        default SessionState state() {
+            return SessionState.of(connection());
+        }
+
+        /** The database server's version, as its driver reports it ({@link Sessions#version}): what a plan's target
+         *  is written for (B1b: the judges read it through the session). */
+        default String version() {
+            return Sessions.version(connection());
+        }
+
+        /** {@code work} in one transaction on this session ({@link Statements#inTransaction}: a caller's open one
+         *  joined): the body driver's bracket for a program that writes or stages rows (the doors, 2026-10-29: a
+         *  session's own fact, reached without its statements, which only the plan runner takes). */
+        default <T> T inTransaction(java.util.function.Supplier<T> work) {
+            return statements().inTransaction(work);
+        }
+
+        /** Whether a send on this session owns its transaction ({@link Statements#ownsTransaction}). */
+        default boolean ownsTransaction() {
+            return statements().ownsTransaction();
+        }
+
         @Override
         void close();
     }
@@ -86,24 +120,74 @@ public final class Sessions {
         return Connectors.of(type).jdbcProduct();
     }
 
-    /** The raise {@code session} holds after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13), where its
-     *  database's errors cannot carry one: its connector reads it back ({@link DatabaseConnector#raisedMessage}). Read
-     *  and cleared; null for any other session, or none held. */
-    public static @com.legend.base.Nullable String raisedMessage(Connection session) {
-        try {
-            DatabaseConnector connector = Connectors.of(session);
-            return connector == null ? null : connector.raisedMessage(session);
-        } catch (SQLException unreadable) {
-            return null;
-        }
-    }
-
     /** {@code session} is a session on {@code declared}: a session on another database is refused, never reinterpreted. */
     public static void check(Connection session, DatabaseType declared) {
         String product = metadata(session, true);
         if (!jdbcProduct(declared).equals(product)) {
             throw new com.legend.error.NotImplementedException("the query executes on " + declared
                     + " but the session is " + product + " — dialect/connection mismatch");
+        }
+    }
+
+    /** Whether the session commits each statement itself, so a transaction is its holder's to open: a caller that
+     *  turned autocommit off (the corpus harness brackets an effect body as one attempt, committed on a pass and
+     *  rolled back on a failure) holds it; a script's bracket must not nest inside, and a failure is the caller's to
+     *  unwind. */
+    public static boolean ownsTransaction(Connection session) {
+        try {
+            return session.getAutoCommit();
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+    }
+
+    /**
+     * {@code work} in one transaction of {@code session} (the writes design's L0, §4): when the session commits each
+     * statement itself, autocommit is turned off, the work's statements commit together, and on any failure they roll
+     * back, autocommit restored either way; when the caller turned autocommit off, the transaction is the caller's:
+     * joined, neither committed nor rolled back here (the parity harnesses roll every write case back).
+     */
+    public static <T> T inTransaction(Connection session, java.util.function.Supplier<T> work) {
+        if (!ownsTransaction(session)) {
+            return work.get();
+        }
+        try {
+            session.setAutoCommit(false);
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+        T out;
+        try {
+            out = work.get();
+            session.commit();
+        } catch (RuntimeException | Error failure) {
+            unwind(session, failure);
+            throw failure;
+        } catch (SQLException e) {
+            com.legend.error.DataError failure = PlanSessions.dataError(e, () -> JdbcStatements.held(session));
+            unwind(session, failure);
+            throw failure;
+        }
+        try {
+            session.setAutoCommit(true);
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+        return out;
+    }
+
+    /** The transaction rolled back and autocommit restored after {@code failure}; a failure of either is suppressed
+     *  into it, so the work's own failure is the one reported. */
+    private static void unwind(Connection session, Throwable failure) {
+        try {
+            session.rollback();
+        } catch (SQLException e) {
+            failure.addSuppressed(e);
+        }
+        try {
+            session.setAutoCommit(true);
+        } catch (SQLException e) {
+            failure.addSuppressed(e);
         }
     }
 

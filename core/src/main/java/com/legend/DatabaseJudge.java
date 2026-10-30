@@ -7,7 +7,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import com.legend.exec.PureAsserts;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,9 +38,9 @@ final class DatabaseJudge {
                 emptyIsNull);
     }
 
-    static ExecutionResult databaseVerdict(String name, boolean wantEqual,
+    static TypedSide databaseVerdict(String name, boolean wantEqual,
             TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
             boolean cellPool) {
         return databaseVerdict(name, wantEqual, eSpec, aSpec, letPrefix, specs, env, hook,
@@ -49,9 +49,9 @@ final class DatabaseJudge {
 
     /** {@code csvStrings}: the pair is judged under toCSV's own equivalence
      * (a String column's empty string and NULL print alike — bucket 8). */
-    static ExecutionResult databaseVerdict(String name, boolean wantEqual,
+    static TypedSide databaseVerdict(String name, boolean wantEqual,
             TypedSpec eSpec, TypedSpec aSpec, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook, boolean canonicalOrder,
             boolean cellPool, boolean csvStrings) {
         KindClass ke = AssertVerdicts.kindKey(eSpec, letPrefix, env);
@@ -100,24 +100,24 @@ final class DatabaseJudge {
         // rewritten at plan time so the cell rides the literal channel as
         // the string 'TDSNull' the peer rule maps, never a JSON tree
         eSpec = com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(eSpec);
-        StatementExecutor.PlannedValue pe = StatementExecutor.planValue(eSpec, letPrefix, specs, env, re, hook);
-        StatementExecutor.PlannedValue pa = StatementExecutor.planValue(aSpec, letPrefix, specs, env, ra, hook);
+        BodyDriver.PlannedValue pe = BodyDriver.planValue(eSpec, letPrefix, specs, env, re, hook);
+        BodyDriver.PlannedValue pa = BodyDriver.planValue(aSpec, letPrefix, specs, env, ra, hook);
         // a HOST-CONSTANT side is bound on the OTHER side's database (a
         // literal evaluates anywhere; a planned side reads where its tables
         // are — the system database for a metamodel read)
-        StatementExecutor.ExecEnv on = pe.side() != null && !pe.side().storeFree()
-                ? env.withConnection(pe.side().connection())
-                : pa.side() != null && !pa.side().storeFree() ? env.withConnection(pa.side().connection())
+        BodyDriver.ExecEnv on = pe.side() != null && !pe.side().storeFree()
+                ? env.withSession(pe.side().session())
+                : pa.side() != null && !pa.side().storeFree() ? env.withSession(pa.side().session())
                 : env;
-        StatementExecutor.WrappedSide we = pe.side() != null ? pe.side()
+        BodyDriver.WrappedSide we = pe.side() != null ? pe.side()
                 : constantSide(pe.answered(), eSpec, re, false, env, on);
-        StatementExecutor.WrappedSide wa = pa.side() != null ? pa.side()
+        BodyDriver.WrappedSide wa = pa.side() != null ? pa.side()
                 : constantSide(pa.answered(), aSpec, ra, false, env, on);
         String why = we == null ? "host-value AssertVerdicts.side (expected): " + describe(pe.answered())
                 : wa == null ? "host-value AssertVerdicts.side (actual): " + describe(pa.answered())
                 : re.declined() != null ? "side-e: " + re.declined()
                 : ra.declined() != null ? "side-a: " + ra.declined()
-                : we.connection() != wa.connection() && !we.storeFree() && !wa.storeFree()
+                : we.session() != wa.session() && !we.storeFree() && !wa.storeFree()
                         ? "sides on different databases"
                 : null;
         // leg 3.1b — a GRID AssertVerdicts.side (the tabular wrap): the statement compares
@@ -139,11 +139,11 @@ final class DatabaseJudge {
                     pq = com.legend.lowering.VerdictSql.gridPair(we.plan(), wa.plan(), canonicalOrder);
                 }
                 return runVerdict(name, wantEqual, pq,
-                        env.withConnection(we.storeFree() ? wa.connection() : we.connection()));
+                        env.withSession(we.storeFree() ? wa.session() : we.session()));
             } else {
-                StatementExecutor.WrappedSide gw = gridE ? we : wa;
+                BodyDriver.WrappedSide gw = gridE ? we : wa;
                 com.legend.exec.CanonRider pr = gridE ? ra : re;
-                StatementExecutor.WrappedSide pw = gridE ? wa : we;
+                BodyDriver.WrappedSide pw = gridE ? wa : we;
                 var schema = AssertVerdicts.effectiveSchema(java.util.Objects.requireNonNull(gw));
                 int width = schema == null ? 0 : schema.columns().size();
                 if (width <= 0) {
@@ -169,13 +169,13 @@ final class DatabaseJudge {
                             : com.legend.lowering.VerdictSql.gridRows(grid, peer, gridE,
                                     canonicalOrder);
                     return runVerdict(name, wantEqual, gq,
-                            env.withConnection(gw.storeFree() ? pw.connection() : gw.connection()));
+                            env.withSession(gw.storeFree() ? pw.session() : gw.session()));
                 }
             }
         }
         // a store-free side rides the store-reading side's database
-        StatementExecutor.ExecEnv runOn = we != null && wa != null
-                ? env.withConnection(we.storeFree() ? wa.connection() : we.connection()) : env;
+        BodyDriver.ExecEnv runOn = we != null && wa != null
+                ? env.withSession(we.storeFree() ? wa.session() : we.session()) : env;
         int ie = -1;
         int ia = -1;
         if (why == null) {
@@ -208,23 +208,23 @@ final class DatabaseJudge {
     /** Execute a verdict statement on {@code on} and read its one row:
      * unjudged (counted, the assert fails with the reason), or the verdict
      * (never NULL) with the two framed canons as the message. */
-    static ExecutionResult runVerdict(String name, boolean wantEqual,
-            com.legend.sql.SqlQuery vq, StatementExecutor.ExecEnv runOn) {
+    static TypedSide runVerdict(String name, boolean wantEqual,
+            com.legend.sql.SqlQuery vq, BodyDriver.ExecEnv runOn) {
         com.legend.exec.VerdictBatch batch = runOn.verdictBatch();
         if (batch != null && batch.active()) {
-            batch.defer(name, wantEqual, vq, runOn.connection());   // leg 3.4: judged at the flush
+            batch.defer(name, wantEqual, vq, runOn.session());   // leg 3.4: judged at the flush
             return AssertVerdicts.ok();
         }
         // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6)
         return verdictOf(name, wantEqual, com.legend.exec.VerdictBatch.executeOne(
                 name, batch == null ? vq : com.legend.sql.FrameCtes.attach(vq, batch.frames()),
-                runOn.connection(), JudgePlans.runner(runOn)));
+                runOn.session(), JudgePlans.runner(runOn)));
     }
 
     /** The verdict of one row ({@code verdict, expected, actual, unjudged,
      * lenient}): unjudged (counted, the assert fails with the reason), or
      * the verdict with the two framed canons as the message. */
-    static ExecutionResult verdictOf(String name, boolean wantEqual, List<Object> row) {
+    static TypedSide verdictOf(String name, boolean wantEqual, List<Object> row) {
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the SQL dump's companion: the verdict row the statement returned
             System.err.println("[verdict] " + name + " verdict=" + row.get(0)
@@ -258,14 +258,14 @@ final class DatabaseJudge {
     }
 
     static SideRows planSide(TypedSpec spec, boolean expected, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return planSide(spec, expected, true, letPrefix, specs, env, hook);
     }
 
     /** {@code needCanon} false = the family only COUNTS (size / emptiness):
      * a declined canon is not a reason, the plan's rows are. */
     static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return planSide(spec, expected, needCanon, false, letPrefix, specs, env, hook);
     }
@@ -274,7 +274,7 @@ final class DatabaseJudge {
      * their keys sorted (the JSON verdict's plan). */
     static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
             boolean canonicalJson, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return planSide(spec, expected, needCanon, canonicalJson, null, letPrefix, specs, env, hook);
     }
 
@@ -282,11 +282,11 @@ final class DatabaseJudge {
      * or abstract-Enum AssertVerdicts.side (CanonRider.enumFrame). */
     static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
             boolean canonicalJson, @com.legend.base.Nullable String enumFrame, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         var rider = new com.legend.exec.CanonRider(false, canonicalJson, enumFrame);
         TypedSpec s = expected ? com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(spec) : spec;
-        StatementExecutor.PlannedValue pv = StatementExecutor.planValue(s, letPrefix, specs, env, rider, hook);
-        StatementExecutor.WrappedSide w = pv.side() != null ? pv.side()
+        BodyDriver.PlannedValue pv = BodyDriver.planValue(s, letPrefix, specs, env, rider, hook);
+        BodyDriver.WrappedSide w = pv.side() != null ? pv.side()
                 : constantSide(pv.answered(), s, rider, false, env, env);
         if (w == null) {
             return new SideRows(null, rider, "host-value side: " + describe(pv.answered()));
@@ -304,18 +304,18 @@ final class DatabaseJudge {
      * declined the shape — counted, then raised as a verdict failure that
      * CARRIES its reason (the runner's ledger reads the type, never the
      * text). {@code detail} rides the message only. */
-    static ExecutionResult unjudged(String name, String why) {
+    static TypedSide unjudged(String name, String why) {
         return unjudged(name, why, "");
     }
 
-    static ExecutionResult unjudged(String name, String why, String detail) {
+    static TypedSide unjudged(String name, String why, String detail) {
         com.legend.exec.CanonicalDivergence.sqlUnjudged(name, why);
         throw com.legend.error.AssertFailed.unjudged(why,
                 name + ": UNJUDGED in database mode — " + why + detail);
     }
 
-    static ExecutionResult databaseSize(String name, List<TypedSpec> args,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+    static TypedSide databaseSize(String name, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideRows coll = planSide(args.get(0), false, false, letPrefix, specs, env, hook);
         if (coll.why() != null) {
@@ -334,8 +334,8 @@ final class DatabaseJudge {
         return runVerdict(name, true, vq, coll.on(env));
     }
 
-    static ExecutionResult databaseEmpty(String name, TypedSpec arg, boolean wantEmpty,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+    static TypedSide databaseEmpty(String name, TypedSpec arg, boolean wantEmpty,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideRows side = planSide(arg, false, false, letPrefix, specs, env, hook);
         if (side.why() != null) {
@@ -348,8 +348,8 @@ final class DatabaseJudge {
         return runVerdict(name, true, vq, side.on(env));
     }
 
-    static ExecutionResult databaseContains(String name, TypedSpec coll, TypedSpec val,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+    static TypedSide databaseContains(String name, TypedSpec coll, TypedSpec val,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideRows c = planSide(coll, false, letPrefix, specs, env, hook);
         if (c.why() != null) {
@@ -373,8 +373,8 @@ final class DatabaseJudge {
      * planned, the column names checked statically (the schemas), the cells
      * aligned by position in one statement with the numeric / temporal
      * tolerances (VerdictSql.gridTolerance). */
-    static ExecutionResult databaseTdsEquivalent(String name, List<TypedSpec> targs,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+    static TypedSide databaseTdsEquivalent(String name, List<TypedSpec> targs,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideRows one = planSide(targs.get(0), true, letPrefix, specs, env, hook);
         SideRows two = planSide(targs.get(1), false, letPrefix, specs, env, hook);
@@ -413,11 +413,11 @@ final class DatabaseJudge {
         }
         return runVerdict(name, true, com.legend.lowering.VerdictSql.gridTolerance(g1, g2, kinds,
                         delta.rows(false), timeDelta.rows(false)),
-                env.withConnection(w1.storeFree() ? w2.connection() : w1.connection()));
+                env.withSession(w1.storeFree() ? w2.session() : w1.session()));
     }
 
-    static ExecutionResult databaseCondition(String name, TypedSpec cond, boolean wantTrue,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+    static TypedSide databaseCondition(String name, TypedSpec cond, boolean wantTrue,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         TypedSpec[] fc = AssertVerdicts.forAllContains(cond);
         if (fc != null) {
@@ -443,8 +443,8 @@ final class DatabaseJudge {
                 side.on(env));
     }
 
-    static ExecutionResult databaseTolerance(String name, List<TypedSpec> args,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+    static TypedSide databaseTolerance(String name, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideRows e = planSide(args.get(0), false, letPrefix, specs, env, hook);
         SideRows a = planSide(args.get(1), false, letPrefix, specs, env, hook);
@@ -462,10 +462,10 @@ final class DatabaseJudge {
      * canon-wrapped like any side, so the database still compares
      * (database-ADJUDICATED). Null = no literal spelling for the value's
      * kind (the caller reports it unjudged by kind). */
-    static StatementExecutor.@com.legend.base.Nullable WrappedSide constantSide(
-            @com.legend.base.Nullable ExecutionResult answered, TypedSpec spec,
+    static BodyDriver.@com.legend.base.Nullable WrappedSide constantSide(
+            @com.legend.base.Nullable TypedSide answered, TypedSpec spec,
             com.legend.exec.CanonRider rider, boolean canonicalOrder,
-            StatementExecutor.ExecEnv env, StatementExecutor.ExecEnv on) {
+            BodyDriver.ExecEnv env, BodyDriver.ExecEnv on) {
         if (answered == null) {
             return null;
         }
@@ -482,15 +482,15 @@ final class DatabaseJudge {
                 rider.enumFrame());
         if (w.declineReason() != null) {
             rider.decline(w.declineReason());
-            return new StatementExecutor.WrappedSide(plan, spec.info(),
-                    com.legend.plan.ResultShape.COLLECTION, on.connection(), true);
+            return new BodyDriver.WrappedSide(plan, spec.info(),
+                    com.legend.plan.ResultShape.COLLECTION, on.session(), true);
         }
         rider.wrap(w.kinds(), w.many(), w.literalIndex());
-        return new StatementExecutor.WrappedSide(w.plan(), spec.info(),
-                com.legend.plan.ResultShape.COLLECTION, on.connection(), true);
+        return new BodyDriver.WrappedSide(w.plan(), spec.info(),
+                com.legend.plan.ResultShape.COLLECTION, on.session(), true);
     }
 
-    static String describe(@com.legend.base.Nullable ExecutionResult r) {
+    static String describe(@com.legend.base.Nullable TypedSide r) {
         return r == null ? "no plan" : r.getClass().getSimpleName();
     }
 
@@ -500,7 +500,7 @@ final class DatabaseJudge {
     // returns the same verdict row; unjudged fails by name.
 
     /** A planned side for the predicate forms, or a reason it could not be. */
-    record SideRows(StatementExecutor.@com.legend.base.Nullable WrappedSide side,
+    record SideRows(BodyDriver.@com.legend.base.Nullable WrappedSide side,
             com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             @com.legend.base.Nullable String why) {
         /** The side's canon rows; {@code literal} = the pair compares in the
@@ -544,9 +544,9 @@ final class DatabaseJudge {
                     : com.legend.lowering.VerdictSql.countRows(w.plan());
         }
         /** The environment a statement over this side runs in: the side's own
-         * connection when it reads a store, the body's otherwise. */
-        StatementExecutor.ExecEnv on(StatementExecutor.ExecEnv env) {
-            return side != null && !side.storeFree() ? env.withConnection(side.connection()) : env;
+         * session when it reads a store, the body's otherwise. */
+        BodyDriver.ExecEnv on(BodyDriver.ExecEnv env) {
+            return side != null && !side.storeFree() ? env.withSession(side.session()) : env;
         }
     }
 
@@ -558,7 +558,7 @@ final class DatabaseJudge {
 
     /** The database arm, chosen once per adjudication by the router. */
     static final VerdictArm ARM = new VerdictArm() {
-        @Override public ExecutionResult rendered(String name, boolean wantEqual, List<TypedSpec> args, String form, TypedSpec rendered, @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm, boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide rendered(String name, boolean wantEqual, List<TypedSpec> args, String form, TypedSpec rendered, @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm, boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // bucket 8 (homework §4s): the rendered VALUE against the golden
             // brought to rows by the render function's own grammar — the
@@ -570,22 +570,22 @@ final class DatabaseJudge {
         @Override public void staticallyDecided(String name) {
             DatabaseJudge.staticallyDecided(name);
         }
-        @Override public ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide jsonStringsEqual(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return DatabaseJudge.jsonStringsEqual(name, args, letPrefix, specs, env, hook);
         }
-        @Override public ExecutionResult equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // 3.1b: grid sides route too (the statement frames the
             // peer by the grid's width; a grid PAIR is unjudged there)
             return databaseVerdict(name, wantEqual, args.get(0), args.get(1),
                     letPrefix, specs, env, hook, incidental, false);
         }
-        @Override public ExecutionResult cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseVerdict(name, true, cellsE, cellsA, letPrefix, specs, env, hook, true, true);
         }
-        @Override public ExecutionResult quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // task #14 leg 2 (2026-09-21): the predicate vector is planned and the
             // database returns the one verdict row — no element true/false is read
@@ -597,8 +597,8 @@ final class DatabaseJudge {
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
                     wantTrue), vector.on(env));
         }
-        @Override public @com.legend.base.Nullable ExecutionResult quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
-                SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+                SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             SideRows vector = planSide(predMap, false, letPrefix, specs, env, hook);
             if (vector.why() != null) {
                 return unjudged(fqn, vector.why());   // the contract held and the plan declined: loud, as the vector form is
@@ -606,12 +606,12 @@ final class DatabaseJudge {
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false), true),
                     vector.on(env));
         }
-        @Override public ExecutionResult sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseVerdict(name, true, args.get(0), args.get(1),
                     letPrefix, specs, env, hook, true, true);
         }
-        @Override public ExecutionResult is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             KindClass ki = AssertVerdicts.kindKey(args.get(0), letPrefix, env);
             KindClass kj = AssertVerdicts.kindKey(args.get(1), letPrefix, env);
@@ -628,7 +628,7 @@ final class DatabaseJudge {
             }
             return unjudged(name, "is: neither an enum pair nor a tracked element pair");
         }
-        @Override public ExecutionResult instanceOf(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide instanceOf(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // bucket 5: the model's subtype relation IS instanceOf —
             // minted as the native call, judged as a condition
@@ -639,7 +639,7 @@ final class DatabaseJudge {
             }
             return databaseCondition(name, cond, true, letPrefix, specs, env, hook);
         }
-        @Override public ExecutionResult eq(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide eq(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             // task #14 leg 2 (2026-09-21): eq over PRIMITIVES is equals — the database
             // verdict decides; a class-instance pair keeps the host's LOUD identity wall
@@ -649,27 +649,27 @@ final class DatabaseJudge {
             }
             return HostJudge.eq(name, args, letPrefix, specs, env, hook);
         }
-        @Override public @com.legend.base.Nullable ExecutionResult tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public @com.legend.base.Nullable TypedSide tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseTdsEquivalent(name, targs, letPrefix, specs, env, hook);
         }
-        @Override public ExecutionResult size(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide size(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseSize(name, args, letPrefix, specs, env, hook);
         }
-        @Override public ExecutionResult contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseContains(name, args.get(0), args.get(1), letPrefix, specs, env, hook);
         }
-        @Override public ExecutionResult tolerance(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide tolerance(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseTolerance(name, args, letPrefix, specs, env, hook);
         }
-        @Override public ExecutionResult condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseCondition(name, cond, wantTrue, letPrefix, specs, env, hook);
         }
-        @Override public ExecutionResult empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+        @Override public TypedSide empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return databaseEmpty(name, arg, wantEmpty, letPrefix, specs, env, hook);
         }
@@ -679,8 +679,8 @@ final class DatabaseJudge {
      * the golden's canonical text (compact, keys sorted on both sides), the engine's root
      * {@code [x] ≡ x} applied to the golden at compile time when the query root is
      * many-valued; an unsorted many-valued root is a MULTISET of root objects. */
-    static ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+    static TypedSide jsonStringsEqual(String name, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // bucket 3: the document the database built against the
         // golden's CANONICAL text — compact, keys sorted on both

@@ -7,10 +7,9 @@ import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Type;
 import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.lowering.WireRender;
+import com.legend.lowering.TypedRows;
 import com.legend.model.ConnectionDefinition;
 import com.legend.setup.CsvSeed;
-import com.legend.setup.RowLoad;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.RenderedStatement;
 import com.legend.sql.dialect.SqlDialect;
@@ -21,33 +20,28 @@ import java.util.Map;
 
 /**
  * THE PLANNER MAKES LITE PLANS (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2): a typed query planned
- * for its runtime as an {@link ExecutionPlan} that a model-free runner executes. Its one node is a text the DATABASE
- * writes — the wire statement ({@link WireRender}), or a graph fetch's JSON — so the runner passes the text on. Every
- * statement is final for its target: written in the dialect of the target's database, with the server versions that
- * spelling is for; and the target is whole — the database (a declared connection, or the platform's own engine), the
- * statements each connection runs first, and the setup that establishes it, written at plan time. The statements are
- * the ones {@link Execution}'s wire and streaming paths render for the same query, so a plan answers as they do.
+ * for its runtime as an {@link ExecutionPlan} that a model-free runner executes. Its answer is TYPED ROWS
+ * (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27: a relation's rows, a value's elements, a
+ * graph fetch's objects), read by the plan's column facts and spelled by a writer at the edge: no plan asks its
+ * database to write a text (the last, Pure's TDS text, went with the program's phase 4). Every statement is final
+ * for its target: written in the dialect of the target's database, with the server versions that spelling is for; and
+ * the target is whole — the database (a declared connection, or the platform's own engine), the statements each
+ * connection runs first, and the setup that establishes it, written at plan time.
  */
 final class PlanMaker {
 
     private PlanMaker() {
     }
 
-    /** {@code query}'s plan on {@code runtime}, its text in the form {@code output} asks for, lowered under the
-     *  feature flags {@code features}; each declared parameter a value the statement binds where it is used. */
-    static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime, TypedQuery.Output output,
-            java.util.Set<com.legend.platform.Feature> features) {
-        return plan(query, runtime, output, features, null);
-    }
-
-    /** {@link #plan(TypedQuery, String, TypedQuery.Output, java.util.Set)} for a session whose server is
+    /** {@code query}'s TYPED plan on {@code runtime}, lowered under the feature flags {@code features}, each declared
+     *  parameter a value the statement binds where it is used, for a session whose server is
      *  {@code serverVersion} (the caller's session fact, as the legacy seam read it off the connection,
      *  {@code SqlDialect.forServer}): where the database's spelling depends on the version (H2: 2.1 and 2.2 the
      *  engine-parity dialect, 2.3 and later the modern one), the plan is written in that version's dialect and names
      *  that version as what it is for, so its runner accepts the session; null plans for the dialect's declared
      *  target. The plan path program's step 9, 2026-10-19: the H2 PCT lane runs the modern H2, and a plan for the
      *  declared target was refused by its runner on every case. */
-    static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime, TypedQuery.Output output,
+    static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime,
             java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
         List<QueryParameters.Declared> declared = query.parameters();
         List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
@@ -59,9 +53,10 @@ final class PlanMaker {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
             return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
-                    program(query, runtime, output, slots, features, serverVersion));
+                    program(query, runtime, slots, features, serverVersion));
         }
-        Compiler.LoweredQuery l = query.lower(runtime, output == TypedQuery.Output.STREAMED_JSON, slots, features);
+        // a typed plan answers a graph fetch's objects one per row: the streaming graph root
+        Compiler.LoweredQuery l = query.lower(runtime, true, slots, features);
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
@@ -77,21 +72,17 @@ final class PlanMaker {
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
         com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(lowered);
-        Type.RelationType rowSchema = Type.schemaView(root.type());
+        // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns kept)
+        Type.RelationType rowSchema = Type.schemaView(root.type()) == null ? null : TypedRows.schema(root);
         if (dynamic != null && rowSchema != null && !rowSchema.dynamicColumns().isEmpty()
                 && com.legend.plan.ResultShape.of(l.root()) == com.legend.plan.ResultShape.TABULAR) {
             // a pivot no cast names: its columns are the data's, so its plan reads its keys first (the probe plan,
-            // 2026-10-20, KeyedPivot); every output, every database
-            com.legend.lowering.KeyedPivot.Out out = switch (output) {
-                case CSV -> com.legend.lowering.KeyedPivot.Out.CSV;
-                case JSON, STREAMED_JSON -> com.legend.lowering.KeyedPivot.Out.JSON;
-                case TDS_TEXT -> com.legend.lowering.KeyedPivot.Out.TDS_TEXT;
-            };
+            // 2026-10-20, KeyedPivot); every database
             return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
-                    keyed(lowered, dynamic, rowSchema, out, dialect, target, l.ctx(), WireRender.Spelling.PURE));
+                    keyed(lowered, dynamic, rowSchema, dialect, target));
         }
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
-                result(l.root(), lowered, output, dialect, target, l.ctx()));
+                typed(l.root(), lowered, dialect, target));
     }
 
     /**
@@ -102,11 +93,11 @@ final class PlanMaker {
      * ({@code let s = rows->stage()}) creates its temporary table, which the statements after read, and is dropped
      * after the result; another let rides the lets of the statements after; a write into a store table is an update;
      * any other statement before the last a check (its rows dropped: a Cypher write's guard raises). The last
-     * statement's value is the plan's answer: a query's text in the form {@code output} asks for, or a write's count,
-     * which the database writes as a value bound in a query of its own.
+     * statement's value is the plan's answer: a query's typed rows, or a write's count, which the database answers as a
+     * value bound in a query of its own.
      */
     private static ExecutionPlan.Node program(TypedQuery query, @com.legend.base.Nullable String runtime,
-            TypedQuery.Output output, List<com.legend.sql.SqlExpr.PlanParam> slots,
+            List<com.legend.sql.SqlExpr.PlanParam> slots,
             java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
         com.legend.compiler.element.ModelContext ctx = query.context();
         // the runtime decided: a null one is refused there, by name
@@ -119,7 +110,6 @@ final class PlanMaker {
         // a program reads no system metamodel table (Class.all() inside a write program is not designed)
         ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), ctx, dialect, servers,
                 Metamodel.NONE);
-        boolean streaming = output == TypedQuery.Output.STREAMED_JSON;
         List<com.legend.compiler.spec.typed.TypedSpec> body = query.body();
         com.legend.resolver.StagedRows.refuseLetsTheWritesChange(body, query.specs());
         List<com.legend.compiler.spec.typed.TypedSpec> lets = new ArrayList<>();
@@ -161,13 +151,13 @@ final class PlanMaker {
                 steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
                         last ? ExecutionPlan.COUNT : null));
                 if (last) {
-                    steps.add(count(query, root, output, dialect, target, features));
+                    steps.add(count(query, root, dialect, target, features));
                 }
                 continue;
             }
-            SqlQuery q = com.legend.sql.EnumValueTables.apply(query.lowerer(r.temporal(), last && streaming, slots, features)
+            SqlQuery q = com.legend.sql.EnumValueTables.apply(query.lowerer(r.temporal(), last, slots, features)
                     .lower(r.body()));
-            steps.add(last ? result(r.root(), q, output, dialect, target, ctx)
+            steps.add(last ? typed(r.root(), q, dialect, target)
                     : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)));
         }
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : staged) {
@@ -187,48 +177,53 @@ final class PlanMaker {
     }
 
     /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
-     *  binds ({@link ExecutionPlan#COUNT}), as the database writes an {@code Integer[1]} value's text (a value's text
-     *  is the one-column relation {@code value}, whole: no row to stream). */
+     *  binds ({@link ExecutionPlan#COUNT}), as an {@code Integer[1]} value: one row, one column {@code value}. */
     private static ExecutionPlan.Node count(TypedQuery query, com.legend.compiler.spec.typed.TypedSpec write,
-            TypedQuery.Output output, SqlDialect dialect, ExecutionPlan.Target target,
-            java.util.Set<com.legend.platform.Feature> features) {
+            SqlDialect dialect, ExecutionPlan.Target target, java.util.Set<com.legend.platform.Feature> features) {
         ExprType type = new ExprType(write.info().type(), com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
                 type.multiplicity());
         SqlQuery q = query.lowerer(false, false, List.of(count.slot()), features).lowerPlanParam(ExecutionPlan.COUNT, type);
-        return switch (output) {
-            case CSV -> wire(WireRender.Format.CSV, q, type, dialect, target);
-            case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, q, type, dialect, target);
-            case TDS_TEXT -> tdsText(q, type, dialect, query.context(), target);
-        };
+        return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+                com.legend.plan.PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
+                sql(q, dialect, target));
     }
 
-    /** The plan's answer to {@code root}, lowered to {@code lowered}: the text the database writes in the form
-     *  {@code output} asks for. */
-    private static ExecutionPlan.Node result(com.legend.compiler.spec.typed.TypedSpec rootSpec, SqlQuery lowered,
-            TypedQuery.Output output, SqlDialect dialect, ExecutionPlan.Target target,
-            com.legend.compiler.element.ModelContext ctx) {
+    /**
+     * The plan's TYPED answer to {@code rootSpec}, lowered to {@code lowered} (the result boundary program's step 1,
+     * docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §5): the statement as the query's own, its rows read by the session
+     * from the driver by the plan's columns and their three facts, no output text in it. A relation answers its rows;
+     * a value its elements in the one column {@code value}; a graph fetch its objects, one per row, each the object's
+     * JSON as the database built it (the streaming graph root). A sort key that is no output rides as a hidden column
+     * ({@link TypedRows#statement}).
+     */
+    private static ExecutionPlan.TdsResult typed(com.legend.compiler.spec.typed.TypedSpec rootSpec, SqlQuery lowered,
+            SqlDialect dialect, ExecutionPlan.Target target) {
         ExprType root = rootSpec.info();
         return switch (com.legend.plan.ResultShape.of(rootSpec)) {
-            case GRAPH -> switch (output) {
-                case CSV -> throw new com.legend.error.NotImplementedException("graph results have no CSV wire");
-                case TDS_TEXT -> throw new com.legend.error.NotImplementedException("graph results have no TDS text");
-                case JSON -> text(ExecutionPlan.Format.JSON, objects(root), lowered, dialect, target);
-                case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, objects(root), lowered, dialect, target);
-            };
-            case TABULAR -> switch (output) {
-                case CSV -> wire(WireRender.Format.CSV, lowered, root, dialect, target);
-                case JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
-                case STREAMED_JSON -> text(ExecutionPlan.Format.JSON_PER_ROW, relation(WireRender.schema(root), lowered),
-                        WireRender.rows(lowered, WireRender.schema(root)), dialect, target);
-                case TDS_TEXT -> tdsText(lowered, root, dialect, ctx, target);
-            };
-            // a value's text is the one-column relation `value`, whole: no row to stream
-            case SCALAR, COLLECTION -> switch (output) {
-                case CSV -> wire(WireRender.Format.CSV, lowered, root, dialect, target);
-                case JSON, STREAMED_JSON -> wire(WireRender.Format.JSON, lowered, root, dialect, target);
-                case TDS_TEXT -> tdsText(lowered, root, dialect, ctx, target);
-            };
+            case GRAPH -> {
+                List<com.legend.sql.OutputCol> outs = lowered.outputs();
+                if (outs.size() != 1) {
+                    throw new IllegalStateException("a graph fetch's statement answers " + outs.size() + " columns "
+                            + outs.stream().map(com.legend.sql.OutputCol::name).toList()
+                            + ": the streaming graph root answers one object per row");
+                }
+                yield new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.OBJECTS, List.of(
+                        new ExecutionPlan.Column(outs.get(0).name(), root.type().typeName(),
+                                com.legend.plan.PlanColumns.multiplicity(root.multiplicity()),
+                                com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null,
+                                com.legend.executionplan.ColumnFacts.precision(root.type().typeName(),
+                                        outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS))),
+                        sql(lowered, dialect, target));
+            }
+            case TABULAR -> new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
+                    com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered,
+                            ExecutionPlan.TdsResult.Shape.RELATION),
+                    sql(TypedRows.statement(lowered), dialect, target));
+            case SCALAR, COLLECTION -> new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+                    com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered,
+                            ExecutionPlan.TdsResult.Shape.VALUE),
+                    sql(TypedRows.statement(lowered), dialect, target));
         };
     }
 
@@ -244,51 +239,20 @@ final class PlanMaker {
     }
 
     /**
-     * The whole result as Pure's TDS text (the MongoDB line's homework 2, 2026-10-17: the harness's form on the plan
-     * path, docs/MONGODB_PLAN_2026_10_16.md §6): a relation's own columns, typed by the query; a value's the one-column
-     * relation {@code value}, its column optional only when the value is. A pivot's concrete columns exist only once
-     * the database is asked (the legacy executor's probe, ColumnProbe), so a plan with one is refused by name.
-     */
-    private static ExecutionPlan.TextResult tdsText(SqlQuery lowered, ExprType root, SqlDialect dialect,
-            com.legend.compiler.element.ModelContext ctx,
-            ExecutionPlan.Target target) {
-        // a dynamic pivot's columns are named by the database in the statement itself (TdsTextWrap, step 4)
-        Type.RelationType own = Type.schemaView(root.type());
-        Type.RelationType schema;
-        if (own != null) {
-            schema = own;
-        } else {
-            var m = root.multiplicity();
-            boolean optional = m instanceof com.legend.compiler.element.type.Multiplicity.Bounded b && b.lower() == 0
-                    && Integer.valueOf(1).equals(b.upper());
-            schema = new Type.RelationType(List.of(new Type.Column("value", root.type(), optional
-                    ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE
-                    : com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
-        }
-        SqlQuery wrapped = com.legend.lowering.TdsTextWrap.wrap(lowered, schema, null, sqlType -> {
-            throw new IllegalStateException("TDS text: an output column outside the query's typed schema (SQL type "
-                    + sqlType + "): the lowering's typed slot is missing");
-        }, own == null,   // a value's strings quoted whole: the reader types an unquoted cell by its text
-                layouts(ctx));
-        return text(ExecutionPlan.Format.TDS_TEXT, relation(schema, lowered), wrapped, dialect, target);
-    }
-
-    /**
      * A dynamic pivot's probe plan ({@link com.legend.lowering.KeyedPivot}, 2026-10-20): the keys probe, the body with
      * its per-key regions, the outputs with their three facts (a fixed column's from the typed schema and the lowered
-     * query, a per-key one's from its aggregate's template and slot), the database's snapshot and column limit.
-     * {@code out} {@code ROWS} answers typed rows; a text output its format, the runner writing its punctuation.
+     * query, a per-key one's from its aggregate's template and slot), the database's snapshot and column limit; its
+     * answer typed rows.
      */
     static ExecutionPlan.Keyed keyed(SqlQuery lowered, com.legend.sql.SqlSource.Pivot pivot, Type.RelationType schema,
-            com.legend.lowering.KeyedPivot.Out out, SqlDialect dialect, ExecutionPlan.Target target,
-            com.legend.compiler.element.ModelContext ctx, WireRender.Spelling spelling) {
+            SqlDialect dialect, ExecutionPlan.Target target) {
         // the database's snapshot first: a database with no probe plan (MongoDB) refuses by its own name before any
         // statement is written
         SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
-        com.legend.lowering.KeyedPivot.Parts parts = com.legend.lowering.KeyedPivot.of(lowered, pivot, schema, out,
-                false, layouts(ctx), spelling);
+        com.legend.lowering.KeyedPivot.Parts parts = com.legend.lowering.KeyedPivot.of(lowered, pivot, schema);
         java.util.Map<String, ExecutionPlan.Column> facts = new java.util.HashMap<>();
-        for (ExecutionPlan.Column c : com.legend.plan.PlanColumns.of(schema, lowered)) {
+        for (ExecutionPlan.Column c : com.legend.plan.PlanColumns.of(schema, lowered,
+                ExecutionPlan.TdsResult.Shape.RELATION)) {
             facts.put(c.name(), c);
         }
         // each statement's cells by the names it writes them under (the body's outputs in the outputs' order)
@@ -303,76 +267,25 @@ final class PlanMaker {
             outputs.add(switch (parts.outputs().get(i)) {
                 case com.legend.lowering.KeyedPivot.Fixed f -> new ExecutionPlan.Keyed.Fixed(java.util.Objects
                         .requireNonNull(facts.get(f.column().name()), () -> "the fixed column '" + f.column().name()
-                                + "' has no facts in the typed schema " + facts.keySet()), f.name(), field);
+                                + "' has no facts in the typed schema " + facts.keySet()), field);
                 case com.legend.lowering.KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
                         new ExecutionPlan.Column(k.template().name(), k.template().type().typeName(),
                                 com.legend.plan.PlanColumns.multiplicity(k.template().multiplicity()),
-                                com.legend.executionplan.ColumnFacts.slot(k.slot()), null),
+                                com.legend.executionplan.ColumnFacts.slot(k.slot()), null,
+                                com.legend.executionplan.ColumnFacts.precision(k.template().type().typeName(),
+                                        k.slot(), ExecutionPlan.TdsResult.Shape.RELATION)),
                         k.nameCell(), field);
             });
         }
         List<String> keyFields = parts.keys().outputs().stream().map(com.legend.sql.OutputCol::name).toList();
-        ExecutionPlan.Format format = switch (out) {
-            case ROWS -> null;
-            case TDS_TEXT -> ExecutionPlan.Format.TDS_TEXT;
-            case CSV -> ExecutionPlan.Format.CSV;
-            case JSON -> ExecutionPlan.Format.JSON;
-        };
         ExecutionPlan.Keyed.Snapshot snapshot = switch (keysSnapshot) {
             case TRANSACTION -> ExecutionPlan.Keyed.Snapshot.TRANSACTION;
             case REPEATABLE_READ -> ExecutionPlan.Keyed.Snapshot.REPEATABLE_READ;
             case SERIALIZABLE -> ExecutionPlan.Keyed.Snapshot.SERIALIZABLE;
             case NONE -> ExecutionPlan.Keyed.Snapshot.NONE;
         };
-        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, format, outputs,
+        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
                 sql(parts.body(), dialect, target), snapshot, dialect.resultColumnLimit());
-    }
-
-    /**
-     * The probe plan of {@code l} for the legacy wire's callers ({@code Execution}'s wire and streaming paths, until
-     * the plan path program's step 7 switches the query service onto plans): null when the query holds no pivot that no
-     * cast names; else its keyed plan in {@code dialect} (the session's, version-refined) for the session's server
-     * {@code serverVersion}, answered as {@code out} in {@code spelling}. The caller runs it on its own session, whose
-     * data it has set up (2026-10-20: the row-as-JSON wires it replaces are deleted).
-     */
-    public static @com.legend.base.Nullable ExecutionPlan keyedWire(Compiler.LoweredQuery l,
-            @com.legend.base.Nullable String runtime, SqlDialect dialect,
-            @com.legend.base.Nullable String serverVersion, com.legend.lowering.KeyedPivot.Out out,
-            WireRender.Spelling spelling) {
-        com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(l.plan());
-        Type.RelationType rowSchema = Type.schemaView(l.root().info().type());
-        if (dynamic == null || rowSchema == null || rowSchema.dynamicColumns().isEmpty()) {
-            return null;
-        }
-        com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
-        Metamodel metamodel = metamodel(l, dialect);
-        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l.ctx(), dialect,
-                serversFor(decided.type(), serverVersion), metamodel);
-        SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
-        return new ExecutionPlan(List.of(), keyed(lowered, java.util.Objects.requireNonNull(
-                com.legend.lowering.KeyedPivot.dynamic(lowered)), rowSchema, out, dialect, target, l.ctx(), spelling));
-    }
-
-    /** The whole result as one text of {@code format}: the lowered query, of {@code root}'s type, wrapped by the wire. */
-    private static ExecutionPlan.TextResult wire(WireRender.Format format, SqlQuery lowered, ExprType root,
-            SqlDialect dialect, ExecutionPlan.Target target) {
-        Type.RelationType schema = WireRender.schema(root);
-        ExecutionPlan.Format text = switch (format) {
-            case CSV -> ExecutionPlan.Format.CSV;
-            case JSON -> ExecutionPlan.Format.JSON;
-        };
-        return text(text, relation(schema, lowered), WireRender.wrap(lowered, schema, format), dialect, target);
-    }
-
-    /** The model's facts the text carrier spells a class instance by: the classes' layouts and their subclasses. */
-    private static com.legend.lowering.LiteralSpelling.Layouts layouts(com.legend.compiler.element.ModelContext ctx) {
-        return com.legend.lowering.LiteralSpelling.Layouts.of(
-                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t), ctx::subtree);
-    }
-
-    static ExecutionPlan.TextResult text(ExecutionPlan.Format format, ExecutionPlan.ResultType type,
-            SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
-        return new ExecutionPlan.TextResult(format, type, sql(statement, dialect, target));
     }
 
     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the
@@ -415,16 +328,6 @@ final class PlanMaker {
             case DATE_TIME -> ExecutionPlan.ValueKind.DATE_TIME;
             case DATE_TIME_NANOS -> ExecutionPlan.ValueKind.DATE_TIME_NANOS;
         };
-    }
-
-    /** The relation's columns with their three type facts, read from the lowered query (the plan path program's §3). */
-    private static ExecutionPlan.Relation relation(Type.RelationType schema, SqlQuery lowered) {
-        return new ExecutionPlan.Relation(com.legend.plan.PlanColumns.of(schema, lowered));
-    }
-
-    static ExecutionPlan.Value objects(ExprType root) {
-        var m = root.multiplicity().requireBounded("a graph fetch's result");
-        return new ExecutionPlan.Value(root.type().typeName(), new ExecutionPlan.Multiplicity(m.lower(), m.upper()));
     }
 
     /** The servers a plan written for a session of {@code serverVersion} names: where {@code type}'s dialect is written
@@ -516,7 +419,6 @@ final class PlanMaker {
                 .findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN)
                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
         boolean inProcess = dialect.inProcess();
-        boolean bulk = dialect.loadsRowsInBulk();
         List<ExecutionPlan.SetupStep> setup = new ArrayList<>();
         List<String> session = new ArrayList<>();
         Map<String, String> renames = new java.util.LinkedHashMap<>();
@@ -530,14 +432,7 @@ final class PlanMaker {
                 }
                 List<List<String>> rows = MetamodelSeeds.rows(def.name(), l.ctx());
                 if (inProcess) {
-                    for (String statement : com.legend.setup.Ddl.metamodelSeed(def, schema.name(), dialect)) {
-                        setup.add(new ExecutionPlan.SetupStep.Statement(statement));
-                    }
-                    if (!rows.isEmpty()) {
-                        RowLoad load = com.legend.setup.Ddl.metamodelRows(def, schema.name(), rows);
-                        setup.add(bulk ? load.staged(dialect)
-                                : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
-                    }
+                    setup.addAll(com.legend.setup.Ddl.metamodelSteps(def, schema.name(), rows, dialect));
                 } else if (!dialect.temporaryTables()) {
                     inline.put(schema.name() + "." + def.name(), inlineRows(def, rows));
                 } else {
@@ -645,25 +540,7 @@ final class PlanMaker {
      * INSERT the database runs. A table of no rows is no step.
      */
     private static List<ExecutionPlan.SetupStep> setup(List<CsvSeed.Step> steps, SqlDialect dialect) {
-        boolean bulk = dialect.loadsRowsInBulk();
-        List<ExecutionPlan.SetupStep> out = new ArrayList<>(steps.size());
-        for (CsvSeed.Step step : steps) {
-            switch (step) {
-                case CsvSeed.Step.Sql blob -> {
-                    for (String statement : com.legend.sql.RawSql.splitStatements(blob.text())) {
-                        out.add(new ExecutionPlan.SetupStep.Statement(
-                                new CsvSeed.Step.Sql(statement, blob.writtenFor()).runOn(dialect)));
-                    }
-                }
-                case CsvSeed.Step.Rows rows -> {
-                    RowLoad load = rows.load();
-                    if (!load.rows().isEmpty()) {
-                        out.add(bulk ? load.staged(dialect)
-                                : new ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
-                    }
-                }
-            }
-        }
-        return out;
+        // the one owner of the steps' form (the doors, 2026-10-29): the body driver's seeds take the same
+        return CsvSeed.planned(steps, dialect).stream().map(CsvSeed.Planned::step).toList();
     }
 }

@@ -1,5 +1,7 @@
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -81,9 +83,9 @@ class PostgresArmTest {
         // the executor read a DATE through java.sql.Date, which drops a BC date's era: 44 BC came back as 44 AD
         // (2026-10-17, the #SQL{} island's regression-suite corpus); it re-fetches the cell as java.time
         loginRole();
-        var result = new QueryService().execute(ARM_MODEL.formatted(POSTGRES.connectionBody()),
+        var result = Lean.service(ARM_MODEL.formatted(POSTGRES.connectionBody()),
                 "#SQL{select make_date(-44, 3, 15) as d}#", "test::PgRuntime");
-        Object d = result.rows().get(0).values().get(0);
+        Object d = result.rows().get(0).get(0);
         assertTrue(d instanceof com.legend.values.PureDateLiteral.StrictDate date && date.year() == -43
                 && date.month() == 3 && date.day() == 15, String.valueOf(d));
     }
@@ -130,36 +132,20 @@ class PostgresArmTest {
             for (String query : java.util.List.of("|#>{s::DB.PLAN_T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())",
                     "|s::Item.all()->project(~[name: i|$i.name, price: i|$i.price])->sort(~name->ascending())",
                     "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)->serialize(#{s::Item{id, name, price}}#)")) {
-                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
+                for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
                     boolean graph = query.contains("graphFetch");
-                    // a graph result has a JSON wire only: no CSV, no TDS text (PlanMakerTest pins both refusals;
-                    // the TDS text output of 2026-10-17 was not skipped here, measured 2026-10-18 in a root
-                    // container running the test as an unprivileged user)
-                    if (graph && (output == com.legend.TypedQuery.Output.CSV
-                            || output == com.legend.TypedQuery.Output.TDS_TEXT)) {
+                    // a graph result has no CSV (PlanMakerTest pins the refusal)
+                    if (graph && output == com.legend.testcases.PlanCases.Written.CSV) {
                         continue;
                     }
-                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, query)
-                            .executionPlan("s::RT", output);
-                    var target = ((com.legend.executionplan.ExecutionPlan.TextResult) plan.root()).sql().target();
+                    com.legend.executionplan.ExecutionPlan plan = plan(ctx, query);
+                    var target = plan.answerSql().target();
                     assertEquals(new com.legend.executionplan.ExecutionPlan.Servers.Every(), target.servers());
                     assertEquals(java.util.List.of("SET TimeZone='UTC'"), target.session());
                     assertEquals(java.util.List.of(), target.setup());
-                    if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
-                        com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, query, "s::RT", c, plan, c,
-                                java.util.Map.of(), output + " " + query);
-                        continue;
-                    }
-                    java.io.StringWriter today = new java.io.StringWriter();
-                    switch (output) {
-                        case CSV -> com.legend.Execution.executeWire(model, query, "s::RT", c,
-                                com.legend.lowering.WireRender.Format.CSV, today);
-                        case JSON -> com.legend.Execution.executeWire(model, query, "s::RT", c,
-                                com.legend.lowering.WireRender.Format.JSON, today);
-                        case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, query, "s::RT", c, today);
-                        case TDS_TEXT -> throw new IllegalStateException("judged above");
-                    }
-                    assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c), output + " " + query);
+                    assertEquals(com.legend.testcases.PlanCases.today(model, query, "s::RT", c, output),
+                            com.legend.testcases.PlanCases.write(plan, c, java.util.Map.of(), output::writer),
+                            output + " " + query);
                 }
             }
             // a query's scalar parameters: bound where they are written, answering as the query with their values does
@@ -189,30 +175,14 @@ class PostgresArmTest {
                             + "->sort(~id->ascending())", java.util.Map.of("sts", java.util.List.of("ACTIVE"))), c);
             // an optional parameter: with its value as the query with a let of it, with none as the query written []
             for (com.legend.testcases.PlanCases.OptionalCase q : com.legend.testcases.PlanCases.optionals("PLAN_T")) {
-                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
-                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameter())
-                            .executionPlan("s::RT", output);
+                for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
+                    com.legend.executionplan.ExecutionPlan plan = plan(ctx, q.withParameter());
                     for (boolean present : new boolean[]{true, false}) {
                         String query = present ? q.withValue() : q.withNone();
-                        if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
-                            com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, query, "s::RT", c, plan,
-                                    c, java.util.Collections.singletonMap("x", present ? q.value() : null),
-                                    output + " " + query);
-                            continue;
-                        }
-                        java.io.StringWriter today = new java.io.StringWriter();
-                        switch (output) {
-                            case CSV -> com.legend.Execution.executeWire(model, query, "s::RT", c,
-                                    com.legend.lowering.WireRender.Format.CSV, today);
-                            case JSON -> com.legend.Execution.executeWire(model, query, "s::RT", c,
-                                    com.legend.lowering.WireRender.Format.JSON, today);
-                            case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, query, "s::RT", c,
-                                    today);
-                            case TDS_TEXT -> throw new IllegalStateException("judged above");
-                        }
-                        assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c,
-                                java.util.Collections.singletonMap("x", present ? q.value() : null)),
-                                output + " " + query);
+                        assertEquals(com.legend.testcases.PlanCases.today(model, query, "s::RT", c, output),
+                                com.legend.testcases.PlanCases.write(plan, c,
+                                        java.util.Collections.singletonMap("x", present ? q.value() : null),
+                                        output::writer), output + " " + query);
                     }
                 }
             }
@@ -223,25 +193,17 @@ class PostgresArmTest {
      *  every output. */
     private static void assertPlanAnswersAsToday(String model, com.legend.compiler.element.ModelContext ctx,
             com.legend.testcases.PlanCases.Parameterised q, Connection c) throws Exception {
-        for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
-            com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameters())
-                    .executionPlan("s::RT", output);
-            if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
-                com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, q.withLets(), "s::RT", c, plan, c,
-                        q.values(), output + " " + q.withParameters());
-                continue;
-            }
-            java.io.StringWriter today = new java.io.StringWriter();
-            switch (output) {
-                case CSV -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
-                        com.legend.lowering.WireRender.Format.CSV, today);
-                case JSON -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
-                        com.legend.lowering.WireRender.Format.JSON, today);
-                case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, q.withLets(), "s::RT", c, today);
-                case TDS_TEXT -> throw new IllegalStateException("judged above");
-            }
-            assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c, q.values()),
+        for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
+            com.legend.executionplan.ExecutionPlan plan = plan(ctx, q.withParameters());
+            assertEquals(com.legend.testcases.PlanCases.today(model, q.withLets(), "s::RT", c, output),
+                    com.legend.testcases.PlanCases.write(plan, c, q.values(), output::writer),
                     output + " " + q.withParameters());
         }
+    }
+
+    /** {@code query}'s typed plan over {@code ctx}. */
+    private static com.legend.executionplan.ExecutionPlan plan(com.legend.compiler.element.ModelContext ctx,
+            String query) {
+        return com.legend.Compiler.query(ctx, query).executionPlan("s::RT");
     }
 }

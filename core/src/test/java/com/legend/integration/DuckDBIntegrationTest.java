@@ -1,7 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.compiler.element.ModelContext;
-import com.legend.exec.ExecutionResult;
 import com.legend.model.ClassMapping;
 import com.legend.model.PropertyMapping;
 import com.legend.model.ConnectionDefinition.DatabaseType;
@@ -821,7 +821,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Filter through to-one association → EXISTS with compound ON
         String pureQuery = "model::EmpMC.all()->filter({e | $e.dept.deptName == 'US Engineering'})->project(~[name:e|$e.name])";
-        var result = queryService.execute(pureSource, pureQuery, "test::McRT", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::McRT", connection);
 
         assertEquals(1, result.rows().size(), "Only Alice is in US Engineering");
         assertEquals("Alice", result.rows().get(0).get(0));
@@ -888,7 +888,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Project through association → LEFT JOIN with compound ON
         String pureQuery = "model::EmpMC2.all()->project(~[name:e|$e.name, dept:e|$e.dept.deptName])";
-        var result = queryService.execute(pureSource, pureQuery, "test::McRT2", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::McRT2", connection);
 
         assertEquals(2, result.rows().size());
         // Verify correct matching: Alice→US Engineering, Bob→EU Engineering (not cross-matched)
@@ -1034,7 +1034,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String pureQuery = "model::Emp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->sum()})], ['dept', 'totalSal'])";
 
         // Execute via QueryService
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         java.util.Map<String, Integer> results = new java.util.HashMap<>();
         for (var row : result.rows()) {
@@ -1084,8 +1084,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         assertThrows(Exception.class,
                 () -> {
                     try (var conn = java.sql.DriverManager.getConnection("jdbc:duckdb:")) {
-                        new com.legend.server.QueryService()
-                                .execute(model, invalidQuery, "test::TestRuntime", conn);
+                        Lean.run(model, invalidQuery, "test::TestRuntime", conn);
                     }
                 },
                 "groupBy on Class.all() without project should fail");
@@ -1151,11 +1150,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Execute via QueryService
         String pureQuery = "model::Emp.all()->sortByReversed({e | $e.sal})->limit(3)";
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         // Bare class query: JSON-wrapped GraphResult with top 3 salaries
-        assertInstanceOf(ExecutionResult.Graph.class, result);
-        String json = result.asGraph().json();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+        String json = result.json();
         assertNotNull(json);
         // Should contain 3 employees (Jane=80k, Alice=70k, Bob=60k), not John=50k
         assertTrue(json.contains("Jane"), "JSON should contain Jane (sal 80000)");
@@ -1224,7 +1223,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Execute via QueryService
         String pureQuery = "model::Emp.all()->project([{e | $e.name}, {e | $e.sal}], ['name', 'sal'])->sort('sal', SortDirection.ASC)->slice(0, 5)";
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         // Should get first 5 of 6 rows, sorted by salary ascending
         assertEquals(5, result.rows().size(), "Should return 5 rows");
@@ -1299,11 +1298,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Execute the function body via QueryService
         String functionBody = "model::Adult.all()->filter({p | $p.age >= 18})";
-        var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Bare class query → JSON-wrapped GraphResult
-        assertInstanceOf(ExecutionResult.Graph.class, result);
-        String json = result.asGraph().json();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+        String json = result.json();
         assertNotNull(json);
         assertTrue(json.contains("Alice"), "JSON should contain Alice (age 25)");
         assertTrue(json.contains("Charlie"), "JSON should contain Charlie (age 30)");
@@ -1377,7 +1376,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Execute the function body via QueryService
         String functionBody = "model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
-        var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Should return 3 rows with projected columns
         assertEquals(3, result.rows().size(), "Should have 3 worker rows");
@@ -1395,7 +1394,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String relationQuery = "#>{store::PersonDatabase.T_PERSON}#->from(test::TestRuntime)";
 
         // WHEN: Execute through QueryService (parse → compile → SQL → execute)
-        var result = queryService.execute(
+        var result = Lean.run(
                 pureSource,
                 relationQuery,
                 "test::TestRuntime",
@@ -1462,7 +1461,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // WHEN: Execute a relation query with distinct()
         String relationQuery = "#>{store::ItemDb.T_ITEMS}#->select(~[CATEGORY, VALUE])->distinct()->from(test::TestRuntime)";
 
-        var result = queryService.execute(
+        var result = Lean.run(
                 pureSource, relationQuery, "test::TestRuntime", connection);
 
         // THEN: Should have 3 distinct category-value combinations (A-100, B-200,
@@ -1482,7 +1481,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // WHEN: Execute a relation query with rename()
         String relationQuery = "#>{store::PersonDatabase.T_PERSON}#->select(~FIRST_NAME)->rename(~FIRST_NAME, ~givenName)->from(test::TestRuntime)";
 
-        var result = queryService.execute(
+        var result = Lean.run(
                 pureSource, relationQuery, "test::TestRuntime", connection);
 
         // THEN: Should have the renamed column
@@ -1545,7 +1544,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     ->from(test::TestRuntime)
                 """;
 
-        var result = queryService.execute(
+        var result = Lean.run(
                 pureSource, relationQuery, "test::TestRuntime", connection);
 
         // THEN: Should have all 5 rows (2 active + 3 inactive)
@@ -1620,7 +1619,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String pureQuery = "model::Stats.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevSample()})], ['dept', 'stdDevSal'])";
 
         // Execute via QueryService
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         System.out.println("StdDev results:");
         java.util.Map<String, Double> results = new java.util.HashMap<>();
@@ -1680,7 +1679,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::Var.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->varianceSample()})], ['dept', 'varSal'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         assertEquals(1, result.rows().size(), "Should have 1 department");
         double variance = ((Number) result.rows().get(0).get(1)).doubleValue();
@@ -1730,7 +1729,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::Med.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->median()})], ['dept', 'medianSal'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         assertEquals(1, result.rows().size());
         double median = ((Number) result.rows().get(0).get(1)).doubleValue();
@@ -1778,7 +1777,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::StdSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevSample()})], ['dept', 'result'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         assertEquals(1, result.rows().size());
         double value = ((Number) result.rows().get(0).get(1)).doubleValue();
         System.out.printf("stdDevSample result: %.2f%n", value);
@@ -1824,7 +1823,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::StdPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->stdDevPopulation()})], ['dept', 'result'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         assertEquals(1, result.rows().size());
         double value = ((Number) result.rows().get(0).get(1)).doubleValue();
         System.out.printf("stdDevPopulation result: %.2f%n", value);
@@ -1871,7 +1870,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::VarSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->varianceSample()})], ['dept', 'result'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         assertEquals(1, result.rows().size());
         double value = ((Number) result.rows().get(0).get(1)).doubleValue();
         System.out.printf("varianceSample result: %.2f%n", value);
@@ -1917,7 +1916,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::VarPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->variancePopulation()})], ['dept', 'result'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         assertEquals(1, result.rows().size());
         double value = ((Number) result.rows().get(0).get(1)).doubleValue();
         System.out.printf("variancePopulation result: %.2f%n", value);
@@ -1967,7 +1966,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         String pureQuery = "model::Corr.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~correlation:r|rowMapper($r.sal, $r.years):y|$y->corr())";
 
         System.out.println("Pure Query: " + pureQuery);
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("corr result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -2019,7 +2018,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // years)
         String pureQuery = "model::CovarSamp.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~covariance:r|rowMapper($r.sal, $r.years):y|$y->covarSample())";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("covarSample result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -2070,7 +2069,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // years)
         String pureQuery = "model::CovarPop.all()->project(~[dept:e|$e.dept, sal:e|$e.sal, years:e|$e.years])->groupBy(~dept, ~covariance:r|rowMapper($r.sal, $r.years):y|$y->covarPopulation())";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("covarPopulation result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -2123,7 +2122,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // percentile(0.5, true, true) = median with interpolation
         String pureQuery = "model::PctEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentile(0.5, true, true)})], ['dept', 'medianSal'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("percentile-continuous result: " + result.rows());
         assertEquals(2, result.rows().size());
 
@@ -2182,7 +2181,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // percentile(0.75, true, false) = 75th percentile (discrete, actual value from dataset)
         String pureQuery = "model::DiscEmployee.all()->project(~[dept:e|$e.dept, sal:e|$e.sal])->groupBy([{r | $r.dept}], [agg({r | $r.sal}, {y | $y->percentile(0.75, true, false)})], ['dept', 'q3Sal'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("percentile-discrete result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -2234,7 +2233,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test year(), month(), dayOfMonth() extraction
         String pureQuery = "model::DatePerson.all()->project([{e | $e.name}, {e | $e.birthDate->year()}, {e | $e.birthDate->month()}, {e | $e.birthDate->dayOfMonth()}], ['name', 'birthYear', 'birthMonth', 'birthDay'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Date extraction result: " + result.rows());
         assertEquals(3, result.rows().size());
 
@@ -2305,7 +2304,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test hour(), minute(), second() extraction
         String pureQuery = "model::TimeEvent.all()->project([{e | $e.name}, {e | $e.eventTime->hour()}, {e | $e.eventTime->minute()}, {e | $e.eventTime->second()}], ['name', 'hour', 'minute', 'second'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Time extraction result: " + result.rows());
         assertEquals(2, result.rows().size());
 
@@ -2369,7 +2368,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::Sale.all()->project([{e | $e.saleDate->quarter()}, {e | $e.amount}], ['quarter', 'amount'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Quarter extraction result: " + result.rows());
         assertEquals(4, result.rows().size());
 
@@ -2424,7 +2423,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::Event.all()->project([{e | $e.eventDate->dayOfWeek()}, {e | $e.eventDate->dayOfYear()}], ['dow', 'doy'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("DayOfWeek/DayOfYear result: " + result.rows());
         assertEquals(2, result.rows().size());
 
@@ -2482,7 +2481,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::WeekEvent.all()->project([{e | $e.eventDate->weekOfYear()}], ['week'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("WeekOfYear result: " + result.rows());
         assertEquals(3, result.rows().size());
 
@@ -2535,7 +2534,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test extraction from StrictDate and DateTime
         String pureQuery = "model::User.all()->project([{e | $e.name}, {e | $e.birthDate->year()}, {e | $e.lastLogin->hour()}], ['name', 'birthYear', 'loginHour'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("StrictDate/DateTime result: " + result.rows());
         assertEquals(2, result.rows().size());
 
@@ -2593,7 +2592,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Test now() - returns current timestamp
         String pureQueryNow = "model::TestRecord.all()->project([{e | now()}], ['currentTimestamp'])";
-        var resultNow = queryService.execute(pureSource, pureQueryNow, "test::TestRuntime", connection);
+        var resultNow = Lean.run(pureSource, pureQueryNow, "test::TestRuntime", connection);
         System.out.println("now() SQL generates: CURRENT_TIMESTAMP");
         assertEquals(1, resultNow.rows().size());
         // The result should be a timestamp (we just check it exists)
@@ -2601,7 +2600,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Test today() - returns current date
         String pureQueryToday = "model::TestRecord.all()->project([{e | today()}], ['currentDate'])";
-        var resultToday = queryService.execute(pureSource, pureQueryToday, "test::TestRuntime", connection);
+        var resultToday = Lean.run(pureSource, pureQueryToday, "test::TestRuntime", connection);
         System.out.println("today() SQL generates: CURRENT_DATE");
         assertEquals(1, resultToday.rows().size());
         assertNotNull(resultToday.rows().get(0).get(0), "today() should return a value");
@@ -2646,7 +2645,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test firstDayOfMonth()
         String pureQuery = "model::EventRecord.all()->project([{e | $e.eventDate}, {e | $e.eventDate->firstDayOfMonth()}], ['eventDate', 'firstOfMonth'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("firstDayOfMonth result: " + result.rows());
         assertEquals(2, result.rows().size());
 
@@ -2697,7 +2696,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test firstDayOfYear and firstDayOfQuarter
         String pureQuery = "model::TruncRecord.all()->project([{e | $e.eventDate}, {e | $e.eventDate->firstDayOfYear()}, {e | $e.eventDate->firstDayOfQuarter()}], ['eventDate', 'firstOfYear', 'firstOfQuarter'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("firstDayOfYear/Quarter result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -2748,7 +2747,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test dateDiff with DAYS unit
         String pureQuery = "model::DateRange.all()->project([{e | dateDiff($e.startDate, $e.endDate, meta::pure::functions::date::DurationUnit.DAYS)}], ['daysDiff'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dateDiff result: " + result.rows());
         assertEquals(2, result.rows().size());
         var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
@@ -2799,7 +2798,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test adjust - add 10 days
         String pureQuery = "model::AdjustRecord.all()->project([{e | $e.baseDate}, {e | adjust($e.baseDate, 10, meta::pure::functions::date::DurationUnit.DAYS)}], ['baseDate', 'adjustedDate'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("adjust result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -2850,7 +2849,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test method call syntax: date->adjust(amount, unit) with 2 args
         String pureQuery = "model::AdjustMethodRecord.all()->project([{e | $e.baseDate->meta::pure::functions::date::adjust(10, meta::pure::functions::date::DurationUnit.DAYS)}], ['adjustedDate'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("adjust method call result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -3025,7 +3024,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::EpochRecord.all()->project([{e | toEpochValue($e.eventDate)}], ['epochSeconds'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("toEpochValue result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -3072,7 +3071,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::FromEpochRecord.all()->project([{e | fromEpochValue($e.epochSeconds)}], ['dateTime'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("fromEpochValue result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -3121,7 +3120,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::DateCompareRecord.all()->project([{e | $e.date2}, {e | isOnDay($e.date1, $e.date2)}], ['date2', 'sameDay'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("isOnDay result: " + result.rows());
         assertEquals(2, result.rows().size());
 
@@ -3168,14 +3167,14 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Test isAfterDay
         String afterQuery = "model::AfterBeforeRecord.all()->project([{e | isAfterDay($e.date1, $e.date2)}], ['isAfter'])";
-        var afterResult = queryService.execute(pureSource, afterQuery, "test::TestRuntime", connection);
+        var afterResult = Lean.run(pureSource, afterQuery, "test::TestRuntime", connection);
         Boolean isAfter = (Boolean) afterResult.rows().get(0).get(0);
         System.out.printf("  isAfterDay(Jan 20, Jan 15): %s%n", isAfter);
         assertTrue(isAfter, "Jan 20 is after Jan 15");
 
         // Test isBeforeDay
         String beforeQuery = "model::AfterBeforeRecord.all()->project([{e | isBeforeDay($e.date1, $e.date2)}], ['isBefore'])";
-        var beforeResult = queryService.execute(pureSource, beforeQuery, "test::TestRuntime", connection);
+        var beforeResult = Lean.run(pureSource, beforeQuery, "test::TestRuntime", connection);
         Boolean isBefore = (Boolean) beforeResult.rows().get(0).get(0);
         System.out.printf("  isBeforeDay(Jan 20, Jan 15): %s%n", isBefore);
         assertFalse(isBefore, "Jan 20 is NOT before Jan 15");
@@ -3221,7 +3220,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Test isOnOrAfterDay (both should be true)
         String query = "model::OnOrRecord.all()->project([{e | isOnOrAfterDay($e.date1, $e.date2)}], ['isOnOrAfter'])";
-        var result = queryService.execute(pureSource, query, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, query, "test::TestRuntime", connection);
         System.out.println("isOnOrAfterDay result: " + result.rows());
         assertEquals(2, result.rows().size());
         var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
@@ -3270,7 +3269,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::DatePartRecord.all()->project([{e | $e.eventTime->datePart()}], ['dateOnly'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("datePart result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -3317,7 +3316,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::FirstHourRecord.all()->project([{e | $e.eventTime->firstHourOfDay()}], ['midnight'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("firstHourOfDay result: " + result.rows());
         assertEquals(1, result.rows().size());
 
@@ -3367,7 +3366,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test with 5-hour buckets
         String pureQuery = "model::TimeBucketRecord.all()->project([{e | $e.eventTime->timeBucket(5, meta::pure::functions::date::DurationUnit.HOURS)}], ['bucket'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("timeBucket (5 hours) result: " + result.rows());
         assertEquals(3, result.rows().size());
 
@@ -3421,7 +3420,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Test with 7-day (weekly) buckets
         String pureQuery = "model::DayBucketRecord.all()->project([{e | $e.eventDate->timeBucket(7, meta::pure::functions::date::DurationUnit.DAYS)}], ['weekBucket'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("timeBucket (7 days) result: " + result.rows());
         assertEquals(3, result.rows().size());
 
@@ -3471,7 +3470,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::MonthRecord.all()->project([{e | $e.eventDate->monthNumber()}], ['month'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("monthNumber result: " + result.rows());
         assertEquals(3, result.rows().size());
         var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
@@ -3522,7 +3521,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::QuarterRecord.all()->project([{e | $e.eventDate->quarterNumber()}], ['quarter'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("quarterNumber result: " + result.rows());
         assertEquals(4, result.rows().size());
         var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
@@ -3572,13 +3571,13 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Test min
         String minQuery = "model::MinMaxRecord.all()->project([{e | min($e.date1, $e.date2)}], ['minDate'])";
-        var minResult = queryService.execute(pureSource, minQuery, "test::TestRuntime", connection);
+        var minResult = Lean.run(pureSource, minQuery, "test::TestRuntime", connection);
         System.out.println("min result: " + minResult.rows());
         assertEquals(2, minResult.rows().size());
 
         // Test max
         String maxQuery = "model::MinMaxRecord.all()->project([{e | max($e.date1, $e.date2)}], ['maxDate'])";
-        var maxResult = queryService.execute(pureSource, maxQuery, "test::TestRuntime", connection);
+        var maxResult = Lean.run(pureSource, maxQuery, "test::TestRuntime", connection);
         System.out.println("max result: " + maxResult.rows());
         assertEquals(2, maxResult.rows().size());
     }
@@ -3649,7 +3648,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::DowRecord.all()->project([{e | $e.eventDate->dayOfWeekNumber()}], ['dow'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dayOfWeekNumber result: " + result.rows());
         assertEquals(4, result.rows().size());
         var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
@@ -3700,7 +3699,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "model::DoyRecord.all()->project([{e | $e.eventDate->dayOfYear()}], ['doy'])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("dayOfYear result: " + result.rows());
         assertEquals(3, result.rows().size());
         var sorted = com.legend.testing.Rows.sortedBy(result.rows(), r -> r.get(0));   // no ORDER BY: rows by value, not arrival (P3-11)
@@ -3746,7 +3745,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // This is the key: a lambda expression that doesn't reference any table
         String pureQuery = "|1 + 1";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Constant lambda |1+1 result: " + result.rows());
         assertEquals(1, result.rows().size(), "Should return exactly one row");
         assertEquals(2L, ((Number) result.rows().get(0).get(0)).longValue(), "1+1 should equal 2");
@@ -3783,7 +3782,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "|6 * 7";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Constant lambda |6*7 result: " + result.rows());
         assertEquals(1, result.rows().size());
         assertEquals(42L, ((Number) result.rows().get(0).get(0)).longValue(), "6*7 should equal 42");
@@ -3820,7 +3819,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "|(10 + 5) * 2 - 3";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Constant lambda |(10+5)*2-3 result: " + result.rows());
         assertEquals(1, result.rows().size());
         // (10+5)*2-3 = 15*2-3 = 30-3 = 27
@@ -3858,7 +3857,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "|'hello'";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Constant lambda |'hello' result: " + result.rows());
         assertEquals(1, result.rows().size());
         assertEquals("hello", result.rows().get(0).get(0), "Should return 'hello'");
@@ -3895,7 +3894,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "|true";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Constant lambda |true result: " + result.rows());
         assertEquals(1, result.rows().size());
         assertEquals(true, result.rows().get(0).get(0), "Should return true");
@@ -3932,7 +3931,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         String pureQuery = "|5 > 3";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Constant lambda |5>3 result: " + result.rows());
         assertEquals(1, result.rows().size());
         assertEquals(true, result.rows().get(0).get(0), "5 > 3 should be true");
@@ -3970,7 +3969,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Qualified function call - should strip package prefix and use just 'abs'
         String pureQuery = "|meta::pure::functions::math::abs(-123456789123456789.99)";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Constant lambda qualified abs result: " + result.rows().get(0).get(0));
         assertNotNull(result.rows().get(0).get(0));
     }
@@ -4007,7 +4006,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // String concatenation using + operator
         String pureQuery = "|'Hello' + ' ' + 'World'";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Constant lambda string concat result: " + result.rows().get(0).get(0));
         assertEquals("Hello World", result.rows().get(0).get(0));
     }
@@ -4047,7 +4046,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Let statement assigns variable x, then returns $x
         String pureQuery = "|let x = 42; $x;";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Let statement |let x = 42; $x; result: " + result.rows().get(0).get(0));
         assertEquals(42L, ((Number) result.rows().get(0).get(0)).longValue(), "Should return 42");
     }
@@ -4084,7 +4083,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Multiple let statements, then use variables in arithmetic
         String pureQuery = "|let x = 10; let y = 5; $x + $y;";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Let arithmetic result: " + result.rows().get(0).get(0));
         assertEquals(15L, ((Number) result.rows().get(0).get(0)).longValue(), "10 + 5 should equal 15");
     }
@@ -4121,7 +4120,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Newline-separated statements like PCT expressions
         String pureQuery = "|let var = 'Hello Variable';\n $var;";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Let with newlines result: " + result.rows().get(0).get(0));
         assertEquals("Hello Variable", result.rows().get(0).get(0));
     }
@@ -4158,7 +4157,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // This is the PCT pattern: greatest([1, 2])
         String pureQuery = "|greatest([1, 2])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("greatest([1, 2]) result: " + result.rows());
         assertEquals(1, result.rows().size(), "Should return exactly one row");
         assertEquals(2L, ((Number) result.rows().get(0).get(0)).longValue(), "greatest([1, 2]) should equal 2");
@@ -4196,7 +4195,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // This is the PCT pattern: least([1, 2])
         String pureQuery = "|least([1, 2])";
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("least([1, 2]) result: " + result.rows());
         assertEquals(1, result.rows().size(), "Should return exactly one row");
         assertEquals(1L, ((Number) result.rows().get(0).get(0)).longValue(), "least([1, 2]) should equal 1");
@@ -4262,7 +4261,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     ->project(~[name:e|$e.name])
                 """;
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
 
         // THEN: Only Alice matches
         assertEquals(1, result.rows().size(), "Should find 1 employee hired on 2024-01-15");
@@ -4327,7 +4326,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     ->project(~[name:e|$e.name, hireDate:e|$e.hireDate])
                 """;
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Employees hired after 2024-01-01: " + result.rows());
 
         // THEN: Alice (2024-01-15) and Bob (2024-06-01) match
@@ -4371,7 +4370,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     ->select(~[EVENT_NAME])
                 """;
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Event on 2024-01-15: " + result.rows());
 
         assertEquals(1, result.rows().size(), "Should find 1 event on 2024-01-15");
@@ -4436,7 +4435,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     ->project(~[title:a|$a.title])
                 """;
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Appointment at 2024-01-15 10:30:00: " + result.rows());
 
         // THEN: Only Morning Meeting matches
@@ -4502,7 +4501,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     ->project(~[title:a|$a.title, scheduledAt:a|$a.scheduledAt])
                 """;
 
-        var result = queryService.execute(pureSource, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, pureQuery, "test::TestRuntime", connection);
         System.out.println("Appointments after noon Jan 15: " + result.rows());
 
         // THEN: Afternoon Call and Next Day match
@@ -4695,7 +4694,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // THEN: Should get single row with sum of all ids (1+2+3=6)
         assertEquals(1, result.rows().size(), "Should have single aggregated row");
         // DuckDB returns BigInteger for SUM, so convert to long for comparison
-        Number sum = (Number) result.rows().getFirst().values().getFirst();
+        Number sum = (Number) result.rows().getFirst().getFirst();
         assertEquals(6L, sum.longValue(), "Sum should be 6");
     }
 
@@ -4742,8 +4741,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         for (var row : result.rows()) {
             // Columns are: id, grp, name, newCol, other
-            int newCol = ((Number) row.values().get(3)).intValue();
-            int other = ((Number) row.values().get(4)).intValue();
+            int newCol = ((Number) row.get(3)).intValue();
+            int other = ((Number) row.get(4)).intValue();
 
             assertEquals(expectedIdSum, newCol,
                     "newCol should be sum of all ids (55), got: " + newCol);
@@ -4770,7 +4769,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // THEN: Should get single row with idSum=6 and valueSum=60
         assertEquals(1, result.rows().size(), "Should have single aggregated row");
         var row = result.rows().getFirst();
-        assertEquals(2, row.values().size(), "Should have 2 columns");
+        assertEquals(2, row.size(), "Should have 2 columns");
     }
 
     @Test
@@ -4801,7 +4800,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                     3, 30
                 #->aggregate(~[n : x | $x.id : y | $y->count()])->aggregate(~[c : x | 1 : y | $y->count()])""");
         assertEquals(1, result.rows().size());
-        assertEquals(1L, ((Number) result.rows().getFirst().values().getFirst()).longValue());
+        assertEquals(1L, ((Number) result.rows().getFirst().getFirst()).longValue());
     }
 
     @Test
@@ -4848,7 +4847,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // THEN: Should get single row with codes='A:B:C' (or some order)
         assertEquals(1, result.rows().size(), "Should have single aggregated row");
-        String codes = (String) result.rows().getFirst().values().getFirst();
+        String codes = (String) result.rows().getFirst().getFirst();
         // Order may vary, so just check length and contains
         assertTrue(codes.contains("A") && codes.contains("B") && codes.contains("C"),
                 "Should contain all codes: " + codes);
@@ -4898,8 +4897,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Verify specific expected values
         for (var row : result.rows()) {
-            int grp = ((Number) row.values().get(1)).intValue();
-            int newCol = ((Number) row.values().get(3)).intValue();
+            int grp = ((Number) row.get(1)).intValue();
+            int newCol = ((Number) row.get(3)).intValue();
 
             int expectedSum = switch (grp) {
                 case 0 -> 10; // id=10
@@ -4954,8 +4953,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Verify the SQL contains SUM("id") not SUM("value")
         // and verify the partition sums match expected
         for (var row : result.rows()) {
-            int grp = ((Number) row.values().get(1)).intValue();
-            int newCol = ((Number) row.values().get(3)).intValue();
+            int grp = ((Number) row.get(1)).intValue();
+            int newCol = ((Number) row.get(3)).intValue();
 
             int expectedSum = switch (grp) {
                 case 0 -> 10; // id=10
@@ -5018,8 +5017,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // grp=4: "D"
         // grp=5: "I"
         for (var row : result.rows()) {
-            int grp = ((Number) row.values().get(1)).intValue();
-            String newCol = (String) row.values().get(3);
+            int grp = ((Number) row.get(1)).intValue();
+            String newCol = (String) row.get(3);
 
             String expected = switch (grp) {
                 case 0 -> "J";
@@ -5080,9 +5079,9 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // grp=4: "D", sum=4
         // grp=5: "I", sum=9
         for (var row : result.rows()) {
-            int grp = ((Number) row.values().get(1)).intValue();
-            String newCol = (String) row.values().get(3);
-            int other = ((Number) row.values().get(4)).intValue();
+            int grp = ((Number) row.get(1)).intValue();
+            String newCol = (String) row.get(3);
+            int other = ((Number) row.get(4)).intValue();
 
             var expected = switch (grp) {
                 case 0 -> new Object[] { "J", 10 };
@@ -5171,7 +5170,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Verify integer results (not floats)
         var expected = List.of(2, 4, 5, 6, 7);
         var actual = result.rows().stream()
-                .map(row -> ((Number) row.values().get(2)).intValue())
+                .map(row -> ((Number) row.get(2)).intValue())
                 .sorted()
                 .toList();
         assertEquals(expected, actual, "Extended column should have integer values");
@@ -5241,11 +5240,11 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Verify data is correctly projected and lowercased
         var firstRow = result.rows().get(0);
-        assertEquals(1, ((Number) firstRow.values().get(0)).intValue());
-        assertEquals("george", firstRow.values().get(1)); // Should be lowercase
+        assertEquals(1, ((Number) firstRow.get(0)).intValue());
+        assertEquals("george", firstRow.get(1)); // Should be lowercase
 
         var secondRow = result.rows().get(1);
-        assertEquals("david", secondRow.values().get(1)); // Should be lowercase
+        assertEquals("david", secondRow.get(1)); // Should be lowercase
     }
 
     /**
@@ -5285,10 +5284,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Verify joined data
         var rows = result.rows();
-        boolean foundGeorge = rows.stream().anyMatch(r -> ((Number) r.values().get(0)).intValue() == 1 &&
-                "MoreGeorge".equals(r.values().get(1)));
-        boolean foundDavid = rows.stream().anyMatch(r -> ((Number) r.values().get(0)).intValue() == 4 &&
-                "MoreDavid".equals(r.values().get(1)));
+        boolean foundGeorge = rows.stream().anyMatch(r -> ((Number) r.get(0)).intValue() == 1 &&
+                "MoreGeorge".equals(r.get(1)));
+        boolean foundDavid = rows.stream().anyMatch(r -> ((Number) r.get(0)).intValue() == 4 &&
+                "MoreDavid".equals(r.get(1)));
 
         assertTrue(foundGeorge, "Should find George's joined data");
         assertTrue(foundDavid, "Should find David's joined data");
@@ -5329,8 +5328,8 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // After filter newCol > 2:
         // qw -> 9
         assertEquals(1, result.rows().size(), "Only qw group (sum=9) should pass filter > 2");
-        assertEquals("qw", result.rows().get(0).values().get(0), "str column should be 'qw'");
-        assertEquals(9, ((Number) result.rows().get(0).values().get(1)).intValue(), "newCol should be 9 (4+5)");
+        assertEquals("qw", result.rows().get(0).get(0), "str column should be 'qw'");
+        assertEquals(9, ((Number) result.rows().get(0).get(1)).intValue(), "newCol should be 9 (4+5)");
     }
 
     /**
@@ -5434,7 +5433,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // Verify values end with '_test' (combined is last column)
         var firstRow = result.rows().get(0);
         int combinedIdx = result.columns().size() - 1; // combined is the last column added by extend
-        String combinedValue = (String) firstRow.values().get(combinedIdx);
+        String combinedValue = (String) firstRow.get(combinedIdx);
         assertTrue(combinedValue.endsWith("_test"), "Combined column should end with '_test': " + combinedValue);
     }
 
@@ -6390,10 +6389,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testMaxNumbers_preservesIntegerType() throws SQLException {
         // PCT: |1.23->meta::pure::functions::math::max(2)
         // DuckDB promotes to DECIMAL, but result 2 should be Integer
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|1.23->meta::pure::functions::math::max(2)",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|1.23->meta::pure::functions::math::max(2)", "test::TestRuntime", connection);
         assertTrue(result.rows().get(0).get(0) instanceof Integer || result.rows().get(0).get(0) instanceof Long,
                 "max(1.23, 2) should return Integer/Long 2, not promoted Decimal, got: " + result.rows().get(0).get(0).getClass());
         assertEquals(2, ((Number) result.rows().get(0).get(0)).intValue());
@@ -6403,10 +6399,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testMinNumbers_preservesOriginalType() throws SQLException {
         // PCT: |2->meta::pure::functions::math::min(1.23)
         // Result 1.23 was originally a Float literal, should preserve its type
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|2->meta::pure::functions::math::min(1.23)",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|2->meta::pure::functions::math::min(1.23)", "test::TestRuntime", connection);
         assertEquals(1.23, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.001);
     }
 
@@ -6414,10 +6407,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testGreatestNumber_preservesIntegerType() throws SQLException {
         // PCT: |[1.23, 2]->meta::pure::functions::collection::greatest()
         // LIST_MAX promotes to DECIMAL, but result 2 was originally Integer
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[1.23, 2]->meta::pure::functions::collection::greatest()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[1.23, 2]->meta::pure::functions::collection::greatest()", "test::TestRuntime", connection);
         assertTrue(result.rows().get(0).get(0) instanceof Integer || result.rows().get(0).get(0) instanceof Long,
                 "greatest([1.23, 2]) should return Integer/Long 2, got: " + result.rows().get(0).get(0).getClass());
         assertEquals(2, ((Number) result.rows().get(0).get(0)).intValue());
@@ -6427,10 +6417,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testLeastNumber_preservesOriginalType() throws SQLException {
         // PCT: |[4.23, 7.345, 1.0, 3, 4]->meta::pure::functions::collection::least()
         // Result 1.0 should preserve its original Float type
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[4.23, 7.345, 1.0, 3, 4]->meta::pure::functions::collection::least()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[4.23, 7.345, 1.0, 3, 4]->meta::pure::functions::collection::least()", "test::TestRuntime", connection);
         assertEquals(1.0, ((Number) result.rows().get(0).get(0)).doubleValue(), 0.001);
     }
 
@@ -6438,10 +6425,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testModeNumber_preservesIntegerType() throws SQLException {
         // PCT: |[3, 3.0, 3, 2, 2]->meta::pure::functions::math::mode()
         // LIST_AGGR mode promotes to DECIMAL, but most frequent value 3 was Integer
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[3, 3.0, 3, 2, 2]->meta::pure::functions::math::mode()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[3, 3.0, 3, 2, 2]->meta::pure::functions::math::mode()", "test::TestRuntime", connection);
         assertTrue(result.rows().get(0).get(0) instanceof Integer || result.rows().get(0).get(0) instanceof Long,
                 "mode([3, 3.0, 3, 2, 2]) should return Integer/Long 3, got: " + result.rows().get(0).get(0).getClass());
         assertEquals(3, ((Number) result.rows().get(0).get(0)).intValue());
@@ -6454,10 +6438,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // PCT: |[1, 2, 3]->meta::pure::functions::math::stdDevSample()
         // DuckDB returns 1 (INTEGER), but Pure expects 1.0 (Float)
         // Value-matching must NOT convert this to Integer
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[1, 2, 3]->meta::pure::functions::math::stdDevSample()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[1, 2, 3]->meta::pure::functions::math::stdDevSample()", "test::TestRuntime", connection);
         assertFalse(result.rows().get(0).get(0) instanceof Long && ((Long) result.rows().get(0).get(0)) == 1L,
                 "stdDevSample should NOT be matched back to input arg 1 — it computes a new value");
     }
@@ -6466,10 +6447,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testStdDevSample_negativeNumbers() throws SQLException {
         // PCT: |[-5, 0, 5]->meta::pure::functions::math::stdDevSample()
         // DuckDB returns 5 (INTEGER), but Pure expects 5.0 (Float)
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[-5, 0, 5]->meta::pure::functions::math::stdDevSample()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[-5, 0, 5]->meta::pure::functions::math::stdDevSample()", "test::TestRuntime", connection);
         assertFalse(result.rows().get(0).get(0) instanceof Long && ((Long) result.rows().get(0).get(0)) == 5L,
                 "stdDevSample should NOT be matched back to input arg 5");
     }
@@ -6478,10 +6456,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testVarianceSample_doesNotMatchInputArgs() throws SQLException {
         // PCT: |[2, 4, 6]->meta::pure::functions::math::varianceSample()
         // DuckDB returns 4 (INTEGER), but Pure expects 4.0 (Float)
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[2, 4, 6]->meta::pure::functions::math::varianceSample()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[2, 4, 6]->meta::pure::functions::math::varianceSample()", "test::TestRuntime", connection);
         assertFalse(result.rows().get(0).get(0) instanceof Long && ((Long) result.rows().get(0).get(0)) == 4L,
                 "varianceSample should NOT be matched back to input arg 4");
     }
@@ -6491,10 +6466,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // PCT: |[3, 2, 3.0, 7.0, 2, 2, 3, 2.0,
         // 2.0]->meta::pure::functions::math::mode()
         // Mixed Integer+Float list — mode value is 2 (most frequent)
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[3, 2, 3.0, 7.0, 2, 2, 3, 2.0, 2.0]->meta::pure::functions::math::mode()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[3, 2, 3.0, 7.0, 2, 2, 3, 2.0, 2.0]->meta::pure::functions::math::mode()", "test::TestRuntime", connection);
         assertInstanceOf(Number.class, result.rows().get(0).get(0), "mode of mixed Number list should return a Number");
         assertEquals(2, ((Number) result.rows().get(0).get(0)).intValue(), "mode value should be 2");
     }
@@ -6503,10 +6475,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testMode_IntegerOnlyList_returnsLong() throws SQLException {
         // PCT: |[3, 3, 3, 2, 2]->mode() — Integer-only list → result should stay
         // Integer
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[3, 3, 3, 2, 2]->meta::pure::functions::math::mode()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[3, 3, 3, 2, 2]->meta::pure::functions::math::mode()", "test::TestRuntime", connection);
         assertInstanceOf(Number.class, result.rows().get(0).get(0));
         assertEquals(3, ((Number) result.rows().get(0).get(0)).intValue());
     }
@@ -6516,10 +6485,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // PCT: |[%2025-02-09, %2025-04-09, %2025-02-09T01:15:20+0000,
         // %2025-01-10T15:25:30+0000]->greatest()
         // StrictDate %2025-04-09 is greatest — VARIANT preserves original DATE type
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[%2025-02-09, %2025-04-09, %2025-02-09T01:15:20+0000, %2025-01-10T15:25:30+0000]->meta::pure::functions::collection::greatest()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[%2025-02-09, %2025-04-09, %2025-02-09T01:15:20+0000, %2025-01-10T15:25:30+0000]->meta::pure::functions::collection::greatest()", "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
         // the IDENTITY channel returns the winner's pure PRINT FORM —
         // a StrictDate prints date-only (partial precision preserved)
@@ -6531,10 +6497,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testGreatest_MixedDateTypes_preservesDateTime() throws SQLException {
         // PCT: |[%2025-02-10T20:10:20+0000, %2025-02-10]->greatest()
         // DateTime wins — VARIANT preserves original TIMESTAMP type
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::greatest()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::greatest()", "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
         assertEquals("2025-02-10T20:10:20+0000", val.toString(),
                 "greatest where DateTime wins keeps the DateTime print form");
@@ -6544,10 +6507,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testLeast_MixedDateTypes_preservesStrictDate() throws SQLException {
         // PCT: |[%2025-02-10T20:10:20+0000, %2025-02-10]->least()
         // StrictDate %2025-02-10 is least — VARIANT preserves original DATE type
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::least()",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::least()", "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
         assertEquals("2025-02-10", val.toString(),
                 "least of mixed dates where StrictDate wins keeps its own print form");
@@ -6557,10 +6517,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     void testVariance_Sample_doesNotMatchInputArgs() throws SQLException {
         // PCT: |[2, 4, 6]->meta::pure::functions::math::variance(true)
         // Same as varianceSample - DuckDB returns 4, Pure expects 4.0
-        var result = queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|[2, 4, 6]->meta::pure::functions::math::variance(true)",
-                "test::TestRuntime", connection);
+        var result = Lean.run(getCompletePureModelWithRuntime(), "|[2, 4, 6]->meta::pure::functions::math::variance(true)", "test::TestRuntime", connection);
         assertFalse(result.rows().get(0).get(0) instanceof Long && ((Long) result.rows().get(0).get(0)) == 4L,
                 "variance(true) should NOT be matched back to input arg 4");
     }

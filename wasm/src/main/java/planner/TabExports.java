@@ -30,10 +30,18 @@ public final class TabExports {
         return Folded.http(() -> Boundary.executeJsonPlan(body, modelsJson));
     }
 
-    /** {@link Boundary#executeJsonAnswer}: the answer, the rows the tab's database wrote arranged as the server's (C1). */
+    /** {@link Boundary#executeJsonAnswer}: the answer, the rows the tab's database answered written as the server's
+     *  (C1). */
     @JSExport
-    public static String executeJsonAnswerOrError(String plan, String wire) {
-        return Folded.http(() -> Boundary.executeJsonAnswer(plan, wire));
+    public static String executeJsonAnswerOrError(String plan, String rows) {
+        return Folded.http(() -> Boundary.executeJsonAnswer(plan, rows));
+    }
+
+    /** {@link Boundary#executeArrowAnswer}: the answer in upstream's Arrow format, the rows the tab's database
+     *  answered written by lite's Arrow writer, folded as base64 (track A, 2026-10-29). */
+    @JSExport
+    public static String executeArrowAnswerOrError(String plan, String rows) {
+        return Folded.http(() -> Boundary.executeArrowAnswer(plan, rows));
     }
 
     // ---- planning and typing
@@ -90,6 +98,12 @@ public final class TabExports {
     @JSExport
     public static String planJsonHeldOrError(int handle, String lambdaJson, String runtime) {
         return Folded.of(() -> Boundary.planJsonHeld(handle, lambdaJson, runtime));
+    }
+
+    /** {@link Boundary#executionPlanJsonHeld}. */
+    @JSExport
+    public static String executionPlanJsonHeldOrError(int handle, String lambdaJson, String runtime) {
+        return Folded.of(() -> Boundary.executionPlanJsonHeld(handle, lambdaJson, runtime));
     }
 
     /** {@link Boundary#relationTypeHeld}. */

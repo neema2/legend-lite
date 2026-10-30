@@ -19,6 +19,7 @@ const MODES: readonly { readonly mode: RegexMode; readonly label: string; readon
   { mode: 'match', label: 'Match', says: 'A true or false column: whether its value matches the pattern.' },
   { mode: 'replace', label: 'Replace', says: 'Its value with each match of the pattern replaced.' },
   { mode: 'extract', label: 'Extract', says: 'The first part of its value the pattern matches.' },
+  { mode: 'tokenize', label: 'Tokenize to rows', says: 'Each part of its value the pattern matches, a row of its own (a value with no match, no row).' },
 ];
 
 /** The form, drawn into `host`. */

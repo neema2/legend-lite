@@ -1,0 +1,125 @@
+// SCRATCH PROBE (never committed): today's database-written wires vs the typed plan through the Java writers.
+package org.finos.legend.lite.pct.extension;
+
+import com.legend.Compiler;
+import com.legend.TypedQuery;
+import com.legend.exec.PlanRunner;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.json.Json;
+import com.legend.result.CsvWriter;
+import com.legend.result.JsonRowsWriter;
+import com.legend.result.PureV1Writer;
+
+import java.io.StringWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+final class WireDifferential {
+    private static final String DIR = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
+
+    static void probe(String model, String expression) {
+        if (DIR == null) {
+            return;
+        }
+        Set<com.legend.platform.Feature> feats = Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
+        String ver = PctBackend.serverVersion();
+        TypedQuery q;
+        ExecutionPlan typed;
+        try {
+            q = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression);
+            typed = q.executionPlan(com.legend.test.StorelessRuntime.RUNTIME, feats, ver);
+        } catch (RuntimeException e) {
+            line("PLAN-ERR", "-", expression, msg(e), "");
+            return;
+        }
+        ExecutionPlan.TdsResult.Shape shape = typed.root() instanceof ExecutionPlan.TdsResult t ? t.shape()
+                : ExecutionPlan.TdsResult.Shape.RELATION;
+        for (TypedQuery.Output o : List.of(TypedQuery.Output.JSON, TypedQuery.Output.CSV)) {
+            String old = oldText(q, o, feats, ver);
+            String neu;
+            try {
+                StringWriter w = new StringWriter();
+                PlanRunner.stream(typed, Map.of(), PctBackend.planSessions(),
+                        o == TypedQuery.Output.CSV ? new CsvWriter(w, shape) : new JsonRowsWriter(w, shape));
+                neu = w.toString();
+            } catch (Exception e) {
+                neu = "ERR:" + msg(e);
+            }
+            line(old.equals(neu) ? "EQUAL" : "DIFF", o.name() + "/" + shape, expression, old, neu);
+        }
+        if (shape == ExecutionPlan.TdsResult.Shape.RELATION && typed.root() instanceof ExecutionPlan.TdsResult tds) {
+            String old;
+            try (java.sql.Connection c = PctBackend.connect(); var st = c.createStatement()) {
+                for (String s : com.legend.database.Databases.dialect(tds.sql().target().database().type()).sessionSetup()) {
+                    st.execute(s);
+                }
+                String sql = q.wireSql(com.legend.test.StorelessRuntime.RUNTIME);
+                try (var rs = st.executeQuery(sql)) {
+                    rs.next();
+                    String wire = rs.getString(1);
+                    Json.Node parsed = wire == null || wire.isEmpty() ? new Json.Arr(List.of()) : Json.parse(wire);
+                    StringBuilder b = new StringBuilder();
+                    boolean first = true;
+                    for (Json.Node row : ((Json.Arr) parsed).items()) {
+                        List<Object> values = new ArrayList<>();
+                        for (ExecutionPlan.Column col : tds.columns()) {
+                            values.add(((Json.Obj) row).fields().get(col.name()));
+                        }
+                        b.append(first ? "" : ",").append("{\"values\": ").append(Json.toCompact(values)).append('}');
+                        first = false;
+                    }
+                    old = b.toString();
+                }
+            } catch (Exception e) {
+                old = "ERR:" + msg(e);
+            }
+            String neu;
+            try {
+                StringWriter w = new StringWriter();
+                PlanRunner.stream(typed, Map.of(), PctBackend.planSessions(), new PureV1Writer(w, shape, "{}", "[]",
+                        tds.columns().stream().map(ExecutionPlan.Column::name).toList()));
+                String all = w.toString();
+                int at = all.indexOf("\"rows\" : [");
+                neu = all.substring(at + "\"rows\" : [".length(), all.length() - "]}}".length());
+            } catch (Exception e) {
+                neu = "ERR:" + msg(e);
+            }
+            line(old.equals(neu) ? "EQUAL" : "DIFF", "ENGINE/" + shape, expression, old, neu);
+        }
+    }
+
+    private static String oldText(TypedQuery q, TypedQuery.Output o, Set<com.legend.platform.Feature> feats, String ver) {
+        try {
+            ExecutionPlan plan = q.executionPlan(com.legend.test.StorelessRuntime.RUNTIME, o, feats, ver);
+            StringWriter w = new StringWriter();
+            PlanRunner.run(plan, Map.of(), PctBackend.planSessions(), w);
+            return w.toString();
+        } catch (Exception e) {
+            return "ERR:" + msg(e);
+        }
+    }
+
+    private static String msg(Throwable e) {
+        String m = e.getClass().getSimpleName() + ": " + e.getMessage();
+        int nl = m.indexOf('\n');
+        return nl < 0 ? m : m.substring(0, nl);
+    }
+
+    private static void line(String verdict, String kind, String expression, String old, String neu) {
+        String l = verdict + "\t" + kind + "\t" + Base64.getEncoder().encodeToString(expression.getBytes(StandardCharsets.UTF_8))
+                + "\t" + old.replace("\t", " ").replace("\n", "\\n").replace("\r", "\\r") + "\t"
+                + neu.replace("\t", " ").replace("\n", "\\n").replace("\r", "\\r") + "\n";
+        try {
+            Files.writeString(Path.of(DIR, "wire-diff.tsv"), l, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+}

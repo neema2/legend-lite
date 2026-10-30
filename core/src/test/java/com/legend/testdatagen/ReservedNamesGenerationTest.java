@@ -76,16 +76,23 @@ class ReservedNamesGenerationTest {
                     query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("default", "order",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))),
-                    null, false, c, dialect, NO_VIEWS);
+                    null, false, com.legend.exec.PlanSessions.given(c), target(type), dialect, NO_VIEWS);
             assertFalse(order.sqls().isEmpty(), type.name());
             assertEquals("default\norder\nID,NAME\n1,a\n-----\n", order.dataCsvString(), type.name());
             TestDataGenerator.Result item = TestDataGenerator.generate(ctx,
                     query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("select", "T",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(7L))))),
-                    null, false, c, dialect, NO_VIEWS);
+                    null, false, com.legend.exec.PlanSessions.given(c), target(type), dialect, NO_VIEWS);
             assertEquals("select\nT\nID\n7\n-----\n", item.dataCsvString(), type.name());
         }
+    }
+
+    /** The private session's target: its database type, the one fact the runner checks a session against. */
+    private static com.legend.executionplan.ExecutionPlan.Target target(DatabaseType type) {
+        return new com.legend.executionplan.ExecutionPlan.Target(
+                new com.legend.executionplan.ExecutionPlan.Database.Platform(type),
+                new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of());
     }
 
     private static LambdaFunction query(String text) {

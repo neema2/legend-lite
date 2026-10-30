@@ -264,6 +264,9 @@ public final class MongoDb extends AnsiSqlRenderer {
             case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
                     + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
                     + " of it is not lowered");
+            case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
+                    + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
+                    + " other consumer of it is not lowered");
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException("deferred relation-toString reached"
                     + " the renderer — the execution boundary must resolve the dynamic column list first"
                     + " (DeferredTdsString id " + d.id() + ")");
@@ -579,8 +582,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             if (c.value() instanceof SqlExpr.StringLit json) {
                 return writer.append("{\"$literal\": ").append(json.value().strip()).append("}");
             }
-            if (c.value().type() instanceof TypeFact.Typed t && (t.type() == SqlType.Scalar.VARCHAR
-                    || t.type() == SqlType.Scalar.LITERAL)) {
+            if (c.value().type() instanceof TypeFact.Typed t && t.type() == SqlType.Scalar.VARCHAR) {
                 throw new DialectCapability("a text parsed as a Variant reached MongoDb, whose pipeline parses no"
                         + " JSON");
             }
@@ -594,7 +596,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             // a zoned timestamp is the instant: a text with its offset parses to it (a single-digit month or day
             // padded first, which Pure's parser reads and $convert does not), a date is one already
             boolean fromText = c.value() instanceof SqlExpr.StringLit || c.value().type() instanceof TypeFact.Typed t
-                    && (t.type() == SqlType.Scalar.VARCHAR || t.type() == SqlType.Scalar.LITERAL);
+                    && t.type() == SqlType.Scalar.VARCHAR;
             if (!fromText) {
                 return writer.append("{\"$convert\": {\"input\": ").expr(c.value(), 0).append(", \"to\": \"date\"}}");
             }
@@ -618,7 +620,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             throw new DialectCapability("a cast to " + target + " reached MongoDb: only scalar and decimal targets"
                     + " convert");
         }
-        boolean text = s == SqlType.Scalar.VARCHAR || s == SqlType.Scalar.LITERAL;
+        boolean text = s == SqlType.Scalar.VARCHAR;
         if (text && (c.value() instanceof SqlExpr.JsonObject || c.value() instanceof SqlExpr.JsonArray)) {
             // the wire's JSON object as TEXT: written by the pipeline (D10), MongoDB having no JSON writer of its own
             return jsonText(writer, c.value());
@@ -1158,7 +1160,7 @@ public final class MongoDb extends AnsiSqlRenderer {
                     + " no JSON text operator");
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // ---- raising
             case ERROR -> raise(writer, a);
         };
@@ -1325,8 +1327,8 @@ public final class MongoDb extends AnsiSqlRenderer {
 
     /** The length in code points; a number's, of its text (the corpus spells length() over numbers). */
     private static SqlWriter length(SqlWriter writer, List<SqlExpr> a) {
-        boolean text = a.get(0).type() instanceof TypeFact.Typed t && (t.type() == SqlType.Scalar.VARCHAR
-                || t.type() == SqlType.Scalar.LITERAL) || a.get(0) instanceof SqlExpr.StringLit;
+        boolean text = a.get(0).type() instanceof TypeFact.Typed t && t.type() == SqlType.Scalar.VARCHAR
+                || a.get(0) instanceof SqlExpr.StringLit;
         // null tested at run time whatever the fact says: $strLenCP of null is the server's error, not SQL's null
         // (the MongoDB lane's first run, 2026-10-17: find() over a lambda's string)
         return MongoJson.guarded(writer, a, MongoJson.text("{\"$cond\": [{\"$eq\": [" + G0 + ", null]}, null, "
@@ -2413,7 +2415,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case BOOLEAN -> "bool";
             case INTEGER, BIGINT -> "long";
             case DOUBLE -> "double";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "string";
+            case VARCHAR, TEMPORAL_TEXT -> "string";
             case DATE, TIMESTAMP -> "date";
             // a 128-bit integer (the lowering's exact band for integer arithmetic near the 64-bit edge, and the
             // fraction-free spelling of a Float) is a Decimal128 here: 34 exact digits, the one type past 64 bits

@@ -1,3 +1,4 @@
+// (history: a 2026-08 audit harness on the old door, Execution.execute, which track D deleted 2026-10-29; not built)
 import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.element.ModelContext;

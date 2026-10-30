@@ -3,13 +3,14 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.Execution;
 import java.sql.Connection;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +30,7 @@ class ValueSortComparatorTest {
 
     private static List<Object> col(String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().stream()
+            return Lean.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().stream()
                     .map(r -> r.get(0)).toList();
         }
     }

@@ -26,6 +26,56 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         Objects.requireNonNull(root, "root");
     }
 
+    /** The shape of the typed rows this plan answers (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
+     *  2026-10-27): its result's -- a keyed result's is a relation's -- or, for a plan of steps, its one result step's.
+     *  A plan that answers no rows is refused by name: a writer has nothing to write. */
+    public TdsResult.Shape answerShape() {
+        return switch (answer(root)) {
+            case TdsResult t -> t.shape();
+            case Keyed k -> TdsResult.Shape.RELATION;
+            default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
+        };
+    }
+
+    /** The statement whose rows are this plan's typed answer: its result's, a keyed result's body, or a plan of
+     *  steps' one result step's ({@link #answerShape}'s rule). */
+    public Sql answerSql() {
+        return switch (answer(root)) {
+            case TdsResult t -> t.sql();
+            case Keyed k -> k.body();
+            default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
+        };
+    }
+
+    /** The columns of this plan's typed answer where the plan states them: its result's (or its one result step's);
+     *  null for a keyed result, whose per-key columns its keys name when it runs. */
+    public @com.legend.base.Nullable List<Column> answerColumns() {
+        return switch (answer(root)) {
+            case TdsResult t -> t.columns();
+            case Keyed k -> null;
+            default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
+        };
+    }
+
+    private static Node answer(Node n) {
+        return switch (n) {
+            case TdsResult t -> t;
+            case Keyed k -> k;
+            case Sequence s -> {
+                List<Node> answers = s.steps().stream()
+                        .filter(x -> x instanceof TdsResult || x instanceof Keyed).toList();
+                if (answers.size() != 1) {
+                    throw new IllegalStateException("a plan of steps answers through one result step; this one has "
+                            + answers.size());
+                }
+                yield answers.get(0);
+            }
+            case Update u -> throw new IllegalStateException("a plan that only changes its database answers no rows");
+            case Effect e -> throw new IllegalStateException("a plan that only sends an effect answers no rows");
+            case Check c -> throw new IllegalStateException("a plan that only checks answers no rows");
+        };
+    }
+
     /** A declared parameter: what a caller's value is checked against (legend-engine's
      *  {@code function-parameters-validation} facts — type name, multiplicity, an enum's values — and no model).
      *  An enum value travels as its NAME: the statement translates it to what the database stores, at each place it is
@@ -55,7 +105,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, TextResult, Keyed, Update, Check {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect {
     }
 
     /**
@@ -91,6 +141,18 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
+    /**
+     * A statement sent for what it DOES, its kind the statement's own -- a raw statement a program wrote
+     * ({@code executeInDb}), a DDL, a script of several, a seed's rows -- which may answer rows it does not read: the
+     * body driver's effects (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 5: every statement a body sends is a
+     * plan's). The runner says whether it answered rows.
+     */
+    public record Effect(Sql sql) implements Node {
+        public Effect {
+            Objects.requireNonNull(sql, "sql");
+        }
+    }
+
     /** A query run for the error its database may raise -- a Cypher write's guard (Neo4j's DeleteConnectedNode) -- its
      *  rows read and dropped: a program's statement whose value no step keeps. */
     public record Check(Sql sql) implements Node {
@@ -106,23 +168,27 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * their order. The session reads each row's cells from its driver by the plan's columns -- the slot first, the
      * Pure type where the slot is none -- and the runner holds the plan's facts, no model and no dialect. (Until
      * step 7 the statement wrote each row as one JSON object the runner parsed back; a document's row still reads
-     * that way, {@code exec.RowDecode}.)
+     * that way, {@code result.RowDecode}.)
      */
-    public record TdsResult(List<Column> columns, Sql sql) implements Node {
+    public record TdsResult(Shape shape, List<Column> columns, Sql sql) implements Node {
         public TdsResult {
+            Objects.requireNonNull(shape, "shape");
             columns = List.copyOf(columns);
             Objects.requireNonNull(sql, "sql");
+            if (shape != Shape.RELATION && columns.size() != 1) {
+                throw new IllegalArgumentException("a " + shape + " answer is one column, given "
+                        + columns.stream().map(Column::name).toList());
+            }
         }
-    }
 
-    /** A result the DATABASE writes as finished text; the runner passes it on (lite's own node — legend-engine builds
-     *  such results in Java). The format is the plan's, fixed when the plan is made: the database writes it. */
-    public record TextResult(Format format, ResultType type, Sql sql) implements Node {
-        public TextResult {
-            Objects.requireNonNull(format, "format");
-            Objects.requireNonNull(type, "type");
-            Objects.requireNonNull(sql, "sql");
-        }
+        /**
+         * What the rows ARE (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §2: the plan describes types, never an output
+         * format): a relation's rows; a value's elements, one per row in the one column {@code value}, whose type and
+         * multiplicity are the value's; or a graph fetch's objects, one per row in the one column whose type is their
+         * class and whose multiplicity is the fetch's, each cell the object's JSON text as the database built it (a
+         * class instance's typed encoding, R6). A writer reads the shape to choose its layout; nothing else does.
+         */
+        public enum Shape { RELATION, VALUE, OBJECTS }
     }
 
     /**
@@ -133,14 +199,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * written under {@code keyFields} (2026-10-20: a session reading a cell by name reads it so).
      * {@code body} is written once, with per-key regions ({@link Sql#regions}) the runner repeats once per key; its
      * rows' cells are {@code outputs} in order, a per-key output once per key, key by key. Both statements run on one
-     * session, inside one {@code snapshot}, so the keys are the body's. {@code format} null: the cells are typed by their
-     * columns' facts and answered as typed rows; else each cell is the format's text of its value, written by the
-     * database, and the runner writes the format's punctuation (the header from the outputs' names, a row's separators,
-     * the brackets: docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §5, F1). {@code maxColumns}: the most columns the database
+     * session, inside one {@code snapshot}, so the keys are the body's. The cells are typed by their columns' facts and
+     * answered as typed rows. {@code perKeyAt}: how many of the fixed columns the answer places before the per-key ones
+     * -- the relation's own column order (Pure's pivot answers its grouping columns, then the per-key ones, then any
+     * column a later step adds), where the body answers every fixed column first and the runner places each cell
+     * (2026-10-27, the result boundary program's phase 5: an extend after a pivot answered before the per-key
+     * columns). {@code maxColumns}: the most columns the database
      * answers, a body asked for more refused by name before it is sent; null where the database has no limit said.
      */
-    public record Keyed(Sql keys, List<String> keyFields, @com.legend.base.Nullable Format format, List<Output> outputs,
-            Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
+    public record Keyed(Sql keys, List<String> keyFields, List<Output> outputs, int perKeyAt, Sql body,
+            Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
         public Keyed {
             Objects.requireNonNull(keys, "keys");
             keyFields = List.copyOf(keyFields);
@@ -168,14 +236,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             if (!perKey) {
                 throw new IllegalArgumentException("a keyed result with no per-key output");
             }
+            long fixedOutputs = outputs.stream().filter(o -> o instanceof Fixed).count();
+            if (perKeyAt < 0 || perKeyAt > fixedOutputs) {
+                throw new IllegalArgumentException("the per-key columns placed after " + perKeyAt + " of "
+                        + fixedOutputs + " fixed ones");
+            }
             long perKeyOutputs = outputs.stream().filter(o -> o instanceof PerKey).count();
             if (keyFields.size() != perKeyOutputs + 1) {
                 throw new IllegalArgumentException("a keys probe answers the key's text and each per-key output's name:"
                         + " " + keyFields.size() + " fields for " + perKeyOutputs + " per-key outputs");
-            }
-            if (format == Format.JSON_PER_ROW) {
-                throw new IllegalArgumentException("a keyed text is written row by row in every format: its JSON is"
-                        + " JSON, the runner writing the brackets either way");
             }
         }
 
@@ -187,12 +256,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             String field();
         }
 
-        /** A column answered once: its facts, and {@code name}, the format's spelling of its name (a TDS header
-         *  entry, a CSV header field, a JSON member's name token; the column's own name for typed rows). */
-        public record Fixed(Column column, String name, String field) implements Output {
+        /** A column answered once: its facts. */
+        public record Fixed(Column column, String field) implements Output {
             public Fixed {
                 Objects.requireNonNull(column, "column");
-                Objects.requireNonNull(name, "name");
                 Objects.requireNonNull(field, "field");
             }
         }
@@ -216,40 +283,19 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         public enum Snapshot { TRANSACTION, REPEATABLE_READ, SERIALIZABLE, NONE }
     }
 
-    /** How the database writes a {@link TextResult}. */
-    public enum Format {
-        /** the whole result as one CSV text */
-        CSV,
-        /** the whole result as one JSON text */
-        JSON,
-        /** one JSON object per row; the runner writes the array's brackets and commas */
-        JSON_PER_ROW,
-        /** the whole result as Pure's TDS text: a header of {@code name:Type[multiplicity]}, each row on its own
-         *  line, cells in Pure's print forms (the form legend-pure's {@code stringToTDS} reads; 2026-10-17) */
-        TDS_TEXT
-    }
-
-    /** What a {@link TextResult} is of: a relation's columns, or a value's type and multiplicity. */
-    public sealed interface ResultType permits Relation, Value {
-    }
-
-    /** A relation, its columns in order (a scalar's or a collection's text is the one-column relation {@code value}). */
-    public record Relation(List<Column> columns) implements ResultType {
-        public Relation {
-            columns = List.copyOf(columns);
-        }
-    }
-
-    /** A column of a relation the database writes as text, with its three type facts
+    /** A column of a plan's typed rows, with its three type facts
      *  (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): {@code type}, its Pure type as the typer names it (a primitive's
      *  name, {@code Decimal(10,2)}, an enumeration's path), and its {@code multiplicity}; {@code slot}, the SQL type
      *  the database answers with (the lowering's typed slot: {@code VARCHAR}, {@code DECIMAL(10,2)},
      *  {@code TIMESTAMP}) -- null when the column has no one slot (a nested column the query flattens into prefixed
      *  outputs; a pivot's generated column whose template carries no type); and {@code store}, the column's declared
      *  type in its store when the value is a store column read through ({@code VARCHAR(20)}, as the relational
-     *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. */
+     *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. A fourth fact,
+     *  {@code precision} (2026-10-28, the result boundary program's R2 and its S1.4 item 1): how a temporal cell's
+     *  WRITTEN precision is known, which the writers spell by ({@link Precision}; the plan's fact, where the writers
+     *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. */
     public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
-            @com.legend.base.Nullable String store) {
+            @com.legend.base.Nullable String store, @com.legend.base.Nullable Precision precision) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
@@ -265,12 +311,34 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
-    /** Values of a class — its instances, a graph fetch's objects — of {@code type} at {@code multiplicity}. */
-    public record Value(String type, Multiplicity multiplicity) implements ResultType {
-        public Value {
-            Objects.requireNonNull(type, "type");
-            Objects.requireNonNull(multiplicity, "multiplicity");
-        }
+    /**
+     * How a temporal cell's WRITTEN precision is known (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R2: a fact that only
+     * Pure knows travels in the plan or in the data, never in a text; the start page's S1.4 item 1, 2026-10-28). A
+     * column's fact, set by {@link ColumnFacts#precision} from its Pure type, its slot and its result's shape, read
+     * by the writers ({@code result/CellText}) in place of the slot's spelling they matched until then. The spellings
+     * are upstream's, read from the pinned sources 2026-10-29 (the upstream-fidelity tenet, AGENTS.md).
+     */
+    public enum Precision {
+        /** The cell carries its own precision, as the value was written (a literal's spelling, a temporal-text
+         *  carrier: a year, a month, a day, an hour, a minute, the subsecond digits as written); spelled as it is,
+         *  as legend-pure prints a value it holds. */
+        WRITTEN,
+        /** A day: a DATE slot, a StrictDate column. Spelled as its day ({@code yyyy-MM-dd}: legend-engine's
+         *  {@code ValueTransformer} for a {@code java.sql.Date}, legend-pure's StrictDate). */
+        DAY,
+        /** A relation's time-bearing cell, whatever carried it (a TIMESTAMP's nine digits as the driver hands them,
+         *  a literal's text): spelled as legend-engine's TDS spells it, nine fraction digits and {@code +0000}
+         *  ({@code ValueTransformer}: its JSON and its transformed CSV, {@code yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ};
+         *  legend-pure reads a SQL timestamp the same way, {@code DateFunctions.fromSQLTimestamp}), never as a day.
+         *  The product's spelling of a relation; the PCT's in-memory relation ({@code TestTDS}, millisecond dates,
+         *  three digits) is its harness's. */
+        INSTANT,
+        /** A value root's cell the database computed (the plan's VALUE shape: a scalar, a collection's element): an
+         *  instant whose written precision the database lost, spelled at the precision its digits show (the
+         *  fraction's trailing zeros dropped, a whole second with none): the value lane's canon of 2026-10-18 and
+         *  the closest text to legend-pure's, which prints the precision written. A divergence, ledgered:
+         *  docs/SEMANTICS_REGISTER.md S118 (2026-10-29). */
+        MINIMAL
     }
 
     /**
@@ -306,6 +374,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         public Sql(String statement, List<Slot> slots, Target target,
                 com.legend.sql.@com.legend.base.Nullable SqlQuery tree) {
             this(statement, slots, target, tree, List.of());
+        }
+
+        /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session
+         *  statement's (the doors, 2026-10-29: every statement a body or a seed sends is a plan statement). */
+        public static Sql of(String statement, Target target) {
+            return new Sql(statement, List.of(), target, null, List.of());
         }
     }
 

@@ -3,12 +3,12 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +30,7 @@ class AggOrderNullPlacementTest {
     @DisplayName("DESC NULLS FIRST survives the toString aggregate hoist")
     void descNullsFirstInsideAggregate() throws Exception {
         try (Connection conn = TestBackends.platform().open()) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM),
+            Lean.Result r = Lean.run(StorelessRuntime.with("", Databases.PLATFORM),
                     "{|#TDS\n"
                     + "  p, o, i\n"
                     + "  200, 1, 10\n"
@@ -41,7 +41,7 @@ class AggOrderNullPlacementTest {
                     conn);
             assertEquals("#TDS\n   p,o,i\n   200,null,20\n   200,3,30\n"
                     + "   200,1,10\n#",
-                    ((ExecutionResult.Scalar) r).value());
+                    r.one());
         }
     }
 }

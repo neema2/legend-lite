@@ -12,7 +12,7 @@ package com.legend.exec;
  * to itself): the same let-bound constructor reaches both assert sides
  * as the same site, two textually distinct constructors are two.
  *
- * <p>Scoped to ONE {@link com.legend.StatementExecutor.ExecEnv} (both
+ * <p>Scoped to ONE {@link com.legend.BodyDriver.ExecEnv} (both
  * sides of every verdict in a test share the env, so ids agree across
  * side lowerings by construction). Single-threaded like the env itself.
  */

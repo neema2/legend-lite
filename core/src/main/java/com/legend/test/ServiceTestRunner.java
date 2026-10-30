@@ -7,7 +7,6 @@ import com.legend.Compiler;
 import com.legend.Execution;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.PureModelContext;
-import com.legend.exec.ExecutionResult;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
@@ -20,7 +19,6 @@ import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
-import com.legend.values.PureDateLiteral;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -64,7 +62,7 @@ import java.util.Map;
  *   <li><b>execution</b>: parameters bind as query VARIABLES ({@code let}
  *       statements ahead of the body — never text substitution); the body
  *       executes through the ONE production entry
- *       ({@link Compiler#executeResolved}) against the test runtime;</li>
+ *       ({@link Execution#runProgram}) against the test runtime;</li>
  *   <li><b>serialization</b>: {@code PURE_TDSOBJECT} (and {@code RAW})
  *       render a tabular result as one object per row keyed by column; a
  *       graph result is the JSON envelope the platform produced
@@ -239,19 +237,27 @@ public final class ServiceTestRunner implements AutoCloseable {
                 || Compiler.hasStatementEffects(resolved, rt.ctx());
         Connection conn = privateSession ? opener.open() : shared(rt.runtimeFqn());
         try {
-            ExecutionResult result;
+            java.io.StringWriter out = new java.io.StringWriter();
             try {
-                result = Execution.executeResolved(resolved, rt.ctx(), rt.runtimeFqn(), conn);
+                // the one entry for a program (track C, 2026-10-29): the test's body typed once, run on the
+                // session; its last statement's answer streams through the boundary's writer for the test's format
+                // (the doors, 2026-10-29) -- what the service would serve, read back below as the tree the
+                // assertions compare
+                Execution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
+                        com.legend.exec.Sessions.given(conn), null, null, com.legend.ExecuteOptions.NONE,
+                        shape -> writer(out, shape, test.serializationFormat()));
+            } catch (Skip s) {
+                throw s;
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();   // the same diagnostic switch the resolver walls honor
                 }
                 return fail(svc, suite, test, "execute: " + PureTestRunner.whole(e.getMessage()));
             }
-            if (result == null) {
+            if (out.getBuffer().length() == 0) {
                 return fail(svc, suite, test, "execute: the platform produced no result");
             }
-            Object actual = serialize(result, test.serializationFormat());
+            Object actual = com.legend.sql.Json.parse(out.toString());
             if (rowsSink != null) {
                 rowsSink.accept(new Rows(svc.qualifiedName(), suite.id(), test.id(), actual));
             }
@@ -438,68 +444,25 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     // ---- SERIALIZE + JUDGE ----------------------------------------------------
 
-    /** The result as the JSON tree its serialization format produces. */
-    static @com.legend.base.Nullable Object serialize(ExecutionResult result,
-            @com.legend.base.Nullable String format) {
+    /** The writer the test's serialization format names, for the answer's shape (the doors, 2026-10-29: the body's
+     *  last statement streams through the boundary's writers as the service's answer would; until then this runner
+     *  assembled the tree in Java from a materialized side -- its own cell rules until track Z, the boundary's
+     *  {@code CellText.engine} after). A graph fetch's objects as legend-engine's JSON envelope
+     *  ({@link com.legend.result.PureV1Writer#objects}); a relation or a value as {@code PURE_TDSOBJECT}
+     *  ({@link com.legend.result.TdsObjectsWriter}: objects keyed by column, legend-engine's cell tokens); another
+     *  format of a relation is not rendered by this runner. The text is read back as the plain tree the assertions
+     *  compare. */
+    private static com.legend.result.ResultSink writer(java.io.Writer out,
+            com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape, @com.legend.base.Nullable String format) {
         String fmt = format == null ? "DEFAULT" : format;
-        return switch (result) {
-            case ExecutionResult.Graph g -> {
-                Object tree = com.legend.sql.Json.parse(g.json());
-                if (tree instanceof Map<?, ?> m && m.containsKey("builder")) {
-                    yield tree;
-                }
-                Map<String, Object> env = new LinkedHashMap<>();
-                env.put("builder", Map.of("_type", "json"));
-                env.put("values", tree);
-                yield env;
-            }
-            case ExecutionResult.Tabular t -> {
-                if (!fmt.equals("PURE_TDSOBJECT") && !fmt.equals("RAW")) {
-                    throw new Skip("serialization format " + fmt
-                            + " of a tabular result is not rendered by this runner");
-                }
-                List<Object> rows = new ArrayList<>(t.rows().size());
-                for (var row : t.rows()) {
-                    Map<String, Object> o = new LinkedHashMap<>();
-                    for (int i = 0; i < t.columns().size(); i++) {
-                        o.put(t.columns().get(i).name(), cell(row.values().get(i)));
-                    }
-                    rows.add(o);
-                }
-                yield rows;
-            }
-            case ExecutionResult.Scalar s -> cell(s.value());
-            case ExecutionResult.Collection c -> {
-                List<Object> vs = new ArrayList<>(c.values().size());
-                c.values().forEach(v -> vs.add(cell(v)));
-                yield vs;
-            }
-            case ExecutionResult.TdsText tt -> throw new Skip(
-                    "a TDS-text result is not rendered by this runner");
-        };
-    }
-
-    /** A result cell as a JSON tree leaf (the engine's value transformer:
-     *  dates as their engine string, numbers as numbers, the rest as-is). */
-    private static @com.legend.base.Nullable Object cell(@com.legend.base.Nullable Object v) {
-        return switch (v) {
-            case null -> null;
-            case PureDateLiteral d -> d.toEngineJson();   // the engine's JSON spelling: nanos + "+0000" on time-bearing values
-            case Map<?, ?> m -> {
-                Map<String, Object> o = new LinkedHashMap<>();
-                m.forEach((k, x) -> o.put(String.valueOf(k), cell(x)));
-                yield o;
-            }
-            case List<?> l -> {
-                List<Object> o = new ArrayList<>(l.size());
-                l.forEach(x -> o.add(cell(x)));
-                yield o;
-            }
-            case Number n -> n;
-            case Boolean b -> b;
-            case String s -> s;
-            default -> String.valueOf(v);
-        };
+        if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
+            return com.legend.result.PureV1Writer.objects(out);
+        }
+        if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION
+                && !fmt.equals("PURE_TDSOBJECT") && !fmt.equals("RAW")) {
+            throw new Skip("serialization format " + fmt + " of a tabular result is not rendered by this runner");
+        }
+        return new com.legend.result.TdsObjectsWriter(out, shape);
     }
 
     private static @com.legend.base.Nullable String judge(Protocol.PTestAssertion a,

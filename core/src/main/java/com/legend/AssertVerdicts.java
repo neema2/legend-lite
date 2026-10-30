@@ -11,7 +11,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import com.legend.exec.PureAsserts;
 
 import java.util.ArrayList;
@@ -46,9 +46,9 @@ final class AssertVerdicts {
     /** Null = not a statement-root assert this arm owns (generic path
      * continues); otherwise the verdict (TRUE, or the spec's failure
      * raised as the runner's failure). */
-    static @com.legend.base.Nullable ExecutionResult tryAdjudicate(TypedSpec bare,
+    static @com.legend.base.Nullable TypedSide tryAdjudicate(TypedSpec bare,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         com.legend.exec.AssertListener l = env.assertListener();
@@ -66,7 +66,7 @@ final class AssertVerdicts {
         boolean settled = false;
         com.legend.exec.CanonicalDivergence.sqlEnter();   // census: a new assert, no family yet
         try {
-            ExecutionResult v = adjudicate(bare, letPrefix, specs, env,
+            TypedSide v = adjudicate(bare, letPrefix, specs, env,
                     rawHook);
             settled = true;
             if (v != null) {
@@ -97,14 +97,14 @@ final class AssertVerdicts {
      * (VerdictBatch); a decided outcome or a raise is a step in order,
      * reported at the flush. Any other exit (a wall) flushes what came
      * before — those verdicts were already the body's — then surfaces. */
-    private static @com.legend.base.Nullable ExecutionResult batched(com.legend.exec.VerdictBatch batch,
+    private static @com.legend.base.Nullable TypedSide batched(com.legend.exec.VerdictBatch batch,
             TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         com.legend.exec.CanonicalDivergence.sqlEnter();
         batch.open(listenerName(bare));
-        ExecutionResult v = null;
+        TypedSide v = null;
         RuntimeException deferred = null;
         boolean settled = false;
         try {
@@ -133,7 +133,7 @@ final class AssertVerdicts {
         return v;
     }
 
-    static void flush(com.legend.exec.VerdictBatch batch, StatementExecutor.ExecEnv env) {
+    static void flush(com.legend.exec.VerdictBatch batch, BodyDriver.ExecEnv env) {
         batch.flush(env.assertListener());
     }
 
@@ -156,9 +156,9 @@ final class AssertVerdicts {
                 ? l.body().get(l.body().size() - 1) : branch;
     }
 
-    private static @com.legend.base.Nullable ExecutionResult adjudicate(TypedSpec bare,
+    private static @com.legend.base.Nullable TypedSide adjudicate(TypedSpec bare,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
@@ -171,13 +171,13 @@ final class AssertVerdicts {
         }
         TypedSpec unwrapped = com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare);
         if (unwrapped instanceof com.legend.compiler.spec.typed.TypedMap qm2) {
-            ExecutionResult u = unrolled(qm2, letPrefix, specs, env, rawHook);
+            TypedSide u = unrolled(qm2, letPrefix, specs, env, rawHook);
             if (u != null) {
                 return u;
             }
         }
         if (bare instanceof com.legend.compiler.spec.typed.TypedMap qm) {
-            ExecutionResult u = unrolled(qm, letPrefix, specs, env, rawHook);
+            TypedSide u = unrolled(qm, letPrefix, specs, env, rawHook);
             if (u != null) {
                 return u;
             }
@@ -192,7 +192,7 @@ final class AssertVerdicts {
         com.legend.compiler.spec.typed.TypedMap forAllForm =
                 com.legend.compiler.spec.VerdictQueries.forAllAsQuantified(bare);
         if (forAllForm != null) {
-            ExecutionResult u = unrolled(forAllForm, letPrefix, specs, env, rawHook);
+            TypedSide u = unrolled(forAllForm, letPrefix, specs, env, rawHook);
             if (u != null) {
                 return u;
             }
@@ -204,9 +204,9 @@ final class AssertVerdicts {
                 && ti.elseBranch().isPresent()
                 && calleeFqn(branchStatement(ti.thenBranch())) != null
                 && calleeFqn(branchStatement(ti.elseBranch().get())) != null) {
-            ExecutionResult c = JudgePlans.evalSide(
+            TypedSide c = JudgePlans.evalSide(
                     ti.condition(), letPrefix, specs, env, false, true, null);
-            if (c instanceof ExecutionResult.Scalar sc
+            if (c instanceof TypedSide.Scalar sc
                     && sc.value() instanceof Boolean taken) {
                 return adjudicate(branchStatement(taken
                         ? ti.thenBranch() : ti.elseBranch().get()),
@@ -228,7 +228,7 @@ final class AssertVerdicts {
         // generic path (inline + fold) keeps it exactly as today.
         if (com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
                 && bare instanceof TypedUserCall sroot) {
-            ExecutionResult sv = SqlTextVerdicts.tryArmSameSql(sroot,
+            TypedSide sv = SqlTextVerdicts.tryArmSameSql(sroot,
                     letPrefix, specs, env, hook);
             if (sv != null) {
                 return sv;
@@ -237,7 +237,7 @@ final class AssertVerdicts {
         // TDG scoring flip — the assertSqlEquals root (same discipline)
         if (com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
                 && bare instanceof TypedUserCall troot) {
-            ExecutionResult tv = SqlTextVerdicts.tryArmTdgRoot(troot,
+            TypedSide tv = SqlTextVerdicts.tryArmTdgRoot(troot,
                     letPrefix, specs, env, hook);
             if (tv != null) {
                 return tv;
@@ -246,7 +246,7 @@ final class AssertVerdicts {
         // §8.3d — the dual-golden sibling (same root-arm discipline)
         if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
                 && bare instanceof TypedUserCall hroot) {
-            ExecutionResult hv = SqlTextVerdicts.tryArmDualGolden(hroot,
+            TypedSide hv = SqlTextVerdicts.tryArmDualGolden(hroot,
                     letPrefix, specs, env, hook);
             if (hv != null) {
                 return hv;
@@ -282,7 +282,7 @@ final class AssertVerdicts {
         List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(
                 (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args(),
                 letPrefix, specs);
-        ExecutionResult adjudicated = switch (fn) {
+        TypedSide adjudicated = switch (fn) {
             case ASSERT_TDS_EQUIVALENT -> {
             List<TypedSpec> targs = ((bare instanceof TypedUserCall u2)
                     ? u2.args() : ((TypedNativeCall) bare).args());
@@ -305,7 +305,7 @@ final class AssertVerdicts {
                 // toSQLString producer in an argument tree judges on
                 // ROWS (SqlTextVerdicts; text is a census number).
                 // Shapes outside the exact cohort yield null here.
-                ExecutionResult sv = SqlTextVerdicts.tryArm(name,
+                TypedSide sv = SqlTextVerdicts.tryArm(name,
                         wantEqual, args, letPrefix, specs, env, hook);
                 if (sv != null) {
                     com.legend.exec.CanonicalDivergence.sqlRoute(name, "sql-text");
@@ -316,7 +316,7 @@ final class AssertVerdicts {
                 // spellings), the peer a string value. The DATABASE
                 // computed the render; TdsCompare.renderedText (the
                 // one policy owner, R1b-probed) judges the texts.
-                ExecutionResult ra = renderedArm(name, wantEqual, args,
+                TypedSide ra = renderedArm(name, wantEqual, args,
                         letPrefix, specs, env, hook, true);
                 if (ra != null) {
                     com.legend.exec.CanonicalDivergence.sqlRoute(name, "rendered-text");
@@ -333,7 +333,7 @@ final class AssertVerdicts {
                 TypedSpec cellsA = bareSortOverCells(args.get(1));
                 if (wantEqual && (cellsE != null || cellsA != null)) {
                     // the sorted flat-cells idiom IS the cell-pool multiset
-                    ExecutionResult pool = arm.cellPool(name, cellsE != null ? cellsE : args.get(0),
+                    TypedSide pool = arm.cellPool(name, cellsE != null ? cellsE : args.get(0),
                             cellsA != null ? cellsA : args.get(1), letPrefix, specs, env, hook);
                     if (pool != null) {
                         yield pool;
@@ -347,9 +347,9 @@ final class AssertVerdicts {
                         args.get(0).info().type())
                         && com.legend.compiler.element.type.Type.isRelation(
                                 args.get(1).info().type())) {
-                    ExecutionResult.Tabular te = tabular(args.get(0),
+                    TypedSide.Tabular te = tabular(args.get(0),
                             letPrefix, specs, env, hook);
-                    ExecutionResult.Tabular ta = tabular(args.get(1),
+                    TypedSide.Tabular ta = tabular(args.get(1),
                             letPrefix, specs, env, hook);
                     if (te == null || ta == null) {
                         throw new com.legend.error.NotImplementedException(
@@ -392,7 +392,7 @@ final class AssertVerdicts {
                 }
                 // D3 — rendered-text sides (a sep-joined grid string
                 // vs its golden): the token/line multiset judges
-                ExecutionResult rse = renderedArm(name, true, args,
+                TypedSide rse = renderedArm(name, true, args,
                         letPrefix, specs, env, hook, false);
                 if (rse != null) {
                     com.legend.exec.CanonicalDivergence.sqlRoute(name, "rendered-text");
@@ -463,7 +463,7 @@ final class AssertVerdicts {
                 if (args.size() != 2) {
                     yield null;
                 }
-                ExecutionResult isv = isVerdict(args.get(0), args.get(1));
+                TypedSide isv = isVerdict(args.get(0), args.get(1));
                 if (isv != null) {
                     arm.staticallyDecided(name);
                     yield isv;
@@ -511,7 +511,7 @@ final class AssertVerdicts {
      * other shape returns null: the legacy path then walls loudly on
      * {@code is}'s missing SQL rule — a wire carries values, never
      * reference identity (the eq/equalNonPrimitive irreducible ruling). */
-    static @com.legend.base.Nullable ExecutionResult isVerdict(
+    static @com.legend.base.Nullable TypedSide isVerdict(
             TypedSpec left, TypedSpec right) {
         String lt = typeIdentityOf(left);
         String rt = typeIdentityOf(right);
@@ -636,10 +636,10 @@ final class AssertVerdicts {
      * adjudicates as a statement-root verdict. All elements must hold.
      * Null when not this shape (a runtime collection, a one-statement
      * predicate lambda — the vector form). */
-    private static @com.legend.base.Nullable ExecutionResult unrolled(
+    private static @com.legend.base.Nullable TypedSide unrolled(
             com.legend.compiler.spec.typed.TypedMap qm,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         var lam = qm.mapper();
@@ -700,7 +700,7 @@ final class AssertVerdicts {
             TypedSpec pred = com.legend.compiler.spec.VerdictQueries.assertAsPredicate(root, specs);
             if (pred != null && com.legend.compiler.spec.VerdictQueries.vectorContract(source, lam, root, pred)) {
                 TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVectorOver(source, qm, lam, pred);
-                ExecutionResult planned = arm(env).quantifiedVector(
+                TypedSide planned = arm(env).quantifiedVector(
                         NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).map(NativeFn.Verdict::bareName).orElse(fqn), predMap, letPrefix, specs, env,
                         rawHook == null ? null : rawHook::apply);
                 if (planned != null) {
@@ -724,14 +724,14 @@ final class AssertVerdicts {
         if (elements == null) {
             return null;
         }
-        ExecutionResult last = null;
+        TypedSide last = null;
         for (TypedSpec element : elements) {
             List<TypedSpec> reduced = com.legend.compiler.spec.VerdictQueries
                     .unrolledElement(specs, letPrefix, lam, element, rawHook);
             List<TypedSpec> lets = new java.util.ArrayList<>(
                     reduced.subList(0, reduced.size() - 1));
             TypedSpec bareStmt = reduced.get(reduced.size() - 1);
-            ExecutionResult v = adjudicate(bareStmt, lets, specs, env, rawHook);
+            TypedSide v = adjudicate(bareStmt, lets, specs, env, rawHook);
             if (v == null) {
                 throw new com.legend.error.NotImplementedException(
                         "unrolled quantified assert: element verdict not"
@@ -742,10 +742,10 @@ final class AssertVerdicts {
         return last == null ? ok() : last;
     }
 
-    private static @com.legend.base.Nullable ExecutionResult quantified(
+    private static @com.legend.base.Nullable TypedSide quantified(
             com.legend.compiler.spec.typed.TypedMap qm,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             @com.legend.base.Nullable SpliceHook hook) {
         var lam = qm.mapper();
         if (lam.body().size() != 1) {
@@ -799,13 +799,13 @@ final class AssertVerdicts {
      * one mode per run, read from the execution environment — never a JVM
      * global. HOST is the verdict of record; DATABASE plans both sides and
      * lets the database return the verdict row. */
-    static boolean databaseMode(StatementExecutor.ExecEnv env) {
+    static boolean databaseMode(BodyDriver.ExecEnv env) {
         return env.options().judgeMode() == ExecuteOptions.JudgeMode.DATABASE;
     }
 
     /** THE ONE DISPATCH (cleanup move 2b, 2026-09-21): the run's judge mode names the
      * arm; the router classifies and hands the sides over, nowhere else forks. */
-    static VerdictArm arm(StatementExecutor.ExecEnv env) {
+    static VerdictArm arm(BodyDriver.ExecEnv env) {
         return switch (env.options().judgeMode()) {
             case HOST -> HostJudge.ARM;
             case DATABASE -> DatabaseJudge.ARM;
@@ -827,7 +827,7 @@ final class AssertVerdicts {
      * columns whose empty cell and NULL print alike. */
     /** A grid side's schema by EFFECTIVE kind (a Number over a DOUBLE wire is a Float). */
     static com.legend.compiler.element.type.Type.@com.legend.base.Nullable RelationType effectiveSchema(
-            StatementExecutor.WrappedSide side) {
+            BodyDriver.WrappedSide side) {
         var d = com.legend.compiler.element.type.Type.schemaView(side.shapeInfo().type());
         return d == null || d.columns().size() > side.plan().outputs().size() ? d : com.legend.compiler
                 .spec.VerdictQueries.wireDecidedKinds(d, side.plan().outputs().subList(0, d.columns().size()));
@@ -1162,10 +1162,10 @@ final class AssertVerdicts {
      * shape (exactly one side a render form, both sides one string).
      * {@code orderedForm} false = the sameElements view (token/line
      * multiset regardless of the chain's sort). */
-    static @com.legend.base.Nullable ExecutionResult renderedArm(
+    static @com.legend.base.Nullable TypedSide renderedArm(
             String name, boolean wantEqual, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             @com.legend.base.Nullable SpliceHook hook, boolean orderedForm) {
         String eForm = renderForm(args.get(0), letPrefix);
         String aForm = renderForm(args.get(1), letPrefix);
@@ -1208,9 +1208,9 @@ final class AssertVerdicts {
      * the two values as a multiset (two executions of one query); one side
      * rendered → its value against the golden brought to rows, ordered only
      * when the chain ends in a sort and the assert is ordered. */
-    static ExecutionResult renderedValueVerdict(String name, boolean wantEqual,
+    static TypedSide renderedValueVerdict(String name, boolean wantEqual,
             List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.base.Nullable SpliceHook hook,
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable SpliceHook hook,
             boolean orderedForm) {
         java.util.function.UnaryOperator<TypedSpec> chase = s -> chaseLets(s, letPrefix);
         var re = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(0), chase);
@@ -1438,7 +1438,7 @@ final class AssertVerdicts {
      * containment walk over {@code children()} (no shadow concerns —
      * this detects presence, it never resolves variables). */
     static boolean keylessCtorUnderLambda(List<TypedSpec> roots,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         for (TypedSpec r : roots) {
             if (scanKeylessCtor(r, false, env)) {
                 return true;
@@ -1448,7 +1448,7 @@ final class AssertVerdicts {
     }
 
     private static boolean scanKeylessCtor(TypedSpec n, boolean inLambda,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         if (inLambda) {
             String fqn = n instanceof
                     com.legend.compiler.spec.typed.TypedNewInstance ni
@@ -1493,7 +1493,7 @@ final class AssertVerdicts {
      * metamodel type classifier or a tracked element class is the
      * name-valued kind. Everything else by its type. */
     static @com.legend.base.Nullable KindClass kindKey(TypedSpec spec,
-            List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
+            List<TypedSpec> letPrefix, BodyDriver.ExecEnv env) {
         TypedSpec s = chaseLets(spec, letPrefix);
         if (isTypeValueNode(s)) {
             return KindClass.Primitive.TYPE;
@@ -1529,7 +1529,7 @@ final class AssertVerdicts {
      * plus resolvable {@code <<equality.Key>>} identity). */
     static com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
             instanceKeys(TypedSpec eSpec, TypedSpec aSpec,
-                    StatementExecutor.ExecEnv env, List<Object> eVals, List<Object> aVals) {
+                    BodyDriver.ExecEnv env, List<Object> eVals, List<Object> aVals) {
         String ef = com.legend.compiler.element.EqualityKeys.fqnOf(
                 eSpec.info().type());
         String af = com.legend.compiler.element.EqualityKeys.fqnOf(
@@ -1565,21 +1565,35 @@ final class AssertVerdicts {
         }
         List<Object> out = new ArrayList<>(vals.size());
         for (Object v : vals) {
-            out.add(com.legend.exec.Executor.structured(v));
+            out.add(structured(v));
         }
         return out;
     }
 
+    /** A class VALUE riding a JSON slot inside a struct (a polymorphic field: {@code parameters :
+     *  RelationalOperationElement[*]}) arrives as object or array text -- the field's declared kind says it is a
+     *  structure, so it decodes to the map or list the verdict's key restriction reads (WORLD_MAP §4: the value carries
+     *  its class as {@code __type}); any other value as it is. */
+    static @com.legend.base.Nullable Object structured(@com.legend.base.Nullable Object v) {
+        if (v instanceof String s) {
+            String t = s.trim();
+            if (t.startsWith("{") || t.startsWith("[")) {
+                return com.legend.sql.Json.parse(t);
+            }
+        }
+        return v;
+    }
+
     /** Declared classes only (no wire evidence in hand). */
     static com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
-            instanceKeys(TypedSpec eSpec, TypedSpec aSpec, StatementExecutor.ExecEnv env) {
+            instanceKeys(TypedSpec eSpec, TypedSpec aSpec, BodyDriver.ExecEnv env) {
         return instanceKeys(eSpec, aSpec, env, List.of(), List.of());
     }
 
 
 
     static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable SpliceHook hook) {
         return decodeSide(JudgePlans.evalSide(arg, letPrefix,
                 specs, env, false, true, hook));
@@ -1592,11 +1606,11 @@ final class AssertVerdicts {
      * not this shape (generic path, loud downstream). */
     static @com.legend.base.Nullable String jsonSideText(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             @com.legend.base.Nullable SpliceHook hook) {
-        ExecutionResult r = JudgePlans.evalSide(arg, letPrefix,
+        TypedSide r = JudgePlans.evalSide(arg, letPrefix,
                 specs, env, false, true, hook);
-        if (r instanceof ExecutionResult.Graph g) {
+        if (r instanceof TypedSide.Graph g) {
             return g.json();
         }
         List<Object> v = decodeSide(r);
@@ -1604,7 +1618,7 @@ final class AssertVerdicts {
     }
 
     static List<Object> decodeSide(
-            @com.legend.base.Nullable ExecutionResult r) {
+            @com.legend.base.Nullable TypedSide r) {
         List<Object> side = decodeSideValues(r);
         // V7 §5-1 instrument: the side-size histogram (VALUES-literal
         // cost bracket for V12's fused-verdict design) — measurement
@@ -1614,10 +1628,10 @@ final class AssertVerdicts {
     }
 
     static List<Object> decodeSideValues(
-            @com.legend.base.Nullable ExecutionResult r) {
+            @com.legend.base.Nullable TypedSide r) {
         return switch (r) {
             case null -> new ArrayList<>();
-            case ExecutionResult.Scalar s -> {
+            case TypedSide.Scalar s -> {
                 // (a list wire arriving as one JDBC array cell is decoded to a
                 // Collection at the exec seam — no JDBC carrier reaches the router)
                 List<Object> out = new ArrayList<>(1);
@@ -1626,12 +1640,12 @@ final class AssertVerdicts {
                 }
                 yield out;
             }
-            case ExecutionResult.Collection c -> c.values();
+            case TypedSide.Collection c -> c.values();
             // D4: a GRAPH side's values are the DATABASE-built JSON
             // array's elements (the harness Eval convention moved to
             // the owner) — parsed structures; the lattice/JsonCompare
             // judge them, never raw json text
-            case ExecutionResult.Graph g -> {
+            case TypedSide.Graph g -> {
                 Object p = com.legend.sql.Json.parse(g.json());
                 yield p instanceof List<?> l ? new ArrayList<Object>(l)
                         : new ArrayList<>(List.of(p));
@@ -1667,12 +1681,12 @@ final class AssertVerdicts {
 
     /** The relation arg executed in the database, as its TABULAR frame;
      * null = the value did not execute to a relation (fall through). */
-    static ExecutionResult.@com.legend.base.Nullable Tabular tabular(
+    static TypedSide.@com.legend.base.Nullable Tabular tabular(
             TypedSpec arg, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.base.Nullable SpliceHook hook) {
-        ExecutionResult r = JudgePlans.evalSide(arg,
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable SpliceHook hook) {
+        TypedSide r = JudgePlans.evalSide(arg,
                 letPrefix, specs, env, false, true, hook);
-        return r instanceof ExecutionResult.Tabular t ? t : null;
+        return r instanceof TypedSide.Tabular t ? t : null;
     }
 
     /** Row-major cell stream of a tabular HostJudge.frame (the cell-zip input). */
@@ -1681,7 +1695,7 @@ final class AssertVerdicts {
      * plan in SQL and the executor's label-driven unwrap delivers; the
      * former host-twin decode, valueRead, is deleted — Java-eviction
      * close of the disagree-9 burn). */
-    static List<Object> cells(ExecutionResult.Tabular t) {
+    static List<Object> cells(TypedSide.Tabular t) {
         List<Object> out = new java.util.ArrayList<>();
         for (com.legend.exec.Row r : t.rows()) {
             out.addAll(r.values());
@@ -1689,12 +1703,12 @@ final class AssertVerdicts {
         return out;
     }
 
-    static ExecutionResult ok() {
-        return new ExecutionResult.Scalar(Boolean.TRUE,
+    static TypedSide ok() {
+        return new TypedSide.Scalar(Boolean.TRUE,
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
     }
 
-    static ExecutionResult fail(String message) {
+    static TypedSide fail(String message) {
         // the seam: verdicts speak the platform vocabulary
         throw new com.legend.error.AssertFailed(message);
     }

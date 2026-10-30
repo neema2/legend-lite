@@ -1,0 +1,16 @@
+# THE ARROW IPC FRAMER (the result boundary program's track A, 2026-10-29; docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
+# step 2, R9): the warehouse server's own FlatBuffers framer, moved out so the warehouse's SQL API and core's writers
+# frame Arrow IPC streams with ONE writer and no Arrow library. On java.base and //base's annotations alone: it compiles
+# into the WebAssembly planner and the native images (R9: no `arrow` repository in any product closure,
+# //tools/deps:arrow_closure_test).
+load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/guards:defs.bzl", "guards_package")
+
+legend_java_library(
+    name = "arrow_ipc",
+    srcs = glob(["src/main/java/com/legend/arrowipc/*.java"]),
+    visibility = ["//visibility:public"],
+    deps = ["//base"],
+)
+
+guards_package()

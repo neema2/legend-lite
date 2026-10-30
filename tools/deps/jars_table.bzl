@@ -13,10 +13,14 @@ here, with the reason. This file is data, so a BUILD file that checks its users 
 
 # name -> struct(coordinate, sha256, users): users are packages, or single targets "package:name".
 JARS = {
-    # core's DuckDB, through JDBC: //core:drivers, and //core:duckdb_load compiles its bulk loader against it
+    # core's DuckDB, through JDBC: //core:drivers, and //core:duckdb_load compiles its bulk loader against it.
+    # 1.4.4.0 until 2026-10-29: 1.5.0 answered zero rows for the first() lowering's LIMIT shape (duckdb/duckdb#21160,
+    # docs/SESSION_HANDOFF_2026_09_02.md). Bumped to 1.5.6.0 on the user's ask (the result boundary program, D60): the
+    # LIMIT shapes answer correctly there (probes/duckdb_1_5_6.txt), and ASOF LEFT JOIN keeps its left rows against a
+    # derived table the planner proves empty, where 1.4.4 dropped them (register S126); the whole chain measured.
     "duckdb_jdbc": struct(
-        coordinate = "org.duckdb:duckdb_jdbc:1.4.4.0",
-        sha256 = "43f0cc93c892699162d46e8a45e2cbb92d92f74b933832f84c78ed551a2608df",
+        coordinate = "org.duckdb:duckdb_jdbc:1.5.6.0",
+        sha256 = "04ae3375d7c40dc88dc9bf0014b82ba5e66715564584af4e3abea39c7ba144d3",
         users = ["core", "spec"],
     ),
     # THE WAREHOUSE's DuckDB (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): 1.5.x for chunked fetching and host functions.

@@ -3,9 +3,10 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * A mapping that is not direct is refused by name. Each database the writes are measured on runs {@link #writes} in
  * a test named for it (DatabaseOwners: a database is named only by its owners).
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class ClassWritesExecutionTest {
 
     private static final String MODEL = """
@@ -59,7 +61,7 @@ class ClassWritesExecutionTest {
     /** A class whose mapping is not direct, a column that is no property: refused by name. */
     @Test
     void whatIsNotDirectIsRefusedByName() throws Exception {
-        var backend = TestBackends.platform();
+        var backend = LaneFloor.backend();
         try (Connection c = backend.openWorkspace()) {
             run(c, "CREATE TABLE PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER, FIRM_ID INTEGER)");
             Exception filtered = assertThrows(Exception.class, () -> count(backend, c,
@@ -101,23 +103,22 @@ class ClassWritesExecutionTest {
      *  sub-property the value class lacks refused by name. */
     @Test
     void anEmbeddedPropertysSubPropertiesAreItsColumns() throws Exception {
-        var backend = TestBackends.platform();
+        var backend = LaneFloor.backend();
         try (Connection c = backend.openWorkspace()) {
             run(c, "CREATE TABLE EVENT (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), SPAN_FROM INTEGER, SPAN_TO INTEGER)");
             String model = EMBEDDED.formatted(backend.connectionBody());
-            assertEquals(1L, ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(com.legend.Execution.execute(
-                    model, "|#TDS\nk, name\n1, a\n#->meta::legend::lite::writeInstances(e::Event, ~k)", "e::RT", c)))
-                    .value());
-            assertEquals(1L, ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(com.legend.Execution.execute(
+            assertEquals(1L, java.util.Objects.requireNonNull(Lean.run(
+                    model, "|#TDS\nk, name\n1, a\n#->meta::legend::lite::writeInstances(e::Event, ~k)", "e::RT", c)).one());
+            assertEquals(1L, java.util.Objects.requireNonNull(Lean.run(
                     model, "|#TDS\nk, a, b\n1, 3, 4\n#->rename(~a, ~'span.start')->rename(~b, ~'span.stop')"
-                    + "->meta::legend::lite::mergeInstances(e::Event, ~k)", "e::RT", c))).value());
+                    + "->meta::legend::lite::mergeInstances(e::Event, ~k)", "e::RT", c)).one());
             try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(
                     "SELECT ID, NAME, SPAN_FROM, SPAN_TO FROM EVENT")) {
                 assertTrue(rs.next());
                 assertEquals("1|a|3|4", rs.getInt(1) + "|" + rs.getString(2) + "|" + rs.getInt(3) + "|"
                         + rs.getInt(4));
             }
-            Exception lacking = assertThrows(Exception.class, () -> com.legend.Execution.execute(model,
+            Exception lacking = assertThrows(Exception.class, () -> Lean.run(model,
                     "|#TDS\nk, a\n1, 3\n#->rename(~a, ~'span.nope')->meta::legend::lite::mergeInstances(e::Event,"
                     + " ~k)", "e::RT", c));
             assertTrue(String.valueOf(lacking.getMessage()).contains("span.nope is no property"),
@@ -166,8 +167,8 @@ class ClassWritesExecutionTest {
     }
 
     private static Object count(TestBackend backend, Connection c, String query) {
-        ExecutionResult r = com.legend.Execution.execute(MODEL.formatted(backend.connectionBody()), query, "c::RT", c);
-        return ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(r)).value();
+        Lean.Result r = Lean.run(MODEL.formatted(backend.connectionBody()), query, "c::RT", c);
+        return java.util.Objects.requireNonNull(r).one();
     }
 
     private static void run(Connection c, String sql) throws Exception {

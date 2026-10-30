@@ -1,6 +1,5 @@
 package com.legend.server;
 
-import com.legend.exec.ExecutionResult;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -10,38 +9,22 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Stateless query execution: parse → compile → plan → execute — the CORE
- * pipeline end to end (engine-lite deletion; the A/B settled). Results are
- * core records ({@link ExecutionResult}); this class owns orchestration and
- * connection resolution only.
+ * pipeline end to end (engine-lite deletion; the A/B settled); this class owns
+ * orchestration and connection resolution only.
  *
- * <p>Two orthogonal concerns, two method families:
- *
- * <h2>Snapshot ({@code execute}) — materializes all rows in memory</h2>
  * <ul>
- *   <li>{@link #execute(String, String, String, Connection)} — returns a
- *       typed {@link ExecutionResult} the caller can introspect.</li>
- *   <li>{@link #execute(String, String, String)} — same, auto-resolves
- *       the JDBC connection from the Runtime.</li>
+ *   <li>(The materialized {@code execute} entries, the old door's snapshot of a query's answer, were deleted
+ *       2026-10-29, the result boundary program's track D: a product answer is a plan, written at the boundary.)</li>
  *   <li>{@link #execute(String, String, String, Connection, OutputStream, OutputFormat)}
- *       — materializes then writes serialized bytes to an OutputStream in
- *       the chosen {@link OutputFormat} (JSON, CSV).</li>
- *   <li>{@link #execute(String, String, String, OutputStream, OutputFormat)}
- *       — same, auto-resolves the connection.</li>
- * </ul>
- *
- * <h2>Streaming ({@code stream}) — writes JSON row-by-row, no materialization</h2>
- * <ul>
- *   <li>{@link #stream(String, String, String, Connection, OutputStream)} —
- *       iterates the JDBC ResultSet lazily and emits each row directly to the
- *       OutputStream ({@code Compiler.executeStreaming} →
- *       {@code Executor.stream}). Memory footprint is O(one row) regardless
- *       of result size. JSON only.</li>
- *   <li>{@link #stream(String, String, String, OutputStream)} — same,
- *       auto-resolves the connection.</li>
+ *       and {@link #stream} — the query planned as typed rows, run by the plan's
+ *       runner, its rows written in batches as they arrive by the format's writer
+ *       ({@code Execution.run}): lite's CSV or its JSON rows, in memory of one
+ *       batch whatever the result's size.</li>
+ *   <li>{@link #executeUpstream} — {@code pure/v1} execute's runner, written by
+ *       the engine's writer the API hands it.</li>
  * </ul>
  *
  * <p>There is no raw-SQL entry point: {@code executeSql} and its {@code /engine/sql} route were deleted
@@ -50,134 +33,89 @@ import java.util.Objects;
 public class QueryService {
 
     /**
-     * Parse → compile → generate plan → execute with typed result.
-     * Mappings are auto-discovered from the registry.
-     */
-    public ExecutionResult execute(String pureSource, String query, String runtimeName,
-            Connection connection) throws SQLException {
-        return execute(pureSource, query, runtimeName, connection,
-                com.legend.ExecuteOptions.NONE);
-    }
-
-    /** With the caller's execute OPTIONS (the PCT adapter's wire render). */
-    public ExecutionResult execute(String pureSource, String query, String runtimeName,
-            Connection connection, com.legend.ExecuteOptions options) throws SQLException {
-        return Objects.requireNonNull(
-                com.legend.Execution.execute(pureSource, query, null, runtimeName, connection,
-                        options),
-                "query produced no result");
-    }
-
-    /**
-     * Convenience: resolves connection from Runtime, then executes.
-     * Mappings are auto-discovered from the registry.
-     */
-    public ExecutionResult execute(String pureSource, String query, String runtimeName)
-            throws SQLException {
-
-        return Objects.requireNonNull(com.legend.Execution.execute(pureSource, query, runtimeName,
-                ConnectionResolver.SOURCE, com.legend.ExecuteOptions.NONE), "query produced no result");
-    }
-
-    /**
-     * Snapshot write-to-output: parse → compile → plan → execute → serialize
-     * in the requested {@link OutputFormat} to the caller's OutputStream.
-     *
-     * <p>All rows are materialized into an {@link ExecutionResult} in memory
-     * before serialization begins. Use {@link #stream} for true streaming
-     * without materialization (JSON only).
-     *
-     * <p>This method does NOT close {@code out}. Caller owns lifecycle.
+     * The query run on {@code connection}, its answer written to {@code out} in {@code format} as its rows arrive
+     * (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27): planned as typed rows, run by the
+     * plan's runner, each cell spelled by the format's writer -- lite's CSV ({@link com.legend.result.CsvWriter}) or
+     * its JSON rows ({@link com.legend.result.JsonRowsWriter}). A program that writes keeps its change on the caller's
+     * connection. This method does NOT close {@code out}.
      */
     public void execute(String pureSource, String query, String runtimeName,
             Connection connection, OutputStream out, OutputFormat format)
             throws SQLException, IOException {
-
-        // E5: the wire text is PLAN-RENDERED — the database composes the
-        // CSV/JSON bytes (Compiler.executeWire); the registry stays the
-        // format-metadata surface (id/contentType/streaming capability)
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Execution.executeWire(pureSource, query, runtimeName,
-                connection,
-                format == OutputFormat.CSV
-                        ? com.legend.lowering.WireRender.Format.CSV
-                        : com.legend.lowering.WireRender.Format.JSON,
-                writer);
+        com.legend.Execution.run(pureSource, query, runtimeName, com.legend.exec.Sessions.given(connection),
+                com.legend.exec.PlanSessions.given(connection), plan -> writer(plan, format, writer));
         writer.flush();
     }
 
-    /**
-     * Upstream {@code pure/v1/execution/execute} (E8): the runtime's connection leased, the
-     * already-parsed query run on it ({@code Execution.executeUpstream}: a program that writes from its plan), the
-     * database's JSON rows written to {@code rows}. A database failure is a {@link com.legend.error.DataError}.
-     */
-    public com.legend.plan.QueryPlan executeUpstream(com.legend.compiler.element.ModelContext model,
-            com.legend.protocol.spec.ValueSpecification query, String runtimeName, Writer rows) {
-        try {
-            // a program that writes runs from its plan (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7), on the plan's
-            // sessions: an in-memory database they share is never changed (decision A; the write runs on one of its
-            // own), and a database a URL reaches keeps the write
-            return com.legend.Execution.executeUpstream(model, query, runtimeName, ConnectionResolver.SOURCE,
-                    com.legend.exec.PlanSessions.shared(), rows);
-        } catch (IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-    }
-
-    /**
-     * Convenience: auto-resolves the JDBC connection from the Runtime,
-     * then calls {@link #execute(String, String, String, Connection, OutputStream, OutputFormat)}.
-     */
+    /** {@link #execute(String, String, String, Connection, OutputStream, OutputFormat)} on the connection the runtime
+     *  declares, leased for the query; a program that writes runs on a database of its own (decision A). */
     public void execute(String pureSource, String query, String runtimeName,
             OutputStream out, OutputFormat format)
             throws SQLException, IOException {
-
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Execution.executeWire(pureSource, query, runtimeName, ConnectionResolver.SOURCE,
-                format == OutputFormat.CSV
-                        ? com.legend.lowering.WireRender.Format.CSV
-                        : com.legend.lowering.WireRender.Format.JSON,
-                writer);
+        execute(pureSource, query, runtimeName, plan -> writer(plan, format, writer));
         writer.flush();
     }
 
-    /**
-     * True streaming JSON path — no {@code ExecutionResult} materialization.
-     *
-     * <p>For Tabular query plans, rows are pulled from the JDBC ResultSet one
-     * at a time and written directly to {@code out} as they arrive. Memory
-     * footprint is O(one row) regardless of result size.
-     *
-     * <p>Internally wraps {@code out} in a UTF-8 {@link OutputStreamWriter}
-     * and delegates to {@code Compiler.executeStreaming} (the streaming
-     * lowering's per-row {@code json_object} root pushed through
-     * {@code Executor.stream}). After each row the writer is flushed, so HTTP
-     * response bodies, sockets, and other downstream consumers observe
-     * incremental delivery.
-     *
-     * <p>This method does NOT close {@code out}. Caller owns lifecycle.
-     */
+    /** The route of {@link #execute(String, String, String, OutputStream, OutputFormat)} with the caller's own sink:
+     *  the query run on the connection the runtime declares, leased from the server's resolver, the plan sessions
+     *  shared, its rows handed to {@code sinkOf}'s sink as they arrive. Returns the plan that ran. */
+    public com.legend.executionplan.ExecutionPlan execute(String pureSource, String query, String runtimeName,
+            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
+            throws IOException {
+        return com.legend.Execution.run(pureSource, query, runtimeName, ConnectionResolver.SOURCE,
+                com.legend.exec.PlanSessions.shared(), sinkOf);
+    }
+
+    /** The JSON rows of {@link #execute(String, String, String, Connection, OutputStream, OutputFormat)}: written row
+     *  batch by row batch, each flushed as it is written, in memory of one batch whatever the result's size. */
     public void stream(String pureSource, String query, String runtimeName,
             Connection connection, OutputStream out)
             throws SQLException, IOException {
+        stream(pureSource, query, runtimeName, connection, out, com.legend.result.Batcher.DEFAULT_CAPACITY);
+    }
 
+    /** {@link #stream(String, String, String, Connection, OutputStream)} in batches of up to {@code batchRows}: the
+     *  stream's granularity, each batch written and flushed as it arrives. */
+    public void stream(String pureSource, String query, String runtimeName,
+            Connection connection, OutputStream out, int batchRows)
+            throws SQLException, IOException {
         Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Execution.executeStreaming(pureSource, query, runtimeName,
-                connection, writer);
+        com.legend.Execution.run(pureSource, query, runtimeName, com.legend.exec.Sessions.given(connection),
+                com.legend.exec.PlanSessions.given(connection), plan -> writer(plan, OutputFormat.JSON, writer),
+                batchRows);
         writer.flush();
     }
 
-    /**
-     * Convenience: auto-resolves the JDBC connection from the Runtime,
-     * then calls {@link #stream(String, String, String, Connection, OutputStream)}.
-     */
+    /** {@link #stream(String, String, String, Connection, OutputStream)} on the connection the runtime declares. */
     public void stream(String pureSource, String query, String runtimeName,
             OutputStream out)
             throws SQLException, IOException {
-
-        Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
-        com.legend.Execution.executeStreaming(pureSource, query, runtimeName, ConnectionResolver.SOURCE, writer);
-        writer.flush();
+        execute(pureSource, query, runtimeName, out, OutputFormat.JSON);
     }
 
+    /**
+     * Upstream {@code pure/v1/execution/execute} (E8), the {@link com.legend.server.PureV1Api.Runner} the server hands
+     * the API: a query that reads runs on its runtime's connection, leased, established first as legend-engine
+     * establishes it on every acquisition (its declared test data run on it); a program that writes runs from its plan
+     * on the plan's sessions (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7: an in-memory database they share is never
+     * changed, the write runs on one of its own; a database a URL reaches keeps it). A database failure is a
+     * {@link com.legend.error.DataError}.
+     */
+    public void executeUpstream(com.legend.TypedQuery query, String runtimeName,
+            java.util.function.Function<com.legend.executionplan.ExecutionPlan, com.legend.result.ResultSink> sinkOf)
+            throws IOException {
+        com.legend.Execution.run(query, runtimeName, ConnectionResolver.SOURCE, com.legend.exec.PlanSessions.shared(),
+                com.legend.Execution.Establish.DECLARED_SETUP, sinkOf);
+    }
+
+    /** {@code format}'s writer of {@code plan}'s answer onto {@code out}. */
+    private static com.legend.result.ResultSink writer(com.legend.executionplan.ExecutionPlan plan,
+            OutputFormat format, Writer out) {
+        return switch (format) {
+            case CSV -> new com.legend.result.CsvWriter(out, plan.answerShape());
+            case JSON -> new com.legend.result.JsonRowsWriter(out, plan.answerShape());
+        };
+    }
 }

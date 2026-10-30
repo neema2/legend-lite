@@ -68,6 +68,9 @@ legend_java_library(
     # beside itself, the JVM server is told where they are
     deps = [
         ":sqlapi",
+        # the Arrow IPC framer, its own since 2026-10-29 (track A): the warehouse's FlatBuffers writer, shared with
+        # core's Arrow writer
+        "//arrow_ipc",
         "//base",
         "//json",
         # the site's media types, the one table every host serving a site answers with (C4)

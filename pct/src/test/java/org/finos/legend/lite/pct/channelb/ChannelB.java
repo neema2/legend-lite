@@ -278,7 +278,8 @@ public final class ChannelB {
             // B's identity adapter carries it the same way
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
-            Execution.executeResolved(resolved, ctx, com.legend.test.StorelessRuntime.RUNTIME, conn, null, null,
+            Execution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
+                    com.legend.test.StorelessRuntime.RUNTIME, com.legend.exec.Sessions.given(conn), null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
                             .withJudgeMode(com.legend.ExecuteOptions.JudgeMode.BOTH)

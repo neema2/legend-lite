@@ -18,7 +18,7 @@ public sealed interface SqlExpr
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
                 SqlExpr.CheckedDefects, SqlExpr.CheckedChildValue,
                 SqlExpr.InSubquery, SqlExpr.Quantified,
-                SqlExpr.CompactList, SqlExpr.Tagged,
+                SqlExpr.CompactList, SqlExpr.Tagged, SqlExpr.TaggedList,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
@@ -106,6 +106,19 @@ public sealed interface SqlExpr
                 out.add(t.comparable());
                 for (Tagged.Candidate c : t.candidates()) {
                     out.add(c.value());
+                }
+                yield out;
+            }
+            case TaggedList tl -> {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+                out.add(tl.positions());
+                out.add(tl.tags());
+                out.add(tl.comparable());
+                for (TaggedList.Channel ch : tl.channels()) {
+                    out.add(ch.values());
+                }
+                if (tl.rows() != null) {
+                    out.add(tl.rows());
                 }
                 yield out;
             }
@@ -197,6 +210,16 @@ public sealed interface SqlExpr
                     candidates.add(new Tagged.Candidate(c.kind(), c.slot(), cs.get(2 + i)));
                 }
                 yield new Tagged(cs.get(0), cs.get(1), candidates);
+            }
+            case TaggedList tl -> {
+                java.util.List<TaggedList.Channel> channels = new java.util.ArrayList<>();
+                for (int i = 0; i < tl.channels().size(); i++) {
+                    TaggedList.Channel ch = tl.channels().get(i);
+                    channels.add(new TaggedList.Channel(ch.kind(), ch.slot(), cs.get(3 + i)));
+                }
+                int n = 3 + tl.channels().size();
+                yield tl.rows() == null ? new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels)
+                        : new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels, cs.get(n));
             }
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
@@ -1087,6 +1110,147 @@ public sealed interface SqlExpr
         public int slotOf(int i) {
             Candidate c = candidates.get(i);
             return slots().indexOf(new SqlType.Tagged.Slot(c.kind(), c.slot()));
+        }
+    }
+
+    /**
+     * A list whose elements' Pure kinds are decided per element among statically-kinded channels -- a mixed
+     * collection ({@code [1, 'a', true]}, {@code [342, 5.0, -2.0]}) and what a rule builds from one (its sort, its
+     * dedup, its filter): docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B, the result boundary program's track
+     * L (2026-10-29). Carried as PARALLEL TYPED ARRAYS indexed by POSITION: {@code tags} ({@code ARRAY<INTEGER>}, the
+     * 1-based channel index at each position), {@code comparable} (at each position, the element on the channel the
+     * elements compare on: the rank struct of an Any list, the number or the instant of a Number or Date list), one
+     * {@link Channel} per distinct (kind, slot) holding the element of that kind in the slot's own type and NULL at
+     * every other position -- and {@code positions}, {@code ARRAY<INTEGER>}: the positions that ARE the list, in the
+     * list's order (a literal's {@code [1..n]}; a sort's, those ordered by the comparable; a dedup's or a filter's,
+     * those kept). The arrays other than {@code positions} are never rewritten: an operation reorders or filters the
+     * positions. Its type is {@code ARRAY<TAGGED<kind slot, ...>>}. The element at a position is a {@link Tagged}
+     * ({@link #element}), so a rule over an element reads the channel it needs, as a mixed selection's consumers do.
+     * No dialect renders it: a query's root unnests its positions into rows of a tagged value (the Lowerer's egress),
+     * and a rule consuming the list reads its channels; any other consumer refuses by name until designed.
+     */
+    record TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels,
+                      @com.legend.base.Nullable SqlExpr rows, TypeFact type)
+            implements SqlExpr {
+        public TaggedList {
+            channels = List.copyOf(channels);
+            if (channels.isEmpty()) {
+                throw new IllegalArgumentException("a tagged list holds its elements in channels; none were given");
+            }
+            type = SqlTyping.taggedListType(channels);
+        }
+
+        public TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels) {
+            this(positions, tags, comparable, channels, null, SqlTyping.UNKNOWN);
+        }
+
+        /** A list whose arrays are aggregated from {@code rows}: a {@link ScalarSubquery} over its CELLS, one row per
+         *  element in the list's order ({@link #ROW_POSITION} 1..n, {@link #ROW_TAG} the channel index,
+         *  {@link #ROW_CHANNEL} each channel's value), so a root reads the rows themselves and every array is an
+         *  aggregate over them (the row-major flatten of a relation, track L, 2026-10-29). A child like any other
+         *  to the rewriters (the children contract); its reader refuses what is not a subquery. */
+        public TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels,
+                          SqlExpr rows) {
+            this(positions, tags, comparable, channels, rows, SqlTyping.UNKNOWN);
+        }
+
+        /** The cells relation's columns ({@link #rows}): the element's position, its tag, its comparable, its
+         *  channel {@code k}'s value. */
+        public static final String ROW_POSITION = "__pos";
+        public static final String ROW_TAG = "__tag";
+        public static final String ROW_COMPARABLE = "__cmp";
+
+        public static String ROW_CHANNEL(int k) {
+            return "__ch" + k;
+        }
+
+        /** Whether the positions are {@code 1..n} in the list's own order: a literal list as built, or a list over
+         *  its rows; false for a list whose positions were reordered or filtered (a sort, a dedup). */
+        public boolean identityPositions() {
+            if (rows != null) {
+                return true;
+            }
+            if (!(positions instanceof ArrayLit ps)) {
+                return false;
+            }
+            for (int i = 0; i < ps.elements().size(); i++) {
+                if (!(ps.elements().get(i) instanceof IntLit p) || p.value() != i + 1) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** One channel: the Pure kind it holds, the SQL slot holding it exactly, its values ({@code ARRAY<slot>},
+         *  one per position, NULL where the element is of another kind). */
+        public record Channel(String kind, SqlType slot, SqlExpr values) {
+        }
+
+        /** The channels' (kind, slot) pairs: the tagged element type's slots, in channel order. */
+        public List<SqlType.Tagged.Slot> slots() {
+            List<SqlType.Tagged.Slot> out = new java.util.ArrayList<>(channels.size());
+            for (Channel ch : channels) {
+                out.add(new SqlType.Tagged.Slot(ch.kind(), ch.slot()));
+            }
+            return out;
+        }
+
+        /** The tag at {@code position}. */
+        public SqlExpr tagAt(SqlExpr position) {
+            return Call.of(SqlFn.LIST_GET, tags, position);
+        }
+
+        /** The comparable at {@code position}. */
+        public SqlExpr comparableAt(SqlExpr position) {
+            return Call.of(SqlFn.LIST_GET, comparable, position);
+        }
+
+        /** Channel {@code k}'s value at {@code position}. */
+        public SqlExpr channelAt(int k, SqlExpr position) {
+            return Call.of(SqlFn.LIST_GET, channels.get(k).values(), position);
+        }
+
+        /** The element at {@code position}: a tagged value whose tag is the channel index there, whose comparable
+         *  is the comparable there, and whose candidates are each channel's value there. */
+        public Tagged element(SqlExpr position) {
+            List<Tagged.Candidate> candidates = new java.util.ArrayList<>(channels.size());
+            for (int k = 0; k < channels.size(); k++) {
+                Channel ch = channels.get(k);
+                candidates.add(new Tagged.Candidate(ch.kind(), ch.slot(), channelAt(k, position)));
+            }
+            return new Tagged(tagAt(position), comparableAt(position), candidates);
+        }
+
+        /** The same list over other positions (its rows, if any, no longer describe the order: dropped). */
+        public TaggedList withPositions(SqlExpr newPositions) {
+            return new TaggedList(newPositions, tags, comparable, channels);
+        }
+
+        /** The list's elements where every array is a literal and the positions are {@code 1..n} in order (a
+         *  literal collection as built): each position's (kind, slot, value), else null. */
+        public @com.legend.base.Nullable List<Tagged.Candidate> literalElements() {
+            if (!(positions instanceof ArrayLit ps) || !(tags instanceof ArrayLit ts)) {
+                return null;
+            }
+            List<ArrayLit> values = new java.util.ArrayList<>(channels.size());
+            for (Channel ch : channels) {
+                SqlExpr v = ch.values() instanceof Cast c ? c.value() : ch.values();
+                if (!(v instanceof ArrayLit a)) {
+                    return null;
+                }
+                values.add(a);
+            }
+            List<Tagged.Candidate> out = new java.util.ArrayList<>(ps.elements().size());
+            for (int i = 0; i < ps.elements().size(); i++) {
+                if (!(ps.elements().get(i) instanceof IntLit p) || p.value() != i + 1
+                        || !(ts.elements().get(i) instanceof IntLit t)) {
+                    return null;
+                }
+                int k = (int) t.value() - 1;
+                Channel ch = channels.get(k);
+                out.add(new Tagged.Candidate(ch.kind(), ch.slot(), values.get(k).elements().get(i)));
+            }
+            return out;
         }
     }
 

@@ -22,4 +22,10 @@ final class SqliteBackend extends InProcessBackend {
     public String name() {
         return "sqlite";
     }
+
+    /** SQLite has no {@code EXTRACT}: its {@code strftime} over {@code now}. */
+    @Override
+    public String yearOfNowSql() {
+        return "SELECT strftime('%Y', 'now')";
+    }
 }

@@ -108,7 +108,7 @@ public final class Connectors {
         }
 
         @Override
-        public @com.legend.base.Nullable String raisedMessage(Connection session) {
+        public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
             throw unbuilt();
         }
 

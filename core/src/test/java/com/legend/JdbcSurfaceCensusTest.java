@@ -108,11 +108,13 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/BulkLoad.java",   // the seam it joins: a Connection in, no SQL of its own
             // 2026-09-27: CsvSeed.run establishes a connection -- its declared setup
             // statements and rows, through Executor.executeRaw / Executor.load under the SEED
-            // origin; a Connection in, the database executes (moved from StatementExecutor)
+            // origin; a Connection in, the database executes (moved from StatementExecutor, BodyDriver since 2026-10-29)
             // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution plan boundary step 2's opening
-            // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() is exec.SetupRunner's; CsvSeed (now setup/)
+            // piece; docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9: run() was exec.SetupRunner's (deleted 2026-10-29,
+            // the doors: PlanRunner.setUp runs the steps); CsvSeed (now setup/)
             // holds no JDBC
-            "core/src/main/java/com/legend/exec/SetupRunner.java",
+            // 2026-10-29 (track B's B1a): SetupRunner.java LEFT this register -- it sends through the session seam
+            // (Statements.execute, Statements.load) and holds no JDBC
             // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12, the Statements seam): the plan runner's JDBC moved
             // here whole -- prepare, bind, execute, the one getString of the plan path (carriage, C1.2) -- so the
             // runner holds a plan and a session's Statements, never a connection; a connector's session gives its own
@@ -135,7 +137,9 @@ class JdbcSurfaceCensusTest {
             // declared connection opens, its private in-memory instance, the raise its session holds (MariaDB's) --
             // and Connectors the one read of which database a session is on (its driver's product name). They open
             // sessions and read a session's state; none executes a query of the user's or computes a value
-            // (every connector: each answers its session's held raise, a Connection in)
+            // (every connector opens sessions, a Connection in). 2026-10-29 (D65, the three routings):
+            // MariaDbConnector.java LEFT this register -- its raise recovery is two statements it DECLARES as data
+            // (DatabaseConnector.raiseRecovery), read by the seam after a failure (JdbcStatements.held); no JDBC
             "core/src/main/java/com/legend/exec/BigQueryConnector.java",
             "core/src/main/java/com/legend/exec/ClickHouseConnector.java",
             "core/src/main/java/com/legend/exec/Connectors.java",
@@ -143,7 +147,6 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/DatabricksConnector.java",
             "core/src/main/java/com/legend/exec/DuckDbConnector.java",
             "core/src/main/java/com/legend/exec/H2Connector.java",
-            "core/src/main/java/com/legend/exec/MariaDbConnector.java",
             "core/src/main/java/com/legend/exec/PostgresConnector.java",
             "core/src/main/java/com/legend/exec/SnowflakeConnector.java",
             "core/src/main/java/com/legend/exec/SqliteConnector.java",
@@ -155,21 +158,25 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/exec/PlanRunner.java",
             "core/src/main/java/com/legend/exec/PlanSessions.java",
             "core/src/main/java/com/legend/exec/BulkLoads.java",
-            "core/src/main/java/com/legend/exec/PrepTrace.java",   // perf diagnostics: the timed prepare/execute seam, env-switched
-            "core/src/main/java/com/legend/exec/VerdictBatch.java",
-            "core/src/main/java/com/legend/StatementExecutor.java",
-            "core/src/main/java/com/legend/exec/DynamicPivot.java",
+            // 2026-10-29 (the doors' audit, D64): PrepTrace.java LEFT this register -- its timed prepare/execute arms,
+            // callerless since the plan runner prepares every statement, deleted; the branch-size trace remains, no JDBC
+            // 2026-10-29 (track B's B1b): VerdictBatch.java and BodyDriver.java LEFT this register -- the
+            // body driver holds a session (Sessions.Session) and the deferred verdicts run on it through the plan
+            // runner; neither spells java.sql or a statement method
+            // 2026-10-29 (track B's B1a): DynamicPivot.java LEFT this register -- the keys read as typed rows through
+            // the body's session seam (KeyReader), a key typed by the database's report (Statements.columns)
             // Phase 1c: the LIMIT-0 schema probe (schema, never values;
             // moved from deleted ResultNav; split out of RawGridSchema at
             // the Invariant-7 staged-compilation move). (DbMetaData row
             // RETIRED: moved to compiler/spec/CatalogGrids — pure
             // SQL-text composition.)
-            "core/src/main/java/com/legend/exec/GridProbe.java",
+            // 2026-10-29 (track B's B1a): GridProbe.java LEFT this register -- its LIMIT-0 metadata read goes
+            // through the session seam (Statements.columns), as ColumnProbe's and DynamicPivot's do
             // (PureAsserts + TdsCompare rows RETIRED 2026-08-21, the
             // D-arc dividend: PureDateLiteral is THE wire temporal
             // carrier, so the comparison layer's java.sql value arms
             // are GONE — sql types never escape the fetch seam.)
-            "core/src/main/java/com/legend/exec/Executor.java",
+            // Executor.java left 2026-10-27: deleted (the result boundary program, phase 5); its sends are plan steps
             // THE SYSTEM DATABASE (user ruling 2026-09-02): the graph's
             // metamodel rows in a database of their own, separate from
             // every user connection — opened once per graph per engine,
@@ -182,14 +189,17 @@ class JdbcSurfaceCensusTest {
             // the provenance seam at Executor's own funnel; it opens no
             // connection and executes nothing
             "core/src/main/java/com/legend/exec/RaisedErrors.java",
-            // contract program: the wire census READS ResultSetMetaData
-            // of results the Executor already fetched — measurement of
-            // the wire's self-description, zero queries, zero decode;
-            // the CanonicalDivergence pattern with a java.sql import
-            "core/src/main/java/com/legend/exec/SqlTypeCensus.java",
-            "core/src/main/java/com/legend/exec/ColumnProbe.java",   // PctProbe, renamed for what it does (2026-10-17)
+            // 2026-10-29 (the doors' audit, D64): SqlTypeCensus.java LEFT this register -- its wire arm (probeWire, the
+            // D1 watch, the slack settle: a ResultSet's own metadata read beside the executor's fetch), callerless since
+            // the plan runner took over every read, deleted; the label census stays, no JDBC
+            // 2026-10-29 (track B's B1a): ColumnProbe.java (PctProbe until 2026-10-17) LEFT this register -- its
+            // LIMIT-0 metadata read goes through the session seam (Statements.columns)
             // leg 3.3: the wire-decided kinds read from the prepared statement's metadata
             "core/src/main/java/com/legend/exec/WireTypes.java",
+            // 2026-10-29 (track B's B1b): what a body driver established on a session, keyed weakly by the
+            // session's java.sql.Connection so the fact lives as long as the connection (the driver's ESTABLISHED
+            // map, moved to the seam); it holds the key's type and sends nothing
+            "core/src/main/java/com/legend/exec/SessionState.java",
             // SQLTEXT charter §2: the replay-oracle SPI — a pure
             // interface (AssertListener precedent) whose SIGNATURE
             // names java.sql types (SQLException, the RefereeRows cell
@@ -209,12 +219,11 @@ class JdbcSurfaceCensusTest {
             "core/src/main/java/com/legend/test/ServiceTestRunner.java",
             "core/src/main/java/com/legend/test/TestObserver.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
-            "core/src/main/java/com/legend/server/QueryService.java",
-            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",
-            // TestDataGenerationNatives (TDG lane S2): pure ORCHESTRATION — threads the
-            // ambient connection through to TestDataGenerator's fetches
-            // (the database executes); no statements of its own
-            "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java"
+            // 2026-10-29 (track B's B1b): TestDataGenerationNatives.java LEFT this register -- it hands the body's
+            // session to the generator and holds no JDBC; 2026-10-29 (the doors): TestDataGenerator.java LEFT it
+            // too -- every statement of a run is the plan runner's (effects, described typed rows, reported
+            // columns); the generator holds no JDBC
+            "core/src/main/java/com/legend/server/QueryService.java"
     ));
 
 

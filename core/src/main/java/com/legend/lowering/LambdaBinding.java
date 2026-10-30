@@ -28,7 +28,7 @@ import java.util.function.BiFunction;
  * that collection's element — the body's own dispatch (pureToString's
  * Any arm, equality emission) then reads the carrier from the tree at
  * construction, never from a side channel (witness
- * testPctRemoveDuplicatesBy: a toString key over a LITERAL-carried
+ * testPctRemoveDuplicatesBy: a toString key over a mixed (once LITERAL-carried, a tagged list since track L)
  * mix must print spellings, not variant-extract them). Comparator
  * lambdas bind at their consumer sites (Dedup — §3.2); fold's
  * two-parameter lambda (element, ACCUMULATOR) never matches the unary
@@ -48,10 +48,8 @@ final class LambdaBinding {
      * exhaustive same-element (T,T)->_ signature sweep of both referee
      * trees (2026-08-25): removeDuplicates, sort, and contains — the
      * audit's found regression. contains' convention is
-     * eval($value, $x) — needle FIRST — and its param-0 element
-     * stamp is honest ONLY because the rule substitutes a SPELLED,
-     * LITERAL-marked needle there (MixedEncoding.markedNeedle;
-     * witness ComparatorConventionTest incl. the kind-honest eq pin
+     * eval($value, $x) — needle FIRST — and over a mixed list the element parameter IS the tagged element
+     * (the stamped resolver below; witness ComparatorConventionTest incl. the kind-honest eq pin
      * that caught the raw-needle text collision). Keys are signature
      * keys, the rule table's own dispatch identity. NOT here: fold
      * (second param = ACCUMULATOR); relation join/asOfJoin (their
@@ -63,6 +61,11 @@ final class LambdaBinding {
      * chB-std testMax/testMin, 'must apply the SAME key'). */
     private static final java.util.Set<com.legend.model.FunctionId> COMPARATOR_NATIVES =
             java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(com.legend.model.FunctionId.all(com.legend.builtin.Pure.AT_COLLECTION_REMOVE_DUPLICATES, com.legend.builtin.Pure.AT_RELATION_SORT, com.legend.builtin.Pure.AT_TDS_SORT, com.legend.builtin.Pure.AT_COLLECTION_SORT, com.legend.builtin.Pure.AT_COLLECTION_CONTAINS, com.legend.builtin.Pure.AT_STRING_CONTAINS)));
+
+    /** contains' comparator convention is {@code eval($value, $x)}: the needle first, then the element. */
+    private static final java.util.Set<com.legend.model.FunctionId> CONTAINS_NATIVES =
+            java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(com.legend.model.FunctionId.all(
+                    com.legend.builtin.Pure.AT_COLLECTION_CONTAINS, com.legend.builtin.Pure.AT_STRING_CONTAINS)));
 
     /** Inner-lambda scope: ALL its parameters shadow; everything else
      * resolves outward through the enclosing resolver. */
@@ -268,6 +271,10 @@ final class LambdaBinding {
                         : srcToOne ? t.type() : null
                 : null;
         return (var, prop) -> {
+            if (param.equals(var) && prop == null && source instanceof SqlExpr.TaggedList tl) {
+                // a mixed list's element (track L): the tagged value at the position the transform ranges over
+                return tl.element(SqlExpr.Column.derived(null, param));
+            }
             if (param.equals(var) && elem != null) {
                 if (prop == null) {
                     // §E3: element read — may-be-null (param doctrine)
@@ -307,12 +314,29 @@ final class LambdaBinding {
                 // (§3.2): BOTH params are elements of the ONE list
                 List<String> ps = l.parameters();
                 ColumnResolver inner = lambdaResolver(ps, columns);
-                ColumnResolver stamped = (var, prop) ->
-                        var != null && ps.contains(var) && prop == null
-                                ? SqlExpr.Column.param(var, coll)
-                                : inner.resolve(var, prop);
-                out.add(new SqlExpr.Lambda(ps,
-                        scalarFn.apply(LambdaBinding.last(l), stamped)));
+                // a lambda over a TAGGED LIST (track L, 2026-10-29) ranges over the list's POSITIONS: its parameter
+                // is the element at the position (SqlExpr.TaggedList.element), so the body's rules read a tagged
+                // value -- a print per candidate, a comparison on the comparable, an equality by kind -- never a
+                // column typed as the carrier; contains' needle (its first parameter) is not an element
+                boolean needleFirst = comparator && CONTAINS_NATIVES.contains(n.callee().id());
+                ColumnResolver stamped = (var, prop) -> {
+                    if (var != null && ps.contains(var) && prop == null) {
+                        if (coll instanceof SqlExpr.TaggedList tl && !(needleFirst && var.equals(ps.get(0)))) {
+                            return tl.element(SqlExpr.Column.derived(null, var));
+                        }
+                        return SqlExpr.Column.param(var, coll);
+                    }
+                    return inner.resolve(var, prop);
+                };
+                // contains' needle over a tagged list enters the body as ITSELF, typed (the L1 audit, 2026-10-29):
+                // the body's equality then reads the needle's static kind ('1' is a String), where a parameter
+                // typed Any names no kind and would be refused
+                TypedSpec body = LambdaBinding.last(l);
+                if (needleFirst && coll instanceof SqlExpr.TaggedList && n.args().size() >= 2) {
+                    body = com.legend.compiler.spec.typed.TypedSubst.apply(body,
+                            java.util.Map.of(ps.get(0), n.args().get(1)));
+                }
+                out.add(new SqlExpr.Lambda(ps, scalarFn.apply(body, stamped)));
                 continue;
             }
             if (a instanceof com.legend.compiler.spec.typed.TypedCollection run

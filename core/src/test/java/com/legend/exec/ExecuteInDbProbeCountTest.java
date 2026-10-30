@@ -3,11 +3,12 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -85,27 +86,27 @@ class ExecuteInDbProbeCountTest {
                 .count();
     }
 
-    private static ExecutionResult run(String tail) throws Exception {
+    private static Lean.Result run(String tail) throws Exception {
         executed = new ArrayList<>();
-        return Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET + tail, StorelessRuntime.RUNTIME, counting(real));
+        return Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET + tail, StorelessRuntime.RUNTIME, counting(real));
     }
 
     @Test
     @DisplayName("undemanded grid as relation root: ZERO probes, headers adopted at egress")
     void undemandedGridSingleQuery() throws Exception {
-        ExecutionResult r = run(
+        Lean.Result r = run(
                 "let r = meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as X, 2 as Y', $c, 0, 1000); $r.rows;}");
         assertEquals(0, probes(),
                 "no columnNames/values demand — the one executed query is"
                 + " its own schema authority; probe traffic: " + executed);
-        ExecutionResult.Tabular t = (ExecutionResult.Tabular) r;
+        Lean.Result t = r;
         assertEquals(List.of("X", "Y"),
-                t.columns().stream().map(Column::name).toList(),
+                t.columns().stream().map(Lean.Column::name).toList(),
                 "late-bound egress arm adopts the result-set headers");
         assertEquals(1, t.rows().size());
-        assertEquals(1L, ((Number) t.rows().get(0).values().get(0)).longValue());
-        assertEquals(2L, ((Number) t.rows().get(0).values().get(1)).longValue());
+        assertEquals(1L, ((Number) t.rows().get(0).get(0)).longValue());
+        assertEquals(2L, ((Number) t.rows().get(0).get(1)).longValue());
     }
 
     @Test
@@ -118,27 +119,25 @@ class ExecuteInDbProbeCountTest {
         // give the cell the database's own type. Cost: one LIMIT-0
         // metadata read per demanded grid. The bare .rows egress stays
         // probe-free (the test above pins that surviving P3-2 case).
-        ExecutionResult r = run(
+        Lean.Result r = run(
                 "meta::relational::metamodel::execute::executeInDb("
                 + "'select 3 as V', $c, 0, 1000).rows->map(x|$x.V);}");
         assertEquals(1, probes(), "a by-name field read demands the"
                 + " typed schema (one LIMIT-0); probe traffic: " + executed);
-        Object v = r instanceof ExecutionResult.Scalar s ? s.value()
-                : ((ExecutionResult.Collection) r).values().get(0);
+        Object v = r.values().get(0);
         assertEquals(3L, ((Number) v).longValue());
     }
 
     @Test
     @DisplayName("columnNames demand: EXACTLY ONE probe (the second query is genuinely needed)")
     void columnNamesDemandsProbe() throws Exception {
-        ExecutionResult r = run(
+        Lean.Result r = run(
                 "meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as X, 2 as Y', $c, 0, 1000).columnNames;}");
         assertEquals(1, probes(),
                 "columnNames resolves statically — needs the LIMIT-0"
                 + " probe; probe traffic: " + executed);
-        List<Object> names =
-                ((ExecutionResult.Collection) r).values();
+        List<Object> names = r.values();
         assertTrue(names.contains("X") && names.contains("Y"), names.toString());
     }
 }

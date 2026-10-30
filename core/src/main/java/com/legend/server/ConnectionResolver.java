@@ -147,14 +147,24 @@ final class ConnectionResolver {
         };
     }
 
-    /** {@code made} filled from the model's Data rows, by the statements its database's dialect writes for them. */
+    /** {@code made} filled from the model's Data rows, by the statements its database's dialect writes for them: the
+     *  setup steps of a target on the definition's database, run by the plan runner as any seed is (D65, 2026-10-29:
+     *  until then this class sent each with a statement of its own) -- the dialect's session statements first, then
+     *  each step, under the SEED mark. */
     private static void filled(Connection made, com.legend.compiler.element.ModelContext ctx, ConnectionDefinition def)
             throws SQLException {
         boolean done = false;
-        try (java.sql.Statement st = made.createStatement()) {
-            for (String sql : com.legend.setup.ProjectData.fill(ctx,
-                    com.legend.database.Databases.dialect(def.databaseType()))) {
-                st.execute(sql);
+        try {
+            com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(def.databaseType());
+            java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> steps = new java.util.ArrayList<>();
+            for (String sql : com.legend.setup.ProjectData.fill(ctx, dialect)) {
+                steps.add(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(sql));
+            }
+            com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
+                    new com.legend.executionplan.ExecutionPlan.Database.Declared(def),
+                    new com.legend.executionplan.ExecutionPlan.Servers.Every(), dialect.sessionSetup(), steps);
+            try (var origin = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+                com.legend.exec.PlanRunner.setUp(steps, target, com.legend.exec.PlanSessions.given(made), null);
             }
             done = true;
         } finally {

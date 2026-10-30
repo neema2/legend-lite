@@ -1,0 +1,167 @@
+package org.finos.legend.lite.pct.extension;
+
+import com.legend.sql.NameQuoting;
+import com.legend.sql.OutputCol;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
+import com.legend.sql.dialect.Snowflake;
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
+/** A local measurement, never committed: the dialect's Float text and canon against Java's, over many doubles. */
+class SnowflakeFloatTextProbe {
+
+    /** The checkout's own Snowflake rendering of CAST("t"."x" AS VARCHAR) or FLOAT_CANON("t"."x"). */
+    private static String render(boolean canon) {
+        SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+        SqlExpr e = canon ? SqlExpr.Call.of(SqlFn.FLOAT_CANON, x) : new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
+        String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(e, "s", null)), false,
+                new SqlSource.Table("t", "t", List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
+                        NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
+        return sql.substring("SELECT ".length(), sql.lastIndexOf(" AS \"s\""));
+    }
+
+    private static final String TEXT = render(false);
+
+    private static final String CANON = render(true);
+
+    private static final String[] DIAG = {
+        "SELECT TO_VARCHAR(ROUND(CAST('2.5' AS NUMBER(38, 37)), 0, 'HALF_TO_EVEN')), TO_VARCHAR(ROUND(CAST('-7.5468644431923125' AS NUMBER(38, 37)), 15, 'HALF_TO_EVEN')), TO_VARCHAR(ROUND(CAST('1.25' AS NUMBER(38, 37)), 1, 'HALF_TO_EVEN'))",
+        "SELECT TO_VARCHAR(CAST(CAST(-754686444319231.25::FLOAT AS DECFLOAT) * CAST('1e' || TO_VARCHAR(-14) AS DECFLOAT) AS NUMBER(38, 37))), TO_VARCHAR(CAST(CAST(4.9e-324::FLOAT AS DECFLOAT) * CAST('1e324' AS DECFLOAT) AS NUMBER(38, 37))), TO_VARCHAR(CAST(CAST(1.7976931348623157e308::FLOAT AS DECFLOAT) * CAST('1e-308' AS DECFLOAT) AS NUMBER(38, 37)))",
+        "SELECT CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', 'NaN'::FLOAT)), \"a\" OBJECT -> CAST(GET(\"a\", 'v') AS DOUBLE)), 0) AS VARCHAR), CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', 'inf'::FLOAT)), \"a\" OBJECT -> CAST(GET(\"a\", 'v') AS DOUBLE)), 0) AS VARCHAR), CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('v', 1.5::FLOAT)), \"a\" OBJECT -> CAST(GET(\"a\", 'v') AS DOUBLE)), 0) AS VARCHAR)",
+        "SELECT CAST('-0.0'::FLOAT AS VARCHAR), TO_VARCHAR(ABS(CAST(1e16::FLOAT AS DECFLOAT))), TO_VARCHAR(ABS(CAST(1.5e-5::FLOAT AS DECFLOAT))), TO_VARCHAR(ABS(CAST(1.3440585709080678e43::FLOAT AS DECFLOAT))), TO_VARCHAR(ABS(CAST(123.456::FLOAT AS DECFLOAT)))",
+    };
+
+    private static String plain(double x) {
+        if (x == 0) {
+            return "0.0";
+        }
+        String p = new BigDecimal(Double.toString(x)).stripTrailingZeros().toPlainString();
+        return p.contains(".") ? p : p + ".0";
+    }
+
+    private static String digits(String s) {
+        String m = s.toLowerCase(java.util.Locale.ROOT).split("e")[0].replace("-", "").replace(".", "");
+        return m.replaceAll("^0+", "").replaceAll("0+$", "");
+    }
+
+    @Test
+    void floatTexts() throws Exception {
+        List<Double> xs = new ArrayList<>(List.of(Math.E, Math.PI, 1.0 / 3, 1.5e15, 2.5e-7, 1e300, -1e-300,
+                Math.cosh(1.5), Math.cosh(100), 123456789123456789.0, 0.1 + 0.2, 3.0, -1.0, 0.0, 1e-4, 9.99e-5, 1e16,
+                9999999999999998.0, 185.46332835263038, 0.982793723247329, 0.5238095238095238, 0.010416666666666666,
+                21.11111111111111, 31.666666666666668, 11.573574828312076, 53126.3144145034, 1.7976931348623157e308,
+                4.9e-324, 2.2250738585072014e-308, 100.0, 1e10, 0.001, 123.456, -0.5, 5e-5, 7.0e15, 1.2345678901234567e-5,
+                -754686444319231.25, -2.7860822197753245E15, 1948878528.8944077, 784.0, 1e23, 8.41e21, 5e-324, 9007199254740993.0));
+        Random r = new Random(20261021);
+        for (int i = 0; i < 1500; i++) {
+            double m = r.nextDouble() * (r.nextBoolean() ? 1 : -1);
+            int e = r.nextInt(26) - 8; // 1e-8 .. 1e17: the plain range and both edges
+            xs.add(m * Math.pow(10, e));
+        }
+        for (int i = 0; i < 300; i++) {
+            xs.add(Double.longBitsToDouble(r.nextLong() & 0x7fefffffffffffffL)); // any finite magnitude
+        }
+        for (int i = 0; i < 100; i++) {
+            xs.add((double) Math.round(r.nextDouble() * 1e6) / 4); // short ties: x.25, x.75
+        }
+        int rows = 0, plainOk = 0, plainBad = 0, sciOk = 0, sciBad = 0, canonOk = 0, canonBad = 0;
+        long millis = 0;
+        List<String> bad = new ArrayList<>();
+        try (Connection c = CloudLane.connect(CloudLane.Cloud.SNOWFLAKE); Statement st = c.createStatement()) {
+            System.out.println("[sf-float] TEXT " + TEXT.length() + " chars, CANON " + CANON.length() + " chars");
+            for (int k = 0; k < DIAG.length; k++) {
+                try (ResultSet d = st.executeQuery(DIAG[k])) {
+                    d.next();
+                    StringBuilder line = new StringBuilder("[sf-float] DIAG" + k);
+                    for (int col = 1; col <= d.getMetaData().getColumnCount(); col++) {
+                        line.append(" | ").append(d.getString(col));
+                    }
+                    System.out.println(line);
+                } catch (Exception e) {
+                    System.out.println("[sf-float] DIAG" + k + " ERROR " + e.getMessage());
+                }
+            }
+            try (ResultSet d = st.executeQuery("SELECT \"t\".\"i\", " + TEXT + " AS \"s\", " + CANON + " AS \"c\" FROM"
+                    + " (SELECT column1 AS \"i\", column2 AS \"x\" FROM VALUES (1, 'NaN'::FLOAT), (2, 'inf'::FLOAT),"
+                    + " (3, '-inf'::FLOAT), (4, NULL::FLOAT), (5, '-0.0'::FLOAT)) AS \"t\" ORDER BY \"t\".\"i\"")) {
+                while (d.next()) {
+                    System.out.println("[sf-float] SPECIAL " + d.getInt(1) + " text=" + d.getString(2) + " canon=" + d.getString(3));
+                }
+            } catch (Exception e) {
+                System.out.println("[sf-float] SPECIAL ERROR " + e.getMessage());
+            }
+            for (int from = 0; from < xs.size(); from += 100) {
+                int to = Math.min(xs.size(), from + 100);
+                StringBuilder values = new StringBuilder();
+                for (int i = from; i < to; i++) {
+                    values.append(i == from ? "" : ", ").append("(").append(i).append(", ")
+                            .append(Double.toString(xs.get(i)).replace("E", "e")).append("::FLOAT)");
+                }
+                String sql = "SELECT \"t\".\"i\", \"t\".\"x\", " + TEXT + " AS \"s\", " + CANON + " AS \"c\" FROM"
+                        + " (SELECT column1 AS \"i\", column2 AS \"x\" FROM VALUES " + values + ") AS \"t\" ORDER BY \"t\".\"i\"";
+                long t0 = System.currentTimeMillis();
+                try (ResultSet rs = st.executeQuery(sql)) {
+                    while (rs.next()) {
+                        rows++;
+                        int i = rs.getInt(1);
+                        double x = xs.get(i);
+                        String s = rs.getString(3);
+                        String cn = rs.getString(4);
+                        if (i < 12) {
+                            System.out.println("[sf-float] " + Double.toString(x) + " -> " + s + " | " + cn);
+                        }
+                        if (plain(x).equals(cn)) {
+                            canonOk++;
+                        } else {
+                            canonBad++;
+                            if (bad.size() < 40) {
+                                bad.add("canon " + Double.toString(x) + " want " + plain(x) + " got " + cn);
+                            }
+                        }
+                        if (x == 0 || (Math.abs(x) >= 1e-4 && Math.abs(x) < 1e16)) {
+                            if (plain(x).equals(s)) {
+                                plainOk++;
+                            } else {
+                                plainBad++;
+                                if (bad.size() < 40) {
+                                    bad.add("plain " + Double.toString(x) + " want " + plain(x) + " got " + s);
+                                }
+                            }
+                        } else {
+                            boolean same = s != null && !s.isEmpty() && Double.parseDouble(s) == x
+                                    && digits(s).equals(digits(Double.toString(x)));
+                            if (same) {
+                                sciOk++;
+                            } else {
+                                sciBad++;
+                                if (bad.size() < 40) {
+                                    bad.add("sci " + Double.toString(x) + " got " + s);
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("[sf-float] CHUNK " + from + ".." + (to - 1) + " ERROR " + e.getMessage());
+                }
+                millis += System.currentTimeMillis() - t0;
+            }
+        }
+        System.out.println("[sf-float] rows=" + rows + " of " + xs.size() + " plainOk=" + plainOk + " plainBad=" + plainBad
+                + " sciOk=" + sciOk + " sciBad=" + sciBad + " canonOk=" + canonOk + " canonBad=" + canonBad + " millis=" + millis);
+        for (String b : bad) {
+            System.out.println("[sf-float] BAD " + b);
+        }
+    }
+}

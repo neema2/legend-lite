@@ -3,12 +3,12 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -31,11 +31,11 @@ class InlinerMatchCaptureTest {
 
     private static List<String> values(String model, String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with(model, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
-            if (!(r instanceof ExecutionResult.Collection col)) {
+            Lean.Result r = Lean.run(StorelessRuntime.with(model, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
+            if (!(r.value() instanceof List<?> col)) {
                 throw new IllegalStateException("expected a collection frame for " + query + ", got " + r);
             }
-            return col.values().stream().map(String::valueOf).toList();
+            return col.stream().map(String::valueOf).toList();
         }
     }
 

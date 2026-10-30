@@ -47,7 +47,7 @@ text                                                            [FRONTEND]
                                                                 [BACKEND]
   ──▶  sql/dialect/  SqlDialect.render(SqlQuery)                  SqlQuery → SQL string
                                                                 [RUNTIME]
-  ──▶  exec/         Executor                                    SQL string + JDBC → ExecutionResult
+  ──▶  exec/         PlanRunner (+ result/ the writers)           a plan + a session → typed rows to a sink
 ```
 
 | # | Step | Package | Driver | Output |
@@ -64,7 +64,7 @@ text                                                            [FRONTEND]
 | H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
 | I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
 | J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:14`); `AnsiSqlRenderer`→`DuckDb`, `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`; `H2`→`H2Modern`, `EngineStyle*` | SQL string |
-| K | execute | `exec/` | `Executor` | typed `ExecutionResult` |
+| K | execute | `exec/`, `result/` | `PlanRunner`, the writers | typed rows to a sink, each cell spelled at the boundary (the old door's `Executor`/`ExecutionResult` deleted 2026-10-27 and 2026-10-29) |
 
 Wired by `com.legend.Compiler.compile(...)`.
 
@@ -181,10 +181,13 @@ core/src/main/java/com/legend/
 │       ├── DuckDb.java
 │       └── Sqlite.java
 │
-└── exec/                              K. SQL string + JDBC → typed results
-    ├── Executor.java
-    ├── ConnectionResolver.java
-    ├── Result.java
+└── exec/                              K. a plan + a session → typed rows to a sink (2026-10-29: the old
+    ├── PlanRunner.java                      executor, Executor.java, and its materialized result are gone)
+    ├── Sessions.java + SessionState.java    (the typed session seam; PlanSessions.java wraps a Connection)
+    ├── Statements.java + JdbcStatements.java (the one place a statement reaches a database)
+    ├── JdbcDecode.java                      (a cell's typed value, read by the plan's column facts)
+    ├── TypedSide.java                       (the judges' collected side; ExecutionResult until 2026-10-29)
+    ├── Connectors.java + *Connector.java    (each database's driver facts)
     ├── Row.java
     └── Column.java                          (result-side column; distinct from element/store/Column)
 ```
@@ -222,7 +225,7 @@ Audited 2026-08-06; 4 of 12 are enforced, 1 half, 7 are convention.
 2. **No `util/` package.** `[ENFORCED — ArchitectureTest:66]`
 3. **Sealed everywhere a hierarchy exists.** `PackageableElement`,
    `ValueSpecification`, `TypedElement`, `TypedSpec`, `Type`, `SqlQuery`,
-   `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `ExecutionResult`.
+   `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `TypedSide` (the judges' side; `ExecutionResult` until 2026-10-29).
    `[CONVENTION]` — no sealed-or-final test exists.
    *(This entry previously named `Rel`, `ScalarOp`, `Dialect`, `NativeChecker`
    and `BindRule`, none of which exist in core.)*
@@ -402,5 +405,5 @@ Constructs that exist in upstream FINOS `legend-engine` but are **not implemente
 - [x] Phase H: StoreResolver + resolver/ (see `docs/RELATIONAL_CORPUS.md` for the coverage ledger)
 - [x] Phase I: Lowerer + lowering/ + sql/ data records
 - [x] Phase J: `SqlDialect.render(SqlQuery)` + `sql/dialect/` — `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite`. (SQLite became a class of its own on 2026-10-11.)
-- [x] Phase K: Executor + exec/
+- [x] Phase K: PlanRunner + exec/ (`exec.Executor` deleted 2026-10-27, the result boundary program's phase 5; the old door 2026-10-29, its track D)
 - [x] Parity harness: PCT (pct module) + RelationalCorpusRunner (engine module, RUN-as-data)

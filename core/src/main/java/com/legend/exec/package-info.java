@@ -1,6 +1,6 @@
 /**
  * Phase K &mdash; execution: rendered SQL + a JDBC connection &rarr; a typed
- * {@link com.legend.exec.ExecutionResult} (PHASE_K_EXECUTION.md). The result
+ * {@link com.legend.exec.TypedSide} (PHASE_K_EXECUTION.md). The result
  * SHAPE is classified ONCE from the query root's Pure type
  * ({@link com.legend.plan.ResultShape}); cell values are raw JDBC objects and
  * the Pure {@code Type} on the result is the semantic carrier &mdash; consumers

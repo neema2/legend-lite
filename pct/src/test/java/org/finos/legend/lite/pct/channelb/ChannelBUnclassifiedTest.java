@@ -145,13 +145,10 @@ class ChannelBUnclassifiedTest {
         // dialect hashSigned conform (single owner; Lowerer's private
         // agg shift DELETED) — measured full-lane residue 74
         // 75 -> 0, and adopt-pending 103 -> 0 (2026-10-05, Bazel workplan P3-09): one JVM per class now, so the counts
-        // are this class's own; measured 0 on every class's own target, HARDENED TO EQUALITY
-        assertTrue(com.legend.exec.SqlTypeCensus.wireDivergeCount() <= 0,
-                "wire divergence grew: "
-                        + com.legend.exec.SqlTypeCensus.summary());
-        assertTrue(com.legend.exec.SqlTypeCensus.wireAdoptPendingCount() <= 0,
-                "wire adopt-pending grew: "
-                        + com.legend.exec.SqlTypeCensus.summary());
+        // are this class's own; measured 0 on every class's own target, HARDENED TO EQUALITY. The two wire pins
+        // RETIRED 2026-10-29 (the doors' audit, D64): the wire census's arm lost its last caller when the plan runner
+        // took over every read and was deleted; its counters, zero by construction, were dead gates
+        // (DanglingStateGuardTest), deleted with their read surface
         // TYPED-IR pin on THIS lane too (the corpus-runner pins do
         // not cover this JVM); the judge-vs-node pins retired WITH the
         // judge (parity pinned zero on every lane first).

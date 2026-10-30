@@ -274,6 +274,8 @@ export type MenuActionId =
   | 'chart.plot'
   | 'timeseries.new'
   | 'text.new'
+  // a parameter of the page (page-parameters.ts): the parameters bar's Add form
+  | 'parameter.new'
   | 'grid.new'
   | 'source.new'
   | 'page.blank'

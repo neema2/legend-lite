@@ -360,8 +360,8 @@ class NativePlanner:
     def execute_json_plan(self, body: str, models: list[str]) -> compiler.Answer:
         return compiler.execute_json_plan(body, models)
 
-    def execute_json_answer(self, plan: str, wire: str) -> compiler.Answer:
-        return compiler.execute_json_answer(plan, wire)
+    def execute_json_answer(self, plan: str, rows: str) -> compiler.Answer:
+        return compiler.execute_json_answer(plan, rows)
 
     def refusal(self, message: str) -> compiler.Answer:
         return compiler.refusal(message)
@@ -1648,18 +1648,19 @@ class Engine:
 
     def _execute_json(self, body: str) -> Answer:
         """execute in legend-engine's JSON (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the compiler plans over the
-        frames' models, DuckDB writes the whole result as one value (the JSON wire, as legend-lite's server's database
-        writes it), and the compiler arranges it with the server's own writers -- the server's answer text, as the tab's
-        is. One query at a time (the frames are held still while it runs)."""
+        frames' models, DuckDB runs the typed statement, and its rows, handed back as the driver read them, are decoded
+        by the plan's columns and written by the server's own writer -- the server's answer text, as the tab's is. One
+        query at a time (the frames are held still while it runs)."""
         with self.frames.serving() as models:
             self._noted(models)
             with self._project_of(body, models) as (served, connection):
                 planned = self.planner.execute_json_plan(body, served)
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
-                row = connection.execute(json.loads(planned.body)['run']).fetchone()
-        wire = row[0] if row is not None and row[0] is not None else ''
-        answer = self.planner.execute_json_answer(planned.body, wire)
+                cursor = connection.execute(json.loads(planned.body)['run'])
+                names = [d[0] for d in cursor.description]
+                rows = compiler.host_rows(names, cursor.fetchall())
+        answer = self.planner.execute_json_answer(planned.body, rows)
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 
     @contextlib.contextmanager

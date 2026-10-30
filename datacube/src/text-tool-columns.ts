@@ -59,7 +59,8 @@ export function textToolColumns(t: TextTool): DerivedColumn[] {
         kind: 'dimension' as const,
       }));
     case 'regex':
-      return [{ name: t.name.trim(), lambda: row(regex(t)), kind: 'dimension' }];
+      // each match its own row: an explode, as Text To Columns' into rows
+      return [{ name: t.name.trim(), lambda: row(regex(t)), kind: 'dimension', ...(t.mode === 'tokenize' ? { unnest: true } : {}) }];
     case 'cleanse':
       return t.columns.map((c) => ({ name: `${c}${CLEAN_SUFFIX}`, lambda: row(cleansed(c, t.cleansing)), kind: 'dimension' as const }));
   }
@@ -76,6 +77,9 @@ function regex(t: Extract<TextTool, { kind: 'regex' }>): ValueSpecification {
     case 'extract':
       // its first match, or none: a value with no match is empty, never an error
       return fn('first', fn('regexpExtract', value, pattern, lit.boolean(false)));
+    case 'tokenize':
+      // every match, the list exploded (textToolColumns): an empty text's none, as a text with no match
+      return fn('regexpExtract', fn('coalesce', col(t.column), lit.string('')), pattern, lit.boolean(true));
   }
 }
 
@@ -98,10 +102,10 @@ export function textToolCommands(t: TextTool): GridCommand[] {
     ? [...commands, inPlaceCommand(t.columns.map((c) => ({ column: c, made: `${c}${CLEAN_SUFFIX}` })))] : commands;
 }
 
-/** The name a RegEx's column is given unless one is named -- `<column>_matches`, `_replaced`, `_extracted` -- its
- *  window's and Python's alike (the review of 2026-10-26: each spelt it). */
+/** The name a RegEx's column is given unless one is named -- `<column>_matches`, `_replaced`, `_extracted`, `_token` --
+ *  its window's and Python's alike (the review of 2026-10-26: each spelt it). */
 export function regexName(column: string, mode: RegexMode): string {
-  return `${column}_${mode === 'match' ? 'matches' : mode === 'replace' ? 'replaced' : 'extracted'}`;
+  return `${column}_${mode === 'match' ? 'matches' : mode === 'replace' ? 'replaced' : mode === 'extract' ? 'extracted' : 'token'}`;
 }
 
 /** The kinds a text tool is, as Python names them (`grid.split`, `grid.regex`, `grid.cleanse`). */
@@ -140,8 +144,8 @@ export function readTextTool(raw: unknown): TextTool {
     case 'regex': {
       only(['column', 'pattern', 'mode', 'replacement', 'name']);
       const mode = o['mode'];
-      if (mode !== 'match' && mode !== 'replace' && mode !== 'extract') {
-        throw new CubeRefusal(`its mode is match, replace or extract, not ${JSON.stringify(mode)}`);
+      if (mode !== 'match' && mode !== 'replace' && mode !== 'extract' && mode !== 'tokenize') {
+        throw new CubeRefusal(`its mode is match, replace, extract or tokenize, not ${JSON.stringify(mode)}`);
       }
       if (o['replacement'] !== undefined && mode !== 'replace') throw new CubeRefusal(`a replacement is a replace's, not a ${mode}'s`);
       // its name, unless given, its column's (regexName)

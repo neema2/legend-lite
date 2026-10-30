@@ -15,7 +15,7 @@ import java.util.List;
  * stays with the caller's executeInDb loop (the corpus's own
  * {@code setupTestData} body maps the strings through executeInDb;
  * audit 19d B5 moved this synthesis out of the harness so that body runs
- * through the platform) or with {@code exec.SetupRunner}, which runs the steps
+ * through the platform) or with {@code exec.PlanRunner.setUp}, which runs the steps
  * on a session. Plan side since 2026-10-08 (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): text only, no
  * connection, so that the planner and the browser planner can write the same setup the server runs.
  */
@@ -38,8 +38,8 @@ public final class CsvSeed {
     }
 
     /** One step of a seed, in order: a statement (the dialect's DDL text), or
-     *  rows to load ({@code exec.Executor.load} &mdash; an engine's bulk API when
-     *  it has one; its text is the one multi-row insert). */
+     *  rows to load ({@code exec.Statements#load}, the session's bulk load &mdash; an engine's
+     *  bulk API when it has one; its text is the one multi-row insert). */
     public sealed interface Step permits Step.Sql, Step.Rows {
         /** A statement: written for the database {@code writtenFor} (its connection's declared type, by name;
          *  decision D2), or by the session's own dialect ({@code writtenFor} null). */
@@ -61,6 +61,43 @@ public final class CsvSeed {
                 case Rows r -> dialect.render(r.load().values());
             };
         }
+    }
+
+    /** A step as the plan runs it, beside the text a referee's ledger records for it: a statement of a SQL step
+     *  (the text as its author wrote it, before the dialect's translation), a rows step's INSERT text. */
+    public record Planned(com.legend.executionplan.ExecutionPlan.SetupStep step, String text) {
+    }
+
+    /**
+     * {@code steps} as the plan's setup steps, final for {@code dialect}'s database: each statement of a SQL step
+     * (written in H2's spelling, as legend-engine's test data is) adapted to the database, and each table's rows
+     * either for the database's bulk loader ({@link com.legend.sql.dialect.SqlDialect#loadsRowsInBulk}) with the
+     * statements that stage them, or as the one INSERT the database runs. The one owner of that choice for a plan's
+     * target and for the body driver's seeds (the doors, 2026-10-29; until then {@code PlanMaker.setup} and
+     * {@code exec.SetupRunner} each made it).
+     */
+    public static List<Planned> planned(List<Step> steps, com.legend.sql.dialect.SqlDialect dialect) {
+        boolean bulk = dialect.loadsRowsInBulk();
+        List<Planned> out = new ArrayList<>(steps.size());
+        for (Step step : steps) {
+            switch (step) {
+                case Step.Sql blob -> {
+                    for (String statement : com.legend.sql.RawSql.splitStatements(blob.text())) {
+                        out.add(new Planned(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(
+                                new Step.Sql(statement, blob.writtenFor()).runOn(dialect)), statement));
+                    }
+                }
+                case Step.Rows rows -> {
+                    RowLoad load = rows.load();
+                    if (!load.rows().isEmpty()) {
+                        String insert = dialect.render(load.values());
+                        out.add(new Planned(bulk ? load.staged(dialect)
+                                : new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(insert), insert));
+                    }
+                }
+            }
+        }
+        return out;
     }
 
     /** The seed as {@link Step}s &mdash; {@link #sqls}' statements, the rows

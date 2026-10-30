@@ -67,7 +67,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * MariaDB SELECT can raise no error of its own text (SIGNAL runs only in a stored
  * program; every run-time error's text is fixed, measured), so the raise keeps it in
  * the session and fails on a fixed error. The site is MariaDbConnector.raisedMessage's since
- * 2026-10-16, the dialect program's Phase 5: the same one getString, moved with the read.)
+ * 2026-10-16, the dialect program's Phase 5: the same one getString, moved with the read;
+ * JdbcStatements.held's since 2026-10-29, D65: the connector declares the two statements as
+ * data and the seam runs them -- the same one getString, moved again with the read.)
  */
 @Tag("guardrail")
 class TenetRatchetTest {

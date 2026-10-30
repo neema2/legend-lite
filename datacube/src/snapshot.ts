@@ -324,7 +324,7 @@ export interface Measure {
  * SQL's `... OVER (PARTITION BY ... ORDER BY ... ROWS ...)`.
  */
 export type WindowFunction =
-  | 'sum' | 'average' | 'min' | 'max' | 'count'
+  | 'sum' | 'average' | 'median' | 'min' | 'max' | 'count'
   | 'rank' | 'denseRank' | 'rowNumber' | 'percentRank' | 'cumeDist' | 'ntile'
   | 'lag' | 'lead' | 'first' | 'last';
 
@@ -368,6 +368,7 @@ export const WINDOW_FUNCTIONS: readonly {
 }[] = [
   { fn: 'sum', label: 'Sum (running / moving)', column: true, ordered: false, framed: true },
   { fn: 'average', label: 'Average (running / moving)', column: true, ordered: false, framed: true },
+  { fn: 'median', label: 'Median (running / moving)', column: true, ordered: false, framed: true },
   { fn: 'min', label: 'Minimum', column: true, ordered: false, framed: true },
   { fn: 'max', label: 'Maximum', column: true, ordered: false, framed: true },
   { fn: 'count', label: 'Count', column: true, ordered: false, framed: true },

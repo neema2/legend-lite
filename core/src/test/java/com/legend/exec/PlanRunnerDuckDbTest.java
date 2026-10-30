@@ -40,7 +40,7 @@ class PlanRunnerDuckDbTest {
         rows.put(Arrays.asList(null, "x"), "<none>/x");
         rows.put(List.of("null", "x"), "null/x");
         for (var e : rows.entrySet()) {
-            ExecutionPlan p = plan(ExecutionPlan.Format.JSON, read, target(duck, new ExecutionPlan.Servers.Every(),
+            ExecutionPlan p = plan(read, target(duck, new ExecutionPlan.Servers.Every(),
                     statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(e.getKey())));
             assertEquals(e.getValue(), run(p, PlanSessions.shared()), String.valueOf(e.getKey()));
         }

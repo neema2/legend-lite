@@ -185,6 +185,20 @@ node_test(
     wasm = True,
 )
 
+# A write's execution plan (the planner's executionPlan) run by the host's plan runner on DuckDB-WASM, in one
+# transaction (plan-runner.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6)
+node_test(
+    name = "plan_runner_test",
+    size = "small",
+    data = [
+        ":engine_client",
+        ":node_modules/@duckdb/duckdb-wasm",
+        "test/planner.ts",
+    ],
+    entry_point = "test/plan-runner.test.ts",
+    wasm = True,
+)
+
 # The tab's warehouse driver held to the one corpus (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): each recorded scenario
 # run against its answers through the binding's own module, the driver making exactly the recorded calls
 node_test(
@@ -257,6 +271,7 @@ test_suite(
         ":arrow_ipc_test",
         ":model_data_test",
         ":node_duckdb_test",
+        ":plan_runner_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",

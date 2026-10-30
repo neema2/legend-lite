@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -46,8 +47,8 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
                     #->select(~name)->sort(ascending(~name))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals("Alice", result.rows().get(0).values().get(0));
-            assertEquals("Bob", result.rows().get(1).values().get(0));
+            assertEquals("Alice", result.rows().get(0).get(0));
+            assertEquals("Bob", result.rows().get(1).get(0));
         }
 
         @Test
@@ -61,8 +62,8 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
                     #->select(~[id, name])->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals(1, result.rows().get(0).values().get(0));
-            assertEquals("Alice", result.rows().get(0).values().get(1));
+            assertEquals(1L, result.rows().get(0).get(0));
+            assertEquals("Alice", result.rows().get(0).get(1));
         }
 
         @Test
@@ -75,7 +76,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
                       ->sort(ascending(~name))""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
-            var names = result.rows().stream().map(r -> r.values().get(0)).toList();
+            var names = result.rows().stream().map(r -> r.get(0)).toList();
             assertEquals(List.of("Bob", "Jane", "John"), names);
         }
 
@@ -111,9 +112,9 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
                     #->distinct()->sort(ascending(~city))""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
-            assertEquals("Boston", result.rows().get(0).values().get(0));
-            assertEquals("Chicago", result.rows().get(1).values().get(0));
-            assertEquals("New York", result.rows().get(2).values().get(0));
+            assertEquals("Boston", result.rows().get(0).get(0));
+            assertEquals("Chicago", result.rows().get(1).get(0));
+            assertEquals("New York", result.rows().get(2).get(0));
         }
 
         @Test
@@ -129,8 +130,8 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
                     #->distinct(~dept)->sort(ascending(~dept))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals("Eng", result.rows().get(0).values().get(0));
-            assertEquals("Sales", result.rows().get(1).values().get(0));
+            assertEquals("Eng", result.rows().get(0).get(0));
+            assertEquals("Sales", result.rows().get(1).get(0));
         }
 
         @Test
@@ -144,9 +145,9 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             // 3 unique ages: 28, 30, 45
             assertEquals(3, result.rows().size());
-            assertEquals(28, result.rows().get(0).values().get(0));
-            assertEquals(30, result.rows().get(1).values().get(0));
-            assertEquals(45, result.rows().get(2).values().get(0));
+            assertEquals(28L, result.rows().get(0).get(0));
+            assertEquals(30L, result.rows().get(1).get(0));
+            assertEquals(45L, result.rows().get(2).get(0));
         }
     }
 
@@ -163,7 +164,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
                 2, Bob, 87, blue
                 #""";
 
-        private List<String> names(com.legend.exec.ExecutionResult result) {
+        private List<String> names(Lean.Result result) {
             return result.columns().stream().map(c -> c.name()).toList();
         }
 
@@ -172,7 +173,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
         void oneColumn() throws SQLException {
             var result = executeRelation(SCORES + "->without(~score)->sort(ascending(~id))");
             assertEquals(List.of("id", "name", "team"), names(result));
-            assertEquals(List.of(1, "Alice", "red"), result.rows().get(0).values());
+            assertEquals(List.of(1L, "Alice", "red"), result.rows().get(0));
         }
 
         @Test
@@ -180,7 +181,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
         void severalColumns() throws SQLException {
             var result = executeRelation(SCORES + "->without(~[name, score])->sort(ascending(~id))");
             assertEquals(List.of("id", "team"), names(result));
-            assertEquals(List.of(2, "blue"), result.rows().get(1).values());
+            assertEquals(List.of(2L, "blue"), result.rows().get(1));
         }
 
         @Test
@@ -190,7 +191,7 @@ public class SelectDistinctCheckerTest extends AbstractDatabaseTest {
                     + "->extend(~twice:x|$x.score * 2)->filter(x|$x.twice > 180)->without(~twice)");
             assertEquals(List.of("id", "name", "score", "team"), names(result));
             assertEquals(1, result.rows().size());
-            assertEquals("Alice", result.rows().get(0).values().get(1));
+            assertEquals("Alice", result.rows().get(0).get(1));
         }
 
         @Test

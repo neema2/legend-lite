@@ -18,7 +18,7 @@ import java.util.List;
  * (prepCanon/runCanon) and its soundness obligation are DELETED.
  *
  * <p>Lifecycle: the K-arm creates one rider per assert side; the
- * driver ({@code StatementExecutor.executeTyped}) asks the canon owner
+ * driver ({@code BodyDriver.executeTyped}) asks the canon owner
  * ({@code CanonicalRenderSql.wrapWithCanon}) to wrap the lowered plan;
  * the {@code Executor} harvests the canon columns row-aligned with the
  * value decode. A side the canon cannot ride declines with a named

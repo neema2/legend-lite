@@ -3,12 +3,12 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -26,14 +26,9 @@ class EmptyListAggregateTest {
 
     private static String scalar(String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
-            if (r instanceof ExecutionResult.Scalar s) {
-                return String.valueOf(s.value());
-            }
-            if (r instanceof ExecutionResult.Collection col) {
-                return col.values().stream().map(String::valueOf).toList().toString();
-            }
-            throw new IllegalStateException("unexpected result for " + query + ": " + r);
+            Lean.Result r = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
+            Object v = r.value();
+            return v instanceof List<?> l ? l.stream().map(String::valueOf).toList().toString() : String.valueOf(v);
         }
     }
 
@@ -47,14 +42,15 @@ class EmptyListAggregateTest {
 
     @Test
     void timesOfAnEmptyListIsOne() throws Exception {
-        // was null; the product's DOUBLE spelling over an Integer list is DuckDB's, unchanged here
-        assertEquals("1.0", scalar("|[1, 2, 3]->filter(x | $x > 5)->times()"));
+        // was null, then 1.0 (DuckDB's DOUBLE product); an Integer list's product is the Integer 1 (2026-10-27, the
+        // result boundary program's phase 5: the plan's typed decode refused a Float under the Integer root)
+        assertEquals("1", scalar("|[1, 2, 3]->filter(x | $x > 5)->times()"));
     }
 
     @Test
     void nonEmptyListsAreUnchanged() throws Exception {
         assertEquals("5", scalar("|[1, 2, 3]->filter(x | $x > 1)->sum()"));
-        assertEquals("6.0", scalar("|[1, 2, 3]->filter(x | $x > 1)->times()"));
+        assertEquals("6", scalar("|[1, 2, 3]->filter(x | $x > 1)->times()"));   // was 6.0: an Integer's product
         assertEquals("", scalar("|['a', 'b']->filter(x | $x == 'z')->plus()"));
     }
 

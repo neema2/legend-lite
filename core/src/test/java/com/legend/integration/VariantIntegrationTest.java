@@ -1,7 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests the complete pipeline: Pure → IR → SQL → DuckDB execution
  */
 @DisplayName("VARIANT/JSON Column Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class VariantIntegrationTest {
 
     private Connection connection;
@@ -72,7 +74,7 @@ class VariantIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         setupDatabase();
     }
 
@@ -119,8 +121,8 @@ class VariantIntegrationTest {
         }
     }
 
-    private ExecutionResult executeRelation(String pureQuery) throws SQLException {
-        return queryService.execute(getCompletePureModel(), pureQuery, "test::TestRuntime", connection);
+    private Lean.Result executeRelation(String pureQuery) throws SQLException {
+        return Lean.run(getCompletePureModel(), pureQuery, "test::TestRuntime", connection);
     }
 
     private String generateSql(String pureQuery) {
@@ -398,7 +400,7 @@ class VariantIntegrationTest {
         assertTrue(sql.contains("price") || sql.contains("'price'"), "SQL should extract 'price' from JSON");
 
         // Execute query
-        var result = queryService.execute(pureModel, pureQuery, "test::TestRuntime", connection);
+        var result = Lean.run(pureModel, pureQuery, "test::TestRuntime", connection);
 
         // Verify results - should have purchase events with extracted prices
         assertFalse(result.rows().isEmpty(), "Should have results");

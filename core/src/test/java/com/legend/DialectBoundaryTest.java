@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *   <li><b>the database owner</b> — {@code com.legend.database.Databases} maps a
  *       connection's declared {@code DatabaseType} to its dialect, engine text and
  *       plan facts: the ONE place a type becomes a decision;</li>
- *   <li><b>the raw-SQL boundary</b> — {@code StatementExecutor.adaptRaw}
+ *   <li><b>the raw-SQL boundary</b> — {@code BodyDriver.adaptRaw}
  *       translates HAND-WRITTEN H2 corpus text for a non-H2 session
  *       ({@code RawSqlBoundary}); text whose origin really is another
  *       dialect, never model-derived SQL.</li>

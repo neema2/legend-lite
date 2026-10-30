@@ -1,7 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -45,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * </pre>
  */
 @DisplayName("M2M Chain Integration Tests — project() + graphFetch() through multi-hop chains")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class M2MChainIntegrationTest {
 
     private Connection conn;
@@ -453,7 +455,7 @@ class M2MChainIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
         try (Statement s = conn.createStatement()) {
             s.execute("""
                     CREATE TABLE T_EMPLOYEE (
@@ -512,17 +514,17 @@ class M2MChainIntegrationTest {
 
     // ==================== Helpers ====================
 
-    private ExecutionResult exec(String query) throws SQLException {
-        return qs.execute(PURE_MODEL, query, "test::RT", conn);
+    private Lean.Result exec(String query) throws SQLException {
+        return Lean.run(PURE_MODEL, query, "test::RT", conn);
     }
 
     private String execGraph(String query) throws SQLException {
         var result = exec(query);
-        assertInstanceOf(ExecutionResult.Graph.class, result);
-        return result.asGraph().json();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+        return result.json();
     }
 
-    private List<String> col(ExecutionResult r, int idx) {
+    private List<String> col(Lean.Result r, int idx) {
         return r.rows().stream()
                 .map(row -> row.get(idx) != null ? row.get(idx).toString() : null)
                 .collect(Collectors.toList());

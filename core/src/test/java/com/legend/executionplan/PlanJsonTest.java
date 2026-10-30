@@ -6,10 +6,8 @@ package com.legend.executionplan;
 import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan.Column;
 import com.legend.executionplan.ExecutionPlan.Database;
-import com.legend.executionplan.ExecutionPlan.Format;
 import com.legend.executionplan.ExecutionPlan.Multiplicity;
 import com.legend.executionplan.ExecutionPlan.Parameter;
-import com.legend.executionplan.ExecutionPlan.Relation;
 import com.legend.executionplan.ExecutionPlan.Sequence;
 import com.legend.executionplan.ExecutionPlan.Servers;
 import com.legend.executionplan.ExecutionPlan.SetupStep;
@@ -17,8 +15,6 @@ import com.legend.executionplan.ExecutionPlan.Slot;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
-import com.legend.executionplan.ExecutionPlan.TextResult;
-import com.legend.executionplan.ExecutionPlan.Value;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
@@ -49,12 +45,12 @@ class PlanJsonTest {
                         new Parameter("ids", "Integer", new Multiplicity(0, null), List.of()),
                         new Parameter("status", "model::Status", new Multiplicity(1, 1), List.of("ACTIVE", "CLOSED"))),
                 new Sequence(List.of(
-                        new TdsResult(List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", "VARCHAR(100)")),
+                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("name", "String", new Multiplicity(1, 1), "VARCHAR", "VARCHAR(100)", null)),
                                 new Sql("select NAME as \"name\" from T where NAME = ? and ID = ANY(?)",
                                         List.of(new Slot("name", new ExecutionPlan.Binding.One("VARCHAR", null)),
                                                 new Slot("ids", new ExecutionPlan.Binding.Array("INTEGER"))), t, null)),
                         // a placeholder typed by its value (H2): its type hole, with each kind's spelling
-                        new TextResult(Format.JSON, new Relation(List.of(new Column("x", "Float", new Multiplicity(1, 1), "DOUBLE", null))),
+                        new TdsResult(TdsResult.Shape.RELATION, List.of(new Column("x", "Float", new Multiplicity(1, 1), "DOUBLE", null, null)),
                                 new Sql("select ID * CAST(? AS ) as x from T", List.of(new Slot("f",
                                         new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(22,
                                                 java.util.Map.of(ExecutionPlan.ValueKind.DECIMAL,
@@ -65,7 +61,10 @@ class PlanJsonTest {
                                                                 ExecutionPlan.Digits.PRECISION)),
                                                 ExecutionPlan.ValueKind.DECIMAL)))), t, null)),
                         // a date-time's hole, a finer one cut to six digits (Postgres)
-                        new TextResult(Format.JSON, new Relation(List.of(new Column("t", "DateTime", new Multiplicity(0, 1), "TIMESTAMP", null))),
+                        // (its written-precision fact too, format 17: the column's fourth fact round-trips; a value
+                        // root's instant is MINIMAL, format 18)
+                        new TdsResult(TdsResult.Shape.VALUE, List.of(new Column("t", "DateTime", new Multiplicity(0, 1), "TIMESTAMP", null,
+                                ExecutionPlan.Precision.MINIMAL)),
                                 new Sql("select CAST(? AS ) as t", List.of(new Slot("t",
                                         new ExecutionPlan.Binding.One("TIMESTAMP", new ExecutionPlan.TypeHole(17,
                                                 java.util.Map.of(ExecutionPlan.ValueKind.DATE_TIME,
@@ -75,12 +74,8 @@ class PlanJsonTest {
                                                         new ExecutionPlan.TypeSpelling("TIMESTAMP",
                                                                 ExecutionPlan.Digits.NONE, 6)),
                                                 ExecutionPlan.ValueKind.DATE_TIME)))), t, null)),
-                        new TextResult(Format.JSON, new Value("model::Person", new Multiplicity(0, null)),
-                                new Sql("select json_group_array(...) from T", List.of(), t, null)),
-                        new TextResult(Format.CSV, new Relation(List.of(new Column("name", "String", new Multiplicity(0, 1), "VARCHAR", "VARCHAR(100)"))),
-                                new Sql("select ... from T", List.of(), t, null)),
-                        new TextResult(Format.JSON_PER_ROW, new Relation(List.of()),
-                                new Sql("select ... from T", List.of(), t, null)),
+                        new TdsResult(TdsResult.Shape.OBJECTS, List.of(new Column("value", "model::Person", new Multiplicity(0, null), "VARCHAR", null, null)),
+                                new Sql("select json_object(...) from T", List.of(), t, null)),
                         // a write plan's steps (the writes design's leg 7): a change whose count a later slot binds,
                         // one whose count none reads, and a check
                         new ExecutionPlan.Update(new Sql("update T set ID = ? where ID > 0", List.of(new Slot("id",
@@ -99,7 +94,7 @@ class PlanJsonTest {
                         new SetupStep.Rows("legend_row_load", "create temporary table legend_row_load(c0 VARCHAR, c1 VARCHAR)",
                                 "insert into T(ID, NAME) select c0, c1 from legend_row_load", "drop table legend_row_load",
                                 List.of(List.of("1", "O'Brien"), Arrays.asList("2", null)))));
-        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(List.of(), new Sql("select 1", List.of(), t, null)));
+        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
         ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
         assertEquals(plan, back);
         SetupStep.Rows rows = (SetupStep.Rows) ((TdsResult) back.root()).sql().target().setup().get(1);
@@ -110,8 +105,8 @@ class PlanJsonTest {
     void thePlatformsEngineReadsBack_withNoSetup() {
         Target t = new Target(new Database.Platform(Databases.PLATFORM), new Servers.Every(),
                 List.of("SET TimeZone='UTC'"), List.of());
-        ExecutionPlan plan = new ExecutionPlan(List.of(), new TextResult(Format.JSON,
-                new Relation(List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null))), new Sql("select 1", List.of(), t, null)));
+        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.VALUE,
+                List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
     }
 
@@ -131,46 +126,43 @@ class PlanJsonTest {
     @Test
     void theTypedTreeIsNotWrittenYet() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
-        String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(List.of(),
+        String json = PlanJson.write(new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null))));
         // 8 since 2026-10-20: the keyed result, per-key regions, a key's cell (the dynamic pivot's probe plan); 9 the
-        // same day: the keyed result's cells named as its statements write them (keyFields, an output's field)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":11,"), json);
+        // same day: the keyed result's cells named as its statements write them (keyFields, an output's field); 12
+        // since 2026-10-27: a typed result's shape (a relation's rows, a value's elements, a graph fetch's objects); 13
+        // the same day: a text result is Pure's TDS text alone; 14 the same day: no text result at all; 15 the same day:
+        // the effect node (a statement sent for what it does, the body driver's effects on the plan); 16 the same day: a
+        // keyed result's per-key columns placed among its fixed ones; 17 since 2026-10-28: a column's written-precision
+        // fact (the result boundary program's R2, the start page's S1.4 item 1); 18 since 2026-10-29: the fact's
+        // MINIMAL value, a value root's instant; 19 the same day: the LITERAL slot word retired (track L's L2)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":19,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v11 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v19 plan"), refused.getMessage());
     }
 
     @Test
     void aParameterWithoutItsEnumValuesIsRefused_neverReadAsNone() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
         String json = PlanJson.write(new ExecutionPlan(List.of(new Parameter("s", "model::Status",
-                new Multiplicity(1, 1), List.of("A"))), new TdsResult(List.of(), new Sql("select 1", List.of(), t, null))))
+                new Multiplicity(1, 1), List.of("A"))), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null))))
                 .replace(",\"enumValues\":[\"A\"]", "");
         assertThrows(RuntimeException.class, () -> PlanJson.read(json));
     }
 
     @Test
     void anEarlierVersionIsRefused() {
-        for (int version = 1; version <= 10; version++) {
+        for (int version = 1; version <= 17; version++) {
             int v = version;
             var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(
                     "{\"format\":\"legend-lite-plan\",\"version\":" + v + ",\"parameters\":[],\"root\":{}}"));
             assertTrue(refused.getMessage().contains("(format legend-lite-plan, version " + v + ")"),
                     refused.getMessage());
         }
-    }
-
-    @Test
-    void anUnknownFormatOfTextIsRefusedByName() {
-        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
-        String json = PlanJson.write(new ExecutionPlan(List.of(), new TextResult(Format.CSV, new Relation(List.of()),
-                new Sql("select 1", List.of(), t, null)))).replace("\"format\":\"CSV\"", "\"format\":\"XML\"");
-        var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(json));
-        assertTrue(refused.getMessage().contains("unknown text result format 'XML'"), refused.getMessage());
     }
 }

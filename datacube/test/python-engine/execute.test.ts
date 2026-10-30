@@ -1,8 +1,8 @@
 // THE TAB'S EXECUTE, ONE IMPLEMENTATION (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): an execute answered in the tab --
 // legend-lite's planner (WebAssembly) reading, binding and planning it with the Java the server and Python answer it
-// with (PureV1Api.jsonPlan), DuckDB-WASM writing its rows as the server's database writes them (the JSON wire), and
-// the server's own writers arranging them (PureV1Api.jsonAnswer; engine-client's BrowserEngine) -- against the same
-// execute answered by Python's engine over the same frame, its DuckDB writing the rows and the same writers arranging
+// with (PureV1Api.jsonPlan: the typed statement), DuckDB-WASM answering its rows, handed back as its decoder read them,
+// and the server's own writer spelling them (PureV1Api.jsonAnswer; engine-client's BrowserEngine) -- against the same
+// execute answered by Python's engine over the same frame, its DuckDB answering the rows and the same writer spelling
 // them: the answer's TEXT, byte for byte (each trace id its own), a whole Float, a Decimal, a DateTime and a value of
 // the session's zone (`now()->hour()`) among its columns. The tab's DuckDB starts in a zone that is not UTC (as a
 // browser in Kathmandu would: +05:45), so a tab whose session was not set up as the server's answers otherwise.
@@ -200,6 +200,30 @@ describe("the tab's execute answers as Python's, the same Java planning both", (
     assert.deepEqual(mine.result.columns, theirs.columns);
     assert.deepEqual(mine.result.rows.map((r) => r.values), theirs.rows);
     assert.ok(mine.result.rows.length > 0);
+  });
+
+  it("a Variant column (PARK-34): legend-engine's builder, SEMISTRUCTURED, its cells strings of JSON; the tab's as Python's", async () => {
+    // the rows with a quantity: an empty one's toVariant() is SQL's NULL here, where the engine answers JSON's null
+    // (its ifnull(to_json(x), 'null'::json)), a difference of the value, not of the spelling (register S116, pending)
+    const asked = await input("->filter(x|$x.qty->isNotEmpty())->select(~[book, qty])->sort([~book->ascending(), ~qty->ascending()])"
+      + '->extend(~[n: x|$x.qty->toVariant(), s: x|$x.book->toVariant()])');
+    const mine = await tab.executeText(asked);
+    const theirs = await onPythonText(asked);
+    assert.equal(theirs.status, 200, theirs.text);
+    assert.equal(traced(mine), traced(theirs.text));
+    // the builder legend-engine 4.145.0 answers for a Variant (measured 2026-10-28: core's upstream-api/e8-variant-*.json)
+    const answer = JSON.parse(mine) as TdsResult;
+    const variant = { type: 'meta::pure::metamodel::variant::Variant', relationalType: 'SEMISTRUCTURED' };
+    assert.deepEqual(answer.builder.columns.slice(2), [{ name: 'n', ...variant }, { name: 's', ...variant }]);
+    assert.ok(answer.result.rows.length > 0);
+    for (const { values: [book, qty, n, s] } of answer.result.rows) {
+      assert.equal(n, JSON.stringify(qty));
+      assert.equal(s, JSON.stringify(book));
+    }
+    // and Python's Arrow answer: the same builder, the same cells
+    const arrow = await onPython(asked);
+    assert.deepEqual(arrow.builder, answer.builder);
+    assert.deepEqual(arrow.rows, answer.result.rows.map((r) => r.values));
   });
 
   it('a parameter bound by its value, as Python binds it', async () => {

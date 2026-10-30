@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PureV1ApiTest {
 
     /** A runner for a route that must not run anything. */
-    private static final PureV1Api.Runner NO_RUN = (model, lambda, runtime, rows) -> {
+    private static final PureV1Api.Runner NO_RUN = (query, runtime, sinkOf) -> {
         throw new AssertionError("nothing is run here");
     };
 
@@ -310,6 +310,64 @@ class PureV1ApiTest {
                 resultOf(execute("{\"function\":" + two + ",\"model\":" + textModel() + "}")));
     }
 
+    /**
+     * PARK-34 (closed 2026-10-28): an execute over a Variant column answers legend-engine's builder -- the Variant's
+     * path, its relationalType {@code SEMISTRUCTURED} -- and each Variant cell as the engine writes it, a string
+     * holding the value's JSON; against the engine's own answers (4.145.0, {@code upstream-api/e8-variant-*.json}; the
+     * probe's model and provenance in {@code variant-probe.pure}). RECORDED DIFFERENCE 3: a number inside the JSON
+     * keeps the database's digits, where the engine re-spells it through its JSON library ({@code 2.50} as {@code 2.5};
+     * docs/SEMANTICS_REGISTER.md S115).
+     */
+    @Test
+    void e8_execute_aVariantColumn_isTheEnginesBuilder_itsCellsStringsOfJson() throws IOException {
+        // the engine's computed Variant, a toVariant() of an integer column, asked of the model here
+        Json.Obj engine = Json.parseObject(resource("upstream-api/e8-variant-computed.json"));
+        String answer = executed("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->extend(~[ID: r|$r.qty, V: r|$r.qty"
+                + "->toVariant()])->select(~[ID, V])->limit(4)->from(trades::h2::RT)");
+        Json.Obj lite = Json.parseObject(answer);
+        assertEquals(Json.toCompact(inLitesVocabulary(engine.getObj("builder"))), Json.toCompact(lite.getObj("builder")));
+        assertEquals(layout(resource("upstream-api/e8-variant-computed.json")), layout(answer));
+        // each row's Variant is a string holding its integer's JSON, on both sides
+        for (Json.Obj side : List.of(engine, lite)) {
+            for (Json.Node r : side.getObj("result").getArr("rows").items()) {
+                List<Json.Node> row = ((Json.Obj) r).getArr("values").items();
+                assertEquals(Json.str(Json.toCompact(row.get(0))), row.get(1), Json.toCompact(r));
+            }
+        }
+
+        // the engine's stored Variant column's cells: an object, a list and a string, each a string of its JSON
+        List<Json.Node> stored = new ArrayList<>();
+        for (Json.Node r : Json.parseObject(resource("upstream-api/e8-variant-column.json")).getObj("result")
+                .getArr("rows").items()) {
+            stored.add(((Json.Obj) r).getArr("values").items().get(1));
+        }
+        assertEquals(List.of(Json.str("{\"a\":1,\"b\":[true,null,\"x\"],\"c\":2.5}"), Json.str("[1,2.5,\"s\"]"),
+                Json.str("\"text\""), Json.nil()), stored);
+        // and a JSON null, a value, is the string "null" where SQL's NULL is null
+        List<Json.Node> nulls = new ArrayList<>();
+        for (Json.Node r : Json.parseObject(resource("upstream-api/e8-variant-null.json")).getObj("result")
+                .getArr("rows").items()) {
+            nulls.add(((Json.Obj) r).getArr("values").items().get(1));
+        }
+        assertEquals(List.of(Json.nil(), Json.str("null")), nulls);
+        // lite's: a text's, a list's and a decimal's Variant, each a string of its JSON as the engine's are
+        Json.Obj values = Json.parseObject(executed("|#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#->limit(1)->extend(~["
+                + "S: r|'text'->toVariant(), L: r|[1, 2]->toVariant(), D: r|2.50D->toVariant()])->select(~[S, L, D])"
+                + "->from(trades::h2::RT)"));
+        List<Json.Node> row = ((Json.Obj) values.getObj("result").getArr("rows").items().get(0)).getArr("values").items();
+        // recorded difference 3: the decimal keeps its digits, where the engine's library writes 2.5 (its 2.50 above)
+        assertEquals(List.of(stored.get(2), Json.str("[1,2]"), Json.str("2.50")), row);
+    }
+
+    /** An execute of a lambda's grammar over the model, its answer's text; the answer must be a 200. */
+    private String executed(String grammar) {
+        String function = PureV1Api.grammarToJsonLambda(grammar, false).json();
+        PureV1Api.Answer a = execute("{\"clientVersion\":\"vX_X_X\",\"function\":" + function + ",\"model\":"
+                + textModel() + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}");
+        assertEquals(200, a.status(), a.json());
+        return a.json();
+    }
+
     /** An execute's {@code result}, compact; its answer must be a 200. */
     private static String resultOf(PureV1Api.Answer a) {
         assertEquals(200, a.status(), a.json());
@@ -365,6 +423,77 @@ class PureV1ApiTest {
                 liteMeta.getString("legend.builder"));
     }
 
+    /**
+     * E8 in upstream's Arrow format, served (track A, 2026-10-29): one zstd frame (raw blocks, read back here by the
+     * frame's own layout) around an Arrow IPC stream that begins with a schema message carrying the engine's metadata
+     * ({@code arrowPlan}'s keys, the same builder as the JSON answer's) and ends with the end marker; upstream's
+     * headers. The values are {@code ArrowWriterTest}'s (pyarrow reads them); a graph fetch is answered in JSON, as
+     * {@code arrowPlan} refuses it.
+     */
+    @Test
+    void e8_executeArrow_isOneZstdFrameAroundAnArrowStreamWithTheEnginesMetadata() throws Exception {
+        String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
+                + ",\"model\":" + textModel()
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
+                request, new QueryService()::executeUpstream);
+        assertEquals(200, a.status(), a.json());
+        assertEquals("application/json", a.contentType());
+        assertEquals("FormatNotSet", a.headers().get("x-legend-response-format"));
+        byte[] frame = a.bytes();
+        assertTrue(frame != null && frame.length > 14, "a binary answer");
+        assertEquals(0x28, frame[0] & 0xFF);
+        assertEquals(0xB5, frame[1] & 0xFF);
+        assertEquals(0x2F, frame[2] & 0xFF);
+        assertEquals(0xFD, frame[3] & 0xFF);
+        byte[] stream = rawBlocks(frame);
+        // the stream: the continuation marker first, the end marker last
+        assertEquals(-1, stream[0]);
+        assertEquals(-1, stream[3]);
+        assertEquals(0, stream[stream.length - 1]);
+        assertEquals(-1, stream[stream.length - 8]);
+        String text = new String(stream, java.nio.charset.StandardCharsets.ISO_8859_1);
+        Json.Obj engineMeta = Json.parseObject(resource("upstream-api/e8-arrow-groupby-sort.json")).getObj("metadata");
+        for (String key : List.of("legend.builder", "legend.activities", "legend.columns")) {
+            assertTrue(text.contains(key), key);
+        }
+        // the builder is the JSON answer's, byte for byte, and the columns are the engine's
+        assertTrue(text.contains(Json.toCompact(Json.parseObject(execute(request).json()).getObj("builder"))),
+                "the schema carries the JSON answer's builder");
+        assertTrue(text.contains(engineMeta.getString("legend.columns")), "the engine's column names");
+        // the plan's facts ride as each field's metadata
+        assertTrue(text.contains("legend.type") && text.contains("legend.slot"), "the field metadata");
+
+        String trading = resource("upstream-api/query-app/trading.pure");
+        String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
+                + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
+        PureV1Api.Answer graph = PureV1Api.executeArrow("{\"function\":" + fetch + ",\"model\":"
+                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", new QueryService()::executeUpstream,
+                PureV1Api.Models.COMPILED);
+        assertEquals(500, graph.status(), graph.json());
+        assertTrue(Json.parseObject(graph.json()).getString("message").contains("graph fetch"), graph.json());
+    }
+
+    /** The content of a zstd frame of raw blocks (RFC 8878: the magic, the frame header with an 8-byte content size
+     *  and a window descriptor, then blocks of a 3-byte header each), as the writer lays it out. */
+    private static byte[] rawBlocks(byte[] frame) {
+        int at = 4 + 1 + 1 + 8;
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        while (true) {
+            int header = (frame[at] & 0xFF) | ((frame[at + 1] & 0xFF) << 8) | ((frame[at + 2] & 0xFF) << 16);
+            boolean last = (header & 1) == 1;
+            int type = (header >>> 1) & 3;
+            int size = header >>> 3;
+            assertEquals(0, type, "a raw block");
+            out.write(frame, at + 3, size);
+            at += 3 + size;
+            if (last) {
+                break;
+            }
+        }
+        return out.toByteArray();
+    }
+
     /** The Arrow plan half runs only the models its host serves; a graph fetch has no Arrow answer. */
     @Test
     void e8_arrowPlan_refusesAModelItsHostDoesNotServe_andAGraphFetch() throws IOException {
@@ -384,10 +513,11 @@ class PureV1ApiTest {
 
     /**
      * E8 for a host that runs the SQL on its own database ({@code jsonPlan} then {@code jsonAnswer}, the tab's:
-     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): the plan's {@code run} SQL is the JSON wire the server's database
-     * writes, and its one value arranged by {@code jsonAnswer} is the server's own answer text, byte for byte (the trace
-     * id each answer's own) -- the database renders every value, Java arranges them, on both. A graph fetch's plan runs
-     * its own SQL, which the Arrow half refuses.
+     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1; typed rows since 2026-10-27, the result boundary program's phase 3):
+     * the plan's {@code run} is the typed statement the server runs, and the host's rows, handed back as it read them,
+     * are decoded by the plan's result columns and written by the server's own writer: the server's answer text, byte
+     * for byte (the trace id each answer's own). A graph fetch's plan runs its own statement, which the Arrow half
+     * refuses.
      */
     @Test
     void e8_jsonPlanThenJsonAnswer_isTheServersAnswerText_andAGraphFetchIsPlanned() throws Exception {
@@ -397,16 +527,18 @@ class PureV1ApiTest {
         PureV1Api.Answer a = PureV1Api.jsonPlan(request, List.of(model));
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
-        assertEquals(List.of("sql", "run", "builder", "activities", "columns"), new ArrayList<>(plan.fields().keySet()));
+        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder", "activities", "columns"),
+                new ArrayList<>(plan.fields().keySet()));
+        assertEquals("RELATION", plan.getString("shape"));
         Json.Obj activity = (Json.Obj) plan.getArr("activities").items().get(0);
         assertEquals(plan.getString("sql"), activity.getString("sql"));
-        // the run SQL on the same database the server's runner reads: its one value, arranged, is the server's text
+        // the run statement on the same database the server's runner reads: its rows, as a host's driver reads them,
+        // written by the server's writer, are the server's text
         List<String> setup = sqlNode(Json.parseObject(resource("upstream-api/e9-groupby-sort.json")))
                 .getObj("connection").getObj("datasourceSpecification")
                 .getStringArray("testDataSetupSqls");
-        List<List<Object>> wire = rows(setup, plan.getString("run"));
-        assertEquals(1, wire.size(), String.valueOf(wire));
-        PureV1Api.Answer answered = PureV1Api.jsonAnswer(a.json(), String.valueOf(wire.get(0).get(0)));
+        String hostRows = hostRows(setup, plan.getString("run"));
+        PureV1Api.Answer answered = PureV1Api.jsonAnswer(a.json(), hostRows);
         assertEquals(200, answered.status(), answered.json());
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
         assertEquals(traced.apply(execute(request).json()), traced.apply(answered.json()));
@@ -432,12 +564,17 @@ class PureV1ApiTest {
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading));
         assertEquals(200, graph.status(), graph.json());
         Json.Obj graphPlan = Json.parseObject(graph.json());
-        assertEquals(List.of("sql", "run", "builder"), new ArrayList<>(graphPlan.fields().keySet()));
+        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder"),
+                new ArrayList<>(graphPlan.fields().keySet()));
+        assertEquals("OBJECTS", graphPlan.getString("shape"));
         assertEquals("{\"_type\":\"json\"}", Json.toCompact(graphPlan.getObj("builder")));
         assertEquals(graphPlan.getString("sql"), graphPlan.getString("run"));
-        // one object is written bare, as execute writes it
+        // one object is written bare, as execute writes it: the host's row holds the object's JSON, as its database
+        // built it
+        String objects = ((Json.Obj) graphPlan.getArr("resultColumns").items().get(0)).getString("name");
         assertEquals("{\"builder\":{\"_type\":\"json\"},\"values\":{\"tradeId\":1}}",
-                PureV1Api.jsonAnswer(graph.json(), "[{\"tradeId\":1}]").json());
+                PureV1Api.jsonAnswer(graph.json(), Json.toCompact(List.of(Map.of(objects, "{\"tradeId\":1}"))))
+                        .json());
     }
 
     /**
@@ -493,7 +630,7 @@ class PureV1ApiTest {
 
         String[] ran = new String[1];
         PureV1Api.Answer refused = PureV1Api.route("/api/pure/v1/execution/execute", null,
-                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (m, l, runtime, rows) -> {
+                "{\"function\":" + lambda + ",\"model\":" + textModel() + "}", (q, runtime, sinkOf) -> {
                     ran[0] = runtime;
                     throw new IllegalArgumentException("not here");
                 });
@@ -789,6 +926,41 @@ class PureV1ApiTest {
             return out;
         }
         return n;
+    }
+
+    /** {@code sql}'s rows on the referee's database over {@code setup}, as a host hands them back to the plan half
+     *  ({@code PureV1Api.jsonAnswer}): a JSON array of objects, each cell as the driver read it -- an integer's
+     *  digits, a double's shortest digits, a decimal and a date as their text, a text, a boolean, null. */
+    private static String hostRows(List<String> setup, String sql) throws SQLException {
+        try (Connection c = com.legend.testbackend.TestBackends.referee().open();
+                Statement st = c.createStatement()) {
+            for (String s : setup) {
+                st.execute(s);
+            }
+            StringBuilder out = new StringBuilder("[");
+            try (ResultSet rs = st.executeQuery(sql)) {
+                var md = rs.getMetaData();
+                while (rs.next()) {
+                    out.append(out.length() == 1 ? "{" : ",{");
+                    for (int i = 1; i <= md.getColumnCount(); i++) {
+                        Object v = rs.getObject(i);
+                        String token = switch (v) {
+                            case null -> "null";
+                            case java.math.BigDecimal d -> Json.toCompact(d.toPlainString());
+                            case Double d -> Double.toString(d);
+                            case Float f -> Float.toString(f);
+                            case Number n -> n.toString();
+                            case Boolean b -> b.toString();
+                            default -> Json.toCompact(v.toString());
+                        };
+                        out.append(i == 1 ? "" : ",").append(Json.toCompact(md.getColumnLabel(i))).append(':')
+                                .append(token);
+                    }
+                    out.append('}');
+                }
+            }
+            return out.append(']').toString();
+        }
     }
 
     private static List<List<Object>> rows(List<String> setup, String sql) throws SQLException {

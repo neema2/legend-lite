@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.testing.Program;
+
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -31,11 +33,10 @@ class LegacyTextTest {
         String body = "|meta::relational::functions::sqlstring::toSQLString(" + query
                 + ", test::M, meta::relational::runtime::DatabaseType.H2, [])";
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            var r = com.legend.Execution.execute(com.legend.test.StorelessRuntime.with(MODEL,
+            var r = Program.last(com.legend.test.StorelessRuntime.with(MODEL,
                     com.legend.model.ConnectionDefinition.DatabaseType.DuckDB), body,
                     com.legend.test.StorelessRuntime.RUNTIME, c);
-            var text = (com.legend.exec.ExecutionResult.Scalar) java.util.Objects.requireNonNull(r);
-            return String.valueOf(text.value());
+            return String.valueOf(r.one());
         }
     }
 

@@ -991,7 +991,9 @@ public final class Json {
             String num = src.substring(start, pos);
             if (isFloat) {
                 java.math.BigDecimal exact = new java.math.BigDecimal(num);
-                return new Num(exact.longValue(), exact.doubleValue(), false, exact, num);
+                // the double from the TOKEN: a BigDecimal has no negative zero, and "-0.0" is one (2026-10-29, the
+                // Cypher parity lanes on the twin's reader: Neo4j's -0.0 read back as 0.0)
+                return new Num(exact.longValue(), Double.parseDouble(num), false, exact, num);
             }
             // an integer past a long (DuckDB writes UINT64's max) is still a JSON number: kept exact
             if (num.length() >= 19) {

@@ -53,6 +53,15 @@
 # 2026-10-21, the protocol program's leg 8, last step (docs/PROTOCOL_PROGRAM_2026_10_05.md): `door` (door/ModelFromText:
 # a text's records made the compiler's model); `parser` no longer reaches `model` (it builds records only); builtin,
 # planner and ide reach `door` (their texts' parses).
+# 2026-10-27 (the result boundary program, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R8): `result`, a plan's typed result
+# as a stream of batches and the writers at the edge; exec reaches it (PlanRunner.stream hands each batch to a sink).
+# 2026-10-29 (the result boundary program's track Z, the final audit's finding 2): `test` reaches `result`, `execution_plan`
+# and `json` -- the service test runner spells a cell through CellText.engine, the LEGACY writer's cell, and reads it
+# back as the tree its assertions compare; its own spelling rules and their String.valueOf fallback are gone.
+# 2026-10-29 (the result boundary program's track A, docs/RESULT_BOUNDARY_START_HERE.md): `result` and `pure_v1` reach
+# `arrow_ipc` (//arrow_ipc, below core beside base and json: the Arrow IPC framer, a FlatBuffers builder and a zstd
+# frame over base alone, no Arrow library) -- ArrowWriter writes a result's batches as Arrow IPC at the edge, and
+# the pure/v1 API answers an ARROW_IPC request with that stream; no other layer reaches it (ArrowClosureTest).
 # 2026-10-20 (the writes design's leg 7, docs/WRITES_DESIGN_2026_10_18.md §8; the plan program's step 4, the callers
 # switching to plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): driver reaches `execution_plan` -- Execution runs
 # a program that writes from its plan (executeUpstream: the plan made, run by PlanRunner, its answer's SQL reported).
@@ -80,14 +89,20 @@ lowering	base builtin compiler compiler_element_type error model platform protoc
 plan	base builtin compiler compiler_element_type error execution_plan lineage model sql
 resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
 setup	base cache compiler execution_plan model protocol sql sql_dialect
-exec	base cache compiler compiler_element_type database diagnostics error execution_plan json lowering model plan platform setup sql sql_dialect values
+exec	base cache compiler compiler_element_type database diagnostics error execution_plan json lowering model plan platform result setup sql sql_dialect values
 probe	base builtin lowering model platform
-testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver setup sql sql_dialect values
+# 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
+# `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
+# read-backs typed rows of plan columns.
+testdatagen	base builtin compiler compiler_element_type error exec execution_plan lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
+result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
-pure_v1	base compiler compiler_element_type database error json parser plan planner protocol sql_dialect
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan lineage lowering model normalizer parser plan planner platform protocol resolver setup sql sql_dialect testdatagen validation values
+pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect
+# 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
+# body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
 ide	base door lexer model parser
-test	base compiler driver error exec model planner protocol sql values
+test	base compiler driver error exec execution_plan json model planner protocol result sql values
 saved_queries	base json
-server_lib	base cache compiler compiler_element_type database driver error exec json lowering model parser plan planner protocol pure_v1 saved_queries setup sql_dialect
+server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect

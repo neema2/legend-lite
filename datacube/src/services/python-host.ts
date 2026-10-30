@@ -190,6 +190,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   plan: "a page plans a query's protocol tree (planJson), not its text",
   relationType: "a page types a query on legend-engine's route (lambdaRelationType), not its text",
   planModel: "an unheld plan is Query's, in its tab",
+  executionPlan: "a write is planned and run where its rows are: Python's own headless writer, on its database",
   tableModel: "a table's model is the tab's own database's",
   catalogColumnsSql: "a catalog's reading is the tab's own database's",
   executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",

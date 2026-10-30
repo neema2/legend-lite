@@ -140,7 +140,7 @@ final class CollectionLanes {
             case TypedSort s -> valueLane(s.source());
             case TypedSortBy s -> valueLane(s.source());
             // census carrier: folded to instance literals BEFORE lowering
-            // (StatementExecutor); its result is a VALUE — defensive true
+            // (BodyDriver); its result is a VALUE — defensive true
             case com.legend.compiler.spec.typed.TypedCsvCensus c -> true;
             case com.legend.compiler.spec.typed.TypedTestDataGen g -> true;
             case TypedDistinct d -> valueLane(d.source());

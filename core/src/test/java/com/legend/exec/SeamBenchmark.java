@@ -6,7 +6,6 @@ package com.legend.exec;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.lowering.WireRender;
 import com.legend.sql.NameQuoting;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
@@ -51,35 +50,17 @@ final class SeamBenchmark {
 
     static final boolean SMALL_HEAP = "small".equals(System.getProperty("seam.heap", ""));
 
-    /** The relation's columns as the database holds their names: lower-case, or upper-case where an unquoted name
-     *  folds up ({@code upper}), so the wire's bare names are the database's own. */
-    private static List<OutputCol> outs(boolean upper) {
-        return List.of(
-                new OutputCol(n("id", upper), SqlType.Scalar.BIGINT, false),
-                new OutputCol(n("name", upper), SqlType.Scalar.VARCHAR, false),
-                new OutputCol(n("amount", upper), new SqlType.Decimal(18, 2), false),
-                new OutputCol(n("ts", upper), SqlType.Scalar.TIMESTAMP, false),
-                new OutputCol(n("bucket", upper), SqlType.Scalar.INTEGER, true));
-    }
-
-    private static Type.RelationType schema(boolean upper) {
-        return new Type.RelationType(List.of(
-                new Type.Column(n("id", upper), Type.Primitive.INTEGER, Multiplicity.Bounded.ONE),
-                new Type.Column(n("name", upper), Type.Primitive.STRING, Multiplicity.Bounded.ONE),
-                new Type.Column(n("amount", upper), Type.Primitive.DECIMAL, Multiplicity.Bounded.ONE),
-                new Type.Column(n("ts", upper), Type.Primitive.DATE_TIME, Multiplicity.Bounded.ONE),
-                new Type.Column(n("bucket", upper), Type.Primitive.INTEGER, Multiplicity.Bounded.ZERO_ONE)));
-    }
-
     private static String n(String name, boolean upper) {
         return upper ? name.toUpperCase(java.util.Locale.ROOT) : name;
     }
     private static final List<ExecutionPlan.Column> PLAN_COLUMNS = List.of(
-            new ExecutionPlan.Column("id", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null),
-            new ExecutionPlan.Column("name", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null),
-            new ExecutionPlan.Column("amount", "Decimal", new ExecutionPlan.Multiplicity(1, 1), "DECIMAL(18,2)", null),
-            new ExecutionPlan.Column("ts", "DateTime", new ExecutionPlan.Multiplicity(1, 1), "TIMESTAMP", null),
-            new ExecutionPlan.Column("bucket", "Integer", new ExecutionPlan.Multiplicity(0, 1), "INTEGER", null));
+            new ExecutionPlan.Column("id", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null, null),
+            new ExecutionPlan.Column("name", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null),
+            new ExecutionPlan.Column("amount", "Decimal", new ExecutionPlan.Multiplicity(1, 1), "DECIMAL(18,2)", null,
+                    null),
+            new ExecutionPlan.Column("ts", "DateTime", new ExecutionPlan.Multiplicity(1, 1), "TIMESTAMP", null,
+                    ExecutionPlan.Precision.INSTANT),
+            new ExecutionPlan.Column("bucket", "Integer", new ExecutionPlan.Multiplicity(0, 1), "INTEGER", null, null));
 
     /** Every path over {@code c}'s view {@code bench} of {@code rows} rows, written in {@code dialect} ({@code upper}:
      *  whether its unquoted names fold up), {@code csvLine} and {@code agg} its CSV line and its text aggregate. */
@@ -87,15 +68,8 @@ final class SeamBenchmark {
             boolean mustDrain, String csvLine, String agg) throws Exception {
         System.out.println("[seam] " + db + " rows=" + rows + " heap=" + (SMALL_HEAP ? "small" : "default")
                 + " maxHeapMB=" + Runtime.getRuntime().maxMemory() / (1024 * 1024));
-        // the JSON rows wire over the relation (the per-row JSON text the product writes; the judges' typed rows
-        // rode it in a carrier spelling until step 7's typed seam)
-        List<OutputCol> outs = outs(upper);
-        SqlSource.Table table = new SqlSource.Table(n("bench", upper), "t0", outs, false, Map.of(), NameQuoting.BARE);
-        SqlSelect select = new SqlSelect(outs.stream().map(o -> new SqlSelect.Projection(
-                SqlExpr.Column.of("t0", o), o.name(), o)).toList(),
-                false, table, null, List.of(), null, null, List.of(), null, null, outs);
-        SqlQuery wire = WireRender.rows(select, schema(upper), WireRender.Spelling.PURE);
-        String jsonRows = dialect.render(wire);
+        // (the JSON rows wire the product wrote, its paths 2 and 3, went with the result boundary program's phase 3,
+        // 2026-10-27: the typed columns are the product's path now)
         String plain = "SELECT id, name, amount, ts, bucket FROM bench";
         String csvRows = "SELECT " + csvLine + " AS line FROM bench";
         String csvWhole = "SELECT " + agg + " FROM (SELECT " + csvLine + " AS line FROM bench) AS r";
@@ -103,9 +77,6 @@ final class SeamBenchmark {
         if (!SMALL_HEAP) {
             measure(db, "1 typed columns (driver values by slot)", rows, mustDrain, () -> typedColumns(c, plain));
         }
-        measure(db, "2 json rows wire, decoded by the plan's columns", rows, mustDrain,
-                () -> textRows(c, jsonRows, true));
-        measure(db, "3 json rows wire, text counted only", rows, mustDrain, () -> textRows(c, jsonRows, false));
         measure(db, "4 csv line per row by the database", rows, mustDrain, () -> textRows(c, csvRows, false));
         // the whole text is the path the design retires: whether it drains is the measurement, never the test
         measure(db, "5 csv whole text in one value", rows, false, () -> wholeText(c, csvWhole, rows));
@@ -187,7 +158,7 @@ final class SeamBenchmark {
             n[0]++;
             chars[0] += row == null ? 0 : row.length();
             if (decode) {
-                List<Object> cells = RowDecode.cells(row, PLAN_COLUMNS);
+                List<Object> cells = com.legend.result.RowDecode.cells(row, PLAN_COLUMNS);
                 if (cells.size() != PLAN_COLUMNS.size()) {
                     throw new IllegalStateException("decode");
                 }

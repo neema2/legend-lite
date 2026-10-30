@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -50,7 +52,7 @@ class ProjectRowsTest {
     private static final String QUERY = "|proj::Party.all()->project(~[name: p|$p.name])->sort(~name->ascending())";
 
     private static List<Object> names(String model) throws Exception {
-        return new QueryService().execute(model, QUERY, "proj::RT").rows().stream().map(r -> r.get(0)).toList();
+        return Lean.service(model, QUERY, "proj::RT").rows().stream().map(r -> r.get(0)).toList();
     }
 
     @Test

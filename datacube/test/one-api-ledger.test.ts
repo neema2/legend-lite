@@ -513,6 +513,11 @@ const PASS_THROUGH: Record<string, string> = {
   setTextFiles: "the files opened or dropped on a text box, each its name, size and fingerprint (setTextFiles judges them, by text-files.ts readTextFiles); Python's Text.files fingerprints a path the same way",
   renamePage: 'the name as typed (renamePage judges it)', savedAs: "the page store's record the page was saved as",
   setPageFilter: "the filter as the page's filter bar made it", removePageFilter: 'the page filter whose x was clicked',
+  // 2026-10-26 (the flow mode's M8, a page's parameters: page-parameters.ts): the parameters bar's
+  setParameter: "the parameter as the page's parameters bar made it -- its input's value changed, or Add Parameter's form (setParameter judges it whole: parameterProblem)",
+  removeParameter: "the parameter whose x was clicked",
+  // 2026-10-26 (the flow mode's M8, a standard macro: macros.ts): a box's menu's Save as Macro
+  setMacro: "the macro Save as Macro made of the boxes' own steps as their grids read them (macros.ts macroOf, which headless gridFunction and macroComposed ask for Python's page.macro), named as typed; setMacro judges it",
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M1 steps 3-4, the flow sheet): Create ▸ Flow, and a box let go
   addFlow: "a new flow sheet's id, as the page numbers ids, unnamed",
   placeBox: "where the box was let go, or its arrow key took it (placeBox rounds and judges it: layout/flow.ts moveBox)",
@@ -521,8 +526,14 @@ const PASS_THROUGH: Record<string, string> = {
   setJoin: "the join a flow's Join box's window made (ui/join-dialog.ts, as the board's Join… makes one), its Right with it when it changed; setJoin judges it",
   // 2026-10-25 (the flow mode's Output, M6)
   setOutput: "the file name typed in an Output's settings, or none (its Write no file); setOutput judges it",
+  // (2026-10-26, the table Output, M6/FL13: its table's name, its way and a merge's keys as typed and picked there too)
   // 2026-10-25 (the flow mode's Test that stops a run, FL8)
   setStops: "a Test box's settings' checkbox, ticked or not; setStops judges it",
+  // 2026-10-26 (the flow mode's FL10, the Cache): a box's settings' checkbox, ticked or not; setCache judges it
+  setCache: "a box's settings' Cache its rows checkbox, ticked or not; setCache judges it",
+  // 2026-10-26 (the flow mode's M8, Block Until Done and Message): a box's settings, as the person set them
+  setBlocks: "a box's settings' Block until done checkbox, ticked or not (and the palette's Block Until Done, which ticks it); setBlocks judges it",
+  setMessage: "a box's settings' Message -- its words, when and how, as typed and picked (the palette's Message, its first: its rows counted) -- or Say Nothing; setMessage judges it",
   // 2026-10-26 (the flow mode's Pure box, FL12)
   setPure: "the function a Pure box's window made of what was typed (pure-box.ts pureFrom, which headless gridPure asks for Python's grid.pure), or none (Take Its Pure Off); setPure judges its shape",
 };
@@ -541,6 +552,10 @@ const SCREEN_OWN_MAKERS: Record<string, string> = {
   // 2026-10-24 (D19 W3, W7)
   // 2026-10-25 (the flow mode's Output, M6)
   outputCommand: "the palette's Output named after the box it reads, in the step that adds it; Python's grid.output is given its file's name",
+  // 2026-10-26 (the flow mode's M8, Dynamic Input)
+  namedApart: "the palette's Dynamic Input: two boxes no one named, read under one source's name, named as the canvas names them (Filter, Input) in the step that adds it -- its names the canvas's; Python's grid.pick names nothing (a grid is named by grid.title), refused in the same words when two are one name",
+  // 2026-10-26 (the flow mode's roadmap audit, #77: a pasted box kept its tool's modes)
+  settingsCommands: "the tab's Paste: a copied box's stops, cache, blocking and message set on the box pasted, in the step that adds it; Python has no clipboard -- its grid.copy of a box is the 'flow.duplicate' gesture, which carries them by the same rule (duplicateCommands)",
   gridBetween: "the commands between two states of a grid: the tab's own history (an undo or a redo told as the commands between: state-owner.ts toward) and its converge (a touched grid put back at the keeper's cube: live-converge.ts); Python's grid has no history",
 };
 
@@ -802,6 +817,10 @@ const NATURE = 'by nature:';
 const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly other: string; readonly ability?: HostAbility }>> = {
   // -- the app shell (datacube-app.ts) --
   'src/app/datacube-app.ts:rowsOf:local': { count: 2, other: `${BOTH} a grid's rows run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
+  // 2026-10-26 (the flow mode's table Output, M6/FL13): the tab's grid writes its table where its rows are its own
+  // database's; a host's grid's (Python's) is written by flow.run, through headless gridWriteTable -- the one writer
+  'src/app/datacube-app.ts:tableWriter:local': { count: 2, other: `${BOTH} a box's rows written into a table of the host's database by the one writer (table-output.ts): the tab's own here, Python's flow.run by headless gridWriteTable`, ability: 'write' },
+  'src/app/datacube-app.ts:tableWriter:place.runner': { other: `${BOTH} a grid whose rows a host runs (Python's) has its table written by that host: flow.run, headless gridWriteTable`, ability: 'write' },
   'src/app/datacube-app.ts:hostMenu:services.pages': { other: `${BOTH} Save and Open… where the host keeps pages (the tab's browser store, Python's folder)`, ability: 'pages' },
   'src/app/datacube-app.ts:hostMenu:browser.address': { other: `${NATURE} Share… needs an address others can open; Python's is this machine's loopback` },
   'src/app/datacube-app.ts:empty:services.live': { other: `${NATURE} the empty page's words: a page Python serves is filled from Python` },
@@ -903,7 +922,7 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
 
 /** What a `both:` branch is a way to on each host: an ability, proved on each (HOST_ABILITIES). */
 type HostAbility = 'rows' | 'pages' | 'model' | 'class' | 'join' | 'warehouse' | 'remote' | 'files' | 'snap' | 'queries'
-  | 'reopen' | 'input';
+  | 'reopen' | 'input' | 'write';
 
 /** A test, `file::name`: a test file of DataCube's (under test/) or the tab's libraries' and the title of one of its
  *  `it`s, `describe`s, browser `check`s or conformance runs, or a Python test file (under ../python/tests/) and one of
@@ -990,6 +1009,13 @@ const HOST_ABILITIES: Readonly<Record<HostAbility, {
     tab: ["test/join-open.test.ts::another grid's rows: a chain of boxes over a table, each its input's rows at their finest level (flow mode §3.1)"],
     python: ['../python/tests/test_page.py::test_a_box_reads_its_inputs_rows_as_that_grid_is_now',
       '../python/tests/test_page.py::test_a_box_after_a_box_and_after_a_grouped_one_its_groups'],
+  },
+  // a box's rows into a table (2026-10-26, the flow mode's M6/FL13): table-output.ts writeTable on both -- the tab's over
+  // DuckDB-WASM (app/datacube-app.ts tableWriter), Python's over its frames' DuckDB (headless gridWriteTable)
+  write: {
+    kind: 'shared',
+    tab: ["test/table-output.test.ts::a box written into a table of its host's database, in one transaction"],
+    python: ['../python/tests/test_page.py::test_a_table_output_is_written_in_one_transaction_each_way'],
   },
   // a driver each (the tab's, Python's), held to one recorded corpus of the warehouse's calls
   warehouse: {

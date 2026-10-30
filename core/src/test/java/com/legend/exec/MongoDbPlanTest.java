@@ -4,8 +4,8 @@
 package com.legend.exec;
 
 import com.legend.Compiler;
-import com.legend.TypedQuery;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testcases.PlanCases;
 import com.legend.testing.EmbeddedMongoDb;
 import com.mongodb.client.MongoClient;
 import org.bson.Document;
@@ -94,11 +94,13 @@ class MongoDbPlanTest {
                 """, EmbeddedMongoDb.DATABASE, db.port(), EmbeddedMongoDb.USER, PASSWORD_PROPERTY);
     }
 
-    private static String run(String query, TypedQuery.Output output, Map<String, ?> values) throws Exception {
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT", output);
+    /** {@code query}'s typed plan run with {@code values} on the shared sessions, its rows written in {@code written}
+     *  (lite's CSV, its JSON rows: docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */
+    private static String run(String query, PlanCases.Written written, Map<String, ?> values) throws Exception {
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("test::RT");
         com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
         StringWriter out = new StringWriter();
-        PlanRunner.run(plan, values, PlanSessions.shared(), out);
+        PlanRunner.stream(plan, values, PlanSessions.shared(), written.writer(out, plan.answerShape()));
         return out.toString();
     }
 
@@ -106,81 +108,58 @@ class MongoDbPlanTest {
     void aFilteredSortedSelectStreamsItsRows() throws Exception {
         assertEquals("[{\"name\":\"Ann\",\"age\":34},{\"name\":\"Cy\",\"age\":41}]",
                 run("#>{test::Store.people}#->filter(x | $x.age > 30)->select(~[name, age])->sort(~name->ascending())",
-                        TypedQuery.Output.STREAMED_JSON, Map.of()));
+                        PlanCases.Written.JSON, Map.of()));
     }
 
     @Test
     void anAbsentFieldReadsAsNull() throws Exception {
         assertEquals("[{\"name\":\"Di\",\"age\":null}]",
                 run("#>{test::Store.people}#->filter(x | $x.age->isEmpty())->select(~[name, age])",
-                        TypedQuery.Output.STREAMED_JSON, Map.of()));
+                        PlanCases.Written.JSON, Map.of()));
     }
 
     @Test
     void aParameterIsBoundInPlace() throws Exception {
         assertEquals("[{\"name\":\"Cy\"}]",
                 run("{n: Integer[1] | #>{test::Store.people}#->filter(x | $x.age > $n)->select(~[name])}",
-                        TypedQuery.Output.STREAMED_JSON, Map.of("n", 40L)));
+                        PlanCases.Written.JSON, Map.of("n", 40L)));
     }
 
     @Test
     void aGroupCountsAndSorts() throws Exception {
         assertEquals("[{\"city\":\"Oslo\",\"n\":2},{\"city\":\"Rome\",\"n\":2}]",
                 run("#>{test::Store.people}#->groupBy(~[city], ~[n: x | $x.name : y | $y->count()])"
-                        + "->sort(~city->ascending())", TypedQuery.Output.STREAMED_JSON, Map.of()));
+                        + "->sort(~city->ascending())", PlanCases.Written.JSON, Map.of()));
     }
 
     @Test
     void theWholeResultAsJsonAndAsCsv() throws Exception {
         String json = run("#>{test::Store.people}#->filter(x | $x.city == 'Oslo')->select(~[name, age])"
-                + "->sort(~age->descending())", TypedQuery.Output.JSON, Map.of());
+                + "->sort(~age->descending())", PlanCases.Written.JSON, Map.of());
         assertTrue(json.contains("\"name\":\"Ann\"") && json.contains("\"name\":\"Bob\""), json);
         String csv = run("#>{test::Store.people}#->filter(x | $x.city == 'Oslo')->select(~[name, age])"
-                + "->sort(~age->descending())", TypedQuery.Output.CSV, Map.of());
+                + "->sort(~age->descending())", PlanCases.Written.CSV, Map.of());
         assertTrue(csv.startsWith("name,age") && csv.contains("Ann,34") && csv.contains("Bob,28"), csv);
     }
 
     /**
-     * Homework 4 (docs/MONGODB_PLAN_2026_10_16.md §9, 2026-10-17): the whole-text wires (CSV, the whole JSON) gather
-     * every row into one string inside one document, which MongoDB caps at 16 MB; the streamed JSON wire does not.
-     * Two facts measured here, each printed: (1) the string aggregation the wires use on MongoDB is a {@code $reduce}
-     * with {@code $concat}, which copies the whole accumulated text at every step -- quadratic in the row count (the
-     * first draft, 240,000 rows of 100 characters, ran past the test's 300 s); so the rows here are FEW and LARGE
-     * (100 KB each): 100 rows, about 10 MB, pass; 200 rows, about 20 MB, meet the bound, and the error's text is
-     * recorded. (2) The streamed JSON wire reads the same collections row by row.
+     * Homework 4 (docs/MONGODB_PLAN_2026_10_16.md §9, 2026-10-17) measured the whole-text wires: every row gathered
+     * into one string inside one document, which MongoDB caps at 16 MB, by a {@code $reduce} quadratic in the row
+     * count. Those wires are gone (the result boundary program's phase 3, 2026-10-27): a result is its typed rows, read
+     * document by document and written at the edge, so 200 rows of 100 KB -- about 20 MB, past the old bound -- answer
+     * whole.
      */
     @Test
-    void theWholeTextWiresAreBoundedBySixteenMegabytes() throws Exception {
+    void aResultPastSixteenMegabytesStreams() throws Exception {
         String filler = "x".repeat(100_000);
-        loadBig(100, filler);
-        long t0 = System.nanoTime();
-        String small = run("#>{test::Store.big}#->select(~[n, s])", TypedQuery.Output.CSV, Map.of());
-        System.out.println("[mongodb-16mb] 100 rows x 100 KB: the CSV wire passed, " + small.length()
-                + " characters in " + (System.nanoTime() - t0) / 1_000_000 + " ms");
-        assertTrue(small.length() > 10_000_000 && small.startsWith("n,s"), "the 10 MB CSV: " + small.length());
-        assertEquals("[{\"n\":99}]", run("#>{test::Store.big}#->select(~n)->sort(~n->descending())->limit(1)",
-                TypedQuery.Output.STREAMED_JSON, Map.of()));
         loadBig(200, filler);
-        t0 = System.nanoTime();
-        try {
-            String large = run("#>{test::Store.big}#->select(~[n, s])", TypedQuery.Output.CSV, Map.of());
-            System.out.println("[mongodb-16mb] 200 rows x 100 KB: the CSV wire PASSED with " + large.length()
-                    + " characters in " + (System.nanoTime() - t0) / 1_000_000 + " ms");
-        } catch (com.legend.error.DataError e) {
-            System.out.println("[mongodb-16mb] 200 rows x 100 KB: the CSV wire failed after "
-                    + (System.nanoTime() - t0) / 1_000_000 + " ms: " + e.getMessage());
-            assertTrue(e.getMessage() != null && !e.getMessage().isEmpty(), "an error with no text");
-        }
+        long t0 = System.nanoTime();
+        String large = run("#>{test::Store.big}#->select(~[n, s])", PlanCases.Written.CSV, Map.of());
+        System.out.println("[mongodb-16mb] 200 rows x 100 KB: the CSV passed, " + large.length() + " characters in "
+                + (System.nanoTime() - t0) / 1_000_000 + " ms");
+        assertTrue(large.length() > 20_000_000 && large.startsWith("n,s"), "the 20 MB CSV: " + large.length());
         assertEquals("[{\"n\":199}]", run("#>{test::Store.big}#->select(~n)->sort(~n->descending())->limit(1)",
-                TypedQuery.Output.STREAMED_JSON, Map.of()));
-        // the quadratic cost, measured on small rows: 2,000 and 8,000 rows of 100 characters
-        for (int rows : new int[] {2_000, 8_000}) {
-            loadBig(rows, "x".repeat(100));
-            t0 = System.nanoTime();
-            String csv = run("#>{test::Store.big}#->select(~[n, s])", TypedQuery.Output.CSV, Map.of());
-            System.out.println("[mongodb-16mb] " + rows + " rows x 100 B: the CSV wire passed, " + csv.length()
-                    + " characters in " + (System.nanoTime() - t0) / 1_000_000 + " ms");
-        }
+                PlanCases.Written.JSON, Map.of()));
     }
 
     private static void loadBig(int rows, String filler) {
@@ -203,7 +182,7 @@ class MongoDbPlanTest {
 
     @Test
     void aStorelessExpressionRunsOnTheDatabase() throws Exception {
-        assertTrue(run("1 + 2", TypedQuery.Output.JSON, Map.of()).contains("3"));
+        assertTrue(run("1 + 2", PlanCases.Written.JSON, Map.of()).contains("3"));
     }
 
     /**

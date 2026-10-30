@@ -25,18 +25,74 @@ final class JdbcStatements implements Statements {
 
     private final Connection c;
 
-    /** Whether the session's driver re-reads a timestamp cell as {@code java.time}: its database's fact, known once
-     *  {@link #check} has checked the session against the plan's target; null before. */
-    private @com.legend.base.Nullable Boolean javaTime;
+    /** The execution trace a query's stamp is published to (the body driver's, whose activity rows record the comment
+     *  the statement carried); null for a session no trace reads ({@link ExecutionTrace#stampOnly}). */
+    private final @com.legend.base.Nullable ExecutionTrace trace;
+
+    /** The session's driver facts the typed rows are read by (its database's: a timestamp re-read as
+     *  {@code java.time}, a decimal's trailing zeros dropped, a failing statement's result opened with no columns),
+     *  known once {@link #check} has checked the session against the plan's target; null before. */
+    private JdbcDecode.@com.legend.base.Nullable Driver driver;
 
     JdbcStatements(Connection c) {
+        this(c, null);
+    }
+
+    JdbcStatements(Connection c, @com.legend.base.Nullable ExecutionTrace trace) {
         this.c = c;
+        this.trace = trace;
+    }
+
+    /** The error a failed statement is told as: its raise where the error carries one, else the raise the session
+     *  holds ({@link #held}, read then alone -- the audit of D65, 2026-10-29: read before the error's own text was
+     *  looked at, every failure paid the session's metadata read), else the database's own text
+     *  ({@link PlanSessions#dataError(SQLException, java.util.function.Supplier)}). */
+    private com.legend.error.DataError failed(SQLException e) {
+        return PlanSessions.dataError(e, () -> held(c));
+    }
+
+    /** The raise {@code c}'s session holds after a statement failed, read back and cleared by its connector's two
+     *  declared statements ({@link DatabaseConnector#raiseRecovery}: MariaDB's and MySQL's, whose errors cannot carry
+     *  a raise's text), by the seam (D65, 2026-10-29: until then the connector ran them itself). Null for a session
+     *  whose database declares none, holds none, or cannot be read (a failure of the read is not the statement's). */
+    static @com.legend.base.Nullable String held(Connection c) {
+        try {
+            DatabaseConnector connector = Connectors.of(c);
+            return connector == null ? null : held(c, connector.raiseRecovery());
+        } catch (SQLException unreadable) {
+            return null;
+        }
+    }
+
+    /** {@link #held(Connection)} by {@code recovery}'s statements: the read's one text (its first row's first column;
+     *  null for no row), then the reset. One {@code getString}: the database's own text passed on unread. */
+    static @com.legend.base.Nullable String held(Connection c,
+            DatabaseConnector.@com.legend.base.Nullable RaiseRecovery recovery) throws SQLException {
+        if (recovery == null) {
+            return null;
+        }
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(recovery.read())) {
+            String held = rs.next() ? rs.getString(1) : null;
+            st.execute(recovery.reset());
+            return held;
+        }
+    }
+
+    /** A query as the database receives it: the engine's execution-trace comment line, then the statement
+     *  ({@link ExecutionTrace}: legend-engine's RelationalExecutor stamps every query it runs, and the activity records
+     *  the comment). The old executor stamped at its one JDBC boundary; the plan runner's is this one (2026-10-27, the
+     *  result boundary program's phase 5: with the old executor deleted no query carried it, and the corpus's
+     *  testSQLComments read an activity comment no statement had). */
+    private String stamped(String statement) {
+        return trace != null ? trace.stamp(statement) : ExecutionTrace.stampOnly(statement);
     }
 
     @Override
     public void check(ExecutionPlan.Target target) {
         Sessions.check(c, target.database().type());
-        javaTime = com.legend.database.Databases.dialect(target.database().type()).refetchesTimestampAsJavaTime();
+        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(target.database().type());
+        driver = new JdbcDecode.Driver(dialect.refetchesTimestampAsJavaTime(), dialect.dropsDecimalTrailingZeros(),
+                dialect.opensFailedResultsWithoutColumns(), dialect.jsonSpellsNonFiniteNumbers());
         switch (target.servers()) {
             case ExecutionPlan.Servers.Every every -> {
                 // the spelling depends on no version
@@ -53,11 +109,11 @@ final class JdbcStatements implements Statements {
     }
 
     @Override
-    public void execute(String statement) {
+    public boolean execute(String statement) {
         try (Statement st = c.createStatement()) {
-            st.execute(statement);
+            return st.execute(statement);
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -70,19 +126,67 @@ final class JdbcStatements implements Statements {
             }
             return st.executeUpdate();
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
+        }
+    }
+
+    @Override
+    public List<Reported> columns(String statement) {
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(statement)) {
+            return reported(rs.getMetaData());
+        } catch (SQLException e) {
+            throw failed(e);
+        }
+    }
+
+    @Override
+    public List<Reported> describe(String statement) {
+        try (PreparedStatement st = c.prepareStatement(statement)) {
+            java.sql.ResultSetMetaData md = st.getMetaData();
+            return md == null ? List.of() : reported(md);
+        } catch (SQLException e) {
+            throw failed(e);
+        }
+    }
+
+    private static List<Reported> reported(java.sql.ResultSetMetaData md) throws SQLException {
+        List<Reported> out = new java.util.ArrayList<>(md.getColumnCount());
+        for (int i = 1; i <= md.getColumnCount(); i++) {
+            out.add(new Reported(md.getColumnLabel(i), md.getColumnTypeName(i),
+                    WireTypes.sqlTypeOf(md.getColumnType(i), md.getPrecision(i), md.getScale(i)),
+                    md.isNullable(i) != java.sql.ResultSetMetaData.columnNoNulls));
+        }
+        return out;
+    }
+
+    @Override
+    public boolean load(ExecutionPlan.SetupStep.Rows rows) {
+        try {
+            BulkLoad bulk = BulkLoads.of(c);
+            if (bulk == null) {
+                return false;
+            }
+            BulkLoads.load(bulk, c, rows);
+            return true;
+        } catch (SQLException e) {
+            throw failed(e);
         }
     }
 
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
-        return Executor.inTransaction(c, work);
+        return Sessions.inTransaction(c, work);
+    }
+
+    @Override
+    public boolean ownsTransaction() {
+        return Sessions.ownsTransaction(c);
     }
 
     @Override
     public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
@@ -92,7 +196,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -102,30 +206,35 @@ final class JdbcStatements implements Statements {
     @Override
     public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
-        try (PreparedStatement st = c.prepareStatement(statement)) {
+        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
+            JdbcDecode.Driver driver = this.driver;
+            if (driver == null) {
+                throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
+                        + " how its driver answers is its database's fact");
+            }
             try (ResultSet rs = st.executeQuery()) {
                 int answered = rs.getMetaData().getColumnCount();
-                int declared = RowDecode.physicalColumns(columns);
+                if (answered == 0 && driver.failedWithoutColumns()) {
+                    // a failing statement's result opened with no columns: the first read raises its own error (the
+                    // database's message, never the column count's; 2026-10-27, measured on the Trino lane)
+                    rs.next();
+                }
+                int declared = com.legend.result.RowDecode.physicalColumns(columns);
                 if (answered != declared) {
                     throw new IllegalStateException("the statement answers " + answered + " columns, and the plan"
                             + " declares " + declared + " " + columns.stream().map(ExecutionPlan.Column::name)
                             .toList() + ": a typed-rows statement answers the plan's columns in their order"
                             + (declared == columns.size() ? "" : " (a tagged column's slots beside it)"));
                 }
-                Boolean javaTime = this.javaTime;
-                if (javaTime == null) {
-                    throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
-                            + " the driver's timestamp re-read is its database's fact");
-                }
                 while (rs.next()) {
-                    cells.row(JdbcDecode.row(rs, columns, javaTime));
+                    cells.row(JdbcDecode.row(rs, columns, driver));
                 }
             }
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 
@@ -150,7 +259,7 @@ final class JdbcStatements implements Statements {
                 }
             }
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
         try {
             work.run();
@@ -165,7 +274,7 @@ final class JdbcStatements implements Statements {
             throw e;
         } catch (SQLException e) {
             // the commit failed: rolled back and set back as it can be, the commit's failure told
-            RuntimeException failure = PlanSessions.dataError(e, c);
+            RuntimeException failure = failed(e);
             try {
                 restore(snapshot, autoCommit, isolation, true);
             } catch (SQLException restore) {
@@ -176,7 +285,7 @@ final class JdbcStatements implements Statements {
         try {
             restore(snapshot, autoCommit, isolation, false);
         } catch (SQLException e) {
-            throw PlanSessions.dataError(e, c);
+            throw failed(e);
         }
     }
 

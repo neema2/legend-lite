@@ -3,10 +3,11 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Lean;
+
 import com.legend.protocol.sql.SqlAst;
 import com.legend.protocol.sql.SqlLexer;
 import com.legend.protocol.sql.SqlParser;
-import com.legend.server.QueryService;
 import com.legend.testcases.Psql;
 import com.legend.testcases.SqlParity;
 import com.legend.testing.EmbeddedPostgres;
@@ -92,7 +93,6 @@ class PostgresRegressCorpusTest {
         vars.put("env:PG_DLSUFFIX", ".so");
         List<String> files = schedule(dir.resolve("parallel_schedule"));
         List<Judged> judged = new ArrayList<>();
-        QueryService service = new QueryService();
         for (String file : files) {
             if (only != null && !file.equals("test_setup") && !Set.of(only.split(",")).contains(file)) {
                 continue;
@@ -128,7 +128,7 @@ class PostgresRegressCorpusTest {
                             return;
                         }
                         try {
-                            judged.add(judge(file, item.line(), text, answer, runner.connection(), service,
+                            judged.add(judge(file, item.line(), text, answer, runner.connection(),
                                     timeoutSeconds, pg.port()));
                         } catch (RuntimeException | StackOverflowError e) {
                             judged.add(new Judged(file, item.line(), "HARNESS", 0, e.getClass().getSimpleName()
@@ -235,7 +235,7 @@ class PostgresRegressCorpusTest {
     // ------------------------------------------------------------------ the judging
 
     private static Judged judge(String file, int line, String sql, SqlParity.Answer answer, Connection conn,
-            QueryService service, int timeoutSeconds, int port) {
+            int timeoutSeconds, int port) {
         long start = System.nanoTime();
         if (answer instanceof SqlParity.Rejected r && r.sqlState().equals("25P02")) {
             return new Judged(file, line, "SKIP", 0, "the script's transaction is aborted", sql);
@@ -276,7 +276,7 @@ class PostgresRegressCorpusTest {
             SqlParity.Grid[] lite = new SqlParity.Grid[1];
             SqlParity.Outcome o = SqlParity.outcome(c, reference, names, text -> {
                 island[0] = text;
-                var result = service.execute(model, text, SqlParity.RUNTIME, conn);
+                var result = Lean.run(model, text, SqlParity.RUNTIME, conn);
                 lite[0] = SqlParity.grid(result);
                 return result;
             });

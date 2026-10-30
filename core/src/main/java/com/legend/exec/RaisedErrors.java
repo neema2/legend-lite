@@ -93,16 +93,18 @@ public final class RaisedErrors {
         }
     }
 
-    /** {@link #unwrapped(java.sql.SQLException)}, or, for a failure whose text carries no raise, the raise the session
-     *  it failed on holds ({@link Sessions#raisedMessage}: a database whose errors cannot carry a raise's text keeps it
-     *  in the session), unwrapped. */
-    public static java.sql.SQLException unwrapped(java.sql.SQLException e, java.sql.Connection session) {
+    /** {@link #unwrapped(java.sql.SQLException)}, or, for a failure whose text carries no raise, what {@code held}
+     *  reads back then -- the raise the session it failed on held ({@link JdbcStatements#held}: a database whose errors
+     *  cannot carry a raise's text keeps it in the session), unwrapped; the error as it is where that is null. The
+     *  session is asked only then: a failure whose text carries its raise costs no read. */
+    public static java.sql.SQLException unwrapped(java.sql.SQLException e,
+            java.util.function.Supplier<@com.legend.base.Nullable String> held) {
         java.sql.SQLException un = unwrapped(e);
         if (un != e) {
             return un;
         }
-        String held = Sessions.raisedMessage(session);
-        return held == null ? e : unwrapped(new java.sql.SQLException(held, e.getSQLState(), e));
+        String text = held.get();
+        return text == null ? e : unwrapped(new java.sql.SQLException(text, e.getSQLState(), e));
     }
 
     /** Funnel rethrow: a raised-message SQLException re-surfaces with

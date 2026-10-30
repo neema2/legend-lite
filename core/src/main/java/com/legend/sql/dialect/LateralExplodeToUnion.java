@@ -62,8 +62,11 @@ final class LateralExplodeToUnion extends SqlRewriter {
             return s;
         }
         String elemAlias = p.alias() == null ? "elem" : p.alias();
+        // the element's type is the list's element type where the tree states it; a projection with no output
+        // declared and a list of no stated type is an element of no stated type, which the union's reader meets as
+        // the database's own (the LITERAL spelling carrier stood here until track L, 2026-10-29)
         OutputCol elemOut = p.out() != null ? p.out()
-                : new OutputCol(elemAlias, SqlType.Scalar.LITERAL, true);
+                : new OutputCol(elemAlias, elementTypeOf(list), true);
         OutputCol ridOut = new OutputCol("__rid", SqlType.Scalar.BIGINT, false);
         List<SqlQuery> branches = new ArrayList<>();
         for (Element e : elements) {
@@ -179,5 +182,16 @@ final class LateralExplodeToUnion extends SqlRewriter {
             return cs.otherwise() == null ? null : firstTable(cs.otherwise());
         }
         return null;
+    }
+
+    /** The element type a list expression states ({@code ARRAY<T>}: T), the type every element of an exploded
+     *  literal collection casts to on this family's reader; a list stating none is refused by name (the L2 audit,
+     *  2026-10-29: VARCHAR stood here where the LITERAL slot's default had, a guessed label). */
+    private static SqlType elementTypeOf(SqlExpr list) {
+        if (list.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array a) {
+            return a.element();
+        }
+        throw new DialectCapability("an exploded list states no element type (" + list.type() + "): this family's"
+                + " reader casts each element to the list's type, and the list has none");
     }
 }

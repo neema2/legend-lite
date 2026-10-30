@@ -3,11 +3,11 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -45,8 +45,8 @@ class EqualityWorldsConformanceTest {
      * verdict may be NULL (SQL three-valued logic) — returned as null. */
     private static @com.legend.base.Nullable Object world2(String a, String b)
             throws Exception {
-        var r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), "{|" + a + " == " + b + "}", StorelessRuntime.RUNTIME, conn);
-        return ((ExecutionResult.Scalar) r).value();
+        var r = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), "{|" + a + " == " + b + "}", StorelessRuntime.RUNTIME, conn);
+        return r.one();
     }
 
     private static void agree(boolean expected, String pureA, String pureB,

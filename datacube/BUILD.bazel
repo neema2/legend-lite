@@ -270,6 +270,8 @@ _DUCKDB_USERS = [
     "class-source",
     # a join opened over one model of its tables, its rows from DuckDB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
     "join-open",
+    # a box's rows written into a table, planned by the compiler and run by the plan runner (flow mode M6, FL13)
+    "table-output",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -401,6 +403,8 @@ _WASM_TESTS = [
     "class-source",
     # a join's model of several tables, written by the compiler (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
     "join-open",
+    # a box's rows written into a table: its write planned by the compiler (flow mode M6, FL13)
+    "table-output",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
@@ -536,6 +540,12 @@ _HEADLESS_TESTS = [
     "cypher-spike",
     # a flow sheet's layout, a box's words and its page commands (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): pure
     "flow-sheet",
+    # a page's parameters, bound where its queries are sent (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8): pure
+    "page-parameters",
+    # a flow's standard macros: a sub-flow as one Pure function of its input's rows (M8): pure
+    "macros",
+    # a flow's Dynamic Input: a Union kept to the rows of the one input a parameter names (M8): pure
+    "dynamic-input",
     "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)
@@ -580,6 +590,7 @@ _HEADLESS_TESTS = [
     "join-inputs",
     "join-menu",
     "join-open",
+    "table-output",
     "json-shape",
     "lazily",
     "lite-planner",

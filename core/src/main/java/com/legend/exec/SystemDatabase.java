@@ -1,6 +1,7 @@
 package com.legend.exec;
 
 import com.legend.compiler.element.ModelContext;
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.model.DatabaseDefinition;
 import com.legend.setup.Ddl;
 import com.legend.sql.dialect.SqlDialect;
@@ -75,19 +76,20 @@ public final class SystemDatabase {
 
     /** One engine's session, and the store's tables as it names them. */
     private static final class Session {
-        private final Connection connection;
+        private final Sessions.Session session;
         private final Map<String, String> renames;
 
-        private Session(Connection connection, Map<String, String> renames) {
-            this.connection = connection;
+        private Session(Sessions.Session session, Map<String, String> renames) {
+            this.session = session;
             this.renames = renames;
         }
     }
 
-    /** Where a query reading the system store runs: the session holding the graph's metamodel, and each store table
-     *  ({@code schema.table}) renamed as that session holds it -- none in a private in-process database, which holds
-     *  them as declared. */
-    public record Route(Connection connection, Map<String, String> renames) {
+    /** Where a query reading the system store runs: the session holding the graph's metamodel (one per engine, the
+     *  same object on every route, so the body driver's identity compare of two sides' sessions holds), and each
+     *  store table ({@code schema.table}) renamed as that session holds it -- none in a private in-process database,
+     *  which holds them as declared. */
+    public record Route(Sessions.Session session, Map<String, String> renames) {
         public Route {
             renames = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(renames));
         }
@@ -127,7 +129,7 @@ public final class SystemDatabase {
             s = open(engine, dialect, store, rowsOf, systemConnections);
             sessions.put(engine, s);
         }
-        return new Route(s.connection, s.renames);
+        return new Route(s.session, s.renames);
     }
 
     private Session open(com.legend.model.ConnectionDefinition.DatabaseType engine, SqlDialect dialect,
@@ -137,7 +139,7 @@ public final class SystemDatabase {
         Connection c = inProcess ? openPrivate(engine) : openSystem(engine, systemConnections);
         Session s = null;
         try {
-            s = seed(c, inProcess, dialect, store, rowsOf);
+            s = seed(c, engine, inProcess, dialect, store, rowsOf);
             closer.open.add(c);
             return s;
         } finally {
@@ -157,33 +159,39 @@ public final class SystemDatabase {
         }
     }
 
-    private Session seed(Connection c, boolean inProcess, SqlDialect dialect, DatabaseDefinition store,
-            Function<String, List<List<String>>> rowsOf) {
+    /** The store seeded on {@code c} as a plan's setup steps the plan runner runs on it ({@link PlanRunner#setUp},
+     *  the doors, 2026-10-29; until then {@code SetupRunner} sent each on the session's statements): the dialect's
+     *  session statements, then each table's DDL and rows ({@link Ddl#metamodelSteps}: for the database's bulk loader
+     *  where it has one, else its one INSERT) in process, or its temporary table on a server engine, read under its
+     *  system name through the renames. Under the SYSTEM origin. */
+    private Session seed(Connection c, com.legend.model.ConnectionDefinition.DatabaseType engine, boolean inProcess,
+            SqlDialect dialect, DatabaseDefinition store, Function<String, List<List<String>>> rowsOf) {
+        Sessions.Session opened = PlanSessions.session(c);
+        List<ExecutionPlan.SetupStep> steps = new ArrayList<>();
         for (String setup : dialect.sessionSetup()) {
-            try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
-                Executor.executeRaw(c, setup);
-            }
+            steps.add(new ExecutionPlan.SetupStep.Statement(setup));
         }
         Map<String, String> renames = new java.util.LinkedHashMap<>();
         for (DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
             for (DatabaseDefinition.TableDefinition def : schema.tables()) {
                 List<List<String>> r = rows.computeIfAbsent(def.name(), rowsOf);
-                try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
-                    if (inProcess) {
-                        for (String stmt : Ddl.metamodelSeed(def, schema.name(), dialect)) {
-                            Executor.executeRaw(c, stmt);
-                        }
-                        Executor.load(c, dialect, Ddl.metamodelRows(def, schema.name(), r));
-                    } else {
-                        for (String stmt : Ddl.metamodelTemporary(def, schema.name(), r, dialect)) {
-                            Executor.executeRaw(c, stmt);
-                        }
-                        renames.put(schema.name() + "." + def.name(), Ddl.systemTable(schema.name(), def.name()));
+                if (inProcess) {
+                    steps.addAll(Ddl.metamodelSteps(def, schema.name(), r, dialect));
+                } else {
+                    for (String stmt : Ddl.metamodelTemporary(def, schema.name(), r, dialect)) {
+                        steps.add(new ExecutionPlan.SetupStep.Statement(stmt));
                     }
+                    renames.put(schema.name() + "." + def.name(), Ddl.systemTable(schema.name(), def.name()));
                 }
             }
         }
-        return new Session(c, renames);
+        // the session's engine is the target's database: the one fact the runner checks a session against
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(engine),
+                new ExecutionPlan.Servers.Every(), List.of(), List.of());
+        try (var __o = StatementOrigin.enter(StatementOrigin.SYSTEM)) {
+            PlanRunner.setUp(steps, target, PlanSessions.given(c), null);
+        }
+        return new Session(opened, renames);
     }
 
     private static Connection openPrivate(com.legend.model.ConnectionDefinition.DatabaseType engine) {

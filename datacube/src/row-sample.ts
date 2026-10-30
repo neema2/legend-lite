@@ -6,23 +6,27 @@
 // first or last N of all the rows is the grid's Top N (ui/sample-form.ts), which keeps rows that tie. Or, Alteryx's
 // Select Records, the rows at some places (`1-10, 20, 30+`): a filter on the number of each range, or-ed. Or a Random %
 // Sample, the same rows each time it runs: each row's number in an order of every column, its chance the database's hash
-// of it and a seed (`mod(abs(hashCode([n, seed])), 100)`, hidden), kept under the percent. No value is computed here: the
-// database numbers, hashes and keeps the rows. What a box says is read back off its query (`rowSampleOf`).
+// of it and a seed (`mod(abs(hashCode([n, seed])), 100)`, hidden), kept under the percent. Or Alteryx's Oversample Field:
+// every row of a value of interest kept, and of the others as many as make it that percent of the rows -- each other row
+// numbered in the order of its hash and the seed, kept while its number is at most the count of interest's share
+// (`interest == 1 || rank <= count * (100 - p) / p`, the count a window sum, all hidden). No value is computed here: the
+// database numbers, hashes, counts and keeps the rows. What a box says is read back off its query (`rowSampleOf`).
 //
 // One rule for the box's window and Python's grid.sample (headless gridPreset).
 //
 // PURE: no DOM, no planner.
 
-import { collection, fn, lambda, lit, property, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { and, collection, divide, eq, fn, lambda, le, lit, or, property, times, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { familyOf } from '../../engine-client/src/types.ts';
 import type { GridCommand } from './grid-commands.ts';
-import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type SortSpec } from './snapshot.ts';
+import { literalNode } from './query.ts';
+import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type FilterNode, type FilterValue, type SortSpec } from './snapshot.ts';
 import { ORDERED, rowNumberBy, rowNumberOrder } from './unique.ts';
 
 /** How it samples: the first or last `n` of each group, every row after the first `n`, one row of every `n`, or the rows
  *  at some places (`ranges`). */
-export type RowSampleKind = 'first' | 'last' | 'skip' | 'every' | 'records' | 'random';
-export const ROW_SAMPLE_KINDS: readonly RowSampleKind[] = ['first', 'last', 'skip', 'every', 'records', 'random'];
+export type RowSampleKind = 'first' | 'last' | 'skip' | 'every' | 'records' | 'random' | 'oversample';
+export const ROW_SAMPLE_KINDS: readonly RowSampleKind[] = ['first', 'last', 'skip', 'every', 'records', 'random', 'oversample'];
 
 /** The rows from one place to another (its first row 1), or from it on: `20` is from 20 to 20, `30+` from 30 on. */
 export interface RecordRange {
@@ -38,8 +42,11 @@ export interface RowSample {
   readonly groups: readonly string[];
   /** The places a Select Records keeps; no other kind's. */
   readonly ranges?: readonly RecordRange[];
-  /** A random sample's seed: the same seed, the same rows (its `n` its percent); no other kind's. */
+  /** A random sample's seed, an oversample's: the same seed, the same rows (its `n` its percent); no other kind's. */
   readonly seed?: number;
+  /** An oversample's value of interest, of the column `by`: every row of it kept, the others sampled so it is `n`% of
+   *  the rows; no other kind's. */
+  readonly value?: FilterValue;
 }
 
 /** Ranges as they are written: `1-10, 20, 30+`, `-5` the first 5 -- refused in words. */
@@ -66,10 +73,23 @@ export const SAMPLE_COLUMN = 'SampleRow';
 const EVERY_COLUMN = 'SampleEvery';
 const CHANCE_COLUMN = 'SampleChance';
 const EMPTY_COLUMN = 'SampleEmpty';
+const INTEREST_COLUMN = 'SampleInterest';
+const RANK_COLUMN = 'SampleRank';
+const COUNT_COLUMN = 'SampleCount';
+const KEEP_COLUMN = 'SampleKeep';
 
 /** What is wrong with a row sample's settings, in words, if anything: the grid's columns are `s`'s. */
 export function rowSampleProblem(s: CubeSnapshot, t: RowSample): string | undefined {
   if (!ROW_SAMPLE_KINDS.includes(t.kind)) return `a sample is ${ROW_SAMPLE_KINDS.join(', ')}, not ${JSON.stringify(t.kind)}`;
+  if (t.kind === 'oversample') {
+    if (!Number.isInteger(t.n) || t.n < 1 || t.n > 99) return `an oversample makes its value a whole percent of the rows, from 1 to 99, not ${t.n}`;
+    if (t.seed === undefined || !Number.isInteger(t.seed) || t.seed < 0) return `its seed is a whole number from 0, not ${String(t.seed)}`;
+    if (t.groups.length > 0) return 'an oversample is of all the rows';
+    if (!rowColumns(s).some((c) => c.name === t.by)) return `the grid has no column '${t.by}'`;
+    if (t.value === undefined || t.value === null) return 'name the value it keeps every row of';
+    if (!rowColumns(s).some((c) => ORDERED.has(familyOf(c.type) ?? ''))) return 'it numbers its rows by a column that sorts: the grid has none';
+    return undefined;
+  }
   if (t.kind === 'random') {
     if (!Number.isInteger(t.n) || t.n < 1 || t.n > 99) return `a random sample keeps a whole percent of the rows, from 1 to 99, not ${t.n}`;
     if (t.seed === undefined || !Number.isInteger(t.seed) || t.seed < 0) return `its seed is a whole number from 0, not ${String(t.seed)}`;
@@ -111,7 +131,7 @@ export function rowSampleCommands(s: CubeSnapshot, t: RowSample): GridCommand[] 
   const row = free(SAMPLE_COLUMN);
   // a random sample's rows numbered in an order of every column that sorts: the same number each time it runs; any
   // other's by its column, its empties last and its ties broken (unique.ts rowNumberOrder)
-  const { order, flag } = t.kind === 'random'
+  const { order, flag } = t.kind === 'random' || t.kind === 'oversample'
     ? { order: rowColumns(s).filter((c) => ORDERED.has(familyOf(c.type) ?? '')).map((c): SortSpec => ({ column: c.name, direction: 'asc' })), flag: undefined }
     : rowNumberOrder(s, { column: t.by, direction: t.kind === 'last' ? 'desc' : 'asc' }, t.groups, () => free(EMPTY_COLUMN));
   const numbered: DerivedColumn = { name: row, window: { fn: 'rowNumber', partition: [...t.groups], order } };
@@ -121,7 +141,32 @@ export function rowSampleCommands(s: CubeSnapshot, t: RowSample): GridCommand[] 
   ];
   const hidden: Record<string, { readonly hidden: true }> = { [row]: { hidden: true }, ...(flag !== undefined ? { [flag.name]: { hidden: true } } : {}) };
   let condition: FilterNode;
-  if (t.kind === 'random') {
+  if (t.kind === 'oversample') {
+    const x = (c: string): ValueSpecification => fn('toOne', property(variable('x'), c));
+    const row_ = (name: string, body: ValueSpecification, kind: 'dimension' | 'measure' = 'dimension'): GridCommand =>
+      ({ kind: 'calculate', level: 'row', column: { name, kind, lambda: lambda(['x'], body) } });
+    // its order: the database's hash of each row's number and the seed
+    const chance = free(CHANCE_COLUMN);
+    commands.push(row_(chance, fn('abs', fn('hashCode', collection([x(row), lit.integer(t.seed!)])))));
+    // 1 for a row of the value of interest, else 0 (an empty one, the others')
+    const interest = free(INTEREST_COLUMN);
+    const type = rowColumns(s).find((c) => c.name === t.by)?.type;
+    const of = property(variable('x'), t.by);
+    commands.push(row_(interest, fn('if', and(fn('isNotEmpty', of), eq(of, literalNode(t.value!, type))),
+      lambda([], lit.integer(1)), lambda([], lit.integer(0)))));
+    // each of the two numbered apart, in that order; the count of interest across every row
+    const rank = free(RANK_COLUMN);
+    commands.push({ kind: 'calculate', level: 'row', column: { name: rank, window: { fn: 'rowNumber', partition: [interest],
+      order: [{ column: chance, direction: 'asc' }, { column: row, direction: 'asc' }] } } });
+    const count = free(COUNT_COLUMN);
+    commands.push({ kind: 'calculate', level: 'row', column: { name: count, window: { fn: 'sum', column: interest, partition: [], order: [], frame: 'partition' } } });
+    // kept: every row of interest, and the others while their number is at most its share
+    const keep = free(KEEP_COLUMN);
+    commands.push(row_(keep, or(eq(x(interest), lit.integer(1)),
+      le(x(rank), divide(times(x(count), lit.integer(100 - t.n)), lit.integer(t.n))))));
+    for (const c of [chance, interest, rank, count, keep]) hidden[c] = { hidden: true };
+    condition = { kind: 'condition', column: keep, operator: 'equal', value: true };
+  } else if (t.kind === 'random') {
     // its chance, 0 to 99: the database's hash of its number and the seed
     const chance = free(CHANCE_COLUMN);
     commands.push({ kind: 'calculate', level: 'row', column: {
@@ -177,6 +222,8 @@ export function rowSampleOf(query: { readonly derived: readonly DerivedColumn[];
     return counted.by.direction === 'desc' ? undefined
       : { ...sample('records', records.ranges.length, counted, [records.column]), ranges: records.ranges };
   }
+  // an oversample: its keep, true -- read back off its columns (oversampleOf)
+  if (f?.kind === 'condition' && f.operator === 'equal' && f.value === true) return oversampleOf(query.derived, f.column);
   if (f?.kind !== 'condition' || typeof f.value !== 'number') return undefined;
   // a random sample: its chance under the percent -- the hash of a row number and its seed
   if (f.operator === 'lessThan') {
@@ -207,6 +254,56 @@ export function rowSampleOf(query: { readonly derived: readonly DerivedColumn[];
   if (p?._type !== 'property' || p.parameters[0]?._type !== 'var' || (p.parameters[0] as { name: string }).name !== param) return undefined;
   const r = numberOf(p.property);
   return r === undefined || r.by.direction === 'desc' ? undefined : sample('every', Number(by.value), r, [p.property, f.column]);
+}
+
+/**
+ * An oversample read back off its keep column (`keep`): `toOne($x.interest) == 1 || toOne($x.rank) <= [toOne($x.count),
+ * 100 - n]->times() / n`, its interest `if($x.by->isNotEmpty() && $x.by == value, 1, 0)`, its rank a row number apart by
+ * interest in the order of its chance and its row, its count a sum of the interest, its chance the hash of the row and
+ * the seed -- each as rowSampleCommands writes it; undefined for anything else.
+ */
+function oversampleOf(derived: readonly DerivedColumn[], keep: string):
+  (RowSample & { readonly columns: readonly string[] }) | undefined {
+  const named = (name: string | undefined): DerivedColumn | undefined => (name === undefined ? undefined : derived.find((d) => d.name === name));
+  const call = (v: ValueSpecification | undefined, name: string, arity: number): ValueSpecification[] | undefined =>
+    (v?._type === 'func' && v.function === name && v.parameters.length === arity ? [...v.parameters] : undefined);
+  const column = (v: ValueSpecification | undefined): string | undefined => {
+    const [p] = call(v, 'toOne', 1) ?? [v];
+    return p?._type === 'property' && p.parameters[0]?._type === 'var' ? p.property : undefined;
+  };
+  const int = (v: ValueSpecification | undefined): number | undefined => (v?._type === 'integer' ? Number((v as { value: unknown }).value) : undefined);
+  const k = named(keep)?.lambda?.body;
+  if (k?.length !== 1) return undefined;
+  const [isIt, share] = call(k[0], 'or', 2) ?? [];
+  const [interestRef, one] = call(isIt, 'equal', 2) ?? [];
+  const [rankRef, part] = call(share, 'lessThanEqual', 2) ?? [];
+  const [timesOf, n] = call(part, 'divide', 2) ?? [];
+  const [product] = call(timesOf, 'times', 1) ?? [];
+  const [countRef, rest] = product?._type === 'collection' && product.values.length === 2 ? product.values : [];
+  const interest = named(column(interestRef));
+  const rank = named(column(rankRef));
+  const count = named(column(countRef));
+  const pct = int(n);
+  if (int(one) !== 1 || pct === undefined || int(rest) !== 100 - pct || interest === undefined || rank === undefined || count === undefined) return undefined;
+  if (count.window?.fn !== 'sum' || count.window.column !== interest.name) return undefined;
+  const w = rank.window;
+  if (w?.fn !== 'rowNumber' || w.partition.length !== 1 || w.partition[0] !== interest.name || w.order.length !== 2) return undefined;
+  const chance = named(w.order[0]!.column);
+  const row = named(w.order[1]!.column);
+  // its chance: abs(hashCode([toOne($x.row), seed]))
+  const [hash] = call(chance?.lambda?.body[0], 'abs', 1) ?? [];
+  const [list] = call(hash, 'hashCode', 1) ?? [];
+  const seed = list?._type === 'collection' && column(list.values[0]) === row?.name ? int(list.values[1]) : undefined;
+  // its interest: if(isNotEmpty($x.by) && $x.by == value, 1, 0)
+  const [test] = call(interest.lambda?.body[0], 'if', 3) ?? [];
+  const [, same] = call(test, 'and', 2) ?? [];
+  const [by, value] = call(same, 'equal', 2) ?? [];
+  const on = column(by);
+  const literal = value !== undefined && (value._type === 'string' || value._type === 'integer' || value._type === 'float' || value._type === 'boolean')
+    ? (value as { value: unknown }).value : undefined;
+  if (seed === undefined || on === undefined || row?.window?.fn !== 'rowNumber' || literal === undefined) return undefined;
+  const given: FilterValue = typeof literal === 'object' ? String(literal) : literal as FilterValue;
+  return { kind: 'oversample', n: pct, by: on, groups: [], seed, value: given, columns: [row.name, chance!.name, interest.name, rank.name, count.name, keep] };
 }
 
 /** A random sample's chance read back: `mod(abs(hashCode([toOne($x.<row>), <seed>])), 100)` -- its row number's column
@@ -289,6 +386,7 @@ export function rowSampleWords(t: RowSample): string {
     case 'every': return `one of every ${t.n}${of} by ${t.by}`;
     case 'records': return `rows ${rangesWords(t.ranges ?? [])}${of} by ${t.by}`;
     case 'random': return `${t.n}% at random, seed ${t.seed ?? 0}`;
+    case 'oversample': return `${t.by} ${String(t.value)} made ${t.n}% of the rows, seed ${t.seed ?? 0}`;
   }
 }
 
@@ -297,8 +395,8 @@ export function rowSampleWords(t: RowSample): string {
 export function readRowSample(raw: unknown): RowSample | null {
   const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
   if (o === undefined || o['kind'] !== 'sample') throw new CubeRefusal(`a sample is {kind: 'sample', mode, n, by, groups}, not ${JSON.stringify(raw)}`);
-  const odd = Object.keys(o).filter((k) => !['kind', 'mode', 'n', 'by', 'groups', 'ranges', 'seed'].includes(k));
-  if (odd.length > 0) throw new CubeRefusal(`a sample takes mode, n, by, groups, ranges and seed, not ${odd.join(', ')}`);
+  const odd = Object.keys(o).filter((k) => !['kind', 'mode', 'n', 'by', 'groups', 'ranges', 'seed', 'value'].includes(k));
+  if (odd.length > 0) throw new CubeRefusal(`a sample takes mode, n, by, groups, ranges, seed and value, not ${odd.join(', ')}`);
   const mode = o['mode'];
   if (mode === null) {
     if (Object.keys(o).some((k) => k !== 'kind' && k !== 'mode')) throw new CubeRefusal('every row again takes nothing more');
@@ -311,6 +409,18 @@ export function readRowSample(raw: unknown): RowSample | null {
     const seed = o['seed'] ?? 0;
     if (typeof n !== 'number' || typeof seed !== 'number') throw new CubeRefusal(`a random sample's n is its percent and its seed a number, not ${JSON.stringify({ n, seed })}`);
     return { kind: 'random', n, by: '', groups: [], seed };
+  }
+  // an oversample: its percent, the column and its value of interest, its seed
+  if (mode === 'oversample') {
+    const { n, by, value } = o;
+    const seed = o['seed'] ?? 0;
+    if (typeof n !== 'number' || typeof seed !== 'number' || typeof by !== 'string') {
+      throw new CubeRefusal(`an oversample's n is its percent, its by a column's name and its seed a number, not ${JSON.stringify({ n, by, seed })}`);
+    }
+    if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
+      throw new CubeRefusal(`its value is the value it keeps every row of: text, a number or true or false, not ${JSON.stringify(value)}`);
+    }
+    return { kind: 'oversample', n, by, groups: [], seed, value };
   }
   // Select Records: its ranges written as text (1-10, 20, 30+), no n
   const ranges = o['ranges'];

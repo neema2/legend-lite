@@ -5,18 +5,19 @@
 // answered, and what cannot be joined here refused in words.
 
 import assert from 'node:assert/strict';
-import { after, before, describe, it } from 'node:test';
+import { after, afterEach, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { typedByPlan } from '../../engine-client/src/engine.ts';
-import { readJoinHow, joinSummary, type JoinHow } from '../src/join.ts';
-import { TAB_TABLES, eachRelation, leafRefusal, openInputs, openJoin, openRows, summaryCounts, type JoinOpening } from '../src/join-open.ts';
+import { joinRelation, joinRepeats, joinSummary, readJoinHow, summaryWords, type JoinHow } from '../src/join.ts';
+import { TAB_TABLES, eachRelation, leafRefusal, openInputs, openJoin, openRows, openedLeaves, summaryCounts, type JoinOpening } from '../src/join-open.ts';
 import {
   leavesOf, rawRows, readCube, cubeToJson, writeCube, type CubeSource, type FileSource, type JoinInput, type JoinSource, type LeafSource,
   type RowsSource, type SavedQuery,
 } from '../src/cube-document.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
+import { topValuesLambda, topValuesOf } from '../src/profile.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { CubeRefusal, type CubeSnapshot } from '../src/snapshot.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -28,7 +29,7 @@ import { openedState } from '../src/cube-state.ts';
 import { TreeState } from '../src/tree.ts';
 import { boxOmitted } from '../src/box-columns.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import type { Lambda } from '../../pure-protocol/src/index.ts';
+import { lambda, lit, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 
 const file = (name: string, columns: [string, string][]): FileSource => ({
@@ -104,8 +105,13 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     await engine.run('INSERT INTO priced VALUES (7, 12.50)', 0);
   });
 
+  // each test's planners let go as it ends: a planner is a WebAssembly instance, and kept to the file's end they filled
+  // the test's heap (2026-10-26, two tests added)
+  afterEach(() => {
+    for (const p of planners.splice(0)) p.dispose();
+  });
+
   after(async () => {
-    for (const p of planners) p.dispose();
     models?.dispose();
     await engine?.close();
   });
@@ -119,6 +125,46 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     const pairs = got['id']!.map((id, i) => `${String(id)}:${String(got['region']![i] ?? '-')}`).sort();
     assert.deepEqual(pairs, ['1:EMEA', '2:EMEA', '3:AMER', '3:APAC', '4:-', '5:-']);
     assert.deepEqual(opened.notes, []);
+  });
+
+  it("each of mine once (a join's once, C13): a key theirs repeats matches its first row -- the same every time -- and no row of mine repeats", async () => {
+    const once: JoinHow = { ...LEFT_ON_CUST, once: true };
+    const opened = await openJoin(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), once), opening(['trades', 'customers']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty', 'c_id', 'region']);
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    // customer 20 twice (AMER, APAC): trade 3 once, with the first of its rows in an order of their other columns, rising
+    const pairs = got['id']!.map((id, i) => `${String(id)}:${String(got['region']![i] ?? '-')}`).sort();
+    assert.deepEqual(pairs, ['1:EMEA', '2:EMEA', '3:AMER', '4:-', '5:-']);
+    // the dialog's questions of it: as many rows after it as mine, its repeated key said matched once
+    const inputs = await openInputs(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), opening(['trades', 'customers']));
+    const p = plannerFor(inputs.model, inputs.runtime);
+    planners.push(p);
+    const counts = await summaryCounts(joinSummary(inputs.left, inputs.right, once), async (query) => engine.run((await p.plan(query)).sql, 0));
+    assert.deepEqual(counts, { mine: 5, matched: 3, joined: 5, repeated: { keys: 1, most: 2 } });
+    assert.match(summaryWords(once, counts).join(' '), /each row of mine with it takes the first of theirs, once/);
+    assert.equal(joinRepeats(once, counts), false);
+    // once is a key's: rows of equal keys alone, refused in words for any other condition
+    assert.throws(() => joinRelation(inputs.left, inputs.right, { ...once, on: { rows: [{ left: 'cust', op: '<', right: 'id' }] } }), /takes a key/);
+    assert.throws(() => readJoinHow({ ...once, on: { rows: [] } }), /takes a key/);
+    assert.throws(() => readJoinHow({ ...LEFT_ON_CUST, once: false }), /once is true or left out/);
+    // a score (a Fuzzy Match's) is of a similar row's pairs, matching rows only
+    const similar = { form: 'join', kind: 'inner', on: { rows: [{ left: 'cust', op: '~', right: 'id' }] }, prefix: 'c_', keep: null };
+    assert.deepEqual(readJoinHow({ ...similar, score: 'score' }), { ...similar, score: 'score' });
+    assert.throws(() => readJoinHow({ ...similar, kind: 'left', score: 'score' }), /a score is each matched pair's: it takes matching rows only/);
+    assert.throws(() => readJoinHow({ ...LEFT_ON_CUST, kind: 'inner', score: 'score' }), /a score is a Fuzzy Match's/);
+    assert.throws(() => readJoinHow({ ...similar, score: ' ' }), /a join's score is the name of its column/);
+    assert.deepEqual(readJoinHow(JSON.parse(JSON.stringify(once))), once);
+  });
+
+  it("a Profile's column opened: its most frequent values counted by the database, the most first, of as many the smallest, an empty last", async () => {
+    const opened = await openJoin(join(input(TRADES, 'trades'), input(CUSTOMERS, 'customers'), LEFT_ON_CUST), opening(['trades', 'customers']));
+    const p = plannerFor(opened.model, opened.runtime);
+    planners.push(p);
+    const asked = async (n?: number) => topValuesOf(await engine.run((await p.plan(topValuesLambda(opened.relation, 'region', n))).sql, 0) as never, 'region')
+      .map((t) => ({ ...t, count: Number(t.count) }));
+    // trades 1 and 2 EMEA, trade 3 AMER and APAC (customer 20 twice), trades 4 and 5 none: 2, 2 (empty, after), 1, 1
+    assert.deepEqual(await asked(), [{ value: 'EMEA', count: 2 }, { value: null, count: 2 }, { value: 'AMER', count: 1 }, { value: 'APAC', count: 1 }]);
+    assert.deepEqual((await asked(2)).map((t) => t.value), ['EMEA', null]);
   });
 
   it('answers the dialog\'s questions: my rows, those with a match, the rows after it, their keys that repeat', async () => {
@@ -162,6 +208,23 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.deepEqual(pairs, ['A:8', 'B:7'], 'the second over the first: A 5 + 3, B 7');
     // its leaves are the chain's: one table, read once
     assert.deepEqual(leavesOf(second), [TRADES]);
+  });
+
+  it("an input read by its grid's copy (a cached box, FL10): the copy's table, its query over it -- a box over it, a join of it with a file", async () => {
+    // the copy: trades 1 and 2 only, so what reads it is told apart from what reads trades live
+    await engine.run('CREATE TABLE trades_copy AS SELECT * FROM trades WHERE id <= 2', 0);
+    const copy = { table: 'trades_copy', label: 'Snap 14:02', takenAt: '2026-10-26T14:02:00.000Z' };
+    const big = query(TRADES, { filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 2 } });
+    const box: RowsSource = { _type: 'rows', name: 'trades', input: { ...input(TRADES, 'Big', big), copy }, columns: [] };
+    assert.deepEqual(openedLeaves(box), [{ _type: 'copy', ...copy }], 'one leaf: the copy, not trades');
+    const opened = await openRows(box, opening(['trades_copy']));
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual([...got['id']!].sort(), [1, 2], "the copy's rows its query keeps (trades 1 and 2: qty 5 and 7)");
+    // a join of the copy with a file: both tables of this database, one model
+    const joined = await openJoin(join({ ...input(TRADES, 'Big', big), copy }, input(CUSTOMERS, 'customers'), LEFT_ON_CUST), opening(['trades_copy', 'customers']));
+    const pairs = await rows(joined.model, joined.runtime, { _type: 'lambda', parameters: [], body: [joined.relation] });
+    assert.deepEqual(pairs['id']!.map((id, i) => `${String(id)}:${String(pairs['region']![i])}`).sort(), ['1:EMEA', '2:EMEA']);
+    await engine.run('DROP TABLE trades_copy', 0);
   });
 
   it("another grid's rows unresolved is refused, never guessed: its link is its page's", async () => {
@@ -318,6 +381,22 @@ describe('a join opened over one model, its rows from DuckDB', () => {
     assert.notEqual(got['tags']![at(7)], null);
     // a join of two takes no more
     await assert.rejects(openJoin({ ...three, how: LEFT_ON_CUST }, opening(['trades', 'more', 'tagged', 'trades'])), /joins two inputs, not 4/);
+  });
+
+  it('append picking one (a Dynamic Input): each input filtered by its name, the database keeping the one picked', async () => {
+    // its pick as its parameter's value is bound into it where the source is resolved (page-parameters.ts boundIn)
+    const picking = (name: string): JoinSource => ({ ...join(input(TRADES, 'trades'), input(MORE, 'more'), { form: 'append', pick: lambda([], lit.string(name)) }),
+      more: [input(TAGGED, 'tagged')] });
+    const opened = await openJoin(picking('more'), opening(['trades', 'more', 'tagged']));
+    assert.deepEqual(opened.columns.map((c) => c.name), ['id', 'cust', 'sym', 'at', 'qty', 'venue', 'tags'], 'its columns all its inputs\'');
+    const got = await rows(opened.model, opened.runtime, { _type: 'lambda', parameters: [], body: [opened.relation] });
+    assert.deepEqual(got['id']!.map(Number), [6], "more's rows alone");
+    const tagged = await openJoin(picking('tagged'), opening(['trades', 'more', 'tagged']));
+    const t = await rows(tagged.model, tagged.runtime, { _type: 'lambda', parameters: [], body: [tagged.relation] });
+    assert.deepEqual(t['id']!.map(Number), [7]);
+    await assert.rejects(openJoin(picking('nope'), opening(['trades', 'more', 'tagged'])), /it picks "nope", none of its inputs: trades, more, tagged/);
+    await assert.rejects(openJoin(join(input(TRADES, 'same'), input(MORE, 'same'), { form: 'append', pick: lambda([], lit.string('same')) }),
+      opening(['trades', 'more'])), /two of its inputs are named same/);
   });
 
   it('a row of != pairs only rows that both have a value: an empty key matches no row (the audit\'s 2)', async () => {

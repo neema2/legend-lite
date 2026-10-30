@@ -1,8 +1,9 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.error.LegendCompileException;
-import com.legend.exec.ExecutionResult;
 import com.legend.plan.QueryPlan;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Test data: John Smith (30), Jane Smith (28), Bob Jones (45).
  */
 @DisplayName("User Function Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class UserFunctionIntegrationTest {
 
     // ==================== Model Source ====================
@@ -90,7 +92,7 @@ class UserFunctionIntegrationTest {
 
     @BeforeAll
     static void initDb() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
                 CREATE TABLE T_PERSON (
@@ -132,19 +134,19 @@ class UserFunctionIntegrationTest {
         return com.legend.Compiler.query(com.legend.Compiler.compileModel(pureSource), query).plan("test::TestRuntime");
     }
 
-    private static ExecutionResult exec(String pureSource, String query) throws SQLException {
-        return queryService.execute(pureSource, query, "test::TestRuntime", connection);
+    private static Lean.Result exec(String pureSource, String query) throws SQLException {
+        return Lean.run(pureSource, query, "test::TestRuntime", connection);
     }
 
     /** Extracts column values as a list from a single-column result. */
-    private static <T> List<T> column(ExecutionResult result, int colIdx, Class<T> type) {
+    private static <T> List<T> column(Lean.Result result, int colIdx, Class<T> type) {
         return result.rows().stream()
                 .map(r -> type.cast(r.get(colIdx)))
                 .toList();
     }
 
     /** Extracts integer column values (handles Long from DuckDB). */
-    private static List<Integer> intColumn(ExecutionResult result, int colIdx) {
+    private static List<Integer> intColumn(Lean.Result result, int colIdx) {
         return result.rows().stream()
                 .map(r -> ((Number) r.get(colIdx)).intValue())
                 .toList();
@@ -1155,8 +1157,8 @@ class UserFunctionIntegrationTest {
         void testGraphFetchBaseline() throws SQLException {
             var result = exec(BASE_MODEL,
                     "|model::Person.all()->graphFetch(#{model::Person{firstName, age}}#)->serialize(#{model::Person{firstName, age}}#)");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertTrue(json.contains("John"), "JSON: " + json);
             assertTrue(json.contains("Jane"), "JSON: " + json);
         }
@@ -1172,8 +1174,8 @@ class UserFunctionIntegrationTest {
                     """);
             var result = exec(model,
                     "|test::youngPeople()->graphFetch(#{model::Person{firstName, age}}#)->serialize(#{model::Person{firstName, age}}#)");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertTrue(json.contains("John"), "JSON: " + json);
             assertTrue(json.contains("Jane"), "JSON: " + json);
         }
@@ -1524,7 +1526,7 @@ class UserFunctionIntegrationTest {
 
         private static final String PEOPLE = "|model::Person.all()->project([col(p|$p.firstName, 'first')])";
 
-        private List<Object> column(ExecutionResult result, int i) {
+        private List<Object> column(Lean.Result result, int i) {
             return result.rows().stream().map(r -> r.get(i)).toList();
         }
 
@@ -1631,7 +1633,7 @@ class UserFunctionIntegrationTest {
         private static final String PEOPLE = "#>{store::PersonDatabase.T_PERSON}#";
 
         /** A query's rows as (first name, value) pairs, by first name. */
-        private java.util.Map<String, Integer> byName(ExecutionResult result, int name, int value) {
+        private java.util.Map<String, Integer> byName(Lean.Result result, int name, int value) {
             java.util.Map<String, Integer> out = new java.util.TreeMap<>();
             for (var row : result.rows()) {
                 out.put(String.valueOf(row.get(name)), ((Number) row.get(value)).intValue());

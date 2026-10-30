@@ -6,7 +6,7 @@ package com.legend.compiler.spec;
 import com.legend.compiler.spec.typed.TypedSpec;
 
 /** Which helper-wrapped assert roots take the verdict route directly
- * (StatementExecutor's statement loop): a string-entry read, or an assert
+ * (BodyDriver's statement loop): a string-entry read, or an assert
  * over CLASS values (batch 54). Pure predicates over the typed tree. */
 public final class VerdictRoutes {
 

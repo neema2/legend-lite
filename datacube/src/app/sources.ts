@@ -204,6 +204,9 @@ export interface SourcesOf {
 
 /** The page's sources: what each grid reads, and opening one. */
 export interface PageSources {
+  /** Whether a table of the host's database is one of the page's own (a file's, a copy's, a view's): none an Output may
+   *  write (table-output.ts). */
+  isTaken(table: string): boolean;
   /** A grid made on the page, by its tile's id: what the page keeps of it (its planners, its file). */
   madeGrid(id: string, place: GridPlace): void;
   /** Told of every change on the page: a table no grid reads any more is dropped, a planner none plans through let go. */
@@ -219,6 +222,8 @@ export interface PageSources {
   snapTarget(): SnapTarget | undefined;
   /** While a saved page opens, the tables its model keeps: no fresh name takes one of them (the audit's S3). */
   reserve(tables: Iterable<string>): void;
+  /** A table an Output wrote (M6/FL13): taken from then on, so no file read in after is given its name. */
+  wrote(table: string): void;
   release(): void;
   /** The chosen source opened for a grid: fresh, or -- `capped` -- added beside the others. */
   opened(chosen: Chosen, capped: boolean): Promise<Opened>;
@@ -396,8 +401,20 @@ export function pageSources(d: SourcesOf): PageSources {
   const taken = new Set<string>(d.taken);
   /** The names a saved page's model keeps for its grids, while that page opens. */
   const reserved = new Set<string>();
+  /** The tables this tab's Outputs wrote (M6/FL13): never given to a file read in after, whose read would replace them. */
+  const written = new Set<string>();
+  /** Whether `set` holds `t` as the database names it: DuckDB's names match whatever their case (the roadmap audit of
+   *  2026-10-26: an Output's `Trades` overwrote a grid's `trades`). */
+  const holds = (set: ReadonlySet<string>, t: string): boolean => {
+    const l = t.toLowerCase();
+    for (const x of set) if (x.toLowerCase() === l) return true;
+    return false;
+  };
+  /** A grid's table, or one a saved page keeps: no Output writes over it (table-output.ts held). */
+  const ownTable = (t: string): boolean => holds(taken, t) || holds(reserved, t);
+  /** ...nor is a file read in given one, nor a table an Output wrote, which an Output may write again. */
+  const busy = (t: string): boolean => ownTable(t) || holds(written, t);
   const freshTable = (base: string): string => {
-    const busy = (t: string): boolean => taken.has(t) || reserved.has(t);
     let name = base;
     for (let n = 2; busy(name); n += 1) name = `${base}_${n}`;
     taken.add(name);
@@ -902,7 +919,8 @@ export function pageSources(d: SourcesOf): PageSources {
     // a flow's Join box reads its inputs live (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): resolved against its page, as
     // another grid's rows are -- a join of copies is as it is
     const { on, ...rest } = how;
-    const resolved = on === undefined ? source : resolvedSource(on.page, source, gridOf(on));
+    // a snapped input read by its copy (a cached box, FL10)
+    const resolved = on === undefined ? source : resolvedSource(on.page, source, gridOf(on), { copies: true });
     if (resolved._type !== 'join') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
     const { openedJoin: opened } = await joinSources();
     return opened(tablesHost(local), source, resolved, rest);
@@ -940,7 +958,8 @@ export function pageSources(d: SourcesOf): PageSources {
     readonly capped?: boolean; readonly page?: string; readonly kept?: readonly string[]; readonly tables?: readonly string[] } = {}):
     Promise<Opened | undefined> {
     if (!local) throw new Error(`${source.name} reads another grid's rows, opened in this tab's own database: this page has none`);
-    const resolved = resolvedSource(page, source, cube === undefined ? undefined : gridOf({ page, cube }));
+    // a snapped input read by its copy (a cached box, FL10)
+    const resolved = resolvedSource(page, source, cube === undefined ? undefined : gridOf({ page, cube }), { copies: true });
     if (resolved._type !== 'rows') throw new Error(`${source.name} resolved as another kind of source (${resolved._type})`);
     const { openedRows: opened } = await joinSources();
     return opened(tablesHost(local), source, resolved, how);
@@ -973,7 +992,7 @@ export function pageSources(d: SourcesOf): PageSources {
       },
       take: (t) => { taken.add(t); },
       untake: (t) => { taken.delete(t); },
-      isTaken: (t) => taken.has(t),
+      isTaken: (t) => holds(taken, t),
       // a box's first source, opened as a grid over it opens, that grid never made: its start (the maker's, `starts`)
       openedStart: async (doc, several): Promise<GridStartOpened | undefined> => {
         const opened = await reopened(doc, undefined, several);
@@ -1396,6 +1415,8 @@ export function pageSources(d: SourcesOf): PageSources {
   }
 
   return {
+    isTaken: ownTable,
+    wrote: (t) => { written.add(t); },
     madeGrid,
     dropUnread,
     place: (id) => gridPlaces.get(id),

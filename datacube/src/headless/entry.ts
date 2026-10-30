@@ -11,13 +11,13 @@ import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.t
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
   gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
-  gridView, gridFailing, gridOutput, gridPivotValues, gridPure, rowsCube, snapRefused, sourceCube,
+  gridView, gridFailing, gridOutput, gridOutputQuery, gridPivotValues, gridFunction, gridPure, gridRules, gridWriteTable, macroComposed, pureImportSteps, rowsCube, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  chartDrill, chartPick, cubeOpensAgain, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  chartDrill, chartPick, cubeOpensAgain, flowRun, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
@@ -46,8 +46,16 @@ export {
  *  a pivot's values as its rows hold them now (gridPivotValues: Python's grid.load_pivot_values, a Cross Tab's Load values). */
 export { gridFailing, gridPivotValues };
 /** A flow's Pure box set as its window sets it (gridPure: Python's grid.pure), its page's setPure; a box's Output as the
- *  tab's writes it (gridOutput: Python's flow.run, the one writer). */
-export { gridOutput, gridPure };
+ *  tab's writes it (gridOutput: Python's flow.run, the one writer), and its table Output's rows and write (gridOutputQuery,
+ *  gridWriteTable: the one table writer, FL13). */
+export { gridOutput, gridOutputQuery, gridPure, gridWriteTable };
+/** A Pure box's function taken apart into its steps' texts (pureImportSteps: Python's grid.import_pure, FL12). */
+export { pureImportSteps };
+/** A Dynamic Replace's rules read off a grid's rows as it hands them on (gridRules: Python's grid.dynamic_replace). */
+export { gridRules };
+/** A box's own steps as a function of its input's rows, and a sub-flow's composed (gridFunction, macroComposed: Python's
+ *  page.macro -- a standard macro, macros.ts). */
+export { gridFunction, macroComposed };
 
 /** One condition added to a grid's filter, as a cell's Add Filter adds one (gridAddFilter: Python's grid.add_filter), and
  *  a grid's copy, as Copy of Grid makes it (gridCopied: Python's grid.copy). */
@@ -114,6 +122,9 @@ export { chartDrill, chartPick };
 /** A gesture on a page, by the one function the screen's gesture calls (pageGesture: Python's chart.grid()'s steps;
  *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8). */
 export { pageGesture };
+/** A flow's run as Python runs it: its stages (Block Until Done) and what its Messages say (flowRun: Python's flow.run,
+ *  the canvas's Run's rule). */
+export { flowRun };
 /** A chart's grid shown, as Show Grid shows it: the one it follows, or one of its own grouping made (chartOwnGrid:
  *  Python's chart.grid(); chart-spec.ts chartGrid, the screen's rule). */
 export { chartOwnGrid };

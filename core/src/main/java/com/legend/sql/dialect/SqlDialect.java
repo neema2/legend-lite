@@ -3,11 +3,11 @@ package com.legend.sql.dialect;
 import com.legend.sql.SqlQuery;
 
 /**
- * The dialect seam: rendering (Phase J) AND value normalization (Phase K).
- * A backend's JDBC driver may hand back dialect-flavored Java objects
- * (SQLite: dates as Strings, booleans as ints); {@link #normalize} converts
- * to the canonical representation for a PURE type so the typed-result
- * contract holds on every backend.
+ * The dialect seam: rendering (Phase J) and the facts of a database and its driver that reading a result back
+ * needs (Phase K): a driver's own carriers (SQLite's dates as text, booleans as 1 or 0) are read by the plan
+ * column's slot in the typed reader ({@code exec/JdbcDecode}); a dialect answers only what a slot cannot say
+ * ({@link #refetchesTimestampAsJavaTime}, {@link #dropsDecimalTrailingZeros},
+ * {@link #jsonSpellsNonFiniteNumbers}, {@link #opensFailedResultsWithoutColumns}).
  */
 public interface SqlDialect {
 
@@ -117,10 +117,23 @@ public interface SqlDialect {
         return true;
     }
 
-    /** JDBC cell value → canonical Java value for {@code type}. Default: identity. */
-    default @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.base.Nullable SqlType type) {
-        return jdbcValue;
+    /** Whether this dialect's driver hands a decimal back with its trailing zeros dropped, so the reader pads it back
+     *  to the scale its column declares, never rounding (BigQuery's: {@code BIGNUMERIC '3.0'} reads 3, measured).
+     *  The one driver fact the legacy executor's per-dialect {@code normalize} held that the typed reader had not
+     *  (the rest it reads by the slot: a struct or map as JSON text, a boolean as 1 or 0, H2's bytes, ClickHouse's
+     *  tuples; the hook was deleted with that executor, 2026-10-27, the result boundary program's phase 5, found by
+     *  the BigQuery lane: twelve Decimal tests answered {@code 3D} for {@code 3.0D}). Default: it does not. */
+    default boolean dropsDecimalTrailingZeros() {
+        return false;
+    }
+
+    /** Whether this database's JSON writes a double that is not finite as a bare token JSON has no number for
+     *  ({@code NaN}, {@code Infinity}, {@code -Infinity}), which the typed reader then reads as that double and writes
+     *  back as read ({@code exec/NonFiniteJson}; 2026-10-27, the result boundary program's phase 5: the old executor
+     *  handed the driver's own JSON object over unread, the typed reader's strict parse refused the token). Default:
+     *  it writes JSON alone. */
+    default boolean jsonSpellsNonFiniteNumbers() {
+        return false;
     }
 
     /** A result column's type as this database's driver names it ({@code getColumnTypeName}), in the platform's wire

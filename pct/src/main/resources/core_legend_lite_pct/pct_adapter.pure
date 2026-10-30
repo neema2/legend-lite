@@ -486,11 +486,12 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
         ->map(e | $e->collectRoots())
         ->concatenate($objects.second.values->map(v | $v->instanceRoots()));
 
-    // Execute through Legend-Lite's QueryService via native bridge
-    // Java dispatch returns properly typed values:
-    //   - TDSResult wrapper containing TDS string (for TabularResult)
-    //   - Typed scalar values directly (Integer, Float, Boolean, String, Date, etc.)
-    //   - Multi-value collection (for CollectionResult)
+    // Execute through Legend-Lite's plan via the native bridge, which
+    // answers by the plan's shape:
+    //   - a relation: an EngineTDSResult, the engine's JSON answer as
+    //     legend-engine's own adapter reads it (engineTDS, below)
+    //   - a value: its typed elements (Integer, Float, Boolean, String,
+    //     Date, ...; a List or a Map as one real typed instance)
     let result = executeLegendLiteQuery($pureText, $roots);
     
     // Handle result based on size and type. R2 (the derived minimum,
@@ -510,56 +511,16 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
               // PLATFORM's own generic type), so a multi-value crossing
               // IS a plain collection
               $result->cast(@X)->toMultiplicity(@[o]),
-            | // Single-value result: TDS text or a scalar (Map and List
+            | // Single-value result: a relation or a scalar (Map and List
               // results arrive as REAL typed instances Java built from
               // the platform's own generic returnType — B2)
               let single = $result->toOne();
-              if($single->instanceOf(TDSResult),
-                | // F5.3 STAGE B: the WIRE header IS the header. The
-                  // declared-header overlay (405 results overlaid, 322
-                  // multiplicities rewritten — audit §4.1) is DELETED:
-                  // PCT now sees the platform's own column types,
-                  // multiplicities, and names. Stage A's differential
-                  // (docs/PCT_HEADER_DIFFERENTIAL.md) adjudicated the
-                  // classes; the producers were fixed, never the overlay.
-                  let tdsString = $single->cast(@TDSResult).tdsString;
-                  // ONE representation (the MongoDB line, 2026-10-17): a lane whose results all cross as Pure's
-                  // TDS text (the plan path) carries a value as the one-column relation `value`, unwrapped HERE by
-                  // the function's own return type -- never guessed from the text. The TDS reader reads a relation
-                  // alone: a value's column may be typed by a class, a List, a Map or Any, which it refuses
-                  // ("Pure Type: 'X' is not supported yet"), so a value's text is read from its lines below
-                  let rt = $f->functionReturnType().rawType->toOne();
-                  if($rt != meta::pure::metamodel::type::Nil && $rt->subTypeOf(Relation),
-                    | $tdsString->stringToTDS()->cast(@X)->toMultiplicity(@[o]),
-                    | // the reader builds no Date or Decimal value from a cell ("Not supported data type"), so
-                      // those are read from the text's lines by Pure's own parsers, the precision kept
-                      // -- and it types a cell by its text, not by the header (a Number's 3 read as 3.0, a
-                      // String's '0' as an Integer), so a number is read as Pure spells it and a String's cells
-                      // are the quoted text itself (quotedCells; the MongoDB lane's burn-down, 2026-10-17)
-                      let lines = $tdsString->split('\n')->tail()->filter(l | $l != '' && $l != 'null');
-                      // the wire header's type (value:Decimal[1]): a Number-typed function's value is read by it
-                      // (a Decimal prints bare, as Pure prints it; the plan route, step 9, 2026-10-18)
-                      let header = $tdsString->split('\n')->at(0);
-                      let headerType = $header->substring($header->indexOf(':') + 1, $header->indexOf('['));
-                      if($rt == Date || $rt == StrictDate || $rt == DateTime || $rt == LatestDate,
-                        | $lines->map(l | $l->parseDate())->cast(@X)->toMultiplicity(@[o]),
-                        | if($rt == Decimal,
-                            | $lines->map(l | if($l->endsWith('D'), |$l->substring(0, $l->length() - 1), |$l)->parseDecimal())->cast(@X)->toMultiplicity(@[o]),   // a Decimal crosses with its D (2026-10-18)
-                            | if($rt == Number || $rt == Integer || $rt == Float,
-                                | $lines->map(l | if($l->endsWith('D') || ($rt == Number && $headerType == 'Decimal'), |if($l->endsWith('D'), |$l->substring(0, $l->length() - 1), |$l)->parseDecimal(),
-                                                     |if($rt == Float || ($rt == Number && ($headerType == 'Float' || ($headerType != 'Integer' && $l->contains('.')))), |$l->parseFloat(), |$l->parseInteger())))->cast(@X)->toMultiplicity(@[o]),
-                                | if($rt == String,
-                                    | meta::legend::lite::pct::quotedCells($tdsString)->cast(@X)->toMultiplicity(@[o]),
-                                    | if($rt == Boolean,
-                                        | $lines->map(l | $l == 'true')->cast(@X)->toMultiplicity(@[o]),
-                                        | if($rt->instanceOf(Enumeration),
-                                            | $lines->map(l | $rt->cast(@Enumeration<Any>)->extractEnumValue($l))->cast(@X)->toMultiplicity(@[o]),
-                                            | // the text carrier (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, 2026-10-18): a class
-                                              // instance, a List, a Pair, a Map, an Any-typed value, a Type -- each line is
-                                              // Pure's own literal grammar, spelled by the database; Pure compiles it and
-                                              // reactivates the value (both natives on the classpath: legend-engine's
-                                              // core_functions_unclassified compileValueSpecification, the platform's reactivate)
-                                              $lines->map(l | meta::legend::lite::pct::readPureLiteral($l))->cast(@X)->toMultiplicity(@[o]))))))););,
+              if($single->instanceOf(EngineTDSResult),
+                | // a relation as legend-engine's adapter reads the engine's JSON answer (engineTDS; the result
+                  // boundary program's stage 1, step 3, 2026-10-28: the Java-written TDS text it was measured
+                  // against is deleted). A value never crosses as a text: Java builds the reference's own
+                  // instances from its typed elements.
+                  engineTDS($single->cast(@EngineTDSResult), $f->functionReturnType())->cast(@X)->toMultiplicity(@[o]),
                 | // B8 (the P7 relabel is DELETED): the platform now
                   // labels precision-exact float literals FLOAT end to
                   // end — proved against the reference source
@@ -572,55 +533,37 @@ function <<PCT.adapter>> {PCT.adapterName='LegendLite'}
     );
 }
 
-
-// A cell of the text carrier read back: the text compiled as a value specification and reactivated; a text that
-// does not compile fails by name with the compiler's message, never a guessed value.
-function <<access.private>> meta::legend::lite::pct::readPureLiteral(text: String[1]): Any[*]
+// legend-engine's getTDSResultFromProtocol (core_relational, protocols/pure/vX_X_X/invocations/execution_relational_execute
+// .pure), its steps as written there: the header from the function's relation type where it has one (a pivot's columns
+// lose their types in the plan), else from the builder; each cell a String's toCSVString, TDSNull's 'null', any other
+// value's toString; then stringToTDS.
+function <<access.private>> meta::legend::lite::pct::engineTDS(r:EngineTDSResult[1], funcReturnType:GenericType[1]):Any[1]
 {
-  let compiled = meta::pure::functions::meta::compileValueSpecification($text);
-  if($compiled.failure->isNotEmpty(),
-    | meta::pure::functions::asserts::fail('the text carrier\'s cell does not compile: ' + $compiled.failure.message->toOne() + ' -- ' + $text); [];,
-    | $compiled.result->toOne()->meta::pure::functions::meta::reactivate());
+  let columns = if ($funcReturnType.typeArguments->at(0).rawType->toOne()->instanceOf(RelationType),
+                    | $funcReturnType.typeArguments->at(0).rawType->cast(@RelationType<Any>).columns->map(x |
+                        let multiplicity = $x->functionReturnMultiplicity();
+                        engineName($x.name) + ':'+$x->functionReturnType()->printGenericType(true)+'['+if ($multiplicity == ZeroMany,|PureOne, |$multiplicity)->printMultiplicity()+']';
+                      ),
+                    | $r.columns->map(c | $c.type->map(t |
+                        if($t == 'meta::pure::precisePrimitives::Varchar', |'String', |$t);
+                      )->map(t | engineName($c.name) + ':' + $t)));
+
+  let tdsString = $columns->joinStrings(',') + '\n' +
+                                $r.rows->map(x|
+                                  range($x.values->size())->map(z |
+                                      $x.values->at($z)->match([
+                                        s: String[1] | $s->meta::pure::functions::relation::toCSVString(),
+                                        a: Any[1] | if($a == meta::pure::tds::TDSNull, |'null', |$a->toString())
+                                      ]);
+                                  )->makeString(',')
+                                )->joinStrings('\n');
+
+  $tdsString->stringToTDS();
 }
 
-// (wrapPctList and wrapPctMap DELETED — truthfulness burn B2: the
-// combo-enumeration tables read the TEST's declared type arguments.
-// Java now builds the ^List<E> instance and the MapResult's Pair<K,V>
-// values from the PLATFORM's own generic returnType; newMap in the
-// adapter body is the only constructor left, fed fully-stamped pairs.)
-
-// The value relation's String cells, each quoted whole by the TDS text ('...', a backslash and a quote escaped
-// with a backslash), read from the lines after the header: a cell spans the lines up to the one ending in an
-// unescaped quote, so a string holding a line break reads whole.
-function <<access.private>> meta::legend::lite::pct::quotedCells(tdsString: String[1]): String[*]
+// legend-engine's manageName: a column's name as its representation
+function <<access.private>> meta::legend::lite::pct::engineName(_name:String[0..1]):String[1]
 {
-   let folded = $tdsString->split('\n')->tail()->fold({line, acc |
-      if($acc.first == '',
-         | if($line == '' || $line == 'null',
-              | $acc,
-              | if($line->length() > 1 && meta::legend::lite::pct::closesCell($line),
-                   | ^$acc(second = ^List<String>(values = $acc.second.values->concatenate(meta::legend::lite::pct::unquoted($line)))),
-                   | ^$acc(first = $line))),
-         | {| let joined = $acc.first + '\n' + $line;
-              if(meta::legend::lite::pct::closesCell($line),
-                 | ^$acc(first = '', second = ^List<String>(values = $acc.second.values->concatenate(meta::legend::lite::pct::unquoted($joined)))),
-                 | ^$acc(first = $joined));}->eval());
-   }, ^Pair<String, List<String>>(first = '', second = ^List<String>(values = [])));
-   $folded.second.values;
-}
-
-// Whether the line ends a quoted cell: a closing quote preceded by an even run of backslashes.
-function <<access.private>> meta::legend::lite::pct::closesCell(line: String[1]): Boolean[1]
-{
-   if(!$line->endsWith('\''),
-      | false,
-      | {| let core = $line->substring(0, $line->length() - 1);
-           let run = range(0, $core->length())->fold({i, n | if($n < 0, |$n,
-                        |if($core->substring($core->length() - 1 - $i, $core->length() - $i) == '\\', |$n + 1, |-1 - $n))}, 0);
-           if($run < 0, |-1 - $run, |$run)->mod(2) == 0;}->eval());
-}
-
-function <<access.private>> meta::legend::lite::pct::unquoted(cell: String[1]): String[1]
-{
-   $cell->substring(1, $cell->length() - 1)->replace('\\\'', '\'')->replace('\\\\', '\\');
+    let name = $_name->toOne()->trim();
+    $name->meta::pure::functions::string::toRepresentation();
 }

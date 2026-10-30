@@ -68,9 +68,10 @@ at start and come with it; the Test's shape is read in `page-commands.ts`; the s
 
 ## 5. Stays, and why
 
-- **Find Replace with a lookup that repeats a key repeats the row** (C13): the Join window counts repeated keys and
-  warns before the box is made; one match per key needs a join form of its own (the first of theirs per key), recorded
-  for a later step rather than built here.
+- **Find Replace with a lookup that repeats a key repeats the row** (C13): *fixed after the review (2026-10-26, the
+  roadmap's first step)*: a join's `once` cuts theirs to the first row of each key (a row number in an order of their
+  other columns, rising, so the same row every time), the Join window's "Each of mine once", ticked for a Find Replace
+  and Python's `page.find_replace` alike; pinned by `join-open.test.ts` (DuckDB) and `test_page.py`.
 - **Paste is the screen's** (the clipboard is the browser's); its commands (`addGrid`, `setInput`) are Python's too.
 - **A box's words use the browser's locale** for its counts (`toLocaleString`): words, not values; Python reads values.
 - **`Grid.inputs` in Python reads the source's sides from its document**: a read of the document's shape, not a rule.

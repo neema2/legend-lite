@@ -1,7 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,12 +19,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * End-to-end M2M2R tabular tests: M2M mapping compiled via clean pipeline,
  * output as tabular (project) rather than JSON (graphFetch/serialize).
  *
- * Pipeline: PureParser → TypeChecker → PlanGenerator → SQL → DuckDB → ExecutionResult
+ * Pipeline: PureParser → TypeChecker → PlanGenerator → SQL → DuckDB → Lean.Result
  *
  * This validates that model::Person.all()->project(~[fullName]) works when Person
  * has a Pure (M2M) mapping like:  fullName: $src.firstName + ' ' + $src.lastName
  */
 @DisplayName("M2M2R Tabular Tests - Clean Pipeline")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class M2M2RTabularTest {
 
     private Connection connection;
@@ -198,7 +200,7 @@ class M2M2RTabularTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
                     CREATE TABLE T_RAW_PERSON (
@@ -229,7 +231,7 @@ class M2M2RTabularTest {
     void testProjectFullName() throws SQLException {
         String query = "model::Person.all()->project(~[fullName:x|$x.fullName])";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(1, result.columns().size());
         assertEquals("fullName", result.columns().get(0).name());
@@ -250,7 +252,7 @@ class M2M2RTabularTest {
     void testProjectMultipleColumns() throws SQLException {
         String query = "model::Person.all()->project(~[fullName:x|$x.fullName, upper:x|$x.upperLastName])";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(2, result.columns().size());
         assertEquals(4, result.rows().size());
@@ -270,7 +272,7 @@ class M2M2RTabularTest {
     void testProjectUpperOnly() throws SQLException {
         String query = "model::Person.all()->project(~[upper:x|$x.upperLastName])";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(1, result.columns().size());
         assertEquals(4, result.rows().size());
@@ -292,7 +294,7 @@ class M2M2RTabularTest {
     void testProjectWithFilter() throws SQLException {
         String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->filter(x|$x.fullName->startsWith('J'))";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(2, result.rows().size());
 
@@ -309,7 +311,7 @@ class M2M2RTabularTest {
     void testFilterOnUpperColumn() throws SQLException {
         String query = "model::Person.all()->project(~[upper:x|$x.upperLastName])->filter(x|$x.upper->contains('SM'))";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         // Only SMITH matches
         assertEquals(1, result.rows().size());
@@ -323,7 +325,7 @@ class M2M2RTabularTest {
     void testConditionalAgeGroup() throws SQLException {
         String query = "model::PersonView.all()->project(~[name:x|$x.firstName, group:x|$x.ageGroup])";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(4, result.rows().size());
 
@@ -344,7 +346,7 @@ class M2M2RTabularTest {
     void testConditionalSalaryBand() throws SQLException {
         String query = "model::PersonWithSalary.all()->project(~[name:x|$x.firstName, band:x|$x.salaryBand])";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(4, result.rows().size());
 
@@ -367,7 +369,7 @@ class M2M2RTabularTest {
     void testPassthroughProperty() throws SQLException {
         String query = "model::PersonView.all()->project(~[name:x|$x.firstName])";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(1, result.columns().size());
         assertEquals(4, result.rows().size());
@@ -389,7 +391,7 @@ class M2M2RTabularTest {
     void testSortOnM2MColumn() throws SQLException {
         String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(ascending(~fullName))";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(4, result.rows().size());
         assertEquals("Alice Wonder", result.rows().get(0).get(0).toString());
@@ -405,7 +407,7 @@ class M2M2RTabularTest {
     void testGroupByOnConditional() throws SQLException {
         String query = "model::PersonView.all()->project(~[group:x|$x.ageGroup, name:x|$x.firstName])->groupBy(~[group], ~cnt:x|$x.name:y|$y->count())";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         // Adult=3, Minor=1
         assertEquals(2, result.rows().size());
@@ -425,7 +427,7 @@ class M2M2RTabularTest {
     void testGroupByOnSalaryBand() throws SQLException {
         String query = "model::PersonWithSalary.all()->project(~[band:x|$x.salaryBand, name:x|$x.firstName])->groupBy(~[band], ~cnt:x|$x.name:y|$y->count())";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         // Entry=1, Mid=2, Senior=1
         assertEquals(3, result.rows().size());
@@ -448,7 +450,7 @@ class M2M2RTabularTest {
     void testDistinctOnM2M() throws SQLException {
         String query = "model::PersonView.all()->project(~[group:x|$x.ageGroup])->distinct()";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         // Adult and Minor only
         assertEquals(2, result.rows().size());
@@ -467,7 +469,7 @@ class M2M2RTabularTest {
     void testSortAndTake() throws SQLException {
         String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(ascending(~fullName))->take(2)";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(2, result.rows().size());
         assertEquals("Alice Wonder", result.rows().get(0).get(0).toString());
@@ -479,7 +481,7 @@ class M2M2RTabularTest {
     void testSortDescAndTake() throws SQLException {
         String query = "model::Person.all()->project(~[fullName:x|$x.fullName])->sort(descending(~fullName))->take(2)";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(2, result.rows().size());
         assertEquals("John Smith", result.rows().get(0).get(0).toString());
@@ -494,7 +496,7 @@ class M2M2RTabularTest {
         // Extend M2M projected output with a new computed column
         String query = "model::PersonView.all()->project(~[name:x|$x.firstName, group:x|$x.ageGroup])->extend(~label:x|$x.name->toOne() + '_' + $x.group->toOne())";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(4, result.rows().size());
         assertEquals(3, result.columns().size()); // name, group, label
@@ -520,7 +522,7 @@ class M2M2RTabularTest {
                 "->sort(ascending(~name))" +
                 "->take(2)";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(2, result.rows().size());
         // Adults sorted by name: Bob, Jane, John → take 2 → Bob, Jane
@@ -540,7 +542,7 @@ class M2M2RTabularTest {
         // PersonSummary.nameUpper resolves through Person.upperLastName → $src.lastName->toUpper()
         String query = "model::PersonSummary.all()->project(~[n:x|$x.name, u:x|$x.nameUpper])";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(2, result.columns().size());
         assertEquals("n", result.columns().get(0).name());
@@ -574,7 +576,7 @@ class M2M2RTabularTest {
                 "->filter(x|$x.n->startsWith('J'))" +
                 "->sort(ascending(~n))";
 
-        ExecutionResult result = qs.execute(PURE_MODEL, query, "test::TestRuntime", connection);
+        Lean.Result result = Lean.run(PURE_MODEL, query, "test::TestRuntime", connection);
 
         assertEquals(2, result.rows().size());
         assertEquals("Jane Doe", result.rows().get(0).get(0).toString());

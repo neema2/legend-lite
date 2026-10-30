@@ -3,11 +3,12 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -92,15 +93,15 @@ class InstanceIdentityTest {
         conn.close();
     }
 
-    private static ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
+    private static Lean.Result run(String query) throws SQLException {
+        return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
     }
 
     @Test
     @DisplayName("a let-bound keyless instance equals ITSELF (identity)")
     void sameInstanceEqual() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|let p = ^m::P(name='a'); assertEquals($p, $p);}"))
+        assertEquals(Boolean.TRUE, run(
+                "{|let p = ^m::P(name='a'); assertEquals($p, $p);}")
                 .value());
     }
 
@@ -108,29 +109,29 @@ class InstanceIdentityTest {
     @DisplayName("two constructor sites are DISTINCT instances even when"
             + " content-equal (the engine-FALSE the content fabrication hid)")
     void distinctSitesNotEqual() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|assertNotEquals(^m::P(name='a'), ^m::P(name='a'))}"))
+        assertEquals(Boolean.TRUE, run(
+                "{|assertNotEquals(^m::P(name='a'), ^m::P(name='a'))}")
                 .value());
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::P(name='a'); let b = ^m::P(name='a');"
-                        + " assertNotEquals($a, $b);}")).value());
+                        + " assertNotEquals($a, $b);}").one());
     }
 
     @Test
     @DisplayName("a COPY is a NEW instance — its identity mints at the"
             + " copy site")
     void copyMintsNewIdentity() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let p = ^m::P(name='a'); let q = ^$p(name='a');"
-                        + " assertNotEquals($p, $q);}")).value());
+                        + " assertNotEquals($p, $q);}").one());
     }
 
     @Test
     @DisplayName("eq() over keyless instances: identity is observable now"
             + " — the wire carries __id")
     void eqIdentity() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|let p = ^m::P(name='a'); assertEq($p, $p);}")).value());
+        assertEquals(Boolean.TRUE, run(
+                "{|let p = ^m::P(name='a'); assertEq($p, $p);}").one());
         Exception e = assertThrows(Exception.class, () -> run(
                 "{|let a = ^m::P(name='a'); let b = ^m::P(name='a');"
                         + " assertEq($a, $b);}"));
@@ -143,9 +144,9 @@ class InstanceIdentityTest {
             + " no identity field")
     void keyedClassesKeyEquality() throws Exception {
         // same key, different non-key content: equal (engine rule)
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|assertEquals(^m::K(id=1, other='x'),"
-                        + " ^m::K(id=1, other='y'))}")).value());
+                        + " ^m::K(id=1, other='y'))}").one());
         // the failing keyed compare fails LOUDLY (the byte verdict is
         // FALSE; the failure-message repr of instance maps is its own
         // pre-existing loud wall — either way, never a silent pass)
@@ -160,9 +161,9 @@ class InstanceIdentityTest {
             + " byte verdict (counted), host referee still judges")
     void lambdaCtorDeclines() throws Exception {
         long before = CanonicalDivergence.sqlDeclinedCount();
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let l = [1,2]->map(x|^m::P(name=$x->toString()));"
-                        + " assertEquals($l, $l);}")).value());
+                        + " assertEquals($l, $l);}").one());
         assertTrue(CanonicalDivergence.sqlDeclinedCount() > before,
                 "the lambda-minted ctor pair must DECLINE the byte"
                         + " verdict, never claim it");
@@ -173,10 +174,10 @@ class InstanceIdentityTest {
             + " keyed instances are distinct objects")
     void eqInCondition() throws Exception {
         // mirrors PCT testEqNonPrimitive: side1/side2 content-identical
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let b = ^m::K(id=1, other='x');"
-                        + " assert(eq($a, $a) && !eq($a, $b));}")).value());
+                        + " assert(eq($a, $a) && !eq($a, $b));}").one());
     }
 
     @Test
@@ -185,28 +186,28 @@ class InstanceIdentityTest {
     void equalInCondition() throws Exception {
         // mirrors PCT testEqualNonPrimitive: right11 == right12 differ
         // ONLY in a non-key property
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let b = ^m::K(id=1, other='y');"
-                        + " assert(equal($a, $b) && ($a == $b));}")).value());
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+                        + " assert(equal($a, $b) && ($a == $b));}").one());
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let c = ^m::K(id=2, other='x');"
-                        + " assert(!equal($a, $c) && ($a != $c));}")).value());
+                        + " assert(!equal($a, $c) && ($a != $c));}").one());
         // cross-class: never equal (engine classifier rule)
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let p = ^m::P(name='x');"
-                        + " assert(!equal($a, $p));}")).value());
+                        + " assert(!equal($a, $p));}").one());
     }
 
     @Test
     @DisplayName("F13c: keyless equal/eq in a CONDITION are both identity")
     void keylessConditionIdentity() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::P(name='x'); let b = ^m::P(name='x');"
                         + " assert(equal($a, $a) && !equal($a, $b)"
-                        + " && eq($a, $a) && !eq($a, $b));}")).value());
+                        + " && eq($a, $a) && !eq($a, $b));}").one());
     }
 
     @Test
@@ -216,20 +217,20 @@ class InstanceIdentityTest {
     void keyShadowAndNestedKeys() throws Exception {
         // Top's keys = name + sides (class-typed to-many): key-equal
         // sides through KEY-equal (not identical) elements
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let s1 = ^m::Side(sid='a'); let s2 = ^m::Side(sid='a');"
                         + " let t1 = ^m::Top(name='t', sides=[$s1]);"
                         + " let t2 = ^m::Top(name='t', sides=[$s2]);"
-                        + " assert(equal($t1, $t2));}")).value());
+                        + " assert(equal($t1, $t2));}").one());
         // Sub REDECLARES sides WITHOUT the key stereotype: it stops
         // being a key — Subs differing only in sides stay equal, and n
         // (Sub's own key) still separates
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let s1 = ^m::Side(sid='a'); let s3 = ^m::Side(sid='b');"
                         + " let u1 = ^m::Sub(name='t', n=1, sides=[$s1]);"
                         + " let u2 = ^m::Sub(name='t', n=1, sides=[$s3]);"
                         + " let u3 = ^m::Sub(name='t', n=2, sides=[$s1]);"
-                        + " assert(equal($u1, $u2) && !equal($u1, $u3));}"))
+                        + " assert(equal($u1, $u2) && !equal($u1, $u3));}")
                 .value());
     }
 
@@ -237,10 +238,10 @@ class InstanceIdentityTest {
     @DisplayName("F13c: contains/in over keyed instances is equal() per"
             + " element — a fresh key-matching instance IS contained")
     void containsIsKeyedEquality() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::K(id=1, other='x'); let b = ^m::K(id=2, other='y');"
                         + " assert([$a, $b]->contains(^m::K(id=1, other='z'))"
-                        + " && !([$a, $b]->contains(^m::K(id=3, other='x'))));}"))
+                        + " && !([$a, $b]->contains(^m::K(id=3, other='x'))));}")
                 .value());
     }
 
@@ -252,16 +253,16 @@ class InstanceIdentityTest {
         // database judge JUDGES the nested Pair pair (its key tree renders), never names it unjudged
         long judged = CanonicalDivergence.sqlJudgedInDatabaseCount();
         long unjudged = CanonicalDivergence.sqlUnjudgedCount();
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
+        assertEquals(Boolean.TRUE, runBoth(
                 "{|assert(equal(pair(pair(1, 'a'), 2),"
-                        + " pair(pair(1, 'a'), 2)));}")).value());
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
+                        + " pair(pair(1, 'a'), 2)));}").one());
+        assertEquals(Boolean.TRUE, runBoth(
                 "{|assert(!equal(pair(pair(1, 'a'), 2),"
-                        + " pair(pair(1, 'b'), 2)));}")).value());
+                        + " pair(pair(1, 'b'), 2)));}").one());
         // and through the VERDICT wrap (the zip family's shape):
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
+        assertEquals(Boolean.TRUE, runBoth(
                 "{|assertEquals(pair(pair(1, 'a'), 2),"
-                        + " pair(pair(1, 'a'), 2))}")).value());
+                        + " pair(pair(1, 'a'), 2))}").one());
         assertEquals(judged + 3, CanonicalDivergence.sqlJudgedInDatabaseCount(),
                 "Pair-of-Pairs must be JUDGED by the database judge: " + CanonicalDivergence.summary());
         assertEquals(unjudged, CanonicalDivergence.sqlUnjudgedCount(),
@@ -270,9 +271,9 @@ class InstanceIdentityTest {
     }
 
     /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */
-    private static ExecutionResult runBoth(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, null,
-                StorelessRuntime.RUNTIME, conn, com.legend.ExecuteOptions.NONE.withJudgeMode(
+    private static Lean.Result runBoth(String query) throws SQLException {
+        return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn,
+                com.legend.ExecuteOptions.NONE.withJudgeMode(
                         com.legend.ExecuteOptions.JudgeMode.BOTH));
     }
 
@@ -280,8 +281,8 @@ class InstanceIdentityTest {
     @DisplayName("plain (rider-less) value reads keep the PLAIN layout —"
             + " no __id leaks into ordinary wire maps")
     void plainLaneUnperturbed() throws Exception {
-        Object v = ((ExecutionResult.Scalar) run(
-                "{|^m::P(name='a')}")).value();
+        Object v = run(
+                "{|^m::P(name='a')}").one();
         assertTrue(v instanceof java.util.Map<?, ?> m
                         && !m.containsKey("__id")
                         && "a".equals(m.get("name")),
@@ -296,28 +297,28 @@ class InstanceIdentityTest {
     void keyedEqualInValuePosition() throws Exception {
         // same key, different non-key content: TRUE (the engine rule);
         // the old structural lowering compared 'other' and said FALSE
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let b = ^m::K(id=1, other='y');"
-                        + " equal($a, $b);}")).value());
+                        + " equal($a, $b);}").one());
         // different key: FALSE
-        assertEquals(Boolean.FALSE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.FALSE, run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " let c = ^m::K(id=2, other='x');"
-                        + " equal($a, $c);}")).value());
+                        + " equal($a, $c);}").one());
     }
 
     @Test
     @DisplayName("D91: keyed membership in VALUE position rides the same"
             + " key canon")
     void keyedMembershipInValuePosition() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|let a = ^m::K(id=1, other='x');"
                         + " [^m::K(id=1, other='y'), ^m::K(id=3, other='z')]"
-                        + "->contains($a);}")).value());
-        assertEquals(Boolean.FALSE, ((ExecutionResult.Scalar) run(
+                        + "->contains($a);}").one());
+        assertEquals(Boolean.FALSE, run(
                 "{|let a = ^m::K(id=9, other='x');"
                         + " [^m::K(id=1, other='y'), ^m::K(id=3, other='z')]"
-                        + "->contains($a);}")).value());
+                        + "->contains($a);}").one());
     }
 }

@@ -109,14 +109,18 @@ function httpAnswer(folded: string): { status: number; type: string; body: strin
 
 /**
  * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): `run`, the
- * SQL the tab runs -- a relation's JSON wire (the rows as the server's database writes them, one value), a graph
- * fetch's objects' array -- and the answer's every part but its rows (its text, for the planner's executeAnswer).
+ * typed statement the tab runs -- a relation's rows, or a graph fetch's objects, one per row -- its answer's shape and
+ * result columns, and the answer's every part but its rows (its text, for the planner's executeAnswer).
  */
 export interface ExecutePlan {
-  /** The plan's own SQL: what the answer's activity reports. */
+  /** The plan's statement: what the answer's activity reports. */
   readonly sql: string;
-  /** What the host runs: one value, the whole result as the database writes it. */
+  /** What the host runs: the same statement, its rows handed back to executeAnswer. */
   readonly run: string;
+  /** A relation's rows, or a graph fetch's objects. */
+  readonly shape: 'RELATION' | 'OBJECTS';
+  /** The statement's result columns with their type facts, by which the planner reads the rows back. */
+  readonly resultColumns: readonly unknown[];
   readonly builder: { readonly _type: string };
 }
 
@@ -180,11 +184,12 @@ export class WasmGrammar implements Grammar {
   }
 
   /**
-   * Execute's answer (PureV1Api.jsonAnswer): `plan` (executePlan's text) and the one value the tab's database wrote
-   * running its `run` SQL, arranged by the writers legend-lite's server answers with -- its text, the server's.
+   * Execute's answer (PureV1Api.jsonAnswer): `plan` (executePlan's text) and the rows the tab's database answered its
+   * `run` statement with (browser-engine's hostRows), decoded by the plan's columns and written by the writer
+   * legend-lite's server answers with -- its text, the server's.
    */
-  async executeAnswer(plan: string, wire: string): Promise<string> {
-    return answered(await this.#port.ask({ kind: 'executeAnswer', plan, wire }));
+  async executeAnswer(plan: string, rows: string): Promise<string> {
+    return answered(await this.#port.ask({ kind: 'executeAnswer', plan, rows }));
   }
 
   /** The SQL a query compiles to on its runtime, and the type of its result (upstream's relationType shape). */

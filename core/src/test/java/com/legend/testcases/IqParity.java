@@ -1785,7 +1785,7 @@ public final class IqParity {
         // IQ island, 2026-10-15 (windows): a decision written in full judges by its own columns (IqAnswers.judged)
         snap = IqAnswers.judged(run, snap);
         SqlParity.Answer expected = IqAnswers.expected(run, snap);
-        com.legend.exec.ExecutionResult result;
+        com.legend.testing.Lean.Result result;
         try {
             result = legend.run(query(run, schema, tables));
         } catch (com.legend.protocol.sql.SqlTranslationException e) {
@@ -1812,7 +1812,7 @@ public final class IqParity {
                     : new SqlParity.Outcome(SqlParity.Status.ERROR, oneLine(e));
         }
         SqlParity.Grid actual = SqlParity.grid(result);
-        List<String> types = result.columns().stream().map(c -> c.pureType().typeName()).toList();
+        List<String> types = result.columns().stream().map(c -> c.type()).toList();
         return switch (expected) {
             case SqlParity.Rejected r -> new SqlParity.Outcome(SqlParity.Status.BUG, "SQL Anywhere rejects it ("
                     + r.message() + ") and legend-lite answered " + actual.rows().size() + " rows");

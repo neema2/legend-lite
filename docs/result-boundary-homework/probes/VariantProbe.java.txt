@@ -1,0 +1,66 @@
+package probe;
+
+import org.eclipse.collections.api.RichIterable;
+import org.finos.legend.engine.language.pure.compiler.Compiler;
+import org.finos.legend.engine.language.pure.compiler.toPureGraph.HelperValueSpecificationBuilder;
+import org.finos.legend.engine.language.pure.compiler.toPureGraph.PureModel;
+import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
+import org.finos.legend.engine.plan.execution.PlanExecutor;
+import org.finos.legend.engine.plan.execution.result.Result;
+import org.finos.legend.engine.plan.execution.result.StreamingResult;
+import org.finos.legend.engine.plan.execution.result.serialization.SerializationFormat;
+import org.finos.legend.engine.plan.generation.PlanGenerator;
+import org.finos.legend.engine.plan.generation.transformers.LegendPlanTransformers;
+import org.finos.legend.engine.plan.platform.PlanPlatform;
+import org.finos.legend.engine.protocol.pure.v1.model.context.PureModelContextData;
+import org.finos.legend.engine.protocol.pure.v1.model.executionPlan.SingleExecutionPlan;
+import org.finos.legend.engine.pure.code.core.PureCoreExtensionLoader;
+import org.finos.legend.engine.shared.core.ObjectMapperFactory;
+import org.finos.legend.engine.shared.core.deployment.DeploymentMode;
+import org.finos.legend.pure.generated.Root_meta_pure_extension_Extension;
+import org.finos.legend.pure.m3.coreinstance.meta.pure.metamodel.function.LambdaFunction;
+
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+/** A local measurement, never committed (PARK-34): what legend-engine's execute answers for a relation with a
+ *  Variant column -- the plan's tdsColumns and the DEFAULT serializer's builder and rows, as pure/v1/execution/execute
+ *  writes them. Args: model.pure, then one lambda per arg. Prints only. */
+public final class VariantProbe {
+    public static void main(String[] args) throws Exception {
+        String model = Files.readString(Path.of(args[0]));
+        PureModelContextData pmcd = PureGrammarParser.newInstance().parseModel(model);
+        PureModel pureModel = Compiler.compile(pmcd, DeploymentMode.TEST, null);
+        RichIterable<? extends Root_meta_pure_extension_Extension> extensions = PureCoreExtensionLoader.extensions()
+                .flatCollect(e -> e.extraPureCoreExtensions(pureModel.getExecutionSupport()));
+        PlanExecutor executor = PlanExecutor.newPlanExecutorBuilder().withAvailableStoreExecutors().build();
+        var mapper = ObjectMapperFactory.getNewStandardObjectMapperWithPureProtocolExtensionSupports();
+        for (int i = 1; i < args.length; i++) {
+            String query = args[i];
+            System.out.println("\n[probe] query=" + query);
+            try {
+                LambdaFunction<?> lambda = HelperValueSpecificationBuilder.buildLambda(
+                        PureGrammarParser.newInstance().parseLambda(query), pureModel.getContext());
+                SingleExecutionPlan plan = PlanGenerator.generateExecutionPlan(lambda, null, null, null, pureModel,
+                        "vX_X_X", PlanPlatform.JAVA, null, extensions, LegendPlanTransformers.transformers);
+                System.out.println("[probe] plan.rootExecutionNode.resultType="
+                        + mapper.writeValueAsString(plan.rootExecutionNode.resultType));
+                Result result = executor.execute(plan);
+                ByteArrayOutputStream out = new ByteArrayOutputStream();
+                ((StreamingResult) result).getSerializer(SerializationFormat.DEFAULT).stream(out);
+                System.out.println("[probe] result class=" + result.getClass().getName());
+                System.out.println("[probe] execute DEFAULT=" + out.toString(StandardCharsets.UTF_8));
+            } catch (Throwable t) {
+                System.out.println("[probe] refused: " + t);
+                Throwable c = t.getCause();
+                while (c != null) {
+                    System.out.println("[probe]   cause: " + c);
+                    c = c.getCause();
+                }
+            }
+        }
+        System.exit(0);
+    }
+}

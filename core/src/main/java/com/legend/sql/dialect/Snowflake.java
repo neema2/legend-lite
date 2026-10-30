@@ -80,7 +80,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "NUMBER(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP_NTZ";
             case TIMESTAMPTZ -> "TIMESTAMP_LTZ";
@@ -175,8 +175,8 @@ public final class Snowflake extends AnsiSqlRenderer {
         return true;
     }
 
-    /** {@inheritDoc} Spelled here ({@link #floatPrint}, {@link #floatPrintEngine}): the portable spellings read this
-     *  dialect's long double text some nine times (Pure's print form) and over a thousand (legend-engine's text). */
+    /** {@inheritDoc} Spelled here ({@link #floatPrint}): the portable spelling reads this dialect's long double text
+     *  some nine times (Pure's print form). */
     @Override
     protected boolean spellsFloatPrint() {
         return true;
@@ -1373,8 +1373,6 @@ public final class Snowflake extends AnsiSqlRenderer {
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
-            case FLOAT_PRINT_ENGINE -> isDouble(a.get(0)) ? floatPrintEngine(writer, a.get(0))
-                    : floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1785,7 +1783,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                 case INTEGER, BIGINT, HUGEINT, DOUBLE, BOOLEAN, DATE, TIMESTAMP, TIMESTAMPTZ, TIME ->
                         w -> w.append("CAST(").piece(text).append(" AS " + castTypeName(s) + ")");
                 case JSON -> w -> w.append("TO_VARIANT(").piece(number).append(")");
-                case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> w -> w.append("CAST(").piece(number)
+                case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> w -> w.append("CAST(").piece(number)
                         .append(" AS VARCHAR)");
             };
             case SqlType.Decimal d -> w -> w.append("CAST(").piece(text).append(" AS " + castTypeName(d) + ")");
@@ -1855,21 +1853,6 @@ public final class Snowflake extends AnsiSqlRenderer {
                     + fixed + ") ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH(" + d.digits()
                     + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent() + ") END";
         }));
-    }
-
-    /**
-     * legend-engine's text of a Float ({@link SqlFn#FLOAT_PRINT_ENGINE}), spelled here from {@link #floatText}'s digits,
-     * the value read once: Java's {@code Double.toString} layout, plain where the exponent is from -3 to 6 with at least
-     * one fraction digit, else one digit, a point, the rest (or {@code 0}) and {@code E} with the exponent. The portable
-     * spelling took {@link #floatText}'s text apart over a thousand times (Snowflake's served statement for
-     * {@code 1.5 + 2.25} was 6 MB, measured 2026-10-22).
-     */
-    private SqlWriter floatPrintEngine(SqlWriter writer, SqlExpr v) {
-        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN "
-                + javaNonFinite(d.value()) + " WHEN " + d.value() + " = 0 THEN '0.0' WHEN " + d.exponent()
-                + " BETWEEN -3 AND 6 THEN " + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT("
-                + d.digits() + ", 1) || '.' || IFF(LENGTH(" + d.digits() + ") > 1, SUBSTR(" + d.digits() + ", 2), '0')"
-                + " || 'E' || TO_VARCHAR(" + d.exponent() + ") END"));
     }
 
     /** Java's name of the non-finite double {@code x}: Snowflake's NaN equals itself and exceeds every number. */
@@ -3197,52 +3180,6 @@ public final class Snowflake extends AnsiSqlRenderer {
                     || c.target() instanceof SqlType.Struct || c.target() == SqlType.Scalar.JSON) && constant(c.value());
             default -> false;
         };
-    }
-
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A struct or a map arrives as JSON text (OBJECT; keys sorted, measured): decoded to the platform's map, a
-     *  struct's fields in its declared order. A list cell is decoded by the executor's JSON carrier (compact and
-     *  strict by the session). */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            Object parsed = com.legend.sql.Json.parse(s);
-            return type instanceof SqlType.Struct st ? declaredOrder(parsed, st) : parsed;
-        }
-        // a decimal of scale 0 is a NUMBER(p,0), which the driver hands back as a Long (measured: CAST(8 AS
-        // DECIMAL(38, 0)) reads 8L)
-        if (type instanceof SqlType.Decimal && (jdbcValue instanceof Long || jdbcValue instanceof Integer)) {
-            return java.math.BigDecimal.valueOf(((Number) jdbcValue).longValue());
-        }
-        return jdbcValue;
-    }
-
-    /** A parsed object's fields in the struct's declared order (nested structs too); a field Snowflake dropped is
-     *  null, an undeclared one follows. */
-    private static @com.legend.base.Nullable Object declaredOrder(@com.legend.base.Nullable Object v, SqlType t) {
-        if (t instanceof SqlType.Struct st && v instanceof Map<?, ?> m) {
-            LinkedHashMap<String, Object> out = new LinkedHashMap<>();
-            for (SqlType.Struct.Field f : st.fields()) {
-                out.put(f.name(), declaredOrder(m.get(f.name()), f.type()));
-            }
-            for (Map.Entry<?, ?> e : m.entrySet()) {
-                out.putIfAbsent(String.valueOf(e.getKey()), e.getValue());
-            }
-            return out;
-        }
-        if (t instanceof SqlType.Array a && v instanceof List<?> l) {
-            List<Object> out = new ArrayList<>(l.size());
-            for (Object e : l) {
-                out.add(declaredOrder(e, a.element()));
-            }
-            return out;
-        }
-        return v;
     }
 
     // ==================================================================

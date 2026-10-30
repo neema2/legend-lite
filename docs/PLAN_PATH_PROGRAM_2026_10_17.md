@@ -279,7 +279,11 @@ could: it drops the one and keeps the other) -- a null is kept, measured by the 
     unless a verdict genuinely changed.
 11. **The deletions**: `StatementExecutor` and what only it called; `JavaEvalLedgerTest`'s pins only go down; the
     `exec` guard reaches zero (the boundary program's §8: `exec` depends only on `//base`, `//json`, the plan records and
-    `java.sql`).
+    `java.sql`). *Status 2026-10-29 (the result boundary program's track D, its decisions log D48): the old door's
+    entries, the materialized result and the query service's materialized `execute` are deleted and the old-path
+    census reads zero for every step-7 symbol; the body driver itself STAYS, renamed `BodyDriver`, as the judges'
+    orchestration (track B: it sends nothing itself, every statement through its plan) -- this step's wording is
+    superseded there; its closure waits on step 9's residue (S81, S82) for the user's rulings.*
 
 **Step 9's named residue, each with its exit (2026-10-19).** A residue pinned by name is loud both ways (the pin fails
 when the test passes or its message moves) but can sit; so each one names the step that resolves it, and step 11
@@ -329,6 +333,11 @@ pre-evaluation, protocol transforms, dynamic compilation), and the PCT identity 
 - A plan never references a harness; the plan path serves the product, the PCT and the corpus are its judges.
 
 ## 9. Status
+
+- **2026-10-28, where this program's last steps went.** Steps 8 (the test runners emit a sequence of plans per body),
+  10 (the corpus through plan sequences) and 11 (the deletions) are now tracks B, C and D of the result boundary
+  program's roadmap (`docs/RESULT_BOUNDARY_START_HERE.md` §4), with the step 7 callers done there (every production
+  route on plans) and PCT channel A on plans; this program's parity backlog is its track P.
 
 - **2026-10-23, landed: a mixed selection's winner as a tag plus typed slots** (GATES "a mixed selection's winner as a
   tag plus typed slots"; 8159fbec to 31b55fa3): the platform's and MongoDB's PCT suites exact; Snowflake, BigQuery and

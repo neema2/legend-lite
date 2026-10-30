@@ -99,10 +99,8 @@ class ObjectIdentityTest {
             String model = com.legend.test.StorelessRuntime.with(MODEL, type);
             for (String[] c : CASES) {
                 try (Connection connection = backend.open()) {
-                    String text = PlanCases.run(Compiler.query(Compiler.compileModel(model), c[1])
-                            .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT),
-                            connection);
-                    String got = text.substring(text.indexOf('\n') + 1);
+                    String got = PlanCases.pureText(Compiler.query(Compiler.compileModel(model), c[1])
+                            .executionPlan(com.legend.test.StorelessRuntime.RUNTIME), connection);
                     if (!got.equals(c[0])) {
                         wrong.add(type + ": " + c[1] + " answered " + got + ", Pure " + c[0]);
                     }
@@ -126,9 +124,9 @@ class ObjectIdentityTest {
         for (String q : queries) {
             try (Connection connection = com.legend.testbackend.TestBackends.platform().open()) {
                 var plan = Compiler.query(Compiler.compileModel(model), q)
-                        .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT);
+                        .executionPlan(com.legend.test.StorelessRuntime.RUNTIME);
                 RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
-                        () -> PlanCases.run(plan, connection), q);
+                        () -> PlanCases.pureText(plan, connection), q);
                 assertTrue(e.getMessage().contains("an object's identity is read where the product does not track"),
                         q + ": " + e.getMessage());
             }
@@ -155,10 +153,8 @@ class ObjectIdentityTest {
         };
         for (String[] c : cases) {
             try (Connection connection = com.legend.testbackend.TestBackends.platform().open()) {
-                String text = PlanCases.run(Compiler.query(Compiler.compileModel(model), c[1])
-                        .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT),
-                        connection);
-                assertEquals(c[0], text.substring(text.indexOf('\n') + 1), c[1]);
+                assertEquals(c[0], PlanCases.pureText(Compiler.query(Compiler.compileModel(model), c[1])
+                        .executionPlan(com.legend.test.StorelessRuntime.RUNTIME), connection), c[1]);
             }
         }
     }

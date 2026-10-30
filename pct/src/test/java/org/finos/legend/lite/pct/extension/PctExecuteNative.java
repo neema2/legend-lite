@@ -17,13 +17,6 @@ package org.finos.legend.lite.pct.extension;
 import org.eclipse.collections.api.list.ListIterable;
 import org.eclipse.collections.api.map.MutableMap;
 import org.eclipse.collections.api.stack.MutableStack;
-import com.legend.compiler.element.type.Type;
-import com.legend.exec.ExecutionResult;
-import com.legend.exec.ExecutionResult.Scalar;
-import com.legend.exec.ExecutionResult.Collection;
-import com.legend.exec.ExecutionResult.Tabular;
-import com.legend.exec.ExecutionResult.Graph;
-import com.legend.server.QueryService;
 
 import org.finos.legend.pure.m3.compiler.Context;
 import org.finos.legend.pure.m3.exception.PureExecutionException;
@@ -40,21 +33,21 @@ import org.finos.legend.pure.runtime.java.interpreted.natives.InstantiationConte
 import org.finos.legend.pure.runtime.java.interpreted.natives.NativeFunction;
 import org.finos.legend.pure.runtime.java.interpreted.profiler.Profiler;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
 /**
  * THE THIN ENTRY (the derived minimum's orchestration piece, census
- * §5b): read the expression + semantic roots, open the session, hand
- * the packed model to QueryService, route the typed result through
- * the {@link ValueBridge}, re-address errors to the test's own call
- * site. Every decision lives in the platform or in the two named
- * pieces — this file only sequences them. Type information flows from
- * the PLATFORM's typed facts on ExecutionResult; the wire is never
- * sniffed.
+ * §5b): read the expression + semantic roots, plan and run the packed
+ * model's query ({@link PctPlanRoute}), hand its answer over by the
+ * plan's shape -- a relation as the engine's JSON answer read by
+ * legend-engine's own adapter steps, a value's typed elements, both
+ * through the {@link ValueBridge} -- and re-address errors to the
+ * test's own call site. Every decision lives in the platform or in the
+ * named pieces — this file only sequences them. Type information flows
+ * from the PLATFORM's typed facts (the plan's columns, the query's result
+ * type); no text is ever sniffed.
  */
 public class PctExecuteNative extends NativeFunction {
 
@@ -144,10 +137,6 @@ public class PctExecuteNative extends NativeFunction {
             String model = defs.toString();
             PctCaseRecorder.record(model, pureExpression);   // debug only: -Dlegend.diagnostics=pct-cases
 
-            // E1 (JAVA_EVICTION_PLAN): relation-rooted queries render
-            // their PCT wire text IN THE PLAN (Lowerer PCT-TDS root
-            // mode) — the adapter receives one Scalar String and hands
-            // it over verbatim; formatAsTds/formatValue are gone.
             // The PCT runs with CORRECT_SQL_SUBSTRING_INDEXING on (USER
             // 2026-09-12). A DELIBERATE, written deviation from the engine:
             // its PCT never sets the flag and every reference relational
@@ -157,26 +146,22 @@ public class PctExecuteNative extends NativeFunction {
             // Our PCT encodes the corrected (Pure) indexing; the corpus runs
             // the uncorrected default, as the engine's relational tests do —
             // one flag selects between them.
-            // a storeless expression executes on the lane's declared runtime, as the engine's PCT
-            // adapter gives it one (StorelessRuntime)
-            // a lane with no JDBC session runs through the plan (PctPlanRoute); the others through the legacy
-            // executor on the session PctBackend opens (docs/MONGODB_PLAN_2026_10_16.md §6)
-            ExecutionResult result = PctBackend.throughThePlan() ? PctPlanRoute.execute(model, pureExpression)
-                    : legacyRoute(model, pureExpression);
-            PctCaseRecorder.recordShape(pureExpression, result);   // the shape census: -Dlegend.diagnostics=pct-shapes
-            PctShadowPlan.record(model, pureExpression, result);   // the plan path beside it: -Dlegend.diagnostics=pct-shadow-plan
-            return switch (result) {
-                case ExecutionResult.TdsText t -> {
-                    System.out.println("[LegendLite PCT] TDS: "
-                            + t.text().replace("\n", "\\n"));
-                    yield bridge.createTDSResult(t.text(), processorSupport);
+            // A storeless expression executes on the lane's declared runtime,
+            // as the engine's PCT adapter gives it one (StorelessRuntime), its
+            // plan run on the lane's sessions; the answer is typed rows
+            // (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 4).
+            PctPlanRoute.Answer answer = PctPlanRoute.execute(model, pureExpression);
+            PctCaseRecorder.recordShape(pureExpression, answer);   // the shape census: -Dlegend.diagnostics=pct-shapes
+            return switch (answer.shape()) {
+                case RELATION -> {
+                    System.out.println("[LegendLite PCT] engine JSON: " + answer.engineJson());
+                    yield bridge.engineTDS(java.util.Objects.requireNonNull(answer.engineJson(),
+                            "a relation's answer carries the engine's JSON"), processorSupport);
                 }
-                case Scalar s -> bridge.handleScalar(s, processorSupport);
-                case Collection c -> bridge.handleCollection(c, processorSupport);
-                case Tabular t -> throw new IllegalStateException(
-                        "PCT tabular result outside the render mode — the"
-                        + " root-mode wrap missed a relation root");
-                case Graph g -> bridge.graphString(g.json(), processorSupport);
+                case VALUE -> bridge.values(answer.rows().rows().stream().map(r -> r.get(0)).toList(),
+                        answer.rows().columns().get(0), answer.resultType(), processorSupport);
+                case OBJECTS -> throw new IllegalStateException("a graph fetch's objects have no PCT crossing:"
+                        + " the reference's functions return values and relations");
             };
         } catch (Exception e) {
             PctCaseRecorder.recordShapeError(pureExpression, e);
@@ -204,18 +189,6 @@ public class PctExecuteNative extends NativeFunction {
             // remapErrorMessage — the last adapter arm that ever touched
             // a message — is DELETED; native errors cross whole.
             throw new PureExecutionException(src, e.getMessage(), e);
-        }
-    }
-
-    /** The legacy route: the query service on the lane's JDBC session, under the PCT's feature flags and a server
-     *  lane's system connection (where a metamodel-reading query runs, PctBackend). */
-    private static ExecutionResult legacyRoute(String model, String pureExpression) throws Exception {
-        try (Connection connection = PctBackend.connect()) {
-            return new QueryService().execute(PctBackend.withStorelessRuntime(model), pureExpression,
-                    com.legend.test.StorelessRuntime.RUNTIME, connection, com.legend.ExecuteOptions.TDS_TEXT
-                            .withFeatures(java.util.Set.of(com.legend.platform.Feature
-                                    .CORRECT_SQL_SUBSTRING_INDEXING))
-                            .withSystemConnections(PctBackend.systemConnections()));
         }
     }
 }

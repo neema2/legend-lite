@@ -4,7 +4,7 @@
 package com.legend;
 
 /** The Allocation plan-node factory for let bindings (extracted from
- * StatementExecutor at the file guardrail). */
+ * BodyDriver at the file guardrail). */
 final class PlanAllocations {
 
     private PlanAllocations() {
@@ -37,7 +37,7 @@ final class PlanAllocations {
      * three Allocation value forms. */
     static @com.legend.base.Nullable String node(
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
-            com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env,
+            com.legend.compiler.spec.SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
             java.util.Map<String, String> paramSpells,
             boolean quote, @com.legend.base.Nullable String timeZone, com.legend.model.ConnectionDefinition.DatabaseType dbType,
@@ -80,7 +80,7 @@ final class PlanAllocations {
                             com.legend.plan.PurePrint.source(let.value())));
         }
         var renderer = EngineText.enginePlanText(dbType, quote, timeZone);
-        StatementExecutor.EngineSql es = StatementExecutor.engineSql(java.util.List.of(let.value()),
+        BodyDriver.EngineSql es = BodyDriver.engineSql(java.util.List.of(let.value()),
                 mappingFqn, specs, env, renderer, params,
                 java.util.function.UnaryOperator.identity());
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
@@ -132,7 +132,7 @@ final class PlanAllocations {
     static java.util.List<String> planTemplateFunctions(
             com.legend.compiler.spec.typed.TypedNativeCall pep,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         java.util.List<String> supportFns = new java.util.ArrayList<>(
                 com.legend.plan.PlanSupportFunctions
                         .relationalPlanSupportFunctions(
@@ -173,7 +173,7 @@ final class PlanAllocations {
      * symbolic and its reads keep their loud walls). */
     static void registerPlanRows(
             com.legend.compiler.spec.typed.TypedNativeCall pn,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix, com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env) {
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix, com.legend.compiler.spec.SpecCompiler specs, BodyDriver.ExecEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(pn);
         if (env.planRows().containsKey(scope)) {
             return;
@@ -189,7 +189,7 @@ final class PlanAllocations {
         com.legend.compiler.spec.typed.TypedNativeCall pnBound =
                 (com.legend.compiler.spec.typed.TypedNativeCall) pn.withChildren(bound);
         try {
-            com.legend.plan.PlanNode model = StatementExecutor.planModel(pnBound, specs, env);
+            com.legend.plan.PlanNode model = BodyDriver.planModel(pnBound, specs, env);
             var rows = com.legend.plan.PlanRows.rows(scope, model,
                     planTemplateFunctions(pnBound, letPrefix, env));
             env.planRows().put(scope, rows);
@@ -214,7 +214,7 @@ final class PlanAllocations {
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             com.legend.compiler.spec.typed.TypedSpec chain,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env) {
+            com.legend.compiler.spec.SpecCompiler specs, BodyDriver.ExecEnv env) {
         if (ec.args().size() < 2) {
             return null;
         }
@@ -227,7 +227,7 @@ final class PlanAllocations {
         try {
             // C4 (handed off): the execute call's runtime type is not read here yet
             var renderer = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
-            StatementExecutor.EngineSql es = StatementExecutor.engineSql(
+            BodyDriver.EngineSql es = BodyDriver.engineSql(
                     java.util.List.of(chain), mappingFqn, specs, env, renderer,
                     java.util.Map.of(), java.util.function.UnaryOperator.identity());
             com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors.applyRecorded(
@@ -278,7 +278,7 @@ final class PlanAllocations {
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs,
             @com.legend.base.Nullable String comment,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(ec);
         if (env.planRows().containsKey(scope)) {
             return;
@@ -321,7 +321,7 @@ final class PlanAllocations {
             com.legend.compiler.spec.typed.TypedSpec rhs,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
                 && com.legend.compiler.element.type.PlatformTypes.handleRowClass(
                         pn.callee().id(), pn.callee().returnType()) != null) {
@@ -338,7 +338,7 @@ final class PlanAllocations {
             com.legend.compiler.spec.typed.TypedNativeCall pn,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         String fqn = pn.callee().qualifiedName();
         if (com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN.equals(fqn)) {
             registerPlanRows(pn, letPrefix, specs, env);
@@ -360,7 +360,7 @@ final class PlanAllocations {
     private static void registerColumnLineageRows(String letName,
             com.legend.compiler.spec.typed.TypedNativeCall pn,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(pn);
         if (env.planRows().containsKey(scope)) {
             return;
@@ -425,7 +425,7 @@ final class PlanAllocations {
     private static void registerLineageRows(String letName,
             com.legend.compiler.spec.typed.TypedNativeCall pn,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            StatementExecutor.ExecEnv env) {
+            BodyDriver.ExecEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(pn);
         if (env.planRows().containsKey(scope)) {
             return;

@@ -3,8 +3,8 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
@@ -56,7 +56,6 @@ class CypherParityNativeTest {
         List<String> problems = new ArrayList<>();
         Map<String, SqlParity.Outcome> outcomes;
         try (Connection session = PLATFORM.open()) {
-            QueryService service = new QueryService();
             outcomes = CypherParity.run(cases, answers.answers(), decisions, new CypherParity.Lane() {
                 @Override
                 public String connection() {
@@ -69,8 +68,8 @@ class CypherParityNativeTest {
                 }
 
                 @Override
-                public ExecutionResult run(String model, String island) throws Exception {
-                    return service.execute(model, island, CypherGraph.RUNTIME, session);
+                public Lean.Result run(String model, String island) throws Exception {
+                    return Lean.run(model, island, CypherGraph.RUNTIME, session);
                 }
 
                 @Override

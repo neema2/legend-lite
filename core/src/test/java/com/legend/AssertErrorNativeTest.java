@@ -3,11 +3,12 @@
 
 package com.legend;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -43,18 +44,18 @@ class AssertErrorNativeTest {
         conn.close();
     }
 
-    private static ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
+    private static Lean.Result run(String query) throws SQLException {
+        return Program.last(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
     }
 
     // assertError.pure:36 testSimpleAssertError, verbatim body
     @Test
     @DisplayName("matching message passes (spec testSimpleAssertError)")
     void simpleAssertError() throws Exception {
-        ExecutionResult r = run("{|assertError(|[1,2]->at(3),"
+        Lean.Result r = run("{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
                 + " where the collection is of size 2')}");
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value());
+        assertEquals(Boolean.TRUE, r.one());
     }
 
     @Test
@@ -87,10 +88,10 @@ class AssertErrorNativeTest {
     @Test
     @DisplayName("matching line/column pass — the raise carries its source span")
     void lineColumnMatches() throws Exception {
-        ExecutionResult r = run("{|assertError(|[1,2]->at(3),"
+        Lean.Result r = run("{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
                 + " where the collection is of size 2', 1, 23)}");
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value());
+        assertEquals(Boolean.TRUE, r.one());
     }
 
     @Test
@@ -123,10 +124,10 @@ class AssertErrorNativeTest {
     @Test
     @DisplayName("empty line/column expectations skip the source-info checks")
     void emptyLineColumn() throws Exception {
-        ExecutionResult r = run("{|assertError(|[1,2]->at(3),"
+        Lean.Result r = run("{|assertError(|[1,2]->at(3),"
                 + "'The system is trying to get an element at offset 3"
                 + " where the collection is of size 2', [], [])}");
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value());
+        assertEquals(Boolean.TRUE, r.one());
     }
 
     // date.pure:69 testNewDateError shape — the date ctor's guards speak

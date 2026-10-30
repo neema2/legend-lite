@@ -35,14 +35,17 @@ public final class ColumnFacts {
     }
 
     /**
-     * The plan's columns for {@code pure}, the typed schema, over {@code lowered}'s outputs. A column is matched to
-     * its output by name. A column no output is named after is one of three things, each said in the column: a
-     * pivot's generated column (its slot the template's type, when the template carries one); a nested column the
-     * query flattens into prefixed outputs ({@code n1} as {@code n1_ID, n1_NAME}: no one slot); or, when no column
-     * at all matches by name and the counts agree, a value root's one output, which the wire names {@code value}
-     * (matched by position). Any other difference is a planner defect, refused by name.
+     * The plan's columns for {@code pure}, the typed schema, over {@code lowered}'s outputs, in a result of
+     * {@code shape} (a relation's cells, a value root's elements: the written-precision fact differs,
+     * {@link #precision}). A column is matched to its output by name. A column no output is named after is one of two
+     * things, each said in the column: a pivot's generated column (its slot the template's type, when the template
+     * carries one); or, when no column at all matches by name and the counts agree, a value root's one output, which
+     * the wire names {@code value} (matched by position). Any other difference is a planner defect, refused by name
+     * (a row-struct column reaches here flattened, {@code TypedRows.flat}: until 2026-10-29 one unflattened passed
+     * with no slot, and the plan declared one column where the statement answered its parts).
      */
-    public static List<ExecutionPlan.Column> columns(List<Pure> pure, SqlQuery lowered) {
+    public static List<ExecutionPlan.Column> columns(List<Pure> pure, SqlQuery lowered,
+            ExecutionPlan.TdsResult.Shape shape) {
         List<OutputCol> outs = lowered.outputs();
         boolean anyByName = pure.stream().anyMatch(p -> outs.stream().anyMatch(o -> o.name().equals(p.name())));
         boolean positional = !anyByName && pure.size() == outs.size();
@@ -55,7 +58,7 @@ public final class ColumnFacts {
             if (out != null) {
                 SqlDdl.ColumnType stored = stored(lowered, out.name(), Map.of());
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), slot(out.type()),
-                        stored == null ? null : store(stored)));
+                        stored == null ? null : store(stored), precision(p.type(), out.type(), shape)));
                 continue;
             }
             String bare = p.name().length() > 1 && p.name().startsWith("'") && p.name().endsWith("'")
@@ -64,13 +67,14 @@ public final class ColumnFacts {
             if (hits.size() == 1) {
                 SqlType t = hits.get(0).type();
                 cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), t == null ? null : slot(t),
-                        null));
-            } else if (outs.stream().anyMatch(o -> o.name().startsWith(p.name() + "_"))) {
-                cols.add(new ExecutionPlan.Column(p.name(), p.type(), p.multiplicity(), null, null));
+                        null, precision(p.type(), t, shape)));
             } else {
+                // (until 2026-10-29 a column whose name prefixed some outputs -- an unflattened row-struct column --
+                // passed here with no slot, and the plan declared one column where the statement answered its parts;
+                // the planner flattens such a column before it reaches here, TypedRows.flat, and nothing else may)
                 throw new IllegalStateException("the plan's column '" + p.name() + "' is none of the query's outputs "
-                        + outs.stream().map(OutputCol::name).toList() + ", no pivot template's and no flattened"
-                        + " column's: the lowering's typed slots do not cover the typed schema");
+                        + outs.stream().map(OutputCol::name).toList() + " and no pivot template's: the lowering's"
+                        + " typed slots do not cover the typed schema");
             }
         }
         return cols;
@@ -140,6 +144,38 @@ public final class ColumnFacts {
                 yield b.append('>').toString();
             }
         };
+    }
+
+    /** How a temporal cell of a column of Pure type {@code type} in slot {@code slot} (null: no one slot), in a
+     *  result of {@code shape}, has its written precision ({@link ExecutionPlan.Precision}; the start page's S1.4
+     *  item 1, 2026-10-28, corrected 2026-10-29 under the upstream-fidelity tenet). A tagged column (a mixed value's,
+     *  {@code TAGGED<kind slot, ...>}) has no one precision: its slots' kinds carry it ({@code DateTime(n)}), and the
+     *  decoders present each cell at its own, so it is null here. A DATE slot or a StrictDate column holds a day:
+     *  DAY. A time-bearing temporal otherwise -- a TIMESTAMP slot, a temporal-text carrier, a Date or
+     *  DateTime column in any other slot (a text a database holds its dates as, no slot at all) -- is, in a
+     *  relation, a cell legend-engine's TDS spells with nine digits whatever carried it (INSTANT); in a value root,
+     *  legend-pure's value: the precision written where the cell carries it (a temporal-text carrier: WRITTEN), the
+     *  precision its digits show where the database computed it (MINIMAL, the value lane's canon, register S118).
+     *  Any other column has no temporal of its own: null, said. */
+    public static ExecutionPlan.@com.legend.base.Nullable Precision precision(String type,
+            @com.legend.base.Nullable SqlType slot, ExecutionPlan.TdsResult.Shape shape) {
+        if (slot instanceof SqlType.Tagged) {
+            // whatever its Pure type (Any, Date, DateTime: a mixed temporal selection's root): its slots' kinds carry
+            // the precision (the L2 audit, 2026-10-29: a Date-typed tagged column answered MINIMAL here)
+            return null;
+        }
+        if (type.equals("StrictDate") || slot == SqlType.Scalar.DATE) {
+            return ExecutionPlan.Precision.DAY;
+        }
+        boolean value = shape == ExecutionPlan.TdsResult.Shape.VALUE;
+        if (slot == SqlType.Scalar.TEMPORAL_TEXT) {
+            return value ? ExecutionPlan.Precision.WRITTEN : ExecutionPlan.Precision.INSTANT;
+        }
+        if (slot == SqlType.Scalar.TIMESTAMP || slot == SqlType.Scalar.TIMESTAMPTZ || type.equals("Date")
+                || type.equals("DateTime")) {
+            return value ? ExecutionPlan.Precision.MINIMAL : ExecutionPlan.Precision.INSTANT;
+        }
+        return null;
     }
 
     /** A declared column type as the relational grammar spells it: {@code INTEGER}, {@code VARCHAR(20)},

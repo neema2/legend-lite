@@ -41,7 +41,7 @@ import java.util.Set;
  *       date-time are their ISO text ({@code 'YYYY-MM-DD'}, {@code 'YYYY-MM-DD HH:MM:SS[.f]'}), and a CAST to a type
  *       name casts by its affinity only ({@code CAST('2024-01-01' AS DATE)} is 2024): every cast is decided here;</li>
  *   <li>there is no exact decimal: a decimal is a REAL, and a root decimal column is its text at its scale
- *       ({@code printf('%.2f', x)}), read back exact ({@link #normalize});</li>
+ *       ({@code printf('%.2f', x)}), read back exact by the typed reader;</li>
  *   <li>a list, a struct, a map and a Variant are JSON text (JSON1): {@code json_array}, {@code json_object}; a list
  *       operation is a correlated subquery over {@code json_each(xs)} (its {@code key} the 0-based position), a fold a
  *       correlated {@code WITH RECURSIVE} (both measured to correlate inside a scalar subquery); a value that leaves
@@ -130,7 +130,7 @@ public final class SQLite extends AnsiSqlRenderer {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT -> "INTEGER";
             case DOUBLE -> "REAL";
-            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
+            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, TEMPORAL_TEXT -> "TEXT";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -388,7 +388,11 @@ public final class SQLite extends AnsiSqlRenderer {
             return e;
         }
         if (label instanceof SqlType.Decimal d) {
-            return SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e);
+            // printf reads a NULL as 0 and writes '0.00' (measured 2026-10-11 for the Float text, and 2026-10-27 here:
+            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE))),
+                    SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e));
         }
         if (label == SqlType.Scalar.DOUBLE) {
             return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE);
@@ -1205,11 +1209,7 @@ public final class SQLite extends AnsiSqlRenderer {
         }
         if (target instanceof SqlType.Array arr) {
             SqlType from = listElement(v);
-            // a text element as LITERAL is the text itself, as the scalar cast below writes it (LITERAL is VARCHAR
-            // physically): the mixed sort's ordered ids (2026-10-13, PR #34's review: element-wise, it wrote the
-            // aggregate twice)
-            if (from == null || from.equals(arr.element())
-                    || from == SqlType.Scalar.VARCHAR && arr.element() == SqlType.Scalar.LITERAL) {
+            if (from == null || from.equals(arr.element())) {
                 return writer.expr(v, 0);
             }
             // element-wise
@@ -1220,7 +1220,7 @@ public final class SQLite extends AnsiSqlRenderer {
         if (target instanceof SqlType.Struct || target instanceof SqlType.Map) {
             return writer.expr(v, 0);
         }
-        if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+        if (target == SqlType.Scalar.VARCHAR) {
             // a big integer's text raises past 64 bits, as its root column does (deliveredValue): the plan route's
             // root is the TDS text, which spells the value through this cast (step 9, 2026-10-19: the overflow's
             // REAL had crossed as '9.22337203685478e+18')
@@ -1236,10 +1236,10 @@ public final class SQLite extends AnsiSqlRenderer {
         // a member read as text is its scalar text (a string unquoted); a whole value as text is its JSON (DuckDB's
         // CAST(json AS VARCHAR) keeps a string's quotes)
         boolean member = v instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET;
-        if ((to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) && !member) {
+        if (to == SqlType.Scalar.VARCHAR && !member) {
             return w -> w.expr(v, 0);
         }
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return w -> w.append("(CASE WHEN json_type(").expr(v, 0).append(") = 'text' THEN (").expr(v, 9)
                     .append(" ->> '$') ELSE ").expr(v, 0).append(" END)");
         }
@@ -1275,7 +1275,7 @@ public final class SQLite extends AnsiSqlRenderer {
             return value;
         }
         return switch (s) {
-            case VARCHAR, LITERAL -> textOf(value, from);
+            case VARCHAR -> textOf(value, from);
             case BOOLEAN -> from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
                     ? w -> w.append("(CASE lower(").piece(value).append(") WHEN 'true' THEN 1 WHEN 'false' THEN 0 END)")
                     : w -> w.append("(").piece(value).append(" <> 0)");
@@ -1467,7 +1467,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case SIGN -> bigintOf(writer, "sign", c.args());
             case PI -> writer.append("pi()");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -3053,28 +3053,6 @@ public final class SQLite extends AnsiSqlRenderer {
                     new RenderedStatement.TypeSpelling("TEXT", RenderedStatement.Digits.NONE);
             case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
         };
-    }
-
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A boolean arrives as 1 or 0; a struct or a map as its JSON text, decoded to the platform's map of its fields; a
-     *  root decimal as its text at its scale ({@link #delivered}), read exact. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (type == SqlType.Scalar.BOOLEAN && jdbcValue instanceof Number n) {
-            return n.longValue() != 0;
-        }
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        if (jdbcValue instanceof String s && type instanceof SqlType.Decimal) {
-            return new java.math.BigDecimal(s);
-        }
-        return jdbcValue;
     }
 
     // ==================================================================

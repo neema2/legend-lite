@@ -1,7 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * </ul>
  */
 @DisplayName("Relational Mapping Composition Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class RelationalMappingCompositionTest {
 
     private Connection conn;
@@ -38,7 +40,7 @@ class RelationalMappingCompositionTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -63,8 +65,8 @@ class RelationalMappingCompositionTest {
                 """.formatted(mappingName, dbName);
     }
 
-    private ExecutionResult exec(String model, String query) throws SQLException {
-        return qs.execute(model, query, "test::RT", conn);
+    private Lean.Result exec(String model, String query) throws SQLException {
+        return Lean.run(model, query, "test::RT", conn);
     }
 
     private String planSql(String model, String query) {
@@ -77,12 +79,12 @@ class RelationalMappingCompositionTest {
         }
     }
 
-    private List<String> colStr(ExecutionResult r, int idx) {
+    private List<String> colStr(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? row.get(idx).toString() : null)
                 .collect(Collectors.toList());
     }
 
-    private List<Integer> colInt(ExecutionResult r, int idx) {
+    private List<Integer> colInt(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? ((Number) row.get(idx)).intValue() : null)
                 .collect(Collectors.toList());
     }

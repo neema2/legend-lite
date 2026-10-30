@@ -18,12 +18,13 @@ export const valueWords = (v: FilterValue | null): string => (v === null ? '(emp
 /** What a pinned Cross Tab checks, in words: "every region has a column". */
 export const lackingCheck = (on: string): string => `every ${on} has a column`;
 
-/** Its values with no column, in words: "region APAC, LATAM have no column of their own: Load values again to add
- *  them" (the first `max` named; past what its question counts, VALUES_COUNTED, at least as many). */
+/** Its values with no column, in words: "region APAC, LATAM have no column of their own: add them to its columns, or
+ *  Load values again" (the first `max` named; past what its question counts, VALUES_COUNTED, at least as many) -- the
+ *  fix offered beside them (FL8's "Add to the cast": app.ts addPivotValues). */
 export function lackingWords(on: string, values: readonly (FilterValue | null)[], max = 8): string {
   const shown = values.slice(0, max).map(valueWords).join(', ');
   const rest = values.length > VALUES_COUNTED ? ` and at least ${values.length - max} more`
     : values.length > max ? ` and ${values.length - max} more` : '';
   const one = values.length === 1;
-  return `${on} ${shown}${rest} ${one ? 'has no column of its own' : 'have no column of their own'}: Load values again to add ${one ? 'it' : 'them'}`;
+  return `${on} ${shown}${rest} ${one ? 'has no column of its own' : 'have no column of their own'}: add ${one ? 'it' : 'them'} to its columns, or Load values again`;
 }

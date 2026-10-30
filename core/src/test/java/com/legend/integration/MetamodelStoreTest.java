@@ -1,12 +1,12 @@
 package com.legend.integration;
 
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * print form).
  */
 @DisplayName("Metamodel store: Class.all() through the store lane")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class MetamodelStoreTest {
 
     private static final String MODEL = """
@@ -43,7 +44,7 @@ class MetamodelStoreTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -51,31 +52,31 @@ class MetamodelStoreTest {
         connection.close();
     }
 
-    private ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
+    private Lean.Result run(String query) throws SQLException {
+        return Program.last(StorelessRuntime.with(MODEL, LaneFloor.backend().type()), query, StorelessRuntime.RUNTIME, connection);
     }
 
     @Test
     @DisplayName("Class.all()->size() > 0 — the extent is non-empty with no ->from()")
     void classExtentIsNonEmpty() throws SQLException {
-        var r = (ExecutionResult.Scalar) run(METACLASS + ".all()->size()");
-        assertTrue(((Number) r.value()).longValue() > 0,
-                "the metamodel extent must be non-empty; got " + r.value());
+        var r = run(METACLASS + ".all()->size()");
+        assertTrue(((Number) r.one()).longValue() > 0,
+                "the metamodel extent must be non-empty; got " + r.one());
     }
 
     @Test
     @DisplayName("Class.all()->isEmpty() = false — the PCT testBasic shape")
     void classExtentIsEmptyIsFalse() throws SQLException {
-        var r = (ExecutionResult.Scalar) run(METACLASS + ".all()->isEmpty()");
-        assertEquals(Boolean.FALSE, r.value());
+        var r = run(METACLASS + ".all()->isEmpty()");
+        assertEquals(Boolean.FALSE, r.one());
     }
 
     @Test
     @DisplayName("filter by .name finds a compiled-model class exactly once")
     void filterByNameOverCompiledModel() throws SQLException {
-        var r = (ExecutionResult.Scalar) run(METACLASS
+        var r = run(METACLASS
                 + ".all()->filter(c | $c.name == 'Person')->size()");
-        assertEquals(1L, ((Number) r.value()).longValue(),
+        assertEquals(1L, ((Number) r.one()).longValue(),
                 "exactly one class named Person in the extent");
     }
 
@@ -83,7 +84,7 @@ class MetamodelStoreTest {
     @DisplayName("map(c|$c.name) contains user and native class names")
     void mapNameContainment() throws SQLException {
         var r = run(METACLASS + ".all()->map(c | $c.name)");
-        var values = ((ExecutionResult.Collection) r).values();
+        var values = r.values();
         assertTrue(values.contains("Person") && values.contains("Firm"),
                 "user class names missing from the extent: " + values);
         assertTrue(values.contains("Any"),
@@ -95,7 +96,7 @@ class MetamodelStoreTest {
     void userClassWithoutContextStillWalls() {
         var ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.MappingResolutionException.class,
-                () -> Execution.execute(MODEL, "test::Person.all()->size()", connection));
+                () -> Program.last(MODEL, "test::Person.all()->size()", null, connection));
         // no runtime: where it would execute is undeclared, refused before anything runs
         assertEquals(Compiler.NO_RUNTIME, ex.getMessage());
     }
@@ -105,11 +106,11 @@ class MetamodelStoreTest {
     void extentFollowsTheActiveContext() throws SQLException {
         var r1 = run(METACLASS
                 + ".all()->filter(c | $c.name == 'Trade')->size()");
-        assertEquals(0L, ((Number) ((ExecutionResult.Scalar) r1).value()).longValue());
-        var r2 = (ExecutionResult.Scalar) Execution.execute(StorelessRuntime.with(MODEL + "Class test::Trade { id: Integer[1]; }\n", Databases.PLATFORM),
+        assertEquals(0L, ((Number) r1.one()).longValue());
+        var r2 = Program.last(StorelessRuntime.with(MODEL + "Class test::Trade { id: Integer[1]; }\n", LaneFloor.backend().type()),
                 METACLASS + ".all()->filter(c | $c.name == 'Trade')->size()", StorelessRuntime.RUNTIME,
                 connection);
-        assertEquals(1L, ((Number) r2.value()).longValue(),
+        assertEquals(1L, ((Number) r2.one()).longValue(),
                 "the seed derives from the ACTIVE model context");
     }
 

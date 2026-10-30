@@ -1,11 +1,11 @@
 package com.legend.integration;
 
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * query the database answers; nothing here is test-specific Java.
  */
 @DisplayName("Metamodel store: mapping-metamodel query functions as Pure bodies over rows")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class MetamodelQueryFunctionsTest {
 
     private static final String MODEL = """
@@ -88,7 +89,7 @@ class MetamodelQueryFunctionsTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -97,12 +98,8 @@ class MetamodelQueryFunctionsTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
-        if (r instanceof ExecutionResult.Collection c) {
-            return c.values();
-        }
-        Object v = ((ExecutionResult.Scalar) r).value();
-        return v == null ? List.of() : List.of(v);
+        Lean.Result r = Program.last(StorelessRuntime.with(MODEL, LaneFloor.backend().type()), query, StorelessRuntime.RUNTIME, connection);
+        return r.values();
     }
 
     /** The corpus's view shape: {@code db.schemas->map(x|$x->view('V'))->toOne()

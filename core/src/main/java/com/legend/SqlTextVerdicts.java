@@ -9,7 +9,7 @@ import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import com.legend.exec.SqlReplayReferee;
 
 import java.util.List;
@@ -47,10 +47,10 @@ final class SqlTextVerdicts {
 
     /** Null = not this arm's shape (the caller's generic path
      * continues); otherwise the verdict. */
-    static @com.legend.base.Nullable ExecutionResult tryArm(String name,
+    static @com.legend.base.Nullable TypedSide tryArm(String name,
             boolean wantEqual, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (!wantEqual || args.size() < 2) {
             return null;
@@ -171,7 +171,7 @@ final class SqlTextVerdicts {
         lamPrefix.addAll(lam.body().subList(0, lam.body().size() - 1));
         List<com.legend.compiler.spec.typed.TypedLet> stmtLets = statementLets(lam);
         final String goldenF = golden;
-        final StatementExecutor.ExecEnv envF = env;
+        final BodyDriver.ExecEnv envF = env;
         // the leg's from carries the producer's bound context (post-processors,
         // time zone); a toNonExecutableSQLString producer's query runs under
         // the nonExecutable pass (its golden reads zero rows by construction,
@@ -211,7 +211,7 @@ final class SqlTextVerdicts {
      * DatabaseType, which carries no post-processors), with the
      * nonExecutable pass installed for a toNonExecutableSQLString producer. */
     private static com.legend.compiler.spec.typed.ExecutionContext legContext(
-            com.legend.compiler.spec.NativeDispatch.RoutineCall producer, StatementExecutor.ExecEnv env) {
+            com.legend.compiler.spec.NativeDispatch.RoutineCall producer, BodyDriver.ExecEnv env) {
         com.legend.compiler.spec.typed.ExecutionContext base = env.frame() == null
                 ? com.legend.compiler.spec.typed.ExecutionContext.NONE : env.frame();
         boolean nonExec = com.legend.compiler.element.type.PlatformTypes
@@ -232,10 +232,10 @@ final class SqlTextVerdicts {
      * Same verdict policy as the toSQLString arm. Null = not the
      * simple shape (the String-overload spelling, extra args) — the
      * current path keeps it. */
-    static @com.legend.base.Nullable ExecutionResult tryArmSameSql(
+    static @com.legend.base.Nullable TypedSide tryArmSameSql(
             com.legend.compiler.spec.typed.TypedUserCall root,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (root.args().size() != 2) {
             return null;
@@ -304,10 +304,10 @@ final class SqlTextVerdicts {
      * H2-1.4.200 residue with no reference database on our stack
      * (inventory row 17). Rows judge; text vs the upgraded golden is
      * the census. Null = not the simple shape. */
-    static @com.legend.base.Nullable ExecutionResult tryArmDualGolden(
+    static @com.legend.base.Nullable TypedSide tryArmDualGolden(
             com.legend.compiler.spec.typed.TypedUserCall root,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (root.args().size() != 3) {
             return null;
@@ -346,7 +346,7 @@ final class SqlTextVerdicts {
                 // §5: the plan-text spelling (a plan-node .sqlQuery
                 // navigation) — the upgraded golden replays (same
                 // reasoning as the frame arm below)
-                ExecutionResult pv = tryArmPlanText(
+                TypedSide pv = tryArmPlanText(
                         "assertEqualsH2Compatible", goldenSide,
                         actualSide, letPrefix, specs, env, hook);
                 if (pv != null) {
@@ -392,10 +392,10 @@ final class SqlTextVerdicts {
 
     /** The H2Compatible verdict tail: rows leg + verdict for golden(k)
      * over the frame behind {@code resultArg}. */
-    private static @com.legend.base.Nullable ExecutionResult dualGoldenVerdict(
+    private static @com.legend.base.Nullable TypedSide dualGoldenVerdict(
             String golden, String ours, TypedSpec resultArg, int readK,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         golden = stripChainedPlanWarning(golden);
         boolean textEqual = golden.equals(ours);
@@ -449,9 +449,9 @@ final class SqlTextVerdicts {
      * evaluated as written (any wrapping string code runs in the DB);
      * OUR ROWS = the frame's values (the splice's typed chain); golden
      * rows + verdict via the SHARED tail. */
-    private static @com.legend.base.Nullable ExecutionResult tryArmExecRead(
+    private static @com.legend.base.Nullable TypedSide tryArmExecRead(
             String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         // TDG FIRST: a generator fetch text on exactly one side is the
         // fetch-text verdict whatever wraps it — the corpus's
@@ -760,10 +760,10 @@ final class SqlTextVerdicts {
      * TEXT census compares the RAW golden (holes intact) as always.
      * Unbindable parameters and residual (freemarker-operation) holes
      * WALL counted — the measure-first residue. */
-    private static @com.legend.base.Nullable ExecutionResult tryArmPlanText(
+    private static @com.legend.base.Nullable TypedSide tryArmPlanText(
             String name, TypedSpec goldenSide, TypedSpec actualSide,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         TypedNativeCall producer = findPlanProducer(actualSide, letPrefix);
         // THE PRODUCER BEHIND A HELPER (2026-09-17): a test that gets its
@@ -842,7 +842,7 @@ final class SqlTextVerdicts {
         bound.addAll(bindings.lets());
         // the plan producer's bound context rides the verdict's from
         com.legend.compiler.spec.typed.ExecutionContext planCtx = producer.args().size() >= 3
-                ? StatementExecutor.boundContext(producer.args().get(2), scope, specs)
+                ? BodyDriver.boundContext(producer.args().get(2), scope, specs)
                 : com.legend.compiler.spec.typed.ExecutionContext.NONE;
         // a multi-statement plan lambda ({|let a = 10; Firm.all()->...})
         // scopes its leading lets over the last statement — the rows leg
@@ -956,10 +956,10 @@ final class SqlTextVerdicts {
      * function — a USER function reaching the verdict layer
      * PRE-inline, the assertSameSQL discipline): 2 args, the TDG side
      * identifies by its producer. Null = not the TDG shape. */
-    static @com.legend.base.Nullable ExecutionResult tryArmTdgRoot(
+    static @com.legend.base.Nullable TypedSide tryArmTdgRoot(
             com.legend.compiler.spec.typed.TypedUserCall root,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (root.args().size() != 2) {
             return null;
@@ -983,10 +983,10 @@ final class SqlTextVerdicts {
      * walk's tdgSqlReplay semantics behind the referee interface. A
      * decline (ordered fetch, chained temp tables) keeps TEXT as the
      * contract, counted. Null = not the TDG shape. */
-    private static @com.legend.base.Nullable ExecutionResult tryArmTdgSql(
+    private static @com.legend.base.Nullable TypedSide tryArmTdgSql(
             String name, TypedSpec goldenSide, TypedSpec actualSide,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (!hasTdgProducer(actualSide, letPrefix)) {
             return null;
@@ -1013,7 +1013,7 @@ final class SqlTextVerdicts {
             // equality — and the referee (the fetch replayed on the referee, rows
             // compared) is its APPEAL, run at the flush only when the row failed.
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.connection(), () -> tdgRowsNow(name, golden, ours, textEqual, referee,
+                    env.session(), () -> tdgRowsNow(name, golden, ours, textEqual, referee,
                             actualSide, letPrefix, specs, env));
             return ok();
         }
@@ -1025,9 +1025,9 @@ final class SqlTextVerdicts {
     }
 
     /** The TDG rows leg itself — the referee's fetch replay, judged now. */
-    private static ExecutionResult tdgRowsNow(String name, String golden, String ours,
+    private static TypedSide tdgRowsNow(String name, String golden, String ours,
             boolean textEqual, SqlReplayReferee referee, TypedSpec actualSide,
-            List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env) {
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env) {
         // batch 64: a hop addressed as $testData.sqls->at(i) carries its
         // hop index and the carrier's generator node — the referee's
         // chained arm replays ancestor temps from the earlier hops'
@@ -1036,13 +1036,13 @@ final class SqlTextVerdicts {
         SqlReplayReferee.RowVerdict rv;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
             rv = hop == null
-                ? referee.verifyFetchTexts(env.connection(), golden, ours)
-                : referee.verifyFetchChain(env.connection(), hop.index(),
+                ? referee.verifyFetchTexts(env.session(), golden, ours)
+                : referee.verifyFetchChain(env.session(), hop.index(),
                         golden, ours, () -> fetchTranscript(
                                 com.legend.testdatagen.TestDataGenerationNatives
                                         .transcript(hop.source(), env.ctx(),
-                                                env.connection(), env.dialect(),
-                                                StatementExecutor.viewSqlRenderer(specs, env))));
+                                                env.planSessions(), env.target(), env.dialect(),
+                                                BodyDriver.viewSqlRenderer(specs, env))));
         }
         refereed(env, name, rv);
         return switch (rv.outcome()) {
@@ -1305,7 +1305,7 @@ final class SqlTextVerdicts {
      * emission census); rows diverge → FAIL whatever the text said;
      * rows leg underivable or referee declined → TEXT is the contract,
      * counted. */
-    private static ExecutionResult rowsLegAndVerdict(String name,
+    private static TypedSide rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayReferee referee, TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
@@ -1313,7 +1313,7 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String classFqn, SqlReplayReferee.ReplayFacts facts,
             @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
             @com.legend.base.Nullable TypedSpec query) {
         return rowsLegAndVerdict(name, golden, ours, textEqual, referee,
@@ -1324,7 +1324,7 @@ final class SqlTextVerdicts {
     /** {@link #rowsLegAndVerdict} with a golden PLAN for the referee's
      * plan replay ({@code goldenPlan} non-null: the nodes run in order,
      * {@code planBindings} = the referee's parameter values). */
-    private static ExecutionResult rowsLegAndVerdict(String name,
+    private static TypedSide rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayReferee referee, TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
@@ -1332,7 +1332,7 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String classFqn, SqlReplayReferee.ReplayFacts facts,
             @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
             @com.legend.base.Nullable TypedSpec query,
             @com.legend.base.Nullable String goldenPlan,
@@ -1345,7 +1345,7 @@ final class SqlTextVerdicts {
 
     /** {@link #rowsLegAndVerdict} with extra temp tables the golden reads
      * ({@code temps} — beside the inline in-list temp the arm derives). */
-    private static ExecutionResult rowsLegAndVerdict(String name,
+    private static TypedSide rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayReferee referee, TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
@@ -1353,7 +1353,7 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String classFqn, SqlReplayReferee.ReplayFacts facts,
             @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
             @com.legend.base.Nullable TypedSpec query,
             @com.legend.base.Nullable String goldenPlan,
@@ -1367,7 +1367,7 @@ final class SqlTextVerdicts {
             // its APPEAL, run at the flush only when the row failed (a byte-equal text
             // needs none). No assert shape is routed around the batch any more.
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.connection(), () -> rowsLegNow(name, golden, ours, textEqual, referee,
+                    env.session(), () -> rowsLegNow(name, golden, ours, textEqual, referee,
                             rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
                             letPrefix, specs, env, hook, query, goldenPlan, planBindings, temps));
             return ok();
@@ -1387,7 +1387,7 @@ final class SqlTextVerdicts {
 
     /** The rows leg itself: OUR rows through the one router, the golden replayed
      * via the referee, judged — now, on this thread. */
-    private static ExecutionResult rowsLegNow(String name,
+    private static TypedSide rowsLegNow(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayReferee referee, TypedSpec rowsRead,
             @com.legend.base.Nullable String replaySqlOrNull,
@@ -1395,13 +1395,13 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String classFqn, SqlReplayReferee.ReplayFacts facts,
             @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env,
+            BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
             @com.legend.base.Nullable TypedSpec query,
             @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
             List<SqlReplayReferee.TempTable> temps) {
-        ExecutionResult rows;
+        TypedSide rows;
         boolean priorSuspend = com.legend.exec.SqlTypeCensus
                 .probeSuspended();
         provideStores(env, mappingFqn);
@@ -1429,7 +1429,7 @@ final class SqlTextVerdicts {
             // fails the test loudly — never a decline that rescues the text
             com.legend.exec.SqlTypeCensus.probeSuspend(true);
             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_OURS)) {
-                ExecutionResult population = JudgePlans.evalSide(populationRead,
+                TypedSide population = JudgePlans.evalSide(populationRead,
                         letPrefix, specs, env, false, true, hook);
                 if (population != null) {
                     facts = facts.withPopulation(population);
@@ -1447,9 +1447,9 @@ final class SqlTextVerdicts {
         SqlReplayReferee.RowVerdict rv;
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.REFEREE_GOLDEN)) {
             rv = goldenPlan != null
-                ? referee.verifyPlan(env.connection(), goldenPlan, planBindings,
+                ? referee.verifyPlan(env.session(), goldenPlan, planBindings,
                         rows, mappingFqn, classFqn, facts, env.ctx())
-                : referee.verify(env.connection(),
+                : referee.verify(env.session(),
                         replaySqlOrNull != null ? replaySqlOrNull : golden,
                         rows, mappingFqn, classFqn, facts, env.ctx(),
                         temps.isEmpty()
@@ -1579,7 +1579,7 @@ final class SqlTextVerdicts {
             TypedPackageableRef mappingRef =
                     ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null;
             com.legend.compiler.spec.typed.ExecutionContext context = ec.args().size() >= 3
-                    ? StatementExecutor.boundContext(ec.args().get(2), letPrefix, specs)
+                    ? BodyDriver.boundContext(ec.args().get(2), letPrefix, specs)
                     : com.legend.compiler.spec.typed.ExecutionContext.NONE;
             TypedSpec chain = lamArg instanceof TypedLambda lam2 && !lam2.body().isEmpty()
                     ? lam2.body().get(lam2.body().size() - 1) : null;
@@ -1608,15 +1608,15 @@ final class SqlTextVerdicts {
     }
 
     private static @com.legend.base.Nullable String scalarString(
-            @com.legend.base.Nullable ExecutionResult r) {
-        return r instanceof ExecutionResult.Scalar s
+            @com.legend.base.Nullable TypedSide r) {
+        return r instanceof TypedSide.Scalar s
                 && s.value() instanceof String str ? str : null;
     }
 
     /** A text-decided arm reports its NAMED decline to the runner before
      * the text decides (Phase 0.6, audit §10 item 7 — no path returns
      * {@code textEqual ? ok() : fail(...)} uncounted). */
-    private static void declined(StatementExecutor.ExecEnv env, String name,
+    private static void declined(BodyDriver.ExecEnv env, String name,
             String reason) {
         com.legend.exec.AssertListener l = env.assertListener();
         if (l != null) {
@@ -1630,7 +1630,7 @@ final class SqlTextVerdicts {
      * to the runner ({@link com.legend.exec.AssertListener#provideStore}),
      * which seeds it when exactly one fixture does. Model navigation only:
      * no SQL text, no driver message, no judgment. */
-    private static void provideStores(StatementExecutor.ExecEnv env,
+    private static void provideStores(BodyDriver.ExecEnv env,
             @com.legend.base.Nullable String mappingFqn) {
         com.legend.exec.AssertListener l = env.assertListener();
         if (l == null || mappingFqn == null) {
@@ -1665,7 +1665,7 @@ final class SqlTextVerdicts {
     /** The referee's row verdict for this assert, reported to the runner
      * (Phase 0.7): the strength census reads a MATCH as the differential
      * witness. */
-    private static void refereed(StatementExecutor.ExecEnv env, String name,
+    private static void refereed(BodyDriver.ExecEnv env, String name,
             SqlReplayReferee.RowVerdict rv) {
         com.legend.exec.AssertListener l = env.assertListener();
         if (l != null) {
@@ -1673,8 +1673,8 @@ final class SqlTextVerdicts {
         }
     }
 
-    private static ExecutionResult ok() {
-        return new ExecutionResult.Scalar(Boolean.TRUE,
+    private static TypedSide ok() {
+        return new TypedSide.Scalar(Boolean.TRUE,
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
     }
 
@@ -1682,19 +1682,19 @@ final class SqlTextVerdicts {
      * a batch the text equality IS a verdict row of the body's statement and the
      * arm's own message is raised when the row fails (task #14 leg 2, 2026-09-21);
      * the host judge decides on the text now. */
-    private static ExecutionResult textVerdict(StatementExecutor.ExecEnv env, String name,
+    private static TypedSide textVerdict(BodyDriver.ExecEnv env, String name,
             String golden, String ours, boolean textEqual,
             java.util.function.Supplier<String> message) {
         com.legend.exec.VerdictBatch batch = env.verdictBatch();
         if (batch != null && batch.active()) {
             batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.connection(), () -> fail(message.get()));
+                    env.session(), () -> fail(message.get()));
             return ok();
         }
         return textEqual ? ok() : fail(message.get());
     }
 
-    private static ExecutionResult fail(String message) {
+    private static TypedSide fail(String message) {
         // the seam: verdicts speak the platform vocabulary
         throw new com.legend.error.AssertFailed(message);
     }

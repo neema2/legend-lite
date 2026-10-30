@@ -3,10 +3,10 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlIslandCases;
@@ -56,12 +56,12 @@ class CorrelatedComputedColumnTest {
 
     /** The island's answer to {@code sql} (its tables spelled through the source function) as rows of cell texts. */
     private static List<List<String>> island(String sql) throws SQLException {
-        ExecutionResult result = new QueryService().execute(MODEL, "|#SQL{" + sql + "}#",
+        Lean.Result result = Lean.run(MODEL, "|#SQL{" + sql + "}#",
                 SqlIslandCases.RUNTIME, session);
         List<List<String>> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<String> cells = new ArrayList<>();
-            for (Object value : row.values()) {
+            for (Object value : row) {
                 cells.add(SqlIslandCases.cell(value));
             }
             rows.add(cells);
@@ -107,7 +107,7 @@ class CorrelatedComputedColumnTest {
     @DisplayName("the plain-Pure spelling: an extend inside a correlated relation reads the enclosing row")
     void thePlainPureSpelling() throws SQLException {
         // each person's top order amount plus the person's own id; no order is SQL's NULL
-        ExecutionResult result = new QueryService().execute(MODEL, """
+        Lean.Result result = Lean.run(MODEL, """
                 |#TDS
                 id, name
                 1, Ann
@@ -122,15 +122,17 @@ class CorrelatedComputedColumnTest {
                 ->extend(~[v:x|$x.m->toOne() + $p.id])->map(x|$x.v)->toOne()])
                 ->select(~[id, top])->sort(ascending(~id))""",
                 SqlIslandCases.RUNTIME, session);
-        assertEquals(List.of(8, 11), result.rows().subList(0, 2).stream().map(r -> r.values().get(1)).toList());
-        assertEquals(null, result.rows().get(2).values().get(1), "no order: SQL's NULL");
+        // an Integer cell is a long, the plan decode's carrier of Pure's Integer (the legacy executor handed an int; 2026-10-27,
+        // the result boundary program's phase 5, a correction of the old decoder)
+        assertEquals(List.of(8L, 11L), result.rows().subList(0, 2).stream().map(r -> r.get(1)).toList());
+        assertEquals(null, result.rows().get(2).get(1), "no order: SQL's NULL");
     }
 
     @Test
     @DisplayName("a column named like the base's resolves to the enclosing row it reads, never the base's")
     void aSameNamedColumnIsTheEnclosingRows() throws SQLException {
         // the inner relation has an `id` too: $p.id is the outer person's, never the order's
-        ExecutionResult result = new QueryService().execute(MODEL, """
+        Lean.Result result = Lean.run(MODEL, """
                 |#TDS
                 id, name
                 1, Ann
@@ -141,6 +143,8 @@ class CorrelatedComputedColumnTest {
                 200, 2
                 #->filter(o|$o.person == $p.id)->extend(~[v:o|$p.id * 10 + $o.person])->map(o|$o.v)->toOne()])
                 ->select(~[id, tag])->sort(ascending(~id))""", SqlIslandCases.RUNTIME, session);
-        assertEquals(List.of(11, 22), result.rows().stream().map(r -> r.values().get(1)).toList());
+        // an Integer cell is a long, the plan decode's carrier of Pure's Integer (the legacy executor handed an int; 2026-10-27,
+        // the result boundary program's phase 5, a correction of the old decoder)
+        assertEquals(List.of(11L, 22L), result.rows().stream().map(r -> r.get(1)).toList());
     }
 }

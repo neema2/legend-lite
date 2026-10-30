@@ -1,7 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * - GAP features (disabled, documenting what's not yet supported)
  */
 @DisplayName("Relational Mapping Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class RelationalMappingIntegrationTest {
 
     private Connection conn;
@@ -36,7 +38,7 @@ class RelationalMappingIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -62,8 +64,8 @@ class RelationalMappingIntegrationTest {
     }
 
     /** Execute Pure query and return result. */
-    private ExecutionResult exec(String model, String query) throws SQLException {
-        return qs.execute(model, query, "test::RT", conn);
+    private Lean.Result exec(String model, String query) throws SQLException {
+        return Lean.run(model, query, "test::RT", conn);
     }
 
     /** Execute SQL directly on the connection. */
@@ -74,13 +76,13 @@ class RelationalMappingIntegrationTest {
     }
 
     /** Get all values from column index as strings. */
-    private List<String> colStr(ExecutionResult r, int idx) {
+    private List<String> colStr(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? row.get(idx).toString() : null)
                 .collect(Collectors.toList());
     }
 
     /** Get all values from column index as integers. */
-    private List<Integer> colInt(ExecutionResult r, int idx) {
+    private List<Integer> colInt(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? ((Number) row.get(idx)).intValue() : null)
                 .collect(Collectors.toList());
     }
@@ -2549,8 +2551,7 @@ class RelationalMappingIntegrationTest {
             assertEquals(2, r.columnCount());
             assertEquals(2, r.rows().size());
             // no sort: the rows as a multiset (P3-11)
-            com.legend.testing.Rows.assertSameRows(List.of(List.of(1, "Alice"), List.of(2, "Bob")), r.rows(),
-                    com.legend.exec.Row::values);
+            com.legend.testing.Rows.assertSameRows(List.of(List.of(1, "Alice"), List.of(2, "Bob")), r.rows());
         }
 
         @Test
@@ -2600,7 +2601,7 @@ class RelationalMappingIntegrationTest {
             assertEquals(2, r.rows().size());
             // no sort: the rows as a multiset (P3-11)
             com.legend.testing.Rows.assertSameRows(List.of(List.of(1, "Alice Smith", "Engineering"),
-                    List.of(2, "Bob Jones", "Sales")), r.rows(), com.legend.exec.Row::values);
+                    List.of(2, "Bob Jones", "Sales")), r.rows());
         }
 
         @Test
@@ -5568,8 +5569,8 @@ class RelationalMappingIntegrationTest {
         void testBareFilter() throws SQLException {
             String m = personModel();
             var result = exec(m, "|model::P.all()->filter(x|$x.age > 20)");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertNotNull(json);
             // Both Alice (25) and Bob (30) pass age > 20
             assertTrue(json.contains("Alice"), "JSON should contain Alice");
@@ -5583,8 +5584,8 @@ class RelationalMappingIntegrationTest {
         void testBareSort() throws SQLException {
             String m = personModel();
             var result = exec(m, "|model::P.all()->sortBy({p|$p.name})");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertNotNull(json);
             assertTrue(json.contains("Alice"), "JSON should contain Alice");
             assertTrue(json.contains("Bob"), "JSON should contain Bob");
@@ -5598,8 +5599,8 @@ class RelationalMappingIntegrationTest {
         void testBareLimit() throws SQLException {
             String m = personModel();
             var result = exec(m, "|model::P.all()->limit(1)");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertNotNull(json);
             // Should contain exactly 1 person (either Alice or Bob, not both)
             assertTrue(json.contains("name"), "JSON should contain 'name' property");
@@ -5615,8 +5616,8 @@ class RelationalMappingIntegrationTest {
             // so the JSON envelope is built correctly.
             String m = personModel();
             var result = exec(m, "|let unused = 1; model::P.all()->filter(x|$x.age > 20);");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertNotNull(json);
             assertTrue(json.contains("Alice"), "JSON should contain Alice");
             assertTrue(json.contains("Bob"), "JSON should contain Bob");
@@ -5631,8 +5632,8 @@ class RelationalMappingIntegrationTest {
             // operator-chain case above. Both should JSON-wrap identically.
             String m = personModel();
             var result = exec(m, "|let unused = 'x'; model::P.all();");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertNotNull(json);
             assertTrue(json.contains("Alice"), "JSON should contain Alice");
             assertTrue(json.contains("Bob"), "JSON should contain Bob");
@@ -5647,8 +5648,8 @@ class RelationalMappingIntegrationTest {
             // both.
             String m = personModel();
             var result = exec(m, "|if(true, |model::P.all()->filter(x|$x.age > 20), |model::P.all());");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertNotNull(json);
             assertTrue(json.contains("Alice"), "JSON should contain Alice");
             assertTrue(json.contains("Bob"), "JSON should contain Bob");
@@ -5661,8 +5662,8 @@ class RelationalMappingIntegrationTest {
             // Else-branch is bare {@code model::P.all()} — both Alice and Bob.
             String m = personModel();
             var result = exec(m, "|if(false, |model::P.all()->filter(x|$x.age > 99), |model::P.all());");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertNotNull(json);
             assertTrue(json.contains("Alice"), "JSON should contain Alice");
             assertTrue(json.contains("Bob"), "JSON should contain Bob");
@@ -5677,8 +5678,8 @@ class RelationalMappingIntegrationTest {
             // contributes both rows and the else-branch contributes none.
             String m = personModel();
             var result = exec(m, "|if(1 == 1, |model::P.all()->filter(x|$x.age > 20), |model::P.all()->filter(x|$x.age > 99));");
-            assertInstanceOf(ExecutionResult.Graph.class, result);
-            String json = result.asGraph().json();
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+            String json = result.json();
             assertNotNull(json);
             assertTrue(json.contains("Alice"), "JSON should contain Alice");
             assertTrue(json.contains("Bob"), "JSON should contain Bob");
@@ -5695,7 +5696,7 @@ class RelationalMappingIntegrationTest {
                     "name: [store::DB2] T2.NAME, age: [store::DB2] T2.AGE");
             var result = exec(m, "|model::Q.all()->project(~[grp:x|$x.name, name:x|$x.name])->groupBy(~grp, ~[cnt:x|$x.name:y|$y->count()])");
             // groupBy returns Relation (not ClassType) → TabularResult
-            assertInstanceOf(ExecutionResult.Tabular.class, result);
+            assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, result.shape());
             assertEquals(2, result.rows().size(), "Should have 2 groups (Alice, Bob)");
         }
     }

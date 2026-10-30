@@ -39,16 +39,16 @@ class LetsTest {
     void aLetIsDissolved_aClockReadIsOneValue_aValueComputedAnewEachCallReadTwiceIsRefused() throws Exception {
         var ctx = Compiler.compileModel(MODEL);
         try (Connection c = com.legend.testbackend.TestBackends.platform().open()) {
-            ExecutionPlan twice = Compiler.query(ctx, "|let x = 2 + 3; $x * $x;").executionPlan("s::RT", TypedQuery.Output.JSON);
-            assertTrue(((ExecutionPlan.TextResult) twice.root()).sql().statement().contains("2 + 3"));
-            assertEquals("[{\"value\":25}]", PlanCases.run(twice, c));
-            ExecutionPlan clock = Compiler.query(ctx, "|let n = now(); $n == $n;").executionPlan("s::RT", TypedQuery.Output.JSON);
-            assertEquals("[{\"value\":true}]", PlanCases.run(clock, c));
-            ExecutionPlan once = Compiler.query(ctx, "|let g = generateGuid(); $g->length();").executionPlan("s::RT", TypedQuery.Output.JSON);
-            assertEquals("[{\"value\":36}]", PlanCases.run(once, c));
+            ExecutionPlan twice = Compiler.query(ctx, "|let x = 2 + 3; $x * $x;").executionPlan("s::RT");
+            assertTrue(twice.answerSql().statement().contains("2 + 3"));
+            assertEquals("[{\"value\":25}]", PlanCases.write(twice, c, java.util.Map.of(), PlanCases.Written.JSON::writer));
+            ExecutionPlan clock = Compiler.query(ctx, "|let n = now(); $n == $n;").executionPlan("s::RT");
+            assertEquals("[{\"value\":true}]", PlanCases.write(clock, c, java.util.Map.of(), PlanCases.Written.JSON::writer));
+            ExecutionPlan once = Compiler.query(ctx, "|let g = generateGuid(); $g->length();").executionPlan("s::RT");
+            assertEquals("[{\"value\":36}]", PlanCases.write(once, c, java.util.Map.of(), PlanCases.Written.JSON::writer));
         }
         var refused = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> Compiler.query(ctx, "|let g = generateGuid(); $g == $g;").executionPlan("s::RT", TypedQuery.Output.JSON));
+                () -> Compiler.query(ctx, "|let g = generateGuid(); $g == $g;").executionPlan("s::RT"));
         assertTrue(refused.getMessage().contains("read 2 times"), refused.getMessage());
     }
 }

@@ -1,7 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * plan binding). Ours: a struct of the leaves under the collection
  * reducer, COUNT(DISTINCT row) = COUNT(row), on the database.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class IsDistinctByTreeIntegrationTest {
 
     private Connection conn;
@@ -27,7 +29,7 @@ class IsDistinctByTreeIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
         try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE T_FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100))");
             s.execute("CREATE TABLE T_PERSON (ID INTEGER PRIMARY KEY, FIRST_NAME VARCHAR(100),"
@@ -82,7 +84,7 @@ class IsDistinctByTreeIntegrationTest {
 
     @Test
     void distinctByTheTreesLeaves() throws SQLException {
-        ExecutionResult r = qs.execute(MODEL, """
+        Lean.Result r = Lean.run(MODEL, """
                 test::Firm.all()->project([
                     f | $f.legalName,
                     f | $f.employees->isDistinct(#{test::Person {firstName, lastName}}#),
@@ -92,7 +94,7 @@ class IsDistinctByTreeIntegrationTest {
         // Clean: distinct by name; Dupes: 'Ann Smith' twice by name, distinct once age joins the key;
         // Empty: no employees — vacuously distinct
         assertEquals("[Clean, true, true] [Dupes, false, true] [Empty, true, true]",
-                String.join(" ", r.rows().stream().map(row -> row.values().toString()).toList()),
+                String.join(" ", r.rows().stream().map(row -> row.toString()).toList()),
                 "by-tree distinct per firm");
     }
 }

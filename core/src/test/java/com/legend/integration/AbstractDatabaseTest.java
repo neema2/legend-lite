@@ -1,7 +1,7 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 
@@ -18,10 +18,10 @@ import java.util.List;
  * 
  * Uses Pure syntax for defining Class, Database, and Mapping.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 public abstract class AbstractDatabaseTest {
 
     protected Connection connection;
-    protected QueryService queryService = new QueryService();
 
     // ==================== Pure Definitions ====================
 
@@ -282,11 +282,13 @@ public abstract class AbstractDatabaseTest {
     // ====================
 
     /**
-     * The database this test runs on: the platform's own engine, unless a test named for a database says it is that
-     * database's (the dialect program's Phase 6, 2026-10-16).
+     * The database this test runs on: the lane's ({@link LaneFloor#LANE_PROPERTY}; a Bazel target beside PCT's,
+     * {@code //core:core_tests_integration_<lane>}, sets it, and holds the run to the lane's recorded floor), else
+     * the platform's own engine, unless a test named for a database says it is that database's (the dialect
+     * program's Phase 6, 2026-10-16).
      */
     protected TestBackend backend() {
-        return TestBackends.platform();
+        return LaneFloor.backend();
     }
 
     /**
@@ -358,14 +360,14 @@ public abstract class AbstractDatabaseTest {
      * @return List of PersonResult
      */
     protected List<PersonResult> executePureQuery(String pureQuery) throws SQLException {
-        ExecutionResult result = executeRelation(pureQuery);
+        Lean.Result result = executeRelation(pureQuery);
         return convertToPersonResults(result);
     }
 
     /**
-     * Converts ExecutionResult to PersonResult list.
+     * Converts the answer to a PersonResult list.
      */
-    private List<PersonResult> convertToPersonResults(ExecutionResult result) {
+    private List<PersonResult> convertToPersonResults(Lean.Result result) {
         List<PersonResult> personResults = new ArrayList<>();
 
         for (var row : result.rows()) {
@@ -391,22 +393,15 @@ public abstract class AbstractDatabaseTest {
     }
 
     /**
-     * Executes a Pure query and returns an ExecutionResult.
-     * Uses QueryService for complete compile → plan → execute flow.
+     * Executes a Pure query on this test's connection and reads its answer as a client reads lite's JSON rows (the
+     * LEAN twin, track T, 2026-10-29: the product's own route -- plan, run, {@code JsonRowsWriter} -- never the old
+     * door): the plan's columns and the rows.
      *
      * @param pureQuery The Pure query to execute
-     * @return ExecutionResult containing column metadata and rows
+     * @return the answer: column metadata and rows
      */
-    protected ExecutionResult executeRelation(String pureQuery) throws SQLException {
-        try {
-            return queryService.execute(
-                    getCompletePureModelWithRuntime(),
-                    pureQuery,
-                    "test::TestRuntime",
-                    connection);
-        } catch (com.legend.error.LegendCompileException e) {
-            throw e; // core's compile-error surface reaches callers directly
-        }
+    protected Lean.Result executeRelation(String pureQuery) throws SQLException {
+        return Lean.run(getCompletePureModelWithRuntime(), pureQuery, "test::TestRuntime", connection);
     }
 
     // ==================== Database Setup ====================

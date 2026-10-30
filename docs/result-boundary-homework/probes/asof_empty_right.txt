@@ -1,0 +1,21 @@
+# DuckDB's ASOF LEFT JOIN against an empty right side (track F, 2026-10-29; register S126).
+# The probe: scratch/asof/AsOf.java, AsOf2.java, AsOf3.java (single-file Java on the pinned duckdb_jdbc jars, never
+# compiled into the build). Left side: (id, t) = (1, 10), (2, 20). Condition l.t > r.ts.
+#
+# duckdb_jdbc 1.3.0.0 (the product's pin) and 1.4.4.0 (the warehouse's) answer alike:
+#   SELECT * FROM l ASOF LEFT JOIN r ON l.t > r.ts                 r an empty TABLE           -> 2 rows (nulls right)
+#   SELECT * FROM l ASOF JOIN r ON l.t > r.ts                      r an empty TABLE           -> 0 rows (inner)
+#   SELECT * FROM l LEFT JOIN r ON l.t > r.ts                      r an empty TABLE           -> 2 rows
+#   ... ASOF LEFT JOIN (SELECT CAST(NULL AS INTEGER) AS ts, CAST(NULL AS VARCHAR) AS v WHERE FALSE) r  -> 0 rows
+#   ... ASOF LEFT JOIN (SELECT ... WHERE 1 = 0) r                                                    -> 0 rows
+#   ... ASOF LEFT JOIN (SELECT * FROM (VALUES (NULL, NULL)) AS t(ts, v) WHERE FALSE) r               -> 0 rows
+#   ... ASOF LEFT JOIN (SELECT ... LIMIT 0) r                                                        -> 0 rows
+#   ... LEFT JOIN (SELECT ... WHERE FALSE) r  (no ASOF)                                              -> 2 rows
+#   ... ASOF LEFT JOIN (SELECT * FROM (VALUES (NULL, NULL)) AS t(ts, v) WHERE ts IS NOT NULL) r      -> 2 rows
+#   ... ASOF LEFT JOIN (SELECT CAST(ts AS INTEGER) AS ts, v FROM (VALUES (5, 'x')) AS t(ts, v) WHERE 1 = 0) r -> 0 rows
+#   ... ASOF LEFT JOIN (SELECT CAST(ts AS INTEGER) AS ts, v FROM (VALUES (50, 'x')) AS t(ts, v) WHERE ts < 10) r -> 2 rows
+#
+# So: the ASOF LEFT JOIN keeps unmatched left rows (the spec: legend-engine's JoinKind.LEFT; the PCT's
+# testSimpleAsOfJoin keeps a row with nulls) unless the right side is a derived table the PLANNER proves empty, when
+# DuckDB drops every left row: a DuckDB defect. lite's empty TDS literal is `VALUES (NULL, ...) WHERE 1 = 0`
+# (Lowerer.tdsLiteral), the proven-empty form.

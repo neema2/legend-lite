@@ -106,8 +106,22 @@ class   CarrierPurityRatchetTest {
             // already existed — the mixedNumericArray class above);
             // absorbs with the collection semantic node.
             // 42 -> 40 (batch 88, 2026-09-06): tightened to the measured count
-            "new SqlExpr\\.ArrayLit\\(", 40,
-            "new SqlExpr\\.OrderedListAgg\\(", 1,
+            // 40 -> 44 (track L, 2026-10-29, D50; the LIST_ row's note): MixedEncoding.taggedList BUILDS the tagged
+            // list -- its positions, its tags, its comparable and each channel's array -- the semantic node's own
+            // construction, as the mixedNumericArray row above was; L2 deletes that row's emission.
+            // 44 -> 45 (track L, 2026-10-29, D50d): a literal list's all-NULL channel in the lambda-free equality
+            // (TaggedLists.nullChannel).
+            // 45 -> 42 (track L's L2, 2026-10-29): the LITERAL spelling carrier's emissions deleted
+            // (LiteralSpelling.mixedNumericArray, printedFormatSlots, the sort's spelled ids).
+            "new SqlExpr\\.ArrayLit\\(", 42,
+            // 1 -> 2 (track L, 2026-10-29, D50): the tagged list's sort orders its positions by the comparable
+            // (TaggedLists.sort), the same ordered aggregate the spelling carrier's sort used; L2 deletes that one.
+            // 2 -> 5 (track L, 2026-10-29, D50d): the row-major flatten's arrays are ordered aggregates over its
+            // cells (ValueCollections.rowMajorTaggedList: the arrays, and the rank struct's own aggregate so no
+            // struct reaches a cell), and its all-NULL channel one more; the text flatten's LIST reducer goes with
+            // L2.
+            // 5 -> 4 (track L's L2, 2026-10-29): the spelling carrier's sort went.
+            "new SqlExpr\\.OrderedListAgg\\(", 4,
             // 136→137 (2026-08-19): ListEncodings.map's LIST_GET — the
             // map SEMANTIC NODE's wire-shape rule (a to-one result
             // unwraps from its singleton transform; Phase 4 channel B),
@@ -189,13 +203,27 @@ class   CarrierPurityRatchetTest {
             // LIST_POSITION for indexOf) and MixedEncoding strips a declared-only object's identity element-wise
             // (LIST_TRANSFORM): the owner's semantic forms over the existing list idioms, no new encoding; they
             // absorb with the family when the owner lowers to its own semantic node
-            "SqlFn\\.LIST_", 149,
+            // 149 -> 170 (track L, 2026-10-29, the decisions log D50): a mixed list as a list of tagged values
+            // (SqlExpr.TaggedList, parallel typed arrays by position) is a SEMANTIC NODE, and lowering/TaggedLists
+            // holds its wire-shape rules (sort by the comparable, the kept-list dedup, membership by a kind's
+            // channel, at/first/last, reverse, the per-element print) over its positions -- the same class as the
+            // sortBy and map rows above (a semantic node's own carrier spellings, not ad-hoc idioms); the spelling
+            // carrier's sites they replace go with L2 (the LITERAL slot's deletion), re-measured then.
+            // 170 -> 171 (track L, 2026-10-29, D50d): a tagged list on the variant carrier (TaggedLists.asVariantList),
+            // the lane a row's cells read in a lambda are on.
+            // 171 -> 170 (track L's L2, 2026-10-29): the spelling carrier's sites went with it; 170 -> 173 (the L1
+            // audit's fixes, D53): the present positions of a literal list with an element that may be empty
+            // (TaggedLists.presentPositions) and membership of a tagged value (containsElement).
+            "SqlFn\\.LIST_", 173,
             // 12→13 (disagree-9 burn 2026-08-31): staticTemporalText
             // SEE-THROUGH pattern-MATCHES the existing literal-list
             // egress (UNNEST/LIST_FILTER wrappers) to restore written
             // temporal fidelity — a structural READ of a carrier
             // idiom, not a new emission (the dedup-see-through
             // precedent above); absorbs with the family.
+            // 13 -> 15 (track L, 2026-10-29, D50; the LIST_ row's note): the tagged list's root (its positions
+            // unnested into rows of a tagged value) and its sort (the positions ordered by the comparable).
+            // 15 -> 13 (track L's L2, 2026-10-29): the spelling carrier's sort unnests went.
             "SqlFn\\.UNNEST", 13,
             // the collect-carrier reducer (R1 recognizes it for fusion;
             // burns with R3/R4 when sources/values migrate)

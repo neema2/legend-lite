@@ -126,6 +126,9 @@ export interface Planner {
   relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]>;
   /** What a person typed (a source, a calculated column) as its lambda: E1, the compiler's parse. */
   parse(text: string, signal?: AbortSignal): Promise<Lambda>;
+  /** A program that writes planned as an execution plan, PlanJson's text (an Output into a table: table-output.ts);
+   *  absent where the planner plans none (a host that runs a grid's rows itself). */
+  executionPlan?(program: Lambda, signal?: AbortSignal): Promise<string>;
   /** A query as Pure text, for a person to read: E4, the compiler's print (PRETTY unless asked). */
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
   /**
@@ -809,6 +812,29 @@ export class CubeController {
   #letCopyGo(): void {
     this.#copy?.dispose();
     this.#copy = null;
+  }
+
+  /**
+   * ITS COPY HANDED OVER (a flow's cached box closed: docs/DATACUBE_FLOW_MODE_2026_10_24.md FL10): back to live with the
+   * copy's table kept -- the boxes after it read it -- its new owner letting it go by `discard` (its table dropped, then
+   * its name free again). Undefined when it holds no copy of its own in the tab: a host's copy is its host's to keep.
+   */
+  handOver(): { readonly discard: () => Promise<void> } | undefined {
+    if (!(this.#snaps instanceof SnapManager) || this.#snapping !== undefined) return undefined;
+    const held = this.#snaps.detach();
+    if (held === null) return undefined;
+    const copy = this.#copy;
+    this.#copy = null;
+    const snaps = this.#snaps;
+    return {
+      discard: async () => {
+        try {
+          await snaps.discard(held);
+        } finally {
+          copy?.dispose();
+        }
+      },
+    };
   }
 
   /**

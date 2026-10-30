@@ -35,7 +35,7 @@ import java.util.function.BiFunction;
  *
  * <p><strong>Ownership (Invariant 7):</strong> these rules mint and
  * rewrite typed-HIR nodes — COMPILER work. They lived in
- * {@code StatementExecutor} ("moved VERBATIM from the harness", audit
+ * {@code BodyDriver} ("moved VERBATIM from the harness", audit
  * 19d B2) until the splice-ownership leg moved them here. The executor
  * keeps what is genuinely execution-bound — building and eagerly
  * running frames over JDBC — and supplies it through {@link Frames}:

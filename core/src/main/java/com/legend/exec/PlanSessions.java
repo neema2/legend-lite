@@ -9,7 +9,6 @@ import com.legend.executionplan.ExecutionPlan;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.sql.Statement;
 
 /**
  * The sessions a plan runs on, given out by its target (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3, and
@@ -75,15 +74,71 @@ public final class PlanSessions {
         return target -> borrowed(connection);
     }
 
+    /** A session the body driver holds, for a plan it runs on it: its statements publish each query's
+     *  execution-trace stamp to {@code trace} (an activity row records the comment its statement carried,
+     *  {@link ExecutionTrace}; {@link Sessions.Session#statements(ExecutionTrace)}), its state and version the
+     *  session's own, and the runner's close releases nothing -- the session is the body's (track B's B1b,
+     *  2026-10-29: until then the driver handed its {@code Connection} here). */
+    public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace) {
+        return target -> new Sessions.Session() {
+            @Override
+            public Connection connection() {
+                return session.connection();
+            }
+
+            @Override
+            public Statements statements() {
+                return session.statements(trace);
+            }
+
+            @Override
+            public SessionState state() {
+                return session.state();
+            }
+
+            @Override
+            public String version() {
+                return session.version();
+            }
+
+            @Override
+            public void close() {
+                // the body's
+            }
+        };
+    }
+
+    /** A caller's own connection as a session: its database the caller's, never closed here. The execution front
+     *  door wraps each execute entry's connection so for the body driver, which holds no connection of its own (B1b). */
+    public static Sessions.Session session(Connection connection) {
+        return borrowed(connection);
+    }
+
     /** A caller's own FRESH connection with {@code target}'s setup run on it now (a test's new database): the source
-     *  of {@link #given} it, never closed here. */
+     *  of {@link #given} it, never closed here. The setup runs as the body path's seeds do (D65, 2026-10-29: until
+     *  then this class sent each step with a statement of its own): each step through {@link PlanRunner#setUp} under
+     *  the SEED mark, on a session the runner opens and checks against the target, the target's session statements
+     *  first -- a connection's settings precede its test data, as legend-engine's test connections run their setup SQL
+     *  on the connection they create ({@code LocalH2DataSourceSpecification.getConnection}). A plan with rows for a
+     *  bulk loader is refused before any statement runs where the database has none. */
     public static Source setUp(Connection connection, ExecutionPlan.Target target) {
-        try {
-            runSetup(connection, target);
-        } catch (SQLException e) {
-            throw dataError(e);
+        Source source = given(connection);
+        if (target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)) {
+            // the loader, found before any statement runs: a plan writes rows for one only where its database has one
+            // (SqlDialect.loadsRowsInBulk), so none is a mismatch, refused untouched
+            try {
+                if (BulkLoads.of(connection) == null) {
+                    throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
+                            + " database has none (" + Connectors.product(connection) + ")");
+                }
+            } catch (SQLException e) {
+                throw dataError(e);
+            }
         }
-        return given(connection);
+        try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
+            PlanRunner.setUp(target.setup(), target, source, null);
+        }
+        return source;
     }
 
     private static Sessions.Session openShared(ExecutionPlan.Target target) {
@@ -170,10 +225,11 @@ public final class PlanSessions {
 
     /** {@code c}, which the source opened for {@code target}, set up: a setup that fails closes it, and a close that
      *  fails rides the setup's own error, suppressed. */
-    private static Connection setUpOpened(Connection c, ExecutionPlan.Target target) throws SQLException {
+    private static Connection setUpOpened(Connection c, ExecutionPlan.Target target) {
         try {
-            return runSetup(c, target);
-        } catch (SQLException | RuntimeException | Error e) {
+            setUp(c, target);
+            return c;
+        } catch (RuntimeException | Error e) {
             // every failure, rethrown as it is: the connection must not outlive a setup that failed
             try {
                 c.close();
@@ -181,33 +237,6 @@ public final class PlanSessions {
                 e.addSuppressed(closing);
             }
             throw e;
-        }
-    }
-
-    /** Runs {@code target}'s setup on {@code c}, under the SEED mark: each statement as it is, each rows step through
-     *  the database's bulk loader (checked present before any statement runs). */
-    private static Connection runSetup(Connection c, ExecutionPlan.Target target) throws SQLException {
-        try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
-            // the loader, found before any statement runs: a plan writes rows for one only where its database has one
-            // (SqlDialect.loadsRowsInBulk), so none is a mismatch, refused untouched
-            BulkLoad bulk = BulkLoads.of(c);
-            if (bulk == null && target.setup().stream().anyMatch(ExecutionPlan.SetupStep.Rows.class::isInstance)) {
-                throw new IllegalStateException("the plan's setup has rows for a bulk loader, and the session's"
-                        + " database has none (" + Connectors.product(c) + ")");
-            }
-            for (ExecutionPlan.SetupStep step : target.setup()) {
-                switch (step) {
-                    case ExecutionPlan.SetupStep.Statement s -> {
-                        StatementOrigin.sent(s.sql());
-                        try (Statement st = c.createStatement()) {
-                            st.execute(s.sql());
-                        }
-                    }
-                    case ExecutionPlan.SetupStep.Rows r -> BulkLoads.load(java.util.Objects.requireNonNull(bulk,
-                            "found above"), c, r);
-                }
-            }
-            return c;
         }
     }
 
@@ -258,11 +287,13 @@ public final class PlanSessions {
         return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
     }
 
-    /** {@link #dataError(SQLException)} for a statement that failed on {@code session}: a raise the session holds is
-     *  read back ({@link RaisedErrors#unwrapped(SQLException, Connection)}: MariaDB and MySQL keep a raise's text in
-     *  the session, their errors cannot carry it), as the legacy executor read it (step 9, 2026-10-19). */
-    static com.legend.error.DataError dataError(SQLException e, Connection session) {
-        SQLException un = RaisedErrors.unwrapped(e, session);
+    /** {@link #dataError(SQLException)} for a statement that failed on a session that may hold a raise: {@code held}
+     *  reads back the raise its session held ({@link JdbcStatements#held}: MariaDB and MySQL keep a raise's text in
+     *  the session, their errors cannot carry it), asked only where the error's own text carries none
+     *  ({@link RaisedErrors#unwrapped(SQLException, java.util.function.Supplier)}); null where none. */
+    static com.legend.error.DataError dataError(SQLException e,
+            java.util.function.Supplier<@com.legend.base.Nullable String> held) {
+        SQLException un = RaisedErrors.unwrapped(e, held);
         return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
     }
 }

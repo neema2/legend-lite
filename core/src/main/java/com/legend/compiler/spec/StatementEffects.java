@@ -14,7 +14,7 @@ import com.legend.compiler.spec.typed.TypedUserCall;
  * effect, transitively through compiled user-function bodies), whether it generates test data, whether it reaches a
  * verdict. These are compile-time facts over the typed tree, so they live with the compiler; the execution side and
  * the driver's program facts ask here (C1, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md: they lived in
- * {@code StatementExecutor} and {@code Compiler}, the plan side's one reach into execution). Moved verbatim; the
+ * {@code BodyDriver} and {@code Compiler}, the plan side's one reach into execution). Moved verbatim; the
  * effect scan's catch of an un-typeable callee is the rebuild's B3.
  */
 public final class StatementEffects {
@@ -162,7 +162,7 @@ public final class StatementEffects {
 
     /** Is {@code n} itself a write into a store table: {@code rel->write(#>{db.t}#)}, or lite's {@code delete},
      *  {@code update} or {@code merge} (each over a store table by its checker)? The statement the execution runs as
-     *  the database's DML (StatementExecutor's store-write arm). */
+     *  the database's DML (BodyDriver's store-write arm). */
     public static boolean isStoreWrite(TypedSpec n) {
         return (n instanceof com.legend.compiler.spec.typed.TypedWrite w && w.destination().isPresent()
                 && w.destination().get() instanceof com.legend.compiler.spec.typed.TypedTableReference)

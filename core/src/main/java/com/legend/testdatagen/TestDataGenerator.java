@@ -5,6 +5,10 @@ package com.legend.testdatagen;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.error.NotImplementedException;
+import com.legend.exec.PlanRunner;
+import com.legend.exec.PlanSessions;
+import com.legend.exec.Statements;
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.lineage.ScanRelations;
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.RelationalDataType;
@@ -22,10 +26,6 @@ import com.legend.sql.SqlSource;
 import com.legend.sql.SqlTyping;
 import com.legend.sql.dialect.SqlDialect;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -48,6 +48,12 @@ import java.util.TreeSet;
  * DB-side {@code UNION}. Row values only cross into Java as display
  * strings for the CSV text. (The CSV compare, never called since
  * assertTestData folds through setUpDataSQLs, was deleted 2026-10-16.)
+ *
+ * <p>Every statement of a run is a plan statement the plan runner runs on the body's session (the doors,
+ * 2026-10-29; until then this class ran JDBC statements of its own on the session's connection): the temps and
+ * their drops as effects ({@link PlanRunner#effect}), the read-backs as typed rows of the columns the database
+ * describes ({@link PlanRunner#describe}, {@link PlanRunner#rows}: each cell by its reported kind's slot), the CSV's
+ * text columns as reported columns ({@link PlanRunner#columns}). The generator holds no JDBC.
  *
  * <p>Walls are LOUD ({@link NotImplementedException} naming the
  * pending shape) — but the previously-listed examples (view-backed
@@ -194,13 +200,17 @@ public final class TestDataGenerator {
         String render(String dbFqn, String viewName, Map<String, String> tableToTemp);
     }
 
-    /** The generator's run on the session {@code conn}, whose database {@code dialect} writes every statement: the
-     *  fetches into its temp tables, their read-backs and the CSV envelope (the dialect program's Phase 3,
-     *  2026-10-16: until then this class wrote one SQL text it hoped both H2 and DuckDB would read). */
+    /** The generator's run on a session of {@code sessions} for {@code target}, whose database {@code dialect}
+     *  writes every statement: the fetches into its temp tables, their read-backs and the CSV envelope (the dialect
+     *  program's Phase 3, 2026-10-16: until then this class wrote one SQL text it hoped both H2 and DuckDB would read).
+     *  Every statement is the plan runner's, under the TDG origin (the doors, 2026-10-29: until then the generator
+     *  read the session's JDBC connection itself, the fold's residue of D30); a database failure is the runner's
+     *  {@code DataError}. */
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
             List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
-            boolean hashStrings, Connection conn, SqlDialect dialect, ViewSql viewSql) throws SQLException {
+            boolean hashStrings, PlanSessions.Source sessions, ExecutionPlan.Target target, SqlDialect dialect,
+            ViewSql viewSql) {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         // engine generateRelationColumnMap: column demand merges PER
@@ -220,8 +230,10 @@ public final class TestDataGenerator {
         // per-call temp-name counter (temps drop in finally, so names
         // never collide across sequential invocations)
         List<String> temps = new ArrayList<>();
-        try (Statement statement = conn.createStatement()) {
-            Session st = new Session(statement, dialect);
+        Session st = new Session(sessions, target, dialect);
+        // the temps drop when the run ends, under the TDG origin still (the resources close in reverse order)
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.TDG);
+                var __t = new Temps(st, temps)) {
             for (ScanRelations.Rel r : roots) {
                 fetchRoot(ctx, r, rowIds, st, sqls, fetches, fetched,
                         temps, colMap, dates, viewSql);
@@ -229,8 +241,6 @@ public final class TestDataGenerator {
             String csv = csvEnvelope(st, fetched, hashStrings);
             return new Result(List.copyOf(sqls), csv, null,
                     List.copyOf(fetches));
-        } finally {
-            dropTemps(conn, dialect, temps);
         }
     }
 
@@ -274,8 +284,7 @@ public final class TestDataGenerator {
             List<Fetch> fetches,
             Map<String, Fetched> fetched, List<String> temps,
             Map<String, List<String>> colMap, @com.legend.base.Nullable MilestoningDates dates,
-            ViewSql viewSql)
-            throws SQLException {
+            ViewSql viewSql) {
         // a VIEW-backed root generates for its UNDERLYING tree (engine
         // generateTestDataForNestedViewTree): the view's seed table is
         // the row-identifier target, its join web fetches as children,
@@ -357,8 +366,7 @@ public final class TestDataGenerator {
             Map<String, Fetched> fetched,
             List<String> temps, Map<String, List<String>> colMap,
             List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
-            ViewSql viewSql)
-            throws SQLException {
+            ViewSql viewSql) {
         String viewDb = child.db();
         String viewName = ScanRelations.isView(ctx, child.db(), child.table())
                 ? child.table() : null;
@@ -430,7 +438,7 @@ public final class TestDataGenerator {
     private static void emitViewFetches(ModelContext ctx, String db,
             String viewName, Session st, List<String> sqls,
             List<Fetch> fetches,
-            Map<String, Fetched> fetched, ViewSql viewSql) throws SQLException {
+            Map<String, Fetched> fetched, ViewSql viewSql) {
         List<String> chain = ScanRelations
                 .viewExpansion(ctx, db, viewName).viewChain();
         // the fetched tables by every spelling the lowering may use for a
@@ -461,31 +469,47 @@ public final class TestDataGenerator {
     /** The materialized temp's LIVE contents — the fetch's transcript
      * rows (engine parity: generateTestData pairs each SQL with its
      * ResultSet). */
-    private static List<List<Object>> tempRows(Session st, String temp)
-            throws SQLException {
+    private static List<List<Object>> tempRows(Session st, String temp) {
         return captureRows(st, st.render(selectAll(temp)), null);
     }
 
+    /** {@code sql}'s rows as typed cells (the doors, 2026-10-29; until then a JDBC result set read cell by cell as
+     *  the driver's objects): the statement DESCRIBED by the database first ({@link PlanRunner#describe}: a prepare,
+     *  no row), then run as a relation of the columns it reported, each cell read by its reported kind's slot
+     *  ({@link PlanRunner#rows}, the typed method's carriers); a column the database reports in no kind of the
+     *  vocabulary is read as text, as a raw grid's is ({@code WireTypes.staticized}). {@code colsOut}, when given,
+     *  takes the reported labels. */
     private static List<List<Object>> captureRows(Session st, String sql,
-            @com.legend.base.Nullable List<String> colsOut) throws SQLException {
-        List<List<Object>> rows = new ArrayList<>();
-        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-        try (java.sql.ResultSet rs = st.statement().executeQuery(sql)) {
-            int n = rs.getMetaData().getColumnCount();
+            @com.legend.base.Nullable List<String> colsOut) {
+        List<ExecutionPlan.Column> columns = new ArrayList<>();
+        for (Statements.Reported r : PlanRunner.describe(st.sql(sql), st.sessions())) {
+            String slot = com.legend.executionplan.ColumnFacts.slot(r.type() == null
+                    ? com.legend.sql.SqlType.Scalar.VARCHAR : r.type());
+            columns.add(new ExecutionPlan.Column(r.name(), com.legend.exec.WireTypes.pureTypeNameOf(slot),
+                    new ExecutionPlan.Multiplicity(0, 1), slot, null, null));
             if (colsOut != null) {
-                for (int i = 1; i <= n; i++) {
-                    colsOut.add(rs.getMetaData().getColumnLabel(i));
-                }
-            }
-            while (rs.next()) {
-                List<Object> row = new ArrayList<>(n);
-                for (int i = 1; i <= n; i++) {
-                    row.add(rs.getObject(i));
-                }
-                rows.add(row);
+                colsOut.add(r.name());
             }
         }
-        return rows;
+        return rows(st, new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, columns, st.sql(sql)));
+    }
+
+    /** {@code node}'s rows, run by the plan runner on the run's session. */
+    private static List<List<Object>> rows(Session st, ExecutionPlan.TdsResult node) {
+        try {
+            return PlanRunner.rows(new ExecutionPlan(List.of(), node), Map.of(), st.sessions()).rows();
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    /** {@code statement} run as a plan effect on the run's session. */
+    private static void effect(Session st, String statement) {
+        try {
+            PlanRunner.effect(new ExecutionPlan.Effect(st.sql(statement)), st.sessions());
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
     }
 
     /** The engine's getMilestoningFilter: forced temporal dates filter a
@@ -551,11 +575,10 @@ public final class TestDataGenerator {
     /** The fetch's rows into a temp table of the session's own, named {@code tdg_<n>_<table>} (the referee knows a
      *  chained fetch by that prefix). */
     private static String materialize(Session st, SqlSelect fetch,
-            String table, List<String> temps) throws SQLException {
+            String table, List<String> temps) {
         String temp = "tdg_" + temps.size() + "_"
                 + table.replaceAll("[^A-Za-z0-9_]", "_");
-        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-        st.statement().execute(st.dialect().render(new SqlDml.CreateTempTableAs(temp, fetch)));
+        effect(st, st.dialect().render(new SqlDml.CreateTempTableAs(temp, fetch)));
         temps.add(temp);
         return temp;
     }
@@ -920,8 +943,7 @@ public final class TestDataGenerator {
     // ===== CSV =====
 
     private static String csvEnvelope(Session st,
-            Map<String, Fetched> fetched, boolean hashStrings)
-            throws SQLException {
+            Map<String, Fetched> fetched, boolean hashStrings) {
         StringBuilder out = new StringBuilder();
         for (Fetched f : fetched.values()) {
             if (out.length() > 0) {
@@ -948,15 +970,13 @@ public final class TestDataGenerator {
             // displays. Text columns learn from the union's SCHEMA (a
             // LIMIT-0 metadata read, not value sniffing).
             java.util.Set<String> textCols = new java.util.HashSet<>();
-            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-            try (ResultSet meta = st.statement().executeQuery(st.render(
-                    SqlSelect.starOf(new SqlSource.Subselect(union, "_u", null)).withLimit(0L)))) {
-                var mmd = meta.getMetaData();
-                for (int i = 1; i <= mmd.getColumnCount(); i++) {
-                    if (isTextType(mmd.getColumnType(i))) {
-                        // without case: H2 names a temp's column upper case, DuckDB as stored
-                        textCols.add(mmd.getColumnName(i).toUpperCase(java.util.Locale.ROOT));
-                    }
+            for (Statements.Reported r : PlanRunner.columns(st.sql(st.render(
+                    SqlSelect.starOf(new SqlSource.Subselect(union, "_u", null)).withLimit(0L))), st.sessions())) {
+                // a text column by the kind the session reports it in (JDBC's CHAR, VARCHAR and LONGVARCHAR, with
+                // their national twins, are the vocabulary's VARCHAR: WireTypes.sqlTypeOf)
+                if (r.type() == com.legend.sql.SqlType.Scalar.VARCHAR) {
+                    // without case: H2 names a temp's column upper case, DuckDB as stored
+                    textCols.add(r.name().toUpperCase(java.util.Locale.ROOT));
                 }
             }
             List<SqlSelect.Projection> projs = new ArrayList<>(cs.size());
@@ -1001,12 +1021,11 @@ public final class TestDataGenerator {
                     new SqlSource.Subselect(cells, CSV_ROW, null), null, List.of(), null, null,
                     cs.stream().map(c -> SqlSelect.SortKey.asc(SqlExpr.Column.derived(CSV_ROW, tempColumn(f.def(), c))))
                             .toList(), null, null, List.of());
-            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-            try (ResultSet rs = st.statement().executeQuery(st.render(lines))) {
-                while (rs.next()) {
-                    out.append(rs.getString(1)).append('\n');
-                }
+            // the lines as one text column's values (a VALUE plan of one VARCHAR column)
+            for (List<Object> row : rows(st, new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+                    List.of(new ExecutionPlan.Column("_csv_line", "String", new ExecutionPlan.Multiplicity(0, 1),
+                            "VARCHAR", null, null)), st.sql(st.render(lines))))) {
+                out.append(row.get(0)).append('\n');
             }
         }
         if (out.length() > 0) {
@@ -1031,12 +1050,6 @@ public final class TestDataGenerator {
 
     private static SqlExpr replace(SqlExpr s, SqlExpr from, String to) {
         return SqlExpr.Call.of(SqlFn.REPLACE, s, from, new SqlExpr.StringLit(to));
-    }
-
-    private static boolean isTextType(int sqlType) {
-        return sqlType == java.sql.Types.VARCHAR
-                || sqlType == java.sql.Types.CHAR
-                || sqlType == java.sql.Types.LONGVARCHAR;
     }
 
     // ===== rendering primitives =====
@@ -1096,20 +1109,9 @@ public final class TestDataGenerator {
                     "testDataGen: NULL row-identifier cell — a primary"
                     + " key produced no value");
         }
-        // this generator reads its OWN ResultSet (registered JDBC seam)
-        // — driver temporals convert to THE wire carrier here, at the
-        // seam, before any shared formatter sees them (D-arc rule)
-        v = switch (v) {
-            case java.sql.Date d -> com.legend.values.PureDateLiteral
-                    .fromLocalDate(d.toLocalDate());
-            case java.sql.Timestamp ts -> com.legend.values.PureDateLiteral
-                    .fromLocalDateTime(ts.toLocalDateTime());
-            case java.time.LocalDate ld ->
-                    com.legend.values.PureDateLiteral.fromLocalDate(ld);
-            case java.time.LocalDateTime ldt ->
-                    com.legend.values.PureDateLiteral.fromLocalDateTime(ldt);
-            default -> v;
-        };
+        // the cells arrive as the typed method's carriers (a temporal as PureDateLiteral, the one wire temporal:
+        // the doors, 2026-10-29; until then this generator read its own result set and converted the driver's
+        // temporals here), so the one repr owner spells them as it spells every judged value
         return com.legend.exec.PureAsserts.repr(v);
     }
 
@@ -1119,14 +1121,14 @@ public final class TestDataGenerator {
      * QUOTE-BEARING identity. */
     public static String seedDataString(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            Connection conn, SqlDialect dialect) throws SQLException {
+            PlanSessions.Source sessions, ExecutionPlan.Target target, SqlDialect dialect) {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
         roots = roots.stream().map(r -> expandIfView(ctx, r, null))
                 .toList();
         StringBuilder out = new StringBuilder();
-        try (Statement statement = conn.createStatement()) {
-            Session st = new Session(statement, dialect);
+        Session st = new Session(sessions, target, dialect);
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.TDG)) {
             for (ScanRelations.Rel r : roots) {
                 Located loc = locate(ctx, r.db(), r.table());
                 List<String> cols = new ArrayList<>();
@@ -1492,10 +1494,17 @@ public final class TestDataGenerator {
     /** The alias the CSV envelope's row text reads its cells through. */
     private static final String CSV_ROW = "_r";
 
-    /** The statement every query of a run goes through, and the session's dialect, which writes them. */
-    private record Session(Statement statement, SqlDialect dialect) {
+    /** The plan runner's source for the session every statement of a run goes to, the target it is checked
+     *  against, and the session's dialect, which writes them (the doors, 2026-10-29: until then a JDBC statement of
+     *  the generator's own). */
+    private record Session(PlanSessions.Source sessions, ExecutionPlan.Target target, SqlDialect dialect) {
         String render(SqlQuery q) {
             return dialect.render(q);
+        }
+
+        /** {@code text} as a plan statement of the target (no slot: the generator binds nothing). */
+        ExecutionPlan.Sql sql(String text) {
+            return ExecutionPlan.Sql.of(text, target);
         }
     }
 
@@ -1538,14 +1547,29 @@ public final class TestDataGenerator {
         return dot < 0 ? table : table.substring(dot + 1);
     }
 
-    private static void dropTemps(Connection conn, SqlDialect dialect, List<String> temps) {
-        try (Statement st = conn.createStatement()) {
-            for (String t : temps) {
-                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
-                st.execute(dialect.render(new SqlDdl.DropTable(null, t, NameQuoting.BARE)));
+    /** The temps of a run, dropped when the run ends, each as a plan effect (try-with-resources: a drop that fails
+     *  after a run that failed rides the run's own error, suppressed; one after a run that succeeded is the error --
+     *  the doors, 2026-10-29: until then a failed drop was swallowed, the temps dying with the connection). */
+    private record Temps(Session st, List<String> names) implements AutoCloseable {
+        /** Every temp dropped, whatever an earlier drop did: the first refusal is the error, the later ones suppressed
+         *  onto it (the doors' audit, 2026-10-29, finding 4: the loop stopped at the first). */
+        @Override
+        public void close() {
+            com.legend.error.DataError first = null;
+            for (String t : names) {
+                try {
+                    effect(st, st.dialect().render(new SqlDdl.DropTable(null, t, NameQuoting.BARE)));
+                } catch (com.legend.error.DataError e) {
+                    if (first == null) {
+                        first = e;
+                    } else {
+                        first.addSuppressed(e);
+                    }
+                }
             }
-        } catch (SQLException ignored) {
-            // cleanup only — temp tables die with the connection anyway
+            if (first != null) {
+                throw first;
+            }
         }
     }
 }

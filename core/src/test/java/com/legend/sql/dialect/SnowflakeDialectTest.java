@@ -89,7 +89,7 @@ class SnowflakeDialectTest {
     @Test
     void aFloatsPrintFormsAreSpelledHere_theValueReadOnce() {
         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
-        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT, SqlFn.FLOAT_PRINT_ENGINE)) {
+        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT)) {
             String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
                     SqlExpr.Call.of(fn, x), "p", null)), false, new SqlSource.Table("t", "t",
                     List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
@@ -98,14 +98,9 @@ class SnowflakeDialectTest {
             assertTrue(sql.split("AS NUMBER\\(38, 28\\)", -1).length - 1 == 1, fn + ": " + sql);
             assertTrue(sql.length() < 8_000, fn + ": " + sql.length() + " characters: " + sql);
             assertFalse(sql.contains("(SELECT"), fn + ": " + sql);
-            if (fn == SqlFn.FLOAT_PRINT) {
-                assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
-                assertTrue(sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"), sql);
-                assertTrue(sql.contains("AS NUMBER(38, 18)) AS VARCHAR), '0')"), sql);
-            } else {
-                assertTrue(sql.contains(" BETWEEN -3 AND 6 THEN "), sql);
-                assertTrue(sql.contains(" || 'E' || TO_VARCHAR("), sql);
-            }
+            assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
+            assertTrue(sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"), sql);
+            assertTrue(sql.contains("AS NUMBER(38, 18)) AS VARCHAR), '0')"), sql);
             assertTrue(sql.contains("THEN 'NaN' WHEN "), sql);
         }
         String literal = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(

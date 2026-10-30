@@ -10,7 +10,6 @@ import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
-import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.time.LocalDate;
@@ -89,8 +88,7 @@ class PlanRunnerH2Test {
         String before = "SELECT CAST(CAST(? AS ";
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
                 H2, new ConnectionSpecification.LocalH2(null))), H2_SERVERS, List.of(), List.of());
-        return new ExecutionPlan(List.of(declared("v", type, 0, 1)), new ExecutionPlan.TextResult(
-                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("v", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null))),
+        return new ExecutionPlan(List.of(declared("v", type, 0, 1)), PlanRunnerTest.cell(
                 new ExecutionPlan.Sql(before + ") AS VARCHAR)", List.of(new ExecutionPlan.Slot("v",
                         new ExecutionPlan.Binding.One("DECIMAL", new ExecutionPlan.TypeHole(before.length(), H2_TYPES,
                                 type.equals("Date") ? ExecutionPlan.ValueKind.DATE
@@ -110,21 +108,17 @@ class PlanRunnerH2Test {
         literals.put(7L, "CAST(7 AS BIGINT)");
         try (Connection h2 = TestBackends.of(H2).open()) {
             for (var e : literals.entrySet()) {
-                StringWriter out = new StringWriter();
-                PlanRunner.run(holed("Number"), Map.of("v", e.getKey()), PlanSessions.given(h2), out);
-                assertEquals(literalText(h2, e.getValue()), out.toString(), String.valueOf(e.getKey()));
+                assertEquals(literalText(h2, e.getValue()), PlanRunnerTest.run(holed("Number"), Map.of("v", e.getKey()),
+                        PlanSessions.given(h2)), String.valueOf(e.getKey()));
             }
             Map<Object, String> dates = Map.of(LocalDate.of(2024, 1, 2), "DATE '2024-01-02'",
                     LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789), "TIMESTAMP '2024-01-02 10:30:00.123456789'");
             for (var e : dates.entrySet()) {
-                StringWriter out = new StringWriter();
-                PlanRunner.run(holed("Date"), Map.of("v", e.getKey()), PlanSessions.given(h2), out);
-                assertEquals(literalText(h2, e.getValue()), out.toString(), String.valueOf(e.getKey()));
+                assertEquals(literalText(h2, e.getValue()), PlanRunnerTest.run(holed("Date"), Map.of("v", e.getKey()),
+                        PlanSessions.given(h2)), String.valueOf(e.getKey()));
             }
             // an absent value: a null of its absent kind's type, by name alone
-            StringWriter absent = new StringWriter();
-            PlanRunner.run(holed("Number"), Map.of(), PlanSessions.given(h2), absent);
-            assertEquals("", absent.toString());
+            assertEquals(null, PlanRunnerTest.run(holed("Number"), Map.of(), PlanSessions.given(h2)));
         }
     }
 
@@ -137,28 +131,26 @@ class PlanRunnerH2Test {
 
     /** A plan whose answer is typed rows: each cell read from the driver by the plan's column (the typed seam,
      *  docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3; the plan path program's step 7, 2026-10-18), the slots bound as
-     *  a text plan's are; a rows plan is not run as a text, nor a text plan as rows. */
+     *  a text plan's are; a rows plan is not run as a text. */
     @Test
     void typedRowsAreReadFromTheDriverByThePlansColumns() throws Exception {
         try (Connection h2 = TestBackends.of(H2).open()) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(inMemory("s::H2",
                     H2, new ConnectionSpecification.LocalH2(null))), H2_SERVERS, List.of(), List.of());
             ExecutionPlan plan = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)), new ExecutionPlan.TdsResult(
-                    List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null),
-                            new ExecutionPlan.Column("S", "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null),
-                            new ExecutionPlan.Column("D", "StrictDate", new ExecutionPlan.Multiplicity(1, 1), "DATE", null)),
+                    ExecutionPlan.TdsResult.Shape.RELATION,
+                    List.of(new ExecutionPlan.Column("N", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null,
+                                    null),
+                            new ExecutionPlan.Column("S", "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null,
+                                    null),
+                            new ExecutionPlan.Column("D", "StrictDate", new ExecutionPlan.Multiplicity(1, 1), "DATE", null,
+                                    ExecutionPlan.Precision.DAY)),
                     new ExecutionPlan.Sql("SELECT CAST(? AS BIGINT) AS N, 'a' AS S, DATE '2024-01-02' AS D",
                             List.of(new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null))), target,
                             null)));
             PlanRunner.Rows rows = PlanRunner.rows(plan, Map.of("n", 7L), PlanSessions.given(h2));
             assertEquals(List.of(List.of(7L, "a", com.legend.values.PureDateLiteral.parse("2024-01-02"))), rows.rows());
             assertEquals(List.of("N", "S", "D"), rows.columns().stream().map(ExecutionPlan.Column::name).toList());
-            var asText = assertThrows(IllegalArgumentException.class,
-                    () -> PlanRunner.run(plan, Map.of("n", 7L), PlanSessions.given(h2), new StringWriter()));
-            assertTrue(asText.getMessage().contains("run by rows(...)"), asText.getMessage());
-            var asRows = assertThrows(IllegalArgumentException.class,
-                    () -> PlanRunner.rows(holed("Number"), Map.of("v", 1.5d), PlanSessions.given(h2)));
-            assertTrue(asRows.getMessage().contains("run by run(...)"), asRows.getMessage());
         }
     }
 
@@ -177,7 +169,7 @@ class PlanRunnerH2Test {
      *  HandleStoreTest's, deterministically). */
     @Test
     void runsOfOneTargetThatStartTogetherSetItUpOnce() throws Exception {
-        ExecutionPlan p = plan(ExecutionPlan.Format.JSON, "SELECT CAST(COUNT(*) AS VARCHAR) FROM TOGETHER_T",
+        ExecutionPlan p = plan("SELECT CAST(COUNT(*) AS VARCHAR) FROM TOGETHER_T",
                 target(new ExecutionPlan.Database.Declared(inMemory("s::H2", H2,
                                 new ConnectionSpecification.LocalH2(null))), H2_SERVERS,
                         statement("CREATE TABLE TOGETHER_T (ID INTEGER)"),

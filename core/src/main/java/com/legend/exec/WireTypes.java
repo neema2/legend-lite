@@ -6,18 +6,15 @@ package com.legend.exec;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlType;
 
-import java.sql.Connection;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
 import java.sql.Types;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +33,7 @@ import java.util.Map;
  * column's own type, so the value is untouched and the canon spells the
  * wire's kind. Numeric, Boolean and temporal declarations convert the
  * wire cell (the transformer's other arms) and are never touched; nor is
- * a label carrier (LITERAL / TEMPORAL_TEXT / DECIMAL_TEXT / JSON), whose
+ * a label carrier (TEMPORAL_TEXT / DECIMAL_TEXT / JSON), whose
  * VARCHAR wire is the label's contract. */
 public final class WireTypes {
 
@@ -62,8 +59,9 @@ public final class WireTypes {
      * carries VARCHAR (its kind is the golden's to infer). {@code plan}
      * itself when the database reports nothing. */
     public static SqlQuery staticized(SqlQuery plan, com.legend.sql.dialect.SqlDialect dialect,
-            Connection conn, Map<String, List<ReportedColumn>> memo) {
-        List<ReportedColumn> reported = memo.computeIfAbsent(dialect.render(plan), s -> reported(s, conn));
+            PlanSessions.Source sessions, ExecutionPlan.Target target, Map<String, List<ReportedColumn>> memo) {
+        List<ReportedColumn> reported = memo.computeIfAbsent(dialect.render(plan),
+                s -> reported(s, sessions, target));
         if (reported.isEmpty()) {
             return plan;
         }
@@ -80,22 +78,22 @@ public final class WireTypes {
      * database's reported types, or {@code plan} itself when nothing is
      * wire-decided or the plan is not a projection frame. */
     public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect, PlanSessions.Source sessions, ExecutionPlan.Target target,
             Map<String, List<ReportedColumn>> memo) {
-        return reconcile(plan, plan, shapeInfo, dialect, conn, memo);
+        return reconcile(plan, plan, shapeInfo, dialect, sessions, target, memo);
     }
 
     /** With the frame definitions the plan may reference (leg 3.4 step 2):
      * the plan stays bare; the prepare sees them at the statement's head. */
     public static SqlQuery reconcile(SqlQuery plan, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect, PlanSessions.Source sessions, ExecutionPlan.Target target,
             Map<String, List<ReportedColumn>> memo, Map<String, SqlQuery> frames) {
         return reconcile(plan, com.legend.sql.FrameCtes.attach(plan, frames), shapeInfo,
-                dialect, conn, memo);
+                dialect, sessions, target, memo);
     }
 
     private static SqlQuery reconcile(SqlQuery plan, SqlQuery whole, ExprType shapeInfo,
-            com.legend.sql.dialect.SqlDialect dialect, Connection conn,
+            com.legend.sql.dialect.SqlDialect dialect, PlanSessions.Source sessions, ExecutionPlan.Target target,
             Map<String, List<ReportedColumn>> memo) {
         if (!(plan instanceof SqlSelect ps) || ps.projections().isEmpty()
                 || ps.projections().size() != plan.outputs().size()) {
@@ -106,7 +104,7 @@ public final class WireTypes {
             return plan;
         }
         String sql = dialect.render(whole);
-        List<ReportedColumn> reported = memo.computeIfAbsent(sql, s -> reported(s, conn));
+        List<ReportedColumn> reported = memo.computeIfAbsent(sql, s -> reported(s, sessions, target));
         if (reported.size() != plan.outputs().size()) {
             return plan;
         }
@@ -173,31 +171,24 @@ public final class WireTypes {
     }
 
     private static boolean labelCarrier(SqlType t) {
-        return t == SqlType.Scalar.LITERAL || t == SqlType.Scalar.TEMPORAL_TEXT
+        return t == SqlType.Scalar.TEMPORAL_TEXT
                 || t == SqlType.Scalar.DECIMAL_TEXT || t == SqlType.Scalar.JSON;
     }
 
     /** The database's reported type per column — a prepare, no execution;
      * a column outside the vocabulary reports null; a statement the
      * database cannot prepare raises the data error the verdict would have. */
-    private static List<ReportedColumn> reported(String sql, Connection conn) {
-        try (var st = conn.prepareStatement(sql)) {
-            ResultSetMetaData md = st.getMetaData();
-            if (md == null) {
-                return Collections.emptyList();
-            }
-            List<ReportedColumn> out = new ArrayList<>(md.getColumnCount());
-            for (int i = 1; i <= md.getColumnCount(); i++) {
-                out.add(new ReportedColumn(md.getColumnLabel(i),
-                        sqlTypeOf(md.getColumnType(i), md.getPrecision(i), md.getScale(i)),
-                        md.isNullable(i) != ResultSetMetaData.columnNoNulls));
-            }
-            return out;
-        } catch (SQLException e) {
-            // the seam: java.sql stops at this probe's boundary — a
-            // statement the database cannot prepare cannot judge either
-            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+    private static List<ReportedColumn> reported(String sql, PlanSessions.Source sessions,
+            ExecutionPlan.Target target) {
+        // a plan statement of the target, DESCRIBED by the plan runner on a session of the source, never run
+        // (PlanRunner.describe: the doors, 2026-10-29; on the session seam since track B's B1a, until then a prepare
+        // on a JDBC connection here) -- a statement the database cannot describe raises the data error the verdict
+        // would have; none reported where the driver withholds them, as before
+        List<ReportedColumn> out = new ArrayList<>();
+        for (Statements.Reported r : PlanRunner.describe(ExecutionPlan.Sql.of(sql, target), sessions)) {
+            out.add(new ReportedColumn(r.name(), r.type(), r.nullable()));
         }
+        return out;
     }
 
     /** JDBC's type code to the SQL vocabulary (the kinds
@@ -216,6 +207,46 @@ public final class WireTypes {
             case Types.TIME -> SqlType.Scalar.TIME;
             case Types.TIMESTAMP -> SqlType.Scalar.TIMESTAMP;
             case Types.TIMESTAMP_WITH_TIMEZONE -> SqlType.Scalar.TIMESTAMPTZ;
+            default -> null;
+        };
+    }
+
+    /** The Pure primitive a column the database reports by its SQL type name carries (a pivot-generated column, a
+     *  probed grid's): every known name explicit -- an unrecognized one is a gap in this table, refused by name, never a
+     *  String (audit 15: the silent String default corrupted result typing invisibly). */
+    public static com.legend.compiler.element.type.Type pureOfSqlType(String sqlType) {
+        com.legend.compiler.element.type.Type t = pureOfSqlTypeOrNull(sqlType);
+        if (t == null) {
+            throw new IllegalStateException("no Pure primitive mapped for SQL type '" + sqlType
+                    + "' (a column the database reports) -- add it to WireTypes.pureOfSqlType");
+        }
+        return t;
+    }
+
+    /** {@link #pureOfSqlType}'s name: the Pure primitive's name a plan column carries (track B's B1a, 2026-10-29: the
+     *  static pivot's key column, read on the exec side, which holds no {@code Type}). */
+    public static String pureTypeNameOf(String sqlType) {
+        return pureOfSqlType(sqlType).typeName();
+    }
+
+    /** {@link #pureOfSqlType}'s lookup: null for an unmapped SQL type (a late-bound grid's column then the trusted
+     *  Any, GridProbe). The parameter suffix strips once ({@code DECIMAL(38,9)} is {@code DECIMAL}); the table is
+     *  exact-match. */
+    public static com.legend.compiler.element.type.@com.legend.base.Nullable Type pureOfSqlTypeOrNull(String sqlType) {
+        String t = sqlType.toUpperCase(java.util.Locale.ROOT);
+        int paren = t.indexOf('(');
+        if (paren > 0) {
+            t = t.substring(0, paren).strip();
+        }
+        return switch (t) {
+            case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT" ->
+                    com.legend.compiler.element.type.Type.Primitive.INTEGER;
+            case "FLOAT", "DOUBLE", "REAL" -> com.legend.compiler.element.type.Type.Primitive.FLOAT;
+            case "BOOLEAN" -> com.legend.compiler.element.type.Type.Primitive.BOOLEAN;
+            case "DATE" -> com.legend.compiler.element.type.Type.Primitive.STRICT_DATE;
+            case "TIMESTAMP" -> com.legend.compiler.element.type.Type.Primitive.DATE_TIME;
+            case "DECIMAL", "NUMERIC" -> com.legend.compiler.element.type.Type.Primitive.DECIMAL;
+            case "VARCHAR", "CHAR", "TEXT", "STRING", "BPCHAR" -> com.legend.compiler.element.type.Type.Primitive.STRING;
             default -> null;
         };
     }

@@ -114,8 +114,20 @@ final class Scalars {
                         if (le && re) {
                             return new SqlExpr.BoolLit(true);
                         }
+                        SqlExpr.TaggedList full = asTaggedList(n.args().get(le ? 1 : 0), args.get(le ? 1 : 0));
+                        if (full != null) {
+                            // a mixed list against []: equal where it holds nothing (the L1 audit, 2026-10-29)
+                            return SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(full), new SqlExpr.IntLit(0));
+                        }
                         return SqlExpr.Call.of(SqlFn.IS_NULL,
                                 args.get(le ? 1 : 0));
+                    }
+                    // a TAGGED value or list on a side (track L, 2026-10-29): equality by kind and value -- two
+                    // elements the same channel's values, an element against a value of a static kind that
+                    // channel's value, two lists element by element; a kind no channel holds is never equal
+                    SqlExpr taggedEq = taggedEquality(n.args().get(0), args.get(0), n.args().get(1), args.get(1));
+                    if (taggedEq != null) {
+                        return taggedEq;
                     }
                     Integer p0 = partialPrecision(n.args().get(0));
                     Integer p1 = partialPrecision(n.args().get(1));
@@ -143,17 +155,9 @@ final class Scalars {
                                     args.get(0), n.args().get(1)),
                             CastPolicy.comparisonWireOperand(n.args().get(1),
                                     args.get(1), n.args().get(0)));
-                    // EQUALITY BY EMISSION (M4 re-land — the claim's eq
-                    // lane, the burn-down doctrine): a LITERAL-marked
-                    // side meeting a side of known SPELLABLE static kind
-                    // SPELLS that side — both then byte-compare in the
-                    // grammar, which IS pure equality (six kinds
-                    // disjoint by spelling; §0.4 receipts). Never
-                    // unspell the literal side; dynamic/unspellable
-                    // other sides fall through to the existing lanes.
+                    // a literal side meeting a variant-carried side joins it there (the spelling carrier's
+                    // equality by emission left with track L's L2, 2026-10-29: a mixed value is tagged, above)
                     cargs = VariantShapes.alignLiteralToJson(n.args(), cargs);
-                    cargs = MixedEncoding.equalityEmission(
-                            n.args().get(0), n.args().get(1), cargs);
                     SqlExpr inv = EnumSourceValues.decodeInvert(
                             n.args().get(0), n.args().get(1),
                             cargs.get(0), cargs.get(1));
@@ -304,6 +308,12 @@ final class Scalars {
                 if (chain != null) {
                     return chain;
                 }
+                // an Integer list's product is an Integer: folded exactly, as minus folds (every dialect's
+                // LIST_PRODUCT is a DOUBLE product by its own definition, which put a Float under an Integer root:
+                // the plan's typed decode refused it, 2026-10-27, the result boundary program's phase 5)
+                if (n.info().type() == Type.Primitive.INTEGER) {
+                    return integerProduct(Numerics.numList(args.get(0)));
+                }
                 return emptyAs(SqlFn.LIST_PRODUCT, Numerics.numList(args.get(0)), n, 1);
             });
         }
@@ -452,7 +462,9 @@ final class Scalars {
                 ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0))), args.get(1))), args.get(0)) : SqlExpr.Call.of(SqlFn.COALESCE, args.get(0), args.get(1))));
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_EMPTY) {
-            RULES.put(f, (n, args) -> listValued(n.args().get(0))
+            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.TaggedList tl
+                    ? SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
+                    : listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.EQUAL, List.of(
                             SqlExpr.Call.of(SqlFn.COALESCE,
                                     SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
@@ -461,7 +473,9 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.IS_NULL, args));
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_NOT_EMPTY) {
-            RULES.put(f, (n, args) -> listValued(n.args().get(0))
+            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.TaggedList tl
+                    ? SqlExpr.Call.of(SqlFn.GREATER, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
+                    : listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.GREATER, List.of(
                             SqlExpr.Call.of(SqlFn.COALESCE,
                                     SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)),
@@ -494,10 +508,17 @@ final class Scalars {
         for (var fx : List.of(Map.entry(SqlFn.LIST_EXISTS, Pure.AT_COLLECTION_EXISTS),
                 Map.entry(SqlFn.LIST_FOR_ALL, Pure.AT_COLLECTION_FOR_ALL))) {
             for (var f : fx.getValue()) {
-                RULES.put(f, (n, args) -> new SqlExpr.Call(fx.getKey(),
-                        List.of(PureSql.asList(args.get(0),
-                                !CollectionLanes.c1Literal(n.args().get(0))),
-                                args.get(1))));
+                RULES.put(f, (n, args) -> {
+                    if (args.get(0) instanceof SqlExpr.TaggedList tl && args.get(1) instanceof SqlExpr.Lambda lam) {
+                        // a mixed list (track L): the predicate over the element at each position
+                        return fx.getKey() == SqlFn.LIST_EXISTS ? TaggedLists.exists(tl, lam)
+                                : TaggedLists.forAll(tl, lam);
+                    }
+                    return new SqlExpr.Call(fx.getKey(),
+                            List.of(PureSql.asList(args.get(0),
+                                    !CollectionLanes.c1Literal(n.args().get(0))),
+                                    args.get(1)));
+                });
             }
         }
 
@@ -559,11 +580,22 @@ final class Scalars {
                 Map.entry(Pure.AT_VARIANT_CONVERT_TO_VARIANT, SqlFn.TO_VARIANT)).entrySet()) {
             family(e.getValue(), e.getKey());
         }
+        // a MIXED list's hash (track L, 2026-10-29): the hash of its elements' hashes, each element hashed in its
+        // own kind -- never of a spelling
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_HASH_HASH, Pure.AT_HASH_HASH_CODE)) {
+            Rule plain = java.util.Objects.requireNonNull(RULES.get(f));
+            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.TaggedList tl
+                    ? TaggedLists.hash(tl) : plain.apply(n, args));
+        }
         // toVariant of an object is its declared properties: its identity and its class are the lowering's own
-        // (docs/OBJECT_IDENTITY_2026_10_20.md §3.4)
+        // (docs/OBJECT_IDENTITY_2026_10_20.md §3.4). Its Variant[1] of an EMPTY value is JSON's null, never SQL's
+        // (S116, 2026-10-29, upstream-exact: legend-engine's DuckDB spelling of toVariant is
+        // ifnull(to_json(x), 'null'::json), and the PCT pins toVariant([])->toString() = 'null'; until then lite's
+        // to_json(x) alone left an empty cell under a [1] type, the DataCube's frame row with no quantity)
         for (com.legend.model.FunctionId f : Pure.AT_VARIANT_CONVERT_TO_VARIANT) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.TO_VARIANT,
-                    List.of(MixedEncoding.declaredOnly(args.get(0)))));
+            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.COALESCE, List.of(
+                    new SqlExpr.Call(SqlFn.TO_VARIANT, List.of(MixedEncoding.declaredOnly(args.get(0)))),
+                    new SqlExpr.Cast(new SqlExpr.StringLit("null"), SqlType.Scalar.JSON))));
         }
         // startsWith/endsWith carry the pure [0..1]-overload guards
         // (stringExtension.pure: $source->isNotEmpty() && ...) — the
@@ -907,6 +939,10 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.IS_NULL, args.get(0)),
                             new SqlExpr.IntLit(0))), new SqlExpr.IntLit(1));
                 }
+                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));   // track L
+                if (mixed != null) {
+                    return TaggedLists.size(mixed);
+                }
                 // §5 at the counting consumer (R1 instrument catch:
                 // size()=2 vs at(0)='a' over [[]->first(),'a'])
                 return SqlExpr.Call.of(SqlFn.COALESCE,
@@ -936,17 +972,26 @@ final class Scalars {
                 // sentinel as user data dies here.
                 boolean optionalScalar = !Stamps.exactlyOne(n.args().get(0))
                         && isToOne(n.args().get(0));
-                SqlExpr coll = PureSql.asList(args.get(0),
-                        !isToOne(n.args().get(0)));
-                SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
-                        new SqlExpr.Lambda(List.of("x"),
-                                SqlExpr.Call.of(SqlFn.COALESCE,
-                                        PureSql.elementText(n.args().get(0),
-                                                coll, SqlExpr.Column.param(
-                                                        "x", coll)),
-                                        new SqlExpr.StringLit(optionalScalar
-                                                ? ""
-                                                : PlatformTypes.TDS_NULL_CELL))));
+                SqlExpr strs;
+                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
+                if (mixed != null) {
+                    // a mixed list (track L): each element printed as its kind
+                    strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, mixed.positions(),
+                            new SqlExpr.Lambda(List.of("_tlp"), pureToString(Type.Primitive.STRING,
+                                    mixed.element(SqlExpr.Column.derived(null, "_tlp")))));
+                } else {
+                    SqlExpr coll = PureSql.asList(args.get(0),
+                            !isToOne(n.args().get(0)));
+                    strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
+                            new SqlExpr.Lambda(List.of("x"),
+                                    SqlExpr.Call.of(SqlFn.COALESCE,
+                                            PureSql.elementText(n.args().get(0),
+                                                    coll, SqlExpr.Column.param(
+                                                            "x", coll)),
+                                            new SqlExpr.StringLit(optionalScalar
+                                                    ? ""
+                                                    : PlatformTypes.TDS_NULL_CELL))));
+                }
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,
                                 List.of(sep)),
@@ -1049,68 +1094,11 @@ final class Scalars {
                 if (n.args().size() == 1) {
                     TypedSpec sortOperand = n.args().get(0);
                     SqlExpr sortLowered = args.get(0);
-                    // SEE-THROUGH a plain removeDuplicates (callee-FQN
-                    // identified, never a name string): sort∘dedup =
-                    // dedup∘sort over identical (id, comparable) pairs, so
-                    // the encoding reads the INNER collection and the pair
-                    // subselect dedups with DISTINCT
-                    // (testRemoveDuplicates...MixedTypes sorts a dedup).
-                    boolean dedup = false;
-                    if (sortOperand instanceof
-                                com.legend.compiler.spec.typed.TypedNativeCall dd
-                            && Pure.AT_COLLECTION_REMOVE_DUPLICATES
-                                    .contains(dd.callee().id())
-                            && !dd.args().isEmpty()
-                            && sortLowered instanceof SqlExpr.Call dc
-                            && dc.fn() == SqlFn.LIST_FILTER
-                            && unwrapArrayCast(dc.args().get(0))
-                                    instanceof SqlExpr.ArrayLit innerLa) {
-                        sortOperand = dd.args().get(0);
-                        sortLowered = innerLa;
-                        dedup = true;
-                    }
-                    MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(sortOperand, sortLowered);
-                    if (mx == null) {
-                        // ANY-LUB mixed kinds (ints + strings): the rank-
-                        // struct comparable orders by the engine's compare
-                        // groups; the identity channel is the carrier's own
-                        // literal lane (testRemoveDuplicates...MixedTypes)
-                        mx = MixedEncoding.rankedElems(sortOperand, sortLowered);
-                    }
-                    if (mx == null && dedup) {
-                        // dedup detected but the inner shape isn't
-                        // encodable — fall back to the ORIGINAL operand
-                        sortOperand = n.args().get(0);
-                        sortLowered = args.get(0);
-                        dedup = false;
-                    }
-                    if (mx != null) {
-                        // identity-preserving mixed sort: order the ids by
-                        // their comparables (parallel select-list unnests)
-                        SqlExpr ids = SqlExpr.Call.of(SqlFn.UNNEST, mx.idList());
-                        SqlExpr vals = SqlExpr.Call.of(SqlFn.UNNEST, mx.valList());
-                        var inner = new SqlSelect(List.of(
-                                new SqlSelect.Projection(ids, "i", null),
-                                new SqlSelect.Projection(vals, "v", null)),
-                                dedup, new com.legend.sql.SqlSource.Dual(), null,
-                                List.of(), null, null, List.of(),
-                                null, null, List.of());
-                        var src = new SqlSource.Subselect(inner, "_mx", null);
-                        var outer = new SqlSelect(List.of(
-                                new SqlSelect.Projection(
-                                        new SqlExpr.OrderedListAgg(
-                                                projected("_mx", "i", ids),
-                                                projected("_mx", "v", vals)), "s", null)),
-                                false, src, null, List.of(), null, null, List.of(),
-                                null, null, List.of());
-                        // F10 slice 2/3: the sorted ids ARE pure-literal
-                        // spellings (temporals joined in slice 3 via
-                        // the %-forms) — the Array(LITERAL) cast is the
-                        // construction-site label (scalarRoot reads it;
-                        // VARCHAR[] physically, an identity cast).
-                        return new SqlExpr.Cast(
-                                new SqlExpr.ScalarSubquery(outer),
-                                new SqlType.Array(SqlType.Scalar.LITERAL));
+                    // a MIXED list (a tagged list, or a Number-LUB literal mix read as one): its positions ordered
+                    // by its comparable (track L, 2026-10-29)
+                    SqlExpr.TaggedList mixed = asTaggedList(sortOperand, sortLowered);
+                    if (mixed != null) {
+                        return TaggedLists.sort(mixed, "_tls");
                     }
                     // STAMP-read (pair-#4 eliminated): only many-
                     // stamped operands reach here, and a many-stamped
@@ -1393,20 +1381,25 @@ final class Scalars {
         // first/head/last over a TO-ONE value are the IDENTITY — the list
         // encoding CHAR-INDEXES a lone string ('Doe'[1] = 'D', the at()/last()
         // trap; audit made the family uniform).
-        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST)) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_GET,
-                            List.of(args.get(0), new SqlExpr.IntLit(1))));
-        }
-        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_HEAD) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_GET,
-                            List.of(args.get(0), new SqlExpr.IntLit(1))));
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST, Pure.AT_COLLECTION_HEAD)) {
+            RULES.put(f, (n, args) -> {
+                if (isToOne(n.args().get(0))) {
+                    return args.get(0);
+                }
+                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));   // track L
+                return mixed != null ? TaggedLists.first(mixed)
+                        : new SqlExpr.Call(SqlFn.LIST_GET, List.of(args.get(0), new SqlExpr.IntLit(1)));
+            });
         }
         for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_LAST, Pure.AT_COLLECTION_LAST)) {
-            RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
-                    : new SqlExpr.Call(SqlFn.LIST_GET,
-                            List.of(args.get(0), new SqlExpr.IntLit(-1))));
+            RULES.put(f, (n, args) -> {
+                if (isToOne(n.args().get(0))) {
+                    return args.get(0);
+                }
+                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));   // track L
+                return mixed != null ? TaggedLists.last(mixed)
+                        : new SqlExpr.Call(SqlFn.LIST_GET, List.of(args.get(0), new SqlExpr.IntLit(-1)));
+            });
         }
         // RELATIONAL substring = VERBATIM SQL substring(start, length)
         // passthrough (engine goldens pass args unshifted; diverges from
@@ -1491,6 +1484,12 @@ final class Scalars {
                         && args.get(1) instanceof SqlExpr.IntLit i && i.value() == 0) {
                     return args.get(0);
                 }
+                // a MIXED list (track L, 2026-10-29): the element at the position, out of bounds raising the
+                // same message
+                SqlExpr.TaggedList mixedAt = asTaggedList(n.args().get(0), args.get(0));
+                if (mixedAt != null) {
+                    return TaggedLists.at(mixedAt, args.get(1), n.pos());
+                }
                 // OUT-OF-BOUNDS raises pure's message in the database;
                 // §5: the positional read consumes the COMPACTED carrier
                 SqlExpr op = CollectionLanes.compactIfValueLane(
@@ -1562,6 +1561,25 @@ final class Scalars {
                 if (isToOne(n.args().get(0))) {
                     return new SqlExpr.ArrayLit(List.of(args.get(0)));
                 }
+                // a MIXED list (track L, 2026-10-29): the first position of each element kept -- by the element's
+                // kind and value, or by the comparator over the elements at two positions (the binding convention:
+                // the lambda's parameters are the elements at the positions it ranges over)
+                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
+                if (mixed != null) {
+                    int depth = Dedup.countDedups(n.args().get(n.args().size() - 1));
+                    if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
+                        return TaggedLists.dedup(mixed, depth, (p, q) -> TaggedLists.sameElement(mixed, p, q));
+                    }
+                    if (!(args.get(args.size() - 1) instanceof SqlExpr.Lambda eq) || eq.params().size() != 2) {
+                        throw new IllegalStateException("removeDuplicates comparator must be a 2-parameter function");
+                    }
+                    UnaryOperator<SqlExpr> key = args.size() == 3 && args.get(1) instanceof SqlExpr.Lambda k
+                            && k.params().size() == 1
+                            ? v -> substituteRef(k.body(), k.params().get(0), v) : UnaryOperator.identity();
+                    return TaggedLists.dedup(mixed, depth, (prior, cand) -> substituteRef(
+                            substituteRef(eq.body(), eq.params().get(0), key.apply(prior)),
+                            eq.params().get(1), key.apply(cand)));
+                }
                 if (args.size() < 2 || isEqualityComparator(n.args().get(n.args().size() - 1))) {
                     return ListEncodings.orderedDedup(args.get(0));
                 }
@@ -1623,7 +1641,7 @@ final class Scalars {
                         ? new SqlExpr.ArrayLit(List.of(args.get(0)))
                         : ListEncodings.orderedDedup(args.get(0)));
         // print/println inside an expression (map(r|println(...))): the
-        // NO-OP doctrine (StatementExecutor's print arm) — the value is
+        // NO-OP doctrine (BodyDriver's print arm) — the value is
         // the Nil[0] cell, NULL; the argument is pure SQL computation and
         // drops with it (effectful args cannot type into scalar position)
         for (com.legend.model.FunctionId f : Pure.AT_IO_PRINT) {
@@ -1874,6 +1892,7 @@ final class Scalars {
             // <=1 values reverse to themselves ([0..0] included).
             RULES.put(f, (n, args) -> Stamps.atMostOne(n.args().get(0))
                     ? args.get(0)
+                    : args.get(0) instanceof SqlExpr.TaggedList tl ? TaggedLists.reverse(tl)   // track L
                     : new SqlExpr.Call(SqlFn.LIST_REVERSE, args));
         }
         // type(x): real pure returns THE Type instance ('Integer', not
@@ -1956,6 +1975,10 @@ final class Scalars {
                 if (!(args.get(1) instanceof SqlExpr.Lambda key && key.params().size() == 1)) {
                     throw new IllegalStateException(
                             "removeDuplicatesBy expects (values, key-function)");
+                }
+                SqlExpr.TaggedList mixed = asTaggedList(n.args().get(0), args.get(0));
+                if (mixed != null) {
+                    return TaggedLists.dedupBy(mixed, key);   // track L: the key over the element at each position
                 }
                 String x = key.params().get(0);
                 SqlExpr keys = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
@@ -2078,17 +2101,17 @@ final class Scalars {
                 // positional and list_filter is 1-param — the needle
                 // parameter closes over by SUBSTITUTION.
                 if (args.size() == 3 && args.get(2) instanceof SqlExpr.Lambda comp
+                        && comp.params().size() == 2 && args.get(0) instanceof SqlExpr.TaggedList tlc) {
+                    // a mixed list (track L): the comparator over the needle and the element at each position
+                    return TaggedLists.containsBy(tlc, args.get(1), comp);
+                }
+                if (args.size() == 3 && args.get(2) instanceof SqlExpr.Lambda comp
                         && comp.params().size() == 2) {
                     // pure contains.pure: exists(x | $comparator->eval($value, $x))
                     // — the FIRST comparator param binds the NEEDLE, the
                     // second each element (C1.5b; the reversed binding sent
                     // [1,2,3]->contains(5, {v,e|$v>$e}) the wrong way)
-                    // carried collection: the needle enters SPELLED
-                    // AND MARKED (MixedEncoding.markedNeedle — the
-                    // comparator-form needle wrap; makes the param-0
-                    // element stamp honest and the compare kind-true)
-                    SqlExpr needle = MixedEncoding.markedNeedle(
-                            n.args().get(1), args.get(1), args.get(0));
+                    SqlExpr needle = args.get(1);
                     SqlExpr body = substituteRef(comp.body(), comp.params().get(0), needle);
                     return new SqlExpr.Call(SqlFn.GREATER, List.of(
                             SqlExpr.Call.of(SqlFn.LIST_LENGTH,
@@ -2135,25 +2158,22 @@ final class Scalars {
                                     new SqlExpr.Call(SqlFn.STRPOS, args),
                                     new SqlExpr.IntLit(0))));
                 }
+                // a MIXED list (track L, 2026-10-29; an Any-LUB literal, or a Number-LUB literal mix read as one):
+                // membership by the needle's kind's channel, a tagged needle by element; a kind the list has no
+                // channel for (an instance, another kind) is a member of nothing
+                SqlExpr.TaggedList mixedColl = asTaggedList(n.args().get(0), args.get(0));
+                if (mixedColl != null) {
+                    return args.get(1) instanceof SqlExpr.Tagged needleT
+                            ? TaggedLists.containsElement(mixedColl, needleT)
+                            : TaggedLists.contains(mixedColl, MixedEncoding.kindOf(n.args().get(1)), args.get(1),
+                                    n.args().get(1).info().type());
+                }
                 // A heterogeneous (Any) list is variant-wrapped — wrap the
                 // needle the same way so containment compares JSON to JSON.
                 // This MUST precede the cross-kind rule: an Any list can
                 // legitimately contain an instance (audit: class-in-mixed-list
                 // containment was constant FALSE).
                 if (PlatformTypes.isAny(elem)) {
-                    // F10 slice 3b: against a LITERAL-carried collection
-                    // the needle SPELLS (same grammar, byte-comparable);
-                    // an unspellable needle (instance) is statically
-                    // outside the six scalar kinds — pure equality
-                    // instance-vs-primitive is FALSE
-                    if (args.get(0) instanceof SqlExpr.Cast lm
-                            && lm.target() instanceof SqlType.Array lma
-                            && lma.element() == SqlType.Scalar.LITERAL) {
-                        SqlExpr sn = MixedEncoding.elementLiteral(
-                                n.args().get(1), args.get(1));
-                        return sn == null ? new SqlExpr.BoolLit(false)
-                                : new SqlExpr.Membership(sn, args.get(0));
-                    }
                     return new SqlExpr.Membership(
                             SqlExpr.Call.of(SqlFn.TO_VARIANT, args.get(1)),
                             args.get(0));
@@ -2185,13 +2205,16 @@ final class Scalars {
                 List<TypedSpec> typedElems =
                         n.args().get(1) instanceof TypedCollection tc
                                 ? tc.elements() : List.of(n.args().get(1));
-                // A LITERAL-carried argument list (M4 re-land) -- a list
-                // value, not a literal collection, whose elements the
-                // Lowerer lowers each by its own kind: each slot re-emits
-                // as its spelling->PRINT projection by its STATIC kind
-                // (MixedEncoding.printedFormatSlots)
-                SqlExpr argColl = MixedEncoding.printedFormatSlots(
-                        args.get(1), typedElems);
+                SqlExpr argColl = args.get(1);
+                if (argColl instanceof SqlExpr.TaggedList tla) {
+                    // a MIXED argument list is a tagged list (track L): each argument its own value, in its kind
+                    List<SqlExpr.Tagged.Candidate> elements = tla.literalElements();
+                    if (elements == null) {
+                        throw new com.legend.error.NotImplementedException("format over a computed mixed list:"
+                                + " not lowered (its arguments are not literals)");
+                    }
+                    argColl = new SqlExpr.ArrayLit(elements.stream().map(SqlExpr.Tagged.Candidate::value).toList());
+                }
                 if (argColl instanceof SqlExpr.ArrayLit arr) {
                     // A MIXED argument list arrives variant-wrapped (its LUB
                     // is Any) — printf wants the raw values back, each
@@ -2519,20 +2542,13 @@ final class Scalars {
                     && !isToOne(n.args().get(1));
             SqlExpr raw = CastPolicy.comparisonWireOperand(n.args().get(0), args.get(0),
                     n.args().get(1));
-            // F10 slice 3b: a LITERAL-carried collection compares in
-            // the spelling grammar — the needle spells by its static
-            // kind (an unspellable needle is statically not a member)
-            if (args.get(1) instanceof SqlExpr.Cast inLm
-                    && inLm.target() instanceof SqlType.Array inLa
-                    && inLa.element() == SqlType.Scalar.LITERAL) {
-                SqlExpr sn = MixedEncoding.elementLiteral(
-                        n.args().get(0), raw);
-                if (sn == null) {
-                    return new SqlExpr.BoolLit(false);
-                }
-                return SqlExpr.Call.of(SqlFn.COALESCE,
-                        new SqlExpr.Membership(sn, args.get(1)),
-                        new SqlExpr.BoolLit(false));
+            // a MIXED list (track L, 2026-10-29): membership by the needle's kind's channel
+            SqlExpr.TaggedList tl = asTaggedList(n.args().get(1), args.get(1));
+            if (tl != null) {
+                return raw instanceof SqlExpr.Tagged needleT
+                        ? TaggedLists.containsElement(tl, needleT)
+                        : TaggedLists.contains(tl, MixedEncoding.kindOf(n.args().get(0)), raw,
+                                n.args().get(0).info().type());
             }
             SqlExpr needle = collVariant
                     ? SqlExpr.Call.of(SqlFn.TO_VARIANT, raw) : raw;
@@ -2667,20 +2683,23 @@ final class Scalars {
         // a mixed selection's winner (SqlExpr.Tagged, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) compared, made
         // equal or ordered: the comparable channel, as Pure compares the number or the instant; a print reads each
         // candidate (pureToString); any other rule that puts it into SQL is refused where the renderer meets it
-        if (COMPARISONS.contains(key) && loweredArgs.stream().anyMatch(a -> a instanceof SqlExpr.Tagged)) {
+        if (ORDERINGS.contains(key) && loweredArgs.stream().anyMatch(a -> a instanceof SqlExpr.Tagged)) {
             loweredArgs = MixedEncoding.comparables(loweredArgs);
         }
         return rule.apply(call, loweredArgs);
     }
 
-    /** The natives that compare, order or equate their arguments: over a tagged value they read its comparable. */
-    private static final Set<com.legend.model.FunctionId> COMPARISONS = java.util.Collections.unmodifiableSet(
+    /** The natives that compare or order their arguments: over a tagged value they read its comparable. Equality
+     *  ({@code eq}, {@code equal}, {@code ==}) is NOT among them (track L, 2026-10-29, the comparator-convention
+     *  gate): Pure equates by kind and value -- {@code 1 == 1.0} is false, {@code '1' == 1} is false -- so the
+     *  equality rule reads the tagged value itself ({@link #taggedEquality}), never its comparable, which would
+     *  equate a number with its string's rank or 1 with 1.0. */
+    private static final Set<com.legend.model.FunctionId> ORDERINGS = java.util.Collections.unmodifiableSet(
             new java.util.LinkedHashSet<>(com.legend.model.FunctionId.all(
                     Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_BOOLEAN_GREATER_THAN,
                     Pure.AT_BOOLEAN_GREATER_THAN_EQUAL, Pure.AT_LEGEND_LITE_LESS_THAN,
                     Pure.AT_LEGEND_LITE_LESS_THAN_EQUAL, Pure.AT_LEGEND_LITE_GREATER_THAN,
-                    Pure.AT_LEGEND_LITE_GREATER_THAN_EQUAL, Pure.AT_BOOLEAN_EQ, Pure.AT_BOOLEAN_EQUAL,
-                    Pure.AT_LANG_COMPARE)));
+                    Pure.AT_LEGEND_LITE_GREATER_THAN_EQUAL, Pure.AT_LANG_COMPARE)));
 
 
     /**
@@ -2724,6 +2743,9 @@ final class Scalars {
     /** Package-visible for the RENDER phase (F4.2): the CSV cell rule is
      *  {@code toString()->escapeCSVString()} — one print form, one owner. */
     static SqlExpr pureToString(Type t, SqlExpr x) {
+        if (x instanceof SqlExpr.TaggedList tl) {
+            return TaggedLists.print(tl);   // a mixed list prints as Pure's [e1, e2, ...], each as its kind (track L)
+        }
         if (x instanceof SqlExpr.Tagged tg) {
             // a mixed selection's winner prints as the candidate it is, each by its own static kind; a Decimal with
             // its D, as the spelling carrier's print form kept it (LiteralSpelling.printForm: "D-decimals")
@@ -2739,26 +2761,6 @@ final class Scalars {
             // the JSON quoting ('b', not '"b"'); a variant-carried LIST
             // (a nested ^List under Any) prints pure's '[a, b]', its
             // ELEMENTS as root text — composed in SQL from the JSON array
-            // F10 slice-3 AUDIT (2026-08-24): the spelling-print path
-            // gates on the LITERAL wire the TREE carries (M3 flip:
-            // .type() read) — first-char dispatch on arbitrary Any
-            // wires was SNIFFING (a raw VARCHAR cell whose text starts
-            // with ' or % would mis-print); the engine's rule is
-            // declared-type-decides. Non-LITERAL wires keep the
-            // pre-carrier variant path unchanged.
-            boolean literalWire = x.type()
-                    instanceof
-                            com.legend.sql.TypeFact.Typed jt
-                    && (jt.type() == SqlType.Scalar.LITERAL
-                            || (jt.type() instanceof SqlType.Array ja
-                                    && ja.element()
-                                            == SqlType.Scalar.LITERAL));
-            if (literalWire) {
-                // ONE recipe, one owner (M4 re-land): the spelling->
-                // PRINT projection moved to LiteralSpelling.printForm,
-                // byte-identical to the inline block it replaces
-                return literalPrint(x);
-            }
             return new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(
                     SqlExpr.Call.of(SqlFn.EQUAL,
@@ -2912,23 +2914,6 @@ final class Scalars {
                     a.elements().stream().map(Scalars::undoubled).toList());
             default -> e.mapChildren(Scalars::undoubled);
         };
-    }
-
-    /** A typed-list conformance cast peels off (PureSql.typedList wraps
-     * the literal carrier in CAST(x AS T[]) — shape-transparent). */
-    static SqlExpr unwrapArrayCast(SqlExpr e) {
-        return e instanceof SqlExpr.Cast c
-                && c.target() instanceof SqlType.Array ? c.value() : e;
-    }
-
-    /** {@code alias.name}, a subselect's projection of {@code e}, stamped
-     * with {@code e}'s type (the site holds the projection, as
-     * Comparators' element reference); untyped where {@code e} is. */
-    private static SqlExpr.Column projected(String alias, String name, SqlExpr e) {
-        return e.type() instanceof com.legend.sql.TypeFact.Typed t
-                ? SqlExpr.Column.of(alias, name, t.type(), t.nullable(),
-                        com.legend.sql.OutputCol.Origin.DERIVED)
-                : SqlExpr.Column.derived(alias, name);
     }
 
     /** {@code CASE WHEN cond THEN error(msg) ELSE value END} — a DATABASE-raised guard. */
@@ -3284,14 +3269,6 @@ final class Scalars {
     static SqlExpr floatRepr(SqlExpr x) {
         return LiteralSpelling.floatPrint(x);
     }
-
-    /** The spelling->PRINT projection — owned by
-     * {@link LiteralSpelling#printForm} (one grammar owner, both
-     * directions of the label seam). */
-    static SqlExpr literalPrint(SqlExpr x) {
-        return LiteralSpelling.printForm(x);
-    }
-
     /**
      * Scans a LITERAL printf format string for the pure-only directives,
      * rewriting each to %s and wrapping the matching spread argument
@@ -3468,6 +3445,7 @@ final class Scalars {
             return null;
         }
         String s = cd.value().toEngineString();
+        // a DateTime literal's text with its zone (register S121, pending: legend-pure writes +0000 from the minute)
         return new SqlExpr.StringLit(t == Type.Primitive.DATE_TIME ? s + "+0000" : s);
     }
 
@@ -3529,6 +3507,21 @@ final class Scalars {
      * NULL, so the unit is coalesced in, spelled in the Pure return kind
      * (rebuild W0.6 push 11, homework 4 H, E8). The group and window forms
      * stay NULL over an all-NULL group: PCT and the engine agree there. */
+    /** An Integer list's product, exact and an Integer: the list folded with TIMES (the lambda's parameters stamped
+     *  as the list's element, so the running product stays in its integer domain), the empty list's product 1
+     *  ({@code times([])} is 1, {@code plus.pure}'s rule). */
+    private static SqlExpr integerProduct(SqlExpr list) {
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Call.of(SqlFn.LIST_LENGTH, list), new SqlExpr.IntLit(0)),
+                        new SqlExpr.IntLit(1))),
+                SqlExpr.Call.of(SqlFn.LIST_REDUCE, list,
+                        new SqlExpr.Lambda(List.of("_ta", "_tb"),
+                                SqlExpr.Call.of(SqlFn.TIMES,
+                                        SqlExpr.Column.param("_ta", list),
+                                        SqlExpr.Column.param("_tb", list)))));
+    }
+
     private static SqlExpr emptyAs(SqlFn agg, SqlExpr list, TypedNativeCall n, long unit) {
         if (!(n.info().type() instanceof Type.Primitive p) || !p.isNumeric()) {
             // numeric returns only (E8); the string form of plus has its own path
@@ -3544,6 +3537,104 @@ final class Scalars {
 
     static boolean isToOne(TypedSpec arg) {
         return Stamps.toOne(arg);
+    }
+
+    /** Equality where a side is a tagged value or a tagged list (track L); null where neither is. */
+    private static @com.legend.base.Nullable SqlExpr taggedEquality(TypedSpec s0, SqlExpr a, TypedSpec s1, SqlExpr b) {
+        if (a instanceof SqlExpr.Tagged x && b instanceof SqlExpr.Tagged y) {
+            return TaggedLists.sameElement(x, y);
+        }
+        if (a instanceof SqlExpr.Tagged x) {
+            return TaggedLists.sameElement(x, MixedEncoding.kindOf(s1), b, s1.info().type());
+        }
+        if (b instanceof SqlExpr.Tagged y) {
+            return TaggedLists.sameElement(y, MixedEncoding.kindOf(s0), a, s0.info().type());
+        }
+        SqlExpr.TaggedList la = asTaggedList(s0, a);
+        SqlExpr.TaggedList lb = asTaggedList(s1, b);
+        if (la != null && lb != null) {
+            // two lists in their own order compare channel by channel (no lambda: every database); a reordered
+            // one element by element
+            return la.identityPositions() && lb.identityPositions()
+                    ? TaggedLists.sameListByKinds(la, lb) : TaggedLists.sameList(la, lb);
+        }
+        if (la != null || lb != null) {
+            // a mixed list against a list of ONE kind: equal where every element is of that kind and equals the
+            // other's at its index (a kind the mixed list has no channel for is never equal)
+            SqlExpr.TaggedList tl = java.util.Objects.requireNonNull(la != null ? la : lb);
+            TypedSpec otherSpec = la != null ? s1 : s0;
+            SqlExpr other = la != null ? b : a;
+            // a list of ONE declared kind that is not a literal collection (a String[*] variable, a map's result):
+            // its kind is its element type's (the L1 audit, 2026-10-29)
+            String kind = otherSpec instanceof TypedCollection ? null : MixedEncoding.kindOf(otherSpec);
+            if (otherSpec instanceof TypedCollection oc && !oc.elements().isEmpty()) {
+                // a row's cells (the Typer's rowCells collection, on the variant carrier for its NULL cells) are a
+                // literal collection of static kinds: read as a tagged list, the two compare kind by kind
+                if (other instanceof SqlExpr.ArrayLit oal && oal.elements().size() == oc.elements().size()) {
+                    SqlExpr.TaggedList ot = MixedEncoding.taggedList(oc, oal.elements());
+                    if (ot != null) {
+                        return tl.identityPositions() && ot.identityPositions()
+                                ? TaggedLists.sameListByKinds(tl, ot) : TaggedLists.sameList(tl, ot);
+                    }
+                }
+                // a list of ONE static kind
+                for (TypedSpec el : oc.elements()) {
+                    String k = MixedEncoding.kindOf(el);
+                    if (k == null || (kind != null && !kind.equals(k))) {
+                        kind = null;
+                        break;
+                    }
+                    kind = k;
+                }
+            }
+            if (kind != null) {
+                return TaggedLists.sameListOfKind(tl, kind, other);
+            }
+            if (variantList(other)) {
+                // against a list on the VARIANT carrier (a row's cells read in a lambda, an Any value): the mixed
+                // list joins it there, and the carrier's own equality decides (its kinds are JSON's: a number's
+                // text, a string, a boolean; the lane the spelling carrier's list met it on)
+                return SqlExpr.Call.of(SqlFn.EQUAL, la != null ? TaggedLists.asVariantList(la) : a,
+                        lb != null ? TaggedLists.asVariantList(lb) : b);
+            }
+            throw new com.legend.error.NotImplementedException("a mixed list compared with a list whose"
+                    + " elements' kind is not static and that is not on the variant carrier: not lowered");
+        }
+        return null;
+    }
+
+    /** A list on the variant carrier: typed JSON or an array of JSON, or a literal array of variant-wrapped
+     *  elements (a row's cells as the Typer synthesizes them). */
+    private static boolean variantList(SqlExpr e) {
+        if (e.type() instanceof com.legend.sql.TypeFact.Typed t
+                && (t.type() == SqlType.Scalar.JSON
+                        || (t.type() instanceof SqlType.Array a && a.element() == SqlType.Scalar.JSON))) {
+            return true;
+        }
+        return e instanceof SqlExpr.ArrayLit al && !al.elements().isEmpty()
+                && al.elements().stream().allMatch(MixedEncoding::variantWrapped);
+    }
+
+    /** {@code lowered} as a tagged list (track L, 2026-10-29): one already, or a Number-LUB literal mix read as its
+     *  kinds ({@link MixedEncoding#mixedNumericLiteral}); null otherwise. */
+    static SqlExpr.@com.legend.base.Nullable TaggedList asTaggedList(TypedSpec spec, SqlExpr lowered) {
+        if (lowered instanceof SqlExpr.TaggedList tl) {
+            return tl;
+        }
+        SqlExpr.TaggedList numbers = MixedEncoding.mixedNumericLiteral(spec, lowered);
+        if (numbers != null) {
+            return numbers;
+        }
+        // a Date-LUB mix ([%2014-01-01, %2014-01-01T10:00:00]: a StrictDate, a DateTime, a partial date together):
+        // the plain arm's array coerces them to one SQL type; read as its kinds where every element is of one
+        // (the spelling carrier's sort encoded exactly these, L2 2026-10-29)
+        if (spec instanceof TypedCollection c && lowered instanceof SqlExpr.ArrayLit la
+                && c.info().type() == Type.Primitive.DATE && c.elements().size() >= 2
+                && la.elements().size() == c.elements().size()
+                && c.elements().stream().map(e -> e.info().type()).distinct().count() > 1) {
+            return MixedEncoding.taggedList(c, la.elements());
+        }
+        return null;
     }
 
     /** The empty list -- the NULL value, bottom -- conformed to its pure element's array (the typedList door,

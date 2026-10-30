@@ -15,7 +15,7 @@ import java.util.Set;
 /**
  * The STORES a typed program seeds, transitively through user calls — a
  * fact the platform states about a program (beside
- * {@code StatementExecutor.containsEffect}, the same walk), read by the
+ * {@code BodyDriver.containsEffect}, the same walk), read by the
  * corpus runner's fixture-on-demand: the engine's suite runs a package's
  * BeforePackage setups only for that package's tests, so a golden whose
  * mapping reads another package's store was judged by text; with this

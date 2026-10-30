@@ -1,8 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -31,10 +31,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * All assertions use exact value/type checks — no {@code assertTrue} with strings.
  */
 @DisplayName("GetChecker: variant/JSON access")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 public class GetCheckerTest {
 
     private Connection connection;
-    private final QueryService queryService = new QueryService();
 
     private static final String EVENT_DATABASE = """
             ###Relational
@@ -83,7 +83,7 @@ public class GetCheckerTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("""
                     CREATE TABLE T_EVENTS (
@@ -121,8 +121,8 @@ public class GetCheckerTest {
         if (connection != null && !connection.isClosed()) connection.close();
     }
 
-    private ExecutionResult exec(String pureQuery) throws SQLException {
-        return queryService.execute(pureModel(), pureQuery, "test::TestRuntime", connection);
+    private Lean.Result exec(String pureQuery) throws SQLException {
+        return Lean.run(pureModel(), pureQuery, "test::TestRuntime", connection);
     }
 
     private String sql(String pureQuery) {

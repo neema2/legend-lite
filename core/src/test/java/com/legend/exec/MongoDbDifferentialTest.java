@@ -4,8 +4,8 @@
 package com.legend.exec;
 
 import com.legend.Compiler;
-import com.legend.TypedQuery;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.testcases.PlanCases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import org.junit.jupiter.api.Test;
 
@@ -23,17 +23,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * The MongoDB line's homework 3 (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md §9): a differential in miniature. Each
  * case is a storeless Pure expression shaped like the PCT suites' (literal relations, filters, sorts, groups, joins,
- * unions, string, date, number and list functions), planned to the CSV wire on DuckDB (the platform's reference) and
- * on MongoDB, run on both, and the two texts compared. The verdicts -- EQUAL, DIFFERENT, REFUSED (a named refusal
+ * unions, string, date, number and list functions), planned as typed rows written as lite's CSV (or its JSON rows, or
+ * Pure's TDS text) on DuckDB (the platform's reference) and on MongoDB, run on both, and the two texts compared. The verdicts -- EQUAL, DIFFERENT, REFUSED (a named refusal
  * at render), ERROR (the server's) -- are written to the test's outputs ({@code mongodb-differential.tsv}) and
  * printed; the test fails only when the reference does not run. It measures; it pins nothing.
  */
 class MongoDbDifferentialTest {
 
 
-    private record Case(String name, String expression, TypedQuery.Output output) {
+    private record Case(String name, String expression, PlanCases.Written output) {
         Case(String name, String expression) {
-            this(name, expression, TypedQuery.Output.CSV);
+            this(name, expression, PlanCases.Written.CSV);
         }
     }
 
@@ -88,10 +88,10 @@ class MongoDbDifferentialTest {
             new Case("format_float", "format('%f|%f', [2.0, 1.5e-8])"),
             new Case("fold_list", "[1, 2, 3]->fold({a, b | $b->add($a)}, [])"),
             new Case("fold_one", "[1]->fold({a, b | $a + $b}, 0)"),
-            new Case("tds_rem", "12->rem(5)", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_format_bool", "format('a %s b %s', ['fox', false])", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_fold_list", "[1, 2, 3]->fold({a, b | $b->add($a)}, [])", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_strings", "['a', '345', 'true', ' x ', '']", TypedQuery.Output.TDS_TEXT),
+            new Case("typed_rem", "12->rem(5)", PlanCases.Written.JSON),
+            new Case("typed_format_bool", "format('a %s b %s', ['fox', false])", PlanCases.Written.JSON),
+            new Case("typed_fold_list", "[1, 2, 3]->fold({a, b | $b->add($a)}, [])", PlanCases.Written.JSON),
+            new Case("typed_strings", "['a', '345', 'true', ' x ', '']", PlanCases.Written.JSON),
             new Case("if_then", "if(1 > 2, |'big', |'small')"),
             new Case("filter_select", PEOPLE + "->filter(x | $x.age > 30)->select(~[name, age])->sort(~name->ascending())"),
             new Case("sort_desc_limit", PEOPLE + "->sort(~age->descending())->limit(2)->select(~name)"),
@@ -114,35 +114,36 @@ class MongoDbDifferentialTest {
             new Case("sum_all_null", PEOPLE + "->extend(~v: x | if($x.age > 100, |$x.age, |[]))"
                     + "->groupBy(~city, ~s: x | $x.v : y | $y->plus())->sort(~city->ascending())"),
             new Case("json_numbers", PEOPLE + "->extend(~h: x | $x.age / 2)->select(~[name, age, h])"
-                    + "->sort(~name->ascending())", TypedQuery.Output.JSON),
+                    + "->sort(~name->ascending())", PlanCases.Written.JSON),
             new Case("json_dates", PEOPLE + "->extend(~d: x | %2020-01-15->adjust($x.id, DurationUnit.DAYS))"
                     + "->extend(~t: x | %2020-01-15T10:20:30->adjust($x.id, DurationUnit.HOURS))->select(~[name, d, t])"
-                    + "->sort(~name->ascending())", TypedQuery.Output.JSON),
-            // Pure's TDS text (TypedQuery.Output.TDS_TEXT, the PCT harness's form on the plan path, 2026-10-17)
-            new Case("tds_relation", PEOPLE + "->filter(x | $x.age > 30)->select(~[name, age, city])"
-                    + "->sort(~name->ascending())", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_group", PEOPLE + "->groupBy(~city, ~[n: x | $x.name : y | $y->count(), a: x | $x.age : y | $y->average()])"
-                    + "->sort(~city->ascending())", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_scalar_float", "7 / 2", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_collection", "['a,b', 'c\\'d', 'e']", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_dates", PEOPLE + "->extend(~d: x | %2020-01-15->adjust($x.id, DurationUnit.DAYS))"
+                    + "->sort(~name->ascending())", PlanCases.Written.JSON),
+            // the cases the PCT's TDS text judged until the result boundary program's phase 4, now typed rows in lite's
+            // JSON
+            new Case("typed_relation", PEOPLE + "->filter(x | $x.age > 30)->select(~[name, age, city])"
+                    + "->sort(~name->ascending())", PlanCases.Written.JSON),
+            new Case("typed_group", PEOPLE + "->groupBy(~city, ~[n: x | $x.name : y | $y->count(), a: x | $x.age : y | $y->average()])"
+                    + "->sort(~city->ascending())", PlanCases.Written.JSON),
+            new Case("typed_scalar_float", "7 / 2", PlanCases.Written.JSON),
+            new Case("typed_collection", "['a,b', 'c\\'d', 'e']", PlanCases.Written.JSON),
+            new Case("typed_dates", PEOPLE + "->extend(~d: x | %2020-01-15->adjust($x.id, DurationUnit.DAYS))"
                     + "->extend(~t: x | %2020-01-15T10:20:30->adjust($x.id, DurationUnit.HOURS))->select(~[name, d, t])"
-                    + "->sort(~name->ascending())", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_date_value", "%2020-01-15T10:20:30.123->adjust(1, DurationUnit.MINUTES)", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_empty", PEOPLE + "->filter(x | $x.age > 100)->select(~[name])", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_null_cells", PEOPLE + "->extend(~n: x | if($x.age > 30, |$x.age, |[]))->select(~[name, n])"
-                    + "->sort(~name->ascending())", TypedQuery.Output.TDS_TEXT),
-            // the text carrier (the plan path program's step 3, 2026-10-18): a value root that is no primitive crosses
-            // as Pure's own literal grammar, one case per form
-            new Case("tds_instance", "^diff::P(name='a\\'b', age=1, when=%2024-01-02, tags=['x', 'y'],"
-                    + " boss=^diff::P(name='b', age=2), kind=diff::E.B)", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_instances", "[^diff::P(name='a', age=1), ^diff::P(name='b', age=2)]", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_pair", "pair(1, 'a')", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_list", "list([1, 2])", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_map", "newMap([pair('k', 1)])", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_type", "diff::P", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_any", "[1, 'a', %2015-01-01, 1.5, true]", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_enum", "diff::E.A", TypedQuery.Output.TDS_TEXT),
+                    + "->sort(~name->ascending())", PlanCases.Written.JSON),
+            new Case("typed_date_value", "%2020-01-15T10:20:30.123->adjust(1, DurationUnit.MINUTES)", PlanCases.Written.JSON),
+            new Case("typed_empty", PEOPLE + "->filter(x | $x.age > 100)->select(~[name])", PlanCases.Written.JSON),
+            new Case("typed_null_cells", PEOPLE + "->extend(~n: x | if($x.age > 30, |$x.age, |[]))->select(~[name, n])"
+                    + "->sort(~name->ascending())", PlanCases.Written.JSON),
+            // a value root that is no primitive answers its typed structure (the text carrier the database spelled went
+            // with phase 4), one case per form
+            new Case("typed_instance", "^diff::P(name='a\\'b', age=1, when=%2024-01-02, tags=['x', 'y'],"
+                    + " boss=^diff::P(name='b', age=2), kind=diff::E.B)", PlanCases.Written.JSON),
+            new Case("typed_instances", "[^diff::P(name='a', age=1), ^diff::P(name='b', age=2)]", PlanCases.Written.JSON),
+            new Case("typed_pair", "pair(1, 'a')", PlanCases.Written.JSON),
+            new Case("typed_list", "list([1, 2])", PlanCases.Written.JSON),
+            new Case("typed_map", "newMap([pair('k', 1)])", PlanCases.Written.JSON),
+            new Case("typed_type", "diff::P", PlanCases.Written.JSON),
+            new Case("typed_any", "[1, 'a', %2015-01-01, 1.5, true]", PlanCases.Written.JSON),
+            new Case("typed_enum", "diff::E.A", PlanCases.Written.JSON),
             new Case("distinct", PEOPLE + "->select(~city)->distinct()->sort(~city->ascending())"),
             new Case("inner_join", PEOPLE + "->join(" + CITIES + ", JoinKind.INNER, {a, b | $a.city == $b.town})"
                     + "->select(~[name, country])->sort(~name->ascending())"),
@@ -229,15 +230,15 @@ class MongoDbDifferentialTest {
             new Case("list_corr", "corr([1, 2], [10, 20])"),
             new Case("list_covar", "covarPopulation([1, 3.0, 6.0], [10, -20, 30])"),
             new Case("list_mode_mixed", "mode([3, 3.0, 3, 2, 2])"),
-            new Case("tds_mode_mixed", "mode([3, 3.0, 3, 2, 2])", TypedQuery.Output.TDS_TEXT),
+            new Case("typed_mode_mixed", "mode([3, 3.0, 3, 2, 2])", PlanCases.Written.JSON),
             new Case("join_no_strings", "joinStrings(['a']->tail(), ',')"),
             new Case("join_no_strings_brackets", "joinStrings(['a']->tail(), '[', ',', ']')"),
             new Case("reverse_empty", "''->reverseString()"),
             new Case("left_empty", "''->left(3)"),
             new Case("index_of_one", "'c'->indexOf('c')"),
             new Case("right_digits", "'000123456789'->right(4)"),
-            new Case("tds_right_digits", "'000123456789'->right(4)", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_join_no_strings", "joinStrings(['a']->tail(), ',')", TypedQuery.Output.TDS_TEXT),
+            new Case("typed_right_digits", "'000123456789'->right(4)", PlanCases.Written.JSON),
+            new Case("typed_join_no_strings", "joinStrings(['a']->tail(), ',')", PlanCases.Written.JSON),
             new Case("map_get", "newMap(pair('key1', 1))->get('key1')"),
             new Case("map_keys", "newMap([pair('a', 1), pair('b', 2)])->keys()->sort()"),
             new Case("map_put", "newMap(pair('a', 1))->put('b', 2)->get('b')"),
@@ -253,28 +254,28 @@ class MongoDbDifferentialTest {
             new Case("parse_date_zone_colon", "parseDate('2014-02-27T10:01:35.231+05:00')"),
             new Case("instant_wall", "%2014-02-27T10:01:35.231+0000->toString()"),
             new Case("find_length", "['smith', 'branche', 'doe']->find(p | $p->length() < 4)"),
-            new Case("tds_list_corr", "corr([1, 2], [10, 20])", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_list_corr_empty", "corr([1], [])", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_list_corr_three", "corr([1, 3.0, 6.0], [10, -20, 30])", TypedQuery.Output.TDS_TEXT),
+            new Case("typed_list_corr", "corr([1, 2], [10, 20])", PlanCases.Written.JSON),
+            new Case("typed_list_corr_empty", "corr([1], [])", PlanCases.Written.JSON),
+            new Case("typed_list_corr_three", "corr([1, 3.0, 6.0], [10, -20, 30])", PlanCases.Written.JSON),
             new Case("variant_join_null", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n 1, '[\"1\",\"2\"]'\n"
                     + " 4, 'null'\n#->extend(~joined: x | $x.payload->toMany(@String)->joinStrings(','))"
                     + "->sort(~id->ascending())->select(~[id, joined])"),
-            new Case("tds_variant_join_null", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n"
+            new Case("typed_variant_join_null", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n"
                     + " 1, '[\"1\",\"2\"]'\n 4, 'null'\n#->extend(~joined: x | $x.payload->toMany(@String)->joinStrings(','))"
-                    + "->sort(~id->ascending())->select(~[id, joined])", TypedQuery.Output.TDS_TEXT),
+                    + "->sort(~id->ascending())->select(~[id, joined])", PlanCases.Written.JSON),
             new Case("pair_to_string", "'(' + [pair('a', 'b'), pair('a', 1)]->map(p | $p->toString())->joinStrings(',') + ')'"),
             new Case("ascii_char", "[('A'->ascii()), ('z'->ascii()), (' '->ascii())]->map(c | $c->char())->joinStrings('')"),
             new Case("ascii_codes", "['A', 'z', '0', ' ']->map(c | $c->ascii())"),
             new Case("bit_shifts", "[1->bitShiftLeft(4), 256->bitShiftRight(3), -16->bitShiftRight(2)]"),
-            new Case("time_bucket_seconds", "%2024-01-31T00:32:34.999+0000->timeBucket(18, DurationUnit.SECONDS)", TypedQuery.Output.TDS_TEXT),
-            new Case("time_bucket_seconds_old", "%1951-10-21T08:59:00.676+0000->timeBucket(3, DurationUnit.SECONDS)", TypedQuery.Output.TDS_TEXT),
-            new Case("time_bucket_minutes", "%2024-01-31T00:32:34.999+0000->timeBucket(7, DurationUnit.MINUTES)", TypedQuery.Output.TDS_TEXT),
-            new Case("time_bucket_hours", "%2024-01-31T00:32:34.999+0000->timeBucket(5, DurationUnit.HOURS)", TypedQuery.Output.TDS_TEXT),
-            new Case("time_bucket_days", "%2024-01-31T00:32:34.999+0000->timeBucket(3, DurationUnit.DAYS)", TypedQuery.Output.TDS_TEXT),
-            new Case("time_bucket_weeks", "%2024-01-31T00:32:34.999+0000->timeBucket(2, DurationUnit.WEEKS)", TypedQuery.Output.TDS_TEXT),
-            new Case("time_bucket_months", "%2024-05-31T00:32:34.999+0000->timeBucket(5, DurationUnit.MONTHS)", TypedQuery.Output.TDS_TEXT),
-            new Case("time_bucket_years", "%2024-05-31T00:32:34.999+0000->timeBucket(3, DurationUnit.YEARS)", TypedQuery.Output.TDS_TEXT),
-            new Case("time_bucket_years_old", "%1951-10-21T08:59:00.676+0000->timeBucket(2, DurationUnit.YEARS)", TypedQuery.Output.TDS_TEXT),
+            new Case("time_bucket_seconds", "%2024-01-31T00:32:34.999+0000->timeBucket(18, DurationUnit.SECONDS)", PlanCases.Written.JSON),
+            new Case("time_bucket_seconds_old", "%1951-10-21T08:59:00.676+0000->timeBucket(3, DurationUnit.SECONDS)", PlanCases.Written.JSON),
+            new Case("time_bucket_minutes", "%2024-01-31T00:32:34.999+0000->timeBucket(7, DurationUnit.MINUTES)", PlanCases.Written.JSON),
+            new Case("time_bucket_hours", "%2024-01-31T00:32:34.999+0000->timeBucket(5, DurationUnit.HOURS)", PlanCases.Written.JSON),
+            new Case("time_bucket_days", "%2024-01-31T00:32:34.999+0000->timeBucket(3, DurationUnit.DAYS)", PlanCases.Written.JSON),
+            new Case("time_bucket_weeks", "%2024-01-31T00:32:34.999+0000->timeBucket(2, DurationUnit.WEEKS)", PlanCases.Written.JSON),
+            new Case("time_bucket_months", "%2024-05-31T00:32:34.999+0000->timeBucket(5, DurationUnit.MONTHS)", PlanCases.Written.JSON),
+            new Case("time_bucket_years", "%2024-05-31T00:32:34.999+0000->timeBucket(3, DurationUnit.YEARS)", PlanCases.Written.JSON),
+            new Case("time_bucket_years_old", "%1951-10-21T08:59:00.676+0000->timeBucket(2, DurationUnit.YEARS)", PlanCases.Written.JSON),
             new Case("day_of_week", "[%1985-01-12->dayOfWeek(), %2025-09-22->dayOfWeek()]"),
             new Case("format_date_12h", "[format('on %t{yyyy-MM-dd h:mm:ssa}', %2014-03-10T13:07:44.001),"
                     + " format('on %t{yyyy-MM-dd hh:mm:ssa}', %2014-03-10T01:07:44.001)]"),
@@ -285,15 +286,15 @@ class MongoDbDifferentialTest {
             new Case("variant_deep", "#TDS\n id:Integer, payload:meta::pure::metamodel::variant::Variant\n"
                     + " 1, '[{\"key\":[{\"innerKey\":[1,2]}]}]'\n#->extend(~t: x | $x.payload)->select(~[id, t])"),
             new Case("format_negative_zero", "format('%.2f', [-0.001])"),
-            new Case("tds_variant_join_pct", "#TDS\n id, payload:meta::pure::metamodel::variant::Variant\n 1, '[1,2,3]'\n"
+            new Case("typed_variant_join_pct", "#TDS\n id, payload:meta::pure::metamodel::variant::Variant\n 1, '[1,2,3]'\n"
                     + " 4, 'null'\n#->extend(~joined: x | $x.payload->toMany(@String)->joinStrings(','))",
-                    TypedQuery.Output.TDS_TEXT),
-            new Case("tds_char_digit", "48->char()", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_format_date_plain", "format('on %t{yyyy-MM-dd}', %2014-03-10T12:00:00)", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_format_strict_date", "format('on %t{yyyy-MM-dd}', %2014-03-10)", TypedQuery.Output.TDS_TEXT),
+                    PlanCases.Written.JSON),
+            new Case("typed_char_digit", "48->char()", PlanCases.Written.JSON),
+            new Case("typed_format_date_plain", "format('on %t{yyyy-MM-dd}', %2014-03-10T12:00:00)", PlanCases.Written.JSON),
+            new Case("typed_format_strict_date", "format('on %t{yyyy-MM-dd}', %2014-03-10)", PlanCases.Written.JSON),
             new Case("bit_shift_62", "1->bitShiftLeft(53)->bitShiftRight(0)"),
-            new Case("tds_time_bucket_nanos", "%2024-01-31T00:32:34.999123456+0000->timeBucket(2, DurationUnit.DAYS)",
-                    TypedQuery.Output.TDS_TEXT),
+            new Case("typed_time_bucket_nanos", "%2024-01-31T00:32:34.999123456+0000->timeBucket(2, DurationUnit.DAYS)",
+                    PlanCases.Written.JSON),
             new Case("big_float_abs", "123456789123456789.99->abs()"),
             new Case("regex_extract_whole", "'abc'->regexpExtract('([a-z])(b)', false, 0)"),
             new Case("regex_extract_group", "'abc'->regexpExtract('([a-z])(b)', false, 2)"),
@@ -309,14 +310,14 @@ class MongoDbDifferentialTest {
             new Case("static_pivot", "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n NYC, USA, 2000, 5000\n"
                     + " SAN, USA, 2011, 2600\n LDN, UK, 2011, 3000\n#->pivot(~year, [2000, 2011], ~newCol : x | $x.treePlanted"
                     + " : y | $y->plus())->sort(~city->ascending())"),
-            new Case("tds_static_pivot", "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n NYC, USA, 2000, 5000\n"
+            new Case("typed_static_pivot", "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n NYC, USA, 2000, 5000\n"
                     + " SAN, USA, 2011, 2600\n LDN, UK, 2011, 3000\n#->pivot(~year, [2000, 2011], ~newCol : x | $x.treePlanted"
-                    + " : y | $y->plus())->sort(~city->ascending())", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_static_pivot_cast", "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n"
+                    + " : y | $y->plus())->sort(~city->ascending())", PlanCases.Written.JSON),
+            new Case("typed_static_pivot_cast", "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n"
                     + " NYC, USA, 2000, 5000\n SAN, USA, 2011, 2600\n LDN, UK, 2011, 3000\n#->pivot(~year, [2000, 2011],"
                     + " ~newCol : x | $x.treePlanted : y | $y->plus())->cast(@Relation<(city:String, country:String,"
                     + " '\\'2000__|__newCol\\'':Integer, '\\'2011__|__newCol\\'':Integer)>)->sort(~city->ascending())",
-                    TypedQuery.Output.TDS_TEXT),
+                    PlanCases.Written.JSON),
             new Case("regex_replace_first", "'abc'->regexpReplace('(b|c)', 'X', false)"),
             new Case("regex_replace_all", "'abc'->regexpReplace('(b|c)', 'X', true)"),
             new Case("regex_replace_many", "'abcabc'->regexpReplace('a(b)', '[x]', true)"),
@@ -335,14 +336,14 @@ class MongoDbDifferentialTest {
             new Case("jaro_winkler_none", "'abc'->jaroWinklerSimilarity('xyz')"),
             new Case("jaro_winkler_transposed", "'martha'->jaroWinklerSimilarity('marhta')"),
             // a value root's date: the precision the value has (a whole second without a fraction)
-            new Case("tds_date_whole_second", "%2015-04-15T13:12:11->adjust(1, DurationUnit.HOURS)",
-                    TypedQuery.Output.TDS_TEXT),
-            new Case("tds_date_millis", "%2015-04-15T13:12:11.250->adjust(1, DurationUnit.HOURS)",
-                    TypedQuery.Output.TDS_TEXT),
-            new Case("tds_date_part", "%1973-11-05T13:01:25->datePart()", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_drop_list", "[1, 2, 3]->drop(1)", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_take_list", "[1, 2, 3]->take(2)", TypedQuery.Output.TDS_TEXT),
-            new Case("tds_slice_list", "[1, 2, 3, 4]->slice(1, 3)", TypedQuery.Output.TDS_TEXT),
+            new Case("typed_date_whole_second", "%2015-04-15T13:12:11->adjust(1, DurationUnit.HOURS)",
+                    PlanCases.Written.JSON),
+            new Case("typed_date_millis", "%2015-04-15T13:12:11.250->adjust(1, DurationUnit.HOURS)",
+                    PlanCases.Written.JSON),
+            new Case("typed_date_part", "%1973-11-05T13:01:25->datePart()", PlanCases.Written.JSON),
+            new Case("typed_drop_list", "[1, 2, 3]->drop(1)", PlanCases.Written.JSON),
+            new Case("typed_take_list", "[1, 2, 3]->take(2)", PlanCases.Written.JSON),
+            new Case("typed_slice_list", "[1, 2, 3, 4]->slice(1, 3)", PlanCases.Written.JSON),
             new Case("greatest_mixed", "greatest([4.23, 7.345, 1.0, 3, 4])"),
             new Case("least_mixed", "least([1.23, 2])"),
             new Case("max_numbers", "max([1.23, 2, 7.0])"),
@@ -405,8 +406,7 @@ class MongoDbDifferentialTest {
     /** The case's pipeline text, or the refusal that stood in its way. */
     private static String pipelineOf(String model, Case c) {
         try {
-            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), c.expression())
-                    .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, c.output());
+            ExecutionPlan plan = plan(model, c.expression());
             StringBuilder sb = new StringBuilder();
             statements(plan.root(), sb);
             return sb.toString();
@@ -419,18 +419,22 @@ class MongoDbDifferentialTest {
         switch (node) {
             case ExecutionPlan.Sequence seq -> seq.steps().forEach(n -> statements(n, sb));
             case ExecutionPlan.TdsResult t -> sb.append(t.sql().statement()).append(' ');
-            case ExecutionPlan.TextResult t -> sb.append(t.sql().statement()).append(' ');
             default -> sb.append("<").append(node.getClass().getSimpleName()).append("> ");
         }
     }
 
-    private static String run(String model, String expression, TypedQuery.Output output) throws Exception {
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), expression)
-                .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, output);
+    /** {@code expression}'s typed plan. */
+    private static ExecutionPlan plan(String model, String expression) {
+        return Compiler.query(Compiler.compileModel(model), expression)
+                .executionPlan(com.legend.test.StorelessRuntime.RUNTIME);
+    }
+
+    private static String run(String model, String expression, PlanCases.Written output) throws Exception {
+        ExecutionPlan plan = plan(model, expression);
         // the plan path program's round-trip gate (step 1b): every case's plan, on both databases
         com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, expression);
         StringWriter out = new StringWriter();
-        PlanRunner.run(plan, Map.of(), PlanSessions.shared(), out);
+        PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), output.writer(out, plan.answerShape()));
         return out.toString();
     }
 

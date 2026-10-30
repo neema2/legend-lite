@@ -209,7 +209,6 @@ public final class LiteralSpelling {
                 && (t.type() == SqlType.Scalar.VARCHAR
                         || t.type() == SqlType.Scalar.TEMPORAL_TEXT
                         || t.type() == SqlType.Scalar.DECIMAL_TEXT
-                        || t.type() == SqlType.Scalar.LITERAL
                         || t.type() == SqlType.Scalar.JSON)) {
             return null;
         }
@@ -391,7 +390,6 @@ public final class LiteralSpelling {
                         || t.type() == SqlType.Scalar.VARCHAR
                         || t.type() == SqlType.Scalar.TEMPORAL_TEXT
                         || t.type() == SqlType.Scalar.DECIMAL_TEXT
-                        || t.type() == SqlType.Scalar.LITERAL
                         || t.type() == SqlType.Scalar.JSON)) {
             return v;
         }
@@ -456,90 +454,6 @@ public final class LiteralSpelling {
                         new SqlExpr.StringLit(needle)),
                 new SqlExpr.IntLit(0));
     }
-
-    /** F10 slice 2 — the MIXED-NUMERIC carrier encoder: a literal
-     * collection whose elements are ≥2 DISTINCT numeric kinds rebuilds
-     * as an array of pure-literal spellings (each element carries its
-     * own kind; the DOUBLE promotion that erased Integer 1 into 1.0
-     * dies here). Null = not this shape (homogeneous, non-numeric,
-     * non-literal) — the caller keeps its lane. */
-    static @com.legend.base.Nullable SqlExpr mixedNumericArray(
-            com.legend.compiler.spec.typed.TypedSpec spec, SqlExpr lowered) {
-        if (!(spec instanceof com.legend.compiler.spec.typed.TypedCollection c)
-                || !(lowered instanceof SqlExpr.ArrayLit la)
-                || c.elements().size() < 2
-                || la.elements().size() != c.elements().size()) {
-            return null;
-        }
-        java.util.List<SqlExpr> spelled =
-                new java.util.ArrayList<>(la.elements().size());
-        java.util.Set<Type> kinds = new java.util.HashSet<>();
-        for (int i = 0; i < c.elements().size(); i++) {
-            Type t = c.elements().get(i).info().type();
-            Type kind = t instanceof Type.PrecisionDecimal
-                    ? Type.Primitive.DECIMAL : t;
-            if (kind != Type.Primitive.INTEGER && kind != Type.Primitive.FLOAT
-                    && kind != Type.Primitive.DECIMAL) {
-                return null;
-            }
-            kinds.add(kind);
-            SqlExpr lit = literal(la.elements().get(i), kind);
-            if (lit == null) {
-                return null;
-            }
-            spelled.add(lit);
-        }
-        if (kinds.size() < 2) {
-            return null;
-        }
-        // the construction-site MARK (the sort arm's idiom): the tree
-        // CARRIES the spelling contract — Array(LITERAL), physically
-        // VARCHAR[], an identity cast; list-less backends strip it at
-        // render. Without it the label knew what the tree did not (the
-        // 2x LITERAL<>VARCHAR census rows — flip adjudication).
-        return new SqlExpr.Cast(new SqlExpr.ArrayLit(spelled),
-                new com.legend.sql.SqlType.Array(
-                        com.legend.sql.SqlType.Scalar.LITERAL));
-    }
-
-    /** The spelling->PRINT projection of a LITERAL-labeled text, in SQL
-     * (the burn-down doctrine — a TRANSFORM, never an inversion to
-     * raw): quoted strings unescape and unquote, %-temporals strip the
-     * mark, every other kind's print IS its spelling (bare ints,
-     * pointed floats, D-decimals, bools). First-byte dispatch is
-     * grammar-driven on a LABELED wire — the six spellings are
-     * first-byte disjoint BY DESIGN (the banned version ran on
-     * unlabeled text). ONE recipe for every print consumer:
-     * pureToString's Any arm, format's spelled-argument slots, and the
-     * makeString join family (M4 §2R — the three residual-row
-     * witnesses). */
-    static SqlExpr printForm(SqlExpr x) {
-        SqlExpr txt = new SqlExpr.Cast(x,
-                PureSql.type(Type.Primitive.STRING));
-        SqlExpr body = SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
-                new SqlExpr.IntLit(2),
-                SqlExpr.Call.of(SqlFn.MINUS,
-                        SqlExpr.Call.of(SqlFn.LENGTH, txt),
-                        new SqlExpr.IntLit(2)));
-        SqlExpr unesc = SqlExpr.Call.of(SqlFn.REPLACE,
-                SqlExpr.Call.of(SqlFn.REPLACE, body,
-                        new SqlExpr.StringLit("\\'"),
-                        new SqlExpr.StringLit("'")),
-                new SqlExpr.StringLit("\\\\"),
-                new SqlExpr.StringLit("\\"));
-        return new SqlExpr.Case(List.of(
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
-                                new SqlExpr.StringLit("'")),
-                        unesc),
-                new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.STARTS_WITH, txt,
-                                new SqlExpr.StringLit("%")),
-                        SqlExpr.Call.of(SqlFn.SUBSTRING, txt,
-                                new SqlExpr.IntLit(2)))),
-                txt);
-    }
-
     // unspell + unspellMarked (the STRUCTURAL INVERSE pair) DELETED
     // (spell-debt burn-down 2026-08-24): their three consumers (the
     // equality unspell-one-side arm, format's decomposition, the
@@ -633,6 +547,20 @@ public final class LiteralSpelling {
                 new SqlExpr.StringLit("%"), dateTimePrint(x, fmt));
     }
 
+    /** A DateTime's literal spelling at exactly {@code digits} subsecond digits (a tagged slot's kind
+     *  {@code DateTime(n)}, track L): the nine-digit text cut to the written digits, Pure's {@code +0000}; a whole
+     *  second's at none; NULL stays NULL. */
+    public static SqlExpr dateTimeLiteralAt(SqlExpr x, int digits) {
+        SqlExpr body = digits == 0
+                ? SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL))
+                : SqlExpr.Call.of(SqlFn.LEFT,
+                        SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_NANO)),
+                        new SqlExpr.IntLit(20 + digits));
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, x),
+                new SqlExpr.NullLit())),
+                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("%"), body, new SqlExpr.StringLit("+0000")));
+    }
+
     /** PARTIAL-date LITERAL: the string cell IS the body (master's
      * pinned partial-date carrier); % prefixes it. */
     public static SqlExpr partialDateLiteral(SqlExpr text) {
@@ -680,7 +608,7 @@ public final class LiteralSpelling {
     }
 
     /**
-     * A DateTime cell's text in Pure's TDS text (a relation's {@code toString}, the TDS_TEXT output): as
+     * A DateTime cell's text in Pure's TDS text (a relation's {@code toString}): as
      * {@link #dateTimeText}, with AT LEAST THREE fraction digits -- {@code 2024-01-02T10:30:00.000+0000} for a whole
      * second, {@code .123} for a millisecond, {@code .123456789} for a nanosecond, finer trailing zeros trimmed. The
      * reference is legend-engine's own test (core_functions_standard/date/extract/dayOfWeek.pure,
@@ -711,6 +639,7 @@ public final class LiteralSpelling {
      *  {@code +0000} already): one with seconds and no zone takes Pure's {@code +0000}, as Pure prints a DateTime;
      *  every other precision is its text, Pure's DateTime literal taking a zone only after seconds (the MongoDB
      *  lane, 2026-10-18: {@code %1973-11-13T23} and {@code %2025-02-10T20:10:20+0000} are read as written). */
+    // the zone a written date-time text gets in SQL (register S121, pending: legend-pure writes +0000 from the minute)
     public static SqlExpr dateTimeTextOfText(SqlExpr text) {
         SqlExpr colons = SqlExpr.Call.of(SqlFn.MINUS, SqlExpr.Call.of(SqlFn.LENGTH, text),
                 SqlExpr.Call.of(SqlFn.LENGTH, SqlExpr.Call.of(SqlFn.REPLACE, text, new SqlExpr.StringLit(":"),
@@ -722,331 +651,11 @@ public final class LiteralSpelling {
                 SqlExpr.Call.of(SqlFn.CONCAT, text, new SqlExpr.StringLit("+0000")))), text);
     }
 
-    // ==================================================================
-    // legend-engine's text (pure/v1 execute: docs/OUTPUT_LAYER_DESIGN_2026_10_10.md §4, decision 2; step 5)
-    // ==================================================================
-
-    /** legend-engine's text of a DateTime on {@code pure/v1} execute (measured, 4.145.0): nine fraction digits and
-     *  {@code +0000}, whatever the value's precision. */
-    public static SqlExpr dateTimeTextEngine(SqlExpr x) {
-        return SqlExpr.Call.of(SqlFn.STRFTIME, x, new SqlExpr.FormatLit(com.legend.sql.DateFmt.JSON_DATETIME));
-    }
-
-    /**
-     * legend-engine's text of a Float on {@code pure/v1} execute: Java's {@code Double.toString} layout over the
-     * database's own shortest digits (the engine's serializer prints the double its driver read). One call,
-     * {@link SqlFn#FLOAT_PRINT_ENGINE}, which each dialect spells (2026-10-22: the portable spelling,
-     * dialect/FloatPrintText, reads the value's text over a thousand times through the pieces it pastes -- Snowflake's
-     * served statement for {@code 1.5 + 2.25} was 6 MB).
-     */
-    public static SqlExpr floatPrintJava(SqlExpr x) {
-        return SqlExpr.Call.of(SqlFn.FLOAT_PRINT_ENGINE, x);
-    }
-
-    // ==================================================================
-    // Pure's literal grammar for a whole value: the text carrier
-    // (docs/PLAN_PATH_PROGRAM_2026_10_17.md §4, step 3, 2026-10-18)
-    // ==================================================================
-
-    /** The canonical layout of a class ({@code ClassLayouts.layoutOf}): the struct's fields, by name, with their Pure
-     *  types and multiplicities; empty for a type that is no class of the model. With it the model's other fact the
-     *  carrier spells by, each class's strict subclasses ({@code ModelContext.subtree}): an instance carried as JSON
-     *  with its own class is spelled as the subclass it names (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). The driver supplies both. */
-    public interface Layouts extends java.util.function.Function<Type, java.util.Optional<List<Type.Column>>> {
-
-        /** The strict subclasses of the class {@code fqn}, in the model's order. */
-        java.util.Set<String> subclasses(String fqn);
-
-        /** No model: an instance's cell is refused by name. */
-        Layouts NONE = of(t -> java.util.Optional.empty(), fqn -> java.util.Set.of());
-
-        /** The layouts {@code layout} answers and the subclasses {@code subclasses} answers. */
-        static Layouts of(java.util.function.Function<Type, java.util.Optional<List<Type.Column>>> layout,
-                java.util.function.Function<String, java.util.Set<String>> subclasses) {
-            return new Layouts() {
-                @Override
-                public java.util.Optional<List<Type.Column>> apply(Type t) {
-                    return layout.apply(t);
-                }
-
-                @Override
-                public java.util.Set<String> subclasses(String fqn) {
-                    return subclasses.apply(fqn);
-                }
-            };
-        }
-    }
-
-    /**
-     * A value's text in Pure's own literal grammar, spelled by the database, which
-     * {@code compileValueSpecification(text).result->reactivate()} reads back as the value (the plan path program's
-     * text carrier, §4): a class instance {@code ^my::P(name='a', age=1)} over its canonical layout (the struct's
-     * fields; the synthetic ones skipped; an absent property omitted; a to-many one {@code [x, y]}; a nested
-     * instance the same, recursively); a Pair {@code pair(1, 'a')}; a List {@code list([1, 2])}; a Map
-     * {@code newMap([pair('k', 1)])}; a String a quoted literal (backslash, quote, newline, return and tab escaped);
-     * a date {@code %2024-01-02} or {@code %2024-01-02T10:30:00.123+0000}; a Decimal with its {@code D}; a Float
-     * Pure's digits; an enum value {@code my::E.A}; a Type its path, spelled statically from the typed fact; an
-     * {@code Any} value the literal spelling its branch carries. {@code slot} is the lowering's typed fact for the
-     * value's SQL shape (a struct's fields, an array's element, a map's key and value); a shape the slot does not
-     * carry is refused by name, never guessed.
-     */
-    public static SqlExpr pureValueText(SqlExpr c, Type t, SqlType slot, Layouts layouts) {
-        if (t == Type.Primitive.STRING) {
-            return pureStringLiteral(c);
-        }
-        if (t == Type.Primitive.BOOLEAN || t == Type.Primitive.INTEGER || t == Type.Primitive.NUMBER) {
-            return new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
-        }
-        if (t == Type.Primitive.FLOAT) {
-            return floatPrint(c);
-        }
-        if (t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal) {
-            return SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR), text("D"));
-        }
-        if (t == Type.Primitive.LATEST_DATE) {
-            return text("%latest");
-        }
-        if (t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE || t == Type.Primitive.DATE_TIME) {
-            SqlExpr body;
-            if (slot == SqlType.Scalar.VARCHAR || slot == SqlType.Scalar.LITERAL
-                    || slot == SqlType.Scalar.TEMPORAL_TEXT) {
-                body = dateTimeTextOfText(c);
-            } else if (t == Type.Primitive.STRICT_DATE || slot == SqlType.Scalar.DATE) {
-                body = datePrint(c);
-            } else if (t == Type.Primitive.DATE) {
-                body = new SqlExpr.Case(List.of(new SqlExpr.Case.When(timed(c), dateTimeText(c))), datePrint(c));
-            } else {
-                body = dateTimeText(c);
-            }
-            return SqlExpr.Call.of(SqlFn.CONCAT, text("%"), body);
-        }
-        if (t instanceof Type.EnumType e) {
-            return SqlExpr.Call.of(SqlFn.CONCAT, text(e.fqn() + "."), new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR));
-        }
-        if (t instanceof Type.GenericType g) {
-            if (com.legend.compiler.element.type.PlatformTypes.isPairCarrier(g)) {
-                SqlType.Struct s = structSlot(slot, t);
-                return join(text("pair("),
-                        pureValueText(SqlExpr.StructGet.of(c, "first"), g.arguments().get(0), field(s, "first", t),
-                                layouts),
-                        text(", "),
-                        pureValueText(SqlExpr.StructGet.of(c, "second"), g.arguments().get(1), field(s, "second", t),
-                                layouts),
-                        text(")"));
-            }
-            if (com.legend.compiler.element.type.PlatformTypes.isListCarrier(g)) {
-                return join(text("list(["), elementsText(c, g.arguments().get(0), elementSlot(slot, t), layouts),
-                        text("])"));
-            }
-            if (com.legend.compiler.element.type.PlatformTypes.isMapCarrier(g)) {
-                if (!(slot instanceof SqlType.Map m)) {
-                    throw new IllegalStateException("the text carrier: a Map value's slot is " + slot + ", not a map");
-                }
-                SqlExpr k = SqlExpr.Column.derived(null, "__k");
-                SqlExpr entry = join(text("pair("), pureValueText(k, g.arguments().get(0), m.key(), layouts),
-                        text(", "),
-                        pureValueText(SqlExpr.Call.of(SqlFn.LIST_GET, SqlExpr.Call.of(SqlFn.MAP_EXTRACT, c, k),
-                                new SqlExpr.IntLit(1)), g.arguments().get(1), m.value(), layouts),
-                        text(")"));
-                return join(text("newMap(["),
-                        joined(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, SqlExpr.Call.of(SqlFn.MAP_KEYS, c),
-                                new SqlExpr.Lambda(List.of("__k"), entry))),
-                        text("])"));
-            }
-            if (com.legend.compiler.element.type.PlatformTypes.isClassMetaclass(g) && g.arguments().size() == 1) {
-                // a Type value: its path from the typed fact where the fact names one class (Class<my::X>); where it
-                // names their common ancestor (a collection of types, Class<Any>) the cell, which carries the type's
-                // path too (the value lane's convention, 2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9), so the reader resolves it
-                // whatever its namesakes
-                Type arg = g.arguments().get(0);
-                return arg instanceof Type.ClassType ac && !com.legend.compiler.element.type.PlatformTypes.isAny(ac)
-                        ? text(ac.fqn()) : new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
-            }
-            throw new IllegalStateException("the text carrier has no form for a " + g.rawFqn() + " value");
-        }
-        if (t instanceof Type.ClassType cls) {
-            if (com.legend.compiler.element.type.PlatformTypes.isAny(cls)
-                    || com.legend.compiler.element.type.PlatformTypes.isNil(cls)) {
-                // Any: the literal spelling its branch carries (the lowering's typed fact per branch of a union);
-                // Nil: an empty collection's type, no value ever spelled
-                return new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
-            }
-            if (slot == SqlType.Scalar.VARCHAR) {
-                // a class-typed value whose slot is text is a model element referenced as a value (a Type, a Class, a
-                // ModelElement -- an instance's slot is a struct): the lowering carries its path (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9),
-                // which the reader compiles
-                return new SqlExpr.Cast(c, SqlType.Scalar.VARCHAR);
-            }
-            if (com.legend.compiler.element.type.PlatformTypes.isVariant(cls)) {
-                throw new IllegalStateException("the text carrier has no form for a Variant inside a value");
-            }
-            if (slot == SqlType.Scalar.JSON) {
-                return jsonInstanceText(c, cls, layouts);
-            }
-            List<Type.Column> layout = layouts.apply(t).orElseThrow(() -> new IllegalStateException(
-                    "the text carrier: no canonical layout for the class " + cls.fqn()));
-            SqlType.Struct s = structSlot(slot, t);
-            List<SqlExpr> fields = new java.util.ArrayList<>();
-            for (Type.Column col : layout) {
-                if (synthetic(col.name())) {
-                    continue;
-                }
-                SqlExpr v = SqlExpr.StructGet.of(c, col.name());
-                SqlType fieldSlot = field(s, col.name(), t);
-                boolean many = col.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                        && b.isMany();
-                SqlExpr valueText = many
-                        ? join(text("["), elementsText(v, col.type(), elementSlot(fieldSlot, col.type(), cls.fqn()
-                                + "." + col.name()), layouts), text("]"))
-                        : pureValueText(v, col.type(), fieldSlot, layouts);
-                fields.add(property(col.name(), v, valueText));
-            }
-            return instanceLiteral(cls.fqn(), fields);
-        }
-        throw new IllegalStateException("the text carrier has no form for a value of type " + t);
-    }
-
-    /** Whether {@code name} is one of the layouts' synthetic fields, which no literal spells. */
-    private static boolean synthetic(String name) {
-        return name.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
-                || name.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)
-                || name.equals(com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON);
-    }
-
-    /** A property's {@code ,name=value} text, or none where the value {@code v} is absent. */
-    private static SqlExpr property(String name, SqlExpr v, SqlExpr valueText) {
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v), text(""))),
-                join(text("," + name + "="), valueText));
-    }
-
-    /** {@code ^fqn(...)} over the properties' texts, each leading with a comma (the first one's goes). */
-    private static SqlExpr instanceLiteral(String fqn, List<SqlExpr> properties) {
-        SqlExpr all = join(java.util.stream.Stream.concat(java.util.stream.Stream.of(text("")), properties.stream())
-                .toArray(SqlExpr[]::new));
-        return join(text("^" + fqn + "("),
-                SqlExpr.Call.of(SqlFn.SUBSTRING, all, new SqlExpr.IntLit(2), SqlExpr.Call.of(SqlFn.LENGTH, all)),
-                text(")"));
-    }
-
-    /**
-     * An instance carried as JSON (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9). Where instances of several classes meet at an ancestor
-     * with no layout of its own (a collection of them typed by the abstract ancestor), the lowering writes each one's
-     * own class into its JSON ({@code __type}, {@code MixedEncoding.withClass}), and its text is the literal of the
-     * class it names, each property read from the JSON by its type: the database compares the class against the
-     * ancestor's subclasses with a layout, the model's facts spelled as the plan's constants. A value naming none of
-     * them (where the lowering's layout recursion stopped: a self-typed property past the depth it unrolls), or a
-     * property the JSON carries untyped (a to-many one, a nested instance), has no form, and the database says so,
-     * never a JSON text passed off as grammar.
-     */
-    private static SqlExpr jsonInstanceText(SqlExpr c, Type.ClassType ancestor, Layouts layouts) {
-        SqlExpr named = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, c,
-                text(com.legend.compiler.element.ClassLayouts.SYNTHETIC_TYPE)), SqlType.Scalar.VARCHAR);
-        List<String> classes = new java.util.ArrayList<>();
-        classes.add(ancestor.fqn());
-        classes.addAll(layouts.subclasses(ancestor.fqn()));
-        List<SqlExpr.Case.When> arms = new java.util.ArrayList<>();
-        for (String fqn : classes) {
-            java.util.Optional<List<Type.Column>> layout = layouts.apply(new Type.ClassType(fqn));
-            if (layout.isPresent()) {
-                arms.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, named, text(fqn)),
-                        jsonPropertiesText(c, fqn, layout.get(), layouts)));
-            }
-        }
-        SqlExpr none = SqlExpr.Call.of(SqlFn.ERROR, text("the text carrier: an instance of " + ancestor.fqn()
-                + " carried as JSON without a class of its own has no form"));
-        return arms.isEmpty() ? none : new SqlExpr.Case(arms, none);
-    }
-
-    /** The literal of an instance of {@code fqn} carried as JSON, over its layout: each property read typed. */
-    private static SqlExpr jsonPropertiesText(SqlExpr c, String fqn, List<Type.Column> layout, Layouts layouts) {
-        List<SqlExpr> properties = new java.util.ArrayList<>();
-        for (Type.Column col : layout) {
-            if (synthetic(col.name())) {
-                continue;
-            }
-            boolean many = col.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                    && b.isMany();
-            SqlType typed = col.type() instanceof Type.Primitive p ? PureSql.type(p)
-                    : col.type() instanceof Type.EnumType ? SqlType.Scalar.VARCHAR : null;
-            if (many || typed == null) {
-                return SqlExpr.Call.of(SqlFn.ERROR, text("the text carrier: the property " + col.name()
-                        + " of an instance of " + fqn + " carried as JSON has no form"));
-            }
-            SqlExpr v = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, c, text(col.name())), typed);
-            properties.add(property(col.name(), v, pureValueText(v, col.type(), typed, layouts)));
-        }
-        return instanceLiteral(fqn, properties);
-    }
-
-    /** A String as Pure's quoted literal: backslash, quote, newline, return and tab escaped. */
-    public static SqlExpr pureStringLiteral(SqlExpr s) {
-        SqlExpr escaped = new SqlExpr.Cast(s, SqlType.Scalar.VARCHAR);
-        for (String[] e : new String[][] {{"\\", "\\\\"}, {"'", "\\'"}, {"\n", "\\n"}, {"\r", "\\r"},
-                {"\t", "\\t"}}) {
-            escaped = SqlExpr.Call.of(SqlFn.REPLACE, escaped, text(e[0]), text(e[1]));
-        }
-        return join(text("'"), escaped, text("'"));
-    }
-
     /** Whether a timestamp's time of day is not midnight: the engine's {@code formatDateTime} rule for an ABSTRACT
      *  Date, defined over the value (hasHour) -- a timed value is a DateTime, a date-only one its day. */
     public static SqlExpr timed(SqlExpr c) {
         return SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                 SqlExpr.Call.of(SqlFn.STRFTIME, c, new SqlExpr.FormatLit(com.legend.sql.DateFmt.TIME_ONLY)),
                 new SqlExpr.StringLit("00:00:00"));
-    }
-
-    /** The elements of {@code arr} in Pure's grammar, comma-joined: {@code 1, 2}. */
-    private static SqlExpr elementsText(SqlExpr arr, Type element, SqlType elementSlot, Layouts layouts) {
-        // the element typed by its slot, so a field read off it is typed too (a dialect that decodes a field by its
-        // type, Postgres's jsonb, refused "a field of unknown type" on every list of instances; step 9, 2026-10-19)
-        SqlExpr e = SqlExpr.Column.of(null, "__e", elementSlot, true, com.legend.sql.OutputCol.Origin.DERIVED);
-        return joined(SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, arr,
-                new SqlExpr.Lambda(List.of("__e"), pureValueText(e, element, elementSlot, layouts))));
-    }
-
-    /** {@code strings} joined with {@code , }; empty for none. */
-    private static SqlExpr joined(SqlExpr strings) {
-        return SqlExpr.Call.of(SqlFn.COALESCE,
-                new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strings, List.of(text(", "))),
-                text(""));
-    }
-
-    private static SqlType.Struct structSlot(SqlType slot, Type t) {
-        if (slot instanceof SqlType.Struct s) {
-            return s;
-        }
-        throw new IllegalStateException("the text carrier: a " + t.typeName() + " value's slot is " + slot
-                + ", not a struct");
-    }
-
-    private static SqlType field(SqlType.Struct s, String name, Type t) {
-        for (SqlType.Struct.Field f : s.fields()) {
-            if (f.name().equals(name)) {
-                return f.type();
-            }
-        }
-        throw new IllegalStateException("the text carrier: the struct slot of a " + t.typeName()
-                + " value has no field '" + name + "'");
-    }
-
-    private static SqlType elementSlot(SqlType slot, Type t) {
-        return elementSlot(slot, t, t.typeName());
-    }
-
-    private static SqlType elementSlot(SqlType slot, Type t, String what) {
-        if (slot instanceof SqlType.Array a) {
-            return a.element();
-        }
-        throw new IllegalStateException("the text carrier: the slot of " + what + " is " + slot + ", not an array");
-    }
-
-    private static SqlExpr text(String s) {
-        return new SqlExpr.StringLit(s);
-    }
-
-    /** One n-ary CONCAT (every dialect renders its arguments flat): a tree nests the plan's JSON, a list does not. */
-    private static SqlExpr join(SqlExpr... parts) {
-        return parts.length == 1 ? parts[0] : SqlExpr.Call.of(SqlFn.CONCAT, parts);
     }
 }

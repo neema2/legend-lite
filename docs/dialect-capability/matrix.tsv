@@ -178,7 +178,6 @@ H2	H2	call	TO_VARIANT	emulated	variantConstruct		8
 H2	H2	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END		2
 H2	H2	call	FLOAT_CANON	emulated	floatCanonByText		0
 H2	H2	call	FLOAT_PRINT	emulated	floatPrintByText		0
-H2	H2	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 H2	H2	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	2
 H2	H2	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	14
 H2	H2	call	JSON_TYPE	spelled	json_type		1
@@ -400,7 +399,6 @@ H2Modern	-	call	TO_VARIANT	emulated	variantConstruct	as H2	-
 H2Modern	-	call	BOOL_TO_TEXT	emulated	CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END	as H2	-
 H2Modern	-	call	FLOAT_CANON	emulated	floatCanonByText	as H2	-
 H2Modern	-	call	FLOAT_PRINT	emulated	floatPrintByText	as H2	-
-H2Modern	-	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText	as H2	-
 H2Modern	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as H2, via AnsiSqlRenderer.variantElements	-
 H2Modern	-	call	VARIANT_GET	emulated	variantGet	as H2	-
 H2Modern	-	call	JSON_TYPE	spelled	json_type	as H2	-
@@ -622,7 +620,6 @@ Postgres	Postgres	call	TO_VARIANT	emulated	variantConstruct		8
 Postgres	Postgres	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 Postgres	Postgres	call	FLOAT_CANON	emulated	floatCanonByText		0
 Postgres	Postgres	call	FLOAT_PRINT	emulated	floatPrintByText		0
-Postgres	Postgres	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 Postgres	Postgres	call	VARIANT_ELEMENTS	emulated	by its operands: composed / composed		2
 Postgres	Postgres	call	VARIANT_GET	emulated	variantGet		14
 Postgres	Postgres	call	JSON_TYPE	emulated	jsonType		1
@@ -844,7 +841,6 @@ Snowflake	Snowflake	call	TO_VARIANT	emulated	variantConstruct		8
 Snowflake	Snowflake	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 Snowflake	Snowflake	call	FLOAT_CANON	emulated	floatCanon		0
 Snowflake	Snowflake	call	FLOAT_PRINT	emulated	by its operands: composed / composed		0
-Snowflake	Snowflake	call	FLOAT_PRINT_ENGINE	emulated	by its operands: composed / composed		0
 Snowflake	Snowflake	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Snowflake	Snowflake	call	VARIANT_GET	emulated	variantGet		15
 Snowflake	Snowflake	call	JSON_TYPE	emulated	(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...		1
@@ -1066,7 +1062,6 @@ Trino	Trino	call	TO_VARIANT	emulated	variantConstruct		8
 Trino	Trino	call	BOOL_TO_TEXT	emulated	CAST(… AS VARCHAR)		2
 Trino	Trino	call	FLOAT_CANON	emulated	floatCanonByText		0
 Trino	Trino	call	FLOAT_PRINT	emulated	floatPrintByText		0
-Trino	Trino	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 Trino	Trino	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Trino	Trino	call	VARIANT_GET	emulated	variantGet		15
 Trino	Trino	call	JSON_TYPE	emulated	jsonType		1
@@ -1288,7 +1283,6 @@ BigQuery	BigQuery	call	TO_VARIANT	emulated	variantConstruct		8
 BigQuery	BigQuery	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
 BigQuery	BigQuery	call	FLOAT_CANON	emulated	floatCanonByText		0
 BigQuery	BigQuery	call	FLOAT_PRINT	emulated	floatPrintByText		0
-BigQuery	BigQuery	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 BigQuery	BigQuery	call	VARIANT_ELEMENTS	emulated	variantElements		2
 BigQuery	BigQuery	call	VARIANT_GET	emulated	variantGet		14
 BigQuery	BigQuery	call	JSON_TYPE	emulated	jsonType		1
@@ -1510,7 +1504,6 @@ Databricks	Databricks	call	TO_VARIANT	emulated	variantConstruct		8
 Databricks	Databricks	call	BOOL_TO_TEXT	emulated	CAST(… AS STRING)		2
 Databricks	Databricks	call	FLOAT_CANON	emulated	floatCanonByText		0
 Databricks	Databricks	call	FLOAT_PRINT	emulated	floatPrintByText		0
-Databricks	Databricks	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 Databricks	Databricks	call	VARIANT_ELEMENTS	emulated	variantElements		4
 Databricks	Databricks	call	VARIANT_GET	emulated	variantGet		15
 Databricks	Databricks	call	JSON_TYPE	emulated	jsonType		1
@@ -1732,7 +1725,6 @@ DuckDb	DuckDB	call	TO_VARIANT	emulated	variantConstruct		8
 DuckDb	DuckDB	call	BOOL_TO_TEXT	emulated	castAs: VARCHAR		2
 DuckDb	DuckDB	call	FLOAT_CANON	emulated	floatCanonByText		0
 DuckDb	DuckDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
-DuckDb	DuckDB	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 DuckDb	DuckDB	call	VARIANT_ELEMENTS	emulated	variantElements		4
 DuckDb	DuckDB	call	VARIANT_GET	emulated	variantGet		15
 DuckDb	DuckDB	call	JSON_TYPE	spelled	json_type		1
@@ -1954,7 +1946,6 @@ ClickHouse	ClickHouse	call	TO_VARIANT	emulated	variantConstruct		8
 ClickHouse	ClickHouse	call	BOOL_TO_TEXT	spelled	toString		2
 ClickHouse	ClickHouse	call	FLOAT_CANON	emulated	floatCanonByText		0
 ClickHouse	ClickHouse	call	FLOAT_PRINT	emulated	floatPrintByText		0
-ClickHouse	ClickHouse	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 ClickHouse	ClickHouse	call	VARIANT_ELEMENTS	emulated	variantElements		4
 ClickHouse	ClickHouse	call	VARIANT_GET	emulated	variantGet		15
 ClickHouse	ClickHouse	call	JSON_TYPE	emulated	multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...		1
@@ -2176,7 +2167,6 @@ SQLite	SQLite	call	TO_VARIANT	emulated	variantConstruct		8
 SQLite	SQLite	call	BOOL_TO_TEXT	emulated	textOf		2
 SQLite	SQLite	call	FLOAT_CANON	emulated	floatCanonByText		0
 SQLite	SQLite	call	FLOAT_PRINT	emulated	floatPrintByText		0
-SQLite	SQLite	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 SQLite	SQLite	call	VARIANT_ELEMENTS	emulated	variantElements		2
 SQLite	SQLite	call	VARIANT_GET	emulated	variantGet		14
 SQLite	SQLite	call	JSON_TYPE	emulated	(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...		1
@@ -2398,7 +2388,6 @@ MariaDb	MariaDB	call	TO_VARIANT	emulated	variantConstruct		8
 MariaDb	MariaDB	call	BOOL_TO_TEXT	emulated	textOf		2
 MariaDb	MariaDB	call	FLOAT_CANON	emulated	floatLayout		40
 MariaDb	MariaDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
-MariaDb	MariaDB	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 MariaDb	MariaDB	call	VARIANT_ELEMENTS	emulated	variantElements		2
 MariaDb	MariaDB	call	VARIANT_GET	emulated	variantGet		14
 MariaDb	MariaDB	call	JSON_TYPE	emulated	(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...		1
@@ -2620,7 +2609,6 @@ MySql	MySQL	call	TO_VARIANT	emulated	variantConstruct	as MariaDb	8
 MySql	MySQL	call	BOOL_TO_TEXT	emulated	textOf	as MariaDb	2
 MySql	MySQL	call	FLOAT_CANON	emulated	floatLayout	as MariaDb	40
 MySql	MySQL	call	FLOAT_PRINT	emulated	floatPrintByText	as MariaDb	0
-MySql	MySQL	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText	as MariaDb	0
 MySql	MySQL	call	VARIANT_ELEMENTS	emulated	variantElements	as MariaDb	2
 MySql	MySQL	call	VARIANT_GET	emulated	variantGet	as MariaDb	14
 MySql	MySQL	call	JSON_TYPE	emulated	(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...	as MariaDb	1
@@ -2842,7 +2830,6 @@ MongoDb	MongoDB	call	TO_VARIANT	emulated	variantConstruct		0
 MongoDb	MongoDB	call	BOOL_TO_TEXT	emulated	op1: $toString		0
 MongoDb	MongoDB	call	FLOAT_CANON	emulated	floatCanonByText		0
 MongoDb	MongoDB	call	FLOAT_PRINT	emulated	floatPrintByText		0
-MongoDb	MongoDB	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		0
 MongoDb	MongoDB	call	VARIANT_ELEMENTS	emulated	variantElements		0
 MongoDb	MongoDB	call	VARIANT_GET	emulated	variantGet		0
 MongoDb	MongoDB	call	JSON_TYPE	emulated	jsonType		0
@@ -3064,7 +3051,6 @@ EngineStyleH2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSON
 EngineStyleH2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)		-
 EngineStyleH2	-	call	FLOAT_CANON	emulated	floatCanonByText		-
 EngineStyleH2	-	call	FLOAT_PRINT	emulated	floatPrintByText		-
-EngineStyleH2	-	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText		-
 EngineStyleH2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantElements	-
 EngineStyleH2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	via AnsiSqlRenderer.variantGet	-
 EngineStyleH2	-	call	JSON_TYPE	spelled	json_type		-
@@ -3286,7 +3272,6 @@ EngineStyleDB2	-	call	TO_VARIANT	refused	toVariant reached a dialect without JSO
 EngineStyleDB2	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleH2	-
 EngineStyleDB2	-	call	FLOAT_CANON	emulated	floatCanonByText	as EngineStyleH2	-
 EngineStyleDB2	-	call	FLOAT_PRINT	emulated	floatPrintByText	as EngineStyleH2	-
-EngineStyleDB2	-	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText	as EngineStyleH2	-
 EngineStyleDB2	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
 EngineStyleDB2	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
 EngineStyleDB2	-	call	JSON_TYPE	spelled	json_type	as EngineStyleH2	-
@@ -3508,7 +3493,6 @@ EngineStyleComposite	-	call	TO_VARIANT	refused	toVariant reached a dialect witho
 EngineStyleComposite	-	call	BOOL_TO_TEXT	emulated	cast(… as varchar)	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	FLOAT_CANON	emulated	floatCanonByText	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	FLOAT_PRINT	emulated	floatPrintByText	as EngineStyleDB2, as EngineStyleH2	-
-EngineStyleComposite	-	call	FLOAT_PRINT_ENGINE	emulated	floatPrintByText	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	VARIANT_ELEMENTS	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements	-
 EngineStyleComposite	-	call	VARIANT_GET	refused	variant navigation reached a dialect without JSON support	as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet	-
 EngineStyleComposite	-	call	JSON_TYPE	spelled	json_type	as EngineStyleDB2, as EngineStyleH2	-

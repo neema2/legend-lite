@@ -34,6 +34,19 @@ public interface TestBackend {
     /** Whether it runs in-process (the platform opens its own private instances of it), or is a server. */
     boolean inProcess();
 
+    /** The statements a test runs on a fresh session of this backend so the suite's answers are deterministic
+     *  (the platform's: its clock in UTC); none for a backend whose session takes the launcher's one zone (track T,
+     *  T-d, 2026-10-29: the decision is the backend's, never a test's). */
+    default java.util.List<String> sessionSetUp() {
+        return java.util.List.of();
+    }
+
+    /** A statement answering the year of this backend's own clock, as text (a test of {@code now()} reads it either
+     *  side of its query); ANSI's {@code EXTRACT}, which SQLite has not (T-d2, 2026-10-29). */
+    default String yearOfNowSql() {
+        return "SELECT CAST(EXTRACT(YEAR FROM CURRENT_TIMESTAMP) AS VARCHAR)";
+    }
+
     /** A NEW session for the platform's system database on this server (closing it closes it). An in-process backend
      *  has none: the platform opens its own private instance. */
     Connection openSystem() throws SQLException;

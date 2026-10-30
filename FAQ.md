@@ -227,36 +227,17 @@ The nested association becomes a correlated subquery that returns a `LIST` of `S
 
 ### What result formats are supported?
 
-| Format | Serializer | Streaming | Dependencies |
-|--------|-----------|-----------|--------------|
-| **JSON** | `JsonSerializer` | ✅ | None |
-| **CSV** | `CsvSerializer` | ✅ | None |
+A query's answer is its typed rows, streamed in batches by the plan's runner and written at the edge by a writer
+(`core/src/main/java/com/legend/result`): `CsvWriter` (RFC 4180) and `JsonRowsWriter` (lite's own outputs, each cell in
+Pure's print form), and `PureV1Writer` (legend-engine's `pure/v1` execute answer, each cell as the engine's token).
+The database computes every value; a writer only chooses its text. Each writer has no dependency beyond core.
 
-Both serializers are hand-rolled with zero external dependencies.
+### How do I add an output format?
 
-### How do I add a custom serializer?
-
-Implement the `ResultSerializer` interface:
-
-```java
-public class ArrowSerializer implements ResultSerializer {
-    @Override public String formatId() { return "arrow"; }
-    @Override public String contentType() { return "application/vnd.apache.arrow.stream"; }
-    @Override public void serialize(BufferedResult result, OutputStream out) { /* ... */ }
-}
-```
-
-Register it:
-
-```java
-SerializerRegistry.register(ArrowSerializer.INSTANCE);
-```
-
-Use it:
-
-```java
-queryService.executeAndSerialize(pureSource, query, runtime, out, "arrow");
-```
+Implement `com.legend.result.ResultSink` (`columns`, `batch`, `end`): the plan's columns arrive first, with their Pure
+type, multiplicity and SQL slot, then the rows in batches of typed cells (`Batch.get(row, column)`). Spell each cell
+from its column's facts alone (`CellText` holds Pure's print forms and the engine's tokens), and run the query with
+`Execution.run(..., plan -> new YourWriter(out, plan.answerShape()))`.
 
 ---
 
@@ -336,7 +317,7 @@ core/    the compiler — 418 files, ~120K LOC. THIS is where work happens.
   compiler/  NameResolver, element/ (F), spec/ (G — Typer, checkers)
   normalizer/ resolver/ lowering/           E, H, I
   sql/ + sql/dialect/                       MIR (sealed, pure data) → SQL
-  exec/                                     JDBC → ExecutionResult
+  exec/                                     a plan + a session → typed rows to a sink
   Compiler.java                             the one driver
 
 engine/  FROZEN legacy + the still-live wire layer:

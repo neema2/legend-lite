@@ -332,6 +332,10 @@ py_library(
 py_test(
     name = "engine_test",
     size = "medium",
+    # 2026-10-29 (the result boundary program's PR #80): the suite ran 291 s on Windows at main's 9de4d3a8 (gates run
+    # 2235) and timed out at the moderate ceiling, 300 s, on three of the branch's heads (the Windows warehouse lane);
+    # the ceiling had 3% of headroom, so it is the flake, not the tests -- raised to long (900 s), the suite unchanged
+    timeout = "long",
     srcs = [
         "tests/main.py",
         "tests/test_engine.py",

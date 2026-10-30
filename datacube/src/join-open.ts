@@ -7,7 +7,7 @@
 
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
-  frozenInput, inputCube, inputLeaves, joinInputs, leavesOf, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
+  frozenInput, inputCube, joinInputs, openCube, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type RowsSource,
 } from './cube-document.ts';
 import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
@@ -43,7 +43,7 @@ const PLURAL: Readonly<Record<TableKind, string>> = { file: 'files', remoteFile:
 export function leafRefusal(leaf: LeafSource, here: readonly TableKind[]): string | undefined {
   if ((here as readonly string[]).includes(leaf._type)) return undefined;
   return `a join reads both its inputs in one place, this page's own database (${here.map((k) => PLURAL[k]).join(', ')}); `
-    + `${leaf.name} is ${WHAT[leaf._type]}`;
+    + `${leaf.name} is ${WHAT[leaf._type]} -- cache the box that reads it, and its rows are copied here when it runs (FL10)`;
 }
 
 /** What opening a join needs of its host. */
@@ -134,13 +134,35 @@ function reconciled(how: JoinHow, right: JoinSide, notes: string[]): JoinHow {
 export interface CopyTable {
   readonly _type: 'copy';
   readonly table: string;
+  /** What its plane says of it and when it was taken, where what reads it says so (a cached box's: JoinInput.copy). */
+  readonly label?: string;
+  readonly takenAt?: string;
 }
 
 /** What a combination opens over one model: a grid's source, or its snapped copy's table. */
 export type OpenedSource = CubeSource | CopyTable;
 
 /** A source's leaves in order: a copy is its table's one. */
-const leavesOfOpened = (s: OpenedSource): readonly (LeafSource | CopyTable)[] => (s._type === 'copy' ? [s] : leavesOf(s));
+const leavesOfOpened = (s: OpenedSource): readonly (LeafSource | CopyTable)[] => (s._type === 'copy' ? [s] : openedLeaves(s));
+
+/**
+ * WHAT A SOURCE RESOLVED TO BE OPENED READS (live-inputs.ts resolvedSource's `copies`): its leaves as cube-document.ts
+ * leavesOf says them, in that order -- but an input that reads its grid's copy (JoinInput.copy) is that copy's table, one
+ * leaf, its own leaves not read at all.
+ */
+export function openedLeaves(source: CubeSource): (LeafSource | CopyTable)[] {
+  switch (source._type) {
+    case 'join': return joinInputs(source).flatMap((i) => openedInputLeaves(frozenInput(i, source.name)));
+    case 'rows': return openedInputLeaves(frozenInput(source.input, source.name));
+    default: return [source];
+  }
+}
+
+/** An input's leaves as it is opened (openedLeaves): its copy's table, or its source's and its unmatched inputs' in turn. */
+export function openedInputLeaves(input: JoinInput): (LeafSource | CopyTable)[] {
+  if (input.copy !== undefined) return [{ _type: 'copy', table: input.copy.table, label: input.copy.label, takenAt: input.copy.takenAt }];
+  return [...openedLeaves(input.source), ...(input.unmatched ?? []).flatMap((u) => openedInputLeaves(u.by))];
+}
 
 /** Sources over one model as they are opened: the model, how a relation over it is typed, and each source's relation. */
 interface OneModel {
@@ -196,7 +218,9 @@ async function oneModel(leaves: readonly (LeafSource | CopyTable)[], o: JoinOpen
     return joinRelation(l!, r!, reconciled(s.how, r!, notes), more);
   };
   const side = async (input: JoinInput): Promise<JoinSide> => {
-    let rows = await inputRows(input, await relation(input.source), typer, notes);
+    // an input reading its grid's copy: the copy's table, its query over it (openedLeaves: one leaf, in its place)
+    const base = input.copy !== undefined ? relationOf.get(o.tables[next++]!)! : await relation(input.source);
+    let rows = await inputRows(input, base, typer, notes);
     // a Join's L or R (cube-document.ts JoinInput.unmatched): its rows no row of the other's pairs with, in turn
     for (const u of input.unmatched ?? []) rows = { ...rows, relation: joinRelation(rows, await side(u.by), { form: 'anti', on: u.on }) };
     return rows;
@@ -212,7 +236,7 @@ async function oneModel(leaves: readonly (LeafSource | CopyTable)[], o: JoinOpen
  */
 export async function openInputs(left: JoinInput, right: JoinInput, o: JoinOpening, more: readonly JoinInput[] = []): Promise<OpenedInputs> {
   const all = [left, right, ...more];
-  const m = await oneModel(all.flatMap(inputLeaves), o);
+  const m = await oneModel(all.flatMap(openedInputLeaves), o);
   const sides: JoinSide[] = [];
   for (const i of all) sides.push(await m.side(i));
   const [l, r, ...after] = sides;
@@ -267,7 +291,7 @@ export interface OpenedRows {
  * finest level over that input's own source in turn, typed over one model of them.
  */
 export async function openRows(source: RowsSource, o: JoinOpening): Promise<OpenedRows> {
-  const m = await oneModel(leavesOf(source), o);
+  const m = await oneModel(openedLeaves(source), o);
   const relation = await m.relation(source);
   const columns = await sourceColumns(m.typer, relation);
   return { model: m.model, runtime: m.runtime, typer: m.typer, relation, columns, notes: m.notes };

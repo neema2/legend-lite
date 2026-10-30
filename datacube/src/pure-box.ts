@@ -40,7 +40,7 @@ const shadows = (n: ValueSpecification, name: string): boolean =>
   n._type === 'lambda' && (n as Lambda).parameters.some((p) => p.name === name);
 
 /** Whether `n` reads variable `name` (a lambda of its own that names it reads its own). */
-function reads(n: ValueSpecification, name: string): boolean {
+export function reads(n: ValueSpecification, name: string): boolean {
   if (isRead(n, name)) return true;
   if (shadows(n, name) || n._type === 'genericTypeInstance') return false;
   return children(n).some((c) => reads(c, name));
@@ -130,7 +130,12 @@ const VALUE_COLUMN = 'value';
  *  such rows are asked again with their columns selected, which a relation's are and a value's never, and a value is
  *  refused in words. */
 export async function pureFrom(text: string, input: ValueSpecification, compiler: PureCompiler): Promise<Lambda> {
-  const pure = await compiler.parse(pureText(text));
+  return pureChecked(await compiler.parse(pureText(text)), input, compiler);
+}
+
+/** A Pure box's function as pureFrom judges it once parsed -- its shape, its rows over `input` a relation -- a macro's
+ *  used too (macros.ts): itself, or refused in words. */
+export async function pureChecked(pure: Lambda, input: ValueSpecification, compiler: Pick<PureCompiler, 'columns'>): Promise<Lambda> {
   const problem = pureProblem(pure);
   if (problem !== undefined) throw new CubeRefusal(problem);
   const rows = pureOver(pure, input);

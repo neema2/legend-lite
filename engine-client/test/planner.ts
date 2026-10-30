@@ -10,6 +10,16 @@ import { runfileDirUrl } from '../../tools/js/runfiles.mts';
 
 /** The module from WASM_PLANNER (node_test's `wasm`), in-thread. */
 export async function loadPlanner(): Promise<WasmGrammar> {
+  const m = await loadPlannerModule();
+  return new WasmGrammar({
+    async ask(r: RequestBody): Promise<string> {
+      return answer(m, r);
+    },
+  });
+}
+
+/** The module itself: a test that asks the planner protocol's kinds by hand (a model held, then planned). */
+export async function loadPlannerModule(): Promise<PlannerModule> {
   const dir = new URL(runfileDirUrl('WASM_PLANNER'));
   const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
     load(src: string, options: unknown): Promise<PlannerModule>;
@@ -20,9 +30,5 @@ export async function loadPlanner(): Promise<WasmGrammar> {
       i.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
     },
   });
-  return new WasmGrammar({
-    async ask(r: RequestBody): Promise<string> {
-      return answer(m, r);
-    },
-  });
+  return m;
 }

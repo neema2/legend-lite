@@ -428,6 +428,26 @@ public final class Ddl {
                 def.columns().size(), rows);
     }
 
+    /** One store table's seed in an IN-PROCESS engine as a plan's setup steps: its DDL ({@link #metamodelSeed}),
+     *  then its rows ({@link #metamodelRows}) for the database's bulk loader where it has one
+     *  ({@link com.legend.sql.dialect.SqlDialect#loadsRowsInBulk}), else as the one INSERT; a table of no rows adds no
+     *  rows step. The one owner of that choice for the plan's target and the system database's session (the doors,
+     *  2026-10-29; until then {@code PlanMaker} and {@code SystemDatabase} each made it). */
+    public static java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> metamodelSteps(
+            DatabaseDefinition.TableDefinition def, String schema, java.util.List<java.util.List<String>> rows,
+            com.legend.sql.dialect.SqlDialect dialect) {
+        java.util.List<com.legend.executionplan.ExecutionPlan.SetupStep> out = new java.util.ArrayList<>();
+        for (String statement : metamodelSeed(def, schema, dialect)) {
+            out.add(new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(statement));
+        }
+        if (!rows.isEmpty()) {
+            RowLoad load = metamodelRows(def, schema, rows);
+            out.add(dialect.loadsRowsInBulk() ? load.staged(dialect)
+                    : new com.legend.executionplan.ExecutionPlan.SetupStep.Statement(dialect.render(load.values())));
+        }
+        return out;
+    }
+
     /** A store table's name in a SERVER engine's system database (exec.SystemDatabase): {@code schema_table}, one
      *  name in the system session's own namespace, where its temporary tables live (a temporary table takes no
      *  schema on most servers: Postgres keeps it in {@code pg_temp}, Databricks and BigQuery in the session). A query

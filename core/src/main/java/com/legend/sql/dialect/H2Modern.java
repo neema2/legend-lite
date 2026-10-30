@@ -35,7 +35,7 @@ public class H2Modern extends H2 {
     protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON,
-                 LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT ->
+                 TEMPORAL_TEXT, DECIMAL_TEXT ->
                     super.scalarTypeName(s);
         };
     }
@@ -120,7 +120,7 @@ public class H2Modern extends H2 {
                  LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND,
                  LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME,
                  STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF, ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT,
-                 BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
+                 BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
                     super.call(writer, c, parentPrec);
         };
     }
@@ -142,28 +142,13 @@ public class H2Modern extends H2 {
         return writer.append("CARDINALITY(").expr(arg, 0).append(")");
     }
 
-    /** A cast TO JSON is the PARSE intent (DuckDB's CAST parses) — but
-     * H2's CAST from VARCHAR QUOTES the text as a JSON string instead
-     * (probed: CAST('[10,20]' AS JSON) -> "\"[10,20]\""). The parsing
-     * spellings: {@code JSON '...'} for literals, {@code (x FORMAT
-     * JSON)} for dynamic text (both probed to navigate). TO_VARIANT
-     * keeps the quoting CAST — that IS toVariant's string semantics. */
-    private SqlWriter jsonParseCast(SqlWriter writer, SqlExpr.Cast c) {
-        if (c.value() instanceof SqlExpr.StringLit sl) {
-            return writer.append("JSON ").append(stringLit(sl.value()));
-        }
-        return writer.append("(").expr(c.value(), 0).append(" FORMAT JSON)");
-    }
-
     /** Scalar casts over a navigation extract TEXT first: H2 rejects
      * JSON -> number/boolean casts outright and its VARCHAR cast keeps
      * the JSON quoting (probed) — TRIM strips it; numbers and booleans
-     * carry no quotes and convert cleanly. */
+     * carry no quotes and convert cleanly. (A cast TO JSON parses, the
+     * parse spelling now {@link H2}'s own, 2026-10-29.) */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
-        if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {
-            return jsonParseCast(writer, c);
-        }
         boolean navigation = c.value() instanceof SqlExpr.Call call
                 && (call.fn() == com.legend.sql.SqlFn.VARIANT_GET
                         || call.fn() == com.legend.sql.SqlFn.VARIANT_ELEMENTS)

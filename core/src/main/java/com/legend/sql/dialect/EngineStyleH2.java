@@ -36,7 +36,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case BIGINT -> "BIGINT";
             case HUGEINT -> "HUGEINT";
             case DOUBLE -> "DOUBLE PRECISION";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
@@ -2077,7 +2077,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
@@ -2313,15 +2313,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         if (c.conform()) {
             return writer.expr(c.value(), 0);
         }
-        // The F10 LITERAL marker cast is a LABEL device (the
-        // construction-site carrier declaration scalarRoot reads) —
-        // never engine text: goldens pin the engine's own spelling
-        // (testGreatestLeast caught cast(greatest(...) as varchar)).
-        if (c.target() == com.legend.sql.SqlType.Scalar.LITERAL
-                || c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
-                || (c.target() instanceof com.legend.sql.SqlType.Array la
-                        && la.element()
-                                == com.legend.sql.SqlType.Scalar.LITERAL)) {
+        // The temporal-text marker cast is a LABEL device (the construction-site carrier declaration the root
+        // reads) -- never engine text: goldens pin the engine's own spelling (testGreatestLeast caught
+        // cast(greatest(...) as varchar)). (The LITERAL spelling carrier's marker left with it, track L, 2026-10-29.)
+        if (c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT) {
             return writer.expr(c.value(), 0);
         }
         String t = castTypeName(c.target()).toLowerCase(Locale.ROOT);
@@ -2401,14 +2396,4 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached the engine text");
     }
 
-    /** {@inheritDoc} A JSON-carried list's text, which H2's driver hands back as its UTF-8 bytes. Until 2026-10-15
-     *  the executor read those bytes for every dialect; the dialect program's Phase 4 moved the reading into
-     *  {@link H2#normalize}, and its audit found that this dialect, which runs on H2 and is not H2's subclass, had
-     *  lost it. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.base.Nullable SqlType type) {
-        return jdbcValue instanceof byte[] b && type instanceof com.legend.sql.SqlType.Array
-                ? new String(b, java.nio.charset.StandardCharsets.UTF_8) : jdbcValue;
-    }
 }

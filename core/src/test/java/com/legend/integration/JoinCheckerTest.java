@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -791,8 +791,8 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
             assertEquals(2, result.rowCount());
             assertEquals(2, result.columns().size());
             var byId = CheckerResults.collect(result, "resultId", "resultCol");
-            assertEquals("MoreGeorge", byId.get(1));
-            assertEquals("MoreDavid", byId.get(4));
+            assertEquals("MoreGeorge", byId.get(1L));
+            assertEquals("MoreDavid", byId.get(4L));
         }
 
         @Test
@@ -1015,7 +1015,7 @@ public class JoinCheckerTest extends AbstractDatabaseTest {
     /** Collects results into a map keyed by the specified column value. */
 
     /** Finds column index by name. */
-    private int columnIndex(ExecutionResult result, String name) {
+    private int columnIndex(Lean.Result result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name()))
                 return i;

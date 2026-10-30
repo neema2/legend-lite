@@ -3,10 +3,11 @@
 // resolved against its page -- every live input the copy of what its grid is now, as the Join window copies a grid it
 // joins (page-commands.ts joinInputOf) -- and the order a page's cubes open in, so a grid opens after the grids it reads.
 
-import { isLive, withJoinInputs, joinInputs, type CubeInput, type CubeSource, type InputPort, type JoinInput } from './cube-document.ts';
+import { isLive, withJoinInputs, joinInputs, type CubeInput, type CubeSource, type InputCopy, type InputPort, type JoinInput } from './cube-document.ts';
 import type { PageDocument } from './page-document.ts';
 import { boxOmitted, boxOrder, boxRenamed } from './box-columns.ts';
 import { unmatchedOn } from './join-how.ts';
+import { boundIn } from './page-parameters.ts';
 import { CubeRefusal } from './snapshot.ts';
 
 /** The grids `source` reads live, each once, in the order it reads them -- through its frozen inputs too. */
@@ -31,7 +32,7 @@ export function liveGrids(source: CubeSource): string[] {
  * else its source's name), its source -- resolved, so the copy holds no live input of its own -- and its query. Refused
  * in words when `grid` is no grid of the page, or reads its own rows (`through`: the grids read on the way to it).
  */
-export function gridInput(page: PageDocument, grid: string, through: readonly string[] = [], port?: InputPort): JoinInput {
+export function gridInput(page: PageDocument, grid: string, through: readonly string[] = [], port?: InputPort, copies = false): JoinInput {
   const view = page.views.find((v) => v.id === grid);
   if (view === undefined) throw new CubeRefusal(`'${grid}' is no grid of this page`);
   if (view.kind !== 'grid') throw new CubeRefusal(`'${grid}' is a ${view.kind} tile, not a grid`);
@@ -40,7 +41,7 @@ export function gridInput(page: PageDocument, grid: string, through: readonly st
   if (through.includes(grid)) {
     throw new CubeRefusal(`'${grid}' reads its own rows (${[...through.slice(through.indexOf(grid)), grid].join(' → ')})`);
   }
-  if (port === 'left' || port === 'right') return unmatchedInput(page, grid, cube.cube.source, port, [...through, grid]);
+  if (port === 'left' || port === 'right') return unmatchedInput(page, grid, cube.cube.source, port, [...through, grid], copies);
   const query = port === undefined ? cube.cube.query : falseQuery(grid, cube.cube.query);
   // a flow's box hands on the columns it shows, under the names it gives them (box-columns.ts); a board's grid, all
   const onFlow = page.sheets.some((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === grid));
@@ -48,7 +49,7 @@ export function gridInput(page: PageDocument, grid: string, through: readonly st
   const rename = onFlow ? boxRenamed(cube.cube.query, cube.cube.configuration) : [];
   const order = onFlow ? boxOrder(cube.cube.query, cube.cube.configuration) : undefined;
   return {
-    name: view.title ?? cube.cube.source.name, source: resolvedOn(page, cube.cube.source, [...through, grid]), query,
+    name: view.title ?? cube.cube.source.name, source: resolvedOn(page, cube.cube.source, [...through, grid], copies), query,
     ...(omit.length > 0 ? { omit } : {}), ...(rename.length > 0 ? { rename } : {}), ...(order !== undefined ? { order } : {}),
   };
 }
@@ -73,17 +74,30 @@ function falseQuery(grid: string, query: JoinInput['query']): JoinInput['query']
  * neither. Refused in words: a grid that is no join, a join with no rows left unmatched (a Union) or whose condition an
  * anti-join cannot say.
  */
-function unmatchedInput(page: PageDocument, grid: string, source: CubeSource, side: 'left' | 'right', through: readonly string[]): JoinInput {
+function unmatchedInput(page: PageDocument, grid: string, source: CubeSource, side: 'left' | 'right', through: readonly string[],
+  copies: boolean): JoinInput {
   if (source._type !== 'join') throw new CubeRefusal(`'${grid}' is no join: it has no Left and Right unmatched`);
   const on = unmatchedOn(source.how, side);
   const [mine, theirs] = side === 'left' ? [source.left, source.right] : [source.right, source.left];
-  const rows = resolvedInput(page, mine, through);
-  return { ...rows, unmatched: [...(rows.unmatched ?? []), { by: resolvedInput(page, theirs, through), on }] };
+  const rows = resolvedInput(page, mine, through, copies);
+  return { ...rows, unmatched: [...(rows.unmatched ?? []), { by: resolvedInput(page, theirs, through, copies), on }] };
 }
 
 /** An input resolved (resolvedOn's): a live one the copy of its grid now, a copy with each source in it resolved. */
-function resolvedInput(page: PageDocument, i: CubeInput, through: readonly string[]): JoinInput {
-  return isLive(i) ? gridInput(page, i.grid, through, i.port) : copyWith(i, (s) => resolvedOn(page, s, through));
+function resolvedInput(page: PageDocument, i: CubeInput, through: readonly string[], copies: boolean): JoinInput {
+  if (!isLive(i)) return copyWith(i, (s) => resolvedOn(page, s, through, copies));
+  const input = gridInput(page, i.grid, through, i.port, copies);
+  // to be opened: a snapped grid read by its copy of its source's rows, its query over them (§18.8; a cached box, FL10)
+  // -- but a Join's L or R, whose rows are its inputs', which no copy of its own rows holds
+  const copy = copies && i.port !== 'left' && i.port !== 'right' ? copyOf(page, i.grid) : undefined;
+  return copy === undefined ? input : { ...input, copy };
+}
+
+/** The copy grid `grid` reads now, as the page records it (page-document.ts copies, by its cube), or undefined. */
+function copyOf(page: PageDocument, grid: string): InputCopy | undefined {
+  const view = page.views.find((v) => v.id === grid);
+  const copy = view?.kind === 'grid' ? page.copies?.[view.cube] : undefined;
+  return copy === undefined ? undefined : { table: copy.table, label: copy.label, takenAt: copy.takenAt };
 }
 
 /** A copy with `f` made of its source and of each source of the inputs its rows are matched against. */
@@ -95,13 +109,17 @@ function copyWith(i: JoinInput, f: (s: CubeSource) => CubeSource): JoinInput {
  * A SOURCE RESOLVED AGAINST ITS PAGE: every live input in it -- another grid's rows', a join's inputs' -- the copy of
  * what its grid is now (gridInput), so whatever asks what a grid reads (its leaves, its base query) asks a source with no
  * link left in it. `grid`, the grid whose source it is, if it is one of the page's: a source that reads it back is refused.
+ * `copies`, resolved to be OPENED: a snapped grid's input reads its copy (JoinInput.copy) -- what a grid's rows are read
+ * from now; without it, what they are a copy OF (a class maps those tables: §18.8 item 3).
  */
-export function resolvedSource(page: PageDocument, source: CubeSource, grid?: string): CubeSource {
-  return resolvedOn(page, source, grid === undefined ? [] : [grid]);
+export function resolvedSource(page: PageDocument, source: CubeSource, grid?: string, o: { readonly copies?: boolean } = {}): CubeSource {
+  // its page's parameters bound into it (page-parameters.ts): the base a box is opened over reads their values now, as
+  // its own steps' queries read them through its lens
+  return boundIn(resolvedOn(page, source, grid === undefined ? [] : [grid], o.copies === true), page.parameters ?? []);
 }
 
-function resolvedOn(page: PageDocument, source: CubeSource, through: readonly string[]): CubeSource {
-  const input = (i: CubeInput): JoinInput => resolvedInput(page, i, through);
+function resolvedOn(page: PageDocument, source: CubeSource, through: readonly string[], copies = false): CubeSource {
+  const input = (i: CubeInput): JoinInput => resolvedInput(page, i, through, copies);
   switch (source._type) {
     case 'rows': return { ...source, input: input(source.input) };
     case 'join': return withJoinInputs(source, input);

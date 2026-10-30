@@ -16,9 +16,12 @@ import { pureProblem } from './pure-box.ts';
 import {
   MAX_COLUMNS, NEW_SHEET, NotALayout, add, arrange, asSaved, remove, stackTiles, type Bands, type Preset,
 } from './layout/bands.ts';
-import { EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, setOutput, setStops, type Flow, type Frame, type Output } from './layout/flow.ts';
 import {
-  PageDocumentError, keptFor, layoutTiles, readGridCopy, readLayout, stillHeld, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
+  EMPTY_FLOW, FlowRefusal, moveBox, placeAfter, removeBox, readMessage, readOutput, setBlocks, setCache, setMessage, setOutput, setStops, type Flow,
+  type FlowMessage, type Frame, type Output,
+} from './layout/flow.ts';
+import {
+  PageDocumentError, flowSheetProblem, keptFor, layoutTiles, readGridCopy, readLayout, stillHeld, unnamedLabel, writePageOf, type ChartView, type FlowLayout,
   type GridCopy, type GridView, type PageDocument, type PageLayout, type PageSheet, type PageView, type TextView, type TimeseriesView,
 } from './page-document.ts';
 import { frozenFrom, gridInput, liveGrids, liveProblem } from './live-inputs.ts';
@@ -30,6 +33,8 @@ import { textProblem } from './page-text-rule.ts';
 import { readTimeseries, type TimeseriesSpec } from './timeseries-spec.ts';
 import { readTextFiles, type TextFile } from './text-files.ts';
 import { namedProperties, type PageFilter } from './page-filters.ts';
+import { parameterProblem, readParameter, type PageParameter } from './page-parameters.ts';
+import { macroProblem, sameMacro } from './macros.ts';
 import { readFilterNode, type GridCommand } from './grid-commands.ts';
 import type { PageState } from './page-state.ts';
 import { CubeRefusal, sameValue, withoutConditions, type CubeShape, type FilterNode } from './snapshot.ts';
@@ -166,6 +171,19 @@ export type PageCommand =
   /** A page filter taken off. */
   | { readonly kind: 'removePageFilter'; readonly filter: string }
   /**
+   * A parameter of the page (page-parameters.ts, an analytic app's input: a value any Pure on it reads as `$name`), set:
+   * the one of its name replaced -- its value changed, or its type, choices or label -- else added. Judged whole
+   * (parameterProblem): a value of its type, one of its choices.
+   */
+  | { readonly kind: 'setParameter'; readonly parameter: PageParameter }
+  /** A parameter of the page taken off: a Pure that still reads it is refused by the compiler, in its words. */
+  | { readonly kind: 'removeParameter'; readonly name: string }
+  /**
+   * A macro of the page (macros.ts: a sub-flow saved as a Pure function of its input's rows), set: the one of its name
+   * replaced, else added -- or (`pure` null) taken off. The boxes using one are Pure boxes of its function, each its own.
+   */
+  | { readonly kind: 'setMacro'; readonly name: string; readonly pure: Lambda | null }
+  /**
    * Grid `grid` reads `copy`, a copy of its base query its host has made (Snap: docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
    * §18.8), in place of the one it read, if any (its host lets that one go). Not a step of the page's history: the
    * plane is where the grid's rows are, not what it shows.
@@ -203,6 +221,15 @@ export type PageCommand =
   /** A flow's Test box set to stop a run when its checks fail, before the run writes any Output (FL8's refuse: Python's
    *  grid.stops_run), or (false) to warn: the run writes on. */
   | { readonly kind: 'setStops'; readonly grid: string; readonly stops: boolean }
+  /** A flow's box set to cache its rows (FL10: copied into its host's database when it is shown or run, the boxes after it
+   *  reading the copy -- Python's grid.cache), or (false) no longer. */
+  | { readonly kind: 'setCache'; readonly grid: string; readonly cache: boolean }
+  /** A flow's box set to block a run (Alteryx's Block Until Done, M8: the boxes after it shown, and their Outputs written,
+   *  once every Output not after it is -- Python's grid.block_until_done), or (false) no longer. */
+  | { readonly kind: 'setBlocks'; readonly grid: string; readonly blocks: boolean }
+  /** A flow's box set to say `message` in a run's log (Alteryx's Message, M8: an error stops the run, no Output written --
+   *  Python's grid.message), or (null) nothing. */
+  | { readonly kind: 'setMessage'; readonly grid: string; readonly message: FlowMessage | null }
   /** The page's model made by its first model action (Create a Class…, a Data Space): its project, DataCube's workspace
    *  in it, the package its classes go in (modelMade, above). */
   | { readonly kind: 'modelInto'; readonly project: string; readonly workspace: string; readonly package: string }
@@ -215,7 +242,7 @@ export const PAGE_COMMAND_KINDS = [
   'renamePage', 'savedAs', 'addSheet', 'addFlow', 'placeBox', 'renameSheet', 'moveSheet', 'removeSheet', 'renameTile', 'addGrid',
   'addChart', 'setChart',
   'addText', 'setText', 'addTimeseries', 'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select', 'moveTile', 'stack', 'removeTile',
-  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops',
+  'arrange', 'layout', 'setPageFilter', 'removePageFilter', 'setParameter', 'removeParameter', 'setMacro', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache', 'setBlocks', 'setMessage',
   'modelInto', 'modelPin', 'modelKeep',
 ] as const satisfies readonly PageCommand['kind'][];
 
@@ -230,7 +257,7 @@ export const PAGE_COMMAND_FIELDS = {
   setTimeseries: ['tile', 'spec', 'kept?'], followGrid: ['chart', 'grid'], detach: ['chart', 'cube', 'document', 'copy?'],
   select: ['chart', 'conditions'], moveTile: ['tile', 'sheet', 'columns'], stack: ['tiles'], removeTile: ['tile'],
   arrange: ['sheet', 'preset', 'order'], layout: ['sheet', 'layout'], setPageFilter: ['id?', 'class', 'condition', 'from'],
-  removePageFilter: ['filter'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'],
+  removePageFilter: ['filter'], setParameter: ['parameter'], removeParameter: ['name'], setMacro: ['name', 'pure'], snap: ['grid', 'copy'], live: ['grid'], rebuilt: ['cube', 'source'], setInput: ['grid', 'side', 'input'], setJoin: ['grid', 'how', 'more?'], setPure: ['grid', 'pure'], setOutput: ['grid', 'output'], setStops: ['grid', 'stops'], setCache: ['grid', 'cache'], setBlocks: ['grid', 'blocks'], setMessage: ['grid', 'message'],
   modelInto: ['project', 'workspace', 'package'], modelPin: ['revision'], modelKeep: ['cube', 'tables', 'class'],
 } as const satisfies CommandFields<PageCommand>;
 // every field of every kind listed: a field the list leaves out is a type error naming it
@@ -340,6 +367,16 @@ export function joinInputOf(page: PageDocument, grid: string): JoinInput {
   return gridInput(page, grid);
 }
 
+/** Why grid `grid` cannot stop a run, if it cannot: what a run is stopped on is a Test's checks, or a fixed Cross Tab's
+ *  (its every value a column) -- any other box is never judged, so would stop every run (the review of 2026-10-26: it
+ *  took any box). setStops's rule, and a layout's. */
+function stopsProblem(page: PageDocument, grid: string): string | undefined {
+  const view = page.views.find((v) => v.id === grid);
+  const q = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube)?.cube.query : undefined;
+  const fixed = q !== undefined && q.pivotOn.length === 1 && (q.pivotValues ?? []).length > 0;
+  return q === undefined || (!testShaped(q) && !fixed) ? `'${grid}' checks nothing: a run is stopped by a Test, or a Cross Tab with its columns fixed` : undefined;
+}
+
 const withSheet = (page: PageDocument, id: string, change: (s: PageSheet) => PageSheet): PageDocument =>
   ({ ...page, sheets: page.sheets.map((s) => (s.id === id ? change(s) : s)) });
 
@@ -366,11 +403,13 @@ function freshId(draft: PageDraft, given: string | undefined, kind: 'grid' | 'ch
 /** The page written again by its own writer (page-document.ts writePageOf): its name each cube's too, its model kept
  *  for the cubes it holds, a chart's click filter for the charts it holds. */
 function rewritten(page: PageDocument,
-  change: Partial<Pick<PageDocument, 'name' | 'cubes' | 'views' | 'sheets' | 'filters' | 'copies'>>): PageDocument {
+  change: Partial<Pick<PageDocument, 'name' | 'cubes' | 'views' | 'sheets' | 'filters' | 'parameters' | 'macros' | 'copies'>>): PageDocument {
   const next = { ...page, ...change };
   return writePageOf({
     name: next.name, cubes: next.cubes, views: { views: next.views, sheets: next.sheets },
     ...(next.model ? { model: next.model } : {}), ...(next.filters ? { filters: next.filters } : {}),
+    ...(next.parameters ? { parameters: next.parameters } : {}),
+    ...(next.macros ? { macros: next.macros } : {}),
     ...(next.copies ? { copies: next.copies } : {}), ...(next.record !== undefined ? { record: next.record } : {}),
     ...(next.unknown ? { unknown: next.unknown } : {}),
   });
@@ -806,9 +845,16 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
           : `a flow sheet holds boxes, each a grid that does one step: ${kindWords(view)} stays on a board`);
       }
       const out = withSheet(page, from.id, (s) => ({ ...s, layout: takenOff(s.layout, command.tile) }));
-      return done(withSheet(out, to.id, (s) => ({
+      const moved = withSheet(out, to.id, (s) => ({
         ...s, layout: placedOn(s.layout, command.tile, undefined, (bands) => add(bands, command.tile, undefined, command.columns ?? MAX_COLUMNS)),
-      })));
+      }));
+      // a box moved to another flow is the same box: its settings (an Output, its stopping, its cache, its blocking, its
+      // message) go with it -- only its place is new (the roadmap audit of 2026-10-26: each was dropped)
+      if (from.layout.kind !== 'flow') return done(moved);
+      const { tile: _t, x: _x, y: _y, frame: _f, ...settings } = from.layout.boxes.find((b) => b.tile === command.tile)!;
+      if (Object.keys(settings).length === 0) return done(moved);
+      return done(withSheet(moved, to.id, (s) => (s.layout.kind !== 'flow' ? s
+        : { ...s, layout: { ...s.layout, boxes: s.layout.boxes.map((b) => (b.tile === command.tile ? { ...b, ...settings } : b)) } })));
     }
     case 'stack': {
       if (new Set(command.tiles).size < 2) throw new CubeRefusal('a stack is two tiles or more');
@@ -852,6 +898,15 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (JSON.stringify(had) !== JSON.stringify(has)) {
         throw new CubeRefusal(`a sheet's layout holds its tiles, each once: ${had.join(', ') || 'none'}, not ${has.join(', ') || 'none'}`);
       }
+      // a flow's boxes' settings held to their own rules: a grid's, never a comment's (page-document.ts
+      // flowSheetProblem); a box newly set to stop a run, one that checks something (setStops's rule)
+      if (read.kind === 'flow' && sheet.layout.kind === 'flow') {
+        const problem = flowSheetProblem(sheet.id, read, page.views);
+        if (problem !== undefined) throw new CubeRefusal(problem);
+        const was = sheet.layout;
+        const stopping = read.boxes.find((b) => b.stops === true && was.boxes.find((x) => x.tile === b.tile)?.stops !== true && stopsProblem(page, b.tile) !== undefined);
+        if (stopping !== undefined) throw new CubeRefusal(stopsProblem(page, stopping.tile)!);
+      }
       const now: PageLayout = read.kind === 'flow' ? read : saved(read);
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: now })));
     }
@@ -872,6 +927,41 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       const left = filters.filter((f) => f.id !== command.filter);
       const { filters: _all, ...rest } = page;
       return done(rewritten(left.length > 0 ? { ...rest, filters: left } : rest, {}));
+    }
+    case 'setParameter': {
+      const parameters = page.parameters ?? [];
+      const p = command.parameter;
+      const problem = parameterProblem(p, parameters.filter((q) => q.name !== p.name));
+      if (problem !== undefined) throw new CubeRefusal(problem);
+      if (parameters.some((q) => sameValue(q, p))) throw new CubeRefusal(`the page has ${p.name} so already`);
+      const next = parameters.some((q) => q.name === p.name) ? parameters.map((q) => (q.name === p.name ? p : q)) : [...parameters, p];
+      return done(rewritten(page, { parameters: next }));
+    }
+    case 'removeParameter': {
+      const parameters = page.parameters ?? [];
+      if (!parameters.some((q) => q.name === command.name)) {
+        throw new CubeRefusal(`'${command.name}' is not a parameter of the page${parameters.length ? ` (${parameters.map((q) => q.name).join(', ')})` : ''}`);
+      }
+      const left = parameters.filter((q) => q.name !== command.name);
+      const { parameters: _all, ...rest } = page;
+      return done(rewritten(left.length > 0 ? { ...rest, parameters: left } : rest, {}));
+    }
+    case 'setMacro': {
+      const macros = page.macros ?? [];
+      const others = macros.filter((m) => m.name !== command.name);
+      if (command.pure === null) {
+        if (others.length === macros.length) {
+          throw new CubeRefusal(`'${command.name}' is not a macro of the page${macros.length ? ` (${macros.map((m) => m.name).join(', ')})` : ''}`);
+        }
+        const { macros: _all, ...rest } = page;
+        return done(rewritten(others.length > 0 ? { ...rest, macros: others } : rest, {}));
+      }
+      const macro = { name: command.name, pure: command.pure };
+      const problem = macroProblem(macro, others);
+      if (problem !== undefined) throw new CubeRefusal(problem);
+      if (macros.some((m) => m.name === macro.name && sameMacro(m.pure, macro.pure))) throw new CubeRefusal(`the page has the macro '${macro.name}' so already`);
+      const next = others.length < macros.length ? macros.map((m) => (m.name === macro.name ? macro : m)) : [...macros, macro];
+      return done(rewritten(page, { macros: next }));
     }
     case 'snap': {
       const view = gridNamed(page, command.grid);
@@ -993,14 +1083,35 @@ export function applyPageCommand(draft: PageDraft, command: PageCommand): PageAp
       if (sheet === undefined || layout?.kind !== 'flow') throw new CubeRefusal(`'${command.grid}' is no box of a flow: a run is a flow's`);
       const had = layout.boxes.find((b) => b.tile === command.grid)?.stops === true;
       if (had === command.stops) throw new CubeRefusal(`'${command.grid}' ${command.stops ? 'stops a run already' : 'stops no run'}`);
-      // what a run is stopped on: a Test's checks, or a fixed Cross Tab's (its every value a column) -- any other box is
-      // never judged, so would stop every run (the review of 2026-10-26: it took any box)
-      const q = page.cubes.find((c) => c.id === view.cube)?.cube.query;
-      const fixed = q !== undefined && q.pivotOn.length === 1 && (q.pivotValues ?? []).length > 0;
-      if (command.stops && (q === undefined || (!testShaped(q) && !fixed))) {
-        throw new CubeRefusal(`'${command.grid}' checks nothing: a run is stopped by a Test, or a Cross Tab with its columns fixed`);
-      }
+      const why = command.stops ? stopsProblem(page, command.grid) : undefined;
+      if (why !== undefined) throw new CubeRefusal(why);
       return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setStops(layout, command.grid, command.stops)) })));
+    }
+    case 'setCache': {
+      const view = viewNamed(page, command.grid);
+      if (view.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(view)}: a cache is a grid's rows`);
+      const sheet = sheetOf(page, command.grid);
+      const layout = sheet?.layout;
+      if (sheet === undefined || layout?.kind !== 'flow') throw new CubeRefusal(`'${command.grid}' is no box of a flow: a cache is a flow's box's`);
+      const had = layout.boxes.find((b) => b.tile === command.grid)?.cache === true;
+      if (had === command.cache) throw new CubeRefusal(`'${command.grid}' ${command.cache ? 'caches its rows already' : 'caches no rows'}`);
+      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setCache(layout, command.grid, command.cache)) })));
+    }
+    case 'setBlocks':
+    case 'setMessage': {
+      const view = viewNamed(page, command.grid);
+      const what = command.kind === 'setBlocks' ? 'a block' : 'a message';
+      if (view.kind !== 'grid') throw new CubeRefusal(`'${command.grid}' is ${kindWords(view)}: ${what} is a grid's`);
+      const sheet = sheetOf(page, command.grid);
+      const layout = sheet?.layout;
+      if (sheet === undefined || layout?.kind !== 'flow') throw new CubeRefusal(`'${command.grid}' is no box of a flow: ${what} is a flow's box's`);
+      const box = layout.boxes.find((b) => b.tile === command.grid);
+      if (command.kind === 'setBlocks') {
+        if ((box?.blocks === true) === command.blocks) throw new CubeRefusal(`'${command.grid}' ${command.blocks ? 'blocks a run already' : 'blocks no run'}`);
+        return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setBlocks(layout, command.grid, command.blocks)) })));
+      }
+      if (sameValue(box?.message ?? null, command.message)) throw new CubeRefusal(`'${command.grid}' ${command.message === null ? 'says nothing' : 'says so already'}`);
+      return done(withSheet(page, sheet.id, (s) => ({ ...s, layout: flowed(() => setMessage(layout, command.grid, command.message)) })));
     }
     case 'modelInto':
       return done(rewritten({ ...page, model: modelMade(page.model, command.project, command.workspace, command.package) }, {}));
@@ -1159,6 +1270,8 @@ function sourceOf(v: unknown): CubeSource {
  *  how and a Union's more inputs. */
 export const EXACT_FIELD: Partial<Record<PageCommand['kind'], readonly ('document' | 'source' | 'input' | 'how' | 'more' | 'pure')[]>> = {
   addGrid: ['document'], rebuilt: ['source'], setInput: ['input'], setJoin: ['how', 'more'], setPure: ['pure'],
+  // a macro's function, its numbers exact (the roadmap audit of 2026-10-26: a 1.10 read as 1.1 from Python's command)
+  setMacro: ['pure'],
 };
 
 /**
@@ -1350,6 +1463,24 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'removePageFilter':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       return { kind, filter: text(o['filter'], 'a page filter') };
+    case 'setParameter':
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      return { kind, parameter: readParameter(o['parameter']) };
+    case 'removeParameter':
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      return { kind, name: text(o['name'], "a parameter's name") };
+    case 'setMacro': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      if (o['pure'] === null) return { kind, name: text(o['name'], "a macro's name"), pure: null };
+      let pure: Lambda;
+      try {
+        pure = readLambda(o['pure']);
+      } catch (e) {
+        if (!(e instanceof ProtocolError)) throw e;
+        throw new CubeRefusal(`a macro's function is a lambda: ${e.message}`);
+      }
+      return { kind, name: text(o['name'], "a macro's name"), pure };
+    }
     case 'snap': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       let copy: GridCopy;
@@ -1399,15 +1530,31 @@ export function readPageCommand(given: unknown): PageCommand {
     case 'setOutput': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       const out = o['output'];
-      if (out !== null && (!isObject(out) || out['format'] !== 'csv' || typeof out['name'] !== 'string' || Object.keys(out).some((k) => k !== 'format' && k !== 'name'))) {
-        throw new CubeRefusal(`an output is {format: 'csv', name}, or null, not ${JSON.stringify(out)}`);
-      }
-      return { kind, grid: text(o['grid'], 'a grid'), output: out === null ? null : { format: 'csv', name: out['name'] as string } };
+      const read = out === null ? null : readOutput(out);
+      if (typeof read === 'string') throw new CubeRefusal(`${read}, or null`);
+      return { kind, grid: text(o['grid'], 'a grid'), output: read };
     }
     case 'setStops': {
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
       if (typeof o['stops'] !== 'boolean') throw new CubeRefusal(`a Test stops a run (true) or warns (false), not ${JSON.stringify(o['stops'])}`);
       return { kind, grid: text(o['grid'], 'a grid'), stops: o['stops'] };
+    }
+    case 'setCache': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      if (typeof o['cache'] !== 'boolean') throw new CubeRefusal(`a box caches its rows (true) or not (false), not ${JSON.stringify(o['cache'])}`);
+      return { kind, grid: text(o['grid'], 'a grid'), cache: o['cache'] };
+    }
+    case 'setBlocks': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      if (typeof o['blocks'] !== 'boolean') throw new CubeRefusal(`a box blocks a run (true) or not (false), not ${JSON.stringify(o['blocks'])}`);
+      return { kind, grid: text(o['grid'], 'a grid'), blocks: o['blocks'] };
+    }
+    case 'setMessage': {
+      fields(o, kind, PAGE_COMMAND_FIELDS[kind]);
+      if (o['message'] === null) return { kind, grid: text(o['grid'], 'a grid'), message: null };
+      const read = readMessage(o['message']);
+      if (typeof read === 'string') throw new CubeRefusal(read);
+      return { kind, grid: text(o['grid'], 'a grid'), message: read };
     }
     case 'modelInto':
       fields(o, kind, PAGE_COMMAND_FIELDS[kind]);

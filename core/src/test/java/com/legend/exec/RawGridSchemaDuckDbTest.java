@@ -3,10 +3,11 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -66,17 +67,17 @@ class RawGridSchemaDuckDbTest {
     @Test
     @DisplayName("a connection a helper builds declares its database through the helper's body (decision D2)")
     void helperConnectionDeclaresItsDatabase() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(HELPERS.formatted("DuckDB"), SESSION),
+        Lean.Result r = Program.last(StorelessRuntime.with(HELPERS.formatted("DuckDB"), SESSION),
                 "{| " + EXEC + "'select 1 as A union all select 2', test::conn(), 0, 1000).rows.value('A')->size();}",
                 StorelessRuntime.RUNTIME, conn);
-        assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value()).longValue());
+        assertEquals(2L, ((Number) r.one()).longValue());
     }
 
     @Test
     @DisplayName("overloads that declare different databases leave the text's language unknown: refused (decision D2)")
     void disagreeingOverloadsAreRefused() {
         // the raw body names test::conn, not which overload: H2 and DuckDB both answer, so neither is guessed
-        Exception e = assertThrows(Exception.class, () -> Execution.execute(
+        Exception e = assertThrows(Exception.class, () -> Program.last(
                 StorelessRuntime.with(HELPERS.formatted("H2"), SESSION),
                 "{| " + EXEC + "'select 1 as A', test::conn(), 0, 1000).rows.value('A')->size();}",
                 StorelessRuntime.RUNTIME, conn));
@@ -104,10 +105,10 @@ class RawGridSchemaDuckDbTest {
     /** The name of the one column of {@code select count(*)} as the session ran it: DuckDB's {@code count_star()} for
      *  the text as written, {@code COUNT(*)} for the text translated as the engine's H2. */
     private static String countColumn(String lets, String connection) throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(TYPES, SESSION), "{| " + lets + EXEC
+        Lean.Result r = Program.last(StorelessRuntime.with(TYPES, SESSION), "{| " + lets + EXEC
                 + "'select count(*) from (select 1 as x)', " + connection + ", 0, 1000).columnNames->at(0);}",
                 StorelessRuntime.RUNTIME, conn);
-        return String.valueOf(((ExecutionResult.Scalar) r).value());
+        return String.valueOf(r.one());
     }
 
     @Test
@@ -127,7 +128,7 @@ class RawGridSchemaDuckDbTest {
         // DuckDB keeps a FLOAT as written; the engine's H2 text has its FLOAT translated to a DOUBLE
         for (int i = 0; i < DUCK_CONNECTIONS.size(); i++) {
             String[] c = DUCK_CONNECTIONS.get(i);
-            Execution.execute(StorelessRuntime.with(TYPES, SESSION), "{| " + c[0] + EXEC + "'Create Table d2_float_" + i
+            Program.last(StorelessRuntime.with(TYPES, SESSION), "{| " + c[0] + EXEC + "'Create Table d2_float_" + i
                     + "(f FLOAT);', " + c[1] + ", 0, 1000);}", StorelessRuntime.RUNTIME, conn);
             try (var st = conn.createStatement(); var rs = st.executeQuery("select data_type from"
                     + " information_schema.columns where table_name = 'd2_float_" + i + "'")) {
@@ -148,40 +149,40 @@ class RawGridSchemaDuckDbTest {
     @Test
     @DisplayName("columnNames resolves to the string collection and composes")
     void columnNamesComposes() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + EXEC + "'select 1 as A, 2 as B', $c, 0, 1000)"
                 + ".columnNames->at(1);}", StorelessRuntime.RUNTIME, conn);
-        assertEquals("B", ((ExecutionResult.Scalar) r).value());
+        assertEquals("B", r.one());
     }
 
     @Test
     @DisplayName(".rows.value('N') AUTO-MAPS over many rows (pure's dot rule)")
     void rowsValueAutoMaps() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + EXEC + "'select 1 as A union all select 2', $c, 0, 1000)"
                 + ".rows.value('A')->size();}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value())
+        assertEquals(2L, ((Number) r.one())
                 .longValue());
     }
 
     @Test
     @DisplayName("row-major .rows.values->at(k) resolves via the cells map")
     void rowMajorCellRead() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + "let rs = " + EXEC + "'select 1 as A, \\'x\\' as B', $c);\n"
                 + "$rs.rows.values->at(1);}", StorelessRuntime.RUNTIME, conn);
-        assertEquals("x", ((ExecutionResult.Scalar) r).value());
+        assertEquals("x", r.one());
     }
 
     @Test
     @DisplayName("fold column-collect lowers as the per-row map")
     void foldColumnCollect() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + EXEC + "'select 1 as A, \\'x\\' as B union all"
                 + " select 2, \\'y\\'', $c, 0, 1000)"
                 + ".rows->fold({a,b| concatenate($a.values->at(1), $b)}, [])"
                 + "->size();}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value())
+        assertEquals(2L, ((Number) r.one())
                 .longValue());
     }
 
@@ -192,12 +193,12 @@ class RawGridSchemaDuckDbTest {
         // PLAIN collection re-binds `r` — its $r must stay the inner
         // value (2, 3), never the outer row's cells. A wrong resolver
         // would substitute the grid cells and change the sum.
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + EXEC + "'select 10 as A', $c, 0, 1000)"
                 + ".rows->map(r | [2, 3]->map(r | $r)->sum());}", StorelessRuntime.RUNTIME, conn);
         // one grid row -> one mapped value: 2 + 3 = 5
         assertEquals(List.of(5L),
-                ((ExecutionResult.Collection) r).values().stream()
+                r.values().stream()
                         .map(v -> ((Number) v).longValue()).toList());
     }
 }

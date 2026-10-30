@@ -161,8 +161,9 @@ class HarnessDisciplineTest {
             // comparison flow through it). 1 -> 2 (§E3 M-N1): the
             // nullability differential's report sorts its OWN class
             // map largest-first. 2 -> 3 (§E3 slack census): the slack
-            // report, same display-only shape.
-            Map.entry("SqlTypeCensus.java", 3),
+            // report, same display-only shape. 3 -> 2 (2026-10-29, the doors' audit D64): the slack report
+            // deleted with the wire census's arm, callerless since the plan runner.
+            Map.entry("SqlTypeCensus.java", 2),
             // CanonicalDivergence: the assertSameElements byte-channel
             // stand-in sorts RENDERED STRINGS on BOTH sides (two-sided
             // comparison policy — the census-side mirror of R2's

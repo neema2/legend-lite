@@ -1,0 +1,60 @@
+import re, sys, os, collections
+roots = ["core/src/main", "core/src/test", "pct/src/main", "pct/src/test"]
+syms = [
+ ("7", "ExecutionResult", r"\bExecutionResult\b"),
+ ("7", "Execution.execute(", r"\bExecution\s*\.\s*execute\s*\("),
+ ("7", "executeResolved(", r"\bexecuteResolved\s*\("),
+ ("7", "Executor", r"\bExecutor\s*[.(]|\bnew\s+Executor\b|\bimport\s+com\.legend\.exec\.Executor\b"),
+ ("7", "StatementExecutor", r"\bStatementExecutor\b"),
+ ("3", "executeWire(", r"\bexecuteWire\s*\("),
+ ("3", "executeStreaming(", r"\bexecuteStreaming\s*\("),
+ ("3", "wireOn(", r"\bwireOn\s*\("),
+ ("3", "streamOn(", r"\bstreamOn\s*\("),
+ ("3", "WireRender", r"\bWireRender\b"),
+ ("3", "Render.jsonWire/csvWire", r"\b(jsonWire|csvWire|jsonWireRows)\s*\("),
+ ("3", "FLOAT_PRINT_ENGINE", r"\bFLOAT_PRINT_ENGINE\b"),
+ ("3", "floatPrintJava", r"\bfloatPrintJava\b"),
+ ("3", "dateTimeTextEngine", r"\bdateTimeTextEngine\b"),
+    # floatLayout: the wire's helper is gone; MariaDb.java keeps a Float-literal helper of the same name (the dialect's
+    # own FLOAT_CANON spelling): its three hits since 2026-10-29 are that helper, not the wire (the Z audit, finding 6)
+ ("3", "floatLayout", r"\bfloatLayout\b"),
+ ("3", "Output.JSON/CSV/STREAMED_JSON", r"\bOutput\s*\.\s*(JSON|CSV|STREAMED_JSON)\b"),
+ ("3", "Format.JSON/CSV/JSON_PER_ROW", r"\bFormat\s*\.\s*(JSON|CSV|JSON_PER_ROW)\b"),
+ ("4", "TdsTextWrap", r"\bTdsTextWrap\b"),
+ ("4", "Render.tdsText", r"\btdsText\s*\("),
+ ("4", "Output.TDS_TEXT", r"\bOutput\s*\.\s*TDS_TEXT\b"),
+ ("4", "Format.TDS_TEXT", r"\bFormat\s*\.\s*TDS_TEXT\b"),
+ ("4", "TextResult", r"\bTextResult\b"),
+ ("4", "PctShadowPlan", r"\bPctShadowPlan\b"),
+ ("5", "conformValueEgress", r"\bconformValueEgress\b"),
+ ("6", "LITERAL slot", r"\bScalar\s*\.\s*LITERAL\b|\"LITERAL\""),   # the slot as the enum constant or as a plan's slot word (the bare word names other things: a Cypher scan's kind, a metamodel class, a format string)
+ ("6", "LiteralText.parse", r"\bLiteralText\s*\.\s*parse\b"),
+]
+comment = re.compile(r"/\*.*?\*/|//[^\n]*", re.S)
+per_sym = collections.Counter(); per_sym_files = collections.defaultdict(set); per_file = collections.Counter()
+per_file_syms = collections.defaultdict(collections.Counter)
+files_scanned = 0
+for root in roots:
+    for d, _, fs in os.walk(root):
+        for f in sorted(fs):
+            if not f.endswith(".java"): continue
+            p = os.path.join(d, f); files_scanned += 1
+            src = comment.sub("", open(p, encoding="utf-8").read())
+            for step, name, rx in syms:
+                n = len(re.findall(rx, src))
+                if n:
+                    per_sym[name] += n; per_sym_files[name].add(p); per_file[p] += n; per_file_syms[p][name] += n
+print("step\tsymbol\toccurrences\tfiles")
+for step, name, rx in syms:
+    print(f"{step}\t{name}\t{per_sym[name]}\t{len(per_sym_files[name])}")
+print(f"\nfiles scanned {files_scanned}; files touching any: {len(per_file)}; occurrences: {sum(per_file.values())}")
+by_root = collections.Counter()
+for p in per_file: by_root[[r for r in roots if p.startswith(r)][0]] += 1
+print("files by root:", dict(by_root))
+out = sys.argv[1] if len(sys.argv) > 1 else None
+if out:
+    with open(out, "w") as w:
+        for p in sorted(per_file): w.write(f"{p}\t{per_file[p]}\t{dict(per_file_syms[p])}\n")
+    print("register written:", out)
+print("\ntop 30 files:")
+for p, n in per_file.most_common(30): print(f"{n:5d}  {p}  {dict(per_file_syms[p])}")

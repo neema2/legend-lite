@@ -3,7 +3,7 @@
 
 package com.legend.harness;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import com.legend.exec.Row;
 
 import java.math.BigDecimal;
@@ -259,9 +259,9 @@ public final class RefereeVerify {
      * replay rung). A column with NO derivable map keeps the counted
      * decline. Shared precheck of the {@link ReplayReferee} verify
      * entry points (Graph frames decode per-key instead). */
-    static void enumPrecheck(ExecutionResult ours,
+    static void enumPrecheck(TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
-        if (ours instanceof ExecutionResult.Graph) {
+        if (ours instanceof TypedSide.Graph) {
             return;
         }
         for (int i = 0; i < ours.columns().size(); i++) {
@@ -338,7 +338,7 @@ public final class RefereeVerify {
      * the Graph frame by label ({@link ReplayReferee}-called — the
      * comparison policy seam). */
     static @com.legend.base.Nullable String compareFrame(Statement st,
-            String goldenSql, ExecutionResult ours,
+            String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts)
@@ -392,7 +392,7 @@ public final class RefereeVerify {
                     "datediff-to-now golden: referee replay and our execution"
                     + " are two instants — row verdict non-reproducible", null);
         }
-        return ours instanceof ExecutionResult.Graph g
+        return ours instanceof TypedSide.Graph g
                 ? goldenGraphCompare(st, goldenSql, g, graphEnumProp, facts)
                 : goldenRowsCompare(st, goldenSql, ours, enumDecode, facts);
     }
@@ -441,7 +441,7 @@ public final class RefereeVerify {
      * codes) — throws {@link Unverifiable}: a COUNTED decline, never a
      * guessed compare. */
     private static @com.legend.base.Nullable String goldenGraphCompare(Statement st,
-            String goldenSql, ExecutionResult.Graph g,
+            String goldenSql, TypedSide.Graph g,
             java.util.function.Function<String,
                     java.util.Map<String, String>> enumProp,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
@@ -451,7 +451,7 @@ public final class RefereeVerify {
         // flattened the same way; its keys are the page's keys
         List<java.util.Map<String, Object>> populationObjs = null;
         if (facts.population() != null) {
-            if (!(facts.population() instanceof ExecutionResult.Graph pg)) {
+            if (!(facts.population() instanceof TypedSide.Graph pg)) {
                 throw new Unverifiable("paginated graph golden: population is"
                         + " not a graph frame", null);
             }
@@ -687,7 +687,7 @@ public final class RefereeVerify {
      * as ORDER-INSENSITIVE multisets of normalized cells (shared by the
      * replay referee and the session-direct verify). */
     private static @com.legend.base.Nullable String goldenRowsCompare(Statement st,
-            String goldenSql, ExecutionResult tab,
+            String goldenSql, TypedSide tab,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             com.legend.exec.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
@@ -705,7 +705,7 @@ public final class RefereeVerify {
                 // pipeline drops these in-DB (egress null-drop, Blocker
                 // 1), so a lane that wrongly KEEPS a null still fails.
                 boolean valueFrame =
-                        !(tab instanceof ExecutionResult.Tabular);
+                        !(tab instanceof TypedSide.Tabular);
                 // §7: an ORDERED query resolves its sort-key column
                 // INDEXES against the frame schema up front (positional
                 // arity with the golden is asserted below, so the same
@@ -1025,7 +1025,7 @@ public final class RefereeVerify {
     /** A graph frame's objects, flattened one level ({@code keys} collects
      * every property name); nesting is a counted decline. */
     private static List<java.util.Map<String, Object>> flatObjects(
-            ExecutionResult.Graph g, java.util.TreeSet<String> keys) {
+            TypedSide.Graph g, java.util.TreeSet<String> keys) {
         Object parsed = com.legend.sql.Json.parse(g.json());
         if (!(parsed instanceof List<?> arr)) {
             throw new Unverifiable("graph frame is not a json array", null);

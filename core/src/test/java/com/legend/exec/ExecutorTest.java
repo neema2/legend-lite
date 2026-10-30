@@ -1,9 +1,10 @@
 package com.legend.exec;
+
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
 import com.legend.plan.ResultShape;
 
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.element.type.ExprType;
@@ -67,35 +68,36 @@ class ExecutorTest {
     @Test
     @DisplayName("SCALAR: single value, Pure type on the result")
     void scalarShape() throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL, "1 + 2 * 3", RUNTIME, conn);
-        ExecutionResult.Scalar s = assertInstanceOf(ExecutionResult.Scalar.class, r);
-        assertEquals(7L, ((Number) s.value()).longValue());
-        assertEquals(Type.Primitive.INTEGER, s.returnType());
+        Lean.Result r = Lean.run(MODEL, "1 + 2 * 3", RUNTIME, conn);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE, r.shape());
+        assertEquals(7L, ((Number) r.one()).longValue());
+        assertEquals("Integer", r.columns().get(0).type());
         assertEquals(1, r.rowCount());
     }
 
     @Test
     @DisplayName("COLLECTION: N rows x 1 column, element type on the result")
     void collectionShape() throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL, "[10, 20, 30]", RUNTIME, conn);
-        ExecutionResult.Collection c = assertInstanceOf(ExecutionResult.Collection.class, r);
+        Lean.Result r = Lean.run(MODEL, "[10, 20, 30]", RUNTIME, conn);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE, r.shape());
         assertEquals(List.of(10L, 20L, 30L),
-                c.values().stream().map(v -> ((Number) v).longValue()).toList());
-        assertEquals(Type.Primitive.INTEGER, c.returnType(), "ELEMENT type, not list type");
+                r.values().stream().map(v -> ((Number) v).longValue()).toList());
+        assertEquals("Integer", r.columns().get(0).type(), "ELEMENT type, not list type");
         assertEquals(3, r.rowCount());
     }
 
     @Test
     @DisplayName("TABULAR: typed columns from the plan's outputs, raw JDBC cells")
     void tabularShape() throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL,
+        Lean.Result r = Lean.run(MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 30)", RUNTIME, conn);
-        ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, r.shape());
+        Lean.Result t = r;
         assertEquals(List.of("NAME", "AGE"),
-                t.columns().stream().map(Column::name).toList());
-        assertEquals(Type.Primitive.STRING, t.columns().get(0).pureType(),
+                t.columns().stream().map(Lean.Column::name).toList());
+        assertEquals("String", t.columns().get(0).type(),
                 "the Pure Type OBJECT from the typed plan outputs, not JDBC sniffing");
-        assertEquals(Type.Primitive.INTEGER, t.columns().get(1).pureType());
+        assertEquals("Integer", t.columns().get(1).type());
         assertEquals(1, t.rowCount());
         assertEquals("Bob", t.rows().get(0).get(0));
         assertEquals(35, ((Number) t.rows().get(0).get(1)).intValue());
@@ -104,10 +106,11 @@ class ExecutorTest {
     @Test
     @DisplayName("aggregate over empty input: one row, NULL cell, schema intact")
     void aggregateEmptyInput() throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL,
+        Lean.Result r = Lean.run(MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 99)"
                         + "->aggregate(~m : x|$x.AGE : y|$y->max())", RUNTIME, conn);
-        ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, r.shape());
+        Lean.Result t = r;
         assertEquals(1, t.rowCount());
         assertNull(t.rows().get(0).get(0));
     }
@@ -115,20 +118,21 @@ class ExecutorTest {
     @Test
     @DisplayName("PIVOT: dynamic '<value>__|__<agg>' columns inherit the aggregate template's type")
     void pivotDynamicColumnsInheritTemplateType() throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL,
+        Lean.Result r = Lean.run(MODEL,
                 "#>{test::DB.T_TREES}#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())", RUNTIME, conn);
-        ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, r.shape());
+        Lean.Result t = r;
         // YR is the static group column; the city columns are data-derived —
         // their NAMES come from the result set, their TYPES from the schema's
         // aggregate template (never SQL-type sniffing).
-        List<String> names = t.columns().stream().map(Column::name).toList();
+        List<String> names = t.columns().stream().map(Lean.Column::name).toList();
         // engine presentation: pivot names carry their quotes
         assertEquals(List.of("YR", "'NYC__|__total'", "'SF__|__total'"),
                 names);
-        assertEquals(Type.Primitive.INTEGER, t.columns().get(0).pureType());
-        assertEquals(Type.Primitive.INTEGER, t.columns().get(1).pureType(),
+        assertEquals("Integer", t.columns().get(0).type());
+        assertEquals("Integer", t.columns().get(1).type(),
                 "the sum template's Pure type rides the dynamic column");
-        assertEquals(Type.Primitive.INTEGER, t.columns().get(2).pureType());
+        assertEquals("Integer", t.columns().get(2).type());
         assertEquals(2, t.rowCount());
     }
 

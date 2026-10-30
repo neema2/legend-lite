@@ -7,7 +7,7 @@ import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import com.legend.exec.VerdictBatch;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +20,7 @@ import java.util.Map;
  * definitions) and the verdict rows on the batch, one fused statement per
  * connection, the appeals attached; the value statements PREPARED (helper inlining,
  * native staging, store resolution — the executor's own compile phases, shared:
- * {@link StatementExecutor#prepareValue}); the FRAGMENT MAP naming the let / assert
+ * {@link BodyDriver#prepareValue}); the FRAGMENT MAP naming the let / assert
  * every frame and verdict branch came from. {@link #run} only sends it. The walk is
  * the executor's own arms in the executor's own order, so the artifact is
  * byte-identical to what the statement-by-statement loop produced before stage 4
@@ -50,10 +50,19 @@ public final class BodyCompiler {
      * live session at plan time (a frame's wire types after seeding, a raw read's
      * schema — homework §19). A test-data generator's fold reads the session too, so the
      * pending script is sent before it folds. The body's value is its last statement's. */
-    static @com.legend.base.Nullable ExecutionResult execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env0) {
-        Segments seg = new Segments(env0, specs);
-        Map<String, StatementExecutor.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
+    static @com.legend.base.Nullable TypedSide execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env0) {
+        return execute(stmts, letPrefix, specs, env0, null);
+    }
+
+    /** {@link #execute(List, List, SpecCompiler, BodyDriver.ExecEnv)} with the body's last statement's answer, where
+     *  {@code answer} is given, streamed to the caller's sink as it runs ({@link BodyDriver#answerValue}; the doors,
+     *  2026-10-29) and nothing collected for it: null comes back; a verdict as the last statement is written as host
+     *  rows at the end. Every other statement runs as before. */
+    static @com.legend.base.Nullable TypedSide execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env0, Execution.@com.legend.base.Nullable Answer answer) {
+        Segments seg = new Segments(env0, specs, answer);
+        Map<String, BodyDriver.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         // the staged lets' temporary tables (Pure.Lite.STAGE), dropped once the body has run
         List<String> staged = new java.util.ArrayList<>();
@@ -67,10 +76,11 @@ public final class BodyCompiler {
             // TDG lane S1: the checker's census CARRIER folds to instance literals
             // before the statement is planned (orchestration owns testdatagen)
             TypedSpec stmt = com.legend.testdatagen.TestDataGenerationNatives.foldCensus(
-                    stmts.get(i), seg.env().ctx(), seg.env().connection(), seg.env().dialect(), letPrefix,
-                    StatementExecutor.ENGINE_TEXT,
-                    StatementExecutor.viewSqlRenderer(specs, seg.env()));
-            StatementExecutor.establishContexts(stmt, seg.env());
+                    stmts.get(i), seg.env().ctx(), seg.env().planSessions(), seg.env().target(), seg.env().dialect(),
+                    letPrefix,
+                    BodyDriver.ENGINE_TEXT,
+                    BodyDriver.viewSqlRenderer(specs, seg.env()));
+            BodyDriver.establishContexts(stmt, seg.env());
             boolean last = i == stmts.size() - 1;
             if (effect || com.legend.compiler.spec.StatementEffects.containsEffect(stmt, specs, effectMemo)) {
                 seg.closeVerdicts();
@@ -79,7 +89,7 @@ public final class BodyCompiler {
             }
             seg.closeEffects();
             if (stmt instanceof TypedLet let && !last) {
-                StatementExecutor.ExecFrame alias = StatementExecutor.aliasFrame(let.value(), execFrames);
+                BodyDriver.ExecFrame alias = BodyDriver.aliasFrame(let.value(), execFrames);
                 if (alias != null) {
                     execFrames.put(let.name(), alias);
                     continue;
@@ -93,14 +103,14 @@ public final class BodyCompiler {
                     // STAGED ROWS (the writes design's leg 6): computed at this statement's turn into a temporary
                     // table of the session, which the statements after read by name: the writes between read the
                     // rows as they were
-                    String table = StatementExecutor.stagedTable(let.name());
+                    String table = BodyDriver.stagedTable(let.name());
                     TypedSpec rows = sc.args().get(0);
-                    StatementExecutor.PreparedValue pv = StatementExecutor.prepareValue(
+                    BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
                             rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
-                    seg.value(pv);
+                    seg.value(pv, false);
                     staged.add(table);
                     letPrefix.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
-                            StatementExecutor.storeOf(pv.body(), seg.env()), let.info()));
+                            BodyDriver.storeOf(pv.body(), seg.env()), let.info()));
                     continue;
                 }
                 if (rhs instanceof TypedNativeCall ec
@@ -110,7 +120,7 @@ public final class BodyCompiler {
                     // a FRAME: planned here, its CTE defined on the batch when a reader
                     // splices it (rung 12: a plain class frame as its root rows)
                     execFrames.put(let.name(),
-                            StatementExecutor.buildFrame(ec, letPrefix, true, specs, seg.env()));
+                            BodyDriver.buildFrame(ec, letPrefix, true, specs, seg.env()));
                     seg.fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
                     continue;
                 }
@@ -123,7 +133,7 @@ public final class BodyCompiler {
                 if (containsRawGrid(let.value())) {
                     TypedSpec stampedLet = com.legend.resolver.RawGridSchema.stamp(
                             stmts.subList(i, stmts.size()),
-                            StatementExecutor.gridReferee(seg.env().connection(), seg.env())).get(0);
+                            BodyDriver.gridReferee(seg.env())).get(0);
                     if (stampedLet instanceof TypedLet sl) {
                         let = sl;
                         rhs = let.value();
@@ -139,9 +149,9 @@ public final class BodyCompiler {
             // over asserts — into deferred rows …
             TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
             int rowsBefore = seg.rows();
-            ExecutionResult v = AssertVerdicts.tryAdjudicate(bare, letPrefix, specs,
-                    StatementExecutor.frameReplaceEnv(stmt, execFrames, seg.env(), letPrefix, specs),
-                    StatementExecutor.spliceHook(execFrames, letPrefix, specs, seg.env()));
+            TypedSide v = AssertVerdicts.tryAdjudicate(bare, letPrefix, specs,
+                    BodyDriver.frameReplaceEnv(stmt, execFrames, seg.env(), letPrefix, specs),
+                    BodyDriver.spliceHook(execFrames, letPrefix, specs, seg.env()));
             if (v != null) {
                 if (seg.batch != null) {
                     nameRows(seg.fragments, seg.batch, rowsBefore, com.legend.compiler.spec.typed.Calls.calleeOf(bare), i + 1);
@@ -151,7 +161,7 @@ public final class BodyCompiler {
             }
             // … everything else is a VALUE statement, prepared now (a helper call
             // inlines here; an inlined assert root is adjudicated by the preparation)
-            StatementExecutor.PreparedValue pv = StatementExecutor.prepareValue(
+            BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
                     stmt, bare, letPrefix, execFrames, specs, seg.env());
             // a CONTEXT OWNER (assertError: f's body runs under the arm's catch) and a
             // frame FORCED at value position (execute as a statement: its eager run IS
@@ -160,11 +170,18 @@ public final class BodyCompiler {
             if (pv.verdict() != null && seg.batch != null) {
                 nameRows(seg.fragments, seg.batch, rowsBefore, com.legend.compiler.spec.typed.Calls.calleeOf(bare), i + 1);
             }
-            seg.value(pv);
+            seg.value(pv, last);
         }
         seg.closeEffects();
         seg.closeVerdicts();
-        StatementExecutor.dropStaged(env0, staged);
+        BodyDriver.dropStaged(env0, staged);
+        if (answer != null) {
+            // a body whose last statement was a verdict (or answered nothing that streamed): its side as host rows
+            if (seg.last != null) {
+                JudgePlans.host(seg.last, answer);
+            }
+            return null;
+        }
         return seg.last;
     }
 
@@ -185,28 +202,43 @@ public final class BodyCompiler {
     /** The segments of one body: the open verdicts segment (its batch, its prepared
      * values), the open effect segment (its sink), the fragment map, the last result. */
     private static final class Segments {
-        private final StatementExecutor.ExecEnv env0;
+        private final BodyDriver.ExecEnv env0;
         private final SpecCompiler specs;
         final Map<String, String> fragments = new java.util.LinkedHashMap<>();
         /** The database judge's batch; null under the host judge, which has no deferral:
          * its arm executes and compares at the assert, its value statements run in walk
          * order — the loop's own order, kept exactly (cleanup move 2c). */
         @com.legend.base.Nullable VerdictBatch batch;
-        private final List<StatementExecutor.PreparedValue> values = new java.util.ArrayList<>();
+        private final List<BodyDriver.PreparedValue> values = new java.util.ArrayList<>();
         private com.legend.exec.EffectSink sink = new com.legend.exec.EffectSink();
         private int effectFrom = -1;
         private int effectTo = -1;
-        private @com.legend.base.Nullable ExecutionResult last;
-        private @com.legend.base.Nullable ExecutionResult pendingVerdict;
+        private @com.legend.base.Nullable TypedSide last;
+        private @com.legend.base.Nullable TypedSide pendingVerdict;
         private boolean lastIsValue;
+        /** Where the body's last value statement answers, when a caller wants it (the doors, 2026-10-29). */
+        private final Execution.@com.legend.base.Nullable Answer answer;
+        /** The deferred value that is the body's last statement, to answer when its segment closes. */
+        private BodyDriver.@com.legend.base.Nullable PreparedValue answers;
 
-        Segments(StatementExecutor.ExecEnv env0, SpecCompiler specs) {
+        Segments(BodyDriver.ExecEnv env0, SpecCompiler specs, Execution.@com.legend.base.Nullable Answer answer) {
             this.env0 = env0;
             this.specs = specs;
-            this.batch = AssertVerdicts.databaseMode(env0) ? StatementExecutor.newVerdictBatch(env0) : null;
+            this.answer = answer;
+            this.batch = AssertVerdicts.databaseMode(env0) ? BodyDriver.newVerdictBatch(env0) : null;
         }
 
-        StatementExecutor.ExecEnv env() {
+        /** {@code pv} run: answered to the caller's sink where it is the body's last statement and an answer is
+         *  wanted (nothing collected: null), collected otherwise. */
+        private @com.legend.base.Nullable TypedSide run(BodyDriver.PreparedValue pv, boolean answersTheBody) {
+            if (answersTheBody && answer != null) {
+                BodyDriver.answerValue(pv, specs, answer);
+                return null;
+            }
+            return BodyDriver.runValue(pv, specs, new java.util.ArrayDeque<>());
+        }
+
+        BodyDriver.ExecEnv env() {
             return batch == null ? env0 : env0.withVerdictBatch(batch);
         }
 
@@ -215,17 +247,20 @@ public final class BodyCompiler {
             return batch == null ? 0 : batch.pendingCount();
         }
 
-        void verdict(ExecutionResult v) {
+        void verdict(TypedSide v) {
             pendingVerdict = v;
             lastIsValue = false;
         }
 
-        void value(StatementExecutor.PreparedValue pv) {
+        void value(BodyDriver.PreparedValue pv, boolean answersTheBody) {
             if (batch == null) {
                 // the host judge: no deferral anywhere — the value runs now, in walk order
-                last = StatementExecutor.runValue(pv, specs, new java.util.ArrayDeque<>());
+                last = run(pv, answersTheBody);
             } else {
                 values.add(pv);
+                if (answersTheBody) {
+                    answers = pv;
+                }
             }
             lastIsValue = true;
         }
@@ -233,9 +268,9 @@ public final class BodyCompiler {
         /** An effect statement, handled exactly as the loop handles it, with the sink on
          * the environment: the arms collect their statements instead of sending. */
         void collectEffect(TypedSpec stmt, List<TypedSpec> stmts, int i, List<TypedSpec> letPrefix,
-                Map<String, StatementExecutor.ExecFrame> execFrames) {
-            StatementExecutor.markWriting(env0.connection());
-            StatementExecutor.ExecEnv sinkEnv = env().withEffectSink(sink);
+                Map<String, BodyDriver.ExecFrame> execFrames) {
+            env0.session().state().markWriting();
+            BodyDriver.ExecEnv sinkEnv = env().withEffectSink(sink);
             if (effectFrom < 0) {
                 effectFrom = i + 1;
             }
@@ -250,17 +285,20 @@ public final class BodyCompiler {
                 List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
                 single.add(let.value());
                 List<TypedSpec> inlined = new com.legend.compiler.spec.UserCallInliner(
-                        specs, StatementExecutor.spliceHook(execFrames, letPrefix, specs, sinkEnv))
+                        specs, BodyDriver.spliceHook(execFrames, letPrefix, specs, sinkEnv))
                         .inlineBody(single);
-                inlined = StatementExecutor.resolver(specs, sinkEnv).resolve(inlined, sinkEnv.runtimeFqn());
-                last = StatementExecutor.executeTyped(inlined, sinkEnv);
+                inlined = BodyDriver.resolver(specs, sinkEnv).resolve(inlined, sinkEnv.runtimeFqn());
+                last = BodyDriver.executeTyped(inlined, sinkEnv);
                 lastIsValue = true;
                 return;
             }
             TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(stmt);
-            StatementExecutor.PreparedValue pv = StatementExecutor.prepareValue(
+            BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
                     stmt, bare, letPrefix, execFrames, specs, sinkEnv);
-            last = StatementExecutor.runValue(pv, specs, new java.util.ArrayDeque<>());
+            // collected, never answered here: its statements sit in the sink until the segment closes, so an
+            // effect that ends the body answers as host rows at the body's end, after its script has run (the
+            // doors' audit, 2026-10-29, finding 5: answered here, its value was written before the script ran)
+            last = run(pv, false);
             lastIsValue = true;
         }
 
@@ -272,7 +310,7 @@ public final class BodyCompiler {
             String where = effectFrom == effectTo ? "(statement " + effectFrom + ")"
                     : "(statements " + effectFrom + "–" + effectTo + ")";
             fragments.put("effects:" + effectFrom + "-" + effectTo, "effects " + where);
-            StatementExecutor.sendScript(env0, sink, where);
+            BodyDriver.sendScript(env0, sink, where);
             sink = new com.legend.exec.EffectSink();
             effectFrom = -1;
             effectTo = -1;
@@ -282,10 +320,11 @@ public final class BodyCompiler {
          * statement (one per connection; appeals on failed rows; the first failure
          * raises); a fresh batch opens for the next segment. */
         void closeVerdicts() {
-            for (StatementExecutor.PreparedValue pv : values) {
-                last = StatementExecutor.runValue(pv, specs, new java.util.ArrayDeque<>());
+            for (BodyDriver.PreparedValue pv : values) {
+                last = run(pv, pv == answers);
             }
             values.clear();
+            answers = null;
             if (batch != null) {
                 batch.fragments(fragments);
                 AssertVerdicts.flush(batch, env());
@@ -295,7 +334,7 @@ public final class BodyCompiler {
             }
             pendingVerdict = null;
             if (batch != null) {
-                batch = StatementExecutor.newVerdictBatch(env0);
+                batch = BodyDriver.newVerdictBatch(env0);
             }
         }
     }

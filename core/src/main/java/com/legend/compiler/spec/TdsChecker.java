@@ -188,6 +188,18 @@ final class TdsChecker {
         };
     }
 
+    /** Whether {@code cell} is a double to Deephaven CSV's parser (real pure's TDS inference): a point or an exponent,
+     *  or Java's float-literal type suffix ({@code 21d}, {@code 41.14d}: its double parser reads Java's
+     *  {@code Double.valueOf} syntax). The reference types such a column Float -- the PCT's
+     *  {@code testMin_Numbers_Relation_Aggregate} compiles {@code employeeNumber} of {@code 21d, 41.14d, ...} as
+     *  {@code Float[0..1]}; a scale-0 Decimal read here cut its 41.14 to 41 once a database cast the column to its
+     *  declared type (SQLite's root cast, the result boundary program's phase 4, 2026-10-27). */
+    private static boolean isDouble(String cell) {
+        return cell.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?[dD]?")
+                || cell.matches("[+-]?\\d+[eE][+-]?\\d+[dD]?")
+                || cell.matches("[+-]?\\d+[dD]");
+    }
+
     /** Infer an unannotated column's type from its first non-empty cell; an empty column is String. */
     static Type inferredType(List<List<String>> rows, int col) {
         for (List<String> row : rows) {
@@ -206,21 +218,14 @@ final class TdsChecker {
                 // Integer and lowering's Long.parseLong("1e5") crashed
                 // (text-surgery audit §1.1 #7).
                 for (List<String> later : rows) {
-                    String w = later.get(col);
-                    if (w.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")
-                            || w.matches("[+-]?\\d+[eE][+-]?\\d+")) {
+                    if (isDouble(later.get(col))) {
                         return Type.Primitive.FLOAT;
                     }
                 }
                 return Type.Primitive.INTEGER;
             }
-            if (v.matches("[+-]?\\d*\\.\\d+([eE][+-]?\\d+)?")
-                    || v.matches("[+-]?\\d+[eE][+-]?\\d+")) {
+            if (isDouble(v)) {
                 return Type.Primitive.FLOAT;
-            }
-            // pure DECIMAL-suffix cells (21d, 41.0d)
-            if (v.matches("[+-]?\\d+(\\.\\d+)?[dD]")) {
-                return new Type.PrecisionDecimal(Type.PrecisionDecimal.MAX_PRECISION, 0);
             }
             if (v.equals("true") || v.equals("false")) {
                 return Type.Primitive.BOOLEAN;

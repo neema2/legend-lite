@@ -1,0 +1,70 @@
+package org.finos.legend.lite.pct.extension;
+
+import org.junit.jupiter.api.Test;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+/** A local measurement, never committed: what this lane's driver hands back for the BC date-time of
+ *  testAdjustByMinutesBigNumber (and an AD one beside it), by every getter. Prints only; asserts nothing. */
+class BcTimestampProbe {
+
+    private static final String[] EXPRESSIONS = {
+            "|%2016-02-29T00:00:00->adjust(-12345678912, meta::pure::functions::date::DurationUnit.MINUTES)",
+            "|%2016-02-29T00:00:00->adjust(12345678912, meta::pure::functions::date::DurationUnit.MINUTES)",
+            "|%2016-02-29T00:00:00->adjust(-1, meta::pure::functions::date::DurationUnit.MINUTES)",
+    };
+
+    @Test
+    void driverGetters() throws Exception {
+        System.out.println("[bc-probe] jvm zone=" + java.util.TimeZone.getDefault().getID());
+        for (String expression : EXPRESSIONS) {
+            com.legend.TypedQuery query = com.legend.Compiler.query(
+                    com.legend.Compiler.compileModel(PctBackend.withStorelessRuntime("")), expression);
+            com.legend.executionplan.ExecutionPlan plan = query.executionPlan(com.legend.test.StorelessRuntime.RUNTIME,
+                    java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING),
+                    PctBackend.serverVersion());
+            String sql = ((com.legend.executionplan.ExecutionPlan.TdsResult) plan.root()).sql().statement();
+            System.out.println("[bc-probe] expression=" + expression);
+            System.out.println("[bc-probe] sql=" + sql);
+            System.out.println("[bc-probe] column=" + ((com.legend.executionplan.ExecutionPlan.TdsResult) plan.root())
+                    .columns());
+            try (Connection c = PctBackend.connect(); Statement st = c.createStatement()) {
+                try (ResultSet rs = st.executeQuery(sql)) {
+                    rs.next();
+                    System.out.println("[bc-probe] metadata type=" + rs.getMetaData().getColumnTypeName(1)
+                            + " class=" + rs.getMetaData().getColumnClassName(1));
+                    Object o = rs.getObject(1);
+                    System.out.println("[bc-probe] getObject class=" + (o == null ? null : o.getClass().getName())
+                            + " toString=" + o);
+                    System.out.println("[bc-probe] getString=" + rs.getString(1));
+                    java.sql.Timestamp ts = rs.getTimestamp(1);
+                    if (ts != null) {
+                        java.util.GregorianCalendar cal = new java.util.GregorianCalendar();
+                        cal.setTime(ts);
+                        System.out.println("[bc-probe] getTimestamp getTime=" + ts.getTime() + " nanos=" + ts.getNanos()
+                                + " toInstant=" + ts.toInstant() + " toLocalDateTime=" + ts.toLocalDateTime()
+                                + " era=" + cal.get(java.util.Calendar.ERA) + " year=" + cal.get(java.util.Calendar.YEAR)
+                                + " month=" + (cal.get(java.util.Calendar.MONTH) + 1)
+                                + " day=" + cal.get(java.util.Calendar.DAY_OF_MONTH));
+                    }
+                    java.sql.Timestamp utc = rs.getTimestamp(1,
+                            java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")));
+                    System.out.println("[bc-probe] getTimestamp(UTC calendar) getTime="
+                            + (utc == null ? null : utc.getTime() + " toInstant=" + utc.toInstant()));
+                    for (Class<?> as : new Class<?>[] {java.time.LocalDateTime.class, java.time.OffsetDateTime.class,
+                            java.time.Instant.class, String.class}) {
+                        try {
+                            Object r = rs.getObject(1, as);
+                            System.out.println("[bc-probe] getObject(" + as.getSimpleName() + ") class="
+                                    + (r == null ? null : r.getClass().getName()) + " value=" + r);
+                        } catch (Exception e) {
+                            System.out.println("[bc-probe] getObject(" + as.getSimpleName() + ") refused: " + e);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -688,6 +688,12 @@ class Frames:
         return {'frames': frames, 'files': {f.leaf['sha256']: f.hosted() for f in read if 'sha256' in f.leaf},
                 'remotes': {f.leaf['url']: f.hosted() for f in read if 'url' in f.leaf}}
 
+    def owned(self) -> list[str]:
+        """The tables and views of this database a page's grids read -- each frame's, each page's file's -- none of which a
+        flow's table Output may write (DataCube's table writer refuses them by name)."""
+        with self._lock:
+            return [t.name for t in self._tables.values()] + list(self._files)
+
     def read_files(self) -> dict[str, str]:
         """Each page's file this database read in, by its bytes' hash (its ``leaf``'s): the table it was read into."""
         with self._lock:

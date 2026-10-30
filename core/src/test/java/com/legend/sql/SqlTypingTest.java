@@ -99,11 +99,11 @@ class SqlTypingTest {
     @Test
     void errorBranchesAreBottomLikeInBranchFamilies() {
         // the checked-extract shape: an error() guard branch plus a
-        // LIST_GET over Array(LITERAL) — error() raises, it never
+        // LIST_GET over a typed array — error() raises, it never
         // yields a value, so the family types from the value branch
         SqlExpr carried = new SqlExpr.Cast(
                 new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("1"))),
-                new SqlType.Array(SqlType.Scalar.LITERAL));
+                new SqlType.Array(SqlType.Scalar.VARCHAR));
         SqlExpr checked = new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(true),
                         SqlExpr.Call.of(SqlFn.ERROR,
@@ -114,7 +114,7 @@ class SqlTypingTest {
         // out-of-range list_extract -> NULL) and the branch family
         // carries it
         assertEquals(SqlTyping.nullable(
-                SqlTyping.typed(SqlType.Scalar.LITERAL)), t(checked));
+                SqlTyping.typed(SqlType.Scalar.VARCHAR)), t(checked));
         // an ALL-error family is bottom-like as a whole (raise dominates)
         assertEquals(SqlTyping.BOTTOM, t(new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(false),

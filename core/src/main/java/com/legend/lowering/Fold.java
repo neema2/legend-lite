@@ -1233,8 +1233,8 @@ final class Fold {
                 // stored promotion fact (SUM widens to HUGEINT,
                 // decimal SUM to Decimal(38,s) — exactly what grouped
                 // aggregates deliver, lane-green on both backends).
-                // Using.type stays the MODEL channel (TdsTextWrap's TDS
-                // headers); stamping it here instead re-ran the
+                // Using.type stays the MODEL channel (the keyed plan's
+                // per-key columns); stamping it here instead re-ran the
                 // CEILING rule-vs-emission mistake: 3 wire rows
                 // diverged DOUBLE <> DECIMAL(38,2) on first measure.
                 if (u.agg().type() instanceof

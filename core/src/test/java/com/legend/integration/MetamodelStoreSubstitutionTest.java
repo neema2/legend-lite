@@ -2,14 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.integration;
 
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.test.StorelessRuntime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
  * per (mapping, store) pair (the include-closure precedent), the alias's
  * database seeded from the mapping's own reference.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class MetamodelStoreSubstitutionTest {
     private static final String MODEL = """
             ###Pure
@@ -48,7 +49,7 @@ class MetamodelStoreSubstitutionTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -57,12 +58,8 @@ class MetamodelStoreSubstitutionTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
-        if (r instanceof ExecutionResult.Collection c) {
-            return c.values();
-        }
-        Object v = ((ExecutionResult.Scalar) r).value();
-        return v == null ? List.of() : List.of(v);
+        Lean.Result r = Program.last(StorelessRuntime.with(MODEL, LaneFloor.backend().type()), query, StorelessRuntime.RUNTIME, connection);
+        return r.values();
     }
 
     @Test
@@ -90,7 +87,7 @@ class MetamodelStoreSubstitutionTest {
                 """;
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.LegendCompileException.class,
-                () -> Execution.execute(StorelessRuntime.with(cyclic, Databases.PLATFORM), "ss::c1->meta::pure::mapping::resolveStore(ss::db).name", StorelessRuntime.RUNTIME, connection));
+                () -> Program.last(StorelessRuntime.with(cyclic, LaneFloor.backend().type()), "ss::c1->meta::pure::mapping::resolveStore(ss::db).name", StorelessRuntime.RUNTIME, connection));
         org.junit.jupiter.api.Assertions.assertTrue(
                 String.valueOf(e.getMessage()).contains("mapping include cycle")
                         && e.getMessage().contains("ss::c1") && e.getMessage().contains("ss::c2"),

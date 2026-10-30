@@ -14,6 +14,7 @@ export interface ImputeFormOptions {
 
 const FILLERS: readonly { readonly kind: Filler['kind']; readonly label: string }[] = [
   { kind: 'average', label: 'its average' },
+  { kind: 'median', label: 'its median' },
   { kind: 'smallest', label: 'its smallest' },
   { kind: 'largest', label: 'its largest' },
   { kind: 'value', label: 'a value' },
@@ -67,7 +68,7 @@ export function imputeForm(host: HTMLElement, o: ImputeFormOptions): void {
   inPlace.type = 'checkbox';
   inPlace.checked = true;
   el('span', '', placed, 'In place: each handed on by its own name');
-  el('p', 'dc-sample-hint', body, 'Its empties filled -- with the column\'s average, smallest or largest across every row, or a value -- in place, or a new column of each: notional_filled.');
+  el('p', 'dc-sample-hint', body, 'Its empties filled -- with the column\'s average, median, smallest or largest across every row, or a value -- in place, or a new column of each: notional_filled.');
   const status = el('p', 'dc-sample-status', body);
   status.setAttribute('role', 'status');
   const foot = el('div', 'dc-sample-foot', body);

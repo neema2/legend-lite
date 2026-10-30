@@ -1282,12 +1282,24 @@ const UNTOLD: Record<string, { readonly items: readonly string[]; readonly why?:
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL8, a Test that stops a run): its settings' checkbox, on a flow's
   // canvas -- none in this harness
   setStops: { items: [], why: "a Test box's settings (Stop a run when a check fails): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-26 (the flow mode's FL10): a box's settings' checkbox, the canvas's own
+  setCache: { items: [], why: "a box's settings (Cache its rows): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-26 (the flow mode's M8)
+  setBlocks: { items: [], why: "a box's settings (Block until done): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  setMessage: { items: [], why: "a box's settings (Message): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2, a Cross Tab's columns fixed): a pivoted box's settings' Load
   // values, on a flow's canvas -- none in this harness; the gesture pivot.pin tells it (grid-gestures.test.ts)
   pinPivot: { items: [], why: "a Cross Tab box's settings (Load values, Unfix): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
   // 2026-10-26 (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL12, the Pure box): its window, docked in a flow's settings pane --
   // none in this harness; Python's grid.pure asks headless gridPure for the same command
   setPure: { items: [], why: "a Pure box's window (its Pure, Take Its Pure Off): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  // 2026-10-26 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8, a page's parameters): the page's parameters bar -- an input's
+  // value changed, Add Parameter, its x -- none in this harness; Python's page.parameter, set_parameter, remove_parameter
+  setParameter: { items: [], why: "the page's parameters bar (a value changed, Add Parameter): demo/verify-flow.mjs, python/tests/test_page.py Flows" },
+  removeParameter: { items: [], why: "the page's parameters bar (its x): python/tests/test_page.py Flows" },
+  // 2026-10-26 (the flow mode's M8, a standard macro): a box's menu's Save as Macro, which reads each box's grid in turn
+  // on a flow's canvas -- none in this harness; Python's page.macro and remove_macro
+  setMacro: { items: [], why: "a box's menu's Save as Macro: demo/verify-flow.mjs, python/tests/test_page.py Flows" },
 };
 /** No gesture leaves: the list only grows (a gesture taken off is a check taken off). 2026-10-22 (the S7 confirmation
  *  audit's G2-5): 40 -> 51, every gesture the catalogue holds, S7's among them -- the floor had not followed it.

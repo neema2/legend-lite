@@ -10,7 +10,7 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,8 +39,8 @@ final class AssertErrorNative {
     private AssertErrorNative() {
     }
 
-    static ExecutionResult run(TypedNativeCall ae, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env,
+    static TypedSide run(TypedNativeCall ae, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.Deque<String> frames) {
         if (!(ae.args().get(0) instanceof TypedLambda f)
                 || !f.parameters().isEmpty()) {
@@ -61,7 +61,7 @@ final class AssertErrorNative {
         String caughtMessage = null;
         Throwable caughtCause = null;
         try {
-            StatementExecutor.executeStatements(f.body(),
+            BodyDriver.executeStatements(f.body(),
                     new ArrayList<>(letPrefix), specs, env);
         } catch (com.legend.error.DataError e) {
             caughtMessage = String.valueOf(e.getMessage());
@@ -126,7 +126,7 @@ final class AssertErrorNative {
                         + p.column() + " where expected: " + expectedColumn);
             }
         }
-        return new ExecutionResult.Scalar(Boolean.TRUE,
+        return new TypedSide.Scalar(Boolean.TRUE,
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
     }
 

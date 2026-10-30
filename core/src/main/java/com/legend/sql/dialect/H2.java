@@ -39,7 +39,7 @@ public class H2 extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "NUMERIC(38)";
             case DOUBLE -> "DOUBLE PRECISION";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
@@ -549,7 +549,7 @@ public class H2 extends AnsiSqlRenderer {
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
@@ -1112,6 +1112,25 @@ public class H2 extends AnsiSqlRenderer {
         return writer.append("), JSON '[]')");
     }
 
+    /** A cast TO JSON is the PARSE intent (DuckDB's CAST parses; {@code fromJson(text)} lowers to it) -- but H2's
+     *  CAST from VARCHAR QUOTES the text as a JSON string instead (probed: {@code CAST('[10,20]' AS JSON)} is
+     *  {@code "[10,20]"}, a string). The parsing spellings: {@code JSON '...'} for a literal, {@code (x FORMAT JSON)}
+     *  for dynamic text. Until 2026-10-29 only {@link H2Modern} spelled them and this dialect's {@code fromJson}
+     *  answered a JSON STRING (the result boundary program's track F, the homework README §9): measured that day on
+     *  2.1.214 and 2.2.224, both spellings parse there too. TO_VARIANT keeps the quoting CAST
+     *  ({@link #variantConstruct}): that IS toVariant's string semantics. */
+    private SqlWriter jsonParseCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.value() instanceof SqlExpr.StringLit sl) {
+            return writer.append("JSON ").append(stringLit(sl.value()));
+        }
+        if (c.value() instanceof SqlExpr.NullLit) {
+            // a typed NULL stays SQL's NULL: (NULL FORMAT JSON) is JSON's null, not SQL's (measured 2.1.214:
+            // (CAST(NULL AS VARCHAR) FORMAT JSON) IS NULL is false)
+            return writer.append("CAST(NULL AS JSON)");
+        }
+        return writer.append("(").expr(c.value(), 0).append(" FORMAT JSON)");
+    }
+
     /** Boolean-to-text diverges: H2 CAST(bool AS VARCHAR) prints
      * 'TRUE', the reference 'true' (witnessed: assertEquals true vs
      * TRUE). A STRUCTURALLY BOOLEAN value casting to VARCHAR spells the
@@ -1120,6 +1139,9 @@ public class H2 extends AnsiSqlRenderer {
      * guessing a column's type. */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {
+            return jsonParseCast(writer, c);
+        }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
         // the two rows host mode lost when the byte channel judged): a
         // value whose TYPE FACT is BOOLEAN takes the reference spelling
@@ -1163,29 +1185,6 @@ public class H2 extends AnsiSqlRenderer {
         }
         throw new DialectCapability("TRANSLATE reached H2 with a to shorter than its from, or either not a literal:"
                 + " H2's TRANSLATE keeps the characters translate removes");
-    }
-
-    /** H2 hands JSON values back as {@code byte[]} (UTF-8 text) — the
-     * canonical envelope representation is the STRING (probed 2.1.214;
-     * H2_BACKEND.md §12 step 11's first codec row). */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.base.Nullable SqlType type) {
-        // a JSON-carried list's text too (the list-less carrier, §2b): until 2026-10-15 the executor decoded H2's
-        // byte[] there itself
-        if (jdbcValue instanceof byte[] b
-                && (type == com.legend.sql.SqlType.Scalar.JSON || type instanceof com.legend.sql.SqlType.Array)) {
-            return new String(b, java.nio.charset.StandardCharsets.UTF_8);
-        }
-        // LEGACY-mode H2 hands DOUBLE aggregates back as BigDecimal
-        // ('1E+1' for SUM over DOUBLE — probed; DuckDB hands Double):
-        // the DECLARED column type drives the codec, and every float
-        // print/compare downstream expects the double carrier.
-        if (jdbcValue instanceof java.math.BigDecimal bd
-                && type == com.legend.sql.SqlType.Scalar.DOUBLE) {
-            return bd.doubleValue();
-        }
-        return jdbcValue;
     }
 
     /** Pure's splitPart with the engine's meaning (commons split: the separator is a SET of

@@ -134,7 +134,7 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
 
     /** {@inheritDoc} None: {@code H2}'s errors carry their raise. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
+    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
     }
 }

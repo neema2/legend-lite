@@ -38,6 +38,12 @@ public final class TypedQuery {
         return specs;
     }
 
+    /** The name-resolved query the body is typed from (the body driver reads a parameterless lambda's protocol
+     *  statements off it: the source-shaped lets a handle's rows are built from; track B's B2, 2026-10-29). */
+    com.legend.protocol.spec.ValueSpecification resolved() {
+        return resolved;
+    }
+
     /** The query's statements typed as a query body (Phase G), once. */
     public List<TypedSpec> body() {
         List<TypedSpec> b = body;
@@ -194,58 +200,31 @@ public final class TypedQuery {
         return plan(runtime, true);
     }
 
-    /** The text a caller asks a plan for: CSV, JSON, or JSON whose rows stream as the database answers them (a
-     *  relation's rows, a graph fetch's objects; a value's text is whole). */
-    /** The form a plan's text takes: CSV, JSON (the whole result), one JSON object per row, or Pure's TDS text
-     *  (TDS_TEXT: a header of {@code name:Type[multiplicity]} and a row per line in Pure's print forms -- the form
-     *  legend-pure's {@code stringToTDS} reads, so the PCT harness's; a value's is the one-column relation
-     *  {@code value}; 2026-10-17). */
-    public enum Output { CSV, JSON, STREAMED_JSON, TDS_TEXT }
-
-    /** The query's execution plan for {@code runtime} (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the text the
-     *  database writes in the form {@code output} asks for, final for its target, run by a model-free runner. */
-    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output) {
-        return PlanMaker.plan(this, runtime, output, java.util.Set.of());
+    /** The query's TYPED execution plan for {@code runtime} (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §5, step 1):
+     *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
+     *  a value's elements, a graph fetch's objects), no output format in it -- a writer at the edge spells them. */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime) {
+        return PlanMaker.plan(this, runtime, java.util.Set.of(), null);
     }
 
-    /** {@link #executionPlan(String, Output)} under the engine's execution feature flags ({@code features}: a lowering
-     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name). */
+    /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}: a lowering
+     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name), for a session whose server
+     *  is {@code serverVersion} (the caller's fact, read off its session): where the database's spelling depends on
+     *  the version (H2), the plan is written in that version's dialect and names it as what it is for; null plans for
+     *  the dialect's declared target (2026-10-19, the plan path program's step 9). */
     public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output, java.util.Set<com.legend.platform.Feature> features) {
-        return PlanMaker.plan(this, runtime, output, features);
-    }
-
-    /** {@link #executionPlan(String, Output, java.util.Set)} for a session whose server is {@code serverVersion}
-     *  (the caller's fact, read off its session): where the database's spelling depends on the version (H2), the
-     *  plan is written in that version's dialect and names it as what it is for; null plans for the dialect's
-     *  declared target (2026-10-19, the plan path program's step 9). */
-    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output, java.util.Set<com.legend.platform.Feature> features,
-            @com.legend.base.Nullable String serverVersion) {
-        return PlanMaker.plan(this, runtime, output, features, serverVersion);
-    }
-
-    /**
-     * The SQL whose one value is the whole relation as the JSON wire ({@code [row, ...]}, each row the database's own
-     * {@code json_object}), in the runtime's dialect: what legend-lite's server runs for execute's rows
-     * ({@code Execution.executeWire}), for a host that runs it on its own database (the tab: its DuckDB;
-     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1). The database renders every value; nothing here does. The dialect is
-     * the runtime's own, not a connection's {@code forServer(version)} as the server's is: only H2's answers differently
-     * by its server's version, and a host runs DuckDB.
-     */
-    public String wireSql(@com.legend.base.Nullable String runtime) {
-        Compiler.LoweredQuery l = lower(runtime, false);
-        // the engine's API, hosted: the engine's text (WireRender.Spelling.ENGINE), as the server's execute answers
-        return Compiler.dialectOf(ctx, runtime).render(com.legend.lowering.WireRender.wrap(l.plan(),
-                com.legend.lowering.WireRender.schema(l.root().info()), com.legend.lowering.WireRender.Format.JSON,
-                com.legend.lowering.WireRender.Spelling.ENGINE));
+            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
+        return PlanMaker.plan(this, runtime, features, serverVersion);
     }
 
     private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
         Compiler.LoweredQuery l = lower(runtime, streaming);
         String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());
-        return new com.legend.plan.QueryPlan(sql, l.root().info(), com.legend.plan.ResultShape.of(l.root()),
-                com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
+        com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());
+        // a graph fetch has no columns: its objects are the wire's
+        return new com.legend.plan.QueryPlan(sql, l.root().info(), shape,
+                shape == com.legend.plan.ResultShape.GRAPH ? List.of()
+                        : com.legend.plan.PlanColumns.of(com.legend.lowering.TypedRows.schema(l.root().info()),
+                                l.plan(), com.legend.plan.PlanColumns.shapeOf(l.root().info())));
     }
 }

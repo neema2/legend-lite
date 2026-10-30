@@ -1,5 +1,5 @@
 // IMPUTATION (docs/DATACUBE_FLOW_MODE_2026_10_24.md M3: a flow's Imputation box, Alteryx's): a number column's empty
-// values filled -- with a value given, or with the column's own average, smallest or largest -- each a calculated column
+// values filled -- with a value given, or with the column's own average, median, smallest or largest -- each a calculated column
 // beside it (`<column>_filled`), as Data Cleansing's are: `coalesce($x.c, value)`, or `coalesce($x.c, $x.c__average)`
 // over a window column the database computes across every row (its frame the whole of them), hidden. Nothing is
 // computed here: the database averages and fills. What a box says is read back off its columns (`imputedOf`).
@@ -14,8 +14,8 @@ import { inPlaceCommand } from './box-columns.ts';
 import type { GridCommand } from './grid-commands.ts';
 import { CubeRefusal, rowColumns, type CubeSnapshot, type DerivedColumn, type WindowFunction } from './snapshot.ts';
 
-/** What an empty value is filled with: a value given, or the column's own average, smallest or largest. */
-export type Filler = { readonly kind: 'value'; readonly value: number } | { readonly kind: 'average' | 'smallest' | 'largest' };
+/** What an empty value is filled with: a value given, or the column's own average, median, smallest or largest. */
+export type Filler = { readonly kind: 'value'; readonly value: number } | { readonly kind: 'average' | 'median' | 'smallest' | 'largest' };
 
 /** Imputation, as its window sets it: its columns, and what their empties are filled with. */
 export interface Imputation {
@@ -29,7 +29,9 @@ export interface Imputation {
 export const FILLED_SUFFIX = '_filled';
 
 /** The window function each filler is: the column across every row. */
-const WINDOW: Readonly<Record<Exclude<Filler['kind'], 'value'>, WindowFunction>> = { average: 'average', smallest: 'min', largest: 'max' };
+const WINDOW: Readonly<Record<Exclude<Filler['kind'], 'value'>, WindowFunction>> = {
+  average: 'average', median: 'median', smallest: 'min', largest: 'max',
+};
 
 /** What a filler's window column is called: its column's name, two underscores, and the filler. */
 const helperName = (column: string, kind: string): string => `${column}__${kind}`;
@@ -112,7 +114,7 @@ export function imputedOf(d: DerivedColumn, derived: readonly DerivedColumn[]):
   return kind === undefined ? undefined : { column, with: { kind }, helper: helper! };
 }
 
-/** Imputation read from JSON (Python's): `{kind: 'impute', columns, with: 'average' | 'smallest' | 'largest' | number}`. */
+/** Imputation read from JSON (Python's): `{kind: 'impute', columns, with: 'average' | 'median' | 'smallest' | 'largest' | number}`. */
 export function readImputation(raw: unknown): Imputation {
   const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
   if (o === undefined || o['kind'] !== 'impute') throw new CubeRefusal(`an imputation is {kind: 'impute', columns, with}, not ${JSON.stringify(raw)}`);
@@ -127,6 +129,6 @@ export function readImputation(raw: unknown): Imputation {
   }
   const w = o['with'];
   if (typeof w === 'number') return { columns, with: { kind: 'value', value: w }, ...place };
-  if (w === 'average' || w === 'smallest' || w === 'largest') return { columns, with: { kind: w }, ...place };
-  throw new CubeRefusal(`its empties are filled with a number, or 'average', 'smallest' or 'largest', not ${JSON.stringify(w)}`);
+  if (w === 'average' || w === 'median' || w === 'smallest' || w === 'largest') return { columns, with: { kind: w }, ...place };
+  throw new CubeRefusal(`its empties are filled with a number, or 'average', 'median', 'smallest' or 'largest', not ${JSON.stringify(w)}`);
 }

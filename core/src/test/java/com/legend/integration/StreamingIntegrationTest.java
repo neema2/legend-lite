@@ -1,7 +1,7 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.server.serial.SerializerRegistry;
+import com.legend.testing.LaneFloor;
+
 import com.legend.server.OutputFormat;
 import com.legend.server.QueryService;
 import com.legend.json.Json;
@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Coverage:
  * <ul>
  *   <li>{@code testExecuteJson*} / {@code testExecuteCsv*} — materialized
- *       snapshot path that serializes an {@link com.legend.exec.ExecutionResult}
+ *       snapshot path that serializes an {@link com.legend.exec.TypedSide}
  *       to an OutputStream in the given {@link OutputFormat}.</li>
  *   <li>{@code testStream*} — true streaming path (no materialization).
  *       Two of these tests are mutation-verified proofs that streaming is
@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *       {@code testStreamOutputVisibleIncrementallyDuringExecution}.</li>
  * </ul>
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class StreamingIntegrationTest {
 
     private Connection connection;
@@ -113,7 +114,7 @@ class StreamingIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         queryService = new QueryService();
 
         try (Statement stmt = connection.createStatement()) {
@@ -153,7 +154,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.JSON);
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertTrue(json.startsWith("[{"), "Should be JSON array of objects");
@@ -168,7 +169,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.department == 'Sales'})->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.JSON);
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertTrue(json.startsWith("["), "Should start with array bracket");
@@ -182,7 +183,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name])->limit(3)";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.JSON);
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertTrue(json.startsWith("[{"), "Should be JSON array of objects");
@@ -195,7 +196,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.salary > 999999})->project(~[name:e|$e.name])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.JSON);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.JSON);
 
         String json = out.toString(StandardCharsets.UTF_8);
         assertEquals("[]", json, "Empty result should be empty JSON array");
@@ -207,7 +208,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])->limit(5)";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.CSV);
 
         String csv = out.toString(StandardCharsets.UTF_8);
         String[] lines = csv.split("\r\n");
@@ -223,7 +224,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.CSV);
 
         String csv = out.toString(StandardCharsets.UTF_8);
         String[] lines = csv.split("\r\n");
@@ -236,7 +237,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.department == 'Engineering'})->project(~[name:e|$e.name, salary:e|$e.salary])";
 
         var out = new ByteArrayOutputStream();
-        queryService.execute(PURE_MODEL, query, "test::TestRuntime", connection, out, OutputFormat.CSV);
+        queryService.execute(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, out, OutputFormat.CSV);
 
         String csv = out.toString(StandardCharsets.UTF_8);
         String[] lines = csv.split("\r\n");
@@ -252,9 +253,11 @@ class StreamingIntegrationTest {
     // buffered before a single final write. Two techniques:
     //
     //   1. CountingOutputStream records every write() call. QueryService.stream
-    //      wraps in OutputStreamWriter (8KB buffer) and calls flush() after
-    //      each row, so the OutputStream sees ~100 write calls for a 100-row
-    //      query under streaming; a materialized impl produces ~1.
+    //      wraps in OutputStreamWriter (8KB buffer) and the writer flushes after
+    //      each batch of rows (2026-10-27: the result boundary program's batches;
+    //      these tests ask for batches of one row), so the OutputStream sees ~100
+    //      write calls for a 100-row query under streaming; a materialized impl
+    //      produces ~1.
     //
     //   2. A recording connection counts ResultSet.next(), and every write
     //      notes how many rows had been fetched: streaming writes at many
@@ -297,7 +300,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, salary:e|$e.salary])->limit(5)";
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         String streamed = baos.toString(StandardCharsets.UTF_8);
         assertTrue(streamed.startsWith("[{"), "Streamed output should start with [{");
@@ -319,7 +322,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->project(~[name:e|$e.name, department:e|$e.department, salary:e|$e.salary])";
 
         CountingOutputStream cos = new CountingOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, cos, 1);
 
         int writes = cos.writeCallCount.get();
         String result = cos.asString();
@@ -353,7 +356,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.salary > 9999999})->project(~[name:e|$e.name])";
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         assertEquals("[]", baos.toString(StandardCharsets.UTF_8),
                 "Empty result should stream as '[]'");
@@ -368,9 +371,10 @@ class StreamingIntegrationTest {
     //   STREAMING (stream):  SELECT json_object(...) FROM ...
     //                        → N JDBC rows, one json_object each.
     //
-    // PlanExecutor.streamGraph reads rows from the STREAMING SQL and writes
-    // each row's JSON verbatim with ',' separators inside '[' ... ']'. No
-    // StringBuilder, no Java-side concat — bytes pass through.
+    // Since 2026-10-27 (the result boundary program's phase 3) a graph fetch's
+    // typed plan answers the STREAMING SQL's objects, one per row, and the
+    // JSON rows writer passes each object's JSON on with ',' separators inside
+    // '[' ... ']', batch by batch.
 
     @Test
     @DisplayName("stream graphFetch: produces valid JSON matching the materialized path")
@@ -382,7 +386,7 @@ class StreamingIntegrationTest {
                 """;
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         String streamed = baos.toString(StandardCharsets.UTF_8);
         assertTrue(streamed.startsWith("[") && streamed.endsWith("]"),
@@ -402,7 +406,7 @@ class StreamingIntegrationTest {
     @Test
     @DisplayName("stream graphFetch: emits many small writes (proves byte-passthrough, not materialized) [MUTATION-VERIFIED]")
     void testStreamGraphFetchMultipleWrites() throws Exception {
-        // streamGraph writes per-row JSON with a flush after each row. For
+        // the writer writes per-batch JSON with a flush after each batch (one row each here). For
         // 100 rows, the underlying OutputStream should see ~100 writes. A
         // materialized fallback (toJsonArray() then one write()) produces 1.
         String query = """
@@ -412,7 +416,7 @@ class StreamingIntegrationTest {
                 """;
 
         CountingOutputStream cos = new CountingOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, cos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, cos, 1);
 
         int writes = cos.writeCallCount.get();
         String result = cos.asString();
@@ -459,7 +463,7 @@ class StreamingIntegrationTest {
             @Override public void flush() {}
             @Override public void close() {}
         };
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", countingRows(connection, fetched), out);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", countingRows(connection, fetched), out, 1);
         assertTrue(buffer.size() > 0, "Should have produced some output");
         assertTrue(fetched.get() >= 100, "the recording connection saw " + fetched.get() + " rows fetched, not the"
                 + " 100 the query reads: the stream bypassed it, and this test proves nothing");
@@ -520,7 +524,7 @@ class StreamingIntegrationTest {
                 """;
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         assertEquals("[]", baos.toString(StandardCharsets.UTF_8),
                 "Empty graphFetch should stream as '[]'");
@@ -539,7 +543,7 @@ class StreamingIntegrationTest {
         String query = "model::Employee.all()->filter({e | $e.name->startsWith('tab')})->project(~[name:e|$e.name])";
 
         var baos = new ByteArrayOutputStream();
-        queryService.stream(PURE_MODEL, query, "test::TestRuntime", connection, baos);
+        queryService.stream(LaneFloor.model(PURE_MODEL, connection), query, "test::TestRuntime", connection, baos);
 
         String streamed = baos.toString(StandardCharsets.UTF_8);
 
@@ -551,32 +555,5 @@ class StreamingIntegrationTest {
         // Round-trip: the decoded name must equal the inserted value exactly.
         Json.Obj row = (Json.Obj) arr.items().get(0);
         assertEquals("tab\there\t\"quote\\bk\nline\u0001ctl", row.getString("name"));
-    }
-
-    // ==================== Registry ====================
-
-    @Test
-    @DisplayName("SerializerRegistry: Returns correct serializers")
-    void testSerializerRegistry() {
-        assertTrue(SerializerRegistry.isSupported("json"), "JSON should be supported");
-        assertTrue(SerializerRegistry.isSupported("csv"), "CSV should be supported");
-        assertFalse(SerializerRegistry.isSupported("avro"), "Avro should not be supported yet");
-
-        assertEquals("application/json", SerializerRegistry.get("json").contentType());
-        assertEquals("text/csv", SerializerRegistry.get("csv").contentType());
-
-        assertTrue(SerializerRegistry.get("json").supportsStreaming(), "JSON should support streaming");
-        assertTrue(SerializerRegistry.get("csv").supportsStreaming(), "CSV should support streaming");
-    }
-
-    @Test
-    @DisplayName("SerializerRegistry: Throws on unknown format")
-    void testSerializerRegistryUnknownFormat() {
-        IllegalArgumentException ex = assertThrows(
-                IllegalArgumentException.class,
-                () -> SerializerRegistry.get("unknown_format"));
-
-        assertTrue(ex.getMessage().contains("Unknown serialization format"), "Should have helpful error message");
-        assertTrue(ex.getMessage().contains("json"), "Should list available formats");
     }
 }

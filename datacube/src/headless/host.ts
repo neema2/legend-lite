@@ -113,10 +113,26 @@ export function hostDatabase(calls: HostCalls): HostDatabase {
     async query(sql: string): Promise<ArrowishTable> {
       return arrowIpcTable(fromBase64(await calls.query(sql)));
     },
+    // a write's step, its values bound by the host's database (table-output.ts)
+    prepare: (sql: string) => ({
+      query: async (...params: unknown[]): Promise<ArrowishTable> => arrowIpcTable(fromBase64(await calls.statement(sql, JSON.stringify(params)))),
+    }),
   };
   return {
     connection,
     registerFileBuffer: (name, bytes) => calls.registerFile(name, base64(bytes)),
     registerFileText: (name, text) => calls.registerFile(name, base64(new TextEncoder().encode(text))),
   };
+}
+
+/**
+ * A host call's failure in its database's own words (calls.ts `query`, `statement`): the host's exception is carried as
+ * its traceback's text (`Error running Python function: ... duckdb.CatalogException: Catalog Error: ...`), its last line
+ * the database's -- that line's message; any other failure, its message as it is.
+ */
+export function hostWords(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  if (!message.includes('Error running Python function')) return message;
+  const last = message.split('\n').map((l) => l.trim()).filter((l) => /^[\w.]+(Error|Exception): /.test(l)).at(-1);
+  return last === undefined ? message : last.replace(/^[\w.]+(Error|Exception): /, '');
 }

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -9,8 +11,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
@@ -185,12 +185,12 @@ class ScaleCostsDuckDbTest {
     }
 
     private static List<List<String>> island(String sql) throws SQLException {
-        ExecutionResult result = new QueryService().execute(MODEL, "|#SQL{" + sql + "}#", SqlIslandCases.RUNTIME,
+        Lean.Result result = Lean.run(MODEL, "|#SQL{" + sql + "}#", SqlIslandCases.RUNTIME,
                 session);
         List<List<String>> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<String> cells = new ArrayList<>();
-            for (Object value : row.values()) {
+            for (Object value : row) {
                 cells.add(SqlIslandCases.cell(value));
             }
             rows.add(cells);

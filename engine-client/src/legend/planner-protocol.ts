@@ -15,6 +15,7 @@ export const REQUEST_KINDS = [
   'tableModel',
   'catalogColumnsSql',
   'planJson',
+  'executionPlan',
   'planModel',
   'pureV1',
   'executePlan',
@@ -40,14 +41,16 @@ export type RequestBody =
   | { readonly kind: 'catalogColumnsSql'; readonly schema: string; readonly table: string }
   // a query's protocol JSON planned against a model held
   | { readonly kind: 'planJson'; readonly handle: number; readonly lambda: string; readonly runtime: string }
+  // a query's protocol JSON planned against a model held as an execution plan (PlanJson's text): a program that writes
+  | { readonly kind: 'executionPlan'; readonly handle: number; readonly lambda: string; readonly runtime: string }
   // a query's protocol JSON planned against a model's text, none held (Query's and Studio's: each request its model)
   | { readonly kind: 'planModel'; readonly model: string; readonly lambda: string; readonly runtime: string }
   // one pure/v1 call: its path (`/api/pure/v1/...`), its raw query string ('' for none) and its body
   | { readonly kind: 'pureV1'; readonly path: string; readonly query: string; readonly body: string }
   // an ExecuteInput's plan half (its body) over the only models the host runs (a JSON array of their texts); then that
-  // plan's answer from the one value the host's database wrote running it (C1)
+  // plan's answer from the rows the host's database answered running it, a JSON array of objects (HostRows)
   | { readonly kind: 'executePlan'; readonly body: string; readonly models: string }
-  | { readonly kind: 'executeAnswer'; readonly plan: string; readonly wire: string }
+  | { readonly kind: 'executeAnswer'; readonly plan: string; readonly rows: string }
   // a model's test data as the statements the server seeds DuckDB with, and each table's names as they spell it
   | { readonly kind: 'testData'; readonly model: string; readonly database: string; readonly tables: string }
   // what a session of a database runs before it is queried, so that it answers as the planner's SQL expects

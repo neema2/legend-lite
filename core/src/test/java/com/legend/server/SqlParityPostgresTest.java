@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import com.legend.testcases.PostgresSeed;
 import com.legend.testcases.SqlParity;
 import com.legend.testing.EmbeddedPostgres;
@@ -93,12 +95,11 @@ class SqlParityPostgresTest {
             // each island through the Postgres dialect
             String model = SqlParity.model(tables, String.format(Locale.ROOT, "type: Postgres;\n    specification:"
                     + " Static { host: '127.0.0.1'; port: %d; name: 'postgres'; };\n    auth: Test;", pg.port()));
-            QueryService service = new QueryService();
             Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
             SqlParity.Legend legend = new SqlParity.Legend() {
                 @Override
-                public com.legend.exec.ExecutionResult run(String island) throws Exception {
-                    return service.execute(model, island, SqlParity.RUNTIME, admin);
+                public Lean.Result run(String island) throws Exception {
+                    return Lean.run(model, island, SqlParity.RUNTIME, admin);
                 }
 
                 @Override

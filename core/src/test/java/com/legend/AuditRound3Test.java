@@ -1,5 +1,6 @@
 package com.legend;
 
+import com.legend.testing.Lean;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
@@ -29,7 +30,7 @@ class AuditRound3Test {
 
     private static Object scalar(String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
+            return Lean.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
         }
     }
 
@@ -54,7 +55,7 @@ class AuditRound3Test {
         // signatures alone.
         var ex = assertThrows(Exception.class, () -> {
             try (Connection c = TestBackends.platform().open()) {
-                Execution.execute(StorelessRuntime.with(MODEL + "function test::f(): Integer[1] { [] }\n", Databases.PLATFORM),
+                Lean.run(StorelessRuntime.with(MODEL + "function test::f(): Integer[1] { [] }\n", Databases.PLATFORM),
                         "|test::f()", StorelessRuntime.RUNTIME, c);
             }
         });

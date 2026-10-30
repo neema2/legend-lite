@@ -4,7 +4,7 @@ package com.legend;
 
 import com.legend.error.AssertFailed;
 import com.legend.exec.AssertListener;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -24,29 +24,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AgreementArmTest {
 
-    private static final ExecutionResult HELD = AssertVerdicts.ok();
+    private static final TypedSide HELD = AssertVerdicts.ok();
 
-    private static Supplier<ExecutionResult> held() {
+    private static Supplier<TypedSide> held() {
         return () -> HELD;
     }
 
-    private static Supplier<ExecutionResult> declined() {
+    private static Supplier<TypedSide> declined() {
         return () -> null;
     }
 
-    private static Supplier<ExecutionResult> failed(String message) {
+    private static Supplier<TypedSide> failed(String message) {
         return () -> {
             throw new AssertFailed(message);
         };
     }
 
-    private static Supplier<ExecutionResult> unjudged(String reason) {
+    private static Supplier<TypedSide> unjudged(String reason) {
         return () -> {
             throw AssertFailed.unjudged(reason, "UNJUDGED: " + reason);
         };
     }
 
-    private static Supplier<ExecutionResult> errored(String message) {
+    private static Supplier<TypedSide> errored(String message) {
         return () -> {
             throw new com.legend.error.DataError(message, null);
         };

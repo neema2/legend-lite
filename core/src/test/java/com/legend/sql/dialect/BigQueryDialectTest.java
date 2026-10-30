@@ -45,19 +45,20 @@ class BigQueryDialectTest {
         assertFalse(sql.contains("`t`.`x` AS STRING"), sql);
     }
 
-    /** A Float's print forms read its text once (2026-10-22): the value and its text bound in a one-row derived table
-     *  under a scalar subquery, as the canon's binding; the portable spellings read the text nine times and over a
-     *  thousand, each read its own subquery here (the served statement for {@code 1.5 + 2.25} was 321 KB). */
+    /** A Float's print form reads its text once (2026-10-22): the value and its text bound in a one-row derived table
+     *  under a scalar subquery, as the canon's binding; the portable spelling reads the text nine times, each read its
+     *  own subquery here. (legend-engine's print form, and its served statement of 321 KB for {@code 1.5 + 2.25}, went
+     *  with the database-written wires, 2026-10-27.) */
     @Test
     void aFloatsPrintFormsReadItsTextOnce() {
-        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT, SqlFn.FLOAT_PRINT_ENGINE)) {
+        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT)) {
             String sql = render(SqlExpr.Call.of(fn, X), null);
             // the double's text once (its own BIGNUMERIC read; the print form's HUGEINT and DECIMAL casts are BIGNUMERIC
             // here too)
             assertTrue(sql.split("SAFE_CAST\\(`__fv` AS BIGNUMERIC\\)", -1).length - 1 == 1, fn + ": " + sql);
             assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, fn + ": " + sql);
             assertTrue(sql.contains("AS `__fp0`"), fn + ": " + sql);
-            assertTrue(sql.length() < (fn == SqlFn.FLOAT_PRINT ? 4_000 : 24_000), fn + ": " + sql.length() + ": " + sql);
+            assertTrue(sql.length() < 4_000, fn + ": " + sql.length() + ": " + sql);
         }
     }
 

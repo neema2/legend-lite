@@ -4,9 +4,9 @@
 package com.legend;
 
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.ExecutionResult;
+import com.legend.exec.TypedSide;
 
-/** The plan-text ENVELOPE assembly (extracted from StatementExecutor at
+/** The plan-text ENVELOPE assembly (extracted from BodyDriver at
  * the file guardrail): applies the temp-table IN protocol
  * (plan/InProtocol) and picks the envelope — the engine's rule:
  * let-allocations stay in the outer Sequence and the
@@ -17,8 +17,8 @@ final class PlanEnvelope {
     private PlanEnvelope() {
     }
 
-    static ExecutionResult emit(StatementExecutor.EngineSql es,
-            java.util.List<String> children, StatementExecutor.ExecEnv env,
+    static TypedSide emit(BodyDriver.EngineSql es,
+            java.util.List<String> children, BodyDriver.ExecEnv env,
             String rootClass, String[] impl, String mappingFqn,
             TypedSpec term, @com.legend.base.Nullable String connName,
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
@@ -31,7 +31,7 @@ final class PlanEnvelope {
                 : com.legend.plan.InProtocol.allNodeTexts(inp, connName,
                         inList.threshold(), pd::collectionSplice, pd::inTempTableSelect);
         var planOut = inp != null ? inp.plan() : es.plan();
-        boolean pushDownEnums = StatementExecutor.pushDownEnums(env, java.util.List.of(term));
+        boolean pushDownEnums = BodyDriver.pushDownEnums(env, java.util.List.of(term));
         String rel = com.legend.plan.PlanText.single(env.ctx(), rootClass,
                 mappingFqn, planOut,
                 inp != null ? pd.render(planOut) : es.sql(),
@@ -45,13 +45,13 @@ final class PlanEnvelope {
             blockKids.add(rel);
             children.add(com.legend.plan.PlanText.relationalBlock(tb,
                     blockKids));
-            return new ExecutionResult.Scalar(
+            return new TypedSide.Scalar(
                     com.legend.plan.PlanText.sequence(tb, children),
                     com.legend.compiler.element.type.Type.Primitive.STRING);
         }
         children.addAll(inTexts);
         children.add(rel);
-        return new ExecutionResult.Scalar(inp != null
+        return new TypedSide.Scalar(inp != null
                 ? com.legend.plan.PlanText.relationalBlock(tb, children)
                 : com.legend.plan.PlanText.sequence(tb, children),
                 com.legend.compiler.element.type.Type.Primitive.STRING);

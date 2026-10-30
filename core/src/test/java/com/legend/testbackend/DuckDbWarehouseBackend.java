@@ -20,6 +20,12 @@ final class DuckDbWarehouseBackend implements TestBackend {
 
     static final DuckDbWarehouseBackend INSTANCE = new DuckDbWarehouseBackend();
 
+    /** The warehouse's DuckDB session in UTC, as the platform's own (DuckDbBackend; the T-d2 audit, 2026-10-29). */
+    @Override
+    public java.util.List<String> sessionSetUp() {
+        return java.util.List.of("SET timezone='UTC'");
+    }
+
     private @com.legend.base.Nullable String url;
 
     private final DuckDbWorkspaces workspaces = new DuckDbWorkspaces(new DuckDbWorkspaces.Instance() {

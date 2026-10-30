@@ -14910,3 +14910,1446 @@ needed that neither side did alone.
    - The pgcrypto fix's own miss, found by the same run: the warehouse's Postgres live tests start the embedded
      server from a JVM with no JDBC driver ("No suitable driver found"), so the client connection could not open;
      `//testing` now carries the driver at runtime, the client every such JVM needs.
+
+## 2026-10-27 — the result boundary program's phase 5, first half: the old executor's work on the plan runner, and what the lanes found in phases 1 to 4
+
+The paused work-in-progress commit of phase 5 (0fe63b42) made green, after the user paused the program for an audit
+and asked whether any PCT pass was lost. Six warm lane sessions measured channel A and channel B per test at the
+program's start (7b8c89dc) and at phase 4 (b3311cd6), measure only; every loss they found is traced and fixed here,
+and the lanes re-measure this head.
+
+1. **Phase 5, first half.** `exec.Executor` is deleted: its SQL-type table is `WireTypes`, its helpers live with their
+   one caller each (`SetupRunner`, `Sessions`, `SystemDatabase`, `GridProbe`, `SqlTypeCensus`). The body driver's store
+   writes, staged tables, raw statements and scripts are plan nodes run by the plan runner on the body's session
+   (`ExecutionPlan.Effect`, `PlanRunner.update`/`effect`). Its value statements run through `JudgePlans`: an
+   assertion's side ordered by the scan order (`sideResult`), every other statement not (`statementResult`; DuckDB
+   refused the order's `rowid` on a write's statement, `CypherWritePlansTest`). A keyed plan says where its per-key
+   columns stand among its fixed ones (`Keyed.perKeyAt`, plan format 16; `testPivotExtend`'s extend column stood before
+   them). A `List<T>[1]` root keeps its list as one value (`testSliceInList`). An Integer product is an exact integer
+   fold (`Scalars.integerProduct`: 1 for no element; `EmptyListAggregateTest` had a Double under an Integer root). A
+   Pure Integer's carrier is `Long`, the plan decode's: 93 expectations in 15 test files were written to the old
+   executor's `Integer`, corrected (a correction of the old decoder, not a difference). Not yet:
+   `Execution.execute*`/`executeResolved`, `ExecutionResult` and the schema probes' own JDBC (stage 2).
+2. **The old executor's rules the typed reader had not taken over**, each found by a failing test:
+   - the engine's execution-trace comment (`-- "executionTraceID" : "<uuid>"`) rode every query the old executor sent,
+     and an activity row records it. With the executor gone no query carried it: the host judge lost the corpus's
+     `testSQLComments`, and the database judge passed it on a comment its frames had reserved for a statement that
+     never carried one. The plan runner's JDBC boundary stamps every query (`JdbcStatements.stamped`), the body
+     driver's sessions publishing to its trace (`PlanSessions.given(connection, trace)`), its fused verdict statement
+     among them (`VerdictBatch`);
+   - every dialect's `normalize` hook was dead once the executor went. The typed reader reads by the slot every rule
+     they held (a struct or map as JSON text, a boolean as 1 or 0, H2's bytes, ClickHouse's tuples, a scale-0 NUMBER
+     as a Long) but one: BigQuery's driver drops a decimal's trailing zeros, 12 Decimal tests answering `3D` for
+     `3.0D` on its lane. That rule is a driver fact now (`SqlDialect.dropsDecimalTrailingZeros`, padded to the slot's
+     scale by `JdbcDecode`, never rounded), and the hooks are deleted from the eleven dialects;
+   - a driver's `Timestamp` and `Date` keep their era (`JdbcDecode.wallClock` and `day`): `toLocalDateTime` reads the
+     year of the era, and Databricks' `testAdjustByMinutesBigNumber` answered `21458-01-08T20:48:00` for
+     `-21457-01-08T20:48:00` (its driver re-reads no timestamp as java.time; the lane's probe measured the calendar's
+     era and wall clock as the only faithful fields); a date cell is re-read as `java.time.LocalDate` where the driver
+     re-reads (the old executor's rule; `PostgresArmTest`'s 44 BC read as 44 AD without it);
+   - a temporal text slot reads a StrictTime as a time (`RowDecode.temporalText`; the Cypher TCK's ordered local times,
+     91 cases); DuckDB's JSON spells a non-finite double as a bare token, now read by its own grammar
+     (`SqlDialect.jsonSpellsNonFiniteNumbers`, `exec/NonFiniteJson`, moved from the parity harnesses' test sources;
+     12 Cypher cases ordering values of every type);
+   - the parity harnesses read a Variant cell as its JSON text, the typed carrier (the old executor handed them the
+     driver's own `JsonNode` or `PGobject`): `SqlParity.grid`, `CypherValues.ofCell(cell, column)`.
+3. **The lanes, phases 1 to 4 (7b8c89dc against b3311cd6), and the fixes:**
+   - channel B: no test moved on any lane (per-test lines identical: DuckDB, SQLite, MongoDB and H2 here; Postgres,
+     MySQL, MariaDB, ClickHouse, Trino, BigQuery and Databricks by their lanes; Snowflake's report pending);
+   - MariaDB and MySQL, 10 window tests (`mode`, `median`, `percentile` over a window), and BigQuery, 3 window `mode`
+     tests: the counted MODE's and the quantile's helper columns answered through the extend's star, and a typed-rows
+     statement answers its plan's columns alone. A star over the counted source is spelled as the source's own columns
+     (`AnsiSqlRenderer.starsAsSourceColumns`, both dialects);
+   - Trino: a failing statement opens its result with no columns, and the column count spoke before the database's
+     own error; its first read raises it now (`SqlDialect.opensFailedResultsWithoutColumns`, read in `JdbcStatements`);
+   - BigQuery's 12 Decimal tests and Databricks' BC date-time: item 2;
+   - message pins moved, the failures kept: `testArcCosineError` and `testArcSineError` on Postgres, ClickHouse, Trino
+     and Databricks ("the database answered NaN for a Float, which has no NaN in Pure", refused by name; on BigQuery
+     the database raises first and its pins hold), `testBigFloatAbs` on Postgres, BigQuery and Databricks (a double's
+     shortest digits), the same three on Snowflake;
+   - Snowflake's `testAdjustByMinutesBigNumber`, **a pass lost and pinned, an open item**: its driver hands the far-BC
+     `TIMESTAMP_NTZ` back as another instant (the lane's probe: `getTime` -739283178022000, `-21457-01-18T17:39:38Z`
+     where the database holds `-21457-01-08T20:48`; `getString` is that instant's text without its era; every
+     `java.time` getter refused), so no reader of the driver's value answers it. The phase 4 text path passed it
+     because the database spelled the date-time; the pass returns when Snowflake's dialect writes such a column as
+     the database's own text, measured on its lane first.
+4. **The guards, each pin dated:** `JavaEvalLedgerTest` (ValueBridge 355 -> 376 and PctExecuteNative 116 -> 94, phase
+   4, measured now: phase 4's commit did not run the census; StatementExecutor 2419 -> 2316; AssertVerdicts 1249 ->
+   1258, `structured` moved in; `NonFiniteJson.java` registered in exec's funnel); `CodeShapeGuardrailTest`
+   (`NonFiniteJson.at`, a parser cursor); `ArchitectureTest`, `ErrorShapeGuardrailTest`, `JdbcSurfaceCensusTest` (the
+   executor's rows out, `SetupRunner` 3 -> 4); `PlanJsonTest` (format 16). `TypedPlanTest` named two databases (the
+   census's ban): it plans its write on the platform's.
+5. **Measured here on the code of this commit:** the core suites, `guardrails`, `census`, `corpus_differential_test`,
+   `cypher_parity_test`, `cypher_parity_native_test`, `sql_parity_test`, `iq_parity_test`, `mongodb_plan_test`, the
+   stress suites (DuckDB and H2): green; the corpus judges' verdicts and roster checks on DuckDB and H2: green; PCT on
+   DuckDB (5 suites), H2, SQLite (5), MongoDB (5), channel B (5) and the discipline guard: 24 of 24, channel B's
+   per-test lines identical to CI's at 7b8c89dc in all five suites; the eight Postgres targets, unprivileged: 8 of 8.
+   Not run here: the local gate and the cloud lanes (they re-measure this head).
+6. **The lanes on f883d42b against 7b8c89dc** (six warm sessions, measure only, every suite of both channels):
+   channel A exact on every suite of Postgres, SQLite, MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery, Databricks and
+   Snowflake (Snowflake's pinned far-BC loss matched its predicted text); channel B identical per test on every lane,
+   but one gain: MySQL's `testMedian_Numbers_Relation_Window` (an ERROR at BASE, the same helper columns through the
+   star). Databricks' 14 channel B messages differ only by the restored trace line (its error positions one line
+   down). Wall times at or below BASE on every lane (BigQuery within noise; Snowflake's standard 321 s -> 261 s).
+
+## 2026-10-27 — the result boundary program's stage 1, step 3: a PCT relation's crossing measured against legend-engine's own adapter
+
+How a relation crosses into the reference interpreter decides what the PCT judges. legend-engine's own relational
+PCT adapter (`pct_relational.pure`) executes the plan, reads the engine's JSON answer (`parseJSON`, then `fromJSON`
+into its `RelationalTDSResult`, a JSON null replaced by `TDSNull`), and writes the TDS text in Pure with
+`getTDSResultFromProtocol` (`core_relational`'s `execution_relational_execute.pure`: the header from the function's
+relation type where it has one, else the builder's; a String's `toCSVString`, `TDSNull`'s `'null'`, any other value's
+`toString`), then `stringToTDS`. Lite's adapter, since phase 4, writes that text in Java from the typed cells
+(`PureTdsText`).
+
+1. **The engine's way, built beside the text crossing behind a switch** (`LEGENDLITE_PCT_RELATION=engine`, off by
+   default; the loser is deleted with it): the plan streams through the server's own engine writer
+   (`PureV1Api.engineWriter`, the `pure/v1/execute` answer) into the adapter; Java reads each value as json-simple and
+   the engine's `JsonParser` type it (an integral number an Integer, any other number a Float of its double, a null
+   `TDSNull`; a Variant's object or array its compact JSON text); the adapter's Pure replays `getTDSResultFromProtocol`
+   line for line (`engineTDS`, `engineName`) and reads the text with `stringToTDS`. A typed TestTDS built in Java was
+   tried first and set aside: it is not the reference's crossing, its reader holds a date at the millisecond, and its
+   classes sit in two jars the upstream pool does not list (a `release.MODULE.bazel` and lock change).
+2. **Measured on DuckDB (5 suites) against the ledgers, which hold the text crossing exactly:** essential, grammar and
+   unclassified identical; relation 43 lost and 1 message moved, standard 2 lost. Every loss is the PRODUCTION engine
+   writer's, which the text crossing never exercised:
+   - 10 dynamic pivots: the server's envelope looked a generated column's primitive up by its short name (`Integer`)
+     in a table keyed by path, so `pure/v1/execute` refused every dynamic pivot. **Fixed here**
+     (`PureV1Api.envelope`); the 10 pass through the engine crossing;
+   - 31 relations with a Variant column: the server's builder refuses a Variant's relational spelling as unprobed,
+     by design ("probe legend-engine, do not guess"): a probe of legend-engine's answer is the item;
+   - 4 `Date` columns (`testExtendMaxDate`, `testExtendMinDate`, two lead-adjust compositions): the engine writer
+     spells a `Date` cell at midnight as its day beside full date-times in one TIMESTAMP column, and the TDS reader's
+     CSV parser then refuses the column as text. legend-engine's own serializer (`ValueTransformer`) writes a
+     `java.sql.Timestamp` always in full and only a `java.sql.Date` as its day, so the midnight rule in
+     `CellText.engine` is not the engine's; the engine's DuckDB manifest pins none of the four. It is S1.4's
+     (the writers carriage only), to be confirmed against legend-engine's answer before it changes.
+3. **The decision waits on S1.4:** the engine crossing replaces `PureTdsText` once the Variant spelling is probed and
+   the midnight rule is gone; then the lanes measure it, and the text crossing and the switch are deleted.
+4. **Measured here:** the text crossing (default) on DuckDB (5 suites) and channel B's relation suite, unchanged; the
+   server's tests, `guardrails`, `census`, `pct_discipline`: green. The ledger pins for the measurement's own lines
+   (ValueBridge 376 -> 428, PctExecuteNative 94 -> 99) are dated and leave with the switch.
+5. **The engine writer's midnight rule removed, the same day** (S1.4's first item, by legend-engine's source): its
+   `ValueTransformer` writes a `java.sql.Timestamp` cell always in full and only a `java.sql.Date` as its day, so
+   `CellText.engine` writes a date as its day by what the database answered (a day without a time, a StrictDate, a
+   DATE slot), never by its time of day (`engineDay`); Pure's print form keeps its midnight day (`dateOnly`).
+   `ResultWritersTest` pins both. The engine crossing on DuckDB then loses only the 31 Variant relations (and the one
+   moved message, also a Variant): standard identical to the text crossing. The Variant's builder spelling stays
+   refused, as PARK-34 says, until a running legend-engine is probed; its source reads `SEMISTRUCTURED`
+   (`pureTypeToDataTypeMap`, Variant -> SemiStructured; `alloyTypeToString`, SemiStructured -> 'SEMISTRUCTURED').
+   Measured: `core_tests_root`, `core_tests_server`, `core_tests_integration`, `guardrails`, `census`,
+   `//datacube:python_execute_test`, PCT DuckDB standard and relation on both crossings: green, as stated.
+
+## 2026-10-28 — PARK-34 closed: legend-engine asked what it answers for a Variant column
+
+The result boundary program's stage 1, step 3 waited on it (the engine crossing lost 31 relations with a Variant
+column, the server refusing the column's relational spelling as unprobed). The probe it asked for, run here.
+
+1. **How it was asked.** legend-engine 4.145.0 itself, from `tools/engine-runner`'s jars (`@maven_runner`, the pinned
+   release): a scratch main, never committed, that parses and compiles a model with the engine's own compiler, plans a
+   lambda with its `PlanGenerator` (its core extensions, `LegendPlanTransformers`), runs the plan with its
+   `PlanExecutor` and writes the answer with the `DEFAULT` serializer, as `pure/v1/execution/execute` does. The model:
+   a table with a `SEMISTRUCTURED` column (and TIMESTAMP and DATE columns) on DuckDB (a seeded file) and on H2
+   (`testDataSetupSqls`). The answers are committed in `core/src/test/resources/upstream-api/` (`e8-variant-column.json`,
+   `e8-variant-computed.json`, `e8-variant-null.json`), the model and the provenance in `variant-probe.pure`.
+2. **What the engine answers.**
+   - the builder spells a Variant column `{"type":"meta::pure::metamodel::variant::Variant","relationalType":"SEMISTRUCTURED"}`,
+     a store column's and a computed `toVariant()`'s alike; the plan's tdsColumns are the same on H2;
+   - a cell is a STRING holding the value's JSON: `"{\"a\":1,\"b\":[true,null,\"x\"],\"c\":2.5}"`, `"[1,2.5,\"s\"]"`,
+     `"\"text\""`; a JSON null is `"null"`, SQL's NULL is `null`. The engine parses the database's JSON and writes it
+     again, so a number inside is its JSON library's double (the stored `2.50` answers `2.5`) and the spacing is gone;
+   - on H2 it refuses executing the stored column ("Unable to process variant result as JSON from column 'PAYLOAD'":
+     H2's driver hands the JSON as bytes);
+   - a midnight TIMESTAMP is written in full (`2024-01-02T00:00:00.000000000+0000`), as yesterday's fix (6811256b) has it;
+   - every other type asked: a computed Boolean `BIT`, StrictDate `DATE`, DateTime and Date `TIMESTAMP`, Number,
+     Float and Decimal `FLOAT`, BigInt and Int `INTEGER` (lite's table, unchanged); a StrictTime column, a list column
+     and a `VARBINARY` store column have NO answer: the engine refuses each query before executing.
+3. **What changed in lite.**
+   - `UpstreamRelationType.relationalSpelling`: a Variant is `SEMISTRUCTURED`; any other type is refused as the
+     engine refuses it, said so ("legend-engine has no relational spelling of ...").
+   - `CellText.engine` wrote a Variant cell as its JSON itself (unprobed): it writes the string holding it now. The
+     JSON's numbers keep the database's digits (`2.50`), where the engine's library re-spells them: register S115.
+   - PARK-34 is closed in `docs/PARKED_WORK_LEDGER.md`, its anchor deleted from `ParkedWorkLedgerTest`.
+4. **Found on the way, not changed here:**
+   - the engine-parity H2 dialect (`H2`, servers 2.1 and 2.2) spells `fromJson(text)` as `CAST(x AS JSON)`, which H2
+     answers as a JSON STRING holding the text: `fromJson('{"a": 1}')` is the string `"{\"a\": 1}"`, not an object, a
+     silent wrong answer. `H2Modern` already parses (`JSON '...'`, `x FORMAT JSON`).
+   - the engine's relation accessor types a `BIT` store column as `TinyInt` (`relationalType` `INTEGER`) while its cell
+     is `true`; lite types it Boolean (`BIT`).
+5. **What judges it:** `PureV1ApiTest.e8_execute_aVariantColumn_isTheEnginesBuilder_itsCellsStringsOfJson` (the
+   builder against the engine's recorded builder, the answer's layout, each cell a string of its JSON on both sides,
+   the recorded difference); `ResultWritersTest.engineTokens`; `//datacube:python_execute_test`'s new case (the tab's
+   answer text byte for byte as Python's, the builder, each cell, and Python's Arrow answer the same).
+6. **The DataCube case's first run found a difference of the value** (0b06545e): a frame row with no quantity answers
+   `$x.qty->toVariant()` as SQL's NULL, an empty cell under `Variant[1]`, where the engine's DuckDB SQL is
+   `ifnull(to_json(x), 'null'::json)`, so its cell is, by that SQL and its measured spelling of JSON's null
+   (`e8-variant-null.json`), the string `"null"`; lite's DuckDB renders `to_json(x)` alone.
+   Registered as S116 (pending; S113 until S1.0's renumbering, 2026-10-28), not fixed here (its fix moves PCT on every lane and is measured on its own); the case
+   reads the rows with a quantity.
+7. **The engine crossing re-measured on DuckDB** (`LEGENDLITE_PCT_RELATION=engine`): relation 469 of 469 as the
+   ledgers hold them (yesterday 32 lost: the 31 Variant relations and the moved message), standard 205 of 205. On
+   DuckDB the engine crossing now answers exactly as the text crossing: the condition stage 1, step 3 set for the switch
+   (item 3 of yesterday's entry) holds here; the other lanes measure it next.
+8. **Measured on 4eaf1b07 and 0b06545e:** `//core:core_tests_server`, `//core:core_tests_root`, `//core:guardrails`,
+   `//core:census`, `//datacube:python_execute_test`, PCT DuckDB standard and relation on the engine crossing: green.
+   Not the local gate.
+
+## 2026-10-28 — the result boundary program's stage 1, step 3 done: a PCT relation crosses as legend-engine's own adapter reads it; the Java TDS text deleted
+
+The condition yesterday's entry set for the switch (the Variant spelling probed, the midnight rule gone, then every
+lane measuring the engine crossing) is met, and the switch is made.
+
+1. **Measured on every lane at e8c341d0, channel A, `LEGENDLITE_PCT_RELATION=engine`** (the warm lane sessions, measure
+   only, each against its own f883d42b channel A logs; DuckDB, SQLite and MongoDB in this session): exact everywhere,
+   0 stale, 0 moved, 0 lost.
+
+   | lane | suites | relation crossings (relation / standard) |
+   |---|---|---|
+   | DuckDB | all five | 460 / 64 |
+   | SQLite | all five | 459 / 64 |
+   | MongoDB | all five | 459 / 64 |
+   | Postgres (unprivileged) | all five | 460 / -- |
+   | MariaDB | all five | 459 / 64 |
+   | MySQL | all five | 460 / 64 |
+   | ClickHouse | all five | 460 / 64 |
+   | Trino | all five | 460 / -- |
+   | H2 | relation (its lane's one suite) | 439 / -- |
+   | BigQuery | all five | 459 / 64 |
+   | Databricks | all five | 460 / 64 |
+   | Snowflake | all five | 460 / 64 |
+
+   Each lane checked the flag took effect by its log: every relation crossed through the engine writer (`[LegendLite
+   PCT] engine JSON:` lines, each carrying the trace comment) and none through the Java text (`[LegendLite PCT]
+   TDS:`); at f883d42b the same crossings were all text. Postgres and Trino counted the relation suite's only.
+   Essential, grammar and unclassified answer no relation, so the crossing does not reach them.
+2. **The switch:** `PctPlanRoute` streams every relation through the server's own writer of legend-engine's execute
+   answer (`PureV1Api.engineWriter`), and the adapter reads it as legend-engine's PCT adapter does (`ValueBridge.engineTDS`,
+   then `pct_adapter.pure`'s `engineTDS`: `getTDSResultFromProtocol`'s steps, then `stringToTDS`). Deleted: the flag,
+   `PureTdsText` (Pure's TDS text written in Java), `ValueBridge.createTDSResult`, the adapter's `TDSResult` branch and
+   class. So the PCT now judges the JSON lite's server serves, and has found three production defects in it (the dynamic
+   pivot's envelope, the midnight rule, the Variant cell).
+3. **The guards:** `JavaEvalLedgerTest` re-pinned to the measured counts, each dated: `PctExecuteNative` 99 -> 94,
+   `ValueBridge` 428 -> 418.
+4. **Measured on the switch locally:** PCT DuckDB, SQLite and MongoDB relation and standard (no flag: the engine crossing
+   is the only one), `//pct:pct_discipline`, `//core:census`, `//core:guardrails`: green. Not the local gate.
+
+## 2026-10-28 — the result boundary program's S1.4, item 2: a negative zero in lite's own outputs; `main`'s register ids
+
+1. **Built (`b944a42e`), on the user's word** ("what should we do about the negative zero? what is the right move",
+   then "okay"): `CellText.pureFloat` writes `Double.toString`'s shortest digits, laying out only an exponent
+   positionally, so lite's own outputs (LEAN JSON and CSV) write a negative zero `-0.0`, the shortest text that reads
+   back as the same double (the program's §8 item 3, ruled 2026-10-26). Pure's text of a Float (`toString`, `format`,
+   a String built inside a query: `FloatCanonText.ofText`) is unchanged, `0.0` for either sign, as legend-pure's
+   `CompiledSupport.primitiveToString` writes it; LEGACY (`CellText.engine`, `Double.toString`) already wrote `-0.0`.
+   The decimal path's zero branch was dead and is removed. Register S117 (S114 until S1.0's renumbering, 2026-10-28). It reverts lines 34 and 35 of
+   `docs/result-boundary-homework/wire-differences-2026-10-27.tsv` (lite wrote `-0.0` before phase 2).
+2. **Measured:** every other double's text unchanged (`docs/result-boundary-homework/probes/FloatTextProbe.java.txt`,
+   the function before and after over 19 values); `ResultWritersTest.aNegativeZeroKeepsItsSign_inLitesCsvAndJson`;
+   `//core:core_tests` (all 25 packages), `//core:guardrails`, `//core:census` green. Not run:
+   `//datacube:python_execute_test`, PCT, the lanes, the local gate (the LEAN writers are on neither PCT channel, the
+   corpus nor the judges).
+3. **Found with it, ruled the same day:** the same function writes a double below `1e-3` whose shortest digits are one
+   digit with a trailing zero (`1.0E-4` as `0.00010`; legend-pure `0.0001`). The user: "keep the fix, fix the plan
+   wording including adding that we need to fix 0.00010": a defect, fixed in S1.4 (the probe above measures the fix
+   against legend-pure's own formatter). Not built in this entry.
+4. **`main` moved and took the branch's register ids:** at `369bb176` (PR #77) `main` is 105 commits past the branch's
+   base `7b8c89dc`, 12 files changed on both sides, and its S112 to S114 (a user function generic over relations,
+   `without`, `read`) are not the branch's S112 to S114 (a Variant cell's digits, `toVariant()` of an empty value, the
+   negative zero). The start page's new first step, S1.0, merges `main` and renumbers the branch's three rows (done
+   the same day: the entry below).
+
+## 2026-10-28 — the result boundary program's S1.0: `main` merged into the branch, the branch's register rows renumbered S115 to S117
+
+The next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`, the start page's §12 message), its first
+step.
+
+1. **The merge:** `origin/main` at `369bb176` (PR #77, the timeseries line: 50 commits past the branch's base
+   `7b8c89dc` by `git rev-list --count`, the start page's "105" having counted the branch's own commits in; 114 files
+   on its side), brought in by a merge commit on top of this session's IN_FLIGHT announcement (`815b358e`), never a
+   rebase. Twelve files changed on both sides; ten auto-merged (`core/BUILD.bazel`, `lowering/Fold.java`,
+   `lowering/Lowerer.java`, `ArchitectureTest.java`, `CodeShapeGuardrailTest.java`, `SelectDistinctCheckerTest.java`,
+   `PureV1ApiTest.java`, `docs/IN_FLIGHT.md`, `python/legend_lite/engine.py`, `wasm/.../Boundary.java`), two
+   conflicted in content, each kept whole on both sides:
+   - `server/PureV1Api.execute`: main's `Models` hook (a host that holds models compiles a request's text once:
+     `ModelInput.with(models, ...)`, the page's planner) wrapped around the branch's typed run (the query typed once,
+     `runner.run(query, runtime, plan -> engineWriter(query, plan, out))`): the model from the hook, the answer from
+     the engine writer.
+   - `docs/SEMANTICS_REGISTER.md`: main's S112 to S114 (a user function generic over relations, `without`, `read`)
+     kept in place; the branch's three rows take S115 to S117 (item 2), with a dated renumbering note.
+   One conflict the merge did not mark, read in the auto-merged files: main's new `SelectDistinctCheckerTest`
+   `WithoutTests` (its `without` surface, S113) assert their id cells as the `Integer` `1` and `2`, where this branch's
+   plan runner decodes an INTEGER column as a `Long` and phase 5 had already moved the same file's other expectations
+   to `1L` (GATES 2026-10-27, the 93 corrections): `1L` and `2L`, the same move. No guard pin or allowlist moved: main's
+   own rows (`ArchitectureTest`'s `ColumnHygiene`, `CodeShapeGuardrailTest`'s `ColumnHygiene.fresh`) and the branch's
+   (`NonFiniteJson.at`, the result package's cursors, `SetupRunner` 4, `RowDecode` in `result`) stand side by side,
+   and no generated file changed on both sides. Nothing of the plan, the writers, the runner or the dialects' SQL came
+   in from `main` (its line is the compiler's relation generics, `without`, `read`, DataCube's Pure library and the
+   timeseries view).
+2. **The register ids:** S112 → S115 (a Variant cell keeps the database's digits), S113 → S116 (`toVariant()` of an
+   empty value, pending), S114 → S117 (the negative zero). Every citation of the branch's three followed, 28 lines in
+   11 files, each read (`git grep -nE '\bS11[234]\b'` on the merged tree; main's citations of its own S112 to S114 --
+   `compiler/spec/`, `builtin/Pure.java`, DataCube, the timeseries documents, the own-corpus ledgers -- untouched):
+   `result/CellText.java` (two javadocs), `ResultWritersTest`, `server/PureV1ApiTest`,
+   `datacube/test/python-engine/execute.test.ts`, this file (the PARK-34 and S1.4 entries above), `PARKED_WORK_LEDGER.md`
+   (PARK-34), the program's §8 and §9, the start page, the homework README and `probes/FloatTextProbe.java.txt`. A
+   GATES entry, a commit or a document dated before this merge that says S112, S113 or S114 for one of those three
+   means S115, S116 or S117.
+3. **Measured on the merged tree, locally (this container runs DuckDB, SQLite, H2 and MongoDB, and Postgres
+   unprivileged):**
+   - `//core:core_tests` (all 25 packages), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`: 28 of 28
+     pass.
+   - PCT channel A, all five suites, on DuckDB, SQLite and MongoDB: 15 of 15 exact against their ledgers (each suite's
+     expected failures exact both ways; relation 469 tests and standard 205 on each lane), and the engine crossing
+     counted as at the switch (`[LegendLite PCT] engine JSON:` 460 / 64 on DuckDB, 459 / 64 on SQLite and on MongoDB:
+     the relation and standard suites).
+   - `//datacube:python_execute_test` (the native library and the WebAssembly planner built; it reads LEAN JSON): pass.
+   - the local gate, `bazel test --lockfile_mode=error //gates:local`, the branch's first since phase 5: 435 of 446
+     pass as root; `//tools/guards:classpath_test` skipped (an arm64-only target, docs/CLOUD_SESSIONS.md); the nine
+     Postgres targets (the eight `//core:*postgres*` tests and `//datacube:verify_app_test`), which `initdb` refuses as
+     root, re-run as the unprivileged user (`tools/postgres/as_unprivileged.sh`, standalone): 9 of 9 pass. One
+     generated file was stale, `docs/dialect-capability/matrix.tsv` with its README and functions pages: regenerated
+     with the repository's tool (`bazel run //docs:update_dialect_capability`), never by hand -- 16 rows gone, the
+     `FLOAT_PRINT_ENGINE` emulated call on every dialect, which phase 3 (`53cf5b6d`: legend-engine's Float text written
+     by the writer, not by SQL) had deleted from the dialects' tables without regenerating the pages (the local gate
+     had not run since); `//docs:update_dialect_capability_test` passes on the regenerated files. A first run of the
+     whole gate as the unprivileged user filled the disk allowance (386 failures, every one "No space left on
+     device"): the cached download tarballs of repositories already extracted were deleted (4.2 GB), and the gate run
+     as root with only the Postgres targets unprivileged, as docs/CLOUD_SESSIONS.md says.
+   - **Not run: the lanes** (channels A and B per test on Postgres, MariaDB, MySQL, ClickHouse, Trino, H2, BigQuery,
+     Databricks and Snowflake). The six warm lane sessions the start page's §7 lists answer "not found" to
+     `get_session` from this session, and no environment holding the clouds' credentials is visible to it; raising
+     lanes (§7) needs the user's environments. The merge changes nothing those lanes measure (item 1), so their last
+     logs (`e8c341d0`, the engine crossing; `f883d42b`, channel B) stand as the branch's; the merged tree's first
+     run on every OS is S1.6's CI.
+
+## 2026-10-28 — the result boundary program's S1.4: the writers carry, never decide (the `0.00010` fix, the written-precision fact, the two guards, the result register, the nits)
+
+Rule R3 (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` §1), ruled 2026-10-26; the audit found the writers choosing
+spellings by rules of their own, unguarded (`docs/result-boundary-homework/README.md` §1, item 3). The start page's S1.4,
+in its order: item 2, then 1, then 3, then 4. No output spelling moves but the one the user ruled (item 2).
+
+1. **Item 2, the `0.00010` trailing zero (ruled 2026-10-28, "keep the fix, fix the plan wording including adding that we
+   need to fix 0.00010"):** `CellText.pureFloat(double)` lays out `Double.toString`'s exponent form through a
+   `BigDecimal` of that text; the mantissa's one trailing zero (`1.0E-4`) is no digit of the value, so it is stripped
+   before the layout (`stripTrailingZeros`, a representation operation: no rounding). Lite's own outputs (LEAN JSON and
+   CSV) now write `1.0E-4` as `0.0001`, `1.0E-5` as `0.00001`, `-1.0E-4` as `-0.0001`: legend-pure's own text
+   (`CompiledSupport.primitiveToString`'s `DecimalFormat`, measured 2026-10-28, `probes/FloatTextProbe.java.txt`) on
+   every value of that probe. Unchanged: every double whose shortest text has no exponent (`0.001`, `0.1`, a third),
+   `1.0E7` (`10000000.0`), `1.5E15`, `2.5E-7`, the negative zero (`-0.0`, S117), NaN and the infinities; LEGACY
+   (`CellText.engine`, Java's `1.0E-4`); Pure's text inside a query (`FloatCanonText`). Pinned in
+   `ResultWritersTest.aFloatPrintsItsShortestDigitsWithAPoint_neverAnExponent` (eleven values, LEAN JSON's token and
+   LEGACY's beside them). No register row: it restores legend-pure's text.
+2. **Item 1, the written-precision fact:** `ExecutionPlan.Column` carries a fourth fact, `precision`
+   (`ExecutionPlan.Precision`: `WRITTEN`, the cell carries its precision as the value was written -- a literal's
+   spelling, a temporal-text carrier; `DAY`, a DATE slot or a StrictDate column; `INSTANT`, a TIMESTAMP's digits, the
+   written precision lost to the database; null, no temporal of the column's own), set by `ColumnFacts.precision` from
+   the Pure type and the typed slot (`SqlType`), in the precedence the writer's string matches held, so no spelling
+   moves; written and read by the plan format (`PlanJson`, format 16 -> 17, `PlanJsonTest`'s pins; `MirJson` carries no
+   column); copied by the runner's renamed columns (`PlanRunner`), set by the planner's value-root and per-key columns
+   (`PlanMaker`), null on the judges' text column and on every column made for a nested value (`RowDecode.element`,
+   `fields`, `mapSlots`, `tagOf`, `taggedSlot`: the decoders read none, the writers spell a nested temporal by the
+   value's own precision under the parent's fact). The writer reads it: `CellText.pureDate` (WRITTEN as written; DAY
+   as the day for the column's own cell; else Pure's print form by the value), `engineDay` (a day without a time, or a
+   DAY column); `CellText.writtenPrecision` and `CellText.slotWord` deleted. **The decoders keep the slot as their
+   decode instruction**, unchanged: `JdbcDecode`, `RowDecode` and `MongoDbDecode` dispatch on the slot's word because
+   the slot IS the carrier's kind (`LITERAL` parses a spelling of any kind, `TEMPORAL_TEXT` a temporal at the precision
+   written: the parse is the precision-keeping read, not a decision), and `ArchitectureTest.spellingDecodeIsLabelDriven`
+   names those arms as the funnels; the start page's item 1 listed them, and the fact that replaced the writers' matches
+   has nothing to replace there. **One decision stays in the writer, put to the user:** an abstract `Date` at midnight
+   in a TIMESTAMP slot is written as its day in Pure's print form (`CellText.midnight`, legend-engine's formatDateTime
+   rule for a Date; LEGACY writes the timestamp in full since `6811256b`). No fact of the plan or of the value says the
+   value was written as a day, and dropping the rule changes a LEAN spelling (`2026-01-07` to
+   `2026-01-07T00:00:00+0000`), which no session decides alone: kept, registered by name in the guard (item 3), the
+   question in this entry's report.
+3. **Item 3, the guards (approved 2026-10-28, "yes add this to the plan"):**
+   - `ArchitectureTest.writersAreCarriageOnly`: no class of `com.legend.result` depends on a `com.legend` class outside
+     `result`, `executionplan`, `values`, `json`, `base` and `error` (so never, directly, the compiler, the lowering, the SQL tree
+     or a dialect, `exec`, the resolver, the setup, the plan side, the server); true when written, as the Bazel
+     target's deps already said.
+   - `WriterCarriageGuardTest`: the result package's sources, comments and strings stripped, scanned for the vocabulary
+     of value arithmetic and comparison and of conversion between kinds (a number's or a date's `subtract`, `multiply`,
+     `divide`, `compareTo`, `setScale`, `stripTrailingZeros`, `doubleValue`, `longValue`, `getHour` ..., `Math.`,
+     `new BigDecimal(`, `BigDecimal.valueOf`, `Double.parseDouble`, `Double.isFinite` ...); ZERO allowed; what stands
+     registered by file, spelling and count, exact both ways, each with its reason: in `CellText` 32 (the Float's digits,
+     the JSON token's exact value and integral flag, a Float held as a decimal read as its double, the non-finite names,
+     a date's own precision, the instant's trimmed fraction, a day's digits, and the midnight rule's four clock reads,
+     registered pending the user), in `RowDecode` 26 (a decode's carrier reads: a token as the number its slot says, a
+     tagged slot's written digits), none in the other eight files. Its limit, stated in the class: a scan catches
+     drift, not an adversary (bare primitive arithmetic, a `BigDecimal.add` that reads like a list's).
+   - `JavaEvalLedgerTest.RESULT_CLASSES`: the result package a closed register like `exec`, its ten classes each with
+     its tenet argument; a new class there registers consciously.
+4. **Item 4, the phase 3 audit's nits (homework README §9):** `FloatPrintText.ofText`, a pass-through whose function
+   parameter had gone, deleted (its two callers call `print`). Already gone before this step, recorded: `OutputFormat`'s
+   `id` and `contentType` (deleted at `b3311cd6`), `CsvWriter`'s "no CSV wire" text (the same), a REAL narrowed on hosts as
+   `JdbcDecode` narrows it (`RowDecode.floating`, 2026-10-27). Left, with the reason: `PureV1Api.envelope`'s three-way
+   choice of a column's builder type (by the plan's name, by its presented name, a dynamic pivot's by its plan type) is
+   not a writer's decision but the engine envelope's need for the compiler's `Type`, which the plan's column names as
+   text; it goes when the plan carries the type, not with a writer step. Put to the user: the tab prints a Float's
+   negative zero as `0` (`datacube/src/format.ts`, `Intl.NumberFormat` with `signDisplay: 'negative'`; lite's JSON
+   carries `-0.0` since `b944a42e`, the headless grid tags it for Python since `db4ca0fb`): a display spelling change,
+   not built.
+5. **Measured:** locally, on the code commit (this container runs DuckDB, SQLite, H2 and MongoDB):
+   - `//core:core_tests` (all 25 packages), `//core:guardrails` (the two new guards among them),
+     `//core:census` (the result register), `//pct:pct_discipline`: 28 of 28 pass, on the first run.
+   - PCT channel A, all five suites, on DuckDB, SQLite and MongoDB: 15 of 15 exact against their ledgers; the engine
+     crossing counted as at the switch (460 / 64 on DuckDB, 459 / 64 on SQLite and on MongoDB). Expected: neither PCT
+     channel reads lite's own outputs (channel A reads legend-engine's JSON, which item 2 leaves alone), and the
+     precision fact reproduces the writer's spellings exactly (item 2 of this entry).
+   - `//datacube:python_execute_test`: pass (the WebAssembly planner built with the plan format bump; it reads LEAN
+     JSON).
+   - **Not run:** the lanes, channel A (unreachable from this session, as in the S1.0 entry); the local gate (S1.0's
+     ran on the merge commit; S1.6's CI runs it on every OS).
+   - Register: no row. No output spelling moves but the ruled `0.00010` (item 1); the midnight question is the
+     user's (item 2).
+
+## 2026-10-29 — S1.4 corrected under the upstream-fidelity tenet: a relation's timestamp keeps its nine digits, the midnight rule is gone, a value root's minimal digits ledgered (S118)
+
+The user's tenet of 2026-10-29 (AGENTS.md: exactly as legend-pure and legend-engine do, a divergence only where too
+expensive, posted and ledgered) and the user's two corrections of the step's report: a change toward upstream needs no
+asking, and "have you checked pct and core-relational? Are you sure it's always 9 digits expected? I feel like lite
+mostly copied what tests expect". Checked from the pinned sources; the decisions log D4 to D6
+(`docs/result-boundary-homework/DECISIONS_LOG.md`).
+
+1. **What upstream does, read:** legend-pure reads a SQL timestamp with all nine subsecond digits and prints them
+   (`DateFunctions.fromSQLTimestamp` -> `DateWithSubsecond.fromInstant(.., 9)`; its `TestDateFunctions`:
+   `2014-03-10T16:12:35.070004235+0000`, a whole second `...T00:00:00.000000000+0000`); legend-engine's JSON and
+   transformed CSV write the same (`ValueTransformer`, `yyyy-MM-dd'T'HH:mm:ss.nnnnnnnnnZ`); the engine's own
+   `core_relational` tests expect nine digits for database-read timestamps (138 places; three or four digits only in
+   TDS literals and a milestoning constant; a fraction-less `+0000` only in Pure-printed property keys). The PCT
+   relation suite (`core_functions_relation`) asserts THREE digits in 950 places against nine-digit input literals:
+   its harness's `TestTDS` holds a date column as millisecond `java.util.Date`s (`TestTDS.java:209`), so its text is
+   `.SSS` whatever the adapter sends -- lite's deleted `PureTdsText` had copied that; lite's channel A crosses nine
+   digits through the engine JSON and the suite is exact. Neither upstream ever prints a DateTime as its day. The
+   PCT value suites expect the precision written (1 to 9 digits as each test wrote them), which the database loses;
+   `ValueBridge.values` and `JudgePlans.valueLane` trim a timestamp to the precision its digits show and the suites
+   are exact on every lane.
+2. **Built (`CellText.pureDate`, `ColumnFacts.precision`, `PlanColumns.shapeOf`, `ExecutionPlan.Precision.MINIMAL`,
+   plan format 18):** a relation's time-bearing date cell in lite's own outputs (LEAN JSON and CSV) is spelled as
+   legend-engine's TDS spells it, nine fraction digits and `+0000` whatever carried it -- a TIMESTAMP's digits, a
+   literal's text (INSTANT, `PureDateLiteral.toEngineJson`, LEGACY's own spelling): `2024-01-02T10:30:00.500000000+0000`,
+   a midnight `2026-01-07T00:00:00.000000000+0000`, a literal `%2024-01-02T10:30` written into a column
+   `2024-01-02T10:30:00.000000000+0000` -- the writer's trim for relation cells and its midnight rule
+   (`CellText.midnight`, the day alone) deleted; a value root's cell (the VALUE shape: a scalar, a collection's
+   element) stays legend-pure's value, the precision written where the cell carries it (WRITTEN) and the precision
+   its digits show where the database computed it (MINIMAL, `.5+0000`, `T00:00:00+0000`), the value lane's canon kept
+   and now ledgered: register S118. `OutputMatrixTest`'s relation reference follows (`Kind.cell`: two datetime
+   kinds); `PlanMakerTest`'s let-literal and parameter sides now agree (both nine digits). `ValueBridge` reads the
+   WRITTEN fact in place of the slot's spelling (behaviour unchanged; its ledger line 418 -> 417, dated).
+   `WriterCarriageGuardTest`'s register shrinks with the midnight rule: the four clock reads gone, `toInstantFloor`
+   2 -> 1, dated. The host judge's trim (`JudgePlans.valueLane`) keeps its slot match: the judges' canon is track
+   B/C's, measured per lane.
+3. **Not a spelling change needing the user's word** (the user, 2026-10-29): the relation cell moves TO upstream's
+   text. The value root's text is the status quo, ledgered and posted (S118); the user may rule nine digits instead.
+4. **Measured locally** (as root, 2026-10-29): `//core:core_tests` (27 targets), `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`: 28 of 28 pass; the PCT on DuckDB, SQLite and MongoDB (five suites each) and
+   `//pct:pct_discipline`: 16 of 16 pass, every relation crossing through the engine JSON (`[LegendLite PCT] engine
+   JSON:` 524 DuckDB, 523 SQLite, 523 MongoDB; the relation suite 460, 459, 459); `//datacube:python_execute_test`
+   passes. The local gate (`//gates:local`, the Postgres targets unprivileged) has NOT run on any S1.4 commit: it
+   last ran at S1.0's merge commit (the S1.0 entry); it runs with S1.5's code commit (the S1.5 entry below; a
+   sentence here claimed otherwise until the S1.4 audit of 2026-10-29 caught it). The lanes are not reachable from
+   this session (the S1.4 entry, item 5).
+
+## 2026-10-29 — the result boundary program's phases 1 to 4, recorded (S1.5: the entries 2026-10-27's commits never got)
+
+Phases 1 to 4 landed on 2026-10-27 without GATES entries (the homework README §1 found it); this entry records each
+commit's built, deleted and measured, from the commit itself. The lanes' per-test baselines (S1.1, six lane sessions
+against `7b8c89dc` and `b3311cd6`) are in the entry "2026-10-27 — the result boundary program's phase 5, first half",
+item 3.
+
+1. **Phase 1, `51688f36` — typed results end to end (step 1).** Built: `com.legend.result` (`ResultSink`, `Batch`,
+   `Batcher`, `Collector`); `ExecutionPlan.TdsResult.Shape` (RELATION, VALUE, OBJECTS); plan format 12; every root
+   planned as typed rows when no output format is asked (`PlanMaker`); `PlanRunner.stream` and `rows`; SQLite's root
+   decimal NULL kept NULL. Deleted: nothing. Measured: `TypedPlanTest` on every in-process database; `//core:core_tests`,
+   `//core:guardrails`, `//tools/deps:core_layering_test`.
+2. **Phase 2, `12b89c7d` — the writers at the edge (steps 3 and 5's JSON and CSV).** Built: `CellText` (Pure's print
+   forms and legend-engine's JSON tokens), `CsvWriter` (RFC 4180), `JsonRowsWriter`, `PureV1Writer`; `JdbcDecode`
+   keeps a Variant's JSON null. Deleted: nothing. Measured: the five DuckDB PCT suites through both the old wire and
+   the writers, 51 differences (`docs/result-boundary-homework/wire-differences-2026-10-27.tsv`; classified by
+   upstream's answer 2026-10-29, `WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`); `//core:core_tests`,
+   `//core:guardrails`, `//tools/deps:core_layering_test`; the five DuckDB PCT suites.
+3. **Phase 3, `1b0305f7` — the served routes on typed plans (step 3).** Built: `Execution.run` (the one production
+   entry; the sink made before any statement runs); `PureV1Api.Runner` and `engineWriter`; the hosts' plan half
+   (`jsonPlan`, `jsonAnswer`, `HostRows`); `QueryService`'s CSV, JSON and streamed JSON on the writers; Postgres's
+   unbounded Decimal keeps its scale; `PlanMakerTest` and `PostgresArmTest` compare a parameterised plan with the
+   lets-written query through the writers. Deleted: `executeWire`, `executeStreaming`, `executeUpstream`; the
+   register's nine SQLite streamed-JSON rows (ceiling 35 -> 26, dated). Measured: `//core:core_tests`,
+   `//core:guardrails`, `//core:core_tests_architecture`, `//tools/deps:core_layering_test`; the eight Postgres
+   targets (unprivileged); `//datacube:python_execute_test`, `lite_planner_test`, `lite_planner_node_test`,
+   `typecheck_test`; `//wasm:differential_test`; `//python:engine_test`, `bindings_test`, `host_sql_test`.
+4. **Phase 3d, `53cf5b6d` — the database-written wires deleted (step 3).** Deleted: `WireRender` and its `Spelling`;
+   `Render`'s csv/json wires and date texts; `TypedQuery.Output` CSV/JSON/STREAMED_JSON and `wireSql`;
+   `ExecutionPlan.Format` CSV/JSON/JSON_PER_ROW; `KeyedPivot.Out` CSV/JSON; `PlanMaker.wire`, `keyedWire`, `objects`;
+   `Executor.wireText`, `streamWireRows`, `streamGraph`; `SqlFn.FLOAT_PRINT_ENGINE` and its arm in every dialect;
+   Snowflake's `floatPrintEngine`; `FloatPrintText`'s engine layout; `LiteralSpelling`'s engine text block;
+   `DateFmt.JSON_DATETIME`; `server/serial`; `WireRowsTest` (62 files, +412 -1,488). Kept: `lowering.TypedRows`. Plan
+   format 13. Measured: `//core:core_tests`, `//core:guardrails`, `//tools/deps:core_layering_test`,
+   `//core:mongodb_plan_test`; PCT DuckDB x5, channel B x5, H2, SQLite relation, discipline; the Postgres targets
+   unprivileged; datacube `lite_planner(_node)`, `python_execute`; python `engine`; wasm `differential`.
+5. **Phase 4, `b3311cd6` — the PCT reads typed rows; the TDS text path deleted (step 4), with the phase 3 audit's
+   fixes.** Built: the PCT's relation as Pure's TDS text written in Java (`PureTdsText`; deleted again at S1.3 for
+   the engine crossing), a value's elements as the reference's instances (`ValueBridge.values`); `MongoDbDecode`'s
+   tagged cell, computed null and Decimal128 negative zero; `TdsChecker`'s `21d` as a Float; `CellText`'s nested
+   dates, times and floats; the engine envelope built before any statement runs (`ExecutionPlan.answerColumns`);
+   `HostRows` reading JSON-slot and tagged columns as the server does. Deleted: `pct_adapter.pure`'s value-from-text
+   readers, `PctShadowPlan` and its switch, the unused legacy route; `TdsTextWrap`, `KeyedPivot.Out`, `Render`'s
+   tdsText family, `LiteralSpelling`'s text carrier (`pureValueText`, `Layouts`), `ExecutionPlan`'s `TextResult`,
+   `Format`, `ResultType`, `Relation`, `Value`, `Keyed.format`, `Fixed.name`, `TypedQuery.Output`, `PlanRunner.run`
+   (text), `TextSink`, `RowsSink`, `ExecuteOptions.tdsText`, `StatementExecutor.executeTdsText`,
+   `ExecutionResult.TdsText` (59 files, +938 -2,214). Plan format 14. Pins: `testBigFloatAbs` (DuckDB, SQLite) prints
+   the double's shortest digits (register S120, 2026-10-29); arcCos/arcSin's NaN message (DuckDB, MongoDB; register
+   S119); MongoDB's `testAdjustBy{Days,Hours,Minutes,Weeks}BigNumber` unpinned (pass). `PlanMakerTest`'s register
+   26 -> 18. Measured: `//core:core_tests`, `//core:guardrails`, `//tools/deps:core_layering_test`,
+   `//core:mongodb_plan_test`; PCT DuckDB x5, H2, SQLite x5, MongoDB x5, channel B x5, discipline; the Postgres
+   targets unprivileged; datacube `duckdb`, `typed_values` (x3), `values`, `typecheck`, `lite_planner(_node)`,
+   `python_execute`, `wasm_differential`; engine-client `node_duckdb`; python `engine`, `host_sql`; wasm
+   `differential`. The server lanes' NaN and abs pins measured on their lanes at phase 5 (the entry above).
+
+## 2026-10-29 — the result boundary program's S1.5: two moves toward upstream (an hour-only date's zone, a LEGACY NaN cell), the fact-assignment test, the S1.4 audit's findings fixed
+
+S1.5's code commit, after its records commit `3e9e739a` (the 51 writer differences classified by upstream's answer:
+`docs/result-boundary-homework/WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`; the decisions log D12 to D27).
+
+1. **An hour-only date in lite's own outputs has no zone** (D13; G5 of the classification): legend-pure's
+   `DateFormat.append` writes `+0000` inside its minute branch (`TestDateFormat`: `2014-03-10T16` against
+   `2014-03-10T16:12+0000`), legend-engine's `PureDateSerializer` writes `toString()`. `CellText.pureDate`'s WRITTEN
+   arm and its nested arm take the zone from a minute on (`CellText.zoned`); `PureDateLiteral.DateWithHour.toString()`
+   the same (its "H1 toString spec" named no upstream). `1973->date(11, 13, 23)` writes `1973-11-13T23` in LEAN JSON
+   and CSV (it wrote `1973-11-13T23+0000`; the old wire wrote `1973-11-13T23`); the minute form keeps its zone.
+   Pinned: `ResultWritersTest` (the hour and the minute forms), `PureDateLiteralTest.toString_zoneFromAMinuteOn`,
+   `TypeInferenceIntegrationTest.testDateFromHourPrecision` (its pin moved from lite's text to legend-pure's).
+2. **A LEGACY TDS cell holding a NaN or infinite Float is `null`** (D14; G7): legend-engine's relational JSON runs a
+   Float column's transformer (the identity, `SetImplTransformers.buildTransformer`) then
+   `ExecutionResultObjectMapperFactory.convertPurePrimitiveToJson`, which writes `null` for `isNaN` or `isInfinite`;
+   phase 2 wrote the name in a string, naming the engine without reading it. `CellText.engineCell`; a nested double
+   keeps the quoted name (the JSON library's form, unmeasured; the engine-runner probe queued, D27). LEAN's NaN is the
+   user's (register S119, pending; recommended: refuse as legend-pure does). Pinned: `ResultWritersTest.engineTokens`.
+3. **The precision fact's assignment pinned**: `ColumnFactsTest`, a table over (type, slot, shape) -- the S1.4 audit's
+   finding 12 (the five spellings were pinned, the rule that picks them was not).
+4. **The S1.4 audit** (an independent agent, read-only, 16 findings; the decisions log D23): its two divergences are
+   items 1 and 2; its record inconsistencies fixed here (the GATES sentence of 2026-10-29 that claimed the local gate
+   ran on an S1.4 commit -- it had last run at S1.0's merge commit; the start page's §0, §2, §3, §12 and S1.6; IN_FLIGHT;
+   D4's `over.pure`; the README's three-digit count; register S118's example; the "never the SQL tree" claim of the
+   2026-10-28 entry, now "directly"); two writer choices written into `CellText.pureDate`'s javadoc (D26); the year
+   spelling `yyyy` against lite's `%d` recorded as an open finding (D24, track F); `PlanColumns`' dangling javadoc merged.
+   What it found sound: the writers read one typed fact and no slot spelling; the scan register matches the code
+   exactly; every guard pin moved with a dated note; D4 and D5 hold against the pinned sources.
+5. **Measured locally** (as root; the Postgres targets as the unprivileged user, `tools/postgres/as_unprivileged.sh`,
+   standalone): `//core:guardrails` green at this commit; the local gate (`--lockfile_mode=error //gates:local`), the
+   nine Postgres targets, PCT channel A on DuckDB, SQLite and MongoDB and `//datacube:python_execute_test` were
+   running when this commit was made (the stop hook asks for a commit at every pause): their results are the entry
+   that follows this one, before the draft PR opens.
+6. **Not measured:** the lanes (not reachable from this session: the S1.4 entry, item 5). The next lane measurement is
+   the draft PR's CI (S1.6) and track B's per-lane channel B.
+
+## 2026-10-29 — S1.5's gate, measured at d314455a
+
+The chain the S1.5 entry above names, run as root in the cloud container (docs/CLOUD_SESSIONS.md), after the commit:
+- `bazel test //core:guardrails`: pass (the `Double.isFinite` register 3 -> 4, dated).
+- `bazel test --lockfile_mode=error --keep_going //gates:local`: 446 targets, 436 pass, 1 skipped
+  (`//tools/guards:classpath_test`, arm64-only), 9 fail as root -- the eight `//core:*postgres*` tests and
+  `//datacube:verify_app_test`, whose `initdb` refuses root; re-run as the unprivileged user
+  (`tools/postgres/as_unprivileged.sh ubuntu`, `--strategy=TestRunner=standalone`): 9 of 9 pass. The lock check
+  passes (`--lockfile_mode=error`).
+- PCT channel A, DuckDB, SQLite and MongoDB, five suites each, and `//pct:pct_discipline`: 16 of 16 pass; every
+  relation crossing through the engine JSON (`[LegendLite PCT] engine JSON:`, total/relation suite): duckdb 524/460; sqlite 523/459; mongodb 523/459;
+- `bazel test //datacube:python_execute_test` (the native library and the WebAssembly planner; it reads LEAN JSON):
+  pass.
+Not measured: the lanes (the S1.4 entry, item 5). Next: S1.6's draft PR, the first CI on every OS since phase 1.
+
+## 2026-10-29 — S1.6: the result boundary branch's draft PR opened (PR #80), the first CI on every OS since phase 1
+
+`https://github.com/neema2/legend-lite/pull/80`, head `a0fe9d21`, base `main` (`9de4d3a8`), 30 commits, DRAFT: CI runs
+on Linux, macOS, Windows and arm, the corpus lanes and the product build, which the local gate does not cover (the
+2026-10-26 incident). Opened under the user's "keep going all the way until done with whole program" (the decisions log
+D11; a draft PR is not a merge; the merge is the user's). The session is subscribed to the PR's events; CI's results
+are recorded here as they land, red fixed before anything else.
+
+## 2026-10-29 — track B, B1a: the body driver's schema probes, seeds and static pivot on the session seam; the S1.5 audit's findings fixed
+
+The result boundary program's track B (the start page §4, its track B block: the design D29, the Java residue D30),
+first commit (the decisions log D33). The body driver sends nothing through JDBC of its own for its three schema
+probes, its seeds and its static pivot: the session seam (`exec/Statements`) answers them.
+
+1. **The seam.** `Statements.columns(statement)`: the statement RUN for its columns (the probes' `LIMIT 0` way, proven on
+   every lane; no row read); `Statements.describe(statement)`: the prepared statement's metadata, none where the driver
+   withholds it (the wire-type reader's prepare since leg 3.3, kept exactly so the judges' traffic does not change:
+   `ExecuteInDbProbeCountTest` counts it); `Statements.load(rows)`: the database's bulk loader where it has one. The
+   JDBC session implements the three; a MongoDB session refuses each by name (its schema probes are not designed; its
+   databases are the connector's own). `PlanSessions.statementsOf(connection, trace)` gives a caller's connection's
+   statements to a reader that holds no plan.
+2. **Through it:** `ColumnProbe.probe` (a deferred relation's columns), `GridProbe.probeColumns`/`probeNames`/
+   `probeTypedColumns` (a raw grid's roster, the resolver's referee), `WireTypes.staticized`/`reconcile` (a late-bound
+   grid's and a wire-decided kind's reported types, `describe`), `SetupRunner.run`/`send`/`load` (a context's declared
+   seeds, the system database's rows, `Execution`'s session setup), `DynamicPivot.staticize` (a static pivot's keys read
+   as TYPED rows through a `KeyReader` the body driver gives -- `PlanRunner.rows` on the body's session, the key's
+   literal from the typed decode; a key the lowering did not type, `Column.physical`, typed by the database's report
+   through `columns`). The body driver: `ExecEnv.statements()`, `gridReferee(env)`, `keyReader(env)`,
+   `lowerAndPrepare` without its connection parameter; `JudgePlans.tabular`'s late-bound grid the same.
+3. **Guards, dated:** the JDBC surface census loses `SetupRunner`, `GridProbe`, `ColumnProbe` and `DynamicPivot` (they
+   hold no JDBC); the ledger re-pins `StatementExecutor` 2316 -> 2313, `GridProbe` 53 -> 46, `DynamicPivot` 112 -> 111.
+   `WireTypesTest`, `RowLoadDuckDbTest`, `RowLoadH2Test`, `DynamicPivotKeyLiteralH2Test` and `PlanMakerTest` go through
+   the seam.
+4. **The S1.5 audit's findings** (an independent agent, 11 findings; the decisions log D31): G2 and D16 restated for
+   legend-pure's two runtimes (the interpreter's `@_` and a counter, compiled's `Anonymous_StripedId`); the user's
+   words of 2026-10-29 in the start page's §10 verbatim with their three readings (D32); three more hour-on zone sites
+   named in D18 and register S121 (pending: the four standing divergences); 30 -> 29 corrections, six questions; G4's
+   and G10's breakdowns; S119's and S120's lane texts; D26 restated to Pure's text path (the JSON path's nested dates
+   are D9's); the three date records' javadoc citations; a `ColumnFactsTest` pin for the carrier-before-type order.
+5. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//core:core_tests`, `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
+   `//gates:corpus_h2` 12 of 12 (the rosters unchanged); the PCT lanes (channel B x5 on DuckDB, H2, channel A x5 on
+   DuckDB, SQLite and MongoDB), the nine Postgres targets and `//datacube:python_execute_test` were running when this
+   commit was made (the stop hook asks for a commit at every pause): their results in the entry that follows.
+6. **Not measured:** the lanes (the S1.4 entry, item 5); what the lanes must measure when they can (D33): a pivot key's
+   literal now comes from the typed decode, and the reported-type probe for an untyped key is a statement the pivot did
+   not send before. Not yet (B1b): the `Connection` in `ExecEnv` and `WrappedSide`, `ESTABLISHED`, `wireMemo`,
+   `SystemDatabase.Route`, the transaction bracket, the test-data generator; the `java.sql` guard on the driver and the
+   judges.
+
+## 2026-10-29 — B1a's gate, measured at df91f816
+
+The chain the B1a entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(channel B x5 on DuckDB, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB); the nine Postgres targets as the
+unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4 entry, item 5);
+D33 names what they measure when they can.
+
+## 2026-10-29 — `main` merged into the result boundary branch a second time (PR #79, the flow mode); the boundary and the host plan runner on the typed plan; PR #80's red lanes
+
+PR #80's first CI runs (at `a0fe9d21`, `3dfe0a00` and `df91f816`) were red on every lane that builds
+`//wasm:boundary` -- core, product, warehouse, ui, datacube and parser_equivalence on Linux, macOS, Windows and arm --
+and green on the rest (the PCT lanes, channel B, the corpus rosters, checks, stress, sdlc). The PR's MERGE commit
+failed to compile, not its head: `main` had moved 14 commits past the branch's last merge (369bb176; PR #79, the flow
+mode, 104 files), and its `Boundary.executionPlanJsonHeld` calls `TypedQuery.executionPlan(runtime, Output.JSON)`,
+deleted by phase 4 (`b3311cd6`). Commented on the PR (2026-10-29), then:
+
+1. **The merge** (`8a7e4f7f`): `origin/main` at `9de4d3a8` merged with a merge commit, both sides kept, no conflict
+   (main's changes are the tab, the engine client, Python's page and the docs; none to `core/`).
+2. **The fix** (the decisions log D34): the boundary's export plans the typed plan (`executionPlan(runtime)`, format
+   18); main's host plan runner (`engine-client/src/plan-runner.ts`: the tab's and the headless Python page's runner for
+   a write's plan) reads the plan's `tdsResult` of typed columns and writes its rows as lite's JSON rows (one object per
+   row keyed by the plan's column names, `[{"value": 2}]`: what `JsonRowsWriter` writes for the same rows) for an
+   integer, text, boolean or null cell, refusing any other cell by name (the planner's to spell, `executeAnswer`); its
+   test (`//engine-client:plan_runner_test`) pins version 18 and the `tdsResult`; the tab's planner client comment
+   follows.
+3. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//wasm:boundary`, `//native:compiler`
+   and `//wasm:planner_dir` build; the rest of the chain (`//engine-client:plan_runner_test`, `//wasm:round_trip_test`,
+   `//pure-protocol:twins_test`, `//datacube:wasm_differential_test`; `--lockfile_mode=error //gates:local` with
+   `//gates:parser_equivalence`; the nine Postgres targets) was running when this commit was made (the stop hook asks
+   for a commit at every pause): its results in the entry that follows, and CI's on the PR.
+4. **Not measured:** the lanes; CI on PR #80 is the merge's first run on every OS.
+
+## 2026-10-29 — the second merge's gate recorded (f4ce65b2): the boundary chain, the local gate with the parser-equivalence lane, the Postgres targets unprivileged, all green
+
+The chain the entry above left running (as root; the Postgres targets as the unprivileged user,
+docs/CLOUD_SESSIONS.md), at `f4ce65b2` with nothing uncommitted: `//wasm:boundary`, `//native:compiler`,
+`//wasm:planner_dir` build; `//engine-client:plan_runner_test`, `//wasm:round_trip_test`, `//pure-protocol:twins_test`,
+`//datacube:wasm_differential_test` 4 of 4; `bazel test --lockfile_mode=error //gates:local //gates:parser_equivalence`
+454 targets: 444 pass, 1 skipped (`//tools/guards:classpath_test`, arm64-only), 9 refused as root (the eight
+`*_postgres_test` targets and `//datacube:verify_app_test`, which starts its own Postgres 16) and 9 of 9 passing
+unprivileged. CI on PR #80 at `f4ce65b2` (run 40812138733): the lanes that were red (the `//wasm:boundary` builders on
+Linux, macOS, Windows and arm) green where finished at the time of this entry; the run's result on the PR.
+
+## 2026-10-29 — track B, B1b: the Connection leaves the body driver, the judges, the verdict batch, the referee's SPI and the generator's natives
+
+The result boundary program's track B, second commit (the start page §4, its track B block, B1 (b); the decisions log
+D35). After B1a the body driver sent nothing itself; after B1b it HOLDS no `java.sql.Connection` either: a
+`Sessions.Session`, reached only through the seam.
+
+1. **The seam.** `Sessions.Session.statements(trace)` (the driver's statements, each query's stamp to the body's
+   trace), `state()` (`SessionState`, new: the seeds established by their sources, the database's reported column
+   types per statement, the write mark -- the driver's `ESTABLISHED` map, moved; keyed weakly by the connection, so a
+   shared lane's connection keeps one state however often it is wrapped), `version()` (the judges' plan target);
+   `Statements.ownsTransaction()` (the effect script's bracket); `PlanSessions.of(session, trace)` (a plan run on the
+   body's session; `given(connection, trace)` deleted) and `PlanSessions.session(connection)` (the front door's wrap).
+   MongoDB refuses traced statements and the transaction mark by name.
+2. **Through it:** `ExecEnv.session`, `withSession`, `WrappedSide.session`, the transaction bracket and the effect
+   script's bracket, the established state, the wire memo, the write mark; `SystemDatabase.Route.session` (one
+   session object per engine, so the judge's identity compare of two sides holds); `VerdictBatch` groups deferred
+   verdicts by session; `SqlReplayReferee`'s five verify methods take the session (`ReplayReferee` in the harness
+   reads `session.connection()` where it runs JDBC); `TestDataGenerator.generate` and `seedDataString` take the
+   session, their `SQLException` a `DataError` at the generator's own door; `DatabaseJudge`, `JudgePlans`,
+   `BodyCompiler`, `SqlTextVerdicts` read `session()`. `Execution` is the one JDBC-aware caller. Three unused
+   `Connection` locals deleted.
+3. **Guards, dated:** `ArchitectureTest.rootJavaSqlSurfaceIsPinned` shrinks to `{Execution}`;
+   `ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc` (new) pins `StatementExecutor`, `BodyCompiler`, `HostJudge`,
+   `DatabaseJudge`, `JudgePlans`, `AssertVerdicts`, `SqlTextVerdicts`, `AgreementArm`, `VerdictArm`, `CsvLoad`,
+   `SeedSqlForms`, `AssertErrorNative`, `TestDataGenerationNatives` to no `java.sql` and no driver API; the JDBC
+   census loses `StatementExecutor`, `exec/VerdictBatch`, `testdatagen/TestDataGenerationNatives`; the ledger re-pins
+   `StatementExecutor` 2313 -> 2290; `SessionState.OF` registered as static state, `SessionState.dirty` as a mutable
+   field, `SessionState.java` in the funnel register and the JDBC census (it holds the key's type, sends nothing). `TenetRatchetTest` unchanged (the three files leaving the `java.sql` set held no
+   accessor spelling).
+4. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//core:guardrails`, `//core:census`, `//pct:pct_discipline` pass; the rest of the
+   chain (`//core:core_tests`, `//core:mongodb_plan_test`; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
+   `//gates:corpus_h2`; the 21 PCT targets; the nine Postgres targets unprivileged; `//datacube:python_execute_test`)
+   running as this commit is made (the stop hook asks for a commit at every pause): its results in the entry that
+   follows.
+5. **Not measured:** the lanes (the S1.4 entry, item 5). Not yet (B3): the judges' typed sides; (B2)
+   `Execution.runProgram`; (B4, D30) the generator's fold on the seam.
+
+## 2026-10-29 — B1b's gate, measured at 6cf0e83b; the B1b audit
+
+The chain the B1b entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(channel B x5 on DuckDB, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB); the nine Postgres targets as the
+unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4 entry, item 5).
+
+The B1b audit (an independent agent, read-only against `6cf0e83b` and the pinned sources; the decisions log D38):
+every behavior question CONFIRMED with file:line evidence (the established state's key and logic, the two sides'
+identity compare, the transaction brackets, the trace on every send, the system route's seeding, the version read, the
+generator's door, the MongoDB refusals, the guards' dated notes, the ledger's 2290 reproduced exactly, the records'
+counts and names); two cosmetic findings (a dangling javadoc link in `PlanSessions.statementsOf`, a stale "ambient
+connection" comment in the driver) and one guard limit (an ArchUnit dependency rule cannot see a `.connection()` call
+chained into a `com.legend` callee) fixed with B2's commit: the spelling pinned at zero over the thirteen files
+(`JavaEvalLedgerTest.theBodyDriverSpellsNoConnection`), and MongoDB's `version()` refused by name.
+
+## 2026-10-29 — track B, B2: one entry for a program, `Execution.runProgram`; the old door's entries shims over it; the B1b audit's findings fixed
+
+The result boundary program's track B, third commit (the start page §4, its track B block, B2; the decisions log D36
+to D38). The order changed first (D36): B3, the judges' typed side, is track D's rename, after C and T remove
+`ExecutionResult`'s two other roles; B2 follows B1b directly.
+
+1. **The entry.** `Execution.runProgram(TypedQuery, runtimeFqn, Sessions.Source, AssertListener, SqlReplayReferee,
+   ExecuteOptions) -> ProgramReport(last)`: a test body typed once (`Compiler.query` / `queryResolved`), run by the body
+   driver on the session the source opens for the runtime's target (checked against the declared database, the dialect
+   refined by the server's version, the session setup run once: `dialectOf`), every assert's verdict reported to the
+   listener as it is judged, the SQL-text referee consulted where an assert carries a golden text, nothing materialized
+   returned but the last statement's side (for the service test runner's serializer, track C; typed as the judges'
+   sides are, `ExecutionResult`, renamed at D). The session is closed when the program ends (the source's lease).
+2. **The driver typed once.** `StatementExecutor.execute(TypedQuery, ...)`: the typed body and the spec compiler that
+   typed it (`TypedQuery.body()`, `specs()`, the new package-private `resolved()` for a parameterless lambda's protocol
+   statements); the three resolved-AST overloads deleted. The old door's five rewritten entries (`Execution.executeResolved`
+   x4, `execute(model, query, runtime, Source, options)`; its four `execute(..., Connection, ...)` entries reach them
+   through the 7-arg `executeResolved`, as before) are shims: `runProgram(Compiler.queryResolved(ctx, resolved),
+   runtime, PlanSessions.session(connection), ...)` returning `last()`; track D deletes them with their callers
+   (tracks C and T move the callers).
+3. **The B1b audit's findings** (D38): the dangling `{@link #given(Connection, ExecutionTrace)}` in
+   `PlanSessions.statementsOf`; the driver's stale "ONE ambient connection" comment; the guard limit closed by
+   `JavaEvalLedgerTest.theBodyDriverSpellsNoConnection` (the `.connection()` and `java.sql.` spellings at zero over the
+   thirteen session-only files, comment-stripped: an ArchUnit dependency rule cannot see a `.connection()` call chained
+   into a `com.legend` callee); `MongoDbSession.version()` refused by name.
+4. **Guards, dated:** the ledger re-pins `StatementExecutor` 2290 -> 2273; the new spelling pin (a new guard, named).
+5. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline` pass; the rest of the chain (`//core:core_tests`, `//core:mongodb_plan_test`;
+   `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`; the 21 PCT targets; the nine Postgres targets
+   unprivileged; `//datacube:python_execute_test`) running as this commit is made: its results in the entry that
+   follows.
+6. **Not measured:** the lanes (the S1.4 entry, item 5). Next: track C.
+
+## 2026-10-29 — B2's gate, measured at cda191e8
+
+The chain the B2 entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(channel B x5 on DuckDB, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB); the nine Postgres targets as the
+unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4 entry, item 5).
+The B2 audit: the entry "the B2 audit recorded" (3374f533) and the decisions log D40.
+
+## 2026-10-29 — track C: the corpus runner, the service test runner and channel B on `Execution.runProgram`
+
+The result boundary program's track C (the start page §4, its track C block; the decisions log D39), one commit after
+B2. `PureTestRunner` (the bodies with their listener and referee; the setups and fixtures through `runFixture`),
+`ServiceTestRunner` (the test's body; its last statement's side, `ProgramReport.last`, serialized as before) and
+`pct/.../channelb/ChannelB` enter through `Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtime,
+Sessions.given(connection), listener, referee, options)`: the body typed once, the session the caller's (checked
+against the runtime's declared database as the old door checked it), nothing materialized returned to the corpus
+runner or channel B. Two stale javadoc links (`Compiler#executeResolved`) now name `Execution#runProgram`. (CORRECTED 2026-10-29 by the
+track C audit, D41: this entry and the commit message said the start page's §2 named a `testing/Rows.java` that does
+not exist; it exists, `testing/src/main/java/com/legend/testing/Rows.java` in the `//testing` module, an old-door
+helper with 23 call sites in seven of core's test files, and the §2 row is restored.) The referee keeps reading
+`ExecutionResult` as the judges' side until D renames it (D36). Nothing else changed: the plan path program's step 10
+(the 2,798 bodies through plan sequences, both judges) is this entry.
+
+1. **Measured locally** (as root; the Postgres targets as the unprivileged user): `//core:guardrails`, `//core:census` pass and `//core:core`, `//pct:pct_channel_b_essential` build; the rest of
+   the chain (`//core:core_tests`, `//pct:pct_discipline`, `//core:mongodb_plan_test`; `//spec:judge_lanes`,
+   `//gates:corpus_duckdb`, `//gates:corpus_h2`; the 21 PCT targets; the nine Postgres targets unprivileged;
+   `//datacube:python_execute_test`) running as this commit is made: its results in the entry that follows.
+2. **Not measured:** the lanes (the S1.4 entry, item 5). The old door's remaining callers: core's tests (track T,
+   next) and `QueryService`'s three materialized `execute`s (track D).
+
+## 2026-10-29 — track C's gate, measured at 643f1bbe; the track C audit
+
+The chain the track C entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(channel B x5 on DuckDB identical, `//pct:pct_h2`, channel A x5 on DuckDB, SQLite and MongoDB exact); the nine Postgres
+targets as the unprivileged user 9 of 9; `//datacube:python_execute_test` passes. Not measured: the lanes (the S1.4
+entry, item 5). The track C audit: the entry "the track C audit recorded" (33737fa2) and the decisions log D41. CI on
+PR #80 at `643f1bbe` (run 40818308003): `windows / parser_equivalence` died at Bazel's repository fetch (Maven Central
+403 on two pinned jars, before any test; commented on the PR), the run then superseded by the records push.
+
+## 2026-10-29 — track T, T-a: the LEAN reader; `AbstractDatabaseTest`, `CheckerResults` and the 28 subclasses on it
+
+The result boundary program's track T, first commit (the start page §4, its track T block; the decisions log D42; the
+ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`). The user's ruling (2026-10-28): the same
+queries and logic, judged on lite's own LEAN output.
+
+1. **The reader** (`core/src/test/java/com/legend/testing/Lean.java`, test code): `Lean.run(model, query, runtime,
+   connection)` runs the product's own route (`Execution.run`: plan, the plan's runner, `JsonRowsWriter`) and reads the
+   JSON back as a typed client does -- the columns the runner handed the writer (captured by the sink: a keyed plan's
+   exist only once its keys ran), each row's key the column's presented name (the writer's spelling), each cell decoded
+   by the product's own row decoder (`RowDecode.cell`; a tagged column by its declared type). `Result`: `shape()`,
+   `columns()` (name, Pure type, multiplicity), `rows()` (lists of cells), `rowCount()`, `one()`, `values()`, `json()`.
+2. **On it:** `AbstractDatabaseTest.executeRelation`/`executePureQuery`, `CheckerResults.collect`/`columnIndex`; the
+   28 subclasses rewritten mechanically (two passes; the forms `asCollection().values()`, `returnType().typeName()`,
+   `asGraph().json()`, `Row`, the service's materialized `execute`); `ExecutionResultIntegrationTest` rewritten from
+   the old door's variants to the answer's shapes and column types.
+3. **Measured locally** (as root): `//core:core_tests_integration` 2,232 of 2,232 (the first run on the reader
+   failed 42: 26 keyed-plan refusals, 5 presented-name misses, 11 date carriers; the second 10: the tagged column;
+   the third none -- each class a reader rule, no expectation moved); `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline` pass. The rest of the per-commit chain (`//core:core_tests`, `//core:mongodb_plan_test`;
+   `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`; the 21 PCT targets; the nine Postgres targets
+   unprivileged; `//datacube:python_execute_test`) running as this commit is made: its results in the entry that
+   follows.
+4. **Not measured:** the lanes. Left on the old door in core's tests: 174 call sites in 115 files (T-b, T-c, T-d).
+
+## 2026-10-29 — T-a's gate, measured at 39a2a657
+
+The chain the T-a entry above names, run as root in the cloud container after the commit: `//core:core_tests`,
+`//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`,
+`//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters unchanged, both judges); the PCT lanes 21 of 21
+(cached: no PCT input changed); the nine Postgres targets as the unprivileged user 9 of 9 (cached: the test sources
+they hold did not change); `//datacube:python_execute_test` passes (cached). Not measured: the lanes (the S1.4 entry,
+item 5).
+
+## 2026-10-29 — Track T, T-b: the integration package's remaining 31 files on the twin; `Program`; a plan-path bug fixed
+
+The result boundary program's track T, second batch (docs/RESULT_BOUNDARY_START_HERE.md, track T; the decisions log
+D44; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, batch T-b).
+
+1. **Built:** the integration package's remaining 31 direct callers of the old door on `Lean.run` (mechanical, the
+   T-a forms plus four); six files whose bodies only the program entry runs (the four metamodel-store files, the DDL
+   natives, a staged let) on `testing/Program.java` (new: `Execution.runProgram`, the verdicts in order, the last
+   side read through `Lean.of`); two reader rules (a Variant cell is the string token's value; the view's
+   `Scalar(null)` is zero rows). **In main:** `lowering/TypedRows.flat` (a row-struct column flattened to the columns
+   the statement answers, the lowering's `outputsOf` rule) applied by `TypedRows.schema`; `JudgePlans`' private
+   flatten deleted; `plan/PlanColumns.of(ExprType, SqlQuery)` deleted (`TypedQuery.plan` takes `TypedRows.schema`);
+   `executionplan/ColumnFacts`' tolerance for an unflattened struct column deleted (invariant 4).
+2. **Measured locally** (as root): `//core:core_tests_integration` 2,232 of 2,232 (the first T-b run failed 6: the
+   navigate root, a plan-path defect fixed in main; three empty optional values, the view's rule; two Variant cells,
+   the reader's rule 4 -- the ledger names each test); `//core:core_tests_testing` 5 of 5; the guard group
+   `//core:core_tests`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test` 29
+   of 29. The rest of the per-commit chain (`//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`; the
+   21 PCT targets; the nine Postgres targets unprivileged; `//datacube:python_execute_test`) runs as this commit is
+   made: its results in the entry that follows.
+3. **Not measured:** the lanes. Left on the old door in core's tests: 85 files, 149 lines by the ledger's counting
+   rule (T-b2 the other packages, T-c the helpers and the parity-lane files, T-d the compile-only tests and the
+   per-lane targets).
+
+## 2026-10-29 — T-b's gate, measured at 9ca7482f: RED on one target that did not build; the rest green
+
+The chain the T-b entry above names, run as root in the cloud container after the commit, and CI on PR
+neema2/legend-lite#80 at the same head:
+
+1. **Green:** `//core:core_tests`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`,
+   `//core:mongodb_plan_test` 29 of 29; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the
+   rosters regenerated and unchanged, both judges); the PCT lanes 21 of 21 (channel B x5 on DuckDB, `//pct:pct_h2`,
+   channel A x5 on DuckDB, SQLite and MongoDB: every one re-run, the main code having changed); eight of the nine
+   Postgres targets as the unprivileged user; `//datacube:python_execute_test`.
+2. **Red:** `//core:store_writes_postgres_test` FAILED TO BUILD, locally and in CI (`linux / core`, `windows / core`
+   on the PR): `SqlWritesExecutionTest` and `StoreWritesExecutionTest`, rewritten onto `Lean.run` in T-b, are compiled by
+   that target's own `srcs` with `:core` and `:test_backends` as deps, where `testing/Lean.java` lived in
+   `core_tests_lib`'s glob alone. The local gate did not catch it: the Postgres targets run in the chain's last group,
+   after the commit (the T-a pattern). Fixed with T-b2 (the entry that follows): the twin's reader joins `:test_cases`,
+   the helpers library every per-lane target depends on, and that target depends on it.
+3. **Not measured:** the lanes.
+
+## 2026-10-29 — Track T, T-b2 and T-c: the other packages, the parity harnesses and lanes on the twin; two product bugs fixed
+
+The result boundary program's track T, third and fourth batches (docs/RESULT_BOUNDARY_START_HERE.md, track T; the
+decisions log D45, D46; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, batch T-b2 and T-c).
+
+1. **Built:** the root, exec, lowering, resolver, compiler, normalizer, sql/dialect and server packages (68 test files),
+   the six integration files the first counting rule missed (D45), the parity harnesses (`SqlParity.grid`,
+   `CypherParity.Lane`, `CypherValues`, `IqParity`, `ReservedNames`, `SqlStressOnPostgres`) and their eleven lane
+   tests (SQL, Cypher, IQ, the regress corpus, the island on Postgres, the arm, the connection leases, the project
+   rows) on the twin's reader; `Lean.value()`, `Lean.service`, `Lean.established`; `Program` typed as the old door
+   types, `Program.last(..., options)`; `JudgesOnPlansTest` through `Execution.runProgram`. **In main:**
+   `json/.../Json.java` (a float token's double from the token: negative zero kept), `result/RowDecode.java` and
+   `result/CellText.java` (an object's identity fields the writer dropped are not read back as null properties),
+   `server/QueryService.java` (`execute(model, query, runtime, sinkOf)`, the route the format door rides),
+   `lowering/TypedRows.java` (a slot column optional), `PlanMaker.java` and `JudgePlans.java` (the keyed route's schema
+   flattened), `executionplan/ColumnFacts.java` (javadoc). **Bazel:** `testing/Lean.java` and `testing/Program.java`
+   in `:test_cases`; `:store_writes_postgres_test` depends on it (T-b's gate).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`,
+   `//core:sql_parity_test`, `//core:cypher_parity_test`, `//core:cypher_parity_native_test`, `//core:iq_parity_test`
+   34 of 34 (the first runs failed 16 tests in four core packages and the three Cypher lanes' negative-zero cases: the
+   ledger names each and its rule or fix); the nine Postgres targets 9 of 9.
+   Then `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters regenerated and
+   unchanged, both judges); the PCT lanes 21 of 21 (every one re-run); `//datacube:python_execute_test` passes. The
+   whole per-commit chain green BEFORE the commit this time (T-b's gate ran its last group after, and missed a build
+   failure).
+3. **Not measured:** the lanes.
+
+## 2026-10-29 — Track T, T-d: the twin's lanes (SQLite, H2) held to their floors; the T-b2/T-c audit's fixes
+
+The result boundary program's track T, last batch but Arrow's (docs/RESULT_BOUNDARY_START_HERE.md, track T; the
+decisions log D47; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, batch T-d).
+
+1. **Built:** `testing/LaneFloor` (a JUnit extension on `AbstractDatabaseTest`: the lane by `-Dlegend.test.lane`, the
+   run held to the lane's recorded floor `src/test/resources/lanes/<lane>.txt`, which only shrinks; a floored test
+   whose set-up fails is not run: its invocation skipped, said in the log); `//core:core_tests_integration_sqlite` and `_h2`, the suite `//core:core_tests_lanes`
+   in `//gates:core`; the backend's own session set-up (`TestBackend.sessionSetUp`: DuckDB's UTC statement, named by its
+   owner alone -- the census's `DialectLeakRatchetTest` caught the two tests that named the database themselves); four
+   harness assumptions in the integration tests corrected, no value moved; the T-b2/T-c audit's fixes (the records'
+   7-files-21-lines, the tiling of the 94 files, the 16 first-run failures all named; a display name restored, unused
+   imports, the cast rewrite's parentheses, the lease test's vacuous assertion, `SqlParity.grid`'s count arm,
+   `JdbcDecode`'s struct loop on the identity-field rule, a `//json` pin of negative zero; the audit's finding 12, the
+   writer's token node holding a BigDecimal's double, stays: the writer emits the token text and nothing compares the
+   node, and the writer-carriage guard refuses a `Double.parseDouble` in a writer by design). No MongoDB lane (the
+   base opens a JDBC session; MongoDB has none).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests` (the platform's integration run 2,232 of 2,232), `//core:core_tests_lanes` (sqlite 2,232 with 15
+   on its floor; h2 2,232 with 169 -- the floors as T-d measured them, over the base class's subclasses alone: the T-d
+   audit, corrected in T-d2), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four
+   DuckDB parity lanes 36 of 36; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
+   `//gates:corpus_h2` 12 of 12; the 21 PCT lanes 21 of 21; `//datacube:python_execute_test` passes; the product
+   job's guard (`tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)`) empty. Two guards caught drift
+   on the way: `DialectLeakRatchetTest` (a database named by two tests themselves: moved into its owner,
+   `TestBackend.sessionSetUp`) and `WriterCarriageGuardTest` (a `Double.parseDouble` in a writer: reverted).
+3. **Not measured:** the lanes.
+
+## 2026-10-29 — Track D: the old door deleted; `ExecutionResult` is `TypedSide`, `StatementExecutor` is `BodyDriver`
+
+The result boundary program's track D (docs/RESULT_BOUNDARY_START_HERE.md, track D; the decisions log D48; the plan
+path program's step 11, its status noted there).
+
+1. **Built:** `Execution.execute` (five overloads), `Execution.executeResolved` (four) and the query service's three
+   materialized `execute` entries deleted; `exec/ExecutionResult` renamed `exec/TypedSide` (the judges' collected side,
+   39 files; counted 2026-10-29 at T-d2 as the files the two track D commits changed that named it -- at
+   `132a4ff2`, 114 more, history and records, keep the old name; 113 at `e767c57b`); `StatementExecutor` renamed
+   `BodyDriver` (42 files by the same count; 167 keep it at `132a4ff2`, 170 at `e767c57b`, which restores the name in
+   five guard files' history notes; `tools/native-axes.py`, a BUILD comment); the guards'
+   entries moved with dated notes (`JavaEvalLedgerTest`'s carriage register and the body driver's path pin at the same
+   count, 2273; `ArchitectureTest`'s exec register; `ErrorShapeGuardrailTest`); the one materialized-execute call the
+   compiler found (`DuckDBIntegrationTest`, the service's qualified name across a line break) moved to `Lean.run`;
+   AGENTS.md (step K, the entry-point table, the body-driver sentence, the layer table) and core/README.md (step K,
+   the sealed list) corrected. `python3 -I docs/result-boundary-homework/probes/oldpath_census.py.txt` reads zero for
+   every step-7 symbol.
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests`, `//core:core_tests_lanes`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline`,
+   `//core:mongodb_plan_test`, the four DuckDB parity lanes 36 of 36; the nine Postgres targets 9 of 9;
+   `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12; the 21 PCT lanes 21 of 21;
+   `//datacube:python_execute_test` passes; the product job's unlaned-tests guard empty.
+3. **Not measured:** CI's lanes.
+4. **Commits:** `6f4f654b` (the deletions and the renames) missed four renamed files (`spec/`, `pct/`, `core/README.md`),
+   completed by `132a4ff2`; the generated claims register (`native-claims.tsv`, whose rows name `BodyDriver` now) was
+   not regenerated with them, so `//:generated` was red on both: regenerated with T-d2 (the track D audit).
+
+## 2026-10-29 — Track T, T-d2: every integration test on the lanes; the floors re-measured; the track D audit's fixes; PR #80's CI read
+
+The result boundary program's track T, its lanes at full scope (docs/RESULT_BOUNDARY_START_HERE.md, track T; the
+decisions log D49; the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`, batch T-d2).
+
+1. **Built:** the integration package's other 37 classes under `testing/LaneFloor` (the parity and corpus lane files,
+   `Stress*`, the two database-named tests and `SqlIslandIntegrationTest` off the lane by name: the ledger); a test's
+   own connection text re-spelled to the SESSION's backend (`LaneFloor.model`: the backend of the connection the test
+   opened, else the lane's; untouched on the platform) in the reader, `Program` and the streaming test's service calls;
+   a floor key by invocation ordinal (`Class#method[#N]`); the floors LIVE (`testing/LaneFloorTest`: every key names a
+   class and a method that exist); a NEW floor-line form, the not-run pin (`not run <date>: <cause>`, the test's
+   invocation skipped and said in the log; moves only with a dated justification), for a failure that ends the run: H2's
+   planner exhausts the 512 MB heap on a twenty-call chain of nested derived tables (`QueryExpressionIndex`) and JUnit
+   rethrows the `OutOfMemoryError` as unrecoverable -- the first T-d2 H2 run died at its 759th test. The floors
+   re-measured at the lanes' full scope: sqlite 89, h2 270 and the one pin, the platform 0 of 2,232 (the ledger's
+   table, by cause). Harness corrections, no value moved: `ComputedProjectIntegrationTest`'s six set-up sites on the backend's
+   session set-up (the warehouse backend's own UTC statement added with the audit's fixes); `ExtendCheckerTest.testNow` by the backend's own year probe (`TestBackend.yearOfNowSql`);
+   `ConcatenateFlattenCheckerTest`'s error-text assertions case-insensitive; T-d's templated connection text in
+   `DynaFunctionIntegrationTest` and `RenderCsvIntegrationTest` UNDONE (whole Pure text again: the own-corpus parity
+   harvest reads the tests' models as Pure, and a template is a source the reference parser rejects -- PR #80's
+   `parser_equivalence` lane measured the matched elements 3004 -> 2999 at `132a4ff2`; 3004 again here). The T-d
+   audit's fixes (the records' wording, the lane's true scope, three findings for track F: the `asOfJoin` emulation's
+   wrong answer, `concatenate`'s mismatch refused by the database and not the typer, H2's nesting). The track D audit's
+   fixes: the generated claims register regenerated (`native-claims.tsv` names `BodyDriver`; `//:generated` was red on
+   `6f4f654b` and `132a4ff2`), the rename's counts by a stated rule (39 and 42 files), history notes in five guard files
+   name `StatementExecutor` again where they date from before the rename, AGENTS.md's step K, the front page's and the
+   FAQ's step K, core/README.md's `exec/` tree, a dangling javadoc link in `BodyDriver`, the start page's standing rows,
+   the homework README's end state. PR #80's CI at `132a4ff2` read: `checks` red on the two stale generated files
+   (above), `parser_equivalence` red on the own-corpus count (above), the Windows `warehouse` lane red on
+   `//python:engine_test` at its 300 s ceiling (291 s on main's own green run 2235 at `9de4d3a8`; timed out on three of
+   the branch's heads: the ceiling raised to `long`, dated in `python/BUILD.bazel`).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests` (the platform's integration run 2,232 of 2,232), `//core:core_tests_lanes` (sqlite 2,232 with 89
+   on its floor; h2 2,232 with 270 on its floor and the one pin not run), `//core:core_tests_testing` (the floors
+   live), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB
+   parity lanes; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12
+   of 12; the 21 PCT lanes 21 of 21; `//datacube:python_execute_test`; `//parser-equivalence:parser_parity` (3,004
+   matched, the ratchet unchanged; `bazel run //parser-equivalence:update_ratchets` measured 3,004); `//:generated` and
+   `//gates:checks` 145 of 146 (the arm64-only classpath test skipped); `//python:engine_test` and `//gates:warehouse`
+   analyze; the product job's unlaned-tests guard empty. The session's disk allowance ran out once mid-run (a sandbox's
+   input copy): the action disk cache and the stale sandboxes deleted (docs/CLOUD_SESSIONS.md), the run repeated.
+3. **Not measured:** CI's lanes (PR #80 runs them on the push); the Python suite's own time on Windows.
+
+## 2026-10-29 — Track L, L1: a mixed list as a list of tagged values; the spelling carrier's consumers ported
+
+The result boundary program's track L (docs/RESULT_BOUNDARY_START_HERE.md, track L; the decisions log D50, D50a-c;
+the program's step 6; docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B).
+
+1. **Built:** `SqlExpr.TaggedList` -- a mixed list as PARALLEL TYPED ARRAYS indexed by POSITION (the positions, the
+   tags, a comparable, one channel per (kind, slot)), its type `ARRAY<TAGGED<...>>` (`SqlTyping.taggedListType`), the
+   element at a position a `SqlExpr.Tagged`; the rewriters', pruners' and renderers' arms (a tagged list that reaches
+   a renderer is refused by name). `MixedEncoding.taggedList` builds it from a literal collection of the eight kinds
+   (a type's or element's name a String; a Number-LUB literal mix read as one by `mixedNumericLiteral` at a root and
+   under the list's operations, its variant carrier kept for arithmetic). `lowering/TaggedLists`: sort, removeDuplicates
+   (plain, with `eq`/`equal`/`cmp`, with a comparator or a key), removeDuplicatesBy, contains and in (by the needle's
+   kind's channel, or a comparator), at/first/last, size/isEmpty, exists/forAll, reverse, makeString, hashCode,
+   format's argument list, equality (two lists, a list against a list of one kind, an element against a value) and
+   the root (`TaggedLists.root`: the positions unnested into ROWS of a tagged value, the plan's one `TAGGED<...>`
+   column with the list's multiplicity -- the decoders', the judges' canon's and the writers' tagged arms unchanged).
+   `LambdaBinding`: a lambda over a mixed list ranges over its positions and its parameter IS the element there
+   (contains' needle, its first parameter, is not). `CarrierStrategies.literalPick`: a list-less dialect reads a
+   literal array at a computed position as a CASE. `Scalars`: equality over a tagged value by kind and value
+   (`taggedEquality`; the comparison pre-pass is `ORDERINGS`, equality no longer among them -- D50a). Gate:
+   `exec/TaggedListTest` (seven tests beside `TaggedSelectionTest`). The first chain's corpus groups caught three
+   regressions, fixed before the commit (D50d): an ENUMERATION's value is a kind (its path the kind, its name the
+   slot, rank after every primitive as legend-pure orders it; register S122 for two values of one enumeration); a
+   MULTI-COLUMN RELATION in value position (`$result.values.rows.values`) is a tagged list over its CELLS
+   (`ValueCollections.rowMajorTaggedList`: the rows numbered once, crossed with the column indexes, the arrays
+   ordered aggregates, the cells carried as the list's `rows` so a root and an equality read no array: H2 runs it);
+   two lists in their own order compare channel arrays null-safe (`sameListByKinds`), a row's cells read in a lambda
+   as a tagged list of their static kinds, a variant list on its own lane; a `DateTime(n)` slot canons at its n
+   digits and a relation's DateTime cell is tagged `DateTime(9)` (the corpus's `testDayOfMonth` on H2). Guards:
+   `CarrierPurityRatchetTest` rows up with dated notes (D50b, D50d: LIST_ 149 to 171, UNNEST 13 to 15, ArrayLit 40
+   to 45, OrderedListAgg 1 to 5); `IdentityGuardrailTest` NAME_AFFIX_TEST 52 to 53 (the slot kind's text);
+   `CodeShapeGuardrailTest` kept by a split, not a limit.
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`,
+   `//core:core_tests` (the platform's integration run 2,232 of 2,232), `//core:core_tests_lanes` (sqlite 2,232 with 89
+   on its floor; h2 2,232 with 270 and the one pin not run; neither floor moved), `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes; `//:generated` and `//gates:checks`
+   (178 of 179, the arm64-only classpath test skipped; `//parser-equivalence:update_ratchets_test` unchanged); the nine
+   Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (both rosters
+   unchanged: the two DuckDB tests and the nine H2 tests the first run lost are back); the 21 PCT lanes 21 of 21 (run
+   one test at a time: with two, the session's memory cgroup killed the Bazel server twice, docs/CLOUD_SESSIONS.md);
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty. The first chain on this tree
+   (before D50d) read 1,007 differential passes on DuckDB against 1,009 and nine H2 tests lost: the corpus's
+   `testUsingSameAggFunctionTwice` and its qualifier twin (a mixed literal list against `$result.values.rows.values`),
+   `testEnumProjection`, `testAggToManyWithMaxInteger`, `testAggToManyWithMinInteger`,
+   `testJoinStringsTwiceWithAssociation`, `testAggregationFunctionWithEnum`, two enum projections (the variant lane on
+   H2) and `testDayOfMonth` (the canon's digits).
+3. **Not measured:** CI's lanes (PR #80 runs them on the push).
+
+(Correction 2026-10-29, track Z's audit, finding 8: the `CarrierPurityRatchetTest` numbers above are not D50b's --
+D50b records LIST_ 170, UNNEST 15, ArrayLit 44, OrderedListAgg 2 at L1; the tree after L2 holds 173 / 13 / 42 / 4, the
+L2 entry's figures.)
+
+## 2026-10-29 — Track L, L2: the LITERAL spelling carrier deleted; the census reads zero
+
+The result boundary program's track L, L2 (docs/RESULT_BOUNDARY_START_HERE.md, track L; the decisions log D52; the
+program's step 6, "Delete").
+
+1. **Built (deleted):** `SqlType.Scalar.LITERAL`; `values/LiteralText` and its test; the decoders' arms (`RowDecode`,
+   `JdbcDecode`, `MongoDbDecode`); the dialects' literal arms (eighteen files: the type-name switches, the text-cast
+   clauses, `CarrierStrategies`' marker strip, `EngineStyleH2`'s marker skip, `LateralExplodeToUnion`'s default
+   element type, the list's own now); the lowering's machinery (`MixedEncoding`: `rankedElems`, `rankedComparable`,
+   `elementLiteral`, `spellByKind`, `staticSubsecondSpelling`, `equalityEmission`, `printedFormatSlots`,
+   `markedNeedle`, `literalMarked`, `MixedElems`' `ids` channel, `variantSlot`'s text parse; `LiteralSpelling`:
+   `mixedNumericArray`, `printForm`; `Scalars`: the sort's spelled branch, the `contains`/`in` arms over a spelled
+   collection, `pureToString`'s spelled print, `literalPrint`; the `Lowerer`'s label arm; `CastPolicy`'s no-re-wrap
+   arm; `Dedup`'s re-mark; `PureSql.elementText`'s arm; `CanonicalRenderSql`'s identity-canon root; `Render.textSlot`;
+   `ValueCollections.rowMajorCellList` keeps only the variant lane for a class-kinded column); the plan facts
+   (`ColumnFacts.precision`, `WireTypes`, `SqlTypeCensus`). A Date-LUB literal mix is read as a tagged list where
+   the spelled sort read it (`Scalars.asTaggedList`). The plan format is 19 (a slot word retired; `PlanJsonTest`).
+   Guards: `ArchitectureTest.spellingDecodeIsLabelDriven` deleted with its subject (a dated note where it stood);
+   `CarrierPurityRatchetTest` tightened (ArrayLit 45 to 42, OrderedListAgg 5 to 4, LIST_ 171 to 170 and to 173 with the audit's fixes, UNNEST 15
+   to 13); `ColumnFactsTest` pins a tagged column's null precision; `DedupBindingTest`, `CastNoReWrapTest`,
+   `SqlTypingTest`, `RowDecodeTest` read VARCHAR or dropped their literal case. The census probe
+   (`docs/result-boundary-homework/probes/oldpath_census.py.txt`) counts the slot's own spellings and reads zero. The
+   L1 audit's fixes ride this commit (D53: equality exact in kind, scale and written precision; no static FALSE for a
+   needle of no static kind; the flatten's deterministic numbering; map over a mixed list; `TaggedListTest` nine
+   tests). PR #80's `pct_postgres` lanes on the L1 commit (red on Linux, macOS and Windows, one cause) found two
+   expected-failure pins the tagged list retires (`Test_LegendLite_Postgres_EssentialFunctions_PCT`, the two
+   comparator `removeDuplicates` tests pinned "UNNEST over Unknown[] reached Postgres"): retired with a dated note.
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`, `//:generated` and `//gates:checks` (178 of 179: the
+   arm64-only classpath test skipped), `//core:core_tests` (every lane; the platform's integration run 2,232),
+   `//core:core_tests_lanes` (sqlite and h2 on their floors, unmoved), `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes; the nine Postgres targets 9 of 9;
+   `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (both rosters unchanged); the 21 PCT
+   lanes 21 of 21 (one test at a time, docs/CLOUD_SESSIONS.md); the five Postgres PCT lanes 5 of 5 (the two retired
+   pins pass: `//pct:pct_postgres_essential` 345 of 345); `//datacube:python_execute_test`; the product job's
+   unlaned-tests guard empty. The chain's script: the session's scratchpad `l2-chain.sh` (the L1 chain plus the
+   Postgres PCT group).
+3. **Not measured:** CI's lanes (PR #80 runs them on the push).
+
+## 2026-10-29 — Track L, the L2 audit's fold: the flatten's numbering, crossing numbers refused, the mixed filter, the typed-columns gate
+
+The result boundary program's track L (docs/RESULT_BOUNDARY_START_HERE.md, track L; the decisions log D54; the
+register S123, S124; the homework README's findings).
+
+1. **Built:** `ValueCollections.rowMajorTaggedList` numbers a sorted STAR frame (its projections spelled out first,
+   `Fold.sourceColumn`: a sorted table threw) and carries the order a relation's source shows (an ordered subselect's
+   keys by `Sorts.carriedName`, a DISTINCT frame's own) before every column; `TaggedLists.refuseCrossingNumbers`: an
+   Integer against a scale-zero Decimal and a Float against a Decimal -- the pairs compiled legend-pure equates by their
+   texts (`CompiledSupport.eq(Number, Number)`) -- are refused by name in `contains`, `sameElement` and
+   `sameListByKinds`, where a static false stood; the Lowerer's collection `filter` over a mixed list binds the element
+   (`TaggedLists.filter`, unreferenced until now); `TdsDesugars`: `$tds.rows.values->size()` is the row count times the
+   column count (the bare `.values` flatten keeps the rows' identity, so it answered the row count; found by the new
+   gate); `MixedEncoding.rankedComparableOf`: a Date-typed column has no rank (the variant lane keeps the row; a NULL
+   comparable sorted it silently); `LateralExplodeToUnion.elementTypeOf` refuses a list of no element type
+   (`DialectCapability`, never VARCHAR); `ColumnFacts.precision` answers null for a TAGGED slot first; the stale
+   javadocs of the spelling carrier rewritten; the plan format's note for 19. The gate: `exec/TaggedListTest` -- the test
+   named for the tagged flatten reached the VARIANT lane (an `executeInDb` grid's columns are untyped; found by dumping
+   its SQL), renamed `anUntypedGridsCellsAreReadOnTheVariantLane`; `aTypedRelationsCellsKeepTheRelationsOrder` over a
+   store (sorted, unsorted, a sorted star frame, the cells' size); `aMixedListFiltersByItsElements`;
+   `numbersOfDifferentKindsAreRefusedWherePureEquatesTheirTexts`. Not covered by a gate: the ordered-subselect carry
+   (`carriedOrder`'s second case; no shape in the tests reaches it yet). The own-corpus ratchet
+   (`parser-equivalence/.../ratchets.tsv`) moves 3004 to 3009: the gate's store model's five elements joined and
+   matched. PR #80's CI on the L2 commit went red on the `ui`, `datacube` and `warehouse` lanes of every OS: the plan
+   format's one reader outside core (`engine-client/src/plan-runner.ts`, the tab's and Python's headless host) pinned
+   version 18; 19 now. A format bump reaches that pin; the local chain runs `//engine-client:plan_runner_test`,
+   `//datacube:headless_test`, `//datacube:verify_flow_test` and `//python:engine_test` from here on
+   (`engine_test`: 68 of its 334 tests pass in this container before the headless host's V8, mini-racer, segfaults at
+   `WarehouseOnPython` -- before any assertion of that test; earlier sessions only analyzed it here, GATES 2026-10-29
+   S1.5; CI's Linux run of the L2 commit passed it but for the version pin: judged by CI).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`, `//:generated` and `//gates:checks` (the arm64-only
+   classpath test skipped; `//core:update_generated_4_test` red once on the natives-claims table, which the desugar's
+   new reference of `times` moves: regenerated, `bazel run //core:update_generated_4`), `//core:core_tests` (every
+   lane), `//core:core_tests_lanes` (floors unmoved), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`,
+   `//core:mongodb_plan_test`, the four DuckDB parity lanes; the nine Postgres targets 9 of 9; `//spec:judge_lanes`,
+   `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (rosters unchanged); the 21 PCT lanes 21 of 21; the five
+   Postgres PCT lanes 5 of 5; `//datacube:python_execute_test`; `//engine-client:plan_runner_test`,
+   `//datacube:headless_test`, `//datacube:verify_flow_test`; `//parser-equivalence:parser_parity` (3,009 matched, the
+   ratchet moved with it); the product job's unlaned-tests guard empty.
+3. **Not measured:** CI's lanes (PR #80 runs them on the push).
+
+## 2026-10-29 — Track A: the Arrow writer at the boundary; the warehouse's framer shared; no Arrow library in any product closure; the audit's eighteen findings folded
+
+The result boundary program's track A (docs/RESULT_BOUNDARY_START_HERE.md, track A; the decisions log D55, D56, D57;
+the program's steps 2 and 5, R9; the user's ruling of 2026-10-28, "yes keep arrow writer at the boundary in this
+program (but no arrow dependencies in compiler!)").
+
+1. **Built:** `//arrow_ipc` (`com.legend.arrowipc`: `FlatBuilder` moved from the warehouse server, `ArrowType`,
+   `ArrowField`, `ArrowIpc` -- the schema and record-batch messages, the end marker, the buffer helpers -- and
+   `ZstdFrame`, one zstd frame of raw blocks), on java.base and `//base`; the warehouse's `ArrowStreams` keeps its
+   DuckDB-type mapping and buffer layout and delegates the framing (`WarehouseArrowTest` unchanged, its pyarrow judge
+   the proof; the audit verified the same write sequence byte for byte). `result/ArrowWriter`: the result as one Arrow
+   IPC stream from the plan's columns (D55's types per kind: the slot's; a tagged column a dense union of its slots,
+   its member the batch's TAG since track F; the plan's facts as field metadata, the multiplicity in Pure's spelling;
+   a cell not its column's carrier, a decimal with more places than its slot, a date of no time of day under a
+   timestamp, an instant outside the nanosecond range, a tenth subsecond digit: refused by name; a non-numeric Pure
+   type over a numeric slot typed as the decoders carry it, text; a class-typed column's object as the JSON route
+   writes it). `PureV1Api.executeArrow`: the server's `?serializationFormat=ARROW_IPC` execute under upstream's schema
+   metadata, headers and zstd frame, the envelope from the plan's stated columns before any statement runs (the JSON
+   route's rule); `PureV1Api.arrowAnswer` for a host's rows; `Boundary.executeArrowAnswer`, the tab's
+   `executeArrowAnswerOrError`, the native `lite_execute_arrow_answer` (a binary answer folded as base64,
+   `Folded.BASE64`); `Answer` carries bytes and headers, `LegendHttpServer` writes them. The decoders' 63-bit bound
+   corrected (`[2^62, 2^63-1]` rode as a BigInteger; a long holds 63 bits beside its sign). Guards:
+   `//tools/deps:arrow_closure_test` (R9: no repository named for Arrow in the plan side's, the WebAssembly planner's,
+   the native library's or the native image's closure; the framer on java.base and `//base` alone),
+   `WarehouseClosureTest`, `ArchitectureTest.writersAreCarriageOnly` (`com.legend.arrowipc..` admitted),
+   `WriterCarriageGuardTest` (ArrowWriter's rows; `abs` in the vocabulary), `JavaEvalLedgerTest` (the result register's
+   `ArrowWriter.java` and `TaggedCell.java`), `tools/deps/core-layers.txt` (`result` and `pure_v1` reach `arrow_ipc`),
+   `CodeShapeGuardrailTest` (`ArrowWriter.encoders`). Gate: `//core:arrow_writer_test` (`result/ArrowWriterTest`,
+   pyarrow reading what the writer wrote against the JSON rows of the same batches, a union read member by member at
+   each member's own precision: `core/src/test/python/arrow_matches_rows.py`), in the core lane with the closure
+   test; `PureV1ApiTest`'s ARROW_IPC execute. NOT switched: Python's route and the tab (D56, the user's call). The
+   audit's three questions for the user: a day under a TIMESTAMP column (the JSON route spells its day, the Arrow
+   route refuses: D57 (4)); the JSON route's silent tenth subsecond digit (D57 (10)); the server's Arrow format
+   against S28's (register S125). The WebAssembly tab's class library has no `ByteArrayOutputStream.writeBytes`: the
+   framer writes through `write(b, 0, n)` (found by the first chain's PG group, `//datacube:verify_app_test`).
+2. **Measured locally before the commit** (as root; the Postgres targets as the unprivileged user): `//json:tests`, `//:generated` and `//gates:checks` (the arm64-only
+   classpath test skipped), `//core:core_tests` (every lane), `//core:core_tests_lanes` (the SQLite floor unmoved; the H2
+   floor shrank by one, the Cypher test above), `//core:guardrails` (two pins moved in the run and were re-measured:
+   RowDecode's `intValue` read once, ArrowWriter's `atLeast` 2 to 1 -- the union's carrier inference deleted),
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes; the nine
+   Postgres targets 9 of 9 (`//datacube:verify_app_test` builds the WebAssembly tab, the first chain's TeaVM
+   failure fixed); `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the H2 rosters and
+   registers regenerated: 63 tests gained, `bazel run //spec:update_rcorpus_h2`); the 21 PCT lanes 21 of 21 (the two
+   MongoDB lanes re-measured after the MongoDB decoder handed the tagged cell); the five Postgres PCT lanes 5 of 5;
+   `//core:arrow_writer_test` (ten cases, 0 differences), `//tools/deps:arrow_closure_test`,
+   `//tools/deps:warehouse_closure_test`, `//warehouse:tests`, `//engine-client:plan_runner_test`,
+   `//datacube:headless_test`, `//datacube:verify_flow_test`, the three `//wasm` tests, `//python:bindings_test`;
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty. `//python:engine_test` fails in
+   this container at the headless host's V8 before `WarehouseOnPython`'s body (a segmentation fault, as at L2;
+   CI judges it). Three targets failed on the chain's first pass and were fixed and re-measured green in the same
+   tree: the two guard pins above, `TaggedSelectionTest` (reads the decoder directly: the carrier unwrapped), the
+   H2 lane's floor, the H2 corpus verdict's untriaged entry, the Arrow gate's helper (a null slot), the MongoDB
+   decoder.
+3. **Not measured:** CI's lanes (PR #80 runs them on the push); apache-arrow JS's reading of the union (the audit ran
+   it from the scratchpad against 17.0.0, the engine-client's pin; no gate reads it yet).
+
+## 2026-10-29 — Track F: the open findings, each against the pinned upstream first; S116 built, the H2 JSON parse (63 corpus tests gained), the tag in the batch
+
+The result boundary program's track F (docs/RESULT_BOUNDARY_START_HERE.md, track F; the decisions log D58; the
+homework README §9, every row updated).
+
+1. **Built:** `toVariant` of an empty value is JSON's null (S116 to outcome: the lowering coalesces `TO_VARIANT(x)` with
+   `CAST('null' AS JSON)`, the engine's `ifnull(to_json(x), 'null'::json)` by value, read from
+   `duckdbExtension.pure:286`; the PCT pins `toVariant([])->toString()` = `'null'`). The engine-parity H2 dialect
+   parses a cast to JSON (`H2.jsonParseCast`: `JSON '...'` for a literal, `(x FORMAT JSON)` for text, `CAST(NULL AS
+   JSON)` for a typed null; measured on 2.1.214 and 2.2.224, `H2Modern` inherits it): `fromJson` answered a JSON
+   string there; the H2 corpus roster moved 63 tests from failing to passing in host mode (`h2-fail-roster.txt` 358
+   to 295; the database-gained register's 63 lines for them removed, the unordered register gained 25, the untriaged register lost `testSimpleTypeMappingProjectNulls` (its two judges agree now) -- the expected
+   `^TDSNull()` cells and the CSV texts of those rows read through the same parse); the H2 lane's floor shrank by one
+   (`CypherNativeEndsTest#theNodesAtAWrittenRelationshipsEndsAreItsStartAndItsEnd` passes on H2 now: a written
+   relationship's ends read back as JSON). The tag in the batch
+   (`result/TaggedCell`, the decoders hand it, `Batch.tag` beside `Batch.get`, the Arrow union reads its member from
+   it; a bare carrier under a tagged column refused by name; no writer's spelling changed). A probe of the absent
+   to-many property (`GraphFetchCheckedIntegrationTest.anEmptyToManyPropertySerializesAsAnEmptyList`: `[]`, as Pure).
+   The `asOfJoin` test's comment and the two lane floors' reasons corrected (register S126; the probe
+   `probes/asof_empty_right.txt`).
+2. **Closed by upstream's own rule (no change):** the `concatenate` width mismatch (legend-pure's
+   `_RelationType.isCompatibleWith` compiles it too; the database refuses the union), the `[0..1]` collection element
+   (legend-pure's `InstanceValueValidator` refuses it too), `RootNumericTypes`' unbounded Decimal (by design).
+3. **Posted, not built:** `asOfJoin` against an empty right side (S126, a DuckDB defect pinned by the DuckDB test); the
+   multi-key ordered list aggregate for a mixed sort's ties and the rank struct's text order (sized: plan format 20,
+   ten dialect arms, the MariaDB lane CI alone runs); the lane twin of the mixed-list gate; a typed kind; the H2
+   planner's nesting; a BIT column; Snowflake's far-BC timestamp; `HostRows`' Arrow nested values; the PCT heap;
+   D46 and D51.
+4. **Measured locally before the commit:** the same chain as track A's entry above (one commit carries both).
+5. **Not measured:** CI's lanes (PR #80 runs them on the push); the MariaDB lane (CI alone).
+
+## 2026-10-29 — Track Z: the final audit of the whole program folded; the service test runner's cells through the boundary's writer; the records corrected; the open questions in one table
+
+The result boundary program's track Z (docs/RESULT_BOUNDARY_START_HERE.md, track Z; the decisions log D59): an
+independent, read-only audit of the whole program at `1e3065d4` (twelve findings, none on the code's correctness:
+the old-path census zero on every old-door symbol, the JDBC seams held, every guard pin moved with a dated note,
+every `default ->` of the program's new code a refusal by name), its findings folded before this commit.
+
+1. **Built:** `test/ServiceTestRunner` spells a program's last side through `result/CellText.engine` (legend-engine's
+   JSON token, a carrier it cannot spell refused by name) and reads it back as the tree its assertions compare; its
+   own rules and their `String.valueOf` fallback are gone; the file joins `WriterCarriageGuardTest`'s scan (an empty
+   register); `:test` reaches `:result`, `:execution_plan` and `//json` (the layer map, dated). `ProgramReport.last`
+   stays the one materialized side a public entry returns, for this runner alone (D59 (2): streaming it to a sink is
+   the next step, posted). Register row S127 (the crossing-numbers refusal, pending); citations of S119, S120, S121,
+   S123 and S125 at their code sites; `CsvSeed`'s javadoc names `Statements.load`.
+2. **Records:** AGENTS.md's census sentence qualified (two named residues: `conformValueEgress` by D51, MariaDB's own
+   `floatLayout` by a shared name); the start page's §0, §1, §2, §3 (the hashes of B2, T, C, D), §10a (the open
+   questions, one table), §12 and its track T block; IN_FLIGHT's spliced fragment; the program's §9 reordered newest
+   first with the Z entry; the L1 entry's ratchet figures corrected by a dated note (above); the H2 floor's count (269
+   and the pin; 268 since track F); core/README's two dates; `Rows.java`'s description; the homework README §9 rows for
+   the MongoDB lane, track T's queued items, D44's two findings, D27's unrun probe and D41's second compiler; PR #80's
+   title and body rewritten to the whole program.
+3. **Measured locally before the commit:** the full local chain (as root; the Postgres targets as the unprivileged
+   user): `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped), `//core:core_tests`
+   (every lane), `//core:core_tests_lanes` (floors unmoved), `//core:guardrails` (the runner scanned), `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178, 1 skipped; the nine
+   Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (rosters
+   unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test`
+   the container's segmentation fault at the headless host's V8, as at every chain; CI judged it green at `0c516091`);
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+4. **CI:** PR #80 at `0c516091` (the records head before this fold; the code of `1e3065d4`): `gates green` passed --
+   every lane on Linux, Windows, ARM and macOS (52 check runs, all green: the first run of the branch green on macOS
+   too; run 40900182043, 16:14Z). This fold's push runs every OS again.
+5. **Not measured:** the MariaDB lane (CI alone); apache-arrow JS's reading of the union (the track A audit's scratch
+   program, no gate).
+
+## 2026-10-29 — DuckDB 1.5.6.0: core's driver bumped from 1.4.4.0 (the as-of defect of S126 gone from 1.5.5 on; the LIMIT shape of the pin's reason answers correctly)
+
+The user's ask of 2026-10-29 (the decisions log D60): "I know at some point it was 1.4.4 bc 1.5 had a limit bug - but
+I think 1.5.6 might actually have fixed that bug potentially so might be worth getting to 1.5.6 if fixed for as of and
+limit". Measured on the jars before any pin moved (`docs/result-boundary-homework/probes/duckdb_1_5_6.txt`).
+
+1. **Measured first:** the pin's reason (duckdb/duckdb#21160, the `first()` LIMIT shape 1.5.0 answered with zero rows;
+   docs/SESSION_HANDOFF_2026_09_02.md): five LIMIT shapes over a join chain (a left-join chain of two and three tables,
+   an inner chain with ORDER BY, the far table's column, COUNT(*)) answer their one row on 1.4.4.0, 1.5.5.1 and 1.5.6.0
+   alike. The as-of defect (register S126: `ASOF LEFT JOIN` against a derived table the planner proves empty drops the
+   left rows on 1.3.0 and 1.4.4, `probes/asof_empty_right.txt`) is gone from 1.5.5 on: 1.5.5.1 and 1.5.6.0 keep the two
+   left rows against every proven-empty form and against a right side that empties at run time.
+2. **Built:** `tools/deps/jars_table.bzl` (`duckdb_jdbc` 1.4.4.0 -> 1.5.6.0, sha256
+   `04ae3375d7c40dc88dc9bf0014b82ba5e66715564584af4e3abea39c7ba144d3`, a dated note; the warehouse's
+   `duckdb_jdbc_warehouse` 1.5.5.1 unchanged); `integration/AsOfJoinCheckerTest.testAsOfJoinEmptyRight` asserts the
+   spec on every lane (two rows, the right columns null) where it pinned DuckDB's zero rows; `lanes/sqlite.txt` and
+   `lanes/h2.txt` lose their as-of line (the emulation answered the spec all along); register S126 to `outcome`.
+3. **Measured locally before the commit (the chain on the bump alone, as root; the Postgres targets as the unprivileged
+   user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped), `//core:core_tests`
+   (every lane), `//core:core_tests_lanes` (the floors, each one line shorter), `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178, 1 skipped; the nine
+   Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the rosters
+   unmoved); the 21 PCT lanes 21 of 21 (no pin flipped on 1.5.6.0); the five Postgres PCT lanes 5 of 5; the readers
+   11 of 12 (`//python:engine_test` the container's segmentation fault at the headless host's V8, as at every chain);
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+4. **CI:** PR #80 runs every OS on the push (the Windows, ARM and macOS lanes fetch the 1.5.6.0 jar there).
+5. **Not measured:** the MariaDB lane (CI alone); DuckDB 1.5.6.0 on Windows, ARM and macOS before CI.
+
+## 2026-10-29 — The doors, 3-5: the probes, the seeds, a program's session statements and the system store's rows as plan statements the runner sends; SetupRunner deleted; the guard that the runner is the one caller of a session's statements
+
+The user's ask after track Z (2026-10-29): "I want to close all the doors here as part of this PR so we know that it
+can be done". The map and the design: the decisions log, "The doors" (D61); the start page §4, "The doors".
+
+1. **Built:** `exec/PlanRunner.columns` and `describe` (a schema probe as a plan statement of the body's target, no
+   slot, through the runner's one `opened(session, target)`: checked, the target's session statements run; a schema
+   read not counted as a statement sent, the probes that count themselves doing so by name as before) and `setUp`
+   (a statement step as an effect, a rows step through the session's bulk loader inside the runner, a database with
+   none refused by name; a listener per step for the referee's recorder); `executionplan/ExecutionPlan.Sql.of`;
+   `exec/Sessions.Session.inTransaction` and `ownsTransaction` (a session's own facts); `setup/CsvSeed.planned` (the
+   one owner of a seed step's plan form AND the text the recorder ledgers, the statement as its author wrote it;
+   `PlanMaker.setup` delegates) and `setup/Ddl.metamodelSteps` (the one owner of the system store's steps, shared by
+   `PlanMaker` and `SystemDatabase`); `ColumnProbe`, `GridProbe`, `WireTypes` and `DynamicPivot` take the plan sessions
+   and the target; the body driver's `ExecEnv.planSessions()` and `target()` in place of `statements()`, its seeds
+   through `PlanRunner.setUp` under SEED, its transaction bracket on the session; `JudgePlans.target(decided,
+   version)`; `Execution.dialectOf` on a session, its session statements the program's setup steps under SESSION;
+   `SystemDatabase.seed` through the runner under SYSTEM on `PlanSessions.given(c)`; `exec/SetupRunner` DELETED,
+   `PlanSessions.statementsOf` deleted (no caller). The guard
+   `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (outside `PlanRunner`, `PlanSessions`,
+   `Sessions`, `JdbcStatements` and `MongoDbStatements`, no class calls a method of `Statements` and none takes
+   `Sessions.Session.statements`; its second clause an explicit predicate, the generic `and` of an owner and a name
+   predicate having matched by name alone). Pins moved with dated notes: `EXEC_PLANNING_REFERENCES` loses `SetupRunner`;
+   the ledger's `EXEC_CLASSES` loses `SetupRunner.java`; the size pins `GridProbe` 46 to 48, `DynamicPivot` 111 to 113,
+   `BodyDriver` 2273 to 2282 (parameter and plumbing lines). The tests `RowLoadDuckDbTest`, `RowLoadH2Test`,
+   `WireTypesTest`, `DynamicPivotKeyLiteralH2Test` and `PlanMakerTest` on the runner. AGENTS.md names the guard
+   beside the tenet's two.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved: the seeds and the probes count as they did); the 21
+   PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the
+   container's segmentation fault at the headless host's V8, as at every chain); `//datacube:python_execute_test`;
+   the product job's unlaned-tests guard empty.
+3. **CI:** PR #80 at `e7fc12ff` (the Z fold) and at `acaa063b` (the DuckDB bump): every check suite completed,
+   none failed (the PR subscription's events, 17:04Z and 18:20Z: DuckDB 1.5.6.0 fetched and green on every OS);
+   this push runs every OS in turn.
+4. **Not measured:** the MariaDB lane (CI alone).
+
+## 2026-10-29 — The doors, 2: the test-data generator on plans -- its temps and drops as effects, its read-backs as typed rows of the columns the database describes, the CSV's text columns as reported columns; no JDBC in testdatagen
+
+Door 2 of the doors (the decisions log D62; the start page §4, "The doors"): the one place that still ran JDBC of its
+own on the body's session, the fold's residue D30 named.
+
+1. **Built:** `testdatagen/TestDataGenerator`: its `Session` the plan sessions, the target and the dialect; a temp
+   and its drop as effects (`PlanRunner.effect`); a read-back (the transcript rows, the view rows, the seed-string
+   rows) the statement described by the database (`PlanRunner.describe`) then run as a relation of the reported
+   columns, each cell by its reported kind's slot (`PlanRunner.rows`); the CSV's text columns as reported columns
+   (`PlanRunner.columns`), its lines a VALUE plan of one VARCHAR column; the whole run under the TDG origin (the
+   runner's `sent` counts what `count(TDG)` counted by hand, once; a describe is not a statement sent); `pureRepr` on
+   the typed read's carriers (its four JDBC-temporal arms gone); a drop that fails after a successful run is the
+   error, after a failed one suppressed onto it. The natives and their callers (`BodyCompiler`, `SqlTextVerdicts`)
+   hand the plan sessions and the target; `ReservedNamesGenerationTest` a platform target; `PureReprTest`'s day
+   case on the carrier. Guards, dated: `javaSqlIsFunnelledToTheCharteredSeam` loses `com.legend.testdatagen`;
+   `theBodyDriverAndTheJudgesHoldNoJdbc` and the no-connection spelling pin gain `TestDataGenerator`; the JDBC
+   census loses it; `:testdatagen` and the layer map gain `execution_plan`. The corpus outside-body registers' `tdg=`
+   texts refreshed from the run (the registers compare names; the counts moved for the accounting change above:
+   the CSV lines' statement counted once where it was counted twice, the LIMIT-0 metadata read and the describes
+   not counted -- `tdg=29` to `21`, `tdg=12` to `8` and so on, 33 rows on DuckDB and 32 on H2); two H2 rows whose
+   texts had drifted before this step (`testGenerateNecessaryTableColumnsForSingleTable` `fallback=2` to `1`;
+   `testUnionToUnionMultipleLevelsWithStringHashing` `tdg=72` to `statement=1 tdg=72`, both as the run at
+   `7b060530` already printed them) refreshed with them.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters unmoved; the outside-body registers' names unmoved, their `tdg=` texts refreshed); the 21
+   PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the
+   container's segmentation fault at the headless host's V8, as at every chain); `//datacube:python_execute_test`;
+   the product job's unlaned-tests guard empty.
+3. **CI:** PR #80 runs every OS on the push.
+4. **Not measured:** the MariaDB lane (CI alone).
+
+## 2026-10-29 — The doors, 1: a program's last statement streamed to the caller's sink; ProgramReport deleted; the service test runner and the test twin on the boundary's writers
+
+Door 1 of the doors (the decisions log D63; the start page §4, "The doors"): the one materialized side a public entry
+returned (`Execution.ProgramReport.last`, D36/D37's open question).
+
+1. **Built:** `Execution.Answer` (`ResultSink of(Shape)`), `Execution.runProgram(..., answer)`, `ProgramReport`
+   DELETED, `TypedSide` off the public surface; `BodyDriver.execute` returns nothing, `BodyCompiler.execute(...,
+   answer)` answers the body's last value statement through `BodyDriver.answerValue` (a planned statement streams:
+   `executeTyped(body, env, identityLane, answer)`, `JudgePlans.streamResult` -- the judges' own plan, in the
+   product's VALUE or RELATION shape, a late-bound grid framed, a dynamic pivot keyed, through `PlanRunner.stream`;
+   a side the driver computes written as host rows, `JudgePlans.host`), a verdict as the last statement as host rows
+   at the end; `JudgePlans.Cardinality` holds the root's cardinality on the stream with the collected side's words.
+   The service test runner reads its answer from `PureV1Writer.objects` (a graph fetch) and the new
+   `result/TdsObjectsWriter` (legend-engine's `PURE_TDSOBJECT`: objects keyed by the presented column name, cells
+   `CellText.engine`, a to-one value as its one cell), parsing the text back as the tree its assertions compare;
+   its `serialize` and `cell` are gone. The twin's `Program` streams to `Lean.Capturing.of(shape)` and reads back
+   through the one reader (`Lean.Result.of`); `Lean.of(TypedSide)` retired. Pins, dated: the result register gains
+   `TdsObjectsWriter.java`; the size pins as measured.
+2. **Found by the chain and by the audit (the streamed answer against the collected side's canon):** no lane moved
+   (the verdicts are the judges' collected sides, untouched; the twin's `Program` tests read the streamed answer and
+   passed unchanged; the corpus's rosters and outside-body registers as before). The independent audit of the doors
+   (2026-10-29; folded as D64) named where the stream applies the product's rules and the collected side applied the
+   judges': (1) no `valueLane` trim of a timestamp's text; (2) a null cell under a root that is not TDSNull, Any or a
+   variant is written as `null`, where the collected side walled it ("NULL cell reached COLLECTION egress"), so the
+   second lower-bound count (values below the bound after dropped cells) has nothing to count; (3) a scalar-shaped root
+   whose one cell arrives as the list wire is written as that one list cell, where the collected side reshaped it into
+   a collection of the list's elements; (4) `ScanOrder.stabilize` applies at the assert boundary alone, so never to an
+   answer; (5) a scalar root of more than one row is refused when its second row arrives, after its first was written,
+   where the collected side refused before writing anything. None is reached by a lane; each is the product's rule on
+   the product's answer, ruled in D64. Found by the audit and fixed in the fold (D64, its own chain): an effect
+   statement that ENDS the body had its value written before its script ran.
+3. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes`, `//core:guardrails`, `//core:census`,
+   `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178, 1 skipped; the nine
+   Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12; the 21 PCT
+   lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's
+   segmentation fault at the headless host's V8, as at every chain); `//datacube:python_execute_test`; the product
+   job's unlaned-tests guard empty.
+4. **CI:** the run at `7b060530` (doors 3-5, run 40931158083) was CANCELLED by the door 2 push nine minutes
+   later (its `gates green` summary job then reports failure, as the `1e3065d4` run's did when the records push
+   superseded it: a cancellation, not a red lane); `908d726f` (door 2, run 40935984214) GREEN on every OS at
+   19:36Z, `gates green` passing, 52 check runs none failed (linux, linux-arm, macOS, Windows: core, checks, the
+   corpus lanes, PCT on H2, DuckDB, channel B and Postgres, datacube, warehouse, product, stress, sdlc, ui, the
+   parser equivalence); this push runs every OS in turn.
+5. **Not measured:** the MariaDB lane (CI alone).
+
+## 2026-10-29 — The doors' audit folded: the effect-last answer after its script; every temp dropped; the dead arms deleted; the records corrected
+
+The independent audit of the doors (2026-10-29; the decisions log D64 holds every finding and its ruling): twelve
+findings, two blockers on the records (corrected with door 1's commit), one on the code (here).
+
+1. **Built:** `BodyCompiler.collectEffect` collects an effect statement that ends the body and answers it as host
+   rows at the body's end, after `closeEffects` has sent its script (until now its constant was written first);
+   `TestDataGenerator.Temps.close` drops every temp, the first refusal the error with the later ones suppressed (a
+   catch of `DataError` alone; the broad-catch census unmoved); DELETED: `PrepTrace.prepared`, `executed`, `record`
+   (the timed prepare/execute lines; the branch-size trace stays), `SqlTypeCensus.probeWire`, `WireReading`, the D1
+   watch (`WireWatch`, `wireValueSeen`, `wireNullSeen`, `settleWire`), `delivers`, `integerFamily`, `metaToType`,
+   `wireSpelling`, `sized`, `hasPivot`, and its ten counters with `summary()`'s wire part (dead gates, `DanglingStateGuardTest`:
+   readers and no writer), the PCT census gate's five wire pins and channel B's two (every one zero by construction),
+   the static-field allowlist's two slack entries, the dangling-state guard's slot floor 40 to 36 and the harness
+   discipline register's `SqlTypeCensus` sort sites 3 to 2 (each dated);
+   `TypedSide.asScalar/asCollection/asTabular/asGraph`, `Lean.ofCollectedSide`; `PrepTrace.java` and
+   `SqlTypeCensus.java` LEAVE the JDBC census (dated; neither spells `java.sql` now); the stale javadocs of
+   `PlanSessions`, `TypedSide`, `JudgePlans` and the writer guard's reason for scanning the service runner;
+   `BodyDriver.statementOf` on `ExecutionPlan.Sql.of` (its size pin MEASURED, dated). Not built, posted to the user
+   (D64): two readings of the service test runner, the routing of the plan path's seeds and the server's fill.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT
+   lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless
+   host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+3. **CI:** `619e0c12` (door 1, run 40946141905) GREEN on every OS at 20:57Z, `gates green` passing, 52 check runs
+   none failed; this push runs every OS in turn.
+4. **Not measured:** the MariaDB lane (CI alone).
+
+## 2026-10-29 — The three routings: the plan path's seeds and the server's fill as plan setup steps the runner sends; the MariaDB raise recovery declared by its connector and read by the seam; the seam and its bulk loader the only JDBC senders
+
+The user's word after the doors' audit (2026-10-29): "Do all three". The decisions log D65 (the upstream reading
+that rules the seeds' order; the shape of the raise recovery; the bulk loader's place).
+
+1. **Built:** `exec/PlanSessions.setUp` through `PlanRunner.setUp` under SEED on the given connection (the target's
+   session statements before each step, as the body path and as legend-engine's test connections run their setup
+   SQL on a connection they have just created); `runSetup` deleted; the private and held databases the class opens
+   go the same way; the up-front bulk-loader refusal kept. `server/ConnectionResolver.filled` through the same
+   runner on a target of the definition's database. `DatabaseConnector.raiseRecovery()` (data: MariaDB's and
+   MySQL's read and reset; null elsewhere) in place of `raisedMessage(Connection)` (the connector executing);
+   `JdbcStatements.held` the one read, after a failure, through the seam's own statements; `Sessions.raisedMessage`
+   deleted; `RaisedErrors.unwrapped(e, held)` and `PlanSessions.dataError(e, held)` on the text. Tests:
+   `exec/RaiseRecoveryTest` (new: every built connector's declaration; the read once and the reset, a database
+   that declares none, a refused read -- on H2's own session variables, the same spelling), `ConnectorsTest`.
+   Pins, dated: the JDBC census loses `MariaDbConnector.java`; `DatabaseOwners` gains the test. The independent
+   audit of the routings (eighteen items, eleven confirmed) folded before the chain: the held raise is read only
+   where the error's own text carries no raise (HEAD's order; the first cut read it on every failure), the test's
+   refused read made real (a closed session), the two ratchet comments, the records' scope (core's main sources)
+   and the per-step session statements stated.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT
+   lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless
+   host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+3. **CI:** `28b8db79` (the audit fold, run 40954542423) GREEN on every OS at 21:43Z, `gates green` passing; this
+   push runs every OS in turn.
+4. **Not measured, and a correction:** the MariaDB and MySQL lanes (`//pct:pct_mariadb`, `//pct:pct_mysql`, their
+   channel B twins) are MANUAL (`//gates:heavy`, gates/BUILD.bazel: not run here, and not in CI either) -- the
+   entries above that said "the MariaDB lane (CI alone)" were wrong on that. The raise recovery's mechanism is
+   measured on H2 (item 1); MariaDB's own behavior (the raise sets the variable; a CASE arm not taken raises
+   nothing) is unchanged and stands on its October measurement.

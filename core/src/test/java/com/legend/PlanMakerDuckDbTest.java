@@ -24,7 +24,7 @@ class PlanMakerDuckDbTest {
     @Test
     void theTargetIsWhole_itsDatabaseVersionsSessionAndSetup() {
         ExecutionPlan.Target duck = target(plan(DUCKDB, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])"
-                + "->sort(~ID->ascending())", TypedQuery.Output.JSON));
+                + "->sort(~ID->ascending())", com.legend.testcases.PlanCases.Written.JSON));
         assertEquals(new ExecutionPlan.Servers.Every(), duck.servers());
         assertEquals(List.of("SET TimeZone='UTC'"), duck.session());
         // DuckDB's rows go to its bulk loader: the create, the rows, the copy and the drop
@@ -37,8 +37,8 @@ class PlanMakerDuckDbTest {
      *  {@link PlanMakerH2Test}). */
     @Test
     void aParameterTypedByItsValueIsBoundBare() {
-        ExecutionPlan.Sql duck = ((ExecutionPlan.TextResult) plan(DUCKDB, "{f: Float[1]|#>{s::DB.T}#"
-                + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", TypedQuery.Output.JSON).root()).sql();
+        ExecutionPlan.Sql duck = plan(DUCKDB, "{f: Float[1]|#>{s::DB.T}#"
+                + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", com.legend.testcases.PlanCases.Written.JSON).answerSql();
         assertEquals(List.of(new ExecutionPlan.Slot("f", new ExecutionPlan.Binding.One("DECIMAL", null))),
                 duck.slots());
     }

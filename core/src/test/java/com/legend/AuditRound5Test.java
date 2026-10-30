@@ -1,5 +1,6 @@
 package com.legend;
 
+import com.legend.testing.Lean;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
@@ -49,7 +50,7 @@ class AuditRound5Test {
 
     private static Object scalar(String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
+            return Lean.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
         }
     }
 

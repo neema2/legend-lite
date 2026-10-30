@@ -3,11 +3,12 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -59,7 +60,7 @@ class Phase1AuditTest {
     @Test
     @DisplayName("Pin 1: bare .rows = real Row objects, real cells, NULL-first-column included")
     void bareRowsAreRealRows() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select null as A, 7 as B union all"
                 + " select null, 8 order by 2', $c, 0, 1000).rows;}", StorelessRuntime.RUNTIME, conn);
@@ -67,9 +68,7 @@ class Phase1AuditTest {
         // route serves it during the slice-3/4 migration (the ResultNav
         // arm yields a Collection of Rows; the pipeline yields the
         // relation as TABULAR — the user-ratified two-worlds design)
-        List<Row> rows = r instanceof ExecutionResult.Tabular t ? t.rows()
-                : ((ExecutionResult.Collection) r).values().stream()
-                        .map(Row.class::cast).toList();
+        List<List<Object>> rows = r.rows();
         assertEquals(2, rows.size(),
                 "NULL-first-column rows must COUNT (both prior stand-ins"
                 + " failed exactly here)");
@@ -83,11 +82,11 @@ class Phase1AuditTest {
         // the tripwire's contract fulfilled: `.rows` types as a
         // relation (the splice arm -> TypedRawSqlRelation -> the one
         // Lowerer -> COUNT in the database); no recognizer vocabulary
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as A union all select 2', $c, 0, 1000)"
                 + ".rows->size();}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value())
+        assertEquals(2L, ((Number) r.one())
                 .longValue());
     }
 
@@ -102,12 +101,12 @@ class Phase1AuditTest {
     @Test
     @DisplayName("slice 3: .columnNames is a probed SCHEMA FACT through the ordinary pipeline")
     void columnNamesIsASchemaFact() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as A, 2 as B', $c, 0, 1000).columnNames;}", StorelessRuntime.RUNTIME,
                 conn);
         assertEquals(List.of("A", "B"),
-                ((ExecutionResult.Collection) r).values());
+                r.values());
     }
 
     @Test
@@ -116,23 +115,23 @@ class Phase1AuditTest {
         try (var st = conn.createStatement()) {
             st.execute("CREATE TABLE PHASE1_T(X INT)");
         }
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::fetchDbTablesMetaData("
                 + "$c, [], 'PHASE1_T').rows->size();}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(1L, ((Number) ((ExecutionResult.Scalar) r).value())
+        assertEquals(1L, ((Number) r.one())
                 .longValue());
     }
 
     @Test
     @DisplayName("tripwire #2 FLIPPED (slice 2): filter via the SPEC accessor value('A') composes")
     void filterViaSpecAccessorComposes() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as A union all select 2 union all select 3',"
                 + " $c, 0, 1000)"
                 + ".rows->filter(r | $r.value('A')->cast(@Integer) > 1)"
                 + "->size();}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(2L, ((Number) ((ExecutionResult.Scalar) r).value())
+        assertEquals(2L, ((Number) r.one())
                 .longValue());
     }
 }

@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { fn, lambda, lit, variable } from '../../pure-protocol/src/index.ts';
 import { applyPlanned, namedUnder, pageBetween } from '../src/page-between.ts';
 import { applyPageCommands, idsOf, nextPageId, takenIds, type PageCommand, type PageDraft } from '../src/page-commands.ts';
 import { gridCopyOf, pageToJson, readPage, type ChartView, type PageDocument, type TimeseriesView } from '../src/page-document.ts';
@@ -137,6 +138,25 @@ function randomEdit(rand: () => number, d: PageDraft, n: number): [string, PageC
       if (texts.length === 0) return [`add text ${n}`, { kind: 'addText', sheet: pick(sheets).id, text: `Words ${n}`, title: null, columns: null }];
       const files = Array.from({ length: Math.floor(rand() * 3) }, (_, i) => ({ name: `f${n}-${i}.md`, size: n + i, sha256: (n * 10 + i).toString(16).padStart(64, '0') }));
       return [`set text files ${n}`, { kind: 'setTextFiles', tile: pick(texts).id, files }];
+    }],
+    // the page's parameters and macros (M8): set -- a new one, one set again -- and taken off (the roadmap audit of
+    // 2026-10-26: neither was a step's inverse, so an undo of one did nothing)
+    ['setParameter', () => {
+      const ps = page.parameters ?? [];
+      const name = ps.length > 0 && rand() < 0.5 ? pick(ps).name : `p${n}`;
+      return [`set parameter ${name}`, { kind: 'setParameter', parameter: rand() < 0.5 ? { name, type: 'Integer', value: n }
+        : { name, type: 'String', value: `v${n}`, choices: [`v${n}`, 'w'], label: `P ${n}` } }];
+    }],
+    ['removeParameter', () => {
+      const ps = page.parameters ?? [];
+      return ps.length === 0 ? [`set parameter p${n}`, { kind: 'setParameter', parameter: { name: `p${n}`, type: 'Float', value: n / 2 } }]
+        : [`remove parameter ${n}`, { kind: 'removeParameter', name: pick(ps).name }];
+    }],
+    ['setMacro', () => {
+      const ms = page.macros ?? [];
+      if (ms.length > 0 && rand() < 0.4) return [`remove macro ${n}`, { kind: 'setMacro', name: pick(ms).name, pure: null }];
+      const name = ms.length > 0 && rand() < 0.5 ? pick(ms).name : `Macro ${n}`;
+      return [`set macro ${name}`, { kind: 'setMacro', name, pure: lambda(['input'], fn('limit', variable('input'), lit.integer(n))) }];
     }],
     ['arrange', () => [`arrange ${n}`, { kind: 'arrange', sheet: pick(sheets).id, preset: pick(['side-by-side', 'stacked', 'focus-left', 'focus-top']), order: null }]],
     ['snap', () => [`snap ${n}`, { kind: 'snap', grid: pick(grids).id, copy: { ...SNAP, table: `snap_${n}` } }]],
@@ -345,6 +365,25 @@ describe('the commands between two pages take one to the other', () => {
     const converged = pageBetween(kept, unsnapped, 'whole');
     assert.deepEqual(converged, [{ kind: 'setTimeseries', tile: 'timeseries-1', spec: tile.spec, kept: [{ cube: 'grid-2', document, copy: null }] }]);
     assert.deepEqual(canonical(applyPlanned(draft(kept), converged, false).draft.page, 'whole'), canonical(unsnapped, 'whole'));
+  });
+
+  it("the page's parameters and macros, set and taken off, undone and done again (the roadmap audit of 2026-10-26)", () => {
+    const limit1 = lambda(['input'], fn('limit', variable('input'), lit.integer(1)));
+    const p1 = applyPageCommands(draft(trades), [{ kind: 'setParameter', parameter: { name: 'min', type: 'Float', value: 1 } },
+      { kind: 'setParameter', parameter: { name: 'region', type: 'String', value: 'EMEA', choices: ['EMEA', 'AMER'] } }]).draft.page;
+    const p2 = applyPageCommands(draft(p1), [{ kind: 'setParameter', parameter: { name: 'min', type: 'Float', value: 2 } },
+      { kind: 'setMacro', name: 'First', pure: limit1 }]).draft.page;
+    for (const [a, b] of [[p2, p1], [p1, p2], [p1, trades], [trades, p2], [p2, trades]] as [PageDocument, PageDocument][]) {
+      const plan = pageBetween(a, b, 'history');
+      assert.deepEqual(canonical(applyPlanned(draft(a), plan, true).draft.page, 'history'), canonical(b, 'history'), plan.map((c) => c.kind).join(', '));
+    }
+    assert.deepEqual(pageBetween(p2, p1, 'history'), [{ kind: 'setParameter', parameter: { name: 'min', type: 'Float', value: 1 } },
+      { kind: 'setMacro', name: 'First', pure: null }], 'its value set back, the macro taken off');
+    // in its order: one between two others set again in its place, the rest after it
+    const reordered: PageDocument = { ...p1, parameters: [...p1.parameters!].reverse() };
+    assert.deepEqual(applyPlanned(draft(p1), pageBetween(p1, reordered, 'history'), true).draft.page.parameters, reordered.parameters);
+    const middle: PageDocument = { ...p1, parameters: [p1.parameters![0]!, { name: 'n', type: 'Integer', value: 3 }, p1.parameters![1]!] };
+    assert.deepEqual(applyPlanned(draft(p1), pageBetween(p1, middle, 'history'), true).draft.page.parameters, middle.parameters);
   });
 
   it('what no command makes is refused in words', () => {

@@ -3,8 +3,9 @@
 
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +17,6 @@ import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * not-true and an object violating EVERY constraint reported
  * {@code "defects":[]}.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class GraphFetchCheckedIntegrationTest {
 
     private Connection conn;
@@ -38,7 +39,7 @@ class GraphFetchCheckedIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
         try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE T_EDGE (ID INTEGER PRIMARY KEY,"
                     + " S_STRING VARCHAR(100), S_INT INTEGER)");
@@ -102,13 +103,13 @@ class GraphFetchCheckedIntegrationTest {
             """;
 
     private String checkedJson() throws SQLException {
-        ExecutionResult r = qs.execute(MODEL, """
+        Lean.Result r = Lean.run(MODEL, """
                 test::Edge.all()
                     ->graphFetchChecked(#{test::Edge {id, sString, sInt}}#)
                     ->serialize(#{test::Edge {id, sString, sInt}}#)
                 """, "test::RT", conn);
-        assertInstanceOf(ExecutionResult.Graph.class, r);
-        return r.asGraph().json();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, r.shape());
+        return r.json();
     }
 
     @Test
@@ -203,12 +204,12 @@ class GraphFetchCheckedIntegrationTest {
      * object (NavReducer): the constraint's own value, on the database. */
     @Test
     void reducersOverNavigationsInConstraints() throws SQLException {
-        ExecutionResult r = qs.execute(FIRM_MODEL, """
+        Lean.Result r = Lean.run(FIRM_MODEL, """
                 test::Firm.all()
                     ->graphFetchChecked(#{test::Firm {legalName}}#)
                     ->serialize(#{test::Firm {legalName}}#)
                 """, "test::FRT", conn);
-        String json = r.asGraph().json();
+        String json = r.json();
         // Dupes: two 'Ann Smith' → both distinct constraints defect; three
         // employees → enoughStaff holds
         assertTrue(json.contains("\"id\":\"distinctFirstNames\"") && json.contains(
@@ -288,12 +289,12 @@ class GraphFetchCheckedIntegrationTest {
      * to-one. A person with no firm reports nothing for it. */
     @Test
     void nestedObjectConstraintsHoistWithPath() throws SQLException {
-        ExecutionResult r = qs.execute(NESTED_MODEL, """
+        Lean.Result r = Lean.run(NESTED_MODEL, """
                 test::Person.all()
                     ->graphFetchChecked(#{test::Person {name, firm {legalName, addresses {street}}}}#)
                     ->serialize(#{test::Person {name, firm {legalName, addresses {street}}}}#)
                 """, "test::NRT", conn);
-        String json = r.asGraph().json();
+        String json = r.json();
         // Bob's firm has an empty legal name: the firm's own constraint,
         // hoisted to Bob's envelope under the to-one path
         assertTrue(json.contains("\"id\":\"named\"") && json.contains(
@@ -312,5 +313,22 @@ class GraphFetchCheckedIntegrationTest {
         // Cid has no firm: no defect, firm serializes null
         assertTrue(json.contains("\"defects\":[],\"value\":{\"name\":\"Cid\",\"firm\":null}"),
                 "a null to-one child is skipped: " + json);
+    }
+
+    /** A to-many property with NO values serializes as Pure's empty list, {@code []} (legend-engine's graph fetch
+     *  serialization of an empty to-many), never as {@code null}: the homework README §9's finding ('lite's JSON
+     *  writes an absent to-many property as null'), probed here at track F (2026-10-29) -- firm 2 has no address. */
+    @Test
+    void anEmptyToManyPropertySerializesAsAnEmptyList() throws SQLException {
+        Lean.Result r = Lean.run(NESTED_MODEL, """
+                test::Firm.all()
+                    ->graphFetch(#{test::Firm {legalName, addresses {street}}}#)
+                    ->serialize(#{test::Firm {legalName, addresses {street}}}#)
+                """, "test::NRT", conn);
+        String json = r.json();
+        assertTrue(json.contains("{\"legalName\":\"\",\"addresses\":[]}"),
+                "an empty to-many property is Pure's []: " + json);
+        assertTrue(json.contains("\"legalName\":\"Good Firm\",\"addresses\":[{\"street\":\"Main St\"}"),
+                "a to-many property's elements in order: " + json);
     }
 }

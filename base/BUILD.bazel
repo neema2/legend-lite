@@ -9,7 +9,9 @@ package(default_visibility = ["//visibility:public"])
 legend_java_library(
     name = "base",
     srcs = glob(["src/main/java/com/legend/base/*.java"]),
-    visibility = ["//core:__pkg__", "//depot-server:__pkg__", "//json:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//warehouse:__pkg__"],
+    # //arrow_ipc (2026-10-29, the result boundary program's track A): the Arrow IPC framer, on java.base and these
+    # annotations alone
+    visibility = ["//arrow_ipc:__pkg__", "//core:__pkg__", "//depot-server:__pkg__", "//json:__pkg__", "//sdlc-server:__pkg__", "//spec:__pkg__", "//warehouse:__pkg__"],
 )
 
 guards_package()

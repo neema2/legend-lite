@@ -797,7 +797,7 @@ final class Typer {
             case INLINE_VIEW -> InlineViewChecker.check(this, af, env);
             case RECURSE -> RecurseChecker.check(this, af, env);
             // stage(rows): its relation, typed by the signature; a let's value only, which the executor runs into
-            // the session's temporary table (StatementExecutor.stageRows, docs/WRITES_DESIGN_2026_10_18.md §8 leg 6)
+            // the session's temporary table (BodyDriver.stageRows, docs/WRITES_DESIGN_2026_10_18.md §8 leg 6)
             case STAGE -> applyGeneric(af, env);
             case IS_DISTINCT -> IsDistinctChecker.check(this, af, env);
             case GRAPH_FETCH -> GraphFetchChecker.graphFetch(this, af, env);

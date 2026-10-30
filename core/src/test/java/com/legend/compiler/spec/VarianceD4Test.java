@@ -3,12 +3,12 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -40,7 +40,7 @@ class VarianceD4Test {
     @DisplayName("wrong-accept dies: an Integer[1] lambda cannot fill a Number[1] slot")
     void unsoundDirectionRejected() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            var ex = assertThrows(Exception.class, () -> Execution.execute(StorelessRuntime.with(FNS, Databases.PLATFORM), "{|m::relay({i: Integer[1] | ($i + 1)->toString()})}", StorelessRuntime.RUNTIME,
+            var ex = assertThrows(Exception.class, () -> Lean.run(StorelessRuntime.with(FNS, Databases.PLATFORM), "{|m::relay({i: Integer[1] | ($i + 1)->toString()})}", StorelessRuntime.RUNTIME,
                     c));
             assertTrue(ex.getMessage() != null,
                     "expected a type error, got: " + ex);
@@ -53,14 +53,14 @@ class VarianceD4Test {
         try (Connection c = TestBackends.platform().open()) {
             // a Number-taking function in an Integer-taking slot — the
             // USEFUL case the covariant order refused
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("""
+            Lean.Result r = Lean.run(StorelessRuntime.with("""
                     function m::callI(f: Function<{Integer[1]->String[1]}>[1]): String[1]
                     { $f->eval(7) }
                     function m::wide(n: Number[1]): String[1]
                     { $n->toString() }
                     """, Databases.PLATFORM),
                     "{|m::callI(m::wide_Number_1__String_1_)}", StorelessRuntime.RUNTIME, c);
-            assertEquals("7", ((ExecutionResult.Scalar) r).value());
+            assertEquals("7", r.one());
         }
     }
 
@@ -69,7 +69,7 @@ class VarianceD4Test {
     void inheritanceCycleIsFinite() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             try {
-                Execution.execute(StorelessRuntime.with("""
+                Lean.run(StorelessRuntime.with("""
                         Class m::A extends m::B {}
                         Class m::B extends m::A {}
                         Class m::D {}

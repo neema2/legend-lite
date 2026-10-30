@@ -3,12 +3,12 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -37,9 +37,8 @@ class Part1SemanticsTest {
             "Class my::A { name: String[1]; age: Integer[1]; }";
 
     private static Object scalar(String q, Connection conn) throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), q, StorelessRuntime.RUNTIME, conn);
-        return r instanceof ExecutionResult.Scalar s ? s.value()
-                : r instanceof ExecutionResult.Collection c ? c.values() : r;
+        Lean.Result r = Lean.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), q, StorelessRuntime.RUNTIME, conn);
+        return r.value();
     }
 
     @Test

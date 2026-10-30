@@ -164,6 +164,10 @@ final class DatabaseOwners {
             // 2026-10-16, the dialect program's Phase 5 (the audit of the branch): the connectors' table test, which
             // compares every database's sessions by design, as the dialect package's tests compare their SQL
             "core/src/test/java/com/legend/exec/ConnectorsTest.java",
+            // 2026-10-29 (D65, the three routings): the raise recovery's test, which compares every connector's
+            // declared recovery by design (MariaDB's and MySQL's the two statements, every other none) and measures
+            // the seam's read on H2's own session variables
+            "core/src/test/java/com/legend/exec/RaiseRecoveryTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

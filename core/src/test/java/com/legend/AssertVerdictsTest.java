@@ -3,11 +3,12 @@
 
 package com.legend;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -63,21 +64,21 @@ class AssertVerdictsTest {
         conn.close();
     }
 
-    private static ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
+    private static Lean.Result run(String query) throws SQLException {
+        return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
     }
 
     @Test
     @DisplayName("assertEquals: World-1 verdict over DB-computed sides")
     void assertEqualsVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|assertEquals('a', ['a','b']->head())}")).value());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertEquals('a', ['a','b']->head())}").one());
         // the World-1 comparisons the SQL world once needed hacks for:
         // empties, [x] vs x, mixed trees — all just work host-side
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|assertEquals([], [1,2]->filter(x|$x > 5))}")).value());
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|assertEquals([1,2], [1,2])}")).value());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertEquals([], [1,2]->filter(x|$x > 5))}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertEquals([1,2], [1,2])}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertEquals('a', ['a','b']->last())}"));
@@ -88,8 +89,8 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("native assert: condition computes in the database, verdict host-side")
     void nativeAssertVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|assert((1 + 1) == 2)}")).value());
+        assertEquals(Boolean.TRUE, run(
+                "{|assert((1 + 1) == 2)}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assert((1 + 1) == 3)}"));
@@ -99,10 +100,10 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("assertInstanceOf: RUNTIME carrier kind up the m3 value lattice")
     void assertInstanceOfVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|assertInstanceOf(1 + 1, Integer)}")).value());
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
-                "{|assertInstanceOf(1.5, Number)}")).value());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertInstanceOf(1 + 1, Integer)}").one());
+        assertEquals(Boolean.TRUE, run(
+                "{|assertInstanceOf(1.5, Number)}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertInstanceOf('x', Integer)}"));
@@ -114,10 +115,10 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("assertTdsEquivalent: the GRID verdict — relations execute in DB, cells zip host-side")
     void assertTdsEquivalentVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|assertTdsEquivalent(#TDS\n"
                 + "  id, v\n  1, 2.00\n  2, 3.001\n#, #TDS\n"
-                + "  id, v\n  1, 2.0\n  2, 3.0\n#, 0.01)}")).value());
+                + "  id, v\n  1, 2.0\n  2, 3.0\n#, 0.01)}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertTdsEquivalent(#TDS\n  id\n  1\n#, #TDS\n"
@@ -127,9 +128,9 @@ class AssertVerdictsTest {
     }
 
     /** Under the agreement gate (both judges; the plan path program's step 6, 2026-10-18). */
-    private static ExecutionResult runBoth(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, null,
-                StorelessRuntime.RUNTIME, conn, ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH));
+    private static Lean.Result runBoth(String query) throws SQLException {
+        return Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn,
+                ExecuteOptions.NONE.withJudgeMode(ExecuteOptions.JudgeMode.BOTH));
     }
 
     @Test
@@ -139,7 +140,7 @@ class AssertVerdictsTest {
         // 2026-10-18 (step 6): the byte channel that rode the side query is retired; the agreement gate judges
         // the pair twice and the two verdicts must agree
         long judged = com.legend.exec.CanonicalDivergence.sqlJudgedInDatabaseCount();
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) runBoth(
+        assertEquals(Boolean.TRUE, (runBoth(
                 "{|assertEquals(t::Kind.CITY, t::Kind.CITY->cast(@Any))}"))
                 .value());
         assertEquals(judged + 1, com.legend.exec.CanonicalDivergence.sqlJudgedInDatabaseCount(),
@@ -150,9 +151,9 @@ class AssertVerdictsTest {
     @Test
     @DisplayName("quantified verdict: map(f|assert(pred)) vectorizes in SQL, judges host-side")
     void quantifiedVerdict() throws Exception {
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) run(
+        assertEquals(Boolean.TRUE, run(
                 "{|[1,2,3]->map(i|assert(['1','2','3']->contains($i->toString()),"
-                + " 'element missing'))}")).value());
+                + " 'element missing'))}").one());
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|[1,2,9]->map(i|assert(['1','2','3']->contains($i->toString()),"

@@ -430,6 +430,54 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  pivotValuesOf), the page gestures Python shares (flow.place, flow.duplicate), a stopping box never judged
  *  (flow-board.ts runStoppers); the checks' readers kept out (setStops reads a Test's shape alone); no startup file
  *  added -- 33 as before, measured by esbuild's record). Measured 408,032.
+ *  408,500 -> 409,500 (2026-10-26, the flow mode's roadmap: C13, a join's one of theirs per key (join-how.ts's reader of
+ *  `once`), a Profile's top values (layout/flow-canvas.ts #drawProfile), and a Cross Tab's Add to the cast
+ *  (flow-canvas.ts #paintPin, app.ts addPivotValues): no startup file added). Measured 408,617.
+ *  409,500 -> 410,500 (2026-10-26, the flow mode's Cache, FL10: a box that copies its rows when it runs -- its copy
+ *  handed to the page as the box closes and released as its chain changes (cube.ts handOver, app.ts handOverCopy and
+ *  snapNow, page/cube-page.ts #cacheKept, cacheCopies), a snapped input opened by its copy (live-inputs.ts copyOf,
+ *  join-open.ts openedInputLeaves), its command read and written (page-commands.ts setCache, page-document.ts, layout/
+ *  flow.ts setCache), and Add to the cast's gesture (grid-gestures.ts pivot.addValues, the ledger's L11: the screen
+ *  decided the longer pin); the checkbox the canvas's chunk; no startup file added, measured). Measured 409,602.
+ *  410,500 -> 411,500 (2026-10-26, the flow mode's smaller tool gaps, #74: an Imputation by its median (snapshot.ts's
+ *  window function, query.ts's arm), a DateTime written as text (date-tools.ts dateFormat), a Fuzzy Match's score
+ *  (join-how.ts's reader and scoreRefusal), a RegEx's Tokenize (text-tools.ts's reader), an Oversample (row-sample.ts's
+ *  rule and its read-back), and a cached box with nothing to copy said so (app.ts heldHere): no startup file added,
+ *  measured). Measured 410,882.
+ *  411,500 -> 413,000 (2026-10-26, the flow mode's Output into a table, M6/FL13: an Output's table kind, its rule and its
+ *  one reader (layout/flow.ts outputProblem, readOutput: the page's and its command's), the grid's write of one and the
+ *  tab's writer handed to it (app.ts writeOutput, app/datacube-app.ts tableWriter), the planner's execution plan
+ *  (lite-planner.ts executionPlan) and the engine's hold (duckdb.ts exclusive); the writer and the plan runner a chunk of
+ *  their own, fetched with the first table written; no startup file added, measured). Measured 412,379.
+ *  413,000 -> 414,500 (2026-10-26, the flow mode's Dynamic Replace, #74: a box's read-back and words (dynamic-replace.ts,
+ *  the canvas's, as multi-field.ts is), the grid's window opener and its rows read for another box (app.ts
+ *  #openDynamicReplace, handedOnRows; flow-output.ts handedOnTable), the page's read of a rules box (page/cube-page.ts
+ *  #readRules); its rules and commands and its window chunks of their own, fetched with the first). Measured 414,089.
+ *  414,500 -> 417,500 (2026-10-26, the flow mode's M8, a page's parameters: their rule, read and judged where the page's
+ *  commands and document are (page-parameters.ts: setParameter, readPage), their lens on every grid's queries and their
+ *  binding where a source is resolved (page-app.ts #lensOf, live-inputs.ts resolvedSource), Create ▸ Parameter and the
+ *  flow's palette's; the parameters bar a chunk of its own, fetched with the first parameter). Measured 416,977.
+ *  417,500 -> 420,500 (2026-10-26, the flow mode's M8, standard macros: their rule, read where the page's document and
+ *  commands are (macros.ts: setMacro, readPage), a box's Save as Macro form and the palette's Macro menu (layout/
+ *  flow-canvas.ts #macroForm, #macroMenu), the page's save -- each box read in turn -- and use (page/cube-page.ts
+ *  #saveMacro, #useMacro), a grid's own steps as a function (app.ts ownFunction)). Measured 419,896.
+ *  420,500 -> 421,500 (2026-10-26, the flow mode's M8, Dynamic Input: its rule, where the page's commands and gestures
+ *  are (dynamic-input.ts pickCommands: page-app.ts pickInput, page-gestures.ts 'flow.pick' -- Python's grid.pick), an
+ *  append's pick read and said (join-how.ts readJoinHow, join-words.ts); its settings' Keep the rows of the canvas's
+ *  chunk (layout/flow-canvas.ts #paintPick)). Measured 420,901.
+ *  421,500 -> 422,500 (2026-10-26, its audit: a step's inverse carrying the page's parameters and macros and a box's
+ *  cache (page-between.ts byName, setCache), a grid's pick written as the page holds it (join-how.ts heldHow), a
+ *  parameter's type read by its family (engine-client/src/types.ts, page-parameters.ts)). Measured 421,550.
+ *  422,500 -> 423,500 (2026-10-26, the flow mode's M8, Block Until Done, Message and the run history: a box's blocking
+ *  and its message, read where the page's commands and document are (layout/flow.ts readMessage: setBlocks, setMessage,
+ *  readPage), a run in stages with its Messages said (page/cube-page.ts #runFlow: runStages, messageSaid), its log kept
+ *  (layout/flow-board.ts logs); their settings and the log's history the canvas's chunk). Measured 422,951.
+ *  423,500 -> 425,000 (2026-10-26, the flow mode's roadmap audit, #77: a join's sides bound with the page's parameters
+ *  and a lambda's own shadowing them (page-parameters.ts boundIn, parametersRead), a cache's chain keyed by what its box
+ *  is made of and let go live (layout/flow-board.ts chain, page/cube-page.ts staleCaches, liveNow), a told layout held
+ *  to its boxes' settings' rules (page-document.ts flowSheetProblem, page-commands.ts stopsProblem), a box's settings
+ *  carried by a move, a paste and a duplicate (page-gestures.ts settingsCommands)). Measured 424,587.
+ *  On main meanwhile, from the same base (the timeseries work, PR #79 merging it in):
  *  408,500 -> 409,500 (2026-10-26, the timeseries follow-ups rebased onto the flow mode, docs/TIMESERIES_REVIEW_2026_10_25.md
  *  §10: the converge holds and opens a cube kept off the board for a tile (app/live-converge.ts cubeThere, cubesHeld), and
  *  a timeseries frozen from the page's cubes, an unopened one's as saved (cube-page.ts heldFilter, page-app.ts
@@ -448,8 +496,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  file added). Measured 412,861.
  *  413,400 -> 414,000 (2026-10-27, Phase 5's drawings, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: the spec's
  *  reader of a person's own line and note -- each point a date and a value (timeseries-spec.ts TsPoint) -- which a saved
- *  page is read by as it opens; no startup file added). Measured 413,496. */
-const BUDGET = 414_000;
+ *  page is read by as it opens; no startup file added). Measured 413,496.
+ *  425,000 / 414,000 -> 430,500 (2026-10-28, main merged into the flow mode's PR #79: the two chains above, each grown
+ *  from 408,500 apart -- the flow mode's roadmap and main's timeseries work -- in one bundle; no startup file added by
+ *  the merge). Measured 430,054. */
+const BUDGET = 430_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -619,6 +670,28 @@ const BUDGET = 414_000;
  *  353,500 -> 363,000 -> 364,000 -- the grid-only page's note of the same date). Measured 393,657.
  *  394,000 -> 396,500 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
  *  396,140.
+ *  396,500 -> 397,000 (2026-10-26, the flow mode's roadmap, C13: a join's one of theirs per key -- join.ts firstOfEach,
+ *  the engine page's at startup, and join-how.ts's reader of `once`; the Join window's checkbox lazy, no startup file
+ *  added). Measured 396,543.
+ *  397,000 -> 398,500 (2026-10-26, the flow mode's Cache, FL10, and Add to the cast's gesture -- the grid-only page's note
+ *  of the same date -- with the Cross Tab's Add to the cast before it (app.ts addPivotValues)). Measured 397,758.
+ *  398,500 -> 399,500 (2026-10-26, the flow mode's smaller tool gaps, #74 -- the grid-only page's note of the same date).
+ *  Measured 398,986.
+ *  399,500 -> 401,000 (2026-10-26, the flow mode's Output into a table, M6/FL13 -- the grid-only page's note of the same
+ *  date). Measured 400,300.
+ *  401,000 -> 402,500 (2026-10-26, the flow mode's Dynamic Replace, #74 -- the grid-only page's note of the same date).
+ *  Measured 402,020.
+ *  402,500 -> 405,500 (2026-10-26, the flow mode's M8, a page's parameters -- the grid-only page's note of the same
+ *  date). Measured 404,894.
+ *  405,500 -> 408,500 (2026-10-26, the flow mode's M8, standard macros -- the grid-only page's note of the same date).
+ *  Measured 407,818.
+ *  408,500 -> 409,500 (2026-10-26, the flow mode's M8, Dynamic Input -- the grid-only page's note of the same date).
+ *  Measured 408,808.
+ *  409,500 -> 411,000 (2026-10-26, the flow mode's M8: Dynamic Input's audit, then Block Until Done, Message and the run
+ *  history -- the grid-only page's notes of the same date). Measured 410,880.
+ *  411,000 -> 413,000 (2026-10-26, the flow mode's roadmap audit, #77 -- the grid-only page's note of the same date).
+ *  Measured 412,503.
+ *  On main meanwhile, from the same base (the timeseries work, PR #79 merging it in):
  *  396,500 -> 397,600 (2026-10-26, the timeseries follow-ups rebased onto the flow mode -- the grid-only page's note of
  *  the same date). Measured 397,097.
  *  397,600 -> 398,900 (2026-10-26, the timeseries' next phases' 1 -- the grid-only page's note of the same date).
@@ -631,8 +704,10 @@ const BUDGET = 414_000;
  *  window's). Measured 399,611.
  *  399,900 -> 401,500 (2026-10-26, DataCube's Pure library with the planner -- the grid-only page's note of the same
  *  date). Measured 400,965.
- *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506. */
-const ENGINE_BUDGET = 402_100;
+ *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506.
+ *  413,000 / 402,100 -> 418,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
+ *  same date). Measured 417,953. */
+const ENGINE_BUDGET = 418_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -974,6 +1049,30 @@ const EXAMPLE_BUDGET = 4_000;
  *  Measured 421,003.
  *  421,500 -> 424,000 (2026-10-26, the flow mode review's fixes -- the grid-only page's note of the same date). Measured
  *  423,483.
+ *  424,000 -> 425,000 (2026-10-26, the flow mode's roadmap: C13, a join's one of theirs per key -- the engine page's note
+ *  of the same date -- and a Profile's top values, its column opened (layout/flow-canvas.ts #drawProfile, profile.ts
+ *  topValuesLambda): one module, everything in it). Measured 424,104.
+ *  425,000 -> 426,000 (2026-10-26, the flow mode's Cache, FL10, and Add to the cast -- the engine page's note of the same
+ *  date -- and the Cache's styles). Measured 425,324.
+ *  426,000 -> 427,000 (2026-10-26, the flow mode's smaller tool gaps, #74 -- the engine page's note of the same date --
+ *  and the score's name field's style). Measured 426,601.
+ *  427,000 -> 428,500 (2026-10-26, the flow mode's Output into a table, M6/FL13 -- the engine page's note of the same
+ *  date -- with the headless lane's writer beside it: one module, everything in it). Measured 427,946.
+ *  428,500 -> 430,000 (2026-10-26, the flow mode's Dynamic Replace, #74 -- the engine page's note of the same date --
+ *  with the headless lane's rules read beside it). Measured 429,681.
+ *  430,000 -> 433,000 (2026-10-26, the flow mode's M8, a page's parameters -- the engine page's note of the same date --
+ *  with the headless lane's lens and binding beside it). Measured 432,624.
+ *  433,000 -> 436,000 (2026-10-26, the flow mode's M8, standard macros -- the engine page's note of the same date -- with
+ *  the headless lane's gridFunction and macroComposed beside it). Measured 435,556.
+ *  436,000 -> 437,000 (2026-10-26, the flow mode's M8, Dynamic Input -- the engine page's note of the same date -- with
+ *  the headless lane's 'flow.pick' beside it). Measured 436,538.
+ *  437,000 -> 438,000 (2026-10-26, Dynamic Input's audit -- the engine page's note of the same date -- with the headless
+ *  lane's heldHow beside it). Measured 437,193.
+ *  438,000 -> 439,000 (2026-10-26, Block Until Done, Message and the run history -- the engine page's note of the same
+ *  date -- with the headless lane's flowRun beside it). Measured 438,768.
+ *  439,000 -> 441,000 (2026-10-26, the flow mode's roadmap audit, #77 -- the engine page's note of the same date -- with
+ *  the headless lane's 'flow.imported' and its joins bound with the page's parameters beside it). Measured 440,385.
+ *  On main meanwhile, from the same base (the timeseries work, PR #79 merging it in):
  *  424,000 -> 425,100 (2026-10-26, the timeseries follow-ups rebased onto the flow mode -- the grid-only page's note of
  *  the same date -- and the statistics panel's tabs' and the correlation matrix's styles). Measured 424,538.
  *  425,100 -> 426,400 (2026-10-26, the timeseries' next phases' 1 -- the grid-only page's note of the same date).
@@ -985,8 +1084,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  427,400 -> 429,200 (2026-10-26, DataCube's Pure library with the planner -- the grid-only page's note of the same
  *  date). Measured 428,652.
  *  429,200 -> 429,900 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date -- and the drawing
- *  box's style, app.css .dc-ts-draw). Measured 429,265. */
-const WIDGET_BUDGET = 429_900;
+ *  box's style, app.css .dc-ts-draw). Measured 429,265.
+ *  441,000 / 429,900 -> 446,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
+ *  same date). Measured 446,209. */
+const WIDGET_BUDGET = 446_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

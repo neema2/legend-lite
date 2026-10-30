@@ -1829,6 +1829,7 @@ final class GraphEmission {
                             strat != MilestoningStrategy.PROCESSING);
             if (d instanceof com.legend.compiler.spec.typed.TypedCDate cd) {
                 String iso = cd.value().toEngineString();
+                // the zone with any time of day (register S121, pending: legend-pure writes +0000 from the minute)
                 return node.property() + "(" + iso
                         + (iso.indexOf('T') >= 0 ? "+0000" : "") + ")";
             }

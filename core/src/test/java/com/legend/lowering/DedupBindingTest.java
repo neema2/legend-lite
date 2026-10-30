@@ -29,7 +29,7 @@ class DedupBindingTest {
     void comparatorOperandsCarryTheElementStamp() {
         SqlExpr carried = new SqlExpr.Cast(
                 new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("1"))),
-                new SqlType.Array(SqlType.Scalar.LITERAL));
+                new SqlType.Array(SqlType.Scalar.VARCHAR));
         List<TypeFact> seen = new ArrayList<>();
         Dedup.keptDedup(carried, 0, (prior, cand) -> {
             seen.add(prior.type());
@@ -39,8 +39,8 @@ class DedupBindingTest {
         // §E3: element stamps are MAY-BE-NULL — presence is not
         // provable from Array(T) (the Column.param doctrine)
         assertEquals(List.of(
-                        new TypeFact.Typed(SqlType.Scalar.LITERAL, true),
-                        new TypeFact.Typed(SqlType.Scalar.LITERAL, true)),
+                        new TypeFact.Typed(SqlType.Scalar.VARCHAR, true),
+                        new TypeFact.Typed(SqlType.Scalar.VARCHAR, true)),
                 seen);
     }
 

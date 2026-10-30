@@ -112,3 +112,9 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
   and `//wasm:planner` locally.
 - **The worker restarts.** A restarted session worker kills what it was running: run a long Bazel command in the
   background and commit a checkpoint to the branch before a long run.
+- **The memory cgroup kills the Bazel server (2026-10-29, track L's chain, twice).** The session's processes share one
+  memory cgroup; the 21 PCT lanes with `--local_test_jobs=2` beside the server's JVM crossed it, and the kernel killed
+  the server (`Server terminated abruptly (error code: 14, error message: 'Socket closed')`; `dmesg` reads
+  `Memory cgroup out of memory: Killed process ... (java)`). A lane killed mid-run leaves a log with no summary and
+  counts as failed. Run the PCT group with `--local_test_jobs=1 --jobs=2`; a test that dies that way is rerun, not
+  fixed.

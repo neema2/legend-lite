@@ -206,6 +206,19 @@ export interface JoinInput {
    *  anti-join the database runs (join-open.ts), on a condition naming each side's columns by the names it hands them on
    *  by. Absent, every row. */
   readonly unmatched?: readonly Unmatched[];
+  /** The copy of its source's rows it reads in their place: its grid snapped (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+   *  §18.8; a flow's cached box, docs/DATACUBE_FLOW_MODE_2026_10_24.md FL10), a table of its host's database. Set only
+   *  where a link is resolved to be opened (live-inputs.ts resolvedSource's `copies`), never written in a page: a copy
+   *  lasts as long as its session (FL11). */
+  readonly copy?: InputCopy;
+}
+
+/** A snapped grid's copy as what reads it reads it (JoinInput.copy): its table, and what its plane says of it. */
+export interface InputCopy {
+  readonly table: string;
+  readonly label: string;
+  /** When it was taken: an ISO instant. */
+  readonly takenAt: string;
 }
 
 /** Rows of an input matched against another's (JoinInput.unmatched): those `by`'s rows pair with none on `on`. */
@@ -626,6 +639,8 @@ function readJoinSource(s: Record<string, unknown>): JoinSource {
 /** A frozen input (`what`, as said: "the join source's left input"): what a grid was -- its name, source and query. */
 function readFrozenInput(i: Record<string, unknown>, what: string): JoinInput {
   if (typeof i['name'] !== 'string' || i['name'] === '') throw new CubeDocumentError(`${what} has no name`);
+  // a copy is its session's (JoinInput.copy): a page that keeps one was written wrong
+  if (i['copy'] !== undefined) throw new CubeDocumentError(`${what} keeps a copy: a copy lasts its session, a page keeps none`);
   const omit = i['omit'];
   if (omit !== undefined && !(Array.isArray(omit) && omit.length > 0 && omit.every((c) => typeof c === 'string'))) {
     throw new CubeDocumentError(`${what}'s columns left out are a list of names, not ${JSON.stringify(plain(omit) ?? null)}`);

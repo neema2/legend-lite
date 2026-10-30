@@ -471,7 +471,7 @@ describe('a command read from JSON is the same command, and what DataCube does n
     refused(() => readGridCommand(grain({ of: 'notional', at: 'all', by: 'region' })), /a measure at a grain takes of, at, not by/);
     // a window, field by field
     const win = (w: Record<string, unknown>): unknown => calc({ name: 'w', window: { partition: [], order: [], ...w } });
-    refused(() => readGridCommand(win({ fn: 'median' })), /a window's function is one of sum, average/);
+    refused(() => readGridCommand(win({ fn: 'mode' })), /a window's function is one of sum, average, median/);
     refused(() => readGridCommand(win({ fn: 'sum', column: 'qty', frame: 'rolling' })), /a window's frame is 'running', 'partition' or \{lastRows\}/);
     refused(() => readGridCommand(win({ fn: 'sum', column: 'qty', frame: { lastRows: 0 } })), /lastRows is a whole number of rows, 1 or more/);
     refused(() => readGridCommand(win({ fn: 'lag', column: 'qty', offset: 1.5 })), /a window's offset is a whole number, 1 or more/);

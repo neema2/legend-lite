@@ -165,20 +165,25 @@ carries today.
 
 ## 3. Where things stand (honest)
 
-| Piece | State today | Step |
+> **Brought up to date 2026-10-29 (S1.5).** The live state, the step-by-step map, the commits and what is left are
+> `docs/RESULT_BOUNDARY_START_HERE.md` §3 and §4, kept current by every phase; this table is the program's own view of
+> its steps (§5), by step. The table of 2026-10-26 (the state before phases 1 to 5) is in git history (`d102b35c`).
+
+| Step (§5) | State | Where |
 |---|---|---|
-| Three facts per column, typed tree in the plan JSON (format 10) | landed (2026-10-17/18; tagged slots 2026-10-23) | kept |
-| The typed seam: `ExecutionPlan.TdsResult`, `PlanRunner.rows`, `JdbcDecode`/`RowDecode` by the plan's facts | landed; used by the typed callers and `TaggedSelectionTest` | step 1 makes it the only result |
-| `ExecutionPlan.TextResult` with `Format {CSV, JSON, JSON_PER_ROW, TDS_TEXT}`; `TypedQuery.Output` as a planning input | live: PCT (`TDS_TEXT`), the served routes (`JSON_PER_ROW`, `JSON`, `CSV`) | steps 1 to 4 retire; deleted at step 4 |
-| `WireRender` (177 lines), `Render`'s text wires (in 1,360), `TdsTextWrap` (268), `FloatPrintText`'s engine layout (in 269), `LiteralSpelling.floatPrintJava` and `dateTimeTextEngine` (in 1,052), each dialect's `FLOAT_PRINT_ENGINE` arm, MariaDB's and MySQL's `floatLayout` | live | deleted at steps 3 and 4 |
-| `PureV1Api` builds the envelope in Java and takes the rows as the database wrote them (`Execution.executeWire`, a `List<String>` of lines) | live | step 3 |
-| `ValueBridge` builds Pure values, lists and class instances from typed values; a relation arrives as TDS text | live | step 4 adds the relation from typed rows |
-| `Executor` (1,195 lines, the old executor) and `ExecutionResult` (an in-memory result: columns and rows), produced by it and returned by `Execution.execute` | live; 101 test files and 28 main files use the type; one real route (`server/QueryService`), the channel B judges, loaders, and type references | step 7 |
-| `Fold.conformValueEgress` (re-types a value root's egress) | live | step 5 deletes with the text wires |
-| `LITERAL` slot, `LiteralText.parse`, the Any-kind carrier, mixed `sort` | live for lists | step 6 |
-| The Arrow IPC framer | live in the warehouse server, dependency-free, native-image-proven | step 5 shares it |
-| `CanonicalRenderSql` (1,085 lines) and each dialect's `FLOAT_CANON`: the database judge's canonical spellings | live (channel B) | stays (R10); simplifies per slot as carriers are typed |
-| A Float's String inside a query on Snowflake and BigQuery | the exact-digits expression (correct, ~5 KB per Float printed) | stays (R5); §8 item 3 measures the cheaper form |
+| 0. Measure first | half: the clouds' M5 to M8 (GATES 2026-10-26); M1 to M4 never recorded; the lanes' per-test baselines of S1.1 replaced them as the gate | GATES 2026-10-27, phase 5, item 3 |
+| 1. One result shape, the batch stream | done: `result/` (`ResultSink`, `Batch`, `Batcher`, `Collector`), `TdsResult.Shape`, `PlanRunner.stream` | `51688f36` |
+| 2. The shared Arrow framer | built (track A, 2026-10-29): `//arrow_ipc`, on java.base and `//base`; the warehouse delegates its framing byte for byte (its tests unchanged); no Arrow library in any product closure (`ArrowClosureTest`) | track A; GATES, the track A entry |
+| 3. The legacy writer in Java; the SQL-written wires deleted | done: `CellText.engine`, `PureV1Writer`, `Execution.run`, every served route; `WireRender`, `Render`'s wires, the engine Float spellings, `server/serial` deleted | `12b89c7d`, `1b0305f7`, `53cf5b6d` |
+| 4. PCT and the corpus from typed rows | PCT done: a relation crosses as legend-engine's own adapter reads it (engine JSON), a value as the reference's instances; the TDS text path deleted. The corpus: not yet (track C, on track B) | `b3311cd6`; `ac4bb7d3`, `6811256b`, `4eaf1b07`, `d8ab8434` |
+| 5. The lean writers | JSON and CSV done (`JsonRowsWriter`, `CsvWriter`, `CellText.pure`/`pureJson`); the writers carry only, the precision fact on the plan column, the two guards (S1.4); Arrow built (track A, 2026-10-29: `ArrowWriter`, the server's ARROW_IPC execute; the Python route and the tab not switched, D56); `Fold.conformValueEgress` not deleted (track L, D51) | `12b89c7d`, `f58f37ed`, `d102b35c` |
+| 6. Mixed lists typed | not started | track L |
+| 7. The old executor goes | half: `exec.Executor` deleted, its effects plan nodes (phase 5); the old door (`Execution.execute*`, `StatementExecutor`, `ExecutionResult`) remains for the corpus, channel B, the service tests and core's 140 test files | `0fe63b42`, `f883d42b`; tracks B, T, C, D |
+| 8. The question parked for the user | parked (the engine-style SQL-text dialects) | -- |
+
+**The spellings, under the upstream-fidelity tenet (2026-10-29):** the 51 writer differences classified by upstream's
+answer, `docs/result-boundary-homework/WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`; the decisions, made and wanted,
+`docs/result-boundary-homework/DECISIONS_LOG.md`; the rows S117 to S120.
 
 ## 4. Step 0: measure first (one week, nothing built)
 
@@ -450,8 +455,226 @@ planner and the native image. Reversible: an Arrow-backed batch behind the same 
 shows on a route that can hand over Arrow buffers as they are; never in the compiler or the native image, never the
 default.
 
+**Ruled later (2026-10-27 and 2026-10-28; the order of work they set is `docs/RESULT_BOUNDARY_START_HERE.md` §4):**
+
+**9. The execution order and the audit (2026-10-27).** "Skip the guards - let's actually do the real work of making
+the plan real and deleting everything else including the string spellings and old execution - keep going in phases,
+do expert work, audit after each phase": phases 1 to 5. Then "we need to pause and do an audit": the audit
+(`docs/result-boundary-homework/README.md` §1) and its three-stage plan, answered "keep it, and keep going": the
+paused phase 5 commit kept and made green. The plan's other three questions, answered 2026-10-28: "any output
+spelling changes need to come to me on case by case basis" (no spelling change of any output is accepted or
+registered by a session: each is put to the user, alone, with its before and after, and the user's answer recorded);
+"yes keep arrow writer at the boundary in this program (but no arrow dependencies in compiler!)" (the Arrow writer is
+track A, at the boundary only; R9's guard keeps every Arrow artifact out of the compiler, the WebAssembly planner and
+the native image); the writer guards: the user asked what they are for ("writer guards are for what exactly"; the
+start page's S1.4 keeps the answer) and then approved them, "yes add this to the plan": R3's two guards
+(`ArchitectureTest.writersAreCarriageOnly` and `WriterCarriageGuardTest`) are built in S1.4, right after the typed
+precision fact, which supersedes 2026-10-27's "skip the guards" for them. The first spelling change put to the user
+case by case, a negative zero ("what should we do about the negative zero? what is the right move", then "okay"):
+lite's own outputs (LEAN JSON and CSV) write it `-0.0`, item 3's shortest decimal that reads back as the same double;
+Pure's `toString` of a Float stays `0.0` for either sign, legend-pure's own (register S117; S114 until S1.0). Then "keep the fix, fix
+the plan wording including adding that we need to fix 0.00010": `b944a42e` kept, and the trailing zero lite's own
+outputs write after a small double's one digit (`1.0E-4` as `0.00010`, where legend-pure and item 3's shortest digits
+give `0.0001`) ruled a defect, fixed in S1.4.
+
+**10. A PCT relation crosses as legend-engine's own adapter reads it (2026-10-28, "Do the probe", then "Do it").**
+The relation is streamed through the server's own LEGACY writer (`PureV1Api.engineWriter`) and read by a Pure copy of
+the engine adapter's `getTDSResultFromProtocol` steps, then `stringToTDS`; the TDS text written in Java
+(`PureTdsText`) is deleted. Chosen over the typed `TestTDSInterpreted.addColumn` route the audit had proposed: that
+is not the reference's own crossing, its reader holds a date at the millisecond, and its classes sit in jars the
+upstream pool does not list. So the PCT judges the JSON the server serves (three production defects found by it).
+
+**12. Upstream fidelity (2026-10-29).** "wherever possible we should stick to upstream legend-pure and legend-engine
+as possible - every answer should be 'can we do exactly as pure/engine does, or as close to as possible where too
+expensive to be exact but with an explicit posting to me and a ledger for diverging' every decision should be settled
+with that tenet." Recorded as AGENTS.md's upstream-fidelity tenet, the start page's first rule (§5) and the register's
+header: upstream's answer, read from the pinned sources or asked of the engine runner, is the default; a divergence is
+taken only where exactness is too expensive, posted to the user before it lands, and ledgered with the ruling. It
+settles S1.4's two open questions (the start page's §4) and governs S1.5's classification of the 51 writer differences
+and every track after.
+
+**11. Our own core tests are the LEAN twin of PCT and the corpus (2026-10-28).** "i would prefer not to delete the
+overlapping tests but use the exact same logic but with platform output that we think users would actually run/use
+instead of backwards compat mode - so its almost the platform twin of PCT/core-relational". Replaces step 7's "test
+helper with assertions unchanged": no test is deleted for overlapping PCT or the corpus; each value test keeps its
+query and logic and is judged on lite's own LEAN output (lite's JSON rows first, Arrow when built), on every lane like
+PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
+
 ## 9. Status
 
+- **2026-10-29, the three routings** (the decisions log D65; GATES, the three routings' entry): the plan path's
+  seeds and the server's held-database fill run as plan setup steps through the runner's `setUp` (the target's
+  session statements first, the order upstream's test connections keep); the MariaDB raise recovery is two
+  statements its connector declares as data, read by the seam after a failure; `DatabaseConnector.raisedMessage`
+  and `Sessions.raisedMessage` deleted. In core's main sources the seam `JdbcStatements` and its DuckDB bulk loader
+  are the only JDBC senders. The independent audit of the routings is folded in D65 (the held raise read only
+  where the error's own text carries none, as before; the per-step session statements and the counts stated). The two service test runner readings of door 1 were read against the pinned legend-engine sources and
+  kept (the presented column name: `pureToSQLQuery.pure`'s `mayQuotePivotColNames`; the one-object graph fetch bare:
+  `ExecutionNodeSerializerHelper.writeTo`). Next: the independent audit of the routings, the decisions post.
+- **2026-10-29, the doors' audit folded** (the decisions log D64; GATES, the fold entry): the records corrected (with
+  door 1); an effect statement that ends the body answered after its script runs; every generator temp dropped; the
+  dead arms deleted (`PrepTrace`'s timed prepare/execute, `SqlTypeCensus`'s wire arm, `TypedSide`'s accessors,
+  `Lean.ofCollectedSide`), both files off the JDBC census; the stale sentences. Posted to the user, not built: two
+  readings of the service test runner (the presented column name; the one-object graph envelope), the routing of the
+  plan path's seeds and the server's fill through the runner. Next: the decisions post.
+- **2026-10-29, the doors, 1** (the decisions log D63; GATES, the door 1 entry): a program's last statement streams
+  to the sink the caller hands for its shape; `Execution.ProgramReport` deleted, `TypedSide` off the public surface;
+  the service test runner reads its answer from the boundary's writers (`PureV1Writer.objects`, the new
+  `TdsObjectsWriter`), the twin's `Program` from `Lean.Capturing`. Every door in the map is closed: a body's every
+  statement is the plan runner's, and nothing materialized leaves a public entry. Three raw sends remain inside the
+  chartered seams, named by the doors' audit (D64): the plan path's seeds (`PlanSessions.runSetup`), the server's
+  fill of a held database (`ConnectionResolver.filled`), the MariaDB connector's own session reads. Next: the
+  audit's fold (D64), the decisions post.
+- **2026-10-29, the doors, 2** (the decisions log D62; GATES, the door 2 entry): the test-data generator on plans --
+  its temps and drops as effects, its read-backs as typed rows of the columns the database describes, the CSV's
+  text columns as reported columns; `testdatagen` holds no JDBC (the funnel tightened, the census shrunk). Next:
+  door 1 (the last statement streamed, `ProgramReport` deleted), the audit, the post.
+- **2026-10-29, the doors, 3-5** (the decisions log, "The doors", D61; GATES, the doors 3-5 entry): the user's ask
+  after Z ("close all the doors here as part of this PR so we know that it can be done"). The probes and the pivot's
+  key type as plan statements the runner runs (`PlanRunner.columns`, `describe`); the seeds, a program's session
+  statements and the system store's rows as setup steps it runs (`PlanRunner.setUp`; `SetupRunner` deleted); the
+  guard: outside the seam, no class calls a session's statements. Next: door 2 (the generator), door 1 (the last
+  statement streamed, `ProgramReport` deleted).
+- **2026-10-29, the DuckDB driver 1.5.6.0** (the decisions log D60; GATES, the D60 entry): core's pin 1.4.4.0 to
+  1.5.6.0 on the user's ask, measured first on the jars (the pin's LIMIT shape correct on all three versions; the
+  as-of defect of S126 gone from 1.5.5 on); the as-of test asserts the spec on every lane; the chain green on the bump
+  alone, no PCT or corpus pin flipped. Open: the warehouse's own pin (1.5.5.1) as the same version, the user's call.
+- **2026-10-29, track Z: the final audit folded; the program's work on the branch is complete** (the decisions log
+  D59; GATES, the track Z entry): twelve findings, none on the code's correctness; the service test runner's cells
+  through the boundary's writer (its own spelling and `String.valueOf` fallback gone); the crossing-numbers refusal
+  ledgered (S127); the records corrected where stale; the open questions in one table (the start page's §10a). Left
+  to the user: the rulings of §10a and the landing of PR #80 (no session pushes `main` or merges).
+- **2026-10-29, track F: the open findings** (the decisions log D58; GATES, the track F entry): built S116 (the
+  engine's `toVariant` of an empty), the H2 JSON parse (63 corpus tests gained), the tag in the batch; closed the
+  `concatenate` width, the `[0..1]` element and the unbounded Decimal by upstream's own rule; posted `asOfJoin`'s empty
+  right side (S126), the multi-key ordered list aggregate (sized), the lane twin and the typed kind. Next: track Z.
+- **2026-10-29, track A audited and folded** (the decisions log D57; GATES, the track A entry): eighteen findings,
+  two blockers (the union's type ids for the browser's reader; the decoders' 63-bit bound) fixed before the commit;
+  three questions posted (a day under a TIMESTAMP column, the JSON route's tenth subsecond digit, the server's Arrow
+  format against S28: register S125).
+- **2026-10-29, track A: the Arrow writer at the boundary** (GATES, the track A entry; the decisions log D55, D56):
+  `//arrow_ipc`, the warehouse's framer shared; `result/ArrowWriter`; the server's ARROW_IPC execute; the embedded
+  hosts' entry points; R9's closure guard; the pyarrow round-trip gate. Steps 2 and 5's Arrow half done; the
+  consumers' switch (Python's route, the tab) posted for the user (D56). Next: track F.
+- **2026-10-29, track L, the L2 audit's fold** (GATES, the L2 audit entry; the decisions log D54; the register
+  S123, S124): the flatten's numbering of a sorted star frame and of an ordered source; crossing numbers refused by
+  name; `filter` over a mixed list; the cells' size; the gate over typed columns. Next: track A.
+- **2026-10-29, track L, L2: the spelling carrier deleted** (GATES, the L2 entry; the decisions log D52): the
+  `LITERAL` slot, `LiteralText`, the decoders' and dialects' arms, the lowering's spellers; the census zero; plan
+  format 19. Open: `Fold.conformValueEgress` (step 5's delete) waits on D51's ruling.
+- **2026-10-29, track L, L1: a mixed list as a list of tagged values** (GATES, the L1 entry; the decisions log
+  D50): `SqlExpr.TaggedList`, parallel typed arrays by position, rows of a tagged value at a root; the operations in
+  `TaggedLists`; the PCT essential suites on every local lane and channel B at their counts. Next: L2, the deletions.
+- **2026-10-29, track T, T-d2: every integration test on the lanes; the floors re-measured** (GATES, the T-d2
+  entry; the decisions log D49; the ledger, batch T-d2): sqlite 89 on its floor, h2 269 and one not-run pin (268 since track F; H2's
+  planner on a twenty-call chain), the platform 0 of 2,232; a test's own connection text re-spelled to the
+  session's backend; the T-d and track D audits' fixes. Track T built but for Arrow's judge (A). Next: track L.
+- **2026-10-29, track D built: the old door deleted, the judges' side and the body driver named for what they are**
+  (GATES, the track D entry; the decisions log D48): `Execution.execute*`, `executeResolved` and the service's
+  materialized `execute` gone; `ExecutionResult` -> `TypedSide`, `StatementExecutor` -> `BodyDriver`; the old-path
+  census zero on every step-7 symbol; AGENTS.md and core/README.md corrected. Step 11's 2026-10-17 wording superseded
+  by track B (the driver stays); its closure on step 9's residue, the user's rulings. Next: tracks L, A, F, then Z.
+- **2026-10-29, track T, T-d: the twin's lanes** (GATES, the T-d entry; the decisions log D47; the ledger, batch T-d):
+  core's integration tests on SQLite (15 on its floor) and H2 (169), each lane a Bazel target in the core gate held to
+  its recorded floor (`testing/LaneFloor`); the MongoDB lane deferred to D's session-seam move. Track T built but for
+  Arrow's judge (A). Next: track D.
+- **2026-10-29, track C built: the corpus runner, the service test runner and channel B on `Execution.runProgram`**
+  (GATES, the track C entry; the decisions log D39): the body typed once, the session the caller's, nothing
+  materialized returned to the corpus runner or channel B; the referee keeps `ExecutionResult` as the judges' side
+  until D (D36). The plan path program's step 10 is this entry. Next: track T (core's tests as the LEAN twin).
+- **2026-10-29, track T, T-b2 and T-c: the other packages, the parity harnesses and lanes on the twin; two product
+  bugs fixed** (GATES, the T-b2/T-c entry; the decisions log D45, D46; the ledger): `Json.parse`'s negative zero and
+  `RowDecode`'s identity fields, both found by the twin; the reader in `:test_cases`; `QueryService.execute(...,
+  sinkOf)`. 7 files, 21 lines remain on the old door, track D's. One divergence posted for the user (the plan path's
+  egress lower bound). Next: T-d, then D.
+- **2026-10-29, track T, T-b: the integration package's remaining 31 files; `testing/Program.java`; a plan-path bug
+  fixed** (GATES, the T-b entry; the decisions log D44; the ledger, batch T-b): a navigate's slot column is flattened
+  once for the plan's columns and the judges' (`TypedRows.flat`); six files whose bodies only the program entry runs
+  go through `Program`; 2,232 of 2,232. Findings queued to D and F: the plan path's missing metamodel-store route on
+  a given session; `PureV1Api`'s positional tdsColumns. Next: the other packages (85 files by the counting rule).
+- **2026-10-29, track T begun: the LEAN reader and the first batch** (GATES, the T-a entry; the decisions log D42;
+  the ledger `docs/result-boundary-homework/T_EXPECTATIONS_2026_10_29.md`): `testing/Lean.java` reads lite's JSON
+  rows back through the product's own row decoder; the 28 `AbstractDatabaseTest` subclasses (2,232 tests) judged on
+  it, no expectation moved. Next: the remaining 115 test files on the old door, the helpers, the per-lane targets.
+- **2026-10-29, track B, B1a and B1b built: the body driver sends nothing itself and holds no connection** (GATES, the
+  B1a and B1b entries; the decisions log D33, D35). B1a: the session seam answers a statement's reported columns
+  (`Statements.columns`, `describe`) and loads rows (`load`); the three schema probes, the seeds and the static pivot
+  read and send through it. B1b: the driver's environment holds a `Sessions.Session` (`statements(trace)`, `state()`,
+  `version()`), never a `java.sql.Connection`; the judges, the verdict batch, the referee's SPI and the generator's
+  natives the same; `Execution` is the one JDBC-aware caller; the guard `ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc`
+  pins thirteen classes by name. `main` merged a second time (PR #79, D34) for PR #80's CI. **B2 built the same day**
+  (D37): `Execution.runProgram`, the one entry for a program, the old door's entries shims over it. The order changed
+  (D36): B3 (the judges' typed side) is track D's rename, after C and T remove `ExecutionResult`'s other two roles.
+  Next: track C.
+- **2026-10-29, S1.6: draft PR #80 opened** (`https://github.com/neema2/legend-lite/pull/80`, from `a0fe9d21`; the
+  first CI on every OS since phase 1; under the user's "keep going", D11; the merge the user's). Track B begins
+  (the start page's track B block: the design D29, the Java residue D30).
+- **2026-10-29, S1.5 done: the 51 writer differences classified by upstream's answer; two moves toward upstream;
+  the S1.4 audit's findings fixed** (the records commit `3e9e739a`, the code commit after it; GATES, the S1.5
+  entry). Eleven groups, each read from the pinned sources
+  (`docs/result-boundary-homework/WRITER_DIFFERENCES_BY_UPSTREAM_2026_10_29.md`): 29 corrections, 4 old defects
+  fixed, 2 ruled, 5 random, 3 findings, 4 moves toward upstream, 4 for the user; built: an hour-only date without a zone (legend-pure's `DateFormat.append`
+  writes `+0000` from a minute on), a LEGACY NaN cell as `null` (the engine's `convertPurePrimitiveToJson`);
+  wanted of the user, each with a recommendation: LEAN's NaN (S119), an instance's text (the interpreter's `@_` shape
+  against compiled's `Anonymous_StripedId`), a metamodel element's name against its path, a Float with an exponent
+  (D10), nested dates (D9); the SQL-side zone rule queued for track T (D18; register S121 names the four). Register S119, S120; the §3 table rewritten by step; GATES entries for phases 1 to 4. The S1.4 audit (an
+  independent agent, 16 findings) found the writers sound and the records stale in seven places, fixed. The
+  decisions log D12 to D27. Next: S1.6, a draft PR under the user's "keep going" (D11), then track B.
+- **2026-10-29, S1.4 corrected under the tenet; the decisions log opened; the program continues without stopping**
+  (the user: "no need to stop, just keep going all the way until done with whole program and all old ways to execute
+  are deleted - do a deep audit after every phase and keep a log of decisions"). A relation's TIMESTAMP cell in
+  lite's own outputs keeps its nine digits as legend-engine and legend-pure spell a SQL timestamp (the trim and the
+  midnight rule gone); a value root's keeps the value lane's minimal digits (register S118); the PCT's three-digit
+  texts traced to its harness's `TestTDS`. `docs/result-boundary-homework/DECISIONS_LOG.md` holds every decision made
+  or wanted, per phase, with an audit after each. Next: S1.5.
+- **2026-10-29, the upstream-fidelity tenet ruled** (§8 item 12; AGENTS.md; the start page's §5 first rule and §10;
+  the register's header): exact upstream by default, a divergence only where too expensive, posted and ledgered.
+  S1.4's two open questions settled by it and written up with their upstream evidence (the start page's §4, S1.4): a
+  TIMESTAMP cell in lite's own outputs spelled as legend-pure prints it (nine digits, never a day; the writer's trim
+  and midnight rules to go) and the tab's negative zero (no pinned upstream governs a grid's text; keep and ledger
+  recommended); both await the user's go, LEAN spelling changes being the user's case by case. S1.5's brief now
+  classifies the 51 writer differences by upstream's answer. Next: the go on the two, then S1.5.
+- **2026-10-28, S1.4 done: the writers carry, never decide** (GATES, the S1.4 entry). The `0.00010` trailing zero
+  fixed in lite's own outputs (`1.0E-4` as `0.0001`, legend-pure's text; ruled); the plan column's fourth fact, its
+  temporal cells' written precision (`ExecutionPlan.Precision`: WRITTEN, DAY, INSTANT; format 17), set by
+  `ColumnFacts` and read by the writer in place of the slot's spelling it matched (the decoders keep the slot as their
+  decode instruction); R3's two guards built, `ArchitectureTest.writersAreCarriageOnly` and `WriterCarriageGuardTest`
+  (58 representation operations registered by name), and the result package a closed register; the audit's nits
+  swept. Open for the user: the midnight rule, the one decision by a value's clock left in a writer (kept, registered
+  pending the ruling), and the tab's negative zero. Next: S1.5, then S1.6 on the user's word.
+- **2026-10-28, S1.0 done: `main` merged into the branch.** The next session (branch `claude/wizardly-dirac-rw6tim`,
+  from `7a9a368b`) merged `main` at `369bb176` (PR #77: 50 commits, 114 files, 12 on both sides) with a merge commit,
+  both sides kept -- `PureV1Api.execute` runs the branch's typed route over main's held-model hook; the register keeps
+  main's S112 to S114 and renumbers the branch's three rows S115 to S117 with every citation (28 lines, 11 files); main's
+  `without` tests take the `Long` the plan runner decodes. Measured locally: core (all 25 packages), the guards, the
+  census, PCT discipline, PCT channel A on DuckDB, SQLite and MongoDB (all five suites, exact, the crossing counted),
+  the DataCube Python test, the local gate (GATES, the S1.0 entry). Not the lanes: unreachable from this session.
+  Next: S1.4.
+- **2026-10-28, S1.4 begun; the handoff completed.** The negative zero built (`b944a42e`: LEAN JSON and CSV write
+  `-0.0`, Pure's `toString` stays `0.0`; register S117, S114 until S1.0; `//core:core_tests`, the guards and the census green); the
+  writer guards approved; the `0.00010` trailing zero ruled a fix. `main` moved 105 commits past the branch's base
+  (PR #77) and took register ids S112 to S114 too, so a new first step: S1.0, bring `main` in and renumber the
+  branch's three rows. The start page's §12 is the message that opens the next session. Next: S1.0, then S1.4.
+- **2026-10-28, the handoff rewritten for a session from any account.** `docs/RESULT_BOUNDARY_START_HERE.md` is now
+  the whole roadmap in order (stage 1's S1.4 to S1.6, then tracks B, T, C, D, L, A, F, P and Z, a brief each), and
+  `docs/result-boundary-homework/` holds the evidence that had lived only in a session: the audit, the code maps,
+  the 51 writer differences, the census of core's tests, legend-engine's answers and how to ask it, every probe's
+  source. Rulings 9 to 11 added to §8 (the twin among them). Next: S1.4.
+- **2026-10-28, stage 1, step 3 done: a PCT relation crosses as legend-engine's own adapter reads it.** Every lane
+  measured the engine crossing at e8c341d0 exact on every suite (channel A; GATES, 2026-10-28); the switch is made and
+  the Java TDS text (`PureTdsText`), its wrapper and the adapter's text branch are deleted. The PCT now judges the
+  engine JSON the server serves. Next: S1.4 (the writers carriage only), then S1.5's records and S1.6's draft PR.
+- **2026-10-28, PARK-34 closed by probing legend-engine 4.145.0** (stage 1, step 3 waited on it): a Variant
+  column's builder is `SEMISTRUCTURED`, its cell a string holding its JSON; the writer spells both so (register S115, S112 until S1.0
+  for the JSON's digits), and every other type the engine has no answer for stays refused, said so (GATES,
+  2026-10-28). Next: the engine crossing re-measured, then the switch decided.
+- **2026-10-27, phase 5's first half green; the audit's plan under way.** Phases 1 to 4 landed on the branch
+  (51688f36 typed results; 12b89c7d the writers; 1b0305f7 and 53cf5b6d the served routes, the database-written wires
+  deleted; b3311cd6 PCT from typed rows, the TDS text path deleted). The user paused phase 5 for an audit; its plan
+  (three stages: make phase 5 green and measure every lane per test; one entry point, the old door deleted; the
+  mixed lists typed and the Arrow writer) runs now. This head: the old executor deleted, the body driver's effects on
+  the plan runner, and every loss the six lanes measured between 7b8c89dc and b3311cd6 fixed (GATES, 2026-10-27).
+  Next: the lanes re-measure this head; the PCT relation's crossing decided by measurement (stage 1, step 3).
 - **2026-10-26, all eight ruled; the landing begins.** The Float rule accepted ("sounds great") after the batch
   ("arrow look good"). Next, in order: the branch on `main` under AGENTS.md's pushing rule (fresh against `main`,
   the local gate on the tip, "local gate: //gates:local green" in the message, `main`'s CI watched, revert on red);

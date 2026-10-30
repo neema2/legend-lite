@@ -3,8 +3,8 @@
 
 package com.legend.integration;
 
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
 import com.legend.Compiler;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ServiceDefinition;
@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * the first's rows; the runtime's NAME was a hash of the same key, so under the SHARED policy they also shared a
  * session. Provisions are keyed by value now and runtimes are named by ordinal.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class ServiceTestProvisionKeyTest {
 
     private static final String CSV_A = "ID,NAME\n1,Aa\n";
@@ -105,8 +106,8 @@ class ServiceTestProvisionKeyTest {
 
     private static ServiceTestRunner runner(com.legend.compiler.element.ModelContext ctx,
             ServiceTestRunner.Sessions policy) {
-        return new ServiceTestRunner(ctx, () -> TestBackends.platform().open(),
-                policy, Databases.PLATFORM);
+        return new ServiceTestRunner(ctx, () -> LaneFloor.backend().open(),
+                policy, LaneFloor.backend().type());
     }
 
     private static ServiceDefinition service(String fqn) {

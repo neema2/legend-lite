@@ -58,7 +58,7 @@ final class SqliteConnector implements DatabaseConnector {
 
     /** {@inheritDoc} None: {@code SQLite}'s errors carry their raise. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
+    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
     }
 }

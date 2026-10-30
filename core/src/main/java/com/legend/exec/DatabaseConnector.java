@@ -42,11 +42,21 @@ public interface DatabaseConnector {
         throw new com.legend.error.NotImplementedException("no in-memory instance of database type '" + type() + "'");
     }
 
-    /** The raise {@code session} holds after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13), read and
-     *  cleared: where this database's errors cannot carry a raise's text, its dialect keeps it in the session. Null
-     *  when none is held, or this database keeps none (its error carries the raise). Each connector answers: a
-     *  default would lose a new database's held message without a word. */
-    @com.legend.base.Nullable String raisedMessage(Connection session) throws SQLException;
+    /** How a raise a session holds is read back after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md
+     *  §13): where this database's errors cannot carry a raise's text, its dialect keeps the text in the session, and
+     *  these two statements read it and clear it. Declared here as data, run by the seam ({@link JdbcStatements#held};
+     *  D65, 2026-10-29: until then the connector ran them itself). Null for a database whose errors carry the raise.
+     *  Each connector answers: a default would lose a new database's held message without a word. */
+    @com.legend.base.Nullable RaiseRecovery raiseRecovery();
+
+    /** The two statements that read back and clear a raise a session holds: {@code read} selects the one text (one
+     *  row, one column; null where none is held), {@code reset} clears it so a later failure cannot read a stale one. */
+    record RaiseRecovery(String read, String reset) {
+        public RaiseRecovery {
+            java.util.Objects.requireNonNull(read, "read");
+            java.util.Objects.requireNonNull(reset, "reset");
+        }
+    }
 
     /** Whether its sessions are its own and not JDBC's (MongoDB's, docs/MONGODB_PLAN_2026_10_16.md D12, 2026-10-17):
      *  {@link #open} opens one on a declared connection, its credential read by the connector and carried no further,

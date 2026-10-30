@@ -12,7 +12,6 @@ import com.legend.model.ConnectionSpecification;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
-import java.io.StringWriter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -171,10 +170,10 @@ class PlanRunnerTest {
         ExecutionPlan given = new ExecutionPlan(List.of(declared("n", "Integer", 1, 1)),
                 counting(inMemory("s::C", Databases.PLATFORM, new ConnectionSpecification.InMemory()), "UNOPENED_T",
                         new ExecutionPlan.Servers.Every()).root());
-        var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.run(given, Map.of("n", "1"),
+        var refused = assertThrows(IllegalArgumentException.class, () -> PlanRunner.rows(given, Map.of("n", "1"),
                 target -> {
                     throw new AssertionError("a session was opened");
-                }, new StringWriter()));
+                }));
         assertEquals(invalid("parameter 'n' (Integer[1]): given \"1\" (String): an Integer is a Long"),
                 refused.getMessage());
     }
@@ -184,13 +183,12 @@ class PlanRunnerTest {
     void aSlotWhoseNullTypeIsNoJdbcTypeIsRefusedBeforeASessionIsOpened() {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(Databases.PLATFORM),
                 new ExecutionPlan.Servers.Every(), List.of(), List.of());
-        ExecutionPlan bad = new ExecutionPlan(List.of(declared("n", "Integer", 0, 1)), new ExecutionPlan.TextResult(
-                ExecutionPlan.Format.JSON, new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "Integer", new ExecutionPlan.Multiplicity(1, 1), "BIGINT", null))),
+        ExecutionPlan bad = new ExecutionPlan(List.of(declared("n", "Integer", 0, 1)), cell(
                 new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot("n",
                         new ExecutionPlan.Binding.One("NOT_A_TYPE", null))), target, null)));
-        var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.run(bad, Map.of(), t -> {
+        var refused = assertThrows(IllegalStateException.class, () -> PlanRunner.rows(bad, Map.of(), t -> {
             throw new AssertionError("a session was opened");
-        }, new StringWriter()));
+        }));
         assertEquals("slot of 'n': its null type 'NOT_A_TYPE' is no JDBC type", refused.getMessage());
     }
 
@@ -200,15 +198,28 @@ class PlanRunnerTest {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Declared(connection), servers,
                 List.of(), List.of(new ExecutionPlan.SetupStep.Statement("CREATE TABLE " + table + " (ID INTEGER)"),
                         new ExecutionPlan.SetupStep.Statement("INSERT INTO " + table + " VALUES (1)")));
-        return new ExecutionPlan(List.of(), new ExecutionPlan.TextResult(ExecutionPlan.Format.JSON,
-                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null))),
+        return new ExecutionPlan(List.of(), cell(
                 new ExecutionPlan.Sql("SELECT CAST(COUNT(*) AS VARCHAR) FROM " + table, List.of(), target, null)));
     }
 
-    static String run(ExecutionPlan plan, PlanSessions.Source sessions) throws Exception {
-        StringWriter out = new StringWriter();
-        PlanRunner.run(plan, Map.of(), sessions, out);
-        return out.toString();
+    /** A typed answer of one text cell: {@code sql}'s one row's one column (the runner's sessions and setup are what
+     *  these tests judge; a writer would spell the cell). */
+    static ExecutionPlan.TdsResult cell(ExecutionPlan.Sql sql) {
+        return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE, List.of(new ExecutionPlan.Column("n",
+                "String", new ExecutionPlan.Multiplicity(0, 1), "VARCHAR", null, null)), sql);
+    }
+
+    /** {@code plan}'s one cell, run on a session of {@code sessions}: its text, null for a null cell. */
+    static @com.legend.base.Nullable String run(ExecutionPlan plan, PlanSessions.Source sessions) throws Exception {
+        return run(plan, Map.of(), sessions);
+    }
+
+    /** {@link #run(ExecutionPlan, PlanSessions.Source)} with {@code values}. */
+    static @com.legend.base.Nullable String run(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions)
+            throws Exception {
+        List<List<Object>> rows = PlanRunner.rows(plan, values, sessions).rows();
+        assertEquals(1, rows.size(), "one row");
+        return (String) rows.get(0).get(0);
     }
 
     static ConnectionDefinition inMemory(String name, DatabaseType type, ConnectionSpecification spec) {
@@ -249,10 +260,8 @@ class PlanRunnerTest {
         }
     }
 
-    static ExecutionPlan plan(ExecutionPlan.Format format, String statement, ExecutionPlan.Target target) {
-        return new ExecutionPlan(List.of(), new ExecutionPlan.TextResult(format,
-                new ExecutionPlan.Relation(List.of(new ExecutionPlan.Column("n", "String", new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null))),
-                new ExecutionPlan.Sql(statement, List.of(), target, null)));
+    static ExecutionPlan plan(String statement, ExecutionPlan.Target target) {
+        return new ExecutionPlan(List.of(), cell(new ExecutionPlan.Sql(statement, List.of(), target, null)));
     }
 
     static ExecutionPlan.Target target(ExecutionPlan.Database database, ExecutionPlan.Servers servers,
@@ -269,7 +278,7 @@ class PlanRunnerTest {
     @Test
     void aFailedSetupLeavesNothing_theNextRunSetsUpAfresh() {
         for (var connection : inMemoryConnections()) {
-            ExecutionPlan p = plan(ExecutionPlan.Format.JSON, "SELECT 'never'",
+            ExecutionPlan p = plan("SELECT 'never'",
                     target(new ExecutionPlan.Database.Declared(connection), new ExecutionPlan.Servers.Every(),
                             statement("CREATE TABLE FAILS_T (ID INTEGER)"), statement("INSERT INTO FAILS_T VALUES (1)"),
                             statement("SELECT * FROM NO_SUCH_TABLE")));
@@ -297,7 +306,7 @@ class PlanRunnerTest {
                 continue;
             }
             checked++;
-            ExecutionPlan p = plan(ExecutionPlan.Format.JSON, "SELECT 'never'",
+            ExecutionPlan p = plan("SELECT 'never'",
                     target(new ExecutionPlan.Database.Declared(connection), servers(connection.databaseType()),
                             statement("CREATE TABLE K (A VARCHAR, B VARCHAR)"), kRows(List.of("a", "b"))));
             for (int attempt = 1; attempt <= 2; attempt++) {
@@ -325,23 +334,12 @@ class PlanRunnerTest {
     /** A target of the platform's own database (no declared connection) is shared and set up once too. */
     @Test
     void aPlatformTargetIsSharedAndSetUpOnce() throws Exception {
-        ExecutionPlan p = plan(ExecutionPlan.Format.JSON, "SELECT CAST(COUNT(*) AS VARCHAR) FROM PLATFORM_T",
+        ExecutionPlan p = plan("SELECT CAST(COUNT(*) AS VARCHAR) FROM PLATFORM_T",
                 target(new ExecutionPlan.Database.Platform(Databases.PLATFORM), new ExecutionPlan.Servers.Every(),
                         statement("CREATE TABLE PLATFORM_T (ID INTEGER)"), statement("INSERT INTO PLATFORM_T VALUES (1)")));
         long before = setupStatements();
         assertEquals("1", run(p, PlanSessions.shared()));
         assertEquals("1", run(p, PlanSessions.shared()));
         assertEquals(2, setupStatements() - before, "set up once");
-    }
-
-    /** One JSON object per row, in an array: no row is an empty array. */
-    @Test
-    void jsonPerRowWritesAnArray_emptyForNoRows() throws Exception {
-        var platform = new ExecutionPlan.Database.Platform(Databases.PLATFORM);
-        assertEquals("[]", run(plan(ExecutionPlan.Format.JSON_PER_ROW, "SELECT '{}' WHERE 1 = 0",
-                target(platform, new ExecutionPlan.Servers.Every())), PlanSessions.shared()));
-        assertEquals("[{\"n\":1},{\"n\":2}]", run(plan(ExecutionPlan.Format.JSON_PER_ROW,
-                "SELECT '{\"n\":' || i || '}' FROM (VALUES (1), (2)) t(i) ORDER BY i",
-                target(platform, new ExecutionPlan.Servers.Every())), PlanSessions.shared()));
     }
 }

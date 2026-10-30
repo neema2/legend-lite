@@ -51,6 +51,7 @@ function fakeExports(
     releaseModelOrError: (h: number) => { log.releases.push(h); models.delete(h); return 'OK\n'; },
     planHeldOrError: over,
     planJsonHeldOrError: over,
+    executionPlanJsonHeldOrError: () => 'ERR\nfake\nnot in this fake',
     relationTypeHeldOrError: () => 'OK\n{"_type":"relationType","columns":[]}',
     tableModelOrError: () => 'ERR\nfake\nnot in this fake',
     catalogColumnsSqlOrError: () => 'ERR\nfake\nnot in this fake',

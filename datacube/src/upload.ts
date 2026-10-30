@@ -387,7 +387,14 @@ export async function dropFileTable(engine: QueryEngine & { readonly databaseTyp
  * A RawTable is COLUMNAR, so the answer is read by picking its columns out and zipping them.
  */
 export async function catalogColumns(engine: QueryEngine, models: TableModels, table: string): Promise<CatalogColumn[]> {
-  const answer = await engine.run(await models.catalogColumnsSql('main', table), 0);
+  return catalogColumnsOf(engine, models, 'main', table);
+}
+
+/** A table's columns as the catalog says them (catalogColumns's), of `schema`, asked of whatever runs the catalog's
+ *  question: an engine, or a connection held (table-output.ts: a table made in the transaction that reads it). */
+export async function catalogColumnsOf(engine: { run(sql: string, epoch: number): Promise<RawTable> }, models: Pick<TableModels, 'catalogColumnsSql'>,
+  schema: string, table: string): Promise<CatalogColumn[]> {
+  const answer = await engine.run(await models.catalogColumnsSql(schema, table), 0);
   const names = columnOf(answer, 'column_name');
   const types = columnOf(answer, 'data_type');
   const logical = columnOf(answer, 'logical_type');

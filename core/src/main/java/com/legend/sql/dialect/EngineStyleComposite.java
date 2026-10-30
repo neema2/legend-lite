@@ -19,7 +19,7 @@ public final class EngineStyleComposite extends EngineStyleDB2 {
     protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON,
-                 LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT ->
+                 TEMPORAL_TEXT, DECIMAL_TEXT ->
                     super.scalarTypeName(s);
         };
     }
@@ -71,7 +71,7 @@ public final class EngineStyleComposite extends EngineStyleDB2 {
                  LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND,
                  LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME,
                  STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF, ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT,
-                 BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
+                 BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
                     super.call(writer, c, parentPrec);
         };
     }

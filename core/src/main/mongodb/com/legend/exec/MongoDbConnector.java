@@ -59,10 +59,10 @@ public final class MongoDbConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} Never asked: no JDBC session is a MongoDB's ({@link #ownSessions}). */
+    /** {@inheritDoc} None: no JDBC session is a MongoDB's ({@link #ownSessions}), and its errors carry their text. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        throw new IllegalStateException("a MongoDB session holds no JDBC raise");
+    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
+        return null;
     }
 
     /** {@inheritDoc} None: a server, whose connection is the engine's MongoDBConnection. */
@@ -118,6 +118,7 @@ public final class MongoDbConnector implements DatabaseConnector {
     private static final class MongoDbSession implements Sessions.Session {
         private final MongoClient client;
         private final MongoDbStatements statements;
+        private final SessionState state = new SessionState();
 
         MongoDbSession(MongoClient client, MongoDbStatements statements) {
             this.client = client;
@@ -133,6 +134,30 @@ public final class MongoDbConnector implements DatabaseConnector {
         @Override
         public Statements statements() {
             return statements;
+        }
+
+        /** A MongoDB session's commands carry no SQL comment: no execution trace rides them, and the body driver
+         *  (whose activity rows read the trace) is not designed for MongoDB; refused by name. */
+        @Override
+        public Statements statements(@com.legend.base.Nullable ExecutionTrace trace) {
+            if (trace == null) {
+                return statements;
+            }
+            throw new com.legend.error.NotImplementedException("the body driver's traced statements on MongoDB: its"
+                    + " commands carry no execution-trace comment, and the driver is not designed for MongoDB");
+        }
+
+        @Override
+        public SessionState state() {
+            return state;
+        }
+
+        /** A plan's target names no MongoDB server version (its commands are written for every version the
+         *  connector speaks); the body driver, which asks a session its version, is not designed for MongoDB. */
+        @Override
+        public String version() {
+            throw new com.legend.error.NotImplementedException("a MongoDB session's server version: the body driver,"
+                    + " which asks it, is not designed for MongoDB; a plan's MongoDB target names no version");
         }
 
         @Override

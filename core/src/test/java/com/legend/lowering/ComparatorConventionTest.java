@@ -3,12 +3,12 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +35,7 @@ class ComparatorConventionTest {
 
     private static Object one(String q) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            return ((ExecutionResult.Scalar) Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), q, StorelessRuntime.RUNTIME, c))
+            return (Lean.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), q, StorelessRuntime.RUNTIME, c))
                     .value();
         }
     }

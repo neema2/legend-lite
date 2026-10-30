@@ -107,7 +107,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case BIGINT -> "Nullable(Int64)";
             case HUGEINT -> "Nullable(Int128)";
             case DOUBLE -> "Nullable(Float64)";
-            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "Nullable(String)";
+            case VARCHAR, JSON, TEMPORAL_TEXT -> "Nullable(String)";
             case DATE -> "Nullable(Date32)";
             case TIMESTAMP, TIMESTAMPTZ -> "Nullable(DateTime64(6, 'UTC'))";
             // ClickHouse's Time type is experimental (25.6, behind a setting): no time of day here yet
@@ -1588,7 +1588,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -2874,39 +2874,6 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case com.legend.sql.SqlDdl.ColumnType.Sized z -> DdlSpelling.sized(z);
             case com.legend.sql.SqlDdl.ColumnType.Scaled s -> DdlSpelling.scaled(s);
         };
-    }
-
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A Tuple arrives as an Object[] of its fields in order: the platform's map of its fields, by the struct's
-     *  declared names. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        return tupled(jdbcValue, type);
-    }
-
-    /** A Tuple (the driver's Object[]) as the platform's map of the struct's fields, a nested one too (a zip of pairs
-     *  is a pair of pairs), and a list's elements so. */
-    private static @com.legend.base.Nullable Object tupled(@com.legend.base.Nullable Object v,
-            @com.legend.base.Nullable SqlType type) {
-        if (v instanceof Object[] fields && type instanceof SqlType.Struct st && fields.length == st.fields().size()) {
-            java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
-            for (int i = 0; i < fields.length; i++) {
-                m.put(st.fields().get(i).name(), tupled(fields[i], st.fields().get(i).type()));
-            }
-            return m;
-        }
-        if (v instanceof List<?> l && type instanceof SqlType.Array at) {
-            List<Object> out = new ArrayList<>(l.size());
-            for (Object e : l) {
-                out.add(tupled(e, at.element()));
-            }
-            return out;
-        }
-        return v;
     }
 
     /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (a multiIf over JSONType). */

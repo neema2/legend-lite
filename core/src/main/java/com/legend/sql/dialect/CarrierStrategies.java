@@ -790,19 +790,6 @@ public final class CarrierStrategies extends SqlRewriter {
         if (caps.nativeLists()) {
             return e;
         }
-        // F10 3b: the LITERAL carrier's marker cast is a LABEL device
-        // (scalarRoot reads it) — on a list-less backend it must not
-        // reach the renderer as a cast over an array; strip it here so
-        // the EXISTING array strategies see the shapes they own (the
-        // cells are self-describing text either way — the total-reader
-        // property).
-        if (e instanceof SqlExpr.Cast mk
-                && (mk.target() == com.legend.sql.SqlType.Scalar.LITERAL
-                        || (mk.target() instanceof com.legend.sql.SqlType.Array ma
-                                && ma.element()
-                                        == com.legend.sql.SqlType.Scalar.LITERAL))) {
-            return expr(mk.value());
-        }
         // LIST_CONCAT over compile-time collections FOLDS (R5b,
         // witnessed: month-name lists concatenated before explode).
         // Bottom-up walk: nested concats fold inside-out.
@@ -1009,6 +996,10 @@ public final class CarrierStrategies extends SqlRewriter {
             if (got != null) {
                 return got;
             }
+            SqlExpr picked = literalPick(lg.args().get(0), lg.args().get(1));
+            if (picked != null) {
+                return picked;
+            }
         }
         if (e instanceof SqlExpr.Membership m) {
             SqlExpr rewritten = membershipRule(m);
@@ -1023,6 +1014,27 @@ public final class CarrierStrategies extends SqlRewriter {
             }
         }
         return e;
+    }
+
+    /** A LITERAL array read at a COMPUTED position (a tagged list's channel at a position the lambda or the root's
+     *  unnest ranges over; track L, 2026-10-29): the pick as a CASE over the position, the shape every database has.
+     *  Null where the array is not a literal or the position is. */
+    private @com.legend.base.Nullable SqlExpr literalPick(SqlExpr array, SqlExpr position) {
+        com.legend.sql.SqlType element = array instanceof SqlExpr.Cast lc
+                && lc.target() instanceof com.legend.sql.SqlType.Array arr ? arr.element() : null;
+        SqlExpr lit = element != null ? ((SqlExpr.Cast) array).value() : array;
+        if (!(lit instanceof SqlExpr.ArrayLit la) || position instanceof SqlExpr.IntLit) {
+            return null;
+        }
+        List<SqlExpr.Case.When> whens = new ArrayList<>(la.elements().size());
+        for (int i = 0; i < la.elements().size(); i++) {
+            whens.add(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, expr(position), new SqlExpr.IntLit(i + 1)),
+                    expr(la.elements().get(i))));
+        }
+        SqlExpr pick = new SqlExpr.Case(whens, null);
+        // the channel's slot type rides on the pick (a DECIMAL(p,s), a DATE; the L1 audit, 2026-10-29)
+        return element != null ? new SqlExpr.Cast(pick, element) : pick;
     }
 
     /** The fused grouped-subselect, or null when the collection operand

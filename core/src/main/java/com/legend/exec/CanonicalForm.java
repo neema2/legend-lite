@@ -62,6 +62,7 @@ public final class CanonicalForm {
             // the GMT-normalized +0000 suffix. A java.sql or java.time
             // temporal reaching here is a fetch-seam LEAK and reports
             // as unmodeled-kind residue, never grows an arm.
+            // the zone from the HOUR on (register S121, pending: legend-pure writes it from the minute)
             case com.legend.values.PureDateLiteral d ->
                     new Result.Text(d.precision().atLeast(
                             com.legend.values.PureDateLiteral.Precision.HOUR)

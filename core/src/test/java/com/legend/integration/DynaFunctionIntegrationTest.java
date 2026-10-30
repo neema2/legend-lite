@@ -1,7 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -24,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("DynaFunction Property Mapping Integration Tests")
 class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
 
-    private final QueryService qs = new QueryService();
 
 
     @BeforeEach
@@ -54,8 +52,8 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                 """.formatted(mappingName, dbName);
     }
 
-    private ExecutionResult exec(String model, String query) throws SQLException {
-        return qs.execute(model, query, "test::RT", connection);
+    private Lean.Result exec(String model, String query) throws SQLException {
+        return Lean.run(model, query, "test::RT", connection);
     }
 
     private void sql(String... statements) throws SQLException {
@@ -64,22 +62,22 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
         }
     }
 
-    private List<String> colStr(ExecutionResult r, int idx) {
+    private List<String> colStr(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? row.get(idx).toString() : null)
                 .collect(Collectors.toList());
     }
 
-    private List<Integer> colInt(ExecutionResult r, int idx) {
+    private List<Integer> colInt(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? ((Number) row.get(idx)).intValue() : null)
                 .collect(Collectors.toList());
     }
 
-    private List<Boolean> colBool(ExecutionResult r, int idx) {
+    private List<Boolean> colBool(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? (Boolean) row.get(idx) : null)
                 .collect(Collectors.toList());
     }
 
-    private Object scalar(ExecutionResult r) {
+    private Object scalar(Lean.Result r) {
         return r.rows().get(0).get(0);
     }
 

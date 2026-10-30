@@ -22,6 +22,13 @@ test_suite(
         # the probe and the planner it also reads are not its inputs (tools/metrics/README.md)
         "//tools/metrics:tools_build_test",
         "//core:core_tests",
+        # the twin's lanes (track T, T-d, 2026-10-29): the integration tests on SQLite and H2, each held to its floor
+        "//core:core_tests_lanes",
+        # the Arrow writer's round-trip gate (track A, 2026-10-29): lite's Arrow stream against its JSON rows, read by
+        # pyarrow on the platforms that have its wheel
+        "//core:arrow_writer_test",
+        # R9: no Arrow library in any product closure
+        "//tools/deps:arrow_closure_test",
         "//core:duckdb_load_test",
         "//core:section_grammar_registry_test",
         # the cross-engine differential over the stress corpus (P3-18): seconds

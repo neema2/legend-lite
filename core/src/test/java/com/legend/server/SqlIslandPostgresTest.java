@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.SqlIslandCases;
@@ -95,11 +97,11 @@ class SqlIslandPostgresTest {
     @MethodSource("cases")
     void theIslandThroughThePostgresDialectAgrees(String sql, SqlIslandCases.Case c) throws SQLException {
         try (Connection pg = DriverManager.getConnection(EmbeddedPostgres.shared().jdbcUrl("postgres"))) {
-            var result = new QueryService().execute(model, c.island(), SqlIslandCases.RUNTIME, pg);
+            var result = Lean.run(model, c.island(), SqlIslandCases.RUNTIME, pg);
             List<List<String>> rows = new ArrayList<>();
             for (var row : result.rows()) {
                 List<String> cells = new ArrayList<>();
-                for (Object value : row.values()) {
+                for (Object value : row) {
                     cells.add(SqlIslandCases.cell(value));
                 }
                 rows.add(cells);

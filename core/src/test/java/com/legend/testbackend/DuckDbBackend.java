@@ -44,6 +44,12 @@ final class DuckDbBackend extends InProcessBackend {
         return "duckdb";
     }
 
+    /** The platform's session in UTC, so TIMESTAMPTZ values come back in UTC (DuckDB's own syntax). */
+    @Override
+    public java.util.List<String> sessionSetUp() {
+        return java.util.List.of("SET timezone='UTC'");
+    }
+
     @Override
     public Connection openWorkspace() throws SQLException {
         return workspaces.open();

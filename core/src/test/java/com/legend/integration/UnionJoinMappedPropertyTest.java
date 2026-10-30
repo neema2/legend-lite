@@ -1,7 +1,9 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * property is named {@code columns} here on purpose: this test IS the
  * witness of the clash.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class UnionJoinMappedPropertyTest {
 
     private static final String MODEL = """
@@ -80,10 +83,10 @@ class UnionJoinMappedPropertyTest {
             """;
 
     private static List<List<Object>> rows(Connection connection, String query) throws Exception {
-        var result = new QueryService().execute(MODEL, query, "ux::rt", connection);
+        var result = Lean.run(MODEL, query, "ux::rt", connection);
         List<List<Object>> out = new ArrayList<>();
         for (var row : result.rows()) {
-            out.add(new ArrayList<>(row.values()));
+            out.add(new ArrayList<>(row));
         }
         out.sort((x, y) -> String.valueOf(x).compareTo(String.valueOf(y)));
         return out;
@@ -92,7 +95,7 @@ class UnionJoinMappedPropertyTest {
     @Test
     @DisplayName("a class-typed property join-mapped on one member only: the other member's rows read it as empty")
     void joinMappedOnOneMemberOnly() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("create table T (id varchar(10) primary key, kind varchar(10), name varchar(20), ref_id varchar(10))");
                 stmt.execute("create table RT (id varchar(10) primary key)");

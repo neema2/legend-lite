@@ -3,12 +3,13 @@
 
 package com.legend.compiler;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -51,9 +52,9 @@ class PctFunctionSuppressionTest {
         String model = "function <<meta::pure::test::pct::PCT.function>>"
                 + " meta::pure::functions::collection::or(vals:Boolean[*]):Boolean[1]"
                 + " { $vals->fold({i,a|false}, false) }";
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(model, Databases.PLATFORM),
+        Lean.Result r = Program.last(StorelessRuntime.with(model, Databases.PLATFORM),
                 "{|or([true, false])}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value(),
+        assertEquals(Boolean.TRUE, r.one(),
                 "the native must own the platform FQN — the reference"
                 + " body is the spec, never the implementation");
     }
@@ -63,9 +64,9 @@ class PctFunctionSuppressionTest {
     void unownedKeepsBody() throws Exception {
         String model = "function <<meta::pure::test::pct::PCT.function>>"
                 + " my::pkg::triple(x:Integer[1]):Integer[1] { $x * 3 }";
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(model, Databases.PLATFORM),
+        Lean.Result r = Program.last(StorelessRuntime.with(model, Databases.PLATFORM),
                 "{|my::pkg::triple(2)}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(6L, ((Number) ((ExecutionResult.Scalar) r).value())
+        assertEquals(6L, ((Number) r.one())
                 .longValue());
     }
 }

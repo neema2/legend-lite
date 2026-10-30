@@ -34,7 +34,7 @@ class PlanMakerH2Test {
     @Test
     void theTargetIsWhole_itsDatabaseVersionsSessionAndSetup() {
         ExecutionPlan.Target h2 = target(plan(H2, "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())",
-                TypedQuery.Output.JSON));
+                com.legend.testcases.PlanCases.Written.JSON));
         assertEquals(new ExecutionPlan.Servers.Versions(List.of("2.1", "2.2")), h2.servers());
         assertEquals(List.of(), h2.session());
         // H2's rows are one INSERT
@@ -44,8 +44,8 @@ class PlanMakerH2Test {
 
     @Test
     void aListIsOneArray() {
-        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan(H2, PlanCases.lists("T").get(0).withParameters(),
-                TypedQuery.Output.JSON).root()).sql();
+        ExecutionPlan.Sql sql = plan(H2, PlanCases.lists("T").get(0).withParameters(), com.legend.testcases.PlanCases.Written.JSON)
+                .answerSql();
         assertTrue(sql.statement().contains("= ANY(?)"), sql.statement());
         assertEquals(List.of(new ExecutionPlan.Slot("ns", new ExecutionPlan.Binding.Array("BIGINT"))), sql.slots());
     }
@@ -55,8 +55,8 @@ class PlanMakerH2Test {
      *  (probes/value-typed-cast-results.txt). Every scalar case of {@link PlanMakerTest} answers through it on H2. */
     @Test
     void aParameterTypedByItsValueIsCastToATypeHole() {
-        ExecutionPlan.Sql h2 = ((ExecutionPlan.TextResult) plan(H2, "{f: Float[1]|#>{s::DB.T}#"
-                + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", TypedQuery.Output.JSON).root()).sql();
+        ExecutionPlan.Sql h2 = plan(H2, "{f: Float[1]|#>{s::DB.T}#"
+                + "->extend(~x: r|$r.ID * $f)->select(~[ID, x])}", com.legend.testcases.PlanCases.Written.JSON).answerSql();
         assertEquals(1, h2.slots().size());
         ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) h2.slots().get(0).binding();
         ExecutionPlan.TypeHole hole = java.util.Objects.requireNonNull(one.hole(), "a type hole");
@@ -85,10 +85,10 @@ class PlanMakerH2Test {
     @Test
     void aScalarParameterIsDeclared_andBoundWhereItIsWritten() {
         ExecutionPlan plan = plan(H2, "{n: Integer[1]|#>{s::DB.T}#->filter(r|$r.ID != $n)"
-                + "->extend(~plus: r|$r.ID + $n)->select(~[ID, plus])}", TypedQuery.Output.JSON);
+                + "->extend(~plus: r|$r.ID + $n)->select(~[ID, plus])}", com.legend.testcases.PlanCases.Written.JSON);
         assertEquals(List.of(new ExecutionPlan.Parameter("n", "Integer", new ExecutionPlan.Multiplicity(1, 1),
                 List.of())), plan.parameters());
-        ExecutionPlan.Sql sql = ((ExecutionPlan.TextResult) plan.root()).sql();
+        ExecutionPlan.Sql sql = plan.answerSql();
         ExecutionPlan.Slot n = new ExecutionPlan.Slot("n", new ExecutionPlan.Binding.One("BIGINT", null));
         assertEquals(List.of(n, n), sql.slots());
         assertEquals(2, sql.statement().chars().filter(ch -> ch == '?').count(), sql.statement());

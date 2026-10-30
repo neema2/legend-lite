@@ -3,11 +3,10 @@
 
 package com.legend.exec;
 
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,10 +28,10 @@ public final class GridProbe {
     }
 
     /** The grid's projection NAMES for the authored SQL. */
-    public static List<String> probeNames(String sql, String writtenFor, Connection conn,
-            com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+    public static List<String> probeNames(String sql, String writtenFor, PlanSessions.Source sessions,
+            ExecutionPlan.Target target, com.legend.sql.dialect.SqlDialect dialect) {
         List<String> names = new ArrayList<>();
-        for (String[] c : probeColumns(sql, writtenFor, conn, dialect)) {
+        for (String[] c : probeColumns(sql, writtenFor, sessions, target, dialect)) {
             names.add(c[0]);
         }
         return names;
@@ -44,14 +43,14 @@ public final class GridProbe {
      * otherwise — an upgrade over the old names-only stamp, never a
      * new wall. */
     public static List<com.legend.compiler.element.type.Type.Column>
-            probeTypedColumns(String sql, String writtenFor, Connection conn,
-            com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+            probeTypedColumns(String sql, String writtenFor, PlanSessions.Source sessions,
+            ExecutionPlan.Target target, com.legend.sql.dialect.SqlDialect dialect) {
         List<com.legend.compiler.element.type.Type.Column> cols =
                 new ArrayList<>();
-        for (String[] c : probeColumns(sql, writtenFor, conn, dialect)) {
+        for (String[] c : probeColumns(sql, writtenFor, sessions, target, dialect)) {
             // typed by the name its dialect reads the driver's into, where that name says the type
             String wire = dialect.typingWireName(c[1]);
-            com.legend.compiler.element.type.Type t = wire == null ? null : Executor.pureOfSqlTypeOrNull(wire);
+            com.legend.compiler.element.type.Type t = wire == null ? null : WireTypes.pureOfSqlTypeOrNull(wire);
             cols.add(t == null
                     ? com.legend.compiler.element.type.Type.RelationType
                             .trustedColumn(c[0])
@@ -64,22 +63,20 @@ public final class GridProbe {
 
     /** The grid's projection (name, SQL type name) pairs — the SAME
      * LIMIT-0 metadata read, types included; the text written for the
-     * database {@code writtenFor} (decision D2). */
+     * database {@code writtenFor} (decision D2). A plan statement of {@code target}, run by the plan runner on a
+     * session of {@code sessions} ({@link PlanRunner#columns}: the doors, 2026-10-29; on the session seam since
+     * track B's B1a). */
     public static List<String[]> probeColumns(String sql, String writtenFor,
-            Connection conn, com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
+            PlanSessions.Source sessions, ExecutionPlan.Target target, com.legend.sql.dialect.SqlDialect dialect) {
         SqlSelect probe = SqlSelect.starOf(
                 new SqlSource.RawSql(sql, "_p", List.of(), writtenFor))
                 .withLimit(0L);
         StatementOrigin.count(StatementOrigin.PROBE);
-        try (var st = conn.createStatement();
-                var rs = st.executeQuery(dialect.render(probe))) {
-            var md = rs.getMetaData();
-            List<String[]> cols = new ArrayList<>(md.getColumnCount());
-            for (int i = 1; i <= md.getColumnCount(); i++) {
-                cols.add(new String[] {md.getColumnLabel(i),
-                        md.getColumnTypeName(i)});
-            }
-            return cols;
+        List<String[]> cols = new ArrayList<>();
+        for (Statements.Reported r : PlanRunner.columns(ExecutionPlan.Sql.of(dialect.render(probe), target),
+                sessions)) {
+            cols.add(new String[] {r.name(), r.driverType()});
         }
+        return cols;
     }
 }

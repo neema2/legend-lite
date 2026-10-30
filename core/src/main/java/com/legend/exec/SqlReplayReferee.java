@@ -37,7 +37,7 @@ public interface SqlReplayReferee {
      * ordered or chained text DECLINES with its named reason). The
      * platform arm consumes the outcome; seeds and session policy
      * live with the implementation (testing side). */
-    RowVerdict verifyFetchTexts(java.sql.Connection session,
+    RowVerdict verifyFetchTexts(Sessions.Session session,
             String goldenSql, String ourSql);
 
     /** The CHAINED generator-fetch verdict (batch 64 — the walk's
@@ -51,7 +51,7 @@ public interface SqlReplayReferee {
      * {@code transcript} (deterministic reads over static seeds; the
      * hop's text must match byte-exactly, a receipt). A hop without
      * temps is {@link #verifyFetchTexts}. */
-    RowVerdict verifyFetchChain(java.sql.Connection session, int hopIndex,
+    RowVerdict verifyFetchChain(Sessions.Session session, int hopIndex,
             String goldenSql, String ourSql,
             java.util.function.Supplier<FetchTranscript> transcript);
 
@@ -89,8 +89,8 @@ public interface SqlReplayReferee {
      * raw codes. Never throws for a comparison problem — every
      * non-answer is a DECLINED outcome with its counted reason.
      */
-    RowVerdict verify(java.sql.Connection session, String goldenSql,
-            ExecutionResult ours,
+    RowVerdict verify(Sessions.Session session, String goldenSql,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
@@ -110,7 +110,7 @@ public interface SqlReplayReferee {
      * ordered chain without keys keeps the multiset compare, COUNTED. */
     record ReplayFacts(boolean extentSubset, boolean ordered,
             java.util.@com.legend.base.Nullable List<String> sortKeys,
-            @com.legend.base.Nullable ExecutionResult population) {
+            @com.legend.base.Nullable TypedSide population) {
         public static final ReplayFacts NONE = new ReplayFacts(false, false, null, null);
 
         /** The compile-time facts alone (no page). */
@@ -125,7 +125,7 @@ public interface SqlReplayReferee {
          * database's arrival order, not a contract; what IS defined is that
          * every golden page row is a member of the population and that the
          * page sizes agree — the PAGE-MEMBERSHIP verdict. */
-        public ReplayFacts withPopulation(ExecutionResult rows) {
+        public ReplayFacts withPopulation(TypedSide rows) {
             return new ReplayFacts(extentSubset, ordered, sortKeys, rows);
         }
     }
@@ -148,8 +148,8 @@ public interface SqlReplayReferee {
     /** {@link #verify} with the golden's temp tables materialized on the
      * referee session first; the default ignores them (a referee without
      * temp support declines through the missing table as before). */
-    default RowVerdict verify(java.sql.Connection session, String goldenSql,
-            ExecutionResult ours,
+    default RowVerdict verify(Sessions.Session session, String goldenSql,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
@@ -167,9 +167,9 @@ public interface SqlReplayReferee {
      * the bindings, and the final Relational node's filled SQL replays;
      * its rows compare with ours. {@code bindings}: parameter name →
      * raw spellings (a scalar is one element). The default declines. */
-    default RowVerdict verifyPlan(java.sql.Connection session, String goldenPlan,
+    default RowVerdict verifyPlan(Sessions.Session session, String goldenPlan,
             java.util.Map<String, java.util.List<String>> bindings,
-            ExecutionResult ours,
+            TypedSide ours,
             @com.legend.base.Nullable String mappingFqn,
             @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,

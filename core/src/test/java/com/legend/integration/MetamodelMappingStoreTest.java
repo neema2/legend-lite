@@ -1,12 +1,12 @@
 package com.legend.integration;
 
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link #witnessMainTableForB1} (the navigation-depth leg, 2026-09-02).
  */
 @DisplayName("Metamodel store: the mapping metamodel as relations")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class MetamodelMappingStoreTest {
 
     private static final String MODEL = """
@@ -78,7 +79,7 @@ class MetamodelMappingStoreTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -86,17 +87,13 @@ class MetamodelMappingStoreTest {
         connection.close();
     }
 
-    private ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
+    private Lean.Result run(String query) throws SQLException {
+        return Program.last(StorelessRuntime.with(MODEL, LaneFloor.backend().type()), query, StorelessRuntime.RUNTIME, connection);
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = run(query);
-        if (r instanceof ExecutionResult.Collection c) {
-            return c.values();
-        }
-        Object v = ((ExecutionResult.Scalar) r).value();
-        return v == null ? List.of() : List.of(v);
+        Lean.Result r = run(query);
+        return r.values();
     }
 
     @Test
@@ -175,7 +172,7 @@ class MetamodelMappingStoreTest {
                 + "('a')->cast(@" + ROOT_SET + ")->map(x|$x->" + MAIN_TABLE + "());"
                 + " assertEquals($superMappingMainTable, $mainTable); }";
         var r = run(witness);
-        assertEquals(Boolean.TRUE, ((ExecutionResult.Scalar) r).value());
+        assertEquals(Boolean.TRUE, r.one());
         // the main-table instances themselves, as rows
         assertEquals(List.of("ABC"), values("ext::C1Mapping->" + BY_ID
                 + "('c1')->cast(@" + ROOT_SET + ")->map(x|$x->" + MAIN_TABLE + "()).name"));
@@ -259,7 +256,7 @@ class MetamodelMappingStoreTest {
     @DisplayName("a user class with no execution context keeps the loud wall (D1 boundary)")
     void userClassWithoutContextStillWalls() {
         var ex = assertThrows(com.legend.error.MappingResolutionException.class,
-                () -> Execution.execute(MODEL, "ext::A.all()->size()", connection));
+                () -> Program.last(MODEL, "ext::A.all()->size()", null, connection));
         assertEquals(Compiler.NO_RUNTIME, ex.getMessage());
     }
 }

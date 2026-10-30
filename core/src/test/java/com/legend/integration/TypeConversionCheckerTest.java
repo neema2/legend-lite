@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -383,11 +383,11 @@ public class TypeConversionCheckerTest extends AbstractDatabaseTest {
 
     // ==================== Utilities ====================
 
-    private boolean hasColumn(ExecutionResult result, String name) {
+    private boolean hasColumn(Lean.Result result, String name) {
         return result.columns().stream().anyMatch(c -> c.name().equals(name));
     }
 
-    private int columnIndex(ExecutionResult result, String name) {
+    private int columnIndex(Lean.Result result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name()))
                 return i;

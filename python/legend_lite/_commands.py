@@ -19,8 +19,9 @@ PAGE_KINDS: tuple[str, ...] = ('renamePage', 'savedAs', 'addSheet', 'addFlow', '
                                'removeSheet', 'renameTile', 'addGrid', 'addChart', 'setChart', 'addText', 'setText',
                                'addTimeseries', 'setTimeseries', 'setTextFiles', 'followGrid', 'detach', 'select',
                                'moveTile', 'stack', 'removeTile', 'arrange', 'layout', 'setPageFilter',
-                               'removePageFilter', 'snap', 'live', 'rebuilt', 'setInput', 'setJoin', 'setPure',
-                               'setOutput', 'setStops', 'modelInto', 'modelPin', 'modelKeep',)
+                               'removePageFilter', 'setParameter', 'removeParameter', 'setMacro', 'snap', 'live',
+                               'rebuilt', 'setInput', 'setJoin', 'setPure', 'setOutput', 'setStops', 'setCache',
+                               'setBlocks', 'setMessage', 'modelInto', 'modelPin', 'modelKeep',)
 
 
 def grid_group(*, rows: Any) -> dict[str, Any]:
@@ -226,6 +227,18 @@ def page_remove_page_filter(*, filter: Any) -> dict[str, Any]:
     return {'kind': 'removePageFilter', 'filter': filter}
 
 
+def page_set_parameter(*, parameter: Any) -> dict[str, Any]:
+    return {'kind': 'setParameter', 'parameter': parameter}
+
+
+def page_remove_parameter(*, name: Any) -> dict[str, Any]:
+    return {'kind': 'removeParameter', 'name': name}
+
+
+def page_set_macro(*, name: Any, pure: Any) -> dict[str, Any]:
+    return {'kind': 'setMacro', 'name': name, 'pure': pure}
+
+
 def page_snap(*, grid: Any, copy: Any) -> dict[str, Any]:
     return {'kind': 'snap', 'grid': grid, 'copy': copy}
 
@@ -256,6 +269,18 @@ def page_set_output(*, grid: Any, output: Any) -> dict[str, Any]:
 
 def page_set_stops(*, grid: Any, stops: Any) -> dict[str, Any]:
     return {'kind': 'setStops', 'grid': grid, 'stops': stops}
+
+
+def page_set_cache(*, grid: Any, cache: Any) -> dict[str, Any]:
+    return {'kind': 'setCache', 'grid': grid, 'cache': cache}
+
+
+def page_set_blocks(*, grid: Any, blocks: Any) -> dict[str, Any]:
+    return {'kind': 'setBlocks', 'grid': grid, 'blocks': blocks}
+
+
+def page_set_message(*, grid: Any, message: Any) -> dict[str, Any]:
+    return {'kind': 'setMessage', 'grid': grid, 'message': message}
 
 
 def page_model_into(*, project: Any, workspace: Any, package: Any) -> dict[str, Any]:

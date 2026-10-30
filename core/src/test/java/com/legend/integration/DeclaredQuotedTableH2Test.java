@@ -3,6 +3,7 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Program;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.setup.Ddl;
@@ -91,9 +92,9 @@ class DeclaredQuotedTableH2Test {
 
     private static String execute(String body) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            var r = com.legend.Execution.execute(TestBackends.platform().withStorelessRuntime(MODEL), body,
+            var r = Program.last(TestBackends.platform().withStorelessRuntime(MODEL), body,
                     com.legend.test.StorelessRuntime.RUNTIME, c);
-            return String.valueOf(((com.legend.exec.ExecutionResult.Scalar) r).value());
+            return String.valueOf(r.one());
         }
     }
 

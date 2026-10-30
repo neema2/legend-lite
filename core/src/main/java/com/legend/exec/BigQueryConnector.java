@@ -41,7 +41,7 @@ final class BigQueryConnector implements DatabaseConnector {
 
     /** {@inheritDoc} None: {@code BigQuery}'s errors carry their raise. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
+    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
     }
 }

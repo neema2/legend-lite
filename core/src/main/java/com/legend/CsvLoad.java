@@ -8,8 +8,7 @@ import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.ExecutionResult;
-import com.legend.exec.Executor;
+import com.legend.exec.TypedSide;
 
 import java.util.List;
 
@@ -28,9 +27,9 @@ final class CsvLoad {
     private CsvLoad() {
     }
 
-    static ExecutionResult loadCsvToDbTable(List<TypedSpec> body,
-            TypedNativeCall call, StatementExecutor.ExecEnv env) {
-        String path = StatementExecutor.evalStringArg(body, call.args().get(0), env);
+    static TypedSide loadCsvToDbTable(List<TypedSpec> body,
+            TypedNativeCall call, BodyDriver.ExecEnv env) {
+        String path = BodyDriver.evalStringArg(body, call.args().get(0), env);
         String[] ref = tableRef(com.legend.compiler.spec.typed.Lets.bound(call.args().get(1), body), body);
         String qualified = "default".equals(ref[1]) ? ref[2] : ref[1] + "." + ref[2];
         var tableType = env.ctx().findTable(ref[0], ref[2]).orElseThrow(() ->
@@ -68,10 +67,10 @@ final class CsvLoad {
         com.legend.setup.RowLoad load = com.legend.setup.CsvSeed.rowLoad(schema, ref[2],
                 com.legend.setup.Ddl.quoting(def, schema), cols, com.legend.setup.CsvSeed.quotedColumns(def), rows);
         if (load != null) {
-            StatementExecutor.sendEffect(env, env.dialect().render(load.values()), null,
+            BodyDriver.sendEffect(env, env.dialect().render(load.values()), null,
                     com.legend.exec.StatementOrigin.SEED_GENERATED, true);
         }
-        return new ExecutionResult.Scalar(null, call.info().type());
+        return new TypedSide.Scalar(null, call.info().type());
     }
 
     /** {@code [dbFqn, schema, table]} of a store-navigation chain

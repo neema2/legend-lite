@@ -3,9 +3,9 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -61,14 +61,14 @@ class NullSemanticsTest {
     }
 
     private static List<String> names(String query) throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL, query, "m::RT", conn);
+        Lean.Result r = Lean.run(MODEL, query, "m::RT", conn);
         // F6.2: the map-binder channel is a VALUE COLLECTION (nulls are
         // pure empties and never arrive)
-        if (r instanceof ExecutionResult.Collection c) {
-            return c.values().stream().map(String::valueOf).sorted().toList();
+        if (r.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
+            return r.values().stream().map(String::valueOf).sorted().toList();
         }
-        return ((ExecutionResult.Tabular) r).rows().stream()
-                .map(row -> String.valueOf(row.values().get(0))).sorted().toList();
+        return r.rows().stream()
+                .map(row -> String.valueOf(row.get(0))).sorted().toList();
     }
 
     @Test
@@ -124,14 +124,14 @@ class NullSemanticsTest {
     @Test
     @DisplayName("VALUE position: a [0..1] comparison yields pure's false, never SQL NULL")
     void valuePosition() throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL,
+        Lean.Result r = Lean.run(MODEL,
                 "{| m::A.all()->project([x|$x.street->endsWith('p'), x|$x.name],"
                         + " ['e','nm']);}", "m::RT", conn);
-        var rows = ((ExecutionResult.Tabular) r).rows();
+        var rows = r.rows();
         assertEquals(3, rows.size());
         for (var row : rows) {
-            if ("c".equals(row.values().get(1))) {
-                assertEquals(false, row.values().get(0),
+            if ("c".equals(row.get(1))) {
+                assertEquals(false, row.get(0),
                         "null street: the guard folds to FALSE, not NULL");
             }
         }

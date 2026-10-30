@@ -82,7 +82,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "NUMERIC(38)";
             case DOUBLE -> "DOUBLE PRECISION";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
@@ -733,7 +733,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
@@ -2452,56 +2452,6 @@ public final class Postgres extends AnsiSqlRenderer {
             });
         }
         return out.toString();
-    }
-
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A struct is jsonb here, and the driver hands a jsonb cell back as its own object, whose text is the JSON
-     *  (PGobject's toString): decoded to the platform's map, a struct's fields in its declared order (nested ones
-     *  too), a Float field a Double, a Decimal one a BigDecimal. A jsonb null (an absent optional instance read off
-     *  its owner, {@code x -> 'f'}) is NULL. (Still raw: a date-time field arrives as its text, and a map field as its
-     *  entries -- the executor's unwrap would type them, and sql/ cannot reach it: PR #34's review, 2026-10-13.) */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue != null && type instanceof SqlType.Struct st && !(jdbcValue instanceof java.util.Map)) {
-            String text = jdbcValue.toString();
-            if (text.startsWith("{")) {
-                return declared(com.legend.sql.Json.parse(text), st);
-            }
-            if (com.legend.sql.Json.parse(text) == null) {
-                return null;
-            }
-        }
-        return jdbcValue;
-    }
-
-    /** A parsed JSON value as the type declares it: a struct's fields in declared order, a list's elements, a Float a
-     *  Double; anything else as parsed. */
-    private static @com.legend.base.Nullable Object declared(@com.legend.base.Nullable Object v, SqlType t) {
-        if (t instanceof SqlType.Struct st && v instanceof java.util.Map<?, ?> m) {
-            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-            for (SqlType.Struct.Field f : st.fields()) {
-                out.put(f.name(), declared(m.get(f.name()), f.type()));
-            }
-            return out;
-        }
-        if (t instanceof SqlType.Array arr && v instanceof List<?> l) {
-            List<Object> out = new java.util.ArrayList<>(l.size());
-            for (Object e : l) {
-                out.add(declared(e, arr.element()));
-            }
-            return out;
-        }
-        if (t == SqlType.Scalar.DOUBLE && v instanceof Number n) {
-            return n.doubleValue();
-        }
-        if (t instanceof SqlType.Decimal && v instanceof Number n && !(v instanceof java.math.BigDecimal)) {
-            return new java.math.BigDecimal(n.toString());
-        }
-        return v;
     }
 
     // ==================================================================

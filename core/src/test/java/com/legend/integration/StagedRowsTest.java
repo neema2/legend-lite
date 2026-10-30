@@ -3,9 +3,11 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -24,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the statements after the let read that table: a write between them does not change the rows the let holds. The
  * table is the session's own and is dropped when the program has run.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class StagedRowsTest {
 
     private static final String MODEL = """
@@ -41,7 +44,7 @@ class StagedRowsTest {
             Runtime w::RT { mappings: [ ]; connections: [ w::DB: [ c: w::Conn ] ]; }
             """;
 
-    private static final TestBackend BACKEND = TestBackends.platform();
+    private static final TestBackend BACKEND = LaneFloor.backend();
 
     @Test
     void aStagedLetHoldsItsRowsAcrossTheWritesAfterIt() throws Exception {
@@ -50,7 +53,7 @@ class StagedRowsTest {
             run(c, "CREATE TABLE SRC (ID INTEGER, NAME VARCHAR(20), AGE INTEGER)");
             run(c, "INSERT INTO SRC VALUES (1, 'a', 10), (2, 'b', 20), (3, 'c', 30)");
             // the staged rows are the ones before the delete: the let holds them
-            ExecutionResult r = execute(c, "{|let s = #>{w::DB.SRC}#->filter(r|$r.AGE > 10)"
+            Lean.Result r = execute(c, "{|let s = #>{w::DB.SRC}#->filter(r|$r.AGE > 10)"
                     + "->meta::legend::lite::stage(); #>{w::DB.SRC}#->delete(r|true); $s->sort(~ID->ascending());}");
             assertEquals(List.of("2|b|20", "3|c|30"), cells(r));
             assertEquals(0, count(c, "SRC"));
@@ -80,15 +83,15 @@ class StagedRowsTest {
         }
     }
 
-    private static ExecutionResult execute(Connection c, String query) {
-        return com.legend.Execution.execute(MODEL.formatted(BACKEND.connectionBody()), query, "w::RT", c);
+    private static Lean.Result execute(Connection c, String query) {
+        return Program.last(MODEL.formatted(BACKEND.connectionBody()), query, "w::RT", c);
     }
 
-    private static List<String> cells(ExecutionResult r) {
+    private static List<String> cells(Lean.Result r) {
         List<String> out = new ArrayList<>();
         for (var row : r.rows()) {
             List<String> cs = new ArrayList<>();
-            row.values().forEach(v -> cs.add(String.valueOf(v)));
+            row.forEach(v -> cs.add(String.valueOf(v)));
             out.add(String.join("|", cs));
         }
         return out;

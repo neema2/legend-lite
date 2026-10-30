@@ -60,7 +60,7 @@ final class ArchitectureTest {
     private static final java.util.Map<String, String> PRODUCT_LIBRARIES = java.util.Map.ofEntries(
             java.util.Map.entry("spi", "com.legend.spi.ElementSink"),
             java.util.Map.entry("cache", "com.legend.cache.ContentStore"),
-            java.util.Map.entry("values", "com.legend.values.LiteralText"),
+            java.util.Map.entry("values", "com.legend.values.PureDateLiteral"),
             java.util.Map.entry("error", "com.legend.error.LegendCompileException"),
             java.util.Map.entry("lexer", "com.legend.lexer.Lexer"),
             java.util.Map.entry("sql", "com.legend.sql.SqlQuery"),
@@ -81,10 +81,11 @@ final class ArchitectureTest {
             java.util.Map.entry("plan", "com.legend.plan.QueryPlan"),
             java.util.Map.entry("resolver", "com.legend.resolver.StoreResolver"),
             java.util.Map.entry("setup", "com.legend.setup.CsvSeed"),
-            java.util.Map.entry("exec", "com.legend.exec.Executor"),
+            java.util.Map.entry("exec", "com.legend.exec.PlanRunner"),   // Executor until its deletion, 2026-10-27
             java.util.Map.entry("probe", "com.legend.probe.Shadow"),
             java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
             java.util.Map.entry("execution_plan", "com.legend.executionplan.ExecutionPlan"),
+            java.util.Map.entry("result", "com.legend.result.Batch"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
             java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
             java.util.Map.entry("driver", "com.legend.Execution"),
@@ -195,7 +196,7 @@ final class ArchitectureTest {
      * <strong>Invariant 4c — the root package is the TOP layer.</strong>
      * The acyclic-slices matcher {@code com.legend.(*)..} skips root
      * classes, so nothing structural prevented a phase from importing the
-     * driver (Compiler/StatementExecutor) — audit 19's blind spot. Phases
+     * driver (Compiler/BodyDriver) — audit 19's blind spot. Phases
      * never call up into orchestration. (The harness bridge left
      * production in F1.2 — no exemption remains.)
      */
@@ -212,7 +213,7 @@ final class ArchitectureTest {
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
-                    com.legend.StatementExecutor.class)
+                    com.legend.BodyDriver.class)
             .as("Invariant 4c: the com.legend root (driver) is the top"
                     + " layer — audit 19")
             .check(CORE_PROD_CLASSES);
@@ -662,7 +663,9 @@ final class ArchitectureTest {
     void javaSqlIsFunnelledToTheCharteredSeam() {
         noClasses()
             .that().resideOutsideOfPackages("com.legend.exec",
-                    "com.legend.server..", "com.legend.testdatagen",
+                    // com.legend.testdatagen left this list 2026-10-29 (the doors): the generator runs every
+                    // statement through the plan runner and holds no JDBC
+                    "com.legend.server..",
                     // the product's test runner (batch 7a): a driver like the
                     // root's — it opens package sessions and hands the
                     // connection to the executor, never a statement of its own
@@ -675,7 +678,7 @@ final class ArchitectureTest {
             // framed the boundary as java.sql only)
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("F1.3: java.sql AND the driver-native APIs are funnelled"
-                    + " to {exec, server, root, testdatagen} — Charter"
+                    + " to {exec, server, root} — Charter"
                     + " clauses C1/C2")
             .check(CORE_PROD_CLASSES);
     }
@@ -706,6 +709,35 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>The writers are carriage only (2026-10-28, docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md R3; the start
+     * page's S1.4 item 3, approved by the user 2026-10-28).</strong> A writer spells the typed value it was handed, by
+     * the plan's column facts alone, so swapping one writer for another changes no value: the result package (the
+     * batch, the batcher, the collector, the row decode, the cell texts, the three writers, a host's rows) reads the
+     * plan's columns ({@code executionplan}), the typed carriers ({@code values}), JSON and the base, and no other
+     * layer -- never the compiler, the lowering, the SQL tree or a dialect, the runner or a session ({@code exec}),
+     * the resolver, the plan side's setup or the legacy plan, the server. True when written (its Bazel target's deps
+     * say the same); the rule keeps it true. What a writer may DO with a value is the source scan's
+     * ({@code WriterCarriageGuardTest}).
+     */
+    @Test
+    void writersAreCarriageOnly() {
+        noClasses()
+            .that().resideInAPackage("com.legend.result..")
+            .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage(
+                    "com.legend..")
+                    .and(com.tngtech.archunit.base.DescribedPredicate.not(com.tngtech.archunit.core.domain.JavaClass
+                            .Predicates.resideInAnyPackage("com.legend.result..", "com.legend.executionplan..",
+                                    "com.legend.values..", "com.legend.json..", "com.legend.base..",
+                                    "com.legend.error..",
+                                    // the Arrow IPC framer (track A, 2026-10-29): bytes in a layout, no value decided
+                                    "com.legend.arrowipc.."))))
+            .as("the writers are carriage only (R3): com.legend.result reads the plan's column facts and the typed"
+                    + " batch -- executionplan, values, json, base, error, the Arrow framer -- and no compiler,"
+                    + " lowering, sql, exec, resolver, setup, plan or server class")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * <strong>The runner is model-free (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3).</strong>
      * What runs is the plan's own statement, reviewed when the plan was made: the runner, its parameter checks, its
      * sessions and the bulk load read the plan records, a connection's definition and {@code java.sql}, never the
@@ -718,8 +750,11 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsModelFree() {
-        // RowDecode (2026-10-18, the plan path program's step 6): the runner's typed-row decode, by the plan's columns
-        String runner = "com\\.legend\\.exec\\.(PlanRunner|PlanParameters|PlanSessions|RowDecode|BulkLoads?)(\\$.*)?";
+        // RowDecode (2026-10-18, the plan path program's step 6): the runner's typed-row decode, by the plan's columns;
+        // since 2026-10-27 (the result boundary program's phase 3) in the plan side's result package, where a host's
+        // rows are decoded by the same rule, and held model-free there too
+        String runner = "com\\.legend\\.(exec\\.(PlanRunner|PlanParameters|PlanSessions|BulkLoads?)|result\\.RowDecode)"
+                + "(\\$.*)?";
         noClasses()
             .that().haveNameMatching(runner)
             .should().dependOnClassesThat(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage(
@@ -764,8 +799,9 @@ final class ArchitectureTest {
             java.util.Map.entry("Column", 2),
             java.util.Map.entry("DynamicPivot", 1),
             java.util.Map.entry("Equality", 1),
-            java.util.Map.entry("ExecutionResult", 2),
-            java.util.Map.entry("Executor", 7),
+            // ExecutionResult renamed TypedSide 2026-10-29 (track D); the same two planning classes it reaches
+            java.util.Map.entry("TypedSide", 2),
+            // Executor (7) left 2026-10-27: deleted, its sends plan steps (the result boundary program, phase 5)
             java.util.Map.entry("GridProbe", 3),
             // 0 -> 1 (2026-10-20, object identity step 2, found at main's merge 2026-10-22, the first run of this guard
             // on the branch): an object's id per evaluation is keyed by the typed tree's Evaluation.Site, a value the
@@ -781,7 +817,9 @@ final class ArchitectureTest {
             // the plan side's fact (Databases.inProcess), read by the session owner; 3 -> 2 (2026-10-22, main's merge):
             // the connector answers it (main's Phase 5), and the plan side's is the dialect's
             java.util.Map.entry("Sessions", 2),
-            java.util.Map.entry("SetupRunner", 3),
+            // SetupRunner (4) left 2026-10-29 (the doors): deleted; the seeds, the session statements and the system
+            // store's rows are plan setup steps the runner sends (PlanRunner.setUp), their form the plan side's own
+            // (CsvSeed.planned, Ddl.metamodelSteps)
             java.util.Map.entry("SqlReplayReferee", 1),
             java.util.Map.entry("SystemDatabase", 3),
             // 4 -> 1 (2026-10-18, the plan path program's step 6): the batch sends its statements as plans through
@@ -998,8 +1036,9 @@ final class ArchitectureTest {
      * env.withConnection(side.connection())}) depends on that class, not on
      * {@code java.sql}, and is not counted; "who handles a connection" is a
      * different property (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md
-     * §3.3). The funnel licenses {@code com.legend} ROOT, which
-     * contains StatementExecutor — the audit's S1 dispatcher. Until the
+     * §3.3). Since 2026-10-29 (B1b) those classes pass a SESSION along, and
+     * {@link #theBodyDriverAndTheJudgesHoldNoJdbc} pins them by name. The funnel licenses {@code com.legend} ROOT, which
+     * contains BodyDriver — the audit's S1 dispatcher. Until the
      * orchestration/exec-seam split (backlogged), root's JDBC surface is
      * pinned to an ENUMERATED, shrink-only set: a NEW root class touching
      * {@code java.sql} fails this rule.
@@ -1008,13 +1047,17 @@ final class ArchitectureTest {
     void rootJavaSqlSurfaceIsPinned() {
         noClasses()
             .that().resideInAPackage("com.legend")
-            // nested classes (StatementExecutor$ExecEnv, ...) ride with
+            // nested classes (BodyDriver$ExecEnv, ...) ride with
             // their owner — the pin is per top-level class
             // 2026-10-04 C2a: Compiler LEFT the pin -- the planner, java.sql-free, in //core:planner (no
             // :exec); Execution, the execution front door, holds the execute entry points' Connection
             // parameters it took from Compiler (a move, not growth)
+            // 2026-10-29 (the result boundary program's track B, B1b): BodyDriver LEFT the pin -- the body
+            // driver holds a session (Sessions.Session) and reaches the database only through its statements;
+            // Execution, the front door, keeps the execute entries' Connection parameters and wraps each as the
+            // driver's session (PlanSessions.session); 2026-10-29 (track D): the execute entries are gone and
+            // Execution keeps only run's and runProgram's Connection parameters
             .and().haveNameNotMatching("com\\.legend\\.(Execution"
-                    + "|StatementExecutor"
                     // THE EXCEPTION SEAM (user directive 2026-09-01):
                     // SQLException stops at the executor boundary —
                     // verdicts throw AssertFailed, data errors arrive
@@ -1027,9 +1070,69 @@ final class ArchitectureTest {
             .should().dependOnClassesThat()
             .resideInAPackage("java.sql..")
             .as("F1.3b: root's java.sql surface is pinned to"
-                    + " {Execution, StatementExecutor} —"
+                    + " {Execution} —"
                     + " shrink-only (the exception seam landed"
-                    + " 2026-09-01; the carrier-type residue left 2026-09-22)")
+                    + " 2026-09-01; the carrier-type residue left 2026-09-22;"
+                    + " the body driver left 2026-10-29)")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The body driver and the judges hold no JDBC (2026-10-29, the result boundary program's track B, B1b;
+     * docs/RESULT_BOUNDARY_START_HERE.md, the track B block).</strong> A test body is a sequence of plans: the driver
+     * ({@code BodyDriver}, {@code BodyCompiler}), the judges and their arms, the seed and error natives and the
+     * test-data generator's natives hold a session ({@code Sessions.Session}) and reach the database only through its
+     * statements ({@code Statements}), the plan runner and the session's state ({@code SessionState}); none depends
+     * on {@code java.sql} or a driver's own API. The funnel above licenses root as a package; this rule names the
+     * classes the funnel would let through. The generator itself ({@code TestDataGenerator}) joined 2026-10-29 (the
+     * doors): it runs every statement through the plan runner and holds no JDBC (D30's residue closed).
+     */
+    @Test
+    void theBodyDriverAndTheJudgesHoldNoJdbc() {
+        noClasses()
+            .that().haveNameMatching("com\\.legend\\.(BodyDriver|BodyCompiler|HostJudge|DatabaseJudge"
+                    + "|JudgePlans|AssertVerdicts|SqlTextVerdicts|AgreementArm|VerdictArm|CsvLoad|SeedSqlForms"
+                    + "|AssertErrorNative|testdatagen\\.TestDataGenerationNatives|testdatagen\\.TestDataGenerator)"
+                    + "(\\$.*)?")
+            .should().dependOnClassesThat()
+            .resideInAnyPackage(JDBC_AND_DRIVERS)
+            .as("B1b: the body driver, the judges, the generator and its natives hold a session and no JDBC")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The plan runner is the one caller of a session's statements (the doors, 2026-10-29; docs/RESULT_BOUNDARY_START_HERE.md,
+     * "the doors").</strong> {@code Statements} is the session seam (text in; rows, a count, reported columns or text
+     * out), and {@code PlanRunner} is the one place a statement meets it: every statement sent is a plan's, checked
+     * against its target (the database, the server versions it is written for), given the target's session
+     * statements and counted. The schema probes ({@code ColumnProbe}, {@code GridProbe}, {@code WireTypes},
+     * {@code DynamicPivot}) ask the runner ({@code columns}, {@code describe}); the seeds, a program's session
+     * statements and the system store's rows are setup steps it runs ({@code setUp}); the transaction bracket is the
+     * session's own ({@code Sessions.Session.inTransaction}). The session owners ({@code PlanSessions},
+     * {@code Sessions}) and the implementations ({@code JdbcStatements}, MongoDB's) are the seam itself. No other
+     * class calls a method of {@code Statements}, and none takes a session's statements
+     * ({@code Sessions.Session.statements}).
+     */
+    @Test
+    void theRunnerIsTheOneCallerOfTheSessionsStatements() {
+        String seam = "com\\.legend\\.exec\\.(PlanRunner|PlanSessions|Sessions|JdbcStatements|MongoDbStatements)(\\$.*)?";
+        noClasses()
+            .that().haveNameNotMatching(seam)
+            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
+                            com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo(
+                                    com.legend.exec.Statements.class))))
+            .orShould().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
+                    com.tngtech.archunit.core.domain.JavaMethodCall>("a session's statements (Sessions.Session"
+                    + ".statements)") {
+                @Override
+                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
+                    return call.getTarget().getOwner().isAssignableTo(com.legend.exec.Sessions.Session.class)
+                            && call.getTarget().getName().equals("statements");
+                }
+            })
+            .as("the doors: the plan runner is the one caller of a session's statements (Statements, "
+                    + "Sessions.Session.statements)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -1092,36 +1195,10 @@ final class ArchitectureTest {
      * which is the disease the whole verdict program deletes. Tests
      * (the harness IS the referee) are exempt by scope.
      */
-    /** THE SNIFF-STOP PIN (F10 slice-3 audit, 2026-08-24): wire-value
-     * decoding is LABEL-DRIVEN, never shape-guessed — the engine's own
-     * rule (declared type decides; relationalMappingExecution's narrow
-     * conversion table). The two grammar readers are reachable ONLY
-     * from the label-dispatch funnel: LiteralText parses LITERAL-
-     * labeled cells (Executor.unwrap's arm); ad-hoc callers would be
-     * value sniffing — the '4'-as-Long class of bug. A new caller
-     * registers here consciously with its label-contract argument. */
-    @Test
-    void spellingDecodeIsLabelDriven() {
-        noClasses()
-            .that().doNotHaveFullyQualifiedName("com.legend.exec.Executor")
-            // 2026-10-18 (the plan path program's step 6): the runner's typed-row decode has the same arm -- a cell
-            // whose plan column's SLOT is labelled LITERAL parses as its spelling; the label is the plan's own fact
-            .and().doNotHaveFullyQualifiedName("com.legend.exec.RowDecode")
-            // 2026-10-18 (step 6, the typed rows): the plan runner's decode of a driver's cell by the plan column's
-            // slot has the same LITERAL arm, over the cell's text; 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md D12):
-            // the MongoDB connector's decode of a document's cell by the same slot label. Registered 2026-10-19 at
-            // step 9's merge, where the guard lanes outside the core suite first ran on the program's branch.
-            .and().doNotHaveFullyQualifiedName("com.legend.exec.JdbcDecode")
-            .and().doNotHaveFullyQualifiedName("com.legend.exec.MongoDbDecode")
-            .and().doNotHaveFullyQualifiedName("com.legend.values.LiteralText")
-            .should().dependOnClassesThat().haveFullyQualifiedName(
-                "com.legend.values.LiteralText")
-            .as("SNIFF-STOP: LiteralText.parse is reachable only from the"
-                    + " label-dispatch funnels (Executor.unwrap's LITERAL"
-                    + " arm, RowDecode's LITERAL slot arm) — decode by declared label, never by value"
-                    + " shape")
-            .check(CORE_PROD_CLASSES);
-    }
+    // (THE SNIFF-STOP PIN, spellingDecodeIsLabelDriven -- LiteralText.parse reachable only from the LITERAL slot's
+    // decode arms -- left with its subject on 2026-10-29, the result boundary program's track L, L2: the LITERAL
+    // spelling carrier, its parser and the decoders' arms are deleted; a mixed value is a tagged value, read in its
+    // slot, and no cell is parsed by its text's shape.)
 
     @Test
     void hostVerdictIsReachableOnlyFromTheVerdictSeam() {
@@ -1285,11 +1362,8 @@ final class ArchitectureTest {
                 // legitimate static-census shape)
                 "com.legend.exec.SqlTypeCensus.NUL_CLASSES",
                 "com.legend.exec.SqlTypeCensus.NUL_SAMPLES",
-                // §E3 slack census (the breach converse — precision
-                // instrument): classified counters + bounded
-                // witnesses; measurement only, deliberately unpinned
-                "com.legend.exec.SqlTypeCensus.SLACK_CLASSES",
-                "com.legend.exec.SqlTypeCensus.SLACK_SAMPLES",
+                // (the §E3 slack census's SLACK_CLASSES and SLACK_SAMPLES LEFT this allowlist 2026-10-29: deleted
+                // with the wire census's arm by the doors' audit, D64 -- callerless since the plan runner)
                 // the primitive census (2026-10-12, the coverage map, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §20): a
                 // tally per MIR primitive by outcome, bounded by the MIR's vocabulary; written only under
                 // -Dlegend.diagnostics=primitives; measurement only, never verdict-affecting (the SqlTypeCensus
@@ -1297,15 +1371,15 @@ final class ArchitectureTest {
                 "com.legend.exec.PrimitiveCensus.TALLY",
                 // and its per-test sets under primitives=per-test (the same day): bounded by tests x vocabulary
                 "com.legend.exec.PrimitiveCensus.TESTS",
-                // serializer registry: written once at static init; the
-                // ConcurrentHashMap spelling is for safe publication
-                "com.legend.server.serial.SerializerRegistry.SERIALIZERS",
                 // a SESSION's established test-data setups (2026-09-16): the
                 // engine loads a LocalH2 connection's data when it opens the
                 // connection, once; this keys that fact on the session itself
                 // (WeakHashMap — the fact lives exactly as long as the
-                // connection) and re-seeds after a writing statement
-                "com.legend.StatementExecutor.ESTABLISHED",
+                // connection) and re-seeds after a writing statement.
+                // 2026-10-29 (track B's B1b): the map moved from the body driver
+                // (BodyDriver.ESTABLISHED) to the session seam, the same
+                // weak map by the same key, read through Sessions.Session.state()
+                "com.legend.exec.SessionState.OF",
                 // the bare-name rule's table (L7 "resolve once", step 3, 2026-10-10): the names a bare
                 // call may mean at an arity, computed from static tables (the engine surface, the core
                 // import group, the forms, the catalog) and kept per (name, arity) once computed; never

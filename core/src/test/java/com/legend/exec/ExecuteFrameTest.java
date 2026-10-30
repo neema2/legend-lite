@@ -3,8 +3,9 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -63,50 +64,50 @@ class ExecuteFrameTest {
         conn.close();
     }
 
-    private static ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(MODEL, query, "m::RT", conn);
+    private static Lean.Result run(String query) throws SQLException {
+        return Program.last(MODEL, query, "m::RT", conn);
     }
 
     @Test
     @DisplayName("relation root: $r.values reads splice into the typed query and execute")
     void relationRootValues() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::router::execute("
+        Lean.Result r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values;}");
-        ExecutionResult.Tabular t = (ExecutionResult.Tabular) r;
+        Lean.Result t = r;
         assertEquals(3, t.rows().size());
     }
 
     @Test
     @DisplayName("relation root: downstream ops COMPOSE over the spliced chain")
     void relationRootComposes() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::router::execute("
+        Lean.Result r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name, p|$p.age],"
                 + " ['name', 'age']), m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values->filter(x|$x.age > 30);}");
-        ExecutionResult.Tabular t = (ExecutionResult.Tabular) r;
+        Lean.Result t = r;
         assertEquals(2, t.rows().size());
     }
 
     @Test
     @DisplayName("relation root: ->at(0)/->toOne() collapse (the envelope holds one TDS)")
     void relationRootAtZeroCollapses() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::router::execute("
+        Lean.Result r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values->at(0);}");
-        assertEquals(3, ((ExecutionResult.Tabular) r).rows().size());
+        assertEquals(3, r.rows().size());
     }
 
     @Test
     @DisplayName("relation root: ops compose OVER the collapsed ->at(0) wrapper")
     void relationRootOpsOverAtZero() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::router::execute("
+        Lean.Result r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values->at(0)->map(x|$x.name);}");
-        assertEquals(3, ((ExecutionResult.Collection) r).values().size());
+        assertEquals(3, r.values().size());
     }
 
     @Test
@@ -123,12 +124,12 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("envelope alias: let tds = $r.values->at(0) keeps ONE-TDS semantics ($tds->size() == 1)")
     void envelopeAliasSize() throws Exception {
-        ExecutionResult r = run("{| let r = meta::pure::router::execute("
+        Lean.Result r = run("{| let r = meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT.runtimeValue, []);\n"
                 + "let tds = $r.values->at(0);\n"
                 + "$tds->size();}");
-        assertEquals(1, ((Number) ((ExecutionResult.Scalar) r).value()).intValue());
+        assertEquals(1, ((Number) r.one()).intValue());
     }
 
     @Test
@@ -144,19 +145,19 @@ class ExecuteFrameTest {
     @Test
     @DisplayName("execute() in result position: the frame's run is the value")
     void executeInResultPosition() throws Exception {
-        ExecutionResult r = run("{| meta::pure::router::execute("
+        Lean.Result r = run("{| meta::pure::router::execute("
                 + "|m::Person.all()->project([p|$p.name], ['name']),"
                 + " m::M, m::RT.runtimeValue, []);}");
-        assertEquals(3, ((ExecutionResult.Tabular) r).rows().size());
+        assertEquals(3, r.rows().size());
     }
 
     @Test
     @DisplayName("a let-bound query lambda resolves through the caller's lets")
     void letBoundQueryLambda() throws Exception {
-        ExecutionResult r = run("{| let q = {|m::Person.all()"
+        Lean.Result r = run("{| let q = {|m::Person.all()"
                 + "->project([p|$p.name], ['name'])};\n"
                 + "let r = meta::pure::router::execute($q, m::M, m::RT.runtimeValue, []);\n"
                 + "$r.values;}");
-        assertEquals(3, ((ExecutionResult.Tabular) r).rows().size());
+        assertEquals(3, r.rows().size());
     }
 }

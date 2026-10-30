@@ -3,9 +3,9 @@
 
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * alias: DuckDB refused it ("Values list t2 does not have a column named ...").
  */
 @DisplayName("A column only the right side of a join names resolves there")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class PivotJoinColumnTest {
 
     private static final String MODEL = """
@@ -53,7 +54,7 @@ class PivotJoinColumnTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         try (var st = connection.createStatement()) {
             st.execute("CREATE TABLE T (region VARCHAR, desk VARCHAR, amt DOUBLE)");
             st.execute("INSERT INTO T VALUES ('EMEA','FX',10), ('EMEA','Rates',5),"
@@ -68,9 +69,9 @@ class PivotJoinColumnTest {
 
     @Test
     void ordersByTheRightSidesColumn() throws SQLException {
-        ExecutionResult r = new QueryService().execute(MODEL, QUERY, "local::RT", connection);
-        int region = r.columns().stream().map(com.legend.exec.Column::name).toList().indexOf("region");
-        int total = r.columns().stream().map(com.legend.exec.Column::name).toList().indexOf("total");
+        Lean.Result r = Lean.run(MODEL, QUERY, "local::RT", connection);
+        int region = r.columns().stream().map(Lean.Column::name).toList().indexOf("region");
+        int total = r.columns().stream().map(Lean.Column::name).toList().indexOf("total");
         List<Object> regions = r.rows().stream().map(row -> row.get(region)).toList();
         List<Object> totals = r.rows().stream().map(row -> row.get(total)).toList();
         assertEquals(java.util.Arrays.asList("APAC", "EMEA", null), regions);

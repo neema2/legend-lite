@@ -24,7 +24,16 @@
 > mechanical, with known limits (guards catch drift, not adversaries —
 > the audit's §3): `JavaEvalLedgerTest` (shrink-only pins on the
 > registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
-> (JDBC only at the chartered seams) and
+> (JDBC only at the chartered seams),
+> `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
+> statement a session runs is the plan runner's: the probes, the seeds,
+> the system store's rows, the plan path's and the server's held database's
+> seeds are plan setup steps it sends -- "the doors", 2026-10-29, and the
+> three routings, D65; a raise a MariaDB session holds is read back by the
+> seam from the two statements its connector declares as data; in core's
+> main sources the seam `JdbcStatements` and its DuckDB bulk loader are
+> the only JDBC senders -- the warehouse's server and client, the
+> datacube's Postgres tool and the test harnesses send their own) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
 > cannot reach a connection — grid chains COMPILE to SQL at the exec
 > seam, `GridReads.tryLower`, scheduled for deletion by the
@@ -49,6 +58,19 @@
 > (violation)? Mechanical guard: `Runner.registerLibrarySource` refuses
 > `meta::pure::functions::` elements
 > (`LibraryPlatformNamespaceGuardTest`).
+>
+> **Upstream-fidelity tenet (the user, 2026-10-29):** wherever possible,
+> lite does EXACTLY what legend-pure and legend-engine do. Every decision
+> -- a spelling, an outcome, an error, a type, a rule -- is settled by one
+> question, asked first: "can we do exactly as pure/engine does?" Where
+> exactness is too expensive, lite does the closest thing, and that
+> divergence is POSTED to the user before it lands (case by case: the
+> expression, upstream's answer, lite's) and LEDGERED as a row of
+> `docs/SEMANTICS_REGISTER.md`. Upstream's answer is READ from the pinned
+> sources or ASKED of the engine runner
+> (`docs/result-boundary-homework/README.md` §7), never recalled or
+> guessed. A divergence that is not a row is a defect; a row the user did
+> not rule is a defect too.
 >
 > **World-map tenet — ratified 2026-09-03 (`docs/WORLD_MAP.md`,
 > `docs/TENET_CHARTER.md` Clause 6):** Pure code is NATIVES (one Java SQL
@@ -113,7 +135,8 @@ text                                                             [FRONTEND]
                                                                  [BACKEND]
   J  sql/dialect/      SqlDialect.render              SqlQuery → SQL string
                                                                  [RUNTIME]
-  K  exec/             Executor.execute               SQL + JDBC → ExecutionResult
+  K  exec/             PlanRunner.stream              a plan + a session → typed rows to a sink
+                       result/                        (the writers spell each cell at the boundary)
 ```
 
 **G½ runs on every execution path** — do not omit it when reasoning about the
@@ -134,16 +157,22 @@ user-visible error carries one of these eight.
 | `Compiler.compileErrors(String)` | A→F, then eager G over all bodies: a whole model | its errors as a list: the first element error alone, else every body's; both `compilation/compile` routes answer from it |
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
-| `Execution.execute(...)` | A→K | STRICT — **the production seam** |
-| `Execution.executeResolved(...)` | G½→K, the one back-half sequence | STRICT |
+| `Execution.run(...)` | A→K: the query's plan run by the plan's runner, its rows to the caller's sink (a writer at the boundary) | STRICT — **the production seam** |
+| `Execution.runProgram(...)` | a TEST BODY: G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
+
+The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
+`ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
+answer is a plan, written at the boundary; `docs/result-boundary-homework/probes/oldpath_census.py.txt` reads zero on every
+old-door symbol (two named residues remain by the user's question D51 and by a shared name: `Fold.conformValueEgress`,
+and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 
 `compileModel` and `buildModule` differ by **one argument**:
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
-`StatementExecutor` is **package-private by design** — reachable only through
-`Execution.executeResolved`. The driver never re-implements a step; the
-executor never decides pipeline order.
+`BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is **package-private by design** — reachable
+only through `Execution.runProgram`. The driver never re-implements a step; the body driver never decides pipeline
+order.
 
 ## Layer ownership (the contract)
 
@@ -158,7 +187,7 @@ executor never decides pipeline order.
 | **StoreResolver** | logical `TypedSpec` → physical | re-running type checks |
 | **Lowerer** | `TypedSpec` → `SqlQuery` | naming SQL functions; SQL syntax; importing a dialect; any `String` field encoding a SQL operation |
 | **SqlDialect** | `SqlQuery` → SQL string | inferring types; rewriting HIR; consulting the model |
-| **Executor** | SQL + JDBC → `ExecutionResult` | everything above |
+| **PlanRunner / the writers** | a plan + a session → typed rows; a cell's text at the boundary (`result/`) | everything above; a writer decides nothing (`WriterCarriageGuardTest`) |
 
 ## Invariants
 
@@ -368,7 +397,7 @@ otherwise, which is how it drifted:
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
 | `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
-| `docs/RESULT_BOUNDARY_START_HERE.md` | **The result boundary program, start here** (handoff 2026-10-26): where everything is, the state, the rules, how to run every check, the cloud lanes, a brief per step, the traps; the plan itself is `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` (revision 2: the plan in plain words, rules R1 to R8 with guards, step 0 measures first, steps 1 to 8 each ending in a deletion, the rulings it waits on in its §8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md` |
+| `docs/RESULT_BOUNDARY_START_HERE.md` | **The result boundary program, start here** (rewritten 2026-10-28 for a session from any account): the whole remaining roadmap in order with a brief per item (stage 1's S1.4 to S1.6; tracks B the body runner, T core's tests as the LEAN twin of PCT and the corpus, C the corpus on plans, D the deletions, L mixed lists, A Arrow, F open findings), the state with every commit, the rules, how to run every check, how to raise the lanes, the traps, the user's rulings verbatim; its evidence is `docs/result-boundary-homework/` (the audit, the code maps, the measurements, every probe's source); the program and its rulings are `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` (§8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md` |
 | `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |

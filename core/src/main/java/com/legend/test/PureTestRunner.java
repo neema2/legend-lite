@@ -45,7 +45,7 @@ import java.util.Set;
  *   <li>a body that seeds its own inline data runs on a PRIVATE workspace, not
  *       the session (the platform's {@link ProgramFacts#seedsInlineCsv});</li>
  *   <li>the body is resolved, typed and executed through the ONE production
- *       entry ({@link Compiler#executeResolved}); every assert the platform
+ *       entry ({@link Execution#runProgram}); every assert the platform
  *       adjudicates is a verdict; the first failed assert is the reason;</li>
  *   <li>a body that reaches NO verdict function is SKIPPED, with that said —
  *       it proves nothing and is never a pass; a body that calls a verdict
@@ -357,7 +357,9 @@ public final class PureTestRunner implements AutoCloseable {
             // refuses the known clashes
         }
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
-            Execution.executeResolved(call, ctx, runtimeFqn, target, null, null, options);
+            // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
+            Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
+                    com.legend.exec.Sessions.given(target), null, null, options);
         } finally {
             if (isolated) {
                 observer.fixtureIsolated(conn);
@@ -476,7 +478,8 @@ public final class PureTestRunner implements AutoCloseable {
         try {
             String failure = null;
             try {
-                Execution.executeResolved(resolved, ctx, runtimeFqn, conn,
+                Execution.runProgram(Compiler.queryResolved(ctx, resolved), runtimeFqn,
+                        com.legend.exec.Sessions.given(conn),
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {

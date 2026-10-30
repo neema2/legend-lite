@@ -31,7 +31,8 @@ import java.util.Set;
  *   <li>{@code concat} is NULL-propagating ({@code concat_ws('', ...)} skips NULLs, as DuckDB's concat does);
  *       {@code split} and {@code regexp_extract} take a Java regex, the latter group 1 by default;</li>
  *   <li>a lambda's index parameter is 0-based (DuckDB's is 1-based);</li>
- *   <li>arrays, structs, maps and variants arrive over JDBC as JSON text ({@link #normalize}).</li>
+ *   <li>arrays, structs, maps and variants arrive over JDBC as JSON text, which the typed reader decodes by the
+ *       column's slot.</li>
  * </ul>
  *
  * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
@@ -57,7 +58,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "DECIMAL(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "STRING";
+            case VARCHAR, TEMPORAL_TEXT -> "STRING";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "TIMESTAMP";
             case JSON -> "VARIANT";
@@ -1022,7 +1023,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1837,18 +1838,6 @@ public final class Databricks extends AnsiSqlRenderer {
     // ==================================================================
     // Values: what the driver hands back as JSON text
     // ==================================================================
-
-    /** A struct or a map arrives as JSON text (measured): decoded to the platform's map of its fields. Lists are
-     *  decoded by the executor's JSON carrier. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        return jdbcValue;
-    }
 
     /** {@inheritDoc} Its JSON_TYPE answers DuckDB's names (its emulation). */
     @Override

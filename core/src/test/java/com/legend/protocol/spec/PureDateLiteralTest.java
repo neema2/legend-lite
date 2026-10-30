@@ -45,6 +45,15 @@ class PureDateLiteralTest {
                 PureDateLiteral.parse("2024-01-15T10"));
     }
 
+    /** Pure's print form takes its zone from a minute on (legend-pure's DateFormat.append; S1.5, 2026-10-29). */
+    @Test
+    void toString_zoneFromAMinuteOn() {
+        assertEquals("2024-01-15T10", PureDateLiteral.parse("2024-01-15T10").toString());
+        assertEquals("2024-01-15T10:30+0000", PureDateLiteral.parse("2024-01-15T10:30").toString());
+        assertEquals("2024-01-15T10:30:00+0000", PureDateLiteral.parse("2024-01-15T10:30:00").toString());
+        assertEquals("2024-01-15", PureDateLiteral.parse("2024-01-15").toString());
+    }
+
     @Test
     void dateWithMinute_parsesToDateWithMinute() {
         assertEquals(new PureDateLiteral.DateWithMinute(2024, 1, 15, 10, 30),

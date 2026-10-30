@@ -1,7 +1,7 @@
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import com.legend.database.Databases;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,43 +59,40 @@ public class FoldCheckerTest extends AbstractDatabaseTest {
         // ("a scalar query has no row scope for $p.lastName"). CLOSED
         // strategy lambdas make the walker's own α-hygiene reach them.
         String model = "Class my::P { firstName: String[1]; lastName: String[1]; }";
-        var r = com.legend.Execution.execute(com.legend.test.StorelessRuntime.with(model, Databases.PLATFORM),
+        var r = Lean.run(com.legend.test.StorelessRuntime.with(model, backend().type()),
                 "{|let people = [^my::P(firstName='Pierre', lastName='Doe'),"
                         + " ^my::P(firstName='Kevin', lastName='RoeDoe')];"
                         + " $people->fold({p, s | $s + '; ' + $p.lastName->at(0)"
                         + " + ', ' + $p.firstName->at(0)}, 'names');}",
                 com.legend.test.StorelessRuntime.RUNTIME, connection);
         assertEquals("names; Doe, Pierre; RoeDoe, Kevin",
-                ((com.legend.exec.ExecutionResult.Scalar) r).value());
+                r.one());
     }
 
     // ======================== Helpers ========================
 
-    private ExecutionResult exec(String pureExpr) throws SQLException {
-        return queryService.execute(
-                getCompletePureModelWithRuntime(),
-                "|" + pureExpr,
-                "test::TestRuntime", connection);
+    private Lean.Result exec(String pureExpr) throws SQLException {
+        return Lean.run(getCompletePureModelWithRuntime(), "|" + pureExpr, "test::TestRuntime", connection);
     }
 
-    private Object scalar(ExecutionResult r) {
+    private Object scalar(Lean.Result r) {
         assertFalse(r.rows().isEmpty(), "Result should have at least one row");
         return r.rows().get(0).get(0);
     }
 
-    private long scalarLong(ExecutionResult r) {
+    private long scalarLong(Lean.Result r) {
         Object v = scalar(r);
         assertInstanceOf(Number.class, v, "Expected Number but got " + (v == null ? "null" : v.getClass()));
         return ((Number) v).longValue();
     }
 
-    private double scalarDouble(ExecutionResult r) {
+    private double scalarDouble(Lean.Result r) {
         Object v = scalar(r);
         assertInstanceOf(Number.class, v, "Expected Number but got " + (v == null ? "null" : v.getClass()));
         return ((Number) v).doubleValue();
     }
 
-    private List<Object> scalarList(ExecutionResult r) {
+    private List<Object> scalarList(Lean.Result r) {
         // REAL pure: fold's V[m] widens covariantly, so a list-building fold
         // returns a COLLECTION — one row per element — not a list-valued cell
         // (the old engine-lite shape).

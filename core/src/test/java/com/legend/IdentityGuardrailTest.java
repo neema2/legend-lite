@@ -141,7 +141,11 @@ class IdentityGuardrailTest {
             // 208 -> 205 (2026-10-06, build rebuild Phase 3: measured when the table became the one authority)
             Map.entry("NAME_COMPARE_REVERSED", 78), // 79 -> 78 (2026-10-21, leg 8 step 2, rule A: a model store's negative number is the parser's one literal, so the emitter's negation fold and its "minus" test are gone); 81 -> 79 (2026-10-10, L7 "resolve once" steps 3-4: readers read the record)
             Map.entry("LITERAL_NAME_COMPARE", 65),   // 64 -> 65 (2026-09-27, T4a): protocol/ProtocolUpgrade, upstream's protocol converter for a Result variable ("meta::pure::mapping::Result" on the WIRE, before any resolution)
-            Map.entry("NAME_AFFIX_TEST", 52),
+            Map.entry("NAME_AFFIX_TEST", 53),
+            // 52 -> 53 (2026-10-29, track L, D50d): MixedEncoding.enumerationKind reads a tagged slot's KIND -- the
+            // plan format's own vocabulary (the eight primitives' names, DateTime(n), an enumeration's path) -- for
+            // an enumeration's; the kind is the plan's text, written by the lowering and read back by it and the
+            // decoders, never an element name resolved against the model (the class the guard bans)
             // 51 -> 52 (2026-10-11, the ~func descriptor refusal: MappingFromProtocol.refuseDescriptorTypes tests a
             // descriptor TYPE's spelling for a package path, the engine's FunctionDescriptor.validateType rule on text
             // that is never resolved into a declaration; not an element name's affix)

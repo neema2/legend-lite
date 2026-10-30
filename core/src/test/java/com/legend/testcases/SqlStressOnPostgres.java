@@ -3,8 +3,9 @@
 
 package com.legend.testcases;
 
+import com.legend.testing.Lean;
+
 import com.legend.Compiler;
-import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import java.nio.file.Files;
@@ -129,7 +130,7 @@ public final class SqlStressOnPostgres {
             long t1 = System.nanoTime();
             within(() -> {
                 try {
-                    out.set(SqlParity.outcome(c, answer, names, isl -> new QueryService().execute(model, isl,
+                    out.set(SqlParity.outcome(c, answer, names, isl -> Lean.run(model, isl,
                             SqlParity.RUNTIME, connection)));
                 } catch (Throwable e) {
                     out.set(new SqlParity.Outcome(SqlParity.Status.ERROR, e.getClass().getSimpleName() + ": "

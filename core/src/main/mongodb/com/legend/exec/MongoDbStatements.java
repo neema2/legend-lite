@@ -74,8 +74,9 @@ final class MongoDbStatements implements Statements {
     }
 
     @Override
-    public void execute(String statement) {
+    public boolean execute(String statement) {
         run(command(statement));
+        return false;
     }
 
     /** {@inheritDoc} MongoDB: a keyed plan's two commands share no transaction (the dialect says {@code NONE}: a
@@ -101,6 +102,34 @@ final class MongoDbStatements implements Statements {
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
         throw new com.legend.error.NotImplementedException("a transaction over a plan's steps on MongoDB: a program that"
                 + " changes a store is not designed for MongoDB");
+    }
+
+    @Override
+    public boolean ownsTransaction() {
+        throw new com.legend.error.NotImplementedException("a transaction over a plan's steps on MongoDB: a program that"
+                + " changes a store is not designed for MongoDB");
+    }
+
+    /** A MongoDB session describes no statement before running it: the body driver's schema probes (a raw grid's
+     *  roster, a deferred relation's columns, a wire-decided kind) are not designed for MongoDB; refused by name. */
+    @Override
+    public List<Reported> columns(String statement) {
+        throw new com.legend.error.NotImplementedException("a statement's reported columns asked of a MongoDB session:"
+                + " the body driver's schema probes are not designed for MongoDB");
+    }
+
+    @Override
+    public List<Reported> describe(String statement) {
+        throw new com.legend.error.NotImplementedException("a statement described before running asked of a MongoDB"
+                + " session: the body driver's schema probes are not designed for MongoDB");
+    }
+
+    /** A MongoDB database is its connector's own and a plan sets none up ({@code PlanSessions.refuseSetup}): a bulk
+     *  load of a plan's rows is refused by name. */
+    @Override
+    public boolean load(ExecutionPlan.SetupStep.Rows rows) {
+        throw new com.legend.error.NotImplementedException("a bulk load of a plan's rows asked of a MongoDB session: its"
+                + " databases are the connector's own, and a plan sets none up");
     }
 
     @Override

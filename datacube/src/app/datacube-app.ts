@@ -44,10 +44,12 @@ import {
   type SavedDocument,
 } from '../page-document.ts';
 import { idTag, joinInputOf, type PageCommand } from '../page-commands.ts';
-import type { JoinAsk } from './join-flow.ts';
+import type { FlowJoinOf, JoinAsk } from './join-flow.ts';
 import { JOIN_SOURCE, joinMenu } from './join-menu.ts';
 import type { PageModelRef } from '../page-model.ts';
 import { classBasis, duplicateLambda } from '../query.ts';
+import type { TableOutput } from '../layout/flow.ts';
+import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { isPageFragment, readPageFragment, shareLink } from '../share/link.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
@@ -132,6 +134,43 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const planner = place.planner ?? local?.planner;
     const engine = place.engine ?? local?.engine;
     return planner && engine ? new PlanThenRun(planner, engine) : undefined;
+  };
+  /**
+   * A GRID'S TABLE OUTPUT in the tab (table-output.ts writeTable): its rows written into the tab's own database, over one
+   * model of the tables it reads there and the target -- where its rows are the tab's (a file's, a join's of them, a
+   * copy's) and the database writes; none for a host's grid, nor one read live from elsewhere (a remote file, a
+   * warehouse: cache its box first, FL10).
+   */
+  let tablesTaken: ((table: string) => boolean) | undefined;
+  let tableWritten: ((table: string) => void) | undefined;
+  const tableWriter = (place: GridPlace): ((rows: Lambda, output: TableOutput) => Promise<number>) | undefined => {
+    const engine = local?.engine;
+    const tables = place.tables;
+    if (local === undefined || engine?.exclusive === undefined || tables === undefined || tables.length === 0 || place.runner || place.snapTarget) return undefined;
+    const planner = place.planner ?? local.planner;
+    return async (rows, output) => {
+      const { writeTable } = await import('../table-output.ts');
+      const wrote = await writeTable(rows, output, {
+        databaseType: engine.databaseType,
+        sources: tables.map((table) => ({ table, convertible: true })),
+        held: (table) => tablesTaken?.(table) ?? true,
+        models: local.tables,
+        hold: (work) => engine.exclusive!(work),
+        sqlOf: async (query) => (await planner.plan(query)).sql,
+        executionPlan: async (model, runtime, program) => {
+          const p = local.another(model, runtime);
+          try {
+            if (p.executionPlan === undefined) throw new Error("this page's planner plans no write");
+            return await p.executionPlan(program);
+          } finally {
+            p.dispose?.();
+          }
+        },
+      });
+      // its table this tab's from now on: no file read in after takes its name (and replaces it)
+      tableWritten?.(output.name);
+      return wrote;
+    };
   };
   const windows = appWindows(o.windows);
   // the status line is the app's, in its look: whatever element the host handed it (app.css)
@@ -275,6 +314,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(start?.tree ? { tree: start.tree } : place.tree && !start ? { tree: place.tree } : {}),
         ...(place.heldCopy ? { heldCopy: place.heldCopy } : {}),
         ...(place.label !== undefined ? { sourceLabel: place.label } : {}),
+        // a flow's table Output: its rows written into the tab's own database, from the tables it reads there
+        ...(tableWriter(place) ? { writeTable: tableWriter(place)! } : {}),
         compact: true,
         // a copy is a grid added beside others; the same grid made again folds as it did
         foldPanel: (start !== undefined && start.tree === undefined) || place.foldPanel === true,
@@ -640,6 +681,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
     });
+    tablesTaken = (table) => sources.isTaken(table);
+    tableWritten = (table) => sources.wrote(table);
     // the grids of a timeseries series of several, over one model of the tables they read: the tab's own (its database's),
     // or -- a page Python serves -- the host's, by the same rule (join.json together); its query then planned and run
     // where the grids' rows are, as every grid's is (rowsOf). Fetched with the join's code (join-app.ts)
@@ -1520,13 +1563,15 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           throw new Error("this tool reads another box's rows: click a box first, or drop the tool on one");
         }
         // a Join or a Union: the Join window over this box (its Left) and another of the flow, each read live (M2)
-        if (tool === 'join' || tool === 'union' || tool === 'appendFields' || tool === 'fuzzyMatch' || tool === 'findReplace') {
+        if (tool === 'join' || tool === 'union' || tool === 'dynamicInput' || tool === 'appendFields' || tool === 'fuzzyMatch' || tool === 'findReplace') {
           await joinOnFlow({ cube: after, tool, sheet, now, ...(into !== undefined ? { into } : {}) });
           return;
         }
         // over its rows, or (`port`) a Filter's False: the rows its condition leaves out (FL7)
         const live: RowsSource = {
           _type: 'rows', name: gridInput(now, after, [], port).name, input: { grid: after, ...(port !== undefined ? { port } : {}) }, columns: [],
+          // Import Pure (FL12): a Pure box of its step, opened over it
+          ...(step?.pure !== undefined ? { pure: step.pure } : {}),
         };
         const tables = sources.place(after)?.tables;
         const opened = await sources.openedBox(live, now, { capped: gridCapped(now.cubes.length + 1), ...(tables ? { tables } : {}) });
@@ -1535,23 +1580,40 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           await opened.discard?.();
           return;
         }
-        // an Output writes a CSV named after the box it reads, set in the same step (M6)
-        const writes = tool === 'output'
-          ? (id: string) => [outputCommand(id, live.name)] : undefined;
+        // an Output writes a CSV named after the box it reads, set in the same step (M6); a Block Until Done blocks, a
+        // Message says its rows counted (M8)
+        const writes = tool === 'output' ? (id: string) => [outputCommand(id, live.name)]
+          : tool === 'blockUntilDone' ? (id: string) => [pageCommand('setBlocks', { grid: id, blocks: true })]
+            : tool === 'message' ? (id: string) => [pageCommand('setMessage', { grid: id, message: { text: '{rows} rows', when: 'always', level: 'info' } })]
+              : undefined;
         const box = page.addGrid(opened.make, {
           near: after,
+          // a macro used: named after it
+          ...(step?.title !== undefined ? { title: step.title } : {}),
           ...placedAt,
           ...(into !== undefined ? {
             label: 'Insert Box',
             after: (id: string) => [
               ...(placedAt.after?.(id) ?? []), pageCommand('setInput', { grid: into.tile, side: into.side, input: { grid: id } }), ...(writes?.(id) ?? []),
             ],
-          } : writes !== undefined ? { label: 'Add Output', after: (id: string) => [...(placedAt.after?.(id) ?? []), ...writes(id)] } : {}),
+          } : writes !== undefined ? { label: tool === 'blockUntilDone' ? 'Add Block Until Done' : tool === 'message' ? 'Add Message' : 'Add Output', after: (id: string) => [...(placedAt.after?.(id) ?? []), ...writes(id)] } : {}),
         });
         // drawn as the tool it was added as, and its settings docked in the flow's settings pane: what the tool is for
         page.boxAddedAs(box, tool);
         // New Box After (FL9): the gesture made on it, its one step
-        if (step !== undefined) void page.grid(box)?.gesture?.(step.gesture.name, step.gesture.args, step.label);
+        if (step?.gesture !== undefined) void page.grid(box)?.gesture?.(step.gesture.name, step.gesture.args, step.label);
+        // Import Pure's next step: a box after this one, over its rows
+        else if (step?.pure !== undefined && step.next !== undefined && step.next.length > 0) {
+          flowTool?.('pure', box, sheet, page.document(page.title) ?? now, undefined, undefined, undefined, undefined,
+            { pure: step.next[0]!, next: step.next.slice(1), ...(step.from !== undefined ? { from: step.from, made: [...(step.made ?? []), box] } : {}), label: step.label });
+        }
+        // Import Pure's last box made: what read the box taken apart reads it, its settings with it (importedCommands)
+        else if (step?.pure !== undefined && step.from !== undefined) {
+          const { importedCommands } = await lazily(() => import('../page-gestures.ts'));
+          const at = page.document(page.title);
+          const commands = at === undefined ? [] : importedCommands(at, step.from, [...(step.made ?? []), box]);
+          if (commands.length > 0) page.editPage('Import Pure', commands);
+        }
         else if (editor !== undefined) page.grid(box)?.openStep?.(editor);
         // a tool with no settings does its step as it is made: Count Records counts
         else if (tool === 'countRecords') page.grid(box)?.openStep?.({ window: 'countRecords' });
@@ -1559,7 +1621,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     };
     // A FLOW'S JOIN BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): made after a box, or set again -- the Join window over
     // the flow's boxes, in this tab's own database (a page Python serves makes one by page.join: refused here, said)
-    const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: 'join' | 'union' | 'appendFields' | 'fuzzyMatch' | 'findReplace'; readonly sheet: string;
+    const joinOnFlow = async (o: { readonly cube: string; readonly box?: string; readonly tool: FlowJoinOf['tool']; readonly sheet: string;
       readonly now: PageDocument; readonly into?: LineEnd }): Promise<void> => {
       const local = services.engine.local;
       if (!local) throw new Error('a join on a flow is made where the page\'s tables are: on a page Python serves, by page.join(mine, theirs, how)');
@@ -1576,12 +1638,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     flowJoinBox = (box, sheet, now) => {
       const view = now.views.find((v) => v.id === box);
       const source = now.cubes.find((c) => c.id === view?.cube)?.cube.source;
-      // the tool its join is (flow-boxes.ts joinTool, whose module is the canvas's chunk): Union, Append Fields, Fuzzy Match
-      // or Join
+      // the tool its join is (flow-boxes.ts joinTool, whose module is the canvas's chunk): Union (a Dynamic Input, one that
+      // picks), Append Fields, Fuzzy Match or Join
       const how = source?._type === 'join' ? source.how : undefined;
-      const tool = how?.form === 'append' ? 'union' : how !== undefined && isEveryPair(how) ? 'appendFields'
+      const tool = how?.form === 'append' ? how.pick !== undefined ? 'dynamicInput' : 'union' : how !== undefined && isEveryPair(how) ? 'appendFields'
         : how !== undefined && isFuzzy(how) ? 'fuzzyMatch' : 'join';
-      const named = { join: 'Join', union: 'Union', appendFields: 'Append Fields', fuzzyMatch: 'Fuzzy Match' } as const;
+      const named = { join: 'Join', union: 'Union', dynamicInput: 'Dynamic Input', appendFields: 'Append Fields', fuzzyMatch: 'Fuzzy Match' } as const;
       void joinOnFlow({ cube: box, box, tool, sheet, now })
         .catch((e: unknown) => window.alert(`${named[tool]}: ${e instanceof Error ? e.message : String(e)}`));
     };

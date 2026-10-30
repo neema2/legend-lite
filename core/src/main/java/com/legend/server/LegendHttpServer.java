@@ -233,7 +233,9 @@ public class LegendHttpServer {
             // the routes are the API's own (PureV1Api.route, the plan side); execute runs through the driver
             PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
                     exchange.getRequestURI().getRawQuery(), body, new QueryService()::executeUpstream);
-            sendResponse(exchange, answer.status(), answer.json(), answer.contentType());
+            // a binary answer (the ARROW_IPC execute, track A, 2026-10-29): its bytes under upstream's headers
+            answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
+            sendResponse(exchange, answer.status(), answer.body(), answer.contentType());
         }
     }
 
@@ -267,7 +269,10 @@ public class LegendHttpServer {
     }
 
     static void sendResponse(HttpExchange exchange, int status, String body, String contentType) throws IOException {
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        sendResponse(exchange, status, body.getBytes(StandardCharsets.UTF_8), contentType);
+    }
+
+    static void sendResponse(HttpExchange exchange, int status, byte[] bytes, String contentType) throws IOException {
         exchange.getResponseHeaders().add("Content-Type", contentType);
         exchange.sendResponseHeaders(status, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {

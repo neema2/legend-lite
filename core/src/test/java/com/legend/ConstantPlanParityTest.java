@@ -3,14 +3,13 @@
 
 package com.legend;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -55,17 +54,16 @@ class ConstantPlanParityTest {
     @Test
     void admittedKindsAgreeWithTheSqlPath() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            QueryService qs = new QueryService();
             // String: bare literal folds; ->toOne() is [1]-identity that
             // MUST lower to SQL — same value, both routes
-            ExecutionResult folded = qs.execute(MODEL, "|'px'", "t::RT", c);
-            ExecutionResult viaSql = qs.execute(MODEL, "|'px'->toOne()", "t::RT", c);
+            Lean.Result folded = Lean.run(MODEL, "|'px'", "t::RT", c);
+            Lean.Result viaSql = Lean.run(MODEL, "|'px'->toOne()", "t::RT", c);
             assertEquals(scalar(viaSql), scalar(folded), "String parity");
             assertEquals(scalar(viaSql).getClass(), scalar(folded).getClass(),
                     "String Java carrier parity");
             // Boolean
-            ExecutionResult fb = qs.execute(MODEL, "|true", "t::RT", c);
-            ExecutionResult sb = qs.execute(MODEL, "|true->toOne()", "t::RT", c);
+            Lean.Result fb = Lean.run(MODEL, "|true", "t::RT", c);
+            Lean.Result sb = Lean.run(MODEL, "|true->toOne()", "t::RT", c);
             assertEquals(scalar(sb), scalar(fb), "Boolean parity");
             assertEquals(scalar(sb).getClass(), scalar(fb).getClass(),
                     "Boolean Java carrier parity");
@@ -88,15 +86,14 @@ class ConstantPlanParityTest {
                         + " differential parity leg in THIS test first");
         assertTrue(LiteralFold.fold(new TypedCString("x",
                 ExprType.one(Type.Primitive.STRING)))
-                instanceof ExecutionResult.Scalar);
+                instanceof com.legend.exec.TypedSide.Scalar);
         assertTrue(LiteralFold.fold(new TypedCBoolean(true,
                 ExprType.one(Type.Primitive.BOOLEAN)))
-                instanceof ExecutionResult.Scalar);
+                instanceof com.legend.exec.TypedSide.Scalar);
     }
 
-    private static Object scalar(ExecutionResult r) {
-        assertTrue(r instanceof ExecutionResult.Scalar,
-                "expected a scalar frame, got " + r.getClass().getSimpleName());
-        return ((ExecutionResult.Scalar) r).value();
+    private static Object scalar(Lean.Result r) {
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE, r.shape(), "expected a scalar frame");
+        return r.one();
     }
 }

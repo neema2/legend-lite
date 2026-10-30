@@ -3,12 +3,13 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
-import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -56,11 +57,11 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("B: a NULL grid cell through ->toString() is EMPTY, not the text \"null\"")
     void nullCellToStringIsEmpty() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select null as X', $c, 0, 1000)"
                 + ".rows->at(0).value('X')->toString();}", StorelessRuntime.RUNTIME, conn);
-        Object v = ((ExecutionResult.Scalar) r).value();
+        Object v = r.value();
         assertNull(v, "String.valueOf(null) used to fabricate the text"
                 + " \"null\" here — a NULL cell is a pure EMPTY");
     }
@@ -68,11 +69,11 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("B control: a real cell through ->toString() still reads its text")
     void realCellToStringReads() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select \\'hi\\' as X', $c, 0, 1000)"
                 + ".rows->at(0).value('X')->toString();}", StorelessRuntime.RUNTIME, conn);
-        assertEquals("hi", ((ExecutionResult.Scalar) r).value());
+        assertEquals("hi", r.one());
     }
 
     @Test
@@ -82,7 +83,7 @@ class AuditTier1PipelineTest {
         // in the emitted SQL (tenet #1 — the database raises, with
         // pure's own message), replacing the old egress-side wall.
         Exception e = assertThrows(Exception.class,
-                () -> Execution.execute(StorelessRuntime.with("", Databases.PLATFORM),
+                () -> Program.last(StorelessRuntime.with("", Databases.PLATFORM),
                         "{|[1, 2, 3]->filter(x | $x > 10)->toOneMany();}", StorelessRuntime.RUNTIME,
                         conn));
         assertTrue(String.valueOf(e.getMessage())
@@ -94,10 +95,9 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("F control: a satisfied [1..*] collection still flows")
     void satisfiedLowerBoundFlows() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM),
+        Lean.Result r = Program.last(StorelessRuntime.with("", Databases.PLATFORM),
                 "{|[1, 2, 3]->filter(x | $x > 2)->toOneMany();}", StorelessRuntime.RUNTIME, conn);
-        java.util.List<Object> values =
-                ((ExecutionResult.Collection) r).values();
+        java.util.List<Object> values = r.values();
         assertEquals(1, values.size());
         assertEquals(3L, ((Number) values.get(0)).longValue());
     }

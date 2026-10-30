@@ -721,6 +721,21 @@ final class TdsDesugars {
                         env);
             }
         }
+        if (!isAt && pick instanceof com.legend.compiler.spec.typed.TypedPropertyAccess whole
+                && whole.property().equals(com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER)
+                && Type.schemaView(pick.info().type()) instanceof Type.RelationType wholeRt
+                && !wholeRt.columns().isEmpty()) {
+            // $tds.rows.values->size(): every cell of every row, the row count times the column count (the bare
+            // .values flatten keeps the rows' identity below, so size answered the row count: the L2 audit's fold,
+            // 2026-10-29, found by the typed cells' gate) -- typed nodes by declaration, an operator run as the
+            // parser's
+            ExprType intOne = ExprType.one(Type.Primitive.INTEGER);
+            TypedSpec rows = nativeCall(Pure.SIZE__ANY_MANY.qualifiedName(), List.of(pick));
+            TypedSpec cols = new TypedCInteger((long) wholeRt.columns().size(), intOne);
+            return nativeCall(Pure.TIMES__INTEGER_MANY.qualifiedName(), List.of(new TypedCollection(
+                    List.of(rows, cols), new ExprType(Type.Primitive.INTEGER, new Multiplicity.Bounded(2, 2)),
+                    false, true)));
+        }
         if (!(Type.schemaView(pick.info().type()) instanceof Type.RelationType prt)
                 || !(pick instanceof TypedNativeCall pc)
                 || !ROW_PICK_FQNS.contains(pc.callee().qualifiedName())) {

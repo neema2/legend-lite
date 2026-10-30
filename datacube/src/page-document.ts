@@ -27,9 +27,12 @@ import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protoc
 import { readChart, type ChartSpec } from './chart-spec.ts';
 import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { type Bands, type Node, NEW_SHEET, add as addTile, problems, tiles as tilesOf } from './layout/bands.ts';
-import { flowProblems, flowTiles, type Flow } from './layout/flow.ts';
+import { flowProblems, flowTiles, readMessage, readOutput, type Flow } from './layout/flow.ts';
 import type { PageModelRef } from './page-model.ts';
 import { readPageFilters, type PageFilter } from './page-filters.ts';
+import { readParameters, type PageParameter } from './page-parameters.ts';
+import { readMacros, type PageMacro } from './macros.ts';
+import { readLambda } from '../../pure-protocol/src/index.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
@@ -335,6 +338,12 @@ export interface PageDocument extends PageViews {
   readonly model?: PageModelRef;
   /** Its filters, by a class's property (page-filters.ts): none, none written. */
   readonly filters?: readonly PageFilter[];
+  /** Its parameters, the values any Pure on it reads as `$name` (page-parameters.ts, an analytic app's inputs): none,
+   *  none written. */
+  readonly parameters?: readonly PageParameter[];
+  /** Its macros, sub-flows each saved as a Pure function of its input's rows, used as a box (macros.ts): none, none
+   *  written. */
+  readonly macros?: readonly PageMacro[];
   /** The copy each snapped grid reads, by its cube's id (§18.8): none, none written. */
   readonly copies?: Readonly<Record<string, GridCopy>>;
   /**
@@ -380,15 +389,16 @@ export function pageFile(page: PageDocument): { readonly file: string; readonly 
   const name = suggestedName(page) || 'page';
   const named = page.name === name ? page : writePageOf({
     name, cubes: page.cubes, views: { views: page.views, sheets: page.sheets }, ...(page.model ? { model: page.model } : {}),
-    ...(page.filters ? { filters: page.filters } : {}), ...(page.copies ? { copies: page.copies } : {}),
-    ...(page.unknown ? { unknown: page.unknown } : {}),
+    ...(page.filters ? { filters: page.filters } : {}), ...(page.parameters ? { parameters: page.parameters } : {}),
+    ...(page.macros ? { macros: page.macros } : {}),
+    ...(page.copies ? { copies: page.copies } : {}), ...(page.unknown ? { unknown: page.unknown } : {}),
   });
   // a page file is no saved record: opened elsewhere, its first save is a new one
   const { record: _record, ...file } = named;
   return { file: pageToJson(file), name };
 }
 
-const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies', 'record']);
+const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'parameters', 'macros', 'copies', 'record']);
 
 /** The one cube of a step-1 page. */
 export const PAGE_CUBE = 'cube';
@@ -430,6 +440,8 @@ export function writePageOf(o: {
   readonly views: PageViews;
   readonly model?: PageModelRef;
   readonly filters?: readonly PageFilter[];
+  readonly parameters?: readonly PageParameter[];
+  readonly macros?: readonly PageMacro[];
   readonly copies?: Readonly<Record<string, GridCopy>>;
   readonly record?: string;
   readonly unknown?: Readonly<Record<string, unknown>>;
@@ -446,6 +458,8 @@ export function writePageOf(o: {
     sheets: o.views.sheets,
     ...(o.model ? { model: keptFor(o.model, o.cubes) } : {}),
     ...(filters.length > 0 ? { filters } : {}),
+    ...(o.parameters !== undefined && o.parameters.length > 0 ? { parameters: o.parameters } : {}),
+    ...(o.macros !== undefined && o.macros.length > 0 ? { macros: o.macros } : {}),
     ...(Object.keys(copies).length > 0 ? { copies } : {}),
     ...(o.record !== undefined ? { record: o.record } : {}),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
@@ -614,6 +628,10 @@ export function pageDefinitionText(page: PageDocument): string {
     ...(page.model ? { model: page.model } : {}),
     // a filter set or taken off, the page has changed
     ...(page.filters ? { filters: page.filters } : {}),
+    // a parameter set, its value changed or taken off, the page has changed
+    ...(page.parameters ? { parameters: page.parameters } : {}),
+    // a macro saved or taken off, the page has changed
+    ...(page.macros ? { macros: page.macros } : {}),
   });
 }
 
@@ -690,16 +708,8 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   // chart goes on a board
   for (const sheet of sheets) {
     if (sheet.layout.kind !== 'flow') continue;
-    const notGrid = sheet.layout.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
-    if (notGrid !== undefined) throw new PageDocumentError(`sheet ${sheet.id} is a flow of grids and comments: ${notGrid.tile} is a chart`);
-    // a frame is a container's, a comment's: a grid is a box, never a container
-    const framedGrid = sheet.layout.boxes.find((b) => b.frame !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'text');
-    if (framedGrid !== undefined) throw new PageDocumentError(`${framedGrid.tile} has a frame: a container is a comment, not a grid`);
-    // an output is a grid's: a comment writes no rows
-    const textOut = sheet.layout.boxes.find((b) => b.output !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (textOut !== undefined) throw new PageDocumentError(`${textOut.tile} has an output: an output is a grid's rows, not a comment`);
-    const textStops = sheet.layout.boxes.find((b) => b.stops === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (textStops !== undefined) throw new PageDocumentError(`${textStops.tile} stops a run: a Test is a grid's, not a comment`);
+    const problem = flowSheetProblem(sheet.id, sheet.layout, views);
+    if (problem !== undefined) throw new PageDocumentError(problem);
   }
   const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
   if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);
@@ -724,6 +734,25 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     // none is written as no field: an empty list is no page's
     if (filters.length === 0) throw new PageDocumentError("'filters' is an empty list: a page with none has no field");
   }
+  let parameters: readonly PageParameter[] | undefined;
+  if (raw['parameters'] !== undefined) {
+    try {
+      parameters = readParameters(plain(raw['parameters']));
+    } catch (e) {
+      throw new PageDocumentError(e instanceof Error ? e.message : String(e));
+    }
+    if (parameters.length === 0) throw new PageDocumentError("'parameters' is an empty list: a page with none has no field");
+  }
+  let macros: readonly PageMacro[] | undefined;
+  if (raw['macros'] !== undefined) {
+    try {
+      // its functions exact, as a cube's lambdas are read
+      macros = readMacros(raw['macros'], (v) => readLambda(v));
+    } catch (e) {
+      throw new PageDocumentError(e instanceof Error ? e.message : String(e));
+    }
+    if (macros.length === 0) throw new PageDocumentError("'macros' is an empty list: a page with none has no field");
+  }
 
   const page: PageDocument = {
     kind: PAGE_KIND,
@@ -734,6 +763,8 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     sheets,
     ...(model ? { model } : {}),
     ...(filters ? { filters } : {}),
+    ...(parameters ? { parameters } : {}),
+    ...(macros ? { macros } : {}),
     ...(copies ? { copies } : {}),
     ...(record !== undefined ? { record } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
@@ -931,6 +962,28 @@ export function readLayout(l: unknown, views: ReadonlySet<string>, what: string)
   return { kind: 'bands', ...layout };
 }
 
+/** What is wrong with flow sheet `id`'s boxes on a page of `views`, in words, if anything: its boxes grids and comments,
+ *  a frame a comment's, every setting of a box (an output, its stopping, its cache, its blocking, its message) a grid's.
+ *  The page's reader's rule (readPage), and the layout command's (page-commands.ts layout: the roadmap audit of
+ *  2026-10-26, a layout gave a comment a cache the reader then refused). */
+export function flowSheetProblem(id: string, flow: FlowLayout, views: readonly PageView[]): string | undefined {
+  const notGrid = flow.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
+  if (notGrid !== undefined) return `sheet ${id} is a flow of grids and comments: ${notGrid.tile} is a chart`;
+  // a frame is a container's, a comment's: a grid is a box, never a container
+  const framedGrid = flow.boxes.find((b) => b.frame !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'text');
+  if (framedGrid !== undefined) return `${framedGrid.tile} has a frame: a container is a comment, not a grid`;
+  // an output is a grid's: a comment writes no rows
+  const textOut = flow.boxes.find((b) => b.output !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textOut !== undefined) return `${textOut.tile} has an output: an output is a grid's rows, not a comment`;
+  const textStops = flow.boxes.find((b) => b.stops === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textStops !== undefined) return `${textStops.tile} stops a run: a Test is a grid's, not a comment`;
+  const textCache = flow.boxes.find((b) => b.cache === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textCache !== undefined) return `${textCache.tile} caches its rows: a cache is a grid's, not a comment`;
+  const textSays = flow.boxes.find((b) => (b.blocks === true || b.message !== undefined) && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textSays !== undefined) return `${textSays.tile} blocks a run or says a message: each is a grid's, not a comment`;
+  return undefined;
+}
+
 /** A flow sheet's layout (layout/flow.ts): its boxes, each a tile of the page at a place, every rule of a flow held. */
 function readFlow(l: Record<string, unknown>, views: ReadonlySet<string>, what: string): FlowLayout {
   const extra = Object.keys(l).filter((k) => k !== 'kind' && k !== 'boxes');
@@ -941,15 +994,19 @@ function readFlow(l: Record<string, unknown>, views: ReadonlySet<string>, what: 
       throw new PageDocumentError(`box ${i + 1} of ${what} is not a tile and its place (x, y)`);
     }
     if (!views.has(b['tile'])) throw new PageDocumentError(`a box shows no view of this page (${b['tile']})`);
-    const odd = Object.keys(b).filter((k) => !['tile', 'x', 'y', 'frame', 'output', 'stops'].includes(k));
-    if (odd.length > 0) throw new PageDocumentError(`box ${i + 1} of ${what} is a tile, its place, a frame, an output and its stopping, not ${odd.join(', ')}`);
+    const odd = Object.keys(b).filter((k) => !['tile', 'x', 'y', 'frame', 'output', 'stops', 'cache', 'blocks', 'message'].includes(k));
+    if (odd.length > 0) throw new PageDocumentError(`box ${i + 1} of ${what} is a tile, its place, a frame, an output, its stopping, its cache, its blocking and its message, not ${odd.join(', ')}`);
+    if (b['blocks'] !== undefined && b['blocks'] !== true) throw new PageDocumentError(`box ${i + 1} of ${what} blocks a run (true) or is without it, not ${JSON.stringify(b['blocks'])}`);
+    const said = b['message'] === undefined ? undefined : readMessage(b['message']);
+    if (typeof said === 'string') throw new PageDocumentError(`box ${i + 1} of ${what}'s message: ${said}`);
     if (b['stops'] !== undefined && b['stops'] !== true) throw new PageDocumentError(`box ${i + 1} of ${what} stops a run (true) or is without it, not ${JSON.stringify(b['stops'])}`);
+    if (b['cache'] !== undefined && b['cache'] !== true) throw new PageDocumentError(`box ${i + 1} of ${what} caches its rows (true) or is without it, not ${JSON.stringify(b['cache'])}`);
     const o = b['output'];
-    if (o !== undefined && (!isObject(o) || o['format'] !== 'csv' || typeof o['name'] !== 'string' || Object.keys(o).some((k) => k !== 'format' && k !== 'name'))) {
-      throw new PageDocumentError(`box ${i + 1} of ${what}'s output is {format: 'csv', name}, not ${JSON.stringify(o)}`);
-    }
-    const output = { ...(o === undefined ? {} : { output: { format: 'csv' as const, name: o['name'] as string } }),
-      ...(b['stops'] === true ? { stops: true as const } : {}) };
+    const read = o === undefined ? undefined : readOutput(o);
+    if (typeof read === 'string') throw new PageDocumentError(`box ${i + 1} of ${what}'s output: ${read}`);
+    const output = { ...(read === undefined ? {} : { output: read }),
+      ...(b['stops'] === true ? { stops: true as const } : {}), ...(b['cache'] === true ? { cache: true as const } : {}),
+      ...(b['blocks'] === true ? { blocks: true as const } : {}), ...(said !== undefined ? { message: said } : {}) };
     const f = b['frame'];
     if (f === undefined) return { tile: b['tile'], x: b['x'], y: b['y'], ...output };
     if (!isObject(f) || typeof f['w'] !== 'number' || typeof f['h'] !== 'number' || (f['collapsed'] !== undefined && f['collapsed'] !== true)

@@ -9,10 +9,10 @@ import { lambda, toJson, type ValueSpecification } from '../../../pure-protocol/
 import { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { classOpened, type ClassElement } from '../class-source.ts';
 import {
-  isLive, leavesOf, type ClassSource, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type QuerySource,
+  isLive, type ClassSource, type CubeSource, type JoinInput, type JoinSource, type LeafSource, type QuerySource,
   type RowsSource, type WarehouseSource,
 } from '../cube-document.ts';
-import { HOST_TABLES, leafRefusal } from '../join-open.ts';
+import { HOST_TABLES, leafRefusal, openedLeaves } from '../join-open.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { savedQueryOpened, type QueryReading } from '../saved-queries.ts';
 import { CubeRefusal } from '../snapshot.ts';
@@ -203,7 +203,8 @@ export async function onHost(source: CubeSource, host: HostTables, given: Readon
     // resolved against its page first (live-inputs.ts resolvedSource) -- an unresolved one is refused, never guessed
     const input = source.input;
     if (isLive(input)) throw new Error(`${source.name} reads grid '${input.grid}' live: resolve it against its page first`);
-    await onHost(input.source, host, given);
+    // read by its grid's copy (a cached box, FL10): a table of the host's, wherever its own source is read
+    if (input.copy === undefined) await onHost(input.source, host, given);
     return { rows: { ...source, input } };
   }
   if (source._type !== 'join') return { leaf: await leafOnHost(source, host, given) };
@@ -218,7 +219,12 @@ export type FrozenRows = RowsSource & { readonly input: JoinInput };
  *  join refuses it (join-open.ts leafRefusal): a join reads both its inputs in one place. */
 export async function leafTables(source: CubeSource, host: HostTables, given: Readonly<Record<string, string>> = {}): Promise<string[]> {
   const tables: string[] = [];
-  for (const leaf of leavesOf(source)) {
+  for (const leaf of openedLeaves(source)) {
+    // a snapped grid's copy (a cached box, FL10): a table the host holds
+    if (leaf._type === 'copy') {
+      tables.push(leaf.table);
+      continue;
+    }
     const refused = leafRefusal(leaf, HOST_TABLES);
     if (refused !== undefined) throw new CubeRefusal(refused);
     tables.push((await leafOnHost(leaf, host, given)).table!);

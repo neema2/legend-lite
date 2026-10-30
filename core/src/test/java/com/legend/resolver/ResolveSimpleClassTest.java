@@ -1,8 +1,9 @@
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.error.MappingResolutionException;
@@ -316,12 +317,12 @@ class ResolveSimpleClassTest {
     @Test
     @DisplayName("H2c: from-less query resolves via the 4-arg execute (the corpus shape)")
     void driverSeamNoFrom() throws SQLException {
-        var result = Execution.execute(MODEL,
+        var result = Lean.run(MODEL,
                 "m::Person.all()->filter(p|$p.age > 30)->project(~[name: p|$p.name])",
                 "m::RT", conn);
         assertEquals(List.of(List.of("Bob"), List.of("Dan")),
                 result.rows().stream()
-                        .map(r -> r.values().stream().map(String::valueOf).toList())
+                        .map(r -> r.stream().map(String::valueOf).toList())
                         .toList());
     }
 

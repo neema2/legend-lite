@@ -3,7 +3,8 @@
 
 package com.legend.server;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
+
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -65,10 +66,10 @@ class ServerSessionsTest {
                     ];
                 }
                 """;
-        ExecutionResult result = new QueryService().execute(model,
+        Lean.Result result = Lean.service(model,
                 "model::Person.all()->project(~[fullName:x|$x.fullName])", "test::JsonOnly");
-        ExecutionResult.Tabular rows = assertInstanceOf(ExecutionResult.Tabular.class, result);
-        assertEquals(2, rows.rowCount(), String.valueOf(result));
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, result.shape(), String.valueOf(result));
+        assertEquals(2, result.rowCount(), String.valueOf(result));
     }
 
     @Test
@@ -87,7 +88,7 @@ class ServerSessionsTest {
                 Runtime test::RT { mappings: [ ]; connections: [ store::DB: [ environment: store::Conn ] ]; }
                 """;
         var refused = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> new QueryService().execute(model, "1 + 1", "test::RT"));
+                () -> Lean.service(model, "1 + 1", "test::RT"));
         assertTrue(refused.getMessage().contains("StaticDatasource specification is not implemented"),
                 refused.getMessage());
     }
@@ -109,7 +110,7 @@ class ServerSessionsTest {
                 }
                 """;
         var refused = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> new QueryService().execute(model, "1 + 1", "test::RT"));
+                () -> Lean.service(model, "1 + 1", "test::RT"));
         assertTrue(refused.getMessage().contains("different connections"), refused.getMessage());
     }
 }

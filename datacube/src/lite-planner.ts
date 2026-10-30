@@ -506,6 +506,23 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   }
 
   /**
+   * A PROGRAM THAT WRITES planned (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output into a table): `program` as an
+   * execution plan, PlanJson's text (version 19) -- its writes' `Update`s and its answer's `TdsResult` of typed columns
+   * in one `Sequence`, which the host's plan runner runs in one transaction and whose rows it writes as lite's JSON
+   * rows (engine-client/src/plan-runner.ts; a plan names no output format since the result boundary program's phase
+   * 4). Never cached: a write is planned for the one run that asks it.
+   */
+  async executionPlan(program: Lambda, signal?: AbortSignal): Promise<string> {
+    // a program calling DataCube's Pure library planned over it, as a query is (plan)
+    const over = await this.#over(program);
+    if (over !== this) return over.executionPlan(program, signal);
+    const { lambda: json, runtime } = await this.planRequest(program);
+    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+    const handle = await this.#handle();
+    return decode(await this.#call({ kind: 'executionPlan', handle, lambda: json, runtime }), program);
+  }
+
+  /**
    * What a plan of `query` asks (planJson's request, its model as text where the planner holds it by a handle): what a
    * host that plans AND runs in one step sends (PlanAndRun on Python: src/services/python-host.ts), so its plan is the
    * one this planner would make.

@@ -4,7 +4,8 @@
 // applied by the keeper as them; and a screen converging on its keeper's page applies the difference. In an order every
 // arm accepts, each command applied as it is planned so the plan is one the page takes: sheets added; grids added (their
 // cube documents); charts added, re-pointed (`followGrid`), their spec, selection and title; grid titles; tiles moved to
-// their sheets; grids removed, then charts; page filters removed and set; each sheet's layout whole, once its tiles agree;
+// their sheets; grids removed, then charts; page filters removed and set; the page's parameters and macros, taken off
+// and set; each sheet's layout whole, once its tiles agree (a box's Output, stopping, cache, blocking and message, each by its own command);
 // sheets removed, renamed, reordered; copies (`live`, `snap`); and, `whole`, the name, the saved record and the model.
 //
 // IDS. A command that makes something names `to`'s id for it -- so a plan replayed where that id is free (a screen
@@ -27,6 +28,7 @@ import {
 } from './page-document.ts';
 import { rearranged, renamedCommand, renamedSpec } from './page-rebase.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
+import type { TimeseriesSpec } from './timeseries-spec.ts';
 
 /** What of a page the commands between two states cover (above). */
 export type PageScope = 'history' | 'whole';
@@ -225,6 +227,19 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     }
     return kept.length > 0 ? { kept } : {};
   };
+  // a source's cube as the plan names it: one a grid of `to` shows that the plan made, that grid's id (addGrid makes its
+  // cube under it: a grid's removal undone, a tile reading it reads the grid again, not the cube kept for it -- the
+  // roadmap audit of 2026-10-26); one a grid both have shows, that grid's cube here; any other, as `to` names it
+  const planned = (spec: TimeseriesSpec): TimeseriesSpec => {
+    const cubeOf = (cube: string): string => {
+      const g = gridShowing(to, cube);
+      if (g === undefined) return cube;
+      if (!inFrom(g.id)) return g.id;
+      const here = cur().views.find((x): x is GridView => x.kind === 'grid' && x.id === n(g.id));
+      return here?.cube ?? cube;
+    };
+    return spec.sources.some((s) => cubeOf(s.cube) !== s.cube) ? { ...spec, sources: spec.sources.map((s) => ({ ...s, cube: cubeOf(s.cube) })) } : spec;
+  };
   for (const v of to.views) {
     if (v.kind !== 'timeseries') continue;
     if (!inFrom(v.id)) {
@@ -232,13 +247,14 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
       if (sheet === undefined) throw new CubeRefusal(`'${v.id}' is on no sheet of the page: it cannot be made`);
       // the spec as `to` names its grids, as every command of the plan names `to`'s ids: the plan's application renames
       // them (a spec renamed here was renamed twice: the review's A1, docs/TIMESERIES_REVIEW_2026_10_25.md)
-      emit({ kind: 'addTimeseries', id: v.id, sheet: sheet.id, near: null, spec: v.spec, title: v.title ?? null, columns: null, ...keptFor(v) });
+      emit({ kind: 'addTimeseries', id: v.id, sheet: sheet.id, near: null, spec: planned(v.spec), title: v.title ?? null, columns: null, ...keptFor(v) });
       continue;
     }
     const here = cur().views.find((x): x is TimeseriesView => x.kind === 'timeseries' && x.id === n(v.id));
     if (here === undefined) continue;
     const kept = keptFor(v);
-    if (!sameValue(here.spec, renamedSpec(v.spec, n)) || kept.kept !== undefined) emit({ kind: 'setTimeseries', tile: v.id, spec: v.spec, ...kept });
+    const spec = planned(v.spec);
+    if (!sameValue(here.spec, renamedSpec(spec, n)) || kept.kept !== undefined) emit({ kind: 'setTimeseries', tile: v.id, spec, ...kept });
     if ((here.title ?? null) !== (v.title ?? null)) emit({ kind: 'renameTile', tile: v.id, title: v.title ?? null });
   }
 
@@ -366,6 +382,12 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     emit({ kind: 'setPageFilter', id: f.id, class: f.class, condition: f.condition, from: from_ });
   }
 
+  // 7b. the page's parameters and macros (M8: page-parameters.ts, macros.ts), by name, as `to` has them
+  byName(cur().parameters ?? [], to.parameters ?? [], (name) => emit({ kind: 'removeParameter', name }),
+    (parameter) => emit({ kind: 'setParameter', parameter }));
+  byName(cur().macros ?? [], to.macros ?? [], (name) => emit({ kind: 'setMacro', name, pure: null }),
+    (m) => emit({ kind: 'setMacro', name: m.name, pure: m.pure }));
+
   // 8. each sheet's layout whole, its tiles agreeing now
   for (const s of to.sheets) {
     const here = cur().sheets.find((x) => x.id === n(s.id));
@@ -382,6 +404,9 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
       if (at === undefined) continue;
       if (!sameValue(at.output ?? null, b.output ?? null)) emit({ kind: 'setOutput', grid: b.tile, output: b.output ?? null });
       if ((at.stops === true) !== (b.stops === true)) emit({ kind: 'setStops', grid: b.tile, stops: b.stops === true });
+      if ((at.cache === true) !== (b.cache === true)) emit({ kind: 'setCache', grid: b.tile, cache: b.cache === true });
+      if ((at.blocks === true) !== (b.blocks === true)) emit({ kind: 'setBlocks', grid: b.tile, blocks: b.blocks === true });
+      if (!sameValue(at.message ?? null, b.message ?? null)) emit({ kind: 'setMessage', grid: b.tile, message: b.message ?? null });
     }
   }
 
@@ -479,4 +504,19 @@ export function pageBetween(from: PageDocument, to: PageDocument, scope: PageSco
     }
   }
   return out;
+}
+
+/** Things of a page named (its parameters, its macros) taken from `have` to `want`, each command applied as it is told
+ *  (`off`, `set`): those `want` has not taken off; those out of `want`'s order from the first taken off too, and set
+ *  again in it (a set one stays in its place, a new one goes last); each `want` has otherwise set as it has it. */
+function byName<T extends { readonly name: string }>(have: readonly T[], want: readonly T[], off: (name: string) => void, set: (t: T) => void): void {
+  const kept = have.filter((h) => want.some((w) => w.name === h.name));
+  for (const h of have) if (!kept.includes(h)) off(h.name);
+  let same = 0;
+  while (same < kept.length && kept[same]!.name === want[same]?.name) same += 1;
+  for (const h of kept.slice(same)) off(h.name);
+  for (const [i, w] of want.entries()) {
+    if (i < same && sameValue(kept[i], w)) continue;
+    set(w);
+  }
 }

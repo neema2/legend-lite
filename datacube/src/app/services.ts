@@ -7,6 +7,7 @@
 // Types only: a host's services are built by the host (src/services/browser.ts for the tab, src/services/python-host.ts
 // for Python's tab and notebook widget).
 
+import type { HeldConnection } from '../../../engine-client/src/duckdb.ts';
 import type { ModelHome } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import type { ProjectDatabases } from '../../../engine-client/src/project-data.ts';
@@ -144,7 +145,9 @@ export interface LocalEngine {
   /** A project's own databases in the host's (C5, engine-client's project-data.ts): a saved query's rows by name. */
   projects(): Promise<ProjectDatabases>;
   /** Where a grid over one of the database's tables runs, its database type the model's connection names. */
-  readonly engine: QueryEngine & { readonly databaseType: string; run(sql: string, epoch: number): Promise<unknown> };
+  readonly engine: QueryEngine & { readonly databaseType: string; run(sql: string, epoch: number): Promise<unknown>;
+    /** The database held for a write alone, one transaction (engine-client duckdb.ts exclusive: a table Output's). */
+    exclusive?<T>(work: (held: HeldConnection) => Promise<T>): Promise<T> };
 }
 
 /**

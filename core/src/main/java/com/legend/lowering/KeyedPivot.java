@@ -32,8 +32,8 @@ import java.util.List;
  *       row-as-JSON form this replaces);</li>
  *   <li>the BODY: the pivot as the grouped CASE aggregation every static emulation writes ({@code AGG(CASE WHEN on = k
  *       THEN arg END)}), its per-key aggregates a run of {@link OutputCol.Origin#PER_KEY} projections over a key's
- *       cell ({@link SqlExpr.KeyCell}), and the relation's own clauses over it; for a text output, each output column's
- *       cell in the format's text, the per-key ones a second per-key run. The runner writes each run once per key.</li>
+ *       cell ({@link SqlExpr.KeyCell}), and the relation's own clauses over it. The runner writes the run once per
+ *       key.</li>
  * </ul>
  *
  * The CASE form is the static emulation's own: exact for every aggregate that skips nulls (a sum, a count of a value,
@@ -45,20 +45,17 @@ public final class KeyedPivot {
     private KeyedPivot() {
     }
 
-    /** What the body answers: typed rows, or a text format's cells. */
-    public enum Out { ROWS, TDS_TEXT, CSV, JSON }
-
     /** The probe plan's statements and outputs: {@code keys} (one row per key: its text, then each per-key output's
      *  name), {@code body} (the fixed columns, then the per-key ones), {@code outputs} in the body's order. */
-    public record Parts(SqlQuery keys, SqlQuery body, List<Output> outputs) {
+    public record Parts(SqlQuery keys, SqlQuery body, List<Output> outputs, int perKeyAt) {
     }
 
     /** One output of the body. */
     public sealed interface Output permits Fixed, PerKey {
     }
 
-    /** A column the body answers once: the typed schema's column, and its name as the output writes one. */
-    public record Fixed(Type.Column column, String name) implements Output {
+    /** A column the body answers once: the typed schema's column. */
+    public record Fixed(Type.Column column) implements Output {
     }
 
     /** A column the body answers once per key: the pivot's aggregate's template column, its slot, and the keys row's
@@ -121,10 +118,9 @@ public final class KeyedPivot {
 
     /**
      * The probe plan of {@code lowered}, the relation whose one dynamic pivot is {@code pivot}, typed by {@code schema}
-     * (its static columns, and the pivot's aggregates' templates as its dynamic ones), answered as {@code out}.
+     * (its static columns, and the pivot's aggregates' templates as its dynamic ones), answered as typed rows.
      */
-    public static Parts of(SqlQuery lowered, SqlSource.Pivot pivot, Type.RelationType schema, Out out,
-            boolean quoteStrings, LiteralSpelling.Layouts layouts, WireRender.Spelling spelling) {
+    public static Parts of(SqlQuery lowered, SqlSource.Pivot pivot, Type.RelationType schema) {
         if (pivot.on().size() != 1) {
             throw new IllegalStateException("a dynamic pivot on " + pivot.on().size() + " columns: the lowering keys a"
                     + " pivot on one column (a composite key its columns' text joined)");
@@ -134,7 +130,7 @@ public final class KeyedPivot {
             throw new IllegalStateException("a dynamic pivot's key has no typed slot: " + on.type());
         }
         SqlType keySlot = keyTyped.type();
-        List<Type.Column> templates = TdsTextWrap.templates(pivot, schema);
+        List<Type.Column> templates = templates(pivot, schema);
         List<OutputCol> statics = pivot.outputs().stream()
                 .filter(oc -> !oc.name().contains(Type.RelationType.PIVOT_SEPARATOR)).toList();
         // the key as the body binds it: its text, read back by the key's own type (the database's text of its own
@@ -150,42 +146,45 @@ public final class KeyedPivot {
         if (body0 == lowered) {
             throw new IllegalStateException("the dynamic pivot is not in the relation its probe plan is made of");
         }
-        SqlQuery keys = keys(pivot, on, templates, out);
-        // the relation's own order lifted over its cells, as every text wrapper lifts it (TdsTextWrap.liftOrder)
+        SqlQuery keys = keys(pivot, on);
+        // the relation's own order lifted over its cells (liftOrder)
         List<SqlSelect.SortKey> lifted = List.of();
         SqlQuery inner0 = body0;
         if (body0 instanceof SqlSelect ps && !ps.orderBy().isEmpty()) {
             lifted = ps.orderBy();
             inner0 = ps.withOrderBy(List.of());
         }
-        TdsTextWrap.Lift lift = TdsTextWrap.liftOrder(lifted, lowered.outputs(), inner0, "_pct0");
+        Lift lift = liftOrder(lifted, lowered.outputs(), inner0, "_pct0");
         List<OutputCol> fixedOuts = lift.outs().stream().filter(oc -> !oc.name().startsWith("_pct_ord")).toList();
-        List<Type.Column> fixedTyped = TdsTextWrap.staticColumns(fixedOuts, schema);
+        List<Type.Column> fixedTyped = staticColumns(fixedOuts, schema);
         List<SqlSelect.Projection> projections = new ArrayList<>();
         List<Output> outputs = new ArrayList<>();
         for (int i = 0; i < fixedOuts.size(); i++) {
             OutputCol oc = fixedOuts.get(i);
             Type.Column typed = fixedTyped.get(i);
             SqlExpr ref = SqlExpr.Column.of("_pct0", oc);
-            projections.add(out == Out.ROWS ? new SqlSelect.Projection(ref, oc.name(), oc)
-                    : new SqlSelect.Projection(cell(out, ref, typed, oc.type(), quoteStrings, layouts, spelling),
-                            "_pct_c" + i, new OutputCol("_pct_c" + i, SqlType.Scalar.VARCHAR, false)));
-            outputs.add(new Fixed(typed, fixedName(out, typed)));
+            projections.add(new SqlSelect.Projection(ref, oc.name(), oc));
+            outputs.add(new Fixed(typed));
         }
         for (int i = 0; i < pivot.usings().size(); i++) {
             SqlSource.Pivot.Using u = pivot.usings().get(i);
             SqlType slot = slotOf(u);
             String stem = stem(i);
             SqlExpr ref = SqlExpr.Column.of("_pct0", stem, slot, true, OutputCol.Origin.PER_KEY);
-            projections.add(out == Out.ROWS
-                    ? new SqlSelect.Projection(ref, stem, new OutputCol(stem, slot, true, OutputCol.Origin.PER_KEY))
-                    : new SqlSelect.Projection(cell(out, ref, templates.get(i), slot, quoteStrings, layouts, spelling),
-                            stem, new OutputCol(stem, SqlType.Scalar.VARCHAR, false, OutputCol.Origin.PER_KEY)));
+            projections.add(
+                    new SqlSelect.Projection(ref, stem, new OutputCol(stem, slot, true, OutputCol.Origin.PER_KEY)));
             outputs.add(new PerKey(templates.get(i), slot, 1 + i));
         }
         SqlSelect body = SqlSelect.starOf(new SqlSource.Subselect(lift.inner0(), "_pct0", null))
                 .withProjections(projections).withOrderBy(lift.remapped());
-        return new Parts(keys, body, outputs);
+        // the relation's own order: Pure's pivot answers its grouping columns, then the per-key ones, and a column a
+        // later step adds (an extend) comes after them; the body answers its fixed columns first (the runner places
+        // each cell, ExecutionPlan.Keyed#perKeyAt)
+        if (statics.size() > fixedOuts.size()) {
+            throw new IllegalStateException("a dynamic pivot whose " + statics.size() + " grouping columns outnumber the "
+                    + fixedOuts.size() + " fixed columns its relation answers");
+        }
+        return new Parts(keys, body, outputs, statics.size());
     }
 
     /** The pivot as the grouped CASE aggregation: its static columns, grouped, then each aggregate over the rows of
@@ -221,7 +220,7 @@ public final class KeyedPivot {
     }
 
     /** The keys probe: each distinct non-null key in its order, its text, and each aggregate's name for it. */
-    private static SqlQuery keys(SqlSource.Pivot pivot, SqlExpr on, List<Type.Column> templates, Out out) {
+    private static SqlQuery keys(SqlSource.Pivot pivot, SqlExpr on) {
         if (!(on.type() instanceof com.legend.sql.TypeFact.Typed keyTyped)) {
             throw new IllegalStateException("a dynamic pivot's key has no typed slot: " + on.type());
         }
@@ -238,18 +237,7 @@ public final class KeyedPivot {
         ps.add(new SqlSelect.Projection(text, "_pct_t", new OutputCol("_pct_t", SqlType.Scalar.VARCHAR, true)));
         for (int i = 0; i < pivot.usings().size(); i++) {
             String tail = Type.RelationType.PIVOT_SEPARATOR + pivot.usings().get(i).alias();
-            Type.Column template = templates.get(i);
-            SqlExpr name = switch (out) {
-                case ROWS -> Render.generatedName(text, tail);
-                // the TDS header's entry for the key's column: the name in literal quotes (tdsHeader's rule for a
-                // pivot's name), its type and multiplicity the template's
-                case TDS_TEXT -> Render.cat(new SqlExpr.StringLit("'\\'"), text,
-                        new SqlExpr.StringLit(tail + "\\'':" + Render.tdsTypeName(template.type())
-                                + (template.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
-                                        && b.lower() == 0 ? "[0..1]" : "[1]")));
-                case CSV -> Render.escapeCsv(Render.generatedName(text, tail));
-                case JSON -> Render.jsonToken(Render.generatedName(text, tail));
-            };
+            SqlExpr name = Render.generatedName(text, tail);
             String alias = "_pct_n" + i;
             ps.add(new SqlSelect.Projection(name, alias, new OutputCol(alias, SqlType.Scalar.VARCHAR, false)));
         }
@@ -274,24 +262,76 @@ public final class KeyedPivot {
         return t;
     }
 
-    /** A column's cell in the output's text, as that output's wire writes one. */
-    private static SqlExpr cell(Out out, SqlExpr ref, Type.Column typed, SqlType slot, boolean quoteStrings,
-            LiteralSpelling.Layouts layouts, WireRender.Spelling spelling) {
-        return switch (out) {
-            case ROWS -> ref;
-            case TDS_TEXT -> Render.tdsTextCell(ref, typed, slot, quoteStrings, layouts);
-            case CSV -> Render.cell(ref, typed, slot, false);
-            case JSON -> Render.jsonCell(ref, typed.type(), slot, spelling);
-        };
+    /** A dynamic pivot's static columns (its group keys), each the typed schema's by name; any other output is a
+     *  defect, refused by name. */
+    private static List<Type.Column> staticColumns(List<OutputCol> outs, Type.RelationType schema) {
+        List<Type.Column> typed = new ArrayList<>(outs.size());
+        for (OutputCol oc : outs) {
+            typed.add(schema.columns().stream().filter(c -> c.name().equals(oc.name())).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("a dynamic pivot's output '" + oc.name()
+                            + "' is none of the typed schema's static columns " + schema.columns())));
+        }
+        return typed;
     }
 
-    /** A fixed column's name as the output writes one, a plan constant (the column's name is a plan fact). */
-    private static String fixedName(Out out, Type.Column typed) {
-        return switch (out) {
-            case ROWS -> typed.name();
-            case TDS_TEXT -> Render.tdsHeader(List.of(typed));
-            case CSV -> Render.csvName(Type.RelationType.presentPivotName(typed.name()));
-            case JSON -> Render.jsonName(Type.RelationType.presentPivotName(typed.name()));
-        };
+    /** The typer's template column for each USING of {@code pivot}, by the USING's alias (the aggregate's name). */
+    private static List<Type.Column> templates(SqlSource.Pivot pivot, Type.RelationType schema) {
+        List<Type.Column> out = new ArrayList<>(pivot.usings().size());
+        for (SqlSource.Pivot.Using u : pivot.usings()) {
+            out.add(schema.dynamicColumns().stream().filter(c -> c.name().equals(u.alias())).findFirst()
+                    .orElseThrow(() -> new IllegalStateException("a dynamic pivot's USING '" + u.alias()
+                            + "' has no template among the typed schema's dynamic columns "
+                            + schema.dynamicColumns().stream().map(Type.Column::name).toList())));
+        }
+        return out;
+    }
+
+    /** A top-level ORDER BY lifted onto the body: its statement, its outputs, the keys over the body's alias. */
+    private record Lift(SqlQuery inner0, List<OutputCol> outs, List<SqlSelect.SortKey> remapped) {
+    }
+
+    /** Lift a top-level ORDER BY onto the body: output-column keys remap; a key the projection dropped
+     *  (extend→sort→project) or an expression key carries out as a HIDDEN {@code _pct_ord} projection -- it still
+     *  scopes inside the plan's own select. */
+    private static Lift liftOrder(List<SqlSelect.SortKey> lifted, List<OutputCol> outs, SqlQuery inner0,
+            String alias) {
+        java.util.Set<String> outNames = new java.util.LinkedHashSet<>();
+        outs.forEach(o -> outNames.add(o.name()));
+        List<SqlSelect.SortKey> remapped = new ArrayList<>(lifted.size());
+        List<SqlSelect.Projection> hiddenProjs = new ArrayList<>();
+        List<OutputCol> hiddenOuts = new ArrayList<>();
+        int ord = 0;
+        for (SqlSelect.SortKey k : lifted) {
+            if (k.expr() instanceof SqlExpr.Column kc && outNames.contains(kc.name())) {
+                remapped.add(new SqlSelect.SortKey(SqlExpr.Column.derived(alias, kc.name()), k.ascending(),
+                        k.nullOrder(), k.outputName()));
+                continue;
+            }
+            if (!(inner0 instanceof SqlSelect ps2) || ps2.projections().isEmpty()) {
+                throw new com.legend.error.NotImplementedException("a dynamic pivot: a non-output sort key over a"
+                        + " star-projected plan cannot hoist");
+            }
+            String hn = "_pct_ord" + ord++;
+            hiddenProjs.add(new SqlSelect.Projection(k.expr(), hn, new OutputCol(hn, SqlType.Scalar.VARCHAR, true)));
+            hiddenOuts.add(new OutputCol(hn, SqlType.Scalar.VARCHAR, true));
+            remapped.add(new SqlSelect.SortKey(SqlExpr.Column.derived(alias, hn), k.ascending(), k.nullOrder(),
+                    null));
+        }
+        if (hiddenProjs.isEmpty()) {
+            return new Lift(inner0, outs, remapped);
+        }
+        SqlSelect ps2 = (SqlSelect) inner0;
+        List<SqlSelect.Projection> allProjs = new ArrayList<>(ps2.projections());
+        allProjs.addAll(hiddenProjs);
+        List<OutputCol> outs2 = new ArrayList<>(outs);
+        outs2.addAll(hiddenOuts);
+        return new Lift(ps2.withProjections(allProjs), outs2, remapped);
+    }
+
+    /** Every {@code Pivot} source in {@code q}. */
+    public static List<SqlSource.Pivot> pivots(SqlQuery q) {
+        List<SqlSource.Pivot> found = new ArrayList<>();
+        collect(q, found);
+        return found;
     }
 }

@@ -411,7 +411,7 @@ class CreateClassTest {
     // Through the route, and what cannot be a class
     // ---------------------------------------------------------------------
 
-    private static final PureV1Api.Runner NO_RUN = (model, lambda, runtime, rows) -> {
+    private static final PureV1Api.Runner NO_RUN = (query, runtime, sinkOf) -> {
         throw new AssertionError("nothing is run here");
     };
 

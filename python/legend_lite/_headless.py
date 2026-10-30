@@ -190,6 +190,20 @@ class Headless:
             writer.write_table(table)
         return base64.b64encode(sink.getvalue()).decode('ascii')
 
+    async def _statement(self, sql: str, params: str) -> str:
+        """One statement run with its values bound (calls.ts ``statement``: a write's step, DataCube's table writer) --
+        never in a read of the frames, which sees the database as it was: refused there, in words."""
+        import pyarrow as pa
+
+        if self._over is not None:
+            raise RuntimeError('a write runs in no read of the frames (Frames.reading): its changes are the database\'s own')
+        result = self._db.execute(sql, json.loads(params))
+        table = result.to_arrow_table() if result.description is not None else pa.table({})
+        sink = io.BytesIO()
+        with pa.ipc.new_stream(sink, table.schema) as writer:
+            writer.write_table(table)
+        return base64.b64encode(sink.getvalue()).decode('ascii')
+
     async def _register_file(self, name: str, data: str) -> None:
         root = self._folder
         target = (root / name).resolve()
@@ -242,9 +256,10 @@ class Headless:
                       ' globalThis.setTimeout = (f, ms, ...args) => engines(f, Math.max(1, Number(ms) || 0), ...args); }')
         # the host's calls first, as a browser's globals are there before a page's scripts: a module may plan as it loads
         calls = [await self._stack.enter_async_context(self._mr.wrap_py_function(f))
-                 for f in (self._planner, self._query, self._register_file, self._digest, self._fetch, self._engine)]
-        define = self._mr.eval('(planner, query, registerFile, digest, fetch, engine) => {'
-                               ' globalThis.legendLiteHost = { planner, query, registerFile, digest, fetch, engine }; }')
+                 for f in (self._planner, self._query, self._statement, self._register_file, self._digest, self._fetch,
+                           self._engine)]
+        define = self._mr.eval('(planner, query, statement, registerFile, digest, fetch, engine) => {'
+                               ' globalThis.legendLiteHost = { planner, query, statement, registerFile, digest, fetch, engine }; }')
         define(*calls)
         self._mr.eval(bundle)
         # a bundle whose modules await as they load (a test bundle's fixtures) says when it has: legendLiteReady

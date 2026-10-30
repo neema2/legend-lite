@@ -3,15 +3,15 @@
 
 package com.legend.compiler.element;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -60,9 +60,9 @@ class ClassLayoutsDiamondTest {
             + " reads back as a SCALAR, never a list")
     void diamondInstancePropertyIsScalar() throws Exception {
         try (var conn = TestBackends.platform().open()) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM),
+            Lean.Result r = Lean.run(StorelessRuntime.with(MODEL, Databases.PLATFORM),
                     "{|let d = ^m::D(w=1); $d.w;}", StorelessRuntime.RUNTIME, conn);
-            Object v = ((ExecutionResult.Scalar) r).value();
+            Object v = r.one();
             assertTrue(v instanceof Number n && n.longValue() == 1L,
                     "diamond [1] property delivered " + v + " ("
                             + (v == null ? "null" : v.getClass().getName())

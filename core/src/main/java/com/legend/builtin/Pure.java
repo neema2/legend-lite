@@ -1616,7 +1616,7 @@ public final class Pure {
     // lacks, so the corpus copy is signature-broken and drops at
     // overload collection. This native carries the TYPE; the harness
     // splices the SAME semantics by EMISSION (TypedConcatenate fold in
-    // StatementExecutor.buildFrame). CARRIER verbatim (audit R4: the
+    // BodyDriver.buildFrame). CARRIER verbatim (audit R4: the
     // LambdaFunction formal is nominal — eta refs and Function-typed
     // values must NOT conform; witnessed). INTERIOR is a DECLARED
     // deviation: the engine's TabularDataSet spelling schema-ERASES,

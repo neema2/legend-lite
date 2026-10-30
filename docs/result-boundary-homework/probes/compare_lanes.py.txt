@@ -1,0 +1,82 @@
+# The per-test comparison a lane makes between two commits (BASE and HEAD), channels A and B, the method every lane
+# report of 2026-10-27/28 used (reconstructed from the Postgres lane's own script, generalized to any lane). Usage,
+# from a directory holding the saved logs:
+#   python3 -I compare_lanes.py.txt <dir> <BASE> <HEAD> <lane> [suite ...]
+# where <dir> holds, per commit C and suite S:
+#   C-pct_<lane>_<S>.xml            channel A's test.xml (bazel-testlogs/pct/pct_<lane>_<S>/test.xml, copied)
+#   C-pct_<lane>_<S>.log            channel A's test.log (for the crossing markers)
+#   C-pct_channel_b_<lane>_<S>.log  channel B's test.log
+# Channel A: a suite is exact when no test case fails; a failure is read by its wording, never counted:
+#   "Or remove the expected failure" / "but the test succeeded"   -> STALE: a pinned test now passes (a gain to unpin)
+#   "Or replace expected failure" / "expected an error containing" -> MOVED: a pinned test fails with a new message
+#   anything else                                                  -> LOST: a test that passed now fails (a loss)
+# Channel B: every "[chB...] PASS|FAIL|ERROR|DECLINED <test> :: <message>" line, compared test by test (a count can
+# hide a swap). The relation crossing's markers ("[LegendLite PCT] engine JSON:" per relation since d8ab8434; the old
+# "[LegendLite PCT] TDS:" before it) prove which route a run took.
+import os, re, sys, xml.etree.ElementTree as ET
+
+d, BASE, HEAD, lane = sys.argv[1:5]
+SUITES = sys.argv[5:] or ['essential', 'grammar', 'relation', 'standard', 'unclassified']
+
+
+def chan_a(c, su):
+    f = os.path.join(d, '%s-pct_%s_%s.xml' % (c, lane, su))
+    if not os.path.exists(f):
+        return None
+    res = {'stale': [], 'moved': [], 'lost': [], 'total': 0}
+    for tc in ET.parse(f).iter('testcase'):
+        res['total'] += 1
+        e = tc.find('failure') if tc.find('failure') is not None else tc.find('error')
+        if e is None:
+            continue
+        m = e.get('message') or e.text or ''
+        n = tc.get('name')
+        if 'Or remove the expected failure' in m or 'but the test succeeded' in m:
+            res['stale'].append((n, m))
+        elif 'Or replace expected failure' in m or 'expected an error containing' in m:
+            res['moved'].append((n, m))
+        else:
+            res['lost'].append((n, e.text or m))
+    return res
+
+
+def markers(c, su):
+    f = os.path.join(d, '%s-pct_%s_%s.log' % (c, lane, su))
+    if not os.path.exists(f):
+        return '-'
+    s = open(f, errors='replace').read()
+    return 'engine=%d text=%d' % (s.count('[LegendLite PCT] engine JSON:'), s.count('[LegendLite PCT] TDS:'))
+
+
+LINE = re.compile(r'^\[(chB[A-Za-z-]*)(?:@[^\]]*)?\] (PASS|FAIL|ERROR|DECLINED) (\S+)(?: :: (.*))?$', re.M)
+
+
+def chan_b(c, su):
+    f = os.path.join(d, '%s-pct_channel_b_%s_%s.log' % (c, lane, su))
+    if not os.path.exists(f):
+        return None
+    s = open(f, errors='replace').read()
+    return {m.group(3): (m.group(2), m.group(4) or '') for m in LINE.finditer(s)}
+
+
+for su in SUITES:
+    for c in (BASE, HEAD):
+        r = chan_a(c, su)
+        if r is None:
+            print('A %s %s: no xml' % (su, c))
+            continue
+        print('A %s %s: cases %d stale %d moved %d lost %d  [%s]' % (su, c, r['total'], len(r['stale']),
+              len(r['moved']), len(r['lost']), markers(c, su)))
+        for kind in ('stale', 'moved', 'lost'):
+            for n, m in r[kind]:
+                print('   %s %s :: %s' % (kind.upper(), n, m[:1500].replace('\n', ' | ')))
+for su in SUITES:
+    b, h = chan_b(BASE, su), chan_b(HEAD, su)
+    if b is None or h is None:
+        print('B %s: missing log' % su)
+        continue
+    print('B %s: tests %d/%d' % (su, len(b), len(h)))
+    for k in sorted(set(b) | set(h)):
+        bo, ho = b.get(k, ('ABSENT', '')), h.get(k, ('ABSENT', ''))
+        if bo[0] != ho[0]:
+            print('   DIFF %s %s -> %s :: %s' % (k, bo[0], ho[0], ho[1][:400]))

@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -58,7 +60,7 @@ class ConnectionLeaseH2Test {
                 "test::H2Runtime");
         // a SEPARATE auto-resolve: the previous call's connection is closed by
         // its lease, so the row survives only if the database does
-        var back = new QueryService().execute(model,
+        var back = Lean.service(model,
                 "|model::Thing.all()->project(~[n: t|$t.name])", "test::H2Runtime");
         assertTrue(back.rows().size() == 1,
                 "the in-memory H2 database did not survive its connection being"

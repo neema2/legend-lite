@@ -32,6 +32,9 @@ import java.util.Map;
  */
 final class RootNumericTypes extends SqlRewriter {
 
+    /** The SQL type of a Decimal no precision is declared for (the lowering's {@code PureSql.type(DECIMAL)}). */
+    private static final SqlType UNBOUNDED_DECIMAL = new SqlType.Decimal(38, 18);
+
     @Override
     public SqlQuery rewriteRoot(SqlQuery q) {
         return switch (q) {
@@ -87,6 +90,15 @@ final class RootNumericTypes extends SqlRewriter {
      *  HUGEINT, as every sum is); an unnamed column's is its expression's type. */
     private static @com.legend.base.Nullable SqlType numeric(SqlExpr e, @com.legend.base.Nullable SqlType label) {
         if (!(label instanceof SqlType.Decimal || label == SqlType.Scalar.HUGEINT)) {
+            return null;
+        }
+        // an unbounded Decimal (the platform's carrier, DECIMAL(38,18): the compiler's Type.PrecisionDecimal
+        // .DEFAULT_DECIMAL, the engine's carrier precision, which the typer also refines a Decimal to -- so a declared
+        // Decimal(38,18) is that same type by design, not a value read as a guess) states no scale of its own: the value keeps the
+        // scale Postgres's numeric arithmetic gives it, as Pure's BigDecimal keeps it (a Decimal parameter bound as
+        // 2.50 answers 2.50, not 2.500000000000000000; 2026-10-27, the result boundary program's phase 3, found when
+        // the typed rows became the answer and the root became the statement's own)
+        if (label.equals(UNBOUNDED_DECIMAL)) {
             return null;
         }
         // a table's own column is held as its store declares it (the StoredReads premise), precision and all

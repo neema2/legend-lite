@@ -12,11 +12,14 @@
 // says what the hand did (`FlowBoardOptions`), and is put at the page the command makes (page/cube-page.ts sync).
 
 import type { BandTile } from './band-board.ts';
-import { EMPTY_FLOW, placeAfter, removeBox, type Flow, type Frame, type Output } from './flow.ts';
+import { EMPTY_FLOW, placeAfter, removeBox, type Flow, type FlowMessage, type Frame, type MessageLevel, type Output } from './flow.ts';
 import { isLive, joinInputs, type CubeDocument, type CubeInput, type InputPort, type InputSide } from '../cube-document.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { FlowTool, StepEditor } from '../flow-boxes.ts';
-import type { Profile } from '../profile.ts';
+import type { InputPick } from '../dynamic-input.ts';
+import type { PageParameter } from '../page-parameters.ts';
+import { boxOmitted, boxOrder, boxRenamed } from '../box-columns.ts';
+import type { Profile, TopValue } from '../profile.ts';
 import { lazily } from '../lazily.ts';
 import type { FilterValue } from '../snapshot.ts';
 
@@ -45,9 +48,18 @@ export interface FlowBoardOptions {
   /** A Test box set to stop a run when its checks fail (its settings' checkbox), or to warn: the caller tells it
    *  (setStops). */
   readonly onStops?: (id: string, stops: boolean) => void;
+  /** A box set to cache its rows (FL10: copied into this page's database when it is shown or run, the boxes after it
+   *  reading the copy), or no longer. */
+  readonly onCache?: (id: string, cache: boolean) => void;
+  /** The copy a cached box's rows are in now (its grid's, or the page's while it is not shown), if one is -- or 'here',
+   *  its rows this page's database's own from the start (a file read into the tab): nothing to copy. */
+  readonly cachedCopy?: (id: string) => { readonly label: string; readonly rowCount: number } | 'here' | undefined;
   /** A Cross Tab box's Load values (`pin`: its values as its rows hold them now pinned, its columns fixed -- FL2) or
    *  Unfix: the refusal in words, or null. */
   readonly onPinValues?: (id: string, pin: boolean) => Promise<string | null>;
+  /** A Cross Tab's values its pin lacks (FL3), each given a column of its own after its columns (FL8's fix, "Add to the
+   *  cast"); why not when it could not. */
+  readonly onAddPinned?: (id: string, values: readonly (FilterValue | null)[]) => Promise<string | null>;
   /** An Output's Write now: the caller writes its rows to its file, and says why not when it could not. */
   readonly onWrite?: (id: string) => Promise<string | null>;
   /** A box clicked, or Enter on it: the caller shows its rows (its grid made, `add`) -- and its settings, `editor` (the
@@ -91,6 +103,9 @@ export interface FlowBoardOptions {
   readonly onCopy?: (ids: readonly string[], cut: boolean) => void;
   /** The shown box's Profile (its results pane's): its columns summarised, asked of the database (profile.ts). */
   readonly profileOf?: (id: string) => Promise<Profile>;
+  /** A column of the shown box's Profile opened: its most frequent values, asked of the database (`column`: its name
+   *  among the box's rows). */
+  readonly topValuesOf?: (id: string, column: string) => Promise<readonly TopValue[]>;
   /** The first row box `id`'s grid shows now, a column's value at a time (each undefined when it has no row) --
    *  undefined while it has no grid (not shown) or no view yet: a Test box's counts, read as its rows land (checks.ts). */
   readonly firstRowOf?: (id: string) => ((column: string) => unknown) | undefined;
@@ -106,6 +121,23 @@ export interface FlowBoardOptions {
   readonly onPaste?: (at: FlowPoint | undefined) => void;
   /** Each box's cube document as the page has it: what it does, and the boxes it reads (the lines into it). */
   readonly documentOf?: (id: string) => CubeDocument | undefined;
+  /** A box set to block a run (Block Until Done, M8), or no longer: the caller tells it (setBlocks). */
+  readonly onBlocks?: (id: string, blocks: boolean) => void;
+  /** A box set to say a message in a run's log (M8), or nothing (null): the refusal in words, or null (setMessage). */
+  readonly onMessage?: (id: string, message: FlowMessage | null) => string | null;
+  /** The page's parameters (M8, page-parameters.ts), by name and type: what a Dynamic Input is picked by. */
+  readonly parameters?: () => readonly PageParameter[];
+  /** A Union set to keep the rows of the one input a parameter names, a new one of its inputs' names, or every input's
+   *  (null: dynamic-input.ts InputPick) -- `called`, each box's name on the canvas, what a box no one named is named
+   *  where two would share one: the refusal in words, or null. */
+  readonly onPick?: (id: string, pick: InputPick, called: (grid: string) => string) => string | null;
+  /** THE PAGE'S MACROS (M8, macros.ts): each by its name, in words (its steps, the parameters it reads). */
+  readonly macros?: () => readonly { readonly name: string; readonly words: string }[];
+  /** Macro `name` used after box `after`: the caller adds a Pure box of its function, named after it. */
+  readonly onMacro?: (name: string, after: string) => void;
+  /** Save as Macro on box `id`: its own steps and those of the boxes after box `from` up to it, kept as macro `name` --
+   *  the refusal in words, or null. */
+  readonly onSaveMacro?: (id: string, from: string, name: string) => Promise<string | null>;
 }
 
 /** A RUN'S LOG (Run: docs/DATACUBE_FLOW_MODE_2026_10_24.md M6): when it ran, how long it took, and each box -- its rows,
@@ -119,12 +151,21 @@ export interface RunLog {
     readonly wrote?: string;
     /** An Output's file, a Dry Run's: it would be written. */
     readonly wouldWrite?: string;
+    /** A Message's words (M8, layout/flow.ts messageSaid), and how it said them. */
+    readonly said?: string;
+    readonly level?: MessageLevel;
   }[];
-  /** The Tests that stopped it (a stopping Test's checks failing: FL8's refuse), by box: no Output written. */
+  /** The boxes that stopped it (a stopping Test's checks failing: FL8's refuse; a Message's error, M8), by box: no
+   *  Output written from their stage on. */
   readonly stopped?: readonly string[];
+  /** Its stages, when it had more than one (Block Until Done, M8): how many. */
+  readonly stages?: number;
   /** A Dry Run's (M6): every box counted and judged, nothing written. */
   readonly dry?: true;
 }
+
+/** How many runs a flow keeps the logs of, this session (its run history). */
+export const RUN_HISTORY = 20;
 
 /** A point of a flow's canvas, in its own units: where a tool or a line was let go, the box made there placed at it. */
 export interface FlowPoint {
@@ -175,6 +216,8 @@ export interface FlowBoardState {
   readonly running: { readonly done: number; readonly of: number } | undefined;
   /** The last run's log, if one has run. */
   readonly log: RunLog | undefined;
+  /** Every run's log this session, the last last (the run history). */
+  readonly logs: readonly RunLog[];
   tile(id: string): BandTile | undefined;
   /** A comment of the flow (M7): its text tile, drawn as a note on the canvas. */
   noteOf(id: string): BandTile | undefined;
@@ -234,7 +277,7 @@ export class FlowBoard implements FlowBoardState {
   readonly #tests = new Map<string, { readonly fails: boolean; readonly chain: string }>();
   readonly #lacking = new Map<string, { readonly values: readonly (FilterValue | null)[]; readonly chain: string }>();
   #running: { readonly done: number; readonly of: number } | undefined;
-  #log: RunLog | undefined;
+  #logs: readonly RunLog[] = [];
   #layout: Flow = EMPTY_FLOW;
   #shown: string | undefined;
   #noted: string | undefined;
@@ -382,12 +425,17 @@ export class FlowBoard implements FlowBoardState {
   }
 
   get log(): RunLog | undefined {
-    return this.#log;
+    return this.#logs.at(-1);
   }
 
-  /** A run done: its log, drawn (layout/flow-canvas.ts). */
+  /** THE RUN HISTORY (F3's, this session's: M8): each run's log, the last last -- RUN_HISTORY at most. */
+  get logs(): readonly RunLog[] {
+    return this.#logs;
+  }
+
+  /** A run done: its log kept, the last of the history, drawn (layout/flow-canvas.ts). */
   setLog(log: RunLog): void {
-    this.#log = log;
+    this.#logs = [...this.#logs, log].slice(-RUN_HISTORY);
     this.#paint();
   }
 
@@ -397,15 +445,22 @@ export class FlowBoard implements FlowBoardState {
     const doc = this.options.documentOf?.(id);
     if (doc === undefined || seen.has(id)) return '';
     const through = new Set([...seen, id]);
-    const input = (i: CubeInput): string => (isLive(i) ? `<${this.#chain(i.grid, through)}>` : toJson(i));
+    // a live input by the port it reads too (a Filter's True or False), and each box by what it hands on besides its
+    // query -- the columns its configuration leaves out, renames and orders (box-columns.ts): what a box after it reads
+    // (the roadmap audit of 2026-10-26: a column hidden upstream left a kept copy as it was)
+    const input = (i: CubeInput): string => (isLive(i) ? `<${i.port ?? ''}:${this.#chain(i.grid, through)}>` : toJson(i));
     const s = doc.source;
-    const source = s._type === 'rows' ? `rows ${input(s.input)}` : s._type === 'join'
+    const source = s._type === 'rows' ? `rows ${input(s.input)}${s.pure !== undefined ? ` ${toJson(s.pure)}` : ''}` : s._type === 'join'
       ? `join ${joinInputs(s).map(input).join(' ')} ${toJson(s.how)}` : toJson(s);
-    return `${source}|${toJson(doc.query)}`;
+    const c = doc.configuration;
+    const handed = JSON.stringify([boxOmitted(doc.query, c), boxRenamed(doc.query, c), boxOrder(doc.query, c) ?? null]);
+    return `${source}|${toJson(doc.query)}|${handed}`;
   }
 
+  /** A box's chain as it is now (#chain), with the page's parameters' values its Pure may read: a value changed, the
+   *  rows changed (the roadmap audit of 2026-10-26: a cached copy outlived its parameter). */
   chain(id: string): string {
-    return this.#chain(id);
+    return `${this.#chain(id)}|${JSON.stringify((this.options.parameters?.() ?? []).map((p) => [p.name, p.type, p.value]))}`;
   }
 
   /** A box added from the palette as `tool`: drawn as one until its grid does something. */

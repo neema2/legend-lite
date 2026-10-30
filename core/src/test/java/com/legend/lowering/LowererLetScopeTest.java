@@ -3,17 +3,17 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
 import com.legend.test.StorelessRuntime;
 
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.compiler.element.ClassLayouts;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.ExecutionResult;
 import com.legend.sql.SqlQuery;
 import org.junit.jupiter.api.Test;
 
@@ -34,14 +34,9 @@ class LowererLetScopeTest {
 
     private static List<String> values(String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
-            if (r instanceof ExecutionResult.Collection col) {
-                return col.values().stream().map(String::valueOf).toList();
-            }
-            if (r instanceof ExecutionResult.Scalar s) {
-                return List.of(String.valueOf(s.value()));
-            }
-            throw new IllegalStateException("unexpected result for " + query + ": " + r);
+            Lean.Result r = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c);
+            Object v = r.value();
+            return v instanceof List<?> l ? l.stream().map(String::valueOf).toList() : List.of(String.valueOf(v));
         }
     }
 

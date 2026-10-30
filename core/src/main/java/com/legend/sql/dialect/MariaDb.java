@@ -198,7 +198,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case BOOLEAN, INTEGER, BIGINT -> "SIGNED";
             case HUGEINT -> "DECIMAL(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "CHAR";
+            case VARCHAR, JSON, TEMPORAL_TEXT -> "CHAR";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
@@ -526,7 +526,9 @@ public class MariaDb extends AnsiSqlRenderer {
         }
         SqlSelect countedRows = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null,
                 List.of());
-        return s.withFrom(new SqlSource.Subselect(countedRows, alias, null));
+        // a star of the select reads the source as it was, its own columns, never the counts beside them
+        return s.withProjections(starsAsSourceColumns(s, from, alias, product()))
+                .withFrom(new SqlSource.Subselect(countedRows, alias, null));
     }
 
     /** Each MODE under {@code e} to count: a grouped reducer with the select's keys (where {@link #groupedModesCounted}),
@@ -1114,7 +1116,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
             case JSON -> "JSON";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
+            case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
         };
     }
 
@@ -1139,7 +1141,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     + " FALSE WHEN 'false' THEN FALSE END)");
         }
         if (t instanceof SqlType.Decimal || t instanceof SqlType.Scalar s && s != SqlType.Scalar.VARCHAR
-                && s != SqlType.Scalar.LITERAL && s != SqlType.Scalar.TEMPORAL_TEXT
+                && s != SqlType.Scalar.TEMPORAL_TEXT
                 && s != SqlType.Scalar.DECIMAL_TEXT) {
             String type = t instanceof SqlType.Decimal d ? columnType(d) : switch ((SqlType.Scalar) t) {
                 case INTEGER, BIGINT -> "SIGNED";
@@ -1148,7 +1150,7 @@ public class MariaDb extends AnsiSqlRenderer {
                 case DATE -> "DATE";
                 case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
                 case TIME -> "TIME(6)";
-                case BOOLEAN, JSON, VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
+                case BOOLEAN, JSON, VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
             };
             return w -> w.append("CAST(").piece(text).append(" AS " + type + ")");
         }
@@ -1655,11 +1657,7 @@ public class MariaDb extends AnsiSqlRenderer {
         }
         if (target instanceof SqlType.Array arr) {
             SqlType from = listElement(v);
-            // a text element as LITERAL is the text itself, as the scalar cast below writes it (LITERAL is VARCHAR
-            // physically): the mixed sort's ordered ids (2026-10-13, PR #34's review: element-wise, it wrote the
-            // aggregate twice)
-            if (from == null || from.equals(arr.element())
-                    || from == SqlType.Scalar.VARCHAR && arr.element() == SqlType.Scalar.LITERAL) {
+            if (from == null || from.equals(arr.element())) {
                 return writer.expr(v, 0);
             }
             // element-wise
@@ -1669,7 +1667,7 @@ public class MariaDb extends AnsiSqlRenderer {
         if (target instanceof SqlType.Struct || target instanceof SqlType.Map) {
             return writer.expr(v, 0);
         }
-        if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+        if (target == SqlType.Scalar.VARCHAR) {
             return writer.piece(asText(v));
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
@@ -1681,10 +1679,10 @@ public class MariaDb extends AnsiSqlRenderer {
         // a member read as text is its scalar text (a string unquoted); a whole value as text is its JSON (DuckDB's
         // CAST(json AS VARCHAR) keeps a string's quotes)
         boolean member = v instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET;
-        if ((to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) && !member) {
+        if (to == SqlType.Scalar.VARCHAR && !member) {
             return jsonAsText(w -> w.expr(v, 0));
         }
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return w -> w.append("(CASE WHEN JSON_TYPE(").expr(v, 0).append(") = 'STRING' THEN JSON_UNQUOTE(")
                     .expr(v, 0).append(") ELSE ").piece(jsonAsText(x -> x.expr(v, 0))).append(" END)");
         }
@@ -1720,7 +1718,7 @@ public class MariaDb extends AnsiSqlRenderer {
             return value;
         }
         return switch (s) {
-            case VARCHAR, LITERAL -> textOf(value, from);
+            case VARCHAR -> textOf(value, from);
             case BOOLEAN -> from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
                     ? w -> w.append("(CASE lower(").piece(value).append(") WHEN 'true' THEN TRUE WHEN 'false' THEN FALSE")
                             .append(" END)")
@@ -1921,7 +1919,7 @@ public class MariaDb extends AnsiSqlRenderer {
             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
             // mixed list, measured 2026-10-11)
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
             case LEAST -> writer.piece(nullSkipping("LEAST", a));
@@ -2106,7 +2104,8 @@ public class MariaDb extends AnsiSqlRenderer {
      *  and any other is refused, measured), branch taken or not. So the message is kept in the session's user
      *  variable {@code @legend_raise} and a run-time error follows, raised only when evaluated (a CASE branch not
      *  taken raises nothing, measured): a scalar subquery of two rows, "Subquery returns more than 1 row". The
-     *  platform reads the message back from the session it failed on ({@code exec.MariaDbConnector.raisedMessage}). */
+     *  platform reads the message back from the session it failed on by the two statements its connector declares
+     *  ({@code exec.MariaDbConnector.raiseRecovery}), the seam's read ({@code exec.JdbcStatements.held}). */
     private SqlWriter.Piece raise(List<SqlExpr> a) {
         return raise(a, null);
     }
@@ -2134,7 +2133,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
+            case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
         };
     }
 
@@ -3436,21 +3435,6 @@ public class MariaDb extends AnsiSqlRenderer {
     // ==================================================================
     // Values: what the driver hands back
     // ==================================================================
-
-    /** A boolean arrives as 1 or 0 (a comparison is an integer here); a struct or a map as its JSON text, decoded to
-     *  the platform's map of its fields. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (type == SqlType.Scalar.BOOLEAN && jdbcValue instanceof Number n) {
-            return n.longValue() != 0;
-        }
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        return jdbcValue;
-    }
 
     // ==================================================================
     // DDL (test fixtures)

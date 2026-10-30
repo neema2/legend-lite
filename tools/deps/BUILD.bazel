@@ -78,6 +78,37 @@ junit_test(
     ],
 )
 
+# NO ARROW LIBRARY IN THE PRODUCT (the result boundary program's R9; track A, 2026-10-29): the planner's plan side, the
+# WebAssembly planner's Java, the native library's Java and the warehouse server reach no external repository named
+# for Arrow; the framer (//arrow_ipc) reaches //base alone (ArrowClosureTest).
+[genquery(
+    name = name + "_closure",
+    # NullAway subtracted as for core's closure: a compiler plugin, on javac's processor path, never on a classpath
+    expression = "kind(\"java_library|jvm_import|java_import|http_jar|.*_library\", deps(%s) except deps(//tools/nullaway:nullaway))" % target,
+    opts = ["--noimplicit_deps"],
+    scope = [target],
+) for name, target in [
+    ("plan_side", "//core:plan_side"),
+    ("wasm", "//wasm:tab"),
+    ("native", "//native:entry"),
+    ("native_image", "//warehouse:server_lib"),
+    ("arrow_ipc", "//arrow_ipc"),
+]]
+
+junit_test(
+    name = "arrow_closure_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["ArrowClosureTest.java"],
+    data = [":%s_closure" % c for c in ["plan_side", "wasm", "native", "native_image", "arrow_ipc"]],
+    jvm_flags = ["-Dclosure.%s_closure=$(rlocationpath :%s_closure)" % (c, c) for c in ["plan_side", "wasm", "native", "native_image", "arrow_ipc"]],
+    select = ["--select-class=com.legend.tools.deps.ArrowClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 # THE LAYERS OF //core (execution plan rule 0.12): each product library's direct dependencies, as Bazel resolves
 # them, one genquery per target; CoreLayeringTest compares them with core-layers.txt.
 junit_test(

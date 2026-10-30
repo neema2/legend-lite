@@ -3,6 +3,7 @@
 
 package com.legend.exec;
 
+import com.legend.executionplan.ExecutionPlan;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
@@ -61,8 +62,22 @@ class DynamicPivotKeyLiteralH2Test {
                 List.of(SqlExpr.Column.physical("t", col)),
                 List.of(),          // empty IN = dynamic — triggers discovery
                 List.of(), List.of(), "p", List.of());
-        SqlQuery out = DynamicPivot.staticize(
-                SqlSelect.starOf(pivot), new H2(), conn);
+        // the keys read as typed rows through the session seam, as the body driver reads them (track B's B1a)
+        H2 dialect = new H2();
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.H2),
+                new ExecutionPlan.Servers.Every(), List.of(), List.of());
+        DynamicPivot.KeyReader reader = (query, columns) -> {
+            try {
+                return PlanRunner.rows(new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
+                        ExecutionPlan.TdsResult.Shape.VALUE, columns,
+                        new ExecutionPlan.Sql(dialect.render(query), List.of(), target, query, List.of()))),
+                        java.util.Map.of(), PlanSessions.given(conn)).rows();
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        };
+        SqlQuery out = DynamicPivot.staticize(SqlSelect.starOf(pivot), dialect,
+                PlanSessions.given(conn), target, reader);
         try (Statement st = conn.createStatement()) {
             st.execute("DROP TABLE T");
         }

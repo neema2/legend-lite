@@ -424,7 +424,7 @@ public final class Lowerer {
                         overRow(scan, u.where(), "update", "its predicate"));
             }
             default -> throw new IllegalStateException("not a store write: " + root.getClass().getSimpleName()
-                    + " (StatementExecutor dispatches only a write into a store table here)");
+                    + " (BodyDriver dispatches only a write into a store table here)");
         };
     }
 
@@ -648,26 +648,28 @@ public final class Lowerer {
             rootType = MixedEncoding.declaredType(rootType);
         }
         boolean anyStamp = rootType == SqlType.Scalar.JSON;
-        // read unconditionally: a LITERAL-carried product under ANY
-        // stamp (generic/TypeVar dedup results included) must label
-        // truthfully — the TREE carries the carrier through
-        // element-preserving ops (F10 3b; M3 flip: the stored type IS
-        // the authority, the judge is gone from this site)
+        // read unconditionally: a product under ANY stamp (generic/TypeVar dedup results included) must label
+        // truthfully -- the TREE carries the carrier through element-preserving ops (the stored type IS the
+        // authority, the judge is gone from this site)
         com.legend.sql.TypeFact rootJudge = e.type();
         if (anyStamp && !Stamps.isMany(spec)
                 && rootJudge instanceof com.legend.sql.TypeFact.Typed t
-                && t.type() != SqlType.Scalar.JSON
-                && t.type() != SqlType.Scalar.LITERAL) {
+                && t.type() != SqlType.Scalar.JSON) {
             e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);
         }
-        // F10 slice 2 — the KIND-FAITHFUL CARRIER at a mixed root: a
-        // literal collection of >=2 distinct numeric kinds rebuilds as
-        // pure-literal spellings (the DOUBLE-promoted array erased
-        // Integer 1 into 1.0 here), returning its own Array(LITERAL)
-        // construction-site mark.
-        SqlExpr mixedLits = LiteralSpelling.mixedNumericArray(spec, e);
-        if (mixedLits != null) {
-            e = mixedLits;
+        // a Number-LUB literal mix at a root ([25.0, 1]) is read as its kinds: a tagged list (the DOUBLE-promoted
+        // array erased Integer 1 into 1.0 here)
+        SqlExpr.TaggedList mixedNumbers = MixedEncoding.mixedNumericLiteral(spec, e);
+        if (mixedNumbers != null) {
+            e = mixedNumbers;
+        }
+        // a mixed list (§5a's step B, track L, 2026-10-29): the root is its rows, each a tagged value -- the plan's
+        // one column TAGGED<...> with the list's multiplicity
+        if (e instanceof SqlExpr.TaggedList tl) {
+            if (!Stamps.isMany(spec)) {
+                throw new IllegalStateException("a tagged list at a to-one root: " + spec.info());
+            }
+            return TaggedLists.root(tl, spec, nextAlias());
         }
         // a mixed selection's winner (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a, 2026-10-23): the root projects
         // its tag and one column per slot; a collection of them is step B's
@@ -678,31 +680,18 @@ public final class Lowerer {
             }
             return taggedRoot(tg, spec);
         }
-        // THE ONE LITERAL-LABEL ARM (§4.3, redundant half deleted
-        // 2026-08-24): the TREE says whether the finished root carries
-        // spellings — every producer marks at construction (the sort
-        // arm's cast, mixedNumericArray's mark, LIST_GET/UNNEST
-        // flowing the element) and a cast TYPES as its target, so the
-        // former cast-mark and mixed-array label arms re-derived what
-        // e.type() states. This arm's residual content is the label
-        // SPELLING (scalar LITERAL for the element contract) — it
-        // retires at M4 with the carrier rule.
+        // the root's label: the pure type's SQL mapping, or an unrefined Number's own numeric slot (the LITERAL
+        // spelling label stood here until track L's L2, 2026-10-29: a mixed value is a tagged value now)
         com.legend.sql.SqlType label = rootType;
-        if (e.type() instanceof com.legend.sql.TypeFact.Typed jt
-                && (jt.type() == SqlType.Scalar.LITERAL
-                        || (jt.type() instanceof com.legend.sql.SqlType.Array ja
-                                && ja.element() == SqlType.Scalar.LITERAL))) {
-            label = SqlType.Scalar.LITERAL;
-        } else if (spec.info().type() == Type.Primitive.NUMBER
+        if (spec.info().type() == Type.Primitive.NUMBER
                 && e.type() instanceof com.legend.sql.TypeFact.Typed nt
                 && (nt.type() instanceof com.legend.sql.SqlType.Decimal || nt.type() == SqlType.Scalar.DOUBLE
                         || nt.type() == SqlType.Scalar.BIGINT || nt.type() == SqlType.Scalar.INTEGER
                         || nt.type() == SqlType.Scalar.HUGEINT)) {
             // an unrefined NUMBER root labelled by its cell's own numeric slot, the kind the database answers
             // (the engine reads a Number by its result-set type; the judges refine a Number side by the slot): a
-            // Decimal cell is a Decimal to every reader, and the value lane's text spells its D
-            // (Render.tdsTextCell; min([1.0d]) is 1.0D -- the DuckDB PCT lane on the plan route, step 9,
-            // 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
+            // Decimal cell is a Decimal to every reader (min([1.0d]) is 1.0D -- the DuckDB PCT lane on the plan
+            // route, step 9, 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
             label = nt.type();
         }
         // COLLECTION roots explode to N rows (the result-shape contract:
@@ -3063,44 +3052,27 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
-                // THE HETERO-LITERAL CLAIM (F10 3b, M4 RE-LAND on the
-                // typed IR — zero compensations): a VALUE-LANE Any-LUB
-                // literal collection whose every element SPELLS rides
-                // the LITERAL carrier — six kinds disjoint BY GRAMMAR,
-                // so temporal/Decimal equality inside Any is byte-
-                // decidable (json erased exactly those kinds: to_json
-                // of a date and of its string print are the SAME bytes
-                // — witness AnyLiteralByteDecidabilityTest). The
-                // original parking blocker DISSOLVED with the carrier-
-                // rule reversal: rows.values rides the grid again, so
-                // grid-extraction asserts never meet this carrier (the
-                // lane gates: value-lane only, never a rowCells body).
-                // Enum/instance/computed elements decline per-element
-                // and the collection keeps the variant lane; Number-LUB
-                // mixes keep variant BY CONTRACT (arithmetic must type;
-                // the next arm — the §1R census receipt).
+                // a VALUE-LANE Any-LUB literal collection is a TAGGED LIST (track L, 2026-10-29; the LITERAL
+                // spelling carrier, six kinds disjoint by grammar, until L2 that day): each element in its own
+                // channel, so temporal/Decimal equality inside Any is decided by kind (json erased exactly those
+                // kinds: to_json of a date and of its string print are the SAME bytes -- witness
+                // AnyLiteralByteDecidabilityTest). Instance/computed elements decline per-element and the
+                // collection keeps the variant lane; Number-LUB mixes keep variant BY CONTRACT (arithmetic must
+                // type; the next arm), read as a tagged list at a root and under the list's operations.
                 boolean cellSlots = c.rowCells();
                 if (!cellSlots && CollectionLanes.valueLane(c)
                         && !c.elements().isEmpty()) {
-                    java.util.List<SqlExpr> spelled =
-                            new java.util.ArrayList<>(c.elements().size());
+                    // a value-lane Any-LUB literal collection whose every element is of a tagged kind is a TAGGED
+                    // LIST (track L, 2026-10-29: docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B): each
+                    // element in its own channel, the kinds as types, nothing spelled; a one-element collection
+                    // the tagged value itself
+                    java.util.List<SqlExpr> lowered = new java.util.ArrayList<>(c.elements().size());
                     for (TypedSpec el : c.elements()) {
-                        SqlExpr s = MixedEncoding.elementLiteral(
-                                el, scalar(el, columns));
-                        if (s == null) {
-                            spelled = null;
-                            break;
-                        }
-                        spelled.add(s);
+                        lowered.add(scalar(el, columns));
                     }
-                    if (spelled != null) {
-                        yield ValueCollections.c1Singleton(c)
-                                ? new SqlExpr.Cast(spelled.get(0),
-                                        SqlType.Scalar.LITERAL)
-                                : new SqlExpr.Cast(
-                                        new SqlExpr.ArrayLit(spelled),
-                                        new SqlType.Array(
-                                                SqlType.Scalar.LITERAL));
+                    SqlExpr.TaggedList tl = MixedEncoding.taggedList(c, lowered);
+                    if (tl != null) {
+                        yield ValueCollections.c1Singleton(c) ? tl.element(new SqlExpr.IntLit(1)) : tl;
                     }
                 }
                 // instances meeting at a model class with no layout carry
@@ -3483,7 +3455,7 @@ public final class Lowerer {
             // Car): type VALUES travel as their PATHS (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9,
             // 2026-10-20; a base primitive's is its name), as do a TDS's
             // column types and an instance's rawType, so equality compares
-            // paths and the text carrier's reader resolves a namesake; a
+            // paths and a reader resolves a namesake; a
             // printer takes the name (Scalars.pureToString)
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
                     new SqlExpr.StringLit(com.legend.compiler.element.type.PlatformTypes
@@ -3520,11 +3492,22 @@ public final class Lowerer {
             // COLLECTION-VALUED relation nodes in scalar position (the
             // list encodings; relation-typed sources take relation()).
             // C1: a scalar-stamped source conforms by EMISSION (asList).
-            case TypedFilter f when !Type.relationValued(f.source().info()) ->
-                    SqlExpr.Call.of(SqlFn.LIST_FILTER,
-                            PureSql.asList(scalar(f.source(), columns),
-                                    Stamps.isMany(f.source())),
-                            scalar(f.predicate(), columns));
+            case TypedFilter f when !Type.relationValued(f.source().info()) -> {
+                SqlExpr src = scalar(f.source(), columns);
+                SqlExpr.TaggedList mixed = Scalars.asTaggedList(f.source(), src);
+                if (mixed != null && f.predicate().parameters().size() == 1) {
+                    // a mixed list (track L; the L2 audit, 2026-10-29): the predicate over the element at each
+                    // position, its parameter the element there (LambdaBinding.mapElemResolver)
+                    String param = f.predicate().parameters().get(0);
+                    SqlExpr body = scalar(LambdaBinding.last(f.predicate()),
+                            LambdaBinding.mapElemResolver(param, mixed, false,
+                                    LambdaBinding.lambdaResolver(f.predicate().parameters(), columns)));
+                    yield TaggedLists.filter(mixed, new SqlExpr.Lambda(List.of(param), body));
+                }
+                yield SqlExpr.Call.of(SqlFn.LIST_FILTER,
+                        PureSql.asList(src, Stamps.isMany(f.source())),
+                        scalar(f.predicate(), columns));
+            }
             // slice(start, stop) — ListEncodings.slice owns the bounds
             // clamps and real pure's inverted-bounds error
             // slice/drop/take consume the LIST carrier — a to-one-stamped
@@ -3768,9 +3751,12 @@ public final class Lowerer {
                 enclosing.push(enclosingOf(columns));
                 try {
                     if (rt.columns().size() > 1) {
-                        yield new SqlExpr.ScalarSubquery(
-                                ValueCollections.rowMajorCellList(
-                                        relation(rel), rt, nextAlias()));
+                        // a tagged list over the relation's cells (track L, 2026-10-29): each cell in its column's
+                        // kind; a column of a kind no channel holds keeps the variant lane
+                        SqlSelect flat = relation(rel);
+                        SqlExpr.TaggedList cells = ValueCollections.rowMajorTaggedList(flat, rt, this::nextAlias);
+                        yield cells != null ? cells
+                                : new SqlExpr.ScalarSubquery(ValueCollections.rowMajorCellList(flat, rt, nextAlias()));
                     }
                     // a RELATION-OP head (TDS distinct/restrict splice) is
                     // a VALUE COLLECTION whatever its stamp — [1] is the
@@ -3933,7 +3919,7 @@ public final class Lowerer {
      * by name.
      */
     private SqlSelect castOverDynamicPivot(SqlSelect base, Map<String, Type.Column> src, Type.RelationType tgtRow) {
-        List<SqlSource.Pivot> dynamic = TdsTextWrap.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
+        List<SqlSource.Pivot> dynamic = KeyedPivot.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
         if (dynamic.size() != 1) {
             throw new NotImplementedException("cast(@Relation<...>) over " + dynamic.size()
                     + " dynamic pivots: the generated columns' pivot is ambiguous");

@@ -5,14 +5,17 @@
 // a page with no join loads none of it (test/bundle-budget.test.ts).
 
 import {
-  inputCube, inputLeaves, isLive, leavesOf, rebuilt, sha256, type CubeDocument, type CubeInput, type CubeSource, type FileSource, type JoinInput,
+  inputCube, isLive, rebuilt, sha256, type CubeDocument, type CubeInput, type CubeSource, type FileSource, type JoinInput,
   type JoinSource,
   type LeafSource, type RowsSource,
 } from '../cube-document.ts';
 import type { ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ColumnSpec, CubeSnapshot } from '../snapshot.ts';
 import type { FileHandle } from '../file-handles.ts';
-import { TAB_TABLES, inputRows, leafRefusal, openInputs, openJoin, openRows, type JoinOpening, type OpenedInputs } from '../join-open.ts';
+import {
+  TAB_TABLES, inputRows, leafRefusal, openInputs, openJoin, openRows, openedInputLeaves, openedLeaves, type CopyTable, type JoinOpening, type OpenedInputs,
+} from '../join-open.ts';
+import { heldHow } from '../join-how.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import type { HeldCopy } from '../app.ts';
 import type { SnapTarget } from '../cube.ts';
@@ -89,8 +92,10 @@ export interface JoinRead {
  * A join's leaf read again, for a saved join reopened: its table, whether this join is one of the joins holding it
  * (`joinRead`), and -- a file given that is not the one the join was saved over -- that, said.
  */
-async function leafTable(h: JoinSourcesHost, leaf: LeafSource, name: string, page: string | undefined,
+async function leafTable(h: JoinSourcesHost, leaf: LeafSource | CopyTable, name: string, page: string | undefined,
   kept: string | undefined): Promise<{ table: string; held?: boolean; giveBack?: () => void; note?: string } | undefined> {
+  // a snapped grid's copy (a cached box's, FL10): its table, which its grid holds as long as it reads it
+  if (leaf._type === 'copy') return { table: leaf.table };
   /** The name the page's model keeps for this leaf's table (its project's store reads it so), when no grid holds it; else
    *  a fresh one. */
   const asked = (base: string): string => {
@@ -160,13 +165,19 @@ function madeThen<M extends (...args: never[]) => unknown>(make: M, then: () => 
  * A join of copies held in the tab, as its plane says it: its files by name, read in by the latest of their read times
  * (its row count is the grid's own to say). A table read at no time the tab knows is a bug of the tab's, refused.
  */
-function heldCopyOf(leaves: readonly LeafSource[], tables: readonly string[], readAt: ReadonlyMap<string, Date>): HeldCopy {
-  const times = tables.map((t) => {
+function heldCopyOf(leaves: readonly (LeafSource | CopyTable)[], tables: readonly string[], readAt: ReadonlyMap<string, Date>): HeldCopy {
+  const times = tables.map((t, i) => {
+    // a snapped grid's copy: when its snap was taken (its plane's own words, JoinInput.copy)
+    const leaf = leaves[i];
+    if (leaf?._type === 'copy') {
+      if (leaf.takenAt === undefined) throw new Error(`the copy ${t} says no time it was taken`);
+      return new Date(leaf.takenAt).getTime();
+    }
     const at = readAt.get(t);
     if (at === undefined) throw new Error(`the table ${t} was read in at no time this tab knows`);
     return at.getTime();
   });
-  return { label: leaves.map((l) => l.name).join(', '), takenAt: new Date(Math.max(...times)) };
+  return { label: leaves.map((l) => (l._type === 'copy' ? l.label ?? l.table : l.name)).join(', '), takenAt: new Date(Math.max(...times)) };
 }
 
 /** How a grid over the tab's tables is opened (sources.ts openedJoin's, openedRows's). */
@@ -180,8 +191,9 @@ type OpenedHow = {
 export async function openedJoin(h: JoinSourcesHost, source: JoinSource, resolved: JoinSource, how: OpenedHow = {}):
   Promise<Opened | undefined> {
   return openedOver(h, resolved, source.name, (o) => openJoin(resolved, o),
-    // the join as it opened: a kept column of theirs gone since is left out of it, as the notes say
-    (opened) => ({ ...source, how: opened.how, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) }), how);
+    // the join as it opened: a kept column of theirs gone since is left out of it, as the notes say -- a parameter it
+    // reads kept as the page holds it, `$name` (join-how.ts heldHow)
+    (opened) => ({ ...source, how: heldHow(source.how, opened.how), columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) }), how);
 }
 
 /**
@@ -192,7 +204,8 @@ export async function openedJoin(h: JoinSourcesHost, source: JoinSource, resolve
  */
 export async function openedRows(h: JoinSourcesHost, source: RowsSource, resolved: RowsSource, how: OpenedHow = {}):
   Promise<Opened | undefined> {
-  if (leavesOf(resolved).every((l) => (TAB_TABLES as readonly string[]).includes(l._type))) {
+  // every leaf a table of this tab's own -- a snapped grid's copy among them (a cached box, FL10) -- read here as a join is
+  if (openedLeaves(resolved).every((l) => l._type === 'copy' || (TAB_TABLES as readonly string[]).includes(l._type))) {
     return openedOver(h, resolved, source.name, (o) => openRows(resolved, o),
       (opened) => ({ ...source, columns: opened.columns.map((c) => ({ name: c.name, type: c.type })) }), how);
   }
@@ -220,7 +233,8 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
   }
   // a Join's L or R reads both of the join's inputs, so where a join reads them: this tab's own tables
   if (inputs.some((i) => i.unmatched !== undefined)) {
-    throw new CubeRefusal(leafRefusal(leavesOf(resolved).find((l) => leafRefusal(l, TAB_TABLES) !== undefined)!, TAB_TABLES)!);
+    const elsewhere = openedLeaves(resolved).find((l): l is LeafSource => l._type !== 'copy' && leafRefusal(l, TAB_TABLES) !== undefined)!;
+    throw new CubeRefusal(leafRefusal(elsewhere, TAB_TABLES)!);
   }
   const start = await h.openedStart(inputCube(inputs[0]!), true);
   if (!start) return undefined;
@@ -260,7 +274,7 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
 /** The tables `leaves` read, each found or read in as a saved join's are (leafTable), what that said, the hold on those
  *  read for this one let go (`forget`), and the grids' tables it borrowed given back (`giveBack`: once a grid is made
  *  over them, which holds them itself; forget gives them back too); undefined when a file was not given. */
-async function leafTablesOf(h: JoinSourcesHost, leaves: readonly LeafSource[], name: string, page: string | undefined,
+async function leafTablesOf(h: JoinSourcesHost, leaves: readonly (LeafSource | CopyTable)[], name: string, page: string | undefined,
   kept: readonly string[] | undefined): Promise<{
   readonly tables: string[]; readonly said: string[]; forget(): Promise<void>; giveBack(): void;
 } | undefined> {
@@ -329,7 +343,7 @@ function tabOpening(h: JoinSourcesHost, tables: readonly string[], made: (rows: 
  */
 export async function openedInputsOf(h: JoinSourcesHost, left: JoinInput, right: JoinInput, name: string, page?: string):
   Promise<{ readonly inputs: OpenedInputs; readonly rows: GridRows; dispose(): Promise<void> } | undefined> {
-  const read = await leafTablesOf(h, [...inputLeaves(left), ...inputLeaves(right)], name, page, undefined);
+  const read = await leafTablesOf(h, [...openedInputLeaves(left), ...openedInputLeaves(right)], name, page, undefined);
   if (read === undefined) return undefined;
   let rows: GridRows | undefined;
   try {
@@ -366,7 +380,7 @@ async function openedOver<T extends { readonly relation: ValueSpecification; rea
   try {
     let tables = how.tables;
     if (tables === undefined) {
-      const read = await leafTablesOf(h, leavesOf(over), how.saved?.name ?? name, how.page, how.kept);
+      const read = await leafTablesOf(h, openedLeaves(over), how.saved?.name ?? name, how.page, how.kept);
       if (read === undefined) return undefined;
       ({ tables, said, forget, giveBack } = read);
     }
@@ -376,7 +390,7 @@ async function openedOver<T extends { readonly relation: ValueSpecification; rea
     const r = rebuilt(how.saved, opened.relation, opened.columns, name, how.capped === true);
     // where its rows are (§18.3): a remote file is read where it lives, so the join is live and the tab's Snap offered;
     // every leaf a file read into the tab, it is a copy held here from the start, as a file's grid is
-    const leaves = leavesOf(over);
+    const leaves = openedLeaves(over);
     const plane: Pick<GridPlace, 'heldCopy' | 'snapTarget'> = leaves.some((l) => l._type === 'remoteFile')
       ? { snapTarget: h.snapTarget() }
       : { heldCopy: heldCopyOf(leaves, tables, h.readAt) };

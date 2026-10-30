@@ -68,7 +68,7 @@ class JavaEvalLedgerTest {
     // Phase 0.8 (batch 134, 2026-09-08): every row re-pinned to its MEASURED
     // stripped count and the check made exact (a shrink re-pins, like
     // EVICT_NAMES) — 723 lines of banked headroom burned: AggAwareActivities
-    // 227→211, StatementExecutor 2699→2045, DynamicPivot 118→106, JsonCompare
+    // 227→211, StatementExecutor (BodyDriver since 2026-10-29) 2699→2045, DynamicPivot 118→106, JsonCompare
     // 70→64, StoreNav 199→188, PctExecuteNative 131→107.
     private static final Map<String, Integer> EVICT_SIZE = Map.ofEntries(
             // 844 -> 850 (documented-debts 2026-08-18): the emptyCell
@@ -104,7 +104,12 @@ class JavaEvalLedgerTest {
             // 109 -> 116 (2026-10-17, the MongoDB PCT lane, §11.3 of the same plan): the route by lane -- a lane with
             // no JDBC session runs through the plan (PctPlanRoute, one call); the legacy route is its own method
             // (legacyRoute, the query service on the session PctBackend opens, as before). Nothing evaluated in Java.
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 116),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            // 116 -> 94 (2026-10-27, the result boundary program's phase 4: the legacy route and the shadow plan
+            // deleted; the PCT runs the typed plan alone); 94 -> 99 the same day (stage 1, step 3: the relation's
+            // crossing measured both ways, Pure's TDS text and the engine's JSON read by its own adapter's steps; the
+            // loser's lines leave with the switch); 99 -> 94 (2026-10-28, the switch: every lane measured the
+            // engine's crossing exact, and the TDS text crossing is deleted with PureTdsText)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 94),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -124,7 +129,16 @@ class JavaEvalLedgerTest {
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 318),
             // +2 (B8): the BigDecimal-under-FLOAT arm — the reference's own
             // Float shape (FloatCoreInstance IS BigDecimal-backed)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 355),
+            // 355 -> 376 (2026-10-27, the result boundary program's phase 4: a value's elements built as the
+            // reference's own instances from the plan's typed cells, by the query's result type -- the conversions
+            // pct_adapter.pure's text readers (readPureLiteral, quotedCells) did, deleted with them; each cell one
+            // carrier hop, nothing evaluated)
+            // 376 -> 428 the same day (stage 1, step 3: the engine's JSON answer read as legend-engine's PCT adapter reads
+            // it, json-simple's typing of each value, beside the TDS text crossing it is measured against; one of the
+            // two is deleted with the switch); 428 -> 418 (2026-10-28, the switch: the TDS text's wrapper,
+            // createTDSResult, deleted; the engine's crossing is the one that stays); 418 -> 417 (2026-10-29, S1.4's
+            // correction: the written-precision fact read off the plan column in place of two slot-spelling matches)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 417),
             // MetamodelWalk (1307) + MetamodelSteps (196) DELETED (batch 55a,
             // 2026-09-04): the Java port of toPostgresModel and the host
             // metamodel walk are gone — the three tests they still scored
@@ -143,7 +157,7 @@ class JavaEvalLedgerTest {
             // single node (table accessor / tableToTDS plans; engine
             // spelling facts — precisePrimitives + default relational
             // types via PreciseTypes) and the plan-root finders MOVED here
-            // from StatementExecutor (its count fell 2724 -> ~2700 under
+            // from StatementExecutor (BodyDriver since 2026-10-29; its count fell 2724 -> ~2700 under
             // its unchanged pin). Printing engine plan text, no evaluation.
             // 845 -> 881 (batch 112, 2026-09-06): PlanText.storeDbs +
             // tableIn — the plan printer types each physical column by
@@ -191,7 +205,13 @@ class JavaEvalLedgerTest {
             // integer literal (a decode, not evaluation)
             // 111 -> 112 (2026-10-12, ClickHouse delivers an Int128 key, a sum of integers, as BigInteger): the same
             // rule's arm for that JDBC kind, the integral BigDecimal arm's twin (a decode, not evaluation)
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 112),
+            // 112 -> 111 (2026-10-29, track B's B1a: the static pivot reads its keys as typed rows through the body's
+            // session seam, DynamicPivot.KeyReader, and types a key the lowering did not by the database's report,
+            // Statements.columns; its own JDBC statement and result-set decode are gone)
+            // 111 -> 113 (2026-10-29, the doors): the key's type probe is a plan statement of the body's target the
+            // plan runner runs (PlanRunner.columns: checked, the target's session statements run) -- two lines of
+            // parameters (the plan sessions, the target), no evaluation
+            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 113),
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
@@ -216,7 +236,11 @@ class JavaEvalLedgerTest {
             // evaluation; it EXISTS to delete the Any-wildcard stamp so
             // late-bound cells type and the wire ledger burns.
             // 52 -> 53 (2026-09-20, statement-origin census): the column probe counts itself
-            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 53),
+            // 53 -> 46 (2026-10-29, track B's B1a: the probe reads the session's reported columns through the seam,
+            // Statements.columns; its own JDBC statement and metadata read are gone)
+            // 46 -> 48 (2026-10-29, the doors): the LIMIT-0 probe is a plan statement of the body's target the plan
+            // runner runs (PlanRunner.columns) -- two lines of parameters, no evaluation
+            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 48),
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -268,7 +292,7 @@ class JavaEvalLedgerTest {
             Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 229),   // 313 -> 336 (numeric charter Rule 3, 2026-09-17: equality by the DECLARED kind — a Float-declared BigDecimal carrier and a double are the same kind, compared by canonical value; judgement only, nothing evaluated)
             // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
             // assert-family VERDICT dispatch (World 1). Arguments execute
-            // in the database (StatementExecutor.evalValue); this file
+            // in the database (BodyDriver.evalValue); this file
             // only routes members to PureAsserts and judges the quantified
             // boolean vector. Adjudication orchestration, never evaluation.
             // 221→246 (2026-08-19 standard-suite burn): the assertInstanceOf
@@ -335,7 +359,7 @@ class JavaEvalLedgerTest {
             // render judges) + renderSide FRAMING (spec separators over
             // DB-computed element texts) moved here when the canon
             // collapsed into the side query. In exchange the WHOLE
-            // prepCanon/runCanon execution arm left StatementExecutor
+            // prepCanon/runCanon execution arm left StatementExecutor (BodyDriver since 2026-10-29)
             // (−402): the verdict system's total surface SHRANK 355.
             // The DB still computes every element text and the
             // canonical order — framing writes '[', ', ', ']' only.
@@ -488,7 +512,7 @@ class JavaEvalLedgerTest {
             // 1576 -> 1595 (batch 58, the H2VERSION decision): an if whose
             // BRANCHES are asserts (assertEqualsH2Compatible's body) — the
             // condition is a value QUERY the database evaluates
-            // (StatementExecutor.evalValue); Java only dispatches the taken
+            // (BodyDriver.evalValue); Java only dispatches the taken
             // branch to the existing verdict arms. No value computation.
             // 1595 -> 1599 (batch 59, the lineage-tree row verdict): the
             // seam dispatches the assert to LineageTreeVerdicts (its rows
@@ -542,7 +566,9 @@ class JavaEvalLedgerTest {
             // 806 -> 804 (2026-10-19, re-pinned to the measured count after the plan path program's step 6)
             Map.entry("core/src/main/java/com/legend/HostJudge.java", 804),   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
             Map.entry("core/src/main/java/com/legend/DatabaseJudge.java", 595),   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1249),   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
+            // 1249 -> 1258 (2026-10-27, the result boundary program's phase 5: Executor.structured moved here, its
+            // one caller, when the old executor was deleted; a JSON text read to its structure, nothing evaluated)
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1258),   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -710,7 +736,7 @@ class JavaEvalLedgerTest {
             // 2298 -> 2297 (2026-10-13, the dialect program's Phase 1c, decision D2): adaptRaw deleted; the language of
             // executeInDb's text and of a from()'s setup SQL is read by the context reader (ExecutionContext.rawLanguage)
             // and passed to the dialect (SqlDialect.raw); nothing evaluated
-            // 2296 -> 2297 (2026-10-16, the dialect program's Phase 3: the test-data generator's plan takes its engine-text dialect and connection from the caller, two arguments on a second line, where it hard-coded H2's; nothing evaluated); 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the cross-store plan's four engine-text renderers are one, which also writes each node's select list; nothing evaluated); 2314 -> 2281 (2026-10-08, execution plan boundary step 2: the legacy plan's two parameter readers — its text form and its walkable form, each spelling optionality, types and template parameters itself, one with a dead `many` flag — replaced by QueryParameters, the one parameter list; nothing evaluated); 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four StatementExecutor execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
+            // 2296 -> 2297 (2026-10-16, the dialect program's Phase 3: the test-data generator's plan takes its engine-text dialect and connection from the caller, two arguments on a second line, where it hard-coded H2's; nothing evaluated); 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the cross-store plan's four engine-text renderers are one, which also writes each node's select list; nothing evaluated); 2314 -> 2281 (2026-10-08, execution plan boundary step 2: the legacy plan's two parameter readers — its text form and its walkable form, each spelling optionality, types and template parameters itself, one with a dead `many` flag — replaced by QueryParameters, the one parameter list; nothing evaluated); 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four BodyDriver execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
             // 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the test-data specification's class is the model's, ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS, one line where PlatformTypes' took two; nothing evaluated)
             // 2296 -> 2298 (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its PR): the
             // datatype-to-store-type table gains the relational grammar's TIME and TIMESTAMP_NS column types (one entry
@@ -750,7 +776,23 @@ class JavaEvalLedgerTest {
             // path branch (2026-10-26, measured by the ledger's own run at d408e1b8: stripped code lines): main's
             // lowererFor and the named lowerAndPrepare carry the branch's object layouts and declared egress; both
             // sides' lines, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2419),
+            // 2419 -> 2316 (2026-10-27, the result boundary program's phase 5: the body driver's effects sent through
+            // the plan runner, its value statements through JudgePlans, the canon rider off the value path)
+            // 2316 -> 2313 (2026-10-29, track B's B1a: the body driver's schema probes and seeds read its session
+            // through the seam (ExecEnv.statements); its JDBC tunnel for the grid referee and its connection
+            // parameter to lowerAndPrepare are gone)
+            // 2313 -> 2290 (2026-10-29, the result boundary program's track B, B1b: the Connection leaves the body driver -- its environment holds a session (Sessions.Session) and reaches the database through the seam's statements, state and version; the established-state class and its two statics moved to exec/SessionState; three unused Connection locals deleted; nothing evaluated)
+            // 2290 -> 2273 (2026-10-29, track B's B2: the back half takes the query typed once (TypedQuery: its body and its spec compiler) where it typed the resolved AST itself for each of three entries, two of them delegating; nothing evaluated)
+            // StatementExecutor.java renamed BodyDriver.java 2026-10-29 (track D: named for what it is), the count kept
+            // 2273 -> 2282 (2026-10-29, the doors): the seeds as the plan side's setup steps the plan runner runs
+            // (CsvSeed.planned, PlanRunner.setUp, the referee's recorder as the runner's listener), the environment's
+            // plan-sessions and target accessors in place of its statements accessor, the transaction bracket on the
+            // session -- plumbing to the one seam, nothing evaluated; exec.SetupRunner deleted with it
+            // 2282 -> 2313 (2026-10-29, the doors, door 1): the body's last value statement answered to the caller's sink
+            // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
+            // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
+            // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
+            Map.entry("core/src/main/java/com/legend/BodyDriver.java", 2313),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -969,7 +1011,9 @@ class JavaEvalLedgerTest {
     // decision rule's permitted classes. (E4.e's fold/at interpreter
     // residue DIED with HostEval's Phase-1 eviction — grids are typed
     // relations now; its stale ledger row was deleted 2026-08-19.)
-    // E5 wire rows LANDED (2026-08-17): the product wire is
+    // (2026-10-27, the result boundary program's phase 3: the wires below are
+    // deleted -- a result is its typed rows, spelled by a writer at the edge,
+    // com.legend.result.) E5 wire rows LANDED (2026-08-17): the product wire was
     // PLAN-RENDERED (Compiler.executeWire → WireRender → Render
     // csvWire/jsonWire — the DB composes the bytes through the ONE
     // RFC-4180 owner and its own json_object policy). ResultJson is
@@ -988,7 +1032,7 @@ class JavaEvalLedgerTest {
             new LinkedHashMap<>();
 
     static {
-        // E4 — StatementExecutor's walk family. 42→40 (2026-08-21):
+        // E4 — StatementExecutor's (BodyDriver since 2026-10-29) walk family. 42→40 (2026-08-21):
         // activityEnvelopeRead moved to compiler.spec.ResultEnvelopeSplice
         // (splice-ownership leg slice 1, Invariant 7) — there it is a
         // private REWRITE RULE; the Java-side derivation it asks for
@@ -1005,7 +1049,7 @@ class JavaEvalLedgerTest {
         // connectionStoreElementOf is gone — the plan connection reads
         // the bound ExecutionContext (its store, its connection instance).
         // connectionStoreElementOf) that PlanRows turns into rows.
-        EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
+        EVICT_NAMES.put("core/src/main/java/com/legend/BodyDriver.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
                         3});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
@@ -1028,8 +1072,8 @@ class JavaEvalLedgerTest {
         // UNNEST at project lowering; probe: ZERO firings on the full
         // sweep). This row pins the deletion: a list cell in a scalar
         // slot is a loud lowering-defect wall now, never a repair.
-        EVICT_NAMES.put("core/src/main/java/com/legend/exec/Executor.java",
-                new Object[]{"two many-valued TDS cells", 0});
+        // (its Executor.java row left 2026-10-27 with the file: the result boundary program's phase 5 deleted the
+        // legacy executor whole, so nothing remains to pin the explosion's deletion in)
         // E3 LANDED (2026-08-17): the frame is a one-Variant-column
         // VALUES relation — each cell an object's RAW JSON TEXT, every
         // property a typed variant extraction IN SQL (get + to-cast +
@@ -1058,7 +1102,8 @@ class JavaEvalLedgerTest {
         // PctRender at the execution seam; PCT 1110/1110). This row now
         // PINS the deletion at zero. The adapter-contract RESIDUE moved
         // to the PERMANENT register: createTDSResult (wraps the DB text
-        // into the TDSResult CoreInstance), multText (model-source
+        // into the TDSResult CoreInstance; deleted 2026-10-28 with the
+        // TDS text crossing), multText (model-source
         // extraction, ingress), stripTrailingZeros (scalar-bridge date
         // instance precision decode), remapErrorMessage (error-text
         // adapter, H4 known weakness documented), reEscapeStringLiterals
@@ -1078,15 +1123,15 @@ class JavaEvalLedgerTest {
      * surface and registers consciously. Exact in both directions. */
     private static final java.util.Set<String> EXEC_CLASSES =
             java.util.Set.of(
-                    // 2026-10-18 (the plan path program's step 6, typed rows): a JSON row's cells read by the
-                    // plan's columns, each by its three type facts; decode only, nothing evaluated
-                    "RowDecode.java",
+                    // RowDecode.java (2026-10-18) left the register 2026-10-27 (the result boundary program's
+                    // phase 3): moved to the plan side's result package, where a host's rows decode by it too
                     // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution
                     // plan boundary step 2's opening piece (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): CsvSeed.java, Ddl.java and RowLoad.java left the register (no JDBC, no
-                    // egress: they write text and rows); SetupRunner.java is CsvSeed.run, the half
-                    // that runs them on a connection
-                    "Column.java", "SetupRunner.java",
+                    // egress: they write text and rows); SetupRunner.java was CsvSeed.run, the half
+                    // that ran them on a connection -- deleted 2026-10-29 (the doors): the runner runs the
+                    // steps (PlanRunner.setUp)
+                    "Column.java",
                     // execution plan step 3 (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): THE RUNNER -- a plan's own statement run as the plan says, model-free
                     // (ArchitectureTest.theRunnerIsModelFree): PlanRunner binds the plan's slots and
@@ -1107,9 +1152,15 @@ class JavaEvalLedgerTest {
                     // and unwrap rules, the slot first); nothing computed, nothing compared. RowDecode (step 6)
                     // stays for a document's row and a JSON-carried cell
                     "JdbcDecode.java",
+                    // the JSON a database writes with a bare token for a double that is not finite (2026-10-27,
+                    // the result boundary program's phase 5; SqlDialect.jsonSpellsNonFiniteNumbers): the typed
+                    // reader's parse of such a cell, the token kept to be written back; nothing computed
+                    "NonFiniteJson.java",
                     "Statements.java", "JdbcStatements.java",
                     "DynamicPivot.java",
-                    "ExecutionResult.java", "Executor.java",
+                    // ExecutionResult.java renamed TypedSide.java 2026-10-29 (the result boundary program's track D: the
+                    // judges' collected side, its old-door role gone); Executor.java left 2026-10-27: deleted (phase 5)
+                    "TypedSide.java",
                     // leg 3.4 (2026-09-20): the body's DEFERRED verdict
                     // statements sent as one statement and reported in body
                     // order; the SQL shape is the lowering's, the row's
@@ -1149,15 +1200,15 @@ class JavaEvalLedgerTest {
                     // decided kind) and sent as ONE script; no value is produced,
                     // nothing is compared
                     "EffectSink.java",
-                    // lean ladder (2026-09-20): the TIMED prepare/execute seam —
-                    // env-switched diagnostics (LEGEND_LITE_PREP_TRACE) writing
-                    // one line per statement; no value a verdict reads is produced
+                    // lean ladder (2026-09-20): env-switched diagnostics (LEGEND_LITE_PREP_TRACE) writing the
+                    // verdict batch's branch sizes; no value a verdict reads is produced (its timed prepare/execute
+                    // arms deleted 2026-10-29, the doors' audit D64: callerless since the plan runner)
                     "PrepTrace.java",
                     // THE SYSTEM DATABASE (user ruling 2026-09-02): the
                     // graph's metamodel rows in a database of their own,
                     // separate from every user connection — opened once
                     // per graph per engine, written once; store-reading
-                    // bodies ROUTE to it (StatementExecutor). Egress only:
+                    // bodies ROUTE to it (BodyDriver). Egress only:
                     // seed DDL + content-addressed constructed rows; no
                     // value a verdict reads is produced here
                     "SystemDatabase.java",
@@ -1194,6 +1245,12 @@ class JavaEvalLedgerTest {
                     // at the execution seam, ColumnProbe's own pattern; no
                     // value a verdict reads is computed here.
                     "WireTypes.java",
+                    // 2026-10-29 (the result boundary program's track B, B1b): what a body driver ESTABLISHED on a
+                    // session -- the seeds it ran by their sources, the reported column types per statement, the
+                    // write mark -- keyed weakly by the session's connection; the driver's own ESTABLISHED map and
+                    // its Established class, moved to the seam so the driver holds a session and no JDBC. A memo of
+                    // facts the database reported; no value a verdict reads is computed here.
+                    "SessionState.java",
                     // batch 83 (2026-09-06): the engine's execution-trace
                     // comment — the statement the database receives carries
                     // `-- "executionTraceID" : "<uuid>"` (the engine's
@@ -1256,6 +1313,8 @@ class JavaEvalLedgerTest {
                     // executed plan. Pure measurement beside
                     // CanonicalDivergence (probes consume a finished
                     // plan and count; nothing here produces a result).
+                    // Its wire arm (a ResultSet's metadata against the labels) deleted 2026-10-29 (the doors'
+                    // audit D64: callerless since the plan runner), with its counters and the pins on them
                     "SqlTypeCensus.java",
                     // the PRIMITIVE CENSUS (2026-10-12, the coverage map, docs/PRIMITIVE_COVERAGE_2026_10_12.md):
                     // reads each executed plan's MIR primitives and counts them by the statement's outcome, under
@@ -1320,7 +1379,7 @@ class JavaEvalLedgerTest {
                     "BodyCompiler.java", "Compiler.java",
                     // C2a (2026-10-04): the execution front door — the execute entry
                     // points moved out of Compiler (the planner): a session handed or
-                    // opened, the planned query run through StatementExecutor; it
+                    // opened, the planned query run through StatementExecutor (BodyDriver since 2026-10-29); it
                     // sequences, it evaluates nothing
                     "Execution.java",
                     // C2b (2026-10-05): a query typed once against a compiled model; its
@@ -1383,7 +1442,7 @@ class JavaEvalLedgerTest {
                     // the database through evalValue and the
                     // SqlReplayReferee SPI. Line-pinned below like its
                     // sibling AssertVerdicts.
-                    "SqlTextVerdicts.java", "StatementExecutor.java",
+                    "SqlTextVerdicts.java", "BodyDriver.java",
                     // batch 75 (2026-09-06): the toSQLString surface's
                     // STRUCTURED INPUTS across its overloads (query lambda,
                     // mapping ref, dialect, runtime) — the qualified-property
@@ -1405,13 +1464,57 @@ class JavaEvalLedgerTest {
                     "CsvLoad.java",
                     "package-info.java");
 
-    /** The other two funnel packages (documented-debts 2026-08-18,
+    /** The RESULT PACKAGE is a CLOSED REGISTER too (2026-10-28, the result boundary program's R3 and R8; the start
+     * page's S1.4 item 3, approved by the user 2026-10-28): the typed result as a stream of batches, and the writers
+     * at the edge, where every value leaves as text. A writer spells the typed value it was handed and decides none
+     * ({@code ArchitectureTest.writersAreCarriageOnly} keeps it off every other layer, {@code WriterCarriageGuardTest}
+     * keeps arithmetic and comparison out of it); a NEW class here is a new place a value meets text and registers
+     * consciously with its tenet argument. Exact in both directions. */
+    private static final java.util.Set<String> RESULT_CLASSES =
+            java.util.Set.of(
+                    // the typed result (phase 1, 51688f36, R8): ResultSink is the seam a result streams into (columns,
+                    // batches, end); Batch holds up to N rows as typed arrays with a null mask behind one accessor;
+                    // Batcher fills and flushes them; Collector collects a whole result into memory, a test helper and
+                    // the judges' writer, never a production method. No value is computed or compared
+                    "ResultSink.java", "Batch.java", "Batcher.java", "Collector.java",
+                    // the decode of a host's rows (the plan path program's step 6, moved here from exec 2026-10-27, held
+                    // model-free by ArchitectureTest.theRunnerIsModelFree): a cell from a JSON row's token by the plan's
+                    // column -- one carrier conversion each, by the slot then the Pure type; nothing computed, a token no
+                    // arm reads refused by name. HostRows streams the rows a host's own database ran through it
+                    "RowDecode.java", "HostRows.java",
+                    // the cell texts (phase 2, 12b89c7d, R3): every spelling of a typed cell -- Pure's print forms,
+                    // legend-engine's tokens, lite's -- each a function of the carrier and the column's facts alone (its
+                    // written-precision fact since 2026-10-28); digits chosen for a value held whole, no kind converted,
+                    // no zone shifted, no null defaulted
+                    "CellText.java",
+                    // the writers (phase 2, R4): legend-engine's exact answer (LEGACY), lite's JSON rows and CSV (LEAN),
+                    // each a ResultSink spelling cells through CellText in its consumer's layout; nothing else
+                    "PureV1Writer.java", "JsonRowsWriter.java", "CsvWriter.java",
+                    // the Arrow writer (track A, 2026-10-29, docs/RESULT_BOUNDARY_START_HERE.md): a ResultSink that
+                    // lays each batch's typed cells into Arrow IPC buffers (the framer //arrow_ipc, a FlatBuffers
+                    // builder over base alone) -- one encoder per column kind, each a carriage of the carrier's own
+                    // bits (a long's eight bytes, a BigDecimal's unscaled value at the column's scale, a text's
+                    // UTF-8, a date's epoch days); nothing computed, a carrier an encoder cannot lay down refused
+                    // by name; its carriage register is WriterCarriageGuardTest's ArrowWriter.java rows
+                    "ArrowWriter.java",
+                    // a tagged column's cell as a decoder hands it to the batch (track F, 2026-10-29; D57 (5)): the
+                    // slot index and the slot's carrier, a record of two fields and nothing computed
+                    "TaggedCell.java",
+                    // legend-engine's PURE_TDSOBJECT serialization (the doors, 2026-10-29; D63): the service test
+                    // runner's answer as a writer at the boundary -- objects keyed by the presented column name, each
+                    // cell legend-engine's token (CellText.engine); a to-one value as its one cell; spells, decides
+                    // nothing
+                    "TdsObjectsWriter.java");
+
+    /** The other funnel packages (documented-debts 2026-08-18,
      * audit item 9's remainder): server and testdatagen may touch JDBC
-     * per F1.3, so their class lists close the same way exec's does. */
+     * per F1.3, so their class lists close the same way exec's does; the result package (2026-10-28) closes as the
+     * edge where every value becomes text. */
     private static final java.util.Map<String, java.util.Set<String>>
             FUNNEL_PACKAGE_REGISTERS = java.util.Map.of(
                     "core/src/main/java/com/legend", ROOT_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
+                    "core/src/main/java/com/legend/result", RESULT_CLASSES,
                     "core/src/main/java/com/legend/server",
                     java.util.Set.of("ConnectionResolver.java",
                             "DiagramService.java",
@@ -1501,6 +1604,50 @@ class JavaEvalLedgerTest {
                 "verdict files JUDGE, never COMPUTE (banned at zero, no"
                         + " register — route the computation to the"
                         + " database):" + drift);
+    }
+
+    /** The files that hold a SESSION and never its connection (the result boundary program's track B, B1b,
+     *  2026-10-29): the body driver, the judges and their arms, the seed and error natives, the generator and its
+     *  natives.
+     *  {@code ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc} pins their bytecode to no {@code java.sql}; an
+     *  ArchUnit dependency rule cannot see a {@code .connection()} call chained into a {@code com.legend} callee
+     *  (the B1b audit's finding 2), so the SPELLING is pinned at zero here, in comment-stripped source. */
+    private static final java.util.List<String> SESSION_ONLY_FILES = java.util.List.of(
+            "core/src/main/java/com/legend/BodyDriver.java",
+            "core/src/main/java/com/legend/BodyCompiler.java",
+            "core/src/main/java/com/legend/HostJudge.java",
+            "core/src/main/java/com/legend/DatabaseJudge.java",
+            "core/src/main/java/com/legend/JudgePlans.java",
+            "core/src/main/java/com/legend/AssertVerdicts.java",
+            "core/src/main/java/com/legend/SqlTextVerdicts.java",
+            "core/src/main/java/com/legend/AgreementArm.java",
+            "core/src/main/java/com/legend/VerdictArm.java",
+            "core/src/main/java/com/legend/CsvLoad.java",
+            "core/src/main/java/com/legend/SeedSqlForms.java",
+            "core/src/main/java/com/legend/AssertErrorNative.java",
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java",
+            // 2026-10-29 (the doors): the generator itself -- every statement the plan runner's
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java");
+
+    private static final Pattern CONNECTION_SPELLING = Pattern.compile("\\.connection\\(\\)|java\\.sql\\.");
+
+    @Test
+    void theBodyDriverSpellsNoConnection() throws IOException {
+        StringBuilder drift = new StringBuilder();
+        for (String f : SESSION_ONLY_FILES) {
+            String src = Files.readString(SourceFiles.file(f))
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "");
+            String[] lines = src.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                if (CONNECTION_SPELLING.matcher(lines[i]).find()) {
+                    drift.append("\n  ").append(f).append(":").append(i + 1).append(": ").append(lines[i].strip());
+                }
+            }
+        }
+        assertTrue(drift.length() == 0,
+                "the body driver, the judges and the generator's natives hold a session and never reach its"
+                        + " connection (track B's B1b; banned at zero, no register):" + drift);
     }
 
     @Test

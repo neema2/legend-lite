@@ -3,9 +3,9 @@
 
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -91,9 +91,8 @@ class ResolveDerivedLeafProbeTest {
                 + "->graphFetch(#{q::Product{name, classificationTypeStr()}}#)"
                 + "->serialize(#{q::Product{name, classificationTypeStr()}}#)"
                 + "->from(q::M, q::RT)";
-        ExecutionResult r = Execution.execute(MODEL, query, "q::RT", conn);
-        String json = r instanceof ExecutionResult.Graph g ? g.json()
-                : String.valueOf(r);
+        Lean.Result r = Lean.run(MODEL, query, "q::RT", conn);
+        String json = r.json();
         System.out.println("[derived-leaf] " + json);
         assertEquals("[{\"name\":\"P1\","
                 + "\"classificationTypeStr()\":\"STOCK\"}]", json);

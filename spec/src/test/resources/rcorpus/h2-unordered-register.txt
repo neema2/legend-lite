@@ -6,6 +6,8 @@ unordered-chain meta::relational::tests::advanced::contractmoneyscenario::test1
 unordered-chain meta::relational::tests::advanced::contractmoneyscenario::test2
 unordered-chain meta::relational::tests::advanced::failures::moveFilterInOnClause::failMoveFilterInOnClauseJoin
 unordered-chain meta::relational::tests::advanced::failures::moveFilterInOnClause::failMoveFilterInOnClauseModel
+unordered-chain meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlappForcedCorrelated
+unordered-chain meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlappForcedOnClause
 unordered-chain meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedCorrelated
 unordered-chain meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedOnClause
 unordered-chain meta::relational::tests::advanced::forced::milestoning::testNonMilestoningQueryWithMilestoneFilterProjectForcedCorrelated
@@ -111,6 +113,7 @@ unordered-chain meta::relational::tests::groupBy::testObjectLevelGroupByWTDSLeve
 unordered-chain meta::relational::tests::groupBy::testReprocessGroupByAlias
 unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly1
 unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly2
+unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly3
 unordered-chain meta::relational::tests::groupBy::testUniqueValueOnly4
 unordered-chain meta::relational::tests::map::testAdvancedDerivedProperty
 unordered-chain meta::relational::tests::map::testAdvancedDerivedPropertyThroughAssociation
@@ -129,6 +132,7 @@ unordered-chain meta::relational::tests::map::testFilterPostMapWithObject
 unordered-chain meta::relational::tests::map::testFilterThenMapAndReturnObject
 unordered-chain meta::relational::tests::map::testFilterWithProperty
 unordered-chain meta::relational::tests::map::testGlobalAggregation
+unordered-chain meta::relational::tests::map::testSequenceMapWithConfusingSetImplementation
 unordered-chain meta::relational::tests::map::testSimpleAutoMap
 unordered-chain meta::relational::tests::map::testSimpleDerivedProperty
 unordered-chain meta::relational::tests::map::testSubAggregation
@@ -245,6 +249,7 @@ unordered-chain meta::relational::tests::mapping::filter::testFilterMappingQuery
 unordered-chain meta::relational::tests::mapping::filter::testFilterMappingWithJoin
 unordered-chain meta::relational::tests::mapping::filter::testFilterMappingWithProjectionAndJoin
 unordered-chain meta::relational::tests::mapping::filter::testFilterMappingWithProjectionAndJoinAndQuery
+unordered-chain meta::relational::tests::mapping::filter::testFilterMappingWithProjectionOverlapp
 unordered-chain meta::relational::tests::mapping::groupBy::testGroupByMapping
 unordered-chain meta::relational::tests::mapping::groupBy::testGroupByMappingProjectWithGroupByInJoin
 unordered-chain meta::relational::tests::mapping::groupBy::testGroupByMappingProjectWithJoinAndTableFilter
@@ -255,7 +260,11 @@ unordered-chain meta::relational::tests::mapping::groupBy::testGroupByMappingWit
 unordered-chain meta::relational::tests::mapping::groupBy::testGroupByMappingWithFilterOnAggregateWithProject
 unordered-chain meta::relational::tests::mapping::innerjoin::isolation::testIsolationForFiltersWithoutAliasAndInnerJoins
 unordered-chain meta::relational::tests::mapping::innerjoin::isolation::testIsolationOfInnerJoins
+unordered-chain meta::relational::tests::mapping::join::testChainedInnerJoinsMerge
+unordered-chain meta::relational::tests::mapping::join::testChainedInnerJoinsWithFilterMerge
 unordered-chain meta::relational::tests::mapping::join::testChainedInnerJoinsWithQualifierInGroupBy
+unordered-chain meta::relational::tests::mapping::join::testChainedOuterJoinsWithFilterInproject
+unordered-chain meta::relational::tests::mapping::join::testChainedOuterJoinsWithQualifierInproject
 unordered-chain meta::relational::tests::mapping::join::testConstraintTargetingMultipleJoinsInPropertyMapping
 unordered-chain meta::relational::tests::mapping::join::testConstraintTargetingMultipleJoinsInPropertyMappingNoJoinProperty
 unordered-chain meta::relational::tests::mapping::join::testConvertToStringH2
@@ -314,6 +323,7 @@ unordered-chain meta::relational::tests::mapping::modelJoin::union::testUnionWit
 unordered-chain meta::relational::tests::mapping::multigrain::testProjectPerson
 unordered-chain meta::relational::tests::mapping::multigrain::testToManyWithQualifierWithFilterOnDataType
 unordered-chain meta::relational::tests::mapping::multigrain::testToManyWithQualifierWithFilterOnJoin
+unordered-chain meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMappingOverlap
 unordered-chain meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMappingWithDynaFunction
 unordered-chain meta::relational::tests::mapping::sqlFunction::acos::testFilter
 unordered-chain meta::relational::tests::mapping::sqlFunction::acos::testProject
@@ -332,6 +342,11 @@ unordered-chain meta::relational::tests::mapping::sqlFunction::rem::testProject
 unordered-chain meta::relational::tests::mapping::sqlFunction::sqrt::testFilter
 unordered-chain meta::relational::tests::mapping::sqlFunction::sqrt::testProject
 unordered-chain meta::relational::tests::mapping::subType::testSubTypeMappingValidWhenMappedExplicitly
+unordered-chain meta::relational::tests::mapping::tree::testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner
+unordered-chain meta::relational::tests::mapping::tree::testJoinIsolationDeeper_LeftOuterLeftOuterThenInner
+unordered-chain meta::relational::tests::mapping::tree::testProjectMerge
+unordered-chain meta::relational::tests::mapping::tree::testProjectWithFilter
+unordered-chain meta::relational::tests::mapping::tree::testProjection
 unordered-chain meta::relational::tests::mapping::tree::testProjectionDeeper
 unordered-chain meta::relational::tests::mapping::tree::testProjectionDeeperInlined
 unordered-chain meta::relational::tests::mapping::tree::testQueryWithOr
@@ -636,6 +651,7 @@ unordered-chain meta::relational::tests::projection::filter::testCompressSQLforI
 unordered-chain meta::relational::tests::projection::filter::testSavedRootPropogatedCorrectlyThroughFilter
 unordered-chain meta::relational::tests::projection::function::concatenate::testConcatenateClass
 unordered-chain meta::relational::tests::projection::function::concatenate::testConcatenateClassAgg
+unordered-chain meta::relational::tests::projection::function::concatenate::testConcatenateClassJoin
 unordered-chain meta::relational::tests::projection::function::concatenate::testConcatenateClassMerge
 unordered-chain meta::relational::tests::projection::function::concatenate::testConcatenateFlat
 unordered-chain meta::relational::tests::projection::function::concatenate::testConcatenateFlatWithOtherProperty
@@ -644,6 +660,9 @@ unordered-chain meta::relational::tests::projection::function::concatenate::test
 unordered-chain meta::relational::tests::projection::function::concatenate::testQualifierConcatenateTwoSimilarJoins
 unordered-chain meta::relational::tests::projection::function::concatenate::testQualifierConcatenateTwoSimilarJoinsEmbedded
 unordered-chain meta::relational::tests::projection::function::date::testDayOfMonth
+unordered-chain meta::relational::tests::projection::function::date::testMonthNumberZeroToOne
+unordered-chain meta::relational::tests::projection::function::date::testWeekOfYearWithZeroToOne
+unordered-chain meta::relational::tests::projection::function::date::testYearZeroToOne
 unordered-chain meta::relational::tests::projection::function::testFunctionWithMapAndUnaryMinus
 unordered-chain meta::relational::tests::projection::function::testFunctionWithMapAndUnaryMinusLegacyTds
 unordered-chain meta::relational::tests::projection::function::testNestedPlusFunctionAndMappingDynaFunction
@@ -659,12 +678,16 @@ unordered-chain meta::relational::tests::projection::qualifier::testDerivedWithF
 unordered-chain meta::relational::tests::projection::qualifier::testDerivedWithFilteringTwoProperties
 unordered-chain meta::relational::tests::projection::qualifier::testFilterOnRootTypeWithOrWithFilterInQualifier
 unordered-chain meta::relational::tests::projection::qualifier::testNestedIfWithIsEmpty
+unordered-chain meta::relational::tests::projection::qualifier::testNestedIfWithIsEmptyCanReturnNull
 unordered-chain meta::relational::tests::projection::qualifier::testQualifierBeforeProject
+unordered-chain meta::relational::tests::projection::qualifier::testQualifierFunctionConsistencyWithComplexTypeProperty
+unordered-chain meta::relational::tests::projection::qualifier::testQualifierInLambdaDeep
 unordered-chain meta::relational::tests::projection::qualifier::testQualifierWithFilteringAndParameters
 unordered-chain meta::relational::tests::projection::qualifier::testQualifierWithIsEmptyOnComplexType
 unordered-chain meta::relational::tests::projection::qualifier::testQualifierWithIsNotEmptyOnComplexType
 unordered-chain meta::relational::tests::projection::qualifier::testQualifierWithVariableArgWithComplexTypeProperty
 unordered-chain meta::relational::tests::projection::qualifier::testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall
+unordered-chain meta::relational::tests::projection::qualifier::testTwoQualifiersUsingSameJoinWithNoUserParams
 unordered-chain meta::relational::tests::projection::simple::testRoutingWithSubtypePropagation
 unordered-chain meta::relational::tests::projection::testGroupByWithWindowSubset
 unordered-chain meta::relational::tests::projection::view::testJoinThroughView
@@ -789,6 +812,8 @@ unordered-chain meta::relational::tests::query::qualifier::advanced::projectionI
 unordered-chain meta::relational::tests::query::qualifier::testAssociationSpecifiedQualifiedProperty
 unordered-chain meta::relational::tests::query::qualifier::testNonTrivialQualifierWithDataTypeReturnTypeAsFunctionInput
 unordered-chain meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect
+unordered-chain meta::relational::tests::query::routing::testCompositionInProjectAndNestedFilter
+unordered-chain meta::relational::tests::query::routing::testCompositionInUnion
 unordered-chain meta::relational::tests::query::routing::testEvalFunctionOutputFromFunctionCall
 unordered-chain meta::relational::tests::query::routing::testEvalWithMultipleExpressions
 unordered-chain meta::relational::tests::query::routing::testEvalWithMultipleExpressionsWithFunctionAsVariable

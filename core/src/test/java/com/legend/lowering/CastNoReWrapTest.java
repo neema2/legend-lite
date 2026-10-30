@@ -19,11 +19,8 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 /**
- * M4 §3.3 — the no-re-wrap decision: a LITERAL-marked value is a
- * self-describing Any carrier, so an Any-conformance over it emits NO
- * carrier cast ("labels distinguish carriers, casts never
- * re-carrier"). Decided on the value's STORED type fact — the typed
- * IR's clean read at CastPolicy's variant arm.
+ * CastPolicy's variant arm: an Any-conformance's carrier cast, and the typed NULL of an empty cast. (The no-re-wrap
+ * test over a LITERAL-marked value, M4 §3.3, left with the spelling carrier, track L's L2, 2026-10-29.)
  */
 class CastNoReWrapTest {
 
@@ -33,20 +30,6 @@ class CastNoReWrapTest {
         return new TypedCast(
                 new TypedVariable("v", new ExprType(variant, m)),
                 any, new ExprType(any, m), false);
-    }
-
-    @Test
-    void literalMarkedValueKeepsItsMark() {
-        SqlExpr scalar = new SqlExpr.Cast(new SqlExpr.StringLit("1"),
-                SqlType.Scalar.LITERAL);
-        assertSame(scalar, CastPolicy.lower(
-                anyConformance(Multiplicity.Bounded.ONE), scalar, false, false));
-
-        SqlExpr carried = new SqlExpr.Cast(
-                new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("1"))),
-                new SqlType.Array(SqlType.Scalar.LITERAL));
-        assertSame(carried, CastPolicy.lower(
-                anyConformance(Multiplicity.Bounded.ONE), carried, true, false));
     }
 
     @Test
@@ -65,8 +48,7 @@ class CastNoReWrapTest {
 
     @Test
     void unmarkedValueStillGetsTheCarrierCast() {
-        // the control: without the LITERAL mark the variant arm's
-        // carrier cast emits exactly as before
+        // the variant arm's carrier cast over a plain wire value
         SqlExpr plain = new SqlExpr.Column("t", "c");
         assertInstanceOf(SqlExpr.Cast.class, CastPolicy.lower(
                 anyConformance(Multiplicity.Bounded.ONE), plain, false, false));

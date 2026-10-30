@@ -1,0 +1,64 @@
+// A Float's text three ways, 2026-10-28 (the negative zero, register S117 (S114 until S1.0), and the 0.00010 fix, the start page's
+// S1.4 item 2). Not compiled: run from a scratch directory with the system JDK, `java FloatTextProbe.java`.
+//   before   CellText.pureFloat(double) until b944a42e (zero 0.0 for either sign; BigDecimal.valueOf's layout)
+//   now      CellText.pureFloat(double) at b944a42e (Double.toString; an exponent laid out by BigDecimal)
+//   fix      the ruled 0.00010 fix (the mantissa's trailing zero stripped before the layout), built 2026-10-28 (S1.4)
+//   pure     legend-pure 5.99.0's CompiledSupport.primitiveToString(double), copied from its source
+// Answers measured 2026-10-28 (JDK 21):
+//   1.0E-4     before 0.00010   now 0.00010   fix 0.0001     pure 0.0001
+//   1.0E-5     before 0.000010  now 0.000010  fix 0.00001    pure 0.00001
+//   2.0E-5     before 0.000020  now 0.000020  fix 0.00002    pure 0.00002
+//   1.2345E-5  0.000012345 in all four;  4.9E-324 (the smallest double) the same 327 characters in all four
+//   -1.0E-4    before -0.00010  now -0.00010  fix -0.0001    pure -0.0001
+//   1.0E7      10000000.0 in all four;  1.5E15  1500000000000000.0 in all four;  2.5E-7  0.00000025 in all four
+//   0.001, 0.1, a third: Double.toString's digits in all four
+//   -0.0       before 0.0       now -0.0      fix -0.0       pure 0.0   (lite's own outputs keep the sign: S117)
+//   NaN, -Infinity: Java's names in before, now and fix
+import java.math.BigDecimal;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
+import java.util.Locale;
+
+public class FloatTextProbe {
+    static String before(double d) {
+        if (!Double.isFinite(d)) return Double.toString(d);
+        if (d == 0.0) return "0.0";
+        String p = BigDecimal.valueOf(d).toPlainString();
+        return p.contains(".") ? p : p + ".0";
+    }
+
+    static String now(double d) {
+        String s = Double.toString(d);
+        if (s.indexOf('E') < 0) return s;
+        String p = new BigDecimal(s).toPlainString();
+        return p.contains(".") ? p : p + ".0";
+    }
+
+    static String fix(double d) {
+        String s = Double.toString(d);
+        if (s.indexOf('E') < 0) return s;
+        String p = new BigDecimal(s).stripTrailingZeros().toPlainString();
+        return p.contains(".") ? p : p + ".0";
+    }
+
+    static final DecimalFormat PURE;
+    static {
+        DecimalFormat f = new DecimalFormat("0.0", DecimalFormatSymbols.getInstance(Locale.ENGLISH));
+        f.setMaximumFractionDigits(340);
+        PURE = f;
+    }
+
+    static String pure(double d) {
+        return d == 0.0 ? "0.0" : PURE.format(d);
+    }
+
+    public static void main(String[] a) {
+        double[] xs = {0.0, -0.0, 1.0, -1.5, 0.1, 1.0 / 3, 1e-4, 1e-5, 2e-5, 1.2345e-5, -1e-4, 0.001, 2.5e-7, 1e7, 1.5e15,
+                123456789.125, Double.MIN_VALUE, Double.NaN, Double.NEGATIVE_INFINITY};
+        for (double x : xs) {
+            String p = Double.isFinite(x) ? pure(x) : "-";
+            System.out.println(Double.toString(x) + "  before=" + before(x) + "  now=" + now(x) + "  fix=" + fix(x)
+                    + "  pure=" + p);
+        }
+    }
+}

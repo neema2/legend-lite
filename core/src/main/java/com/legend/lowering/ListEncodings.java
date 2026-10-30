@@ -144,8 +144,11 @@ final class ListEncodings {
                             new SqlExpr.ArrayLit(List.of()))), singleton)
                     : singleton;
         }
-        SqlExpr transformed = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                listSrc, SqlExpr.Lambda.bind(lam, listSrc));
+        // a mixed list (track L; the L1 audit, 2026-10-29): the transform ranges over its positions, the lambda's
+        // parameter the element there (LambdaBinding.mapElemResolver)
+        SqlExpr transformed = listSrc instanceof SqlExpr.TaggedList tl
+                ? TaggedLists.map(tl, (SqlExpr.Lambda) lam)
+                : SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, listSrc, SqlExpr.Lambda.bind(lam, listSrc));
         if (srcOne && resultOne) {
             SqlExpr applied = SqlExpr.Call.of(SqlFn.LIST_GET, transformed,
                     new SqlExpr.IntLit(1));

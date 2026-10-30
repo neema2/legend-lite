@@ -785,32 +785,21 @@ what stands alone.
 **Anchor.** `PARK-32` in `datacube/src/headless/grid.ts` (`gridExport`) (ParkedWorkLedgerTest reads core only; checked
 by hand).
 
-## PARK-34 — an execute over a column whose relational spelling is unprobed is refused
+## PARK-34 — CLOSED 2026-10-28: an execute over a Variant column answers legend-engine's builder
 
-**Recorded** 2026-10-13 by the DataCube + Python line, with C1 (`docs/ONE_PLATFORM_PROGRAM_2026_10_12.md`: the tab's
-execute answered by the Java the server and Python use; its audit). Execute's TDS answer names each column's relational
-type (`builder.columns[].relationalType`, `UpstreamRelationType.relationalSpelling`), which knows the spellings measured
-against legend-engine 4.145.0 -- Integer, Float, Decimal, Number, String, Boolean, StrictDate, DateTime, Date and
-enumerations -- and refuses any other ("the relational spelling of ... is unprobed").
+**Closed** by the probe it asked for (`docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md`, stage 1 step 3): legend-engine
+4.145.0 run over a relation with a `SEMISTRUCTURED` column (`tools/engine-runner`'s jars; its PlanGenerator,
+PlanExecutor and the DEFAULT serializer `pure/v1/execution/execute` writes with). Its builder spells a Variant column
+`{"type":"meta::pure::metamodel::variant::Variant","relationalType":"SEMISTRUCTURED"}`, a store column's and a computed
+`toVariant()`'s alike, and the same tdsColumns plan on H2; each cell is a string holding the value's JSON. Recorded in
+`core/src/test/resources/upstream-api/` (`e8-variant-column.json`, `e8-variant-computed.json`, `variant-probe.pure`);
+`UpstreamRelationType.relationalSpelling` answers it; `result/CellText.engine` writes the cell as a string (it wrote the
+JSON itself, unprobed), the JSON's numbers in the database's digits where the engine's library re-spells them
+(`docs/SEMANTICS_REGISTER.md` S115). The acceptance, `PureV1ApiTest.e8_execute_aVariantColumn_isTheEnginesBuilder_itsCellsStringsOfJson`.
+Every other type a relation can have was asked the same day: the engine has no spelling for a StrictTime, a list or a
+`VARBINARY` column (it refuses each query before executing), so lite's refusal of them is the engine's outcome, said so.
 
-**What happens today.** An execute whose result has a column of another type -- a Variant (a `SEMISTRUCTURED` store
-column) is the one a page meets -- is refused 500, on legend-lite's server since E8 and in the tab since C1: before C1
-the tab typed its rows itself and never asked the spelling, so such a query ran there. Python's ARROW_IPC answer names
-the same builder, so it refuses alike. Planning (DataCube's grids, `planJson`) is not affected.
-
-**The fix.** Ask legend-engine what its TDS builder spells a Variant column (and each other type a store column can
-have that is not measured), and add it to `relationalSpelling` beside the others, with the probe's date.
-
-**Acceptance.** `PureV1ApiTest`: an execute over a Variant column answers the engine's builder, its relationalType the
-probed spelling; `//datacube:python_execute_test` and the tab agree on it.
-
-**Why parked.** It needs legend-engine run (the L line's), and refusing an unmeasured spelling is the rule (do not
-guess); C1 moved the tab onto the server's answer, which already refused it.
-
-**When.** With L1 (the differential against legend-engine), which runs the engine.
-
-**Anchor.** `is unprobed -- probe legend-engine, do not guess` in `core/src/main/java/com/legend/plan/UpstreamRelationType.java`
-(ParkedWorkLedgerTest).
+---
 
 ## PARK-36 — a page on Python reads a query's rows whole, never as they come
 

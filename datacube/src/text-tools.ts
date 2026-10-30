@@ -7,7 +7,8 @@
 //   Text To Columns   a text column split on a delimiter into its first N parts: `splitPart`, a column a part -- or
 //                     into rows: every part its own row (`split`, exploded: one column, each row once a part)
 //   RegEx             a pattern over a text column: whether it matches (`regexpLike`), the text with each match
-//                     replaced (`regexpReplace`), or its first match (`regexpExtract`)
+//                     replaced (`regexpReplace`), its first match (`regexpExtract`), or each match its own row
+//                     (Alteryx's Tokenize: every match, `regexpExtract`'s all, exploded)
 //   Data Cleansing    text columns tidied, a column each: empties made blank (`coalesce`), punctuation taken out,
 //                     repeated spaces made one (`regexpReplace`), the ends trimmed (`trim`), the case changed
 //
@@ -19,8 +20,9 @@
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { DerivedColumn } from './snapshot.ts';
 
-/** How a RegEx tool reads its pattern: a true/false column, the text with its matches replaced, or its first match. */
-export type RegexMode = 'match' | 'replace' | 'extract';
+/** How a RegEx tool reads its pattern: a true/false column, the text with its matches replaced, its first match, or
+ *  each match its own row (a value with no match, no row). */
+export type RegexMode = 'match' | 'replace' | 'extract' | 'tokenize';
 
 /** What Data Cleansing does to each column it is given. */
 export interface Cleansing {
@@ -92,6 +94,14 @@ export function textToolOf(d: DerivedColumn): TextToolSaid | undefined {
     const column = read(blanked);
     const on = text(second);
     return column !== undefined && on !== undefined ? { tool: 'textToColumns', says: `${column} split on '${on}' to rows` } : undefined;
+  }
+  // each match its own row: every match of its text (an empty one blank), exploded
+  if (top.function === 'regexpExtract' && d.unnest === true) {
+    const blanked = first?._type === 'func' && first.function === 'coalesce' && first.parameters.length === 2
+      && text(first.parameters[1]) === '' ? first.parameters[0] : first;
+    const column = read(blanked);
+    const on = text(second);
+    return column !== undefined && on !== undefined ? { tool: 'regex', says: `/${on}/ of ${column} to rows` } : undefined;
   }
   // a pattern straight over a column
   const inner = top.function === 'first' && first?._type === 'func' && first.function === 'regexpExtract' ? first : top;

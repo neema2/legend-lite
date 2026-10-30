@@ -3,7 +3,7 @@
 
 package com.legend.testcases;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import com.legend.json.Json;
 import com.legend.protocol.sql.SqlLexer;
 import com.legend.protocol.sql.SqlSyntaxException;
@@ -459,18 +459,23 @@ public final class SqlParity {
         return new Grid(columns, rows);
     }
 
-    /** A legend-lite result. */
-    public static Grid grid(ExecutionResult result) {
-        if (result instanceof ExecutionResult.Scalar s) {
+    /** A legend-lite result, read as the twin reads lite's JSON rows ({@link Lean}). */
+    public static Grid grid(Lean.Result result) {
+        Integer upper = result.columns().size() == 1 ? result.columns().get(0).multiplicity().upper() : null;
+        if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE && upper != null && upper <= 1) {
             // (a statement that writes a table: its count of rows, as Postgres's update count is read)
-            return new Grid(List.of("count"), List.of(java.util.Collections.singletonList(cell(s.value()))));
+            return new Grid(List.of("count"), List.of(java.util.Collections.singletonList(cell(result.value()))));
         }
         List<String> columns = result.columns().stream().map(c -> c.name()).toList();
         List<List<Object>> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<Object> cells = new ArrayList<>();
-            for (Object v : row.values()) {
-                cells.add(cell(v));
+            for (int i = 0; i < row.size(); i++) {
+                Object v = row.get(i);
+                // a Variant's cell is its JSON text (the twin's reader, rule 4; the typed rows' carrier since the
+                // result boundary program's phase 5, 2026-10-27)
+                cells.add(v instanceof String json && result.columns().get(i).type().equals(
+                        com.legend.result.RowDecode.VARIANT) ? JsonValue.ofNonFinite(json) : cell(v));
             }
             rows.add(cells);
         }
@@ -574,9 +579,9 @@ public final class SqlParity {
         }
 
         /** A JSON text that may hold a double that is not finite as a bare token, as DuckDB's JSON writes one
-         *  ({@link NonFiniteJson}). */
+         *  ({@link com.legend.exec.NonFiniteJson}). */
         static JsonValue ofNonFinite(String text) {
-            return new JsonValue(canonical(NonFiniteJson.parse(text)));
+            return new JsonValue(canonical(com.legend.exec.NonFiniteJson.parse(text)));
         }
 
         private static String canonical(Json.Node n) {
@@ -589,7 +594,7 @@ public final class SqlParity {
                 }
                 case Json.Arr a -> "[" + String.join(",", a.items().stream().map(JsonValue::canonical).toList()) + "]";
                 case Json.Str str -> Json.toCompact(str.value());
-                case Json.Num num when num.decimalValue() == null && num.token() == null
+                case Json.Num num when !num.isInteger() && num.decimalValue() == null
                         && !Double.isFinite(num.doubleValue()) -> Double.isNaN(num.doubleValue()) ? "NaN"
                                 : num.doubleValue() > 0 ? "Infinity" : "-Infinity";
                 case Json.Num num -> {
@@ -1015,7 +1020,7 @@ public final class SqlParity {
     /** Runs an island ({@code #SQL{...}#}) through legend-lite. */
     @FunctionalInterface
     public interface Legend {
-        ExecutionResult run(String island) throws Exception;
+        Lean.Result run(String island) throws Exception;
 
         /** Begins a transaction a writing case runs in ({@link #rollback} ends it). */
         default void begin() throws Exception {

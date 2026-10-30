@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""The old door's census of core's tests (track T's counting rule, 2026-10-29, revised after the T-b audit): every
+line under core/src/test/java that names the old door or its result -- `Execution.execute(`, `Execution.executeResolved(`,
+`ExecutionResult`, or the query service's MATERIALIZED execute by any receiver (`qs.execute(`, `queryService.execute(`,
+`service.execute(`, `new QueryService().execute(`), which returns it. A line of the service's writer or stream doors
+(an `OutputFormat` or an `out` argument) is not the old door. A file counts when it has such a line. Run from the
+repository root: python3 -I docs/result-boundary-homework/probes/old_door_census.py.txt"""
+import os
+import re
+import sys
+
+ROOT = "core/src/test/java/com/legend/"
+LINE = re.compile(r"Execution\.execute\(|Execution\.executeResolved\(|ExecutionResult"
+                  r"|\b(?:qs|queryService|service)\.execute\(|new QueryService\(\)\.execute\(")
+NOT_THE_DOOR = re.compile(r"OutputFormat|,\s*out\)|,\s*out,")
+
+by_package = {}
+files = {}
+for d, _, names in os.walk(ROOT):
+    for n in sorted(names):
+        if not n.endswith(".java"):
+            continue
+        p = os.path.join(d, n)
+        hits = []
+        with open(p, encoding="utf-8") as f:
+            for i, line in enumerate(f, 1):
+                if LINE.search(line) and not NOT_THE_DOOR.search(line):
+                    hits.append(i)
+        if hits:
+            rel = p[len(ROOT):]
+            files[rel] = hits
+            pkg = os.path.dirname(rel) or "(root)"
+            by_package[pkg] = by_package.get(pkg, 0) + 1
+print("files:", len(files), "lines:", sum(len(h) for h in files.values()))
+for pkg, c in sorted(by_package.items(), key=lambda kv: (-kv[1], kv[0])):
+    print("  %-22s %d" % (pkg, c))
+if "-v" in sys.argv:
+    for rel, hits in sorted(files.items()):
+        print(rel, hits)

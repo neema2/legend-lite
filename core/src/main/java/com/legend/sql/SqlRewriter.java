@@ -279,6 +279,16 @@ public abstract class SqlRewriter {
                 }
                 yield same ? t : t.withChildren(cs);
             }
+            case SqlExpr.TaggedList tl -> {
+                java.util.List<SqlExpr> cs = new java.util.ArrayList<>();
+                boolean same = true;
+                for (SqlExpr c : tl.children()) {
+                    SqlExpr r = rewriteExpr(c);
+                    same &= r == c;
+                    cs.add(r);
+                }
+                yield same ? tl : tl.withChildren(cs);
+            }
             case SqlExpr.ScalarSubquery sq -> {
                 SqlQuery sub = rewrite(sq.subquery());
                 yield sub == sq.subquery() ? sq

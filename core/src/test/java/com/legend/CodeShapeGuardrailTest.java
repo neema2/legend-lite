@@ -50,6 +50,10 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON
+            // with its non-finite tokens moved here from the parity harnesses' test sources): one parse's position,
+            // the instance one parse's and never shared
+            "NonFiniteJson.at",
             // (Lowerer.relationDepth row DELETED 2026-08-24 — the audit
             // found the counter write-only; the allowlist justification
             // was a rationalization, exactly what this guardrail is for)
@@ -75,6 +79,11 @@ class CodeShapeGuardrailTest {
             // carry a second render of its chain, computed on the first
             // read and kept — set once, never reassigned after
             "LazyRows.computed",
+            // a session's write mark (2026-10-29, the result boundary program's track B, B1b): set when a writing
+            // statement is about to run on the session, cleared when its seeds are re-established; the same
+            // lifecycle as the session's connection (SessionState lives in a weak map keyed by it). The body
+            // driver's nested Established.dirty before, moved to the seam
+            "SessionState.dirty",
             // the SEGMENT WALK's state object (block-compiler stage 3, 2026-09-21):
             // the open effect segment — its sink and the ordinals of the body's
             // statements it spans — and whether the last statement was a value;
@@ -100,6 +109,27 @@ class CodeShapeGuardrailTest {
             // array's comma before every row but the first -- the Json.awaitingFieldValue shape, scoped to one
             // result write (PlanRunner.TextSink)
             "PlanRunner.first",
+            // a typed result streamed to its sink (2026-10-27, the result boundary program's R8): the batch being
+            // filled (its row count, built once), the batcher's open batch, the collector's end, and the runner's
+            // columns-sent cursor -- each scoped to one result's stream, the Json.awaitingFieldValue shape
+            "Batch.size", "Batch.built", "Batcher.builder", "Batcher.started", "Batcher.ended",
+            "Collector.columns", "Collector.ended", "PlanRunner.started", "PlanRunner.streamed",
+            "PlanRunner.columns",
+            // the writers at the edge (2026-10-27, the result boundary program's phase 2): each sink's columns as the
+            // stream announced them, and the cursor of what it has written (the first row's comma, the row count, a
+            // graph fetch's first object) -- scoped to one result's stream, as the batcher's
+            "CsvWriter.columns", "JsonRowsWriter.columns", "JsonRowsWriter.first", "PureV1Writer.columns",
+            // the Arrow writer's encoders, one per column, made when the columns are announced and read per batch
+            // (track A, 2026-10-29): the sink protocol's state, as the other writers' columns are
+            "ArrowWriter.encoders",
+            "PureV1Writer.order", "PureV1Writer.rows",
+            // legend-engine's PURE_TDSOBJECT writer (the doors, door 1, 2026-10-29): the same cursor shape -- its
+            // columns as announced, whether the one value column is to-one, the row count for the comma and the
+            // to-one refusal
+            "TdsObjectsWriter.columns", "TdsObjectsWriter.toOne", "TdsObjectsWriter.rows",
+            // the streamed answer's cardinality sink (JudgePlans.Cardinality, the doors, door 1, 2026-10-29): the rows
+            // seen so far on their way to the writer, the same cursor shape, scoped to one answer's stream
+            "JudgePlans.rows",
             // parser cursors + scope state
             "Lexer.pos", "Lexer.islandDepth", "Lexer.types", "Lexer.starts",
             "Lexer.ends", "Lexer.count",
