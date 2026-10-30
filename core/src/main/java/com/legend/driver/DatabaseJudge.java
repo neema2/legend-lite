@@ -597,7 +597,8 @@ final class DatabaseJudge {
             return runVerdict(fqn, true, com.legend.lowering.VerdictSql.allOf(vector.rows(false),
                     wantTrue), vector.on(env));
         }
-        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
+                com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
                 SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             SideRows vector = planSide(predMap, false, letPrefix, specs, env, hook);
             if (vector.why() != null) {

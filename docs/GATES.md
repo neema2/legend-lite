@@ -16583,6 +16583,52 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's step after S2f: the quantified assert judged from one read; the unroll reads nothing; the dead if site gone
+
+The decisions log D85; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (the deferred asserts, the step
+S2f's ruling named). The user's go of 2026-10-30: "Let's do everything 1-6 and then do everything else we need to
+fully sever - keep going don't stop until completely severed".
+
+1. **Measured first (temporary prints, reverted):** of the 172 quantified unrolls on the DuckDB host pass (the same
+   172 on H2), 139 are `assert` with a computed message over a computed collection, 16 `assertEquals` over a literal
+   collection, 8 nested quantifications over an instance literal, 8 `assert` with a computed message over a literal
+   collection, 1 `assertEqWithinTolerance` under the vector contract; of these, THREE reach the database through the
+   unroll's fetch hook: two fetch a bare integer literal (folded, nothing sent) and ONE reads a zip's relation arm
+   (`stringToFloat::testProject`: `[123.456, 100.001]->zip($result...rows.values)->forAll(pair |
+   assertEqWithinTolerance(...))`). The other 169 rearrange the program's spelled tokens, which the world-map tenet
+   allows. The two-branch-if site in the router fired 0 times on both host passes (`assertEqualsH2Compatible`'s body
+   is the engine-text assert family's, S2i's).
+2. **Built:** `HostJudge.quantifiedRows`, the host arm's `quantifiedVector` (it declined by design until now): under
+   the vector contract, `assert`/`assertFalse` are judged from the predicate vector the database computes (every row
+   true; "Assert failed" on the first that is not: the element arm's own words), `assertEquals` and
+   `assertEqWithinTolerance` from the zip's rows read ONCE, each row judged as the element arm judges it
+   (`PureAsserts`: the same decision, the same message), the arguments a row's field (through a cast) or a literal and
+   anything else refused by name -- the host judge evaluates nothing. `VerdictArm.quantifiedVector` carries the
+   source, the lambda and the element assert; the agreement arm passes them. `VerdictQueries.unrollElements` takes no
+   fetch hook: a zip arm is a literal collection or a bare literal, and an arm the database would answer is null (the
+   vector form's, or loud); `literalSpec` (a database value as a literal spec) and `HostJudge.sideCells` deleted. The
+   router's two-branch-if site and its `branchStatement` deleted (dead on every lane). The ledger's line pins moved,
+   dated: `HostJudge` 817 -> 956 (item 3), `AssertVerdicts` 1242 -> 1221, `DatabaseJudge` 595 -> 596.
+3. **Found by the oracle and fixed before the commit:** the first cut read the whole zip as ONE value side, which the
+   lowering refuses for a zip over a table's row values ("a row value has no SQL carrier yet"): the host pass newly
+   failed `stringToFloat::testProject` (the database pass held it, so the database lane's register asked for a new
+   "gained" line -- never accepted: a newly failing test is a regression). The row form now reads each zip arm as its
+   own side of ONE group (a literal arm folded, nothing sent; a grid arm its row-major cells, as `$tds.rows.values`
+   reads) and pairs them by position, stopped at the shorter arm: zip's own rule, the pairing the unroll did. The
+   ledger's `HostJudge` pin moved 817 -> 956 for it, dated (it replaces the unroll's database fetch and the compiler's
+   literal re-spelling, both deleted).
+4. **Pinned:** `QuantifiedRowsTest` (the three families over a zip, passing and failing with the arm's own message;
+   an argument that is neither a field nor a literal refused by name).
+5. **Measured locally before the commit:** the eight fast lanes (driver, judge, exec, root, planner, census,
+   guardrails, layering) green; then `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//gates:pct_channel_b`,
+   `//core:core_tests_integration` with the census and the lanes again: 24 of 24, **zero roster movement** (every
+   roster and register file identical), the five channel B censuses the committed lines, the database passes' censuses
+   equal to S2f's to the statement. **What moved, explained, not a verdict:** the host passes' adjudication count for
+   `assertEqWithinTolerance` 11 -> 9 (DuckDB) and 10 -> 8 (H2) -- `stringToFloat::testProject`'s two elements are
+   judged in one row read instead of two unrolled adjudications -- and their statements `other` 6,222 -> 6,217
+   (DuckDB) and 5,796 -> 5,791 (H2): the unroll's database fetch and its re-planned element statements gone, one read
+   of the zip's grid arm in their place.
+
 ## 2026-10-30 — The seam program's S2f: the host judge's sides as a verdict step's base through the plan runner; the constant side and the fold ruled
 
 The decisions log D83 (the rulings) and D84 (built); the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3

@@ -221,12 +221,11 @@ final class AgreementArm implements VerdictArm {
     }
 
     @Override
-    public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap,
-            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        // the host arm fetches and unrolls by design (null here): the quantified arm then judges both
-        return agree(fqn, env, () -> host.quantifiedVector(fqn, predMap, letPrefix, specs, env, hook),
-                () -> database.quantifiedVector(fqn, predMap, letPrefix, specs, env, hook));
+    public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
+            com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return agree(fqn, env, () -> host.quantifiedVector(fqn, predMap, source, lam, root, letPrefix, specs, env, hook),
+                () -> database.quantifiedVector(fqn, predMap, source, lam, root, letPrefix, specs, env, hook));
     }
 
     @Override

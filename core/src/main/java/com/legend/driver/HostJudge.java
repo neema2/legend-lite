@@ -25,17 +25,6 @@ final class HostJudge {
     private HostJudge() {
     }
 
-    /** A zip arm's values: a flat-cells arm ({@code $tds.rows.values})
-     * contributes its row-major cells — the same cell view the grid
-     * verdicts read; any other side decodes as a value list. */
-    static List<Object> sideCells(TypedSpec arm, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        TypedSide r = JudgePlans.evalSide(arm, letPrefix,
-                specs, env, false, true, hook);
-        return r instanceof TypedSide.Tabular t ? AssertVerdicts.cells(t) : AssertVerdicts.decodeSide(r);
-    }
-
     static TypedSide finish(String family, boolean wantEqual,
             boolean hostHeld, @com.legend.base.Nullable Boolean byteHeld,
             String detail,
@@ -832,9 +821,10 @@ final class HostJudge {
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.quantified(fqn, predMap, wantTrue, message, letPrefix, specs, env, hook);
         }
-        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
+                com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
                 SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return null;   // the host judge fetches and unrolls, by design
+            return HostJudge.quantifiedRows(fqn, predMap, source, lam, root, letPrefix, specs, env, hook);
         }
         @Override public TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -1016,6 +1006,177 @@ final class HostJudge {
             }
         }
         return AssertVerdicts.ok();
+    }
+
+    /**
+     * A quantified assert under the vector contract, judged by the host from ONE read (the seam program's step after
+     * S2f, 2026-10-30; until then the host fetched a zip's arm into Java and unrolled one statement per element):
+     * {@code assert}/{@code assertFalse} over the predicate vector the database computes, every row true
+     * (the element arm's own words, "Assert failed", on the first that is not); {@code assertEquals} and
+     * {@code assertEqWithinTolerance} over the rows themselves, each row judged as the element arm judges it
+     * ({@link com.legend.judge.PureAsserts}: the same decision, the same message), the arguments the row's fields
+     * (through a cast) or literals -- any other argument is refused by name, never evaluated here. Null: another
+     * family (the unroll over literal elements continues).
+     */
+    static @com.legend.base.Nullable TypedSide quantifiedRows(String fqn, TypedSpec predMap, TypedSpec source,
+            com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        com.legend.builtin.NativeFn.Verdict family = com.legend.builtin.NativeFn.Verdict
+                .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).orElse(null);
+        List<TypedSpec> args = com.legend.compiler.spec.typed.Calls.argsOf(root);
+        boolean isAssert = family == com.legend.builtin.NativeFn.Verdict.ASSERT;
+        boolean isAssertFalse = family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
+        if (isAssert || isAssertFalse) {
+            List<Object> verdicts = AssertVerdicts.decodeSide(
+                    sides(fqn, List.of(identityAsk(predMap, hook)), letPrefix, specs, env).get(0));
+            for (Object v : verdicts) {
+                if (Boolean.TRUE.equals(v) != isAssert) {
+                    return AssertVerdicts.fail("Assert failed");
+                }
+            }
+            return AssertVerdicts.ok();
+        }
+        boolean isEquals = family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS;
+        boolean isTolerance = family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE;
+        if (!isEquals && !isTolerance) {
+            return null;
+        }
+        String binder = lam.parameters().get(0);
+        List<Object> rows = rowsOf(fqn, source, letPrefix, specs, env, hook);
+        if (rows == null) {
+            return null;
+        }
+        for (Object row : rows) {
+            Object e = rowValue(args.get(0), binder, row, fqn);
+            Object a = rowValue(args.get(1), binder, row, fqn);
+            String d = isTolerance
+                    ? com.legend.judge.PureAsserts.assertEqWithinTolerance(number(e, fqn), number(a, fqn),
+                            number(rowValue(args.get(2), binder, row, fqn), fqn))
+                    : com.legend.judge.PureAsserts.assertEquals(
+                            java.util.Collections.singletonList(e), java.util.Collections.singletonList(a),
+                            args.get(0).info().type(), args.get(1).info().type());
+            if (d != null) {
+                return AssertVerdicts.fail(d);
+            }
+        }
+        return AssertVerdicts.ok();
+    }
+
+    /** The quantified assert's rows: a zip's arms each read as a side of ONE group (a literal arm folded, nothing
+     *  sent; a grid arm its row-major cells, as {@code $tds.rows.values} reads), paired by position and stopped at the
+     *  shorter arm -- zip's own rule (zip.pure), the pairing the unroll did, orchestration and no computation; a
+     *  relation source its rows as records by column name. Null: another source (the unroll continues). */
+    private static @com.legend.base.Nullable List<Object> rowsOf(String fqn, TypedSpec source, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        List<TypedSpec> arms = new java.util.ArrayList<>();
+        zipArms(com.legend.compiler.spec.typed.Lets.bound(source, letPrefix), letPrefix, arms);
+        if (arms.size() == 1) {
+            TypedSide only = sides(fqn, List.of(valueAsk(source, hook)), letPrefix, specs, env).get(0);
+            if (!(only instanceof TypedSide.Tabular t)) {
+                return null;
+            }
+            List<Object> records = new java.util.ArrayList<>(t.rows().size());
+            for (com.legend.judge.Row r : t.rows()) {
+                java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                for (int i = 0; i < t.columns().size(); i++) {
+                    m.put(t.columns().get(i).name(), r.values().get(i));
+                }
+                records.add(m);
+            }
+            return records;
+        }
+        List<HostSides.Ask> asks = new java.util.ArrayList<>(arms.size());
+        for (TypedSpec arm : arms) {
+            asks.add(valueAsk(arm, hook));
+        }
+        List<TypedSide> read = sides(fqn, asks, letPrefix, specs, env);
+        List<List<Object>> values = new java.util.ArrayList<>(read.size());
+        for (TypedSide r : read) {
+            values.add(r instanceof TypedSide.Tabular t ? AssertVerdicts.cells(t) : AssertVerdicts.decodeSide(r));
+        }
+        int[] next = {0};
+        return paired(com.legend.compiler.spec.typed.Lets.bound(source, letPrefix), letPrefix, values, next);
+    }
+
+    /** The arms of a (nested) zip, left to right; a source that is no zip is its own one arm. */
+    private static void zipArms(TypedSpec source, List<TypedSpec> letPrefix, List<TypedSpec> out) {
+        if (source instanceof com.legend.compiler.spec.typed.TypedNativeCall z
+                && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(z.callee().qualifiedName())
+                && z.args().size() == 2) {
+            for (TypedSpec arm : z.args()) {
+                TypedSpec bound = com.legend.compiler.spec.typed.Lets.bound(arm, letPrefix);
+                if (bound instanceof com.legend.compiler.spec.typed.TypedNativeCall inner
+                        && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(
+                                inner.callee().qualifiedName())) {
+                    zipArms(bound, letPrefix, out);
+                } else {
+                    out.add(arm);
+                }
+            }
+            return;
+        }
+        out.add(source);
+    }
+
+    /** The zip's pairs over the arms' values read in {@link #zipArms}' order: each pair a record of {@code first} and
+     *  {@code second} (a Pair's two properties), stopped at the shorter arm. */
+    private static List<Object> paired(TypedSpec source, List<TypedSpec> letPrefix, List<List<Object>> values,
+            int[] next) {
+        com.legend.compiler.spec.typed.TypedNativeCall z = (com.legend.compiler.spec.typed.TypedNativeCall) source;
+        List<Object> left = armValues(z.args().get(0), letPrefix, values, next);
+        List<Object> right = armValues(z.args().get(1), letPrefix, values, next);
+        int n = Math.min(left.size(), right.size());
+        List<Object> out = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            java.util.Map<String, Object> pair = new java.util.LinkedHashMap<>();
+            pair.put("first", left.get(i));
+            pair.put("second", right.get(i));
+            out.add(pair);
+        }
+        return out;
+    }
+
+    private static List<Object> armValues(TypedSpec arm, List<TypedSpec> letPrefix, List<List<Object>> values,
+            int[] next) {
+        TypedSpec bound = com.legend.compiler.spec.typed.Lets.bound(arm, letPrefix);
+        if (bound instanceof com.legend.compiler.spec.typed.TypedNativeCall inner
+                && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(inner.callee().qualifiedName())) {
+            return paired(bound, letPrefix, values, next);
+        }
+        return values.get(next[0]++);
+    }
+
+    /** An element assert's argument read off the row: the binder itself, one of its fields (a Pair's {@code first}
+     *  or {@code second}), either through a cast, or a literal. */
+    private static @com.legend.base.Nullable Object rowValue(TypedSpec arg, String binder, Object row, String fqn) {
+        return switch (arg) {
+            case com.legend.compiler.spec.typed.TypedCast c -> rowValue(c.source(), binder, row, fqn);
+            case com.legend.compiler.spec.typed.TypedVariable v when v.name().equals(binder) -> row;
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                    when pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                            && v.name().equals(binder) -> {
+                if (!(row instanceof java.util.Map<?, ?> m) || !m.containsKey(pa.property())) {
+                    throw new com.legend.error.NotImplementedException(fqn + ": the quantified assert's row holds no"
+                            + " field '" + pa.property() + "': " + row);
+                }
+                yield m.get(pa.property());
+            }
+            case com.legend.compiler.spec.typed.TypedCString l -> l.value();
+            case com.legend.compiler.spec.typed.TypedCInteger l -> l.value();
+            case com.legend.compiler.spec.typed.TypedCFloat l -> l.value();
+            case com.legend.compiler.spec.typed.TypedCBoolean l -> l.value();
+            default -> throw new com.legend.error.NotImplementedException(fqn + ": a quantified assert over database"
+                    + " rows takes a row's field or a literal as an argument, not " + arg.getClass().getSimpleName()
+                    + " (the host judge evaluates nothing)");
+        };
+    }
+
+    private static Number number(@com.legend.base.Nullable Object v, String fqn) {
+        if (v instanceof Number n) {
+            return n;
+        }
+        throw new com.legend.error.NotImplementedException(fqn + ": assertEqWithinTolerance over a row whose value is"
+                + " not a number: " + v);
     }
 
     /** The cell-pool multiset of the sorted flat-cells idiom: a grid side's cells against
