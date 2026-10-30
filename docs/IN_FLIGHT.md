@@ -3331,3 +3331,22 @@ Status lives in the plan's Progress table (rule 0b.16).
   - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: kept consistent
     with the split of `55-canonical-store.pure` (it stays excluded for its Money measure alone), and
     `8115-m2m-gaps.pure` and `94-gap-services.pure` excluded, each refusal with a case of its own.
+- **Phase 6 (started 2026-10-30): relation (`~func`) mappings.** `stress_test/corpus` was rebased onto `upstream/main`
+  (`efff04068`) first, with no conflicts. It lands in stages, each committed when green. Inside the owned files: a
+  hand-written `relmap::` pack, `8116-relmap.pure` (relation class mappings over tables that already have seed rows,
+  one or more per relation-mapping feature: `~src`, a filter, a group-by and a window function in the source relation,
+  expression right-hand sides, a primary key, a local property, embedded and inline embedded, a union, a binding
+  transformer, a model join and an XStore association, with relationally mapped twins over the same tables and
+  runtimes); a generator `scripts/corpus/relmap.py` writing a new generated file `99-relmap-services.pure`
+  (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON, `scripts/corpus/BUILD.bazel`'s module lists), each
+  relation-mapped service with a relational twin in `battery.INVARIANCE_GROUPS` where the feature allows, and the
+  oracle's `RELATION_IMPL` evaluating a `~func` body where it does not; `model.py` (the pack's relation mappings
+  skipped, as `modeljoin::JoinMapping` is), `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`,
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. No seed change is planned.
+- **Cross-area, Phase 6 (announced 2026-10-30, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (seventeen to eighteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-relmap-services.pure`. The hand-written pack holds classes, functions, mappings and runtimes, which the trading
+    model keeps, as it keeps Phase 5's and Phase 7's packs.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a relation-mapping construct when it builds the model; the options go to the user first.
