@@ -32,6 +32,9 @@ passed = pass_list(PASS)
 engine_passed = pass_list(ENGINE_PASS) if ENGINE_PASS else None
 
 MAP = {fp(m): m for m in mappings}
+# Profiles the corpus declares, as against the platform's (meta::pure::profiles::*): EMIT's grammar:profile is a
+# model's own profile, and a service reaches it when a class it touches carries one of its stereotypes or tags.
+CORPUS_PROFILES = {fp(e) for e in E if e['_type'] == 'profile'}
 DB = {fp(d): d for d in dbs}
 CONN = {fp(e): e for e in E if e['_type'] == 'connection'}
 RT = {fp(e): e for e in E if e['_type'] == 'runtime'}
@@ -305,6 +308,14 @@ def prop_feats(pm, feats, tables, m, db_hint):
         feats.add('x-mapping:explicit-target-set')
     if t == 'relationalPropertyMapping':
         op_feats(pm.get('relationalOperation'), feats, tables, db_hint)
+        # A `scope([db]T) ( p: COL )` block: the protocol keeps no scope, but its column's table is the one the block
+        # names, on the block's line, above the property's own -- written plainly, `p: [db]T.COL`, the table sits on
+        # the property's line (relational-main-table-alias, added 2026-10-29)
+        op = pm.get('relationalOperation') or {}
+        line = (pm.get('property') or {}).get('sourceInformation', {}).get('startLine')
+        tline = ((op.get('table') or {}).get('sourceInformation') or {}).get('startLine')
+        if op.get('_type') == 'column' and line and tline and tline < line:
+            feats.add('mapping:relational-main-table-alias')
     elif t == 'embeddedPropertyMapping':
         feats.add('mapping:relational-embedded')
     elif t == 'otherwiseEmbeddedPropertyMapping':
@@ -600,6 +611,9 @@ for s in services:
             feats.add('grammar:class-inheritance')
         if e.get('constraints') and w.tree:
             feats.add('grammar:constraint')
+        if any(st.get('profile') in CORPUS_PROFILES for st in e.get('stereotypes') or []) or any(
+                (tv.get('tag') or {}).get('profile') in CORPUS_PROFILES for tv in e.get('taggedValues') or []):
+            feats.add('grammar:profile')
         for st in e.get('stereotypes') or []:
             v = st.get('value')
             if v == 'businesstemporal':
