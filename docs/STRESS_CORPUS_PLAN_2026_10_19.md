@@ -3,7 +3,8 @@
 Proposed 2026-10-19. The user took the five decisions on 2026-10-21 ([Decisions](#decisions)), and Phase 0 started
 that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done on 2026-10-23, on `stress_test/corpus`.
 Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28, and Phase 4 started that day
-and was done on 2026-10-29, in six stages (see its record).
+and was done on 2026-10-29, in six stages (see its record). Phase 7 started on 2026-10-29 and was done on
+2026-10-30, in three stages (see its record).
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -1193,6 +1194,142 @@ Report §3 (the ○ rows), §8 (unused joins) and §10 item 9.
   written against.
 - **Done when:** at most 2 features remain ○, and every join is used.
 
+Phase 7 lands in three stages, each committed on `stress_test/corpus` when it is green. `stress_test/corpus` was
+already on `upstream/main` (`9de4d3a87`) when the phase started, so the rebase was a no-op.
+
+**Stage 1: the flat mapping's queries through `stress::DenseMapping` (2026-10-29, `3ab506f9a`).** A new
+`unreached.py` writes `99-unreached-services.pure`.
+
+- **The services.** For each of the 60 classes `stress::DenseMapping` maps, `DMF_` projects every column it maps
+  through the flat mapping and `DMD_` the same columns through `DenseMapping`: its `scope` blocks in both forms, its
+  set ids, its root markers and its explicit `~primaryKey`. `DenseMapping` runs on a new runtime, `stress::DenseRT`.
+  `external::LegalEntity`, whose store is `external::EntityDB`, reads that store alone, through `stress::EntityRT`
+  and `stress::DenseEntityRT`.
+- **Invariance.** Each pair is an invariance group in `battery.INVARIANCE_GROUPS`, so `build.py` fails if the two
+  sides' expectations ever differ. `executed.py` ratchets U1.
+- **The engine verdict** (`changed` and `--only`, only services added): 120 pass, 0 known-fail, 0 unexpected.
+- **Lite.** DuckDB 5,325 to 5,445 and H2 5,249 to 5,369, 120 of 120 on each, and no test that passed fails. Both
+  `MIN_PASS` rose, each with a dated note.
+
+**Stage 2: the Operation forms, the literal lists and a profile (2026-10-29, `bdd36b575`).**
+
+- **The move.** The router union and the inheritance operation move out of `71-mapping-surface2.pure` into a new
+  `71-operation-surface.pure`, which lite loads. `71-mapping-surface2.pure` keeps its M2M surface and stays excluded
+  for it, so `StressExclusions` and `LegendLiteGapTest`'s documented set are unchanged.
+- **The inheritance operation** is rewritten in EMIT's shape, a parent mapped by `inheritance()` over two mapped
+  subclasses. legend-engine's router resolves it to the class's mapped leaf subtypes and ignores any parameters
+  (`router_operations.pure`); the old `inheritance(iA, iB)`, over a class with no subtypes, routed to nothing.
+- **The literal lists** are `coalesce([V, K])` and `in(K, [...])`, each DB-scoped. The pack's classes carry a corpus
+  profile, `surface::OpGovernance`. `74-surface-last.pure` gains a connection and a runtime for its merge.
+- **The services.** 12 `UO_`: the router union projected (both paradigms) and fetched; the inheritance dispatch
+  projected, filtered and fetched; both literal lists; the store's two joins as a chain, and the same chain ending in
+  an expression; and the merge projected (both paradigms). Each shape was probed on 4.145.0 before it was written.
+- **A construct the move dropped.** The old `71-mapping-surface2.pure` held the corpus's one join chain ending in an
+  expression, `@opB_opC | equal(...)` (the engine surface's PM-08), and the first gate's `scoreboard_gate` caught its
+  absence. `surface::OpLink`'s `codeLower`, `@opA_opB > @opB_opC | toLower(OP_C.V)`, restores it with a service, and
+  `rhs.py` reads the form as the call over the chain's columns, which the oracle already evaluates.
+- **The merge.** A merge reads as its sets, a union's way, in a projection: that is legend-engine's router's own
+  definition, and each row is absent where its own set maps nothing. The engine merges instances only in an M2M graph
+  fetch, and a graph fetch over relational sets fails at plan generation ("MergeOperationSetImplementation cannot be
+  cast to RootRelationalInstanceSetImplementation"), so none is written.
+- **The seed.** The rows for `OP_A`, `OP_B`, `OP_C`, `MG_A` and `MG_B` are the expansion's, which already hold the
+  needed shapes; seeding them by hand would have moved every later expanded table's values. `OP_CAR` and `OP_TRUCK`
+  are seeded by hand and hidden from the walking generators (`literals.FIXTURE_TABLES`).
+- **The reader and the oracle.** `model.py` resolves `inheritance()` to the mapped leaves and records which properties
+  each union member's set maps; the oracle answers absent for a property a member does not map. A DB-scoped
+  dynafunction (`[db]coalesce(...)`) is read, and a literal list is typed by its first element, spread for
+  `coalesce` and kept whole for `in`. Nothing already generated moved but `93-testdata`'s header count. `executed.py`
+  ratchets U2 to U6 (router union, inheritance dispatch, merge operation, corpus profile, join chain ending in an
+  expression). A literal list gets no entry, since no passing service reaches one.
+- **F83, new, with a repro** (`scripts/corpus/repro/literal-list-mapping/`): a literal list in a relational property
+  mapping fails at test setup ("unhandled type for value"). The compiler copies the parser's protocol elements
+  unconverted (`HelperRelationalBuilder`'s `LiteralList` branch). `UO_LiteralListCoalesce` and `UO_LiteralListIn` are
+  quarantined under it.
+- **The engine verdict.** A model moved between files, so the whole corpus ran (84 minutes): 5,670 pass, 100
+  known-fail, 1 not run (F15), 0 unexpected, of 5,771 testables. With PM-08 restored it ran again (82 minutes): 5,671
+  pass, 100 known-fail, 1 not run, 0 unexpected, of 5,772.
+- **Lite.** DuckDB 5,445 to 5,453 and H2 5,369 to 5,377, 8 of the 12 on each, and no test that passed fails. The
+  other four are a literal list over an optional column ("Collection element must have a multiplicity [1], found
+  [0..1]") and the merge, a class mapped by several sets, whose `.all()` lite reads as an implicit union, a roadmap
+  feature. Both `MIN_PASS` rose, each with a dated note.
+- **The gate** met the desk's known reds alone: 56 diff tests (equal to the checkout ignoring CR) and 3 datacube
+  browser timeouts. Its first run caught PM-08's absence in `scoreboard_gate` (above).
+
+**Stage 3: every join used (2026-10-29, `a9e19fe1f`).** The report counted 32 joins that no mapping, view or filter
+names. Its `unused_joins.py` read each `Database`'s own join declarations too, with a pattern that stopped at the first
+`]`, so every database's first join counted as used. Walked properly there were 37, and the tool now walks them. The
+user chose (2026-10-29) to delete ten and map the other 27.
+
+- **The ten deleted, with the reasons put to the user.** The six `dense_*` joins `dense_store.py` writes
+  (`GreaterThan`, `OrMixed`, `DynaOneSide`, `DynaBothSides`, `Self`, `MultiCol`) each repeat a form the combination
+  matrix already runs over data built to satisfy it, and over the accrual and account tables they match no rows.
+  `HierInstrument_Issuer` is `HierIssuer_Instrument` with its sides swapped, and that join already maps both ends of
+  hier's association. `surface_TestNotEqual` and `surface_AnsiNotEqual` join tables no row was seeded into; their `!=`
+  and `<>` move into the seeded join pack. `TierVersion_Trade`'s natural use, an association ending on
+  `trading::Trade`, would give `Trade` a milestoned property, which stops `external::EntityMapping` compiling on the
+  engine (F66).
+- **The 27 mapped.** A hand-written `89-join-links.pure` holds associations and mappings over the products,
+  counterparty, back-office, OTC and core-fx joins, both ends of each, and `hier::IssuerCountry` through
+  `HierIssuer_Country`, the hop `HIER_COUNTRY` was declared for (runtimes `stress::LinksRT` and
+  `hier::IssuerCountryRT`). In `70-surface-store2.pure`, `J1` gains seeded rows and a `LEG_ID`, `j_CrossDb` hops into
+  the included `MapDB`'s `LEG`, the two not-equal operators arrive as `j_NotEqual` and `j_AnsiNotEqual`, and
+  `surface::JoinSurface` maps each join condition on its own (runtime `surface::JoinRT`).
+- **The services.** 31 `UJ_`, one per mapped end or join condition. Each condition's service has a row the join lands
+  for and a row it misses. `unreached.py`'s check fails the build if one stops doing so, or if any join is left that
+  nothing names.
+- **Named sets need named ends.** An association mapping over named sets must name the two it joins
+  (`ratePair[cfxRate, cfxCurrencyPair]`). Without them each end defaults to the classes' package-and-name ids, which
+  core_fx's and `JoinSurface`'s sets do not have, and the router reads the property as unmapped ("Void not
+  supported!", five services on the first probe). The fault was the corpus's, not the engine's.
+- **Generation.** The generators that walk the model (`stacks.py`, `graphs.py`, `aggregates.py`, `tomany.py`,
+  `spread.py`) now walk only the association ends `stress::AllMapping` maps (`model.walked`). The new associations,
+  mapped in mappings of their own, therefore re-route no deep service, and that change alone leaves every generated
+  file identical. `OP_CAR`, `OP_TRUCK` and `J1` are seeded by hand and kept out of the expansion (`seed.PACK_TABLES`),
+  so their rows move no expanded table's values. Deleting joins still changes which tables the expansion starts from.
+  142 services get new expectations (75 fan-out services, 16 combination cells and 51 `DenseMapping` pair sides), and
+  `93-testdata`'s and `97-hier-execution`'s rows move. D2 accepts this, and the whole run judges every one.
+  `executed.py` ratchets U7 (a join's not-equal) and U8 (a join's numeric constant); the joins' other operators were
+  already executed.
+- **F83 widened, with its repro.** A join's condition is built by the same compiler branch as a property mapping's,
+  so `j_ArrayArg`'s `in(J1.N, [1, 2, 3])` fails the same way, an Integer list as much as a String one. Each element is
+  wrapped in a second `Literal`, which `convertLiteral` does not unwrap. The repro's `JoinPlain` passes and `JoinIn`
+  fails. `UJ_JoinArrayArg` is quarantined under F83.
+- **The engine verdict.** Joins were deleted, so the whole corpus ran (80 minutes): 5,701 pass, 101 known-fail, 1 not
+  run (F15), 0 unexpected, of 5,803 testables. 30 of the 31 `UJ_` pass. Of the 142 moved expectations, 136 pass, and
+  six graph-fetch trees (`GG_`) stay known-fail under F24, as they were.
+- **Lite.** DuckDB 5,453 to 5,479 and H2 5,377 to 5,403: 26 of the 31 on each, and no test that passed fails.
+  `UJ_JoinArrayArg` is among the 26: lite answers it, where the engine fails with F83. The other five fall in two lite
+  buckets. A runtime holds two mappings that bind one class ("class-query dispatch needs exactly one":
+  `UJ_ClassificationCounterparty`, `UJ_CounterpartyClassification`, `UJ_CounterpartyOtcTrades`). And a join's `!=` or
+  `<>` meets a NULL: lite reads it as Pure's `not(equal(...))` and so matches, where the store's SQL matches nothing
+  (`UJ_JoinNotEqual`, `UJ_JoinAnsiNotEqual`). Both `MIN_PASS` rose, each with a dated note.
+- **The gate:** 399 pass and 2 are skipped. 59 fail on this desk alone, none depending on a changed file: 56 diff tests
+  (equal to the checkout ignoring CR, or the layout file's case) and 3 datacube browser timeouts. The corpus gates
+  pass (scoreboard, executed, stacking, density, functions).
+
+**Phase 7 done (2026-10-30).** At most 2 features remain ○ and every join is used. The measures after stage 3 come
+from the report's `tools/run.sh` at the pin, given stage 3's whole-run pass list (nothing has changed since):
+
+- **Features in the model that no service reaches (○): 2** (target at most 2; 9 before the phase):
+  `mapping:m2m-local-property` (Phase 5's) and `store:relational-semistructured` (Phase 9's). Of the seven closed:
+  - `relational-main-table-alias`, `router-union`, the inheritance operation and `grammar:profile` pass in lite and on
+    the engine;
+  - the two merge features pass on the engine alone;
+  - `relational-literal-list` is ◐, reached only by its two F83 services.
+
+  The report branch's `profile.py` now counts `grammar:profile` for a service that touches a class carrying a corpus
+  profile's stereotype or tag, and `relational-main-table-alias` for a `scope` block's property mapping.
+- **Unused joins: 0** of 386 (37 before the phase; the report counted 32).
+- **EMIT 51 of 109 on the engine and 43 in lite** (45 and 39 before). The four features above count on both; the two
+  merge features count on the engine alone.
+- PCT 161 of 321, as before.
+- **The engine's standing verdict**: 5,701 pass, 101 known-fail, 1 not run (F15), 0 unexpected, of 5,803 testables.
+  Phase 7 added 163 services (120, 12 and 31 in stages 1 to 3).
+- **Lite**: 5,479 tests pass on DuckDB and 5,403 on H2 (5,325 and 5,249 before the phase).
+- **Left open:** `subType()`, which Phase 4 left for this phase. It was not in this phase's brief. Stage 2's
+  inheritance operation could give it the definition Phase 4 lacked: there the parent is mapped only through its two
+  mapped subclasses, so each of its objects is one of theirs.
+
 ### Phase 8: constraints and test shapes (about 4 days)
 
 Report §5, §6 and §10 items 5, 7 and 11.
@@ -1290,6 +1427,6 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 4 | 2026-10-28 | 2026-10-29, six stages | stage 1 (`0bb5fca71`) 0; stage 2 (`b9f0d212c`) 258; stage 3 (`94c3f5a0c`) 77; stage 4 (`939d4c40b`) 40; stage 5 (`0496e6966`) 64; D8 reversed (`5cabca0a4`) 0; stage 6 (`880243bbb`) 49 | 25 vocabulary services under F35, F38, F68, F71-F74 (stage 2); 30 under F75 and F76, 24 of them deep-stack totals whose expectation moved to Pure's 0 (stage 3); 2 under F37 and F77 (stage 4); 5 under F78 and F79 (stage 5); F75 withdrawn with D8's reversal, its 28 services out (2026-10-29); 8 under F68, F80, F81 and F82 (stage 6); F37's property-mapping half withdrawn, `F37_SubstringSql` out (`12795b348`); F68-F82 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's), an aggregate over nothing as SQL's NULL (F76's; F75's withdrawn), `last` and `wavgRowMapper` in a groupBy, `substring(start)` one-based in an `extend`, `olapGroupBy`'s ranking `func`, `parseDecimal` as DECIMAL(5,2), `sum` over no trades as NULL (F82's); on H2 alone, functions the dialect lacks (`MAKE_DATE`, `greatest`/`least` over a list), a non-ISO `weekOfYear`, a Sunday-first `firstDayOfWeek`, `AVG` of integers to eleven digits, and `regexpReplace` refusing `replaceAll` or replacing every match for the first | platform functions in service queries 183 (178 on the engine, 165 in lite); PCT 161 of 321; EMIT 45 of 109 on the engine, 39 in lite |
 | 5 | — | — | — | — | — | — |
 | 6 | — | — | — | — | — | — |
-| 7 | — | — | — | — | — | — |
+| 7 | 2026-10-29 | 2026-10-29, three stages | stage 1 (`3ab506f9a`) 120; stage 2 (`bdd36b575`) 12; stage 3 (`a9e19fe1f`) 31 | F83 found, with a repro: a literal list in a relational property mapping or a join fails at test setup (3 services: `UO_LiteralListCoalesce`, `UO_LiteralListIn`, `UJ_JoinArrayArg`) | a literal list over an optional column; the merge, a class mapped by several sets, read as an implicit union; a runtime holding two mappings that bind one class; a join's `!=` or `<>` over a NULL read as Pure's `not(equal(...))` | features no service reaches 2 (m2m-local-property, relational-semistructured); unused joins 0 of 386; EMIT 51 of 109 on the engine, 43 in lite; PCT 161 of 321 |
 | 8 | — | — | — | — | — | — |
 | 9 | — | — | — | — | — | — |
