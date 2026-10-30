@@ -16583,6 +16583,32 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's S3c, second part: a raw grid is a relation of the columns its result reports; the staticizer deleted; F1 closed
+
+The decisions log D89; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 (item 3: "the columns come from
+the real run") and F1 (§2).
+
+1. **Built:** `ExecutionPlan.TdsResult` of shape RELATION and NO column is a raw grid's: the columns its result reports.
+   `Statements.reportedRows` (JDBC: the result set's metadata; MongoDB refuses by name) hands them to the sink before
+   any row, each named by the wire table (`WireTypes.column`: the label, the Pure type for the SQL type JDBC reports
+   and its slot; `Any` and no slot where the table names none, the cell then the driver's own kind), and reads each
+   cell by them. `PlanRunner` routes both typed-rows sites (`stream`, a step's `result`) to it.
+   `JudgePlans.streamResult` (a raw grid as the answer) and `tabularPlanned` (a host side) plan such a relation; the
+   side's shape takes the reported columns (`tabularShape`, `reportedType`). `WireProbe.staticized` (a describe at
+   planning) DELETED with its helpers; `WireProbe` keeps the wire table's types rebuilt as the typer's.
+2. **F1 closed:** the product path's plan for a raw grid of unknown schema (zero columns, `PlanMaker.typed`) now MEANS
+   the columns the real run reports and the Java runner reads them -- no longer a defaulting branch by omission. The
+   TypeScript runner (a host's write programs) refuses such a relation by name instead of writing rows of no cell
+   (`engine-client/src/plan-runner.ts`; its test).
+3. **Tests:** `exec/ReportedColumnsTest` on each in-process database (DuckDB, H2, SQLite): the columns `N`, `S` typed
+   `Integer`, `String`, no store, the row `[7, 'a']`; `WireProbeTest` loses its staticizer assertion.
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2`: zero roster movement, the statement censuses unchanged (`probe`
+   5: the describes were never counted under it); `pct_channel_b` 5 of 5; `core_tests_{exec,judge,driver,root,
+   planner,lowering,integration}`, `census`, `guardrails`, `core_layering_test`, `//engine-client:plan_runner_test`
+   green.
+5. **Left of S3c:** the reported-columns keys step and the keyed `columnNames`, `rows.values` and `toCSV`; the staged
+   raw-grid let; then the stamp and `GridProbe` deleted (`probe` 5 -> 0 on the corpus).
+
 ## 2026-10-30 — The seam program's S3c, first part: a by-name read over a raw grid probes nothing; its cell decoded by the wire
 
 The decisions log D88; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 (item 3: "no first step where

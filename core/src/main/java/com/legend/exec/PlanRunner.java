@@ -70,6 +70,16 @@ public final class PlanRunner {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
         switch (plan.root()) {
             case ExecutionPlan.TdsResult tds -> {
+                if (reported(tds)) {
+                    // a relation of no declared column: the columns its result reports, read from the real run
+                    Streamed[] streamed = {null};
+                    send(tds.sql(), checked, sessions, (st, statement, bound) ->
+                            st.reportedRows(statement, tds.sql().slots(), bound,
+                                    columns -> streamed[0] = new Streamed(columns, sink, capacity),
+                                    cells -> streamed[0].row(cells)));
+                    java.util.Objects.requireNonNull(streamed[0], "the session handed no reported columns").end();
+                    return;
+                }
                 Streamed streamed = new Streamed(tds.columns(), sink, capacity);
                 send(tds.sql(), checked, sessions, (st, statement, bound) ->
                         st.rows(statement, tds.sql().slots(), bound, tds.columns(), streamed::row));
@@ -701,8 +711,18 @@ public final class PlanRunner {
             Held held) throws IOException {
         String statement = statement(t.sql(), values);
         StatementOrigin.sent(statement);
+        if (reported(t)) {
+            st.reportedRows(statement, t.sql().slots(), valuesOf(t.sql(), values), columns -> held.columns = columns,
+                    held.rows::add);
+            return;
+        }
         held.columns = t.columns();
         st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(), held.rows::add);
+    }
+
+    /** A relation of no declared column: the columns its result reports (a raw grid's, the seam program's S3c). */
+    private static boolean reported(ExecutionPlan.TdsResult t) {
+        return t.shape() == ExecutionPlan.TdsResult.Shape.RELATION && t.columns().isEmpty();
     }
 
     /** Every null's type checked before any session is opened: a plan whose null is of no type is refused whole. */

@@ -103,6 +103,14 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
   if (t.servers?._type !== 'every') throw new PlanRefusal("a plan for some servers' versions alone is not run here");
   if ((t.setup ?? []).length > 0) throw new PlanRefusal('a plan that sets its database up first is not run here: it runs on the host\'s own');
+  for (const s of steps) {
+    // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
+    // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one
+    if (s._type === 'tdsResult' && (s as { readonly shape?: string }).shape === 'RELATION'
+        && (s as { readonly columns: readonly Column[] }).columns.length === 0) {
+      throw new PlanRefusal("a relation of the columns its result reports (a raw grid's) is not run here: the planner runs it");
+    }
+  }
   for (const s of sqls) {
     if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
     for (const slot of s.slots) {

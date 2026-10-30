@@ -125,9 +125,12 @@ final class JudgePlans {
                 Type.RelationType schema = Type.schemaView(info.type());
                 boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
                 if (lateBound) {
-                    plan = WireProbe.staticized(plan, env.dialect(), on, target(env),
-                            w.session().state().wireTypes());
-                    schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
+                    // a raw grid as the answer: a relation of no declared column, its columns the ones its result
+                    // reports (the seam program's S3c, 2026-10-30; until then a describe at planning framed it)
+                    stream(new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, List.of(),
+                            PlanMaker.sql(withFrames(plan, env), env.dialect(), target(env))), on,
+                            answer.of(ExecutionPlan.TdsResult.Shape.RELATION), toOne, 0, "", toOne);
+                    return;
                 }
                 if (schema == null) {
                     throw new IllegalStateException("TABULAR result without a relation root type: "
@@ -136,7 +139,7 @@ final class JudgePlans {
                 schema = TypedRows.flat(schema);
                 SqlQuery framed = withFrames(plan, env);
                 ExecutionPlan.Node node;
-                if (!lateBound && TypedRows.dynamicPivotUnnamed(plan, schema)) {
+                if (TypedRows.dynamicPivotUnnamed(plan, schema)) {
                     com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
                             com.legend.lowering.KeyedPivot.dynamic(framed),
                             "a dynamic pivot side whose plan holds no such pivot");
@@ -534,10 +537,13 @@ final class JudgePlans {
         Type.RelationType schema = Type.schemaView(info.type());
         boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
         if (lateBound) {
-            // a raw grid (executeInDbToTDS) has no typed outputs: the database's reported columns frame it
-            plan = WireProbe.staticized(plan, env.dialect(),
-                    PlanSessions.of(w.session(), env.trace()), target(env), w.session().state().wireTypes());
-            schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
+            // a raw grid (executeInDbToTDS, an unstamped executeInDb) has no typed outputs: a relation of no declared
+            // column, the columns its result reports read from the real run (the seam program's S3c, 2026-10-30;
+            // until then WireProbe.staticized framed it by a describe at planning)
+            ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
+                    List.of(), PlanMaker.sql(withFrames(plan, env), env.dialect(), target(env)));
+            return new PlannedSide(new ExecutionPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
+                    new Type.RelationType(List.of()));
         }
         if (schema == null) {
             throw new IllegalStateException("TABULAR result without a relation root type: " + info.type().typeName());
@@ -545,7 +551,7 @@ final class JudgePlans {
         // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
         // (flattened before any route, the keyed one included; its dynamic columns kept)
         schema = TypedRows.flat(schema);
-        if (!lateBound && TypedRows.dynamicPivotUnnamed(plan, schema)) {
+        if (TypedRows.dynamicPivotUnnamed(plan, schema)) {
             // a side over a DYNAMIC PIVOT nothing names: its keyed plan (PlanMaker.keyed, the probe plan the server
             // runs), its keys read first and its body written for them
             SqlQuery framed = withFrames(plan, env);
@@ -554,7 +560,7 @@ final class JudgePlans {
             ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
             return new PlannedSide(new ExecutionPlan.Side.KeyedRows(keyed), Kind.KEYED, w, null, root, schema);
         }
-        if (!lateBound && assertBoundary) {
+        if (assertBoundary) {
             // ASSERT-BOUNDARY determinism (user design, 2026-08-29; the rule of the legacy TDS canon wrap this side
             // no longer rides, kept on the plan path): a grid under assertion is deterministically ordered even when
             // the test forgot to sort -- a FEATURE of the assert surface, always on; ScanOrder is the one key owner,
@@ -574,11 +580,33 @@ final class JudgePlans {
         for (Type.Column c : schema.columns()) {
             columns.add(new Column(c.name(), c.type(), c.multiplicity()));
         }
+        if (schema.columns().isEmpty()) {
+            // a raw grid's: the columns its result reported, each typed by the Pure type the wire table named
+            for (ExecutionPlan.Column c : rows.columns()) {
+                columns.add(new Column(c.name(), reportedType(c), c.multiplicity().lower() == 0
+                        ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE
+                        : com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+            }
+        }
         List<Row> out = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
             out.add(new Row(r));
         }
         return new TypedSide.Tabular(columns, out, info.type());
+    }
+
+    /** A reported column's Pure type: the primitive the wire table named, or Any (its cells the driver's kind). */
+    private static Type reportedType(ExecutionPlan.Column c) {
+        for (Type.Primitive p : Type.Primitive.values()) {
+            if (p.typeName().equals(c.type())) {
+                return p;
+            }
+        }
+        if (c.type().equals("Any")) {
+            return new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
+        }
+        throw new IllegalStateException("a reported column's type '" + c.type() + "' is no primitive the wire table"
+                + " names");
     }
 
     /** A keyed side's rows: each answered column typed by the schema's one pivot rule

@@ -79,4 +79,15 @@ public final class WireTypes {
             default -> null;
         };
     }
+
+    /** A column a result reports, as the plan's: its label; the Pure type this table names for its SQL type, and that
+     *  type's slot (Any and no slot where JDBC's type code names none of the vocabulary, or this table names no Pure
+     *  type for it: the cell is then the driver's own kind); nullable as reported. The runtime NAMES the type, as the
+     *  plan does (D72). */
+    public static ExecutionPlan.Column column(Statements.Reported r) {
+        String slot = r.type() == null ? null : com.legend.executionplan.ColumnFacts.slot(r.type());
+        String pure = slot == null ? null : pureTypeNameOrNull(slot);
+        return new ExecutionPlan.Column(r.name(), pure == null ? "Any" : pure,
+                new ExecutionPlan.Multiplicity(r.nullable() ? 0 : 1, 1), pure == null ? null : slot, null, null);
+    }
 }

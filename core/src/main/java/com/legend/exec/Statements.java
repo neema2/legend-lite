@@ -98,6 +98,23 @@ public interface Statements {
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException;
 
     /**
+     * {@code statement}'s rows with the columns its RESULT reports (the planner-driver seam program's S3c, 2026-10-30):
+     * a raw grid's, whose columns the program never named, read from the real run as the engine reads a raw result
+     * set. {@code columns} receives them before any row -- each its label, the Pure type the wire table names for the
+     * SQL type JDBC reports (Any where it names none, the cell then the driver's own kind), that type's slot, nullable
+     * as reported -- and each row's cells are read by them as {@link #rows} reads a plan's. Nothing is read at
+     * planning; the plan declared no column ({@code ExecutionPlan.TdsResult}: a relation of no column).
+     */
+    void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            ReportedColumns columns, Cells cells) throws IOException;
+
+    /** Where a result's reported columns go, before its rows. */
+    @FunctionalInterface
+    interface ReportedColumns {
+        void columns(List<ExecutionPlan.Column> columns) throws IOException;
+    }
+
+    /**
      * {@code work} with every statement it sends seeing one state of the data, as {@code snapshot} says (a keyed plan's
      * keys probe and its body: the keys are the body's; 2026-10-20): a transaction at that isolation, committed when
      * the work is done and rolled back when it fails, the session's own setting restored; {@code NONE} runs it as it

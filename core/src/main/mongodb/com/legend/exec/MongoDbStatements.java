@@ -124,6 +124,14 @@ final class MongoDbStatements implements Statements {
                 + " session: the body driver's schema probes are not designed for MongoDB");
     }
 
+    /** A raw grid is an authored SQL text: a MongoDB session answers none, so no relation of reported columns. */
+    @Override
+    public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            ReportedColumns columns, Cells cells) {
+        throw new com.legend.error.NotImplementedException("a relation of the columns its result reports asked of a"
+                + " MongoDB session: a raw grid is an authored SQL text, which a MongoDB database does not run");
+    }
+
     /** A MongoDB database is its connector's own and a plan sets none up ({@code PlanSessions.refuseSetup}): a bulk
      *  load of a plan's rows is refused by name. */
     @Override

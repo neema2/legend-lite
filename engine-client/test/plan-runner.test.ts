@@ -114,5 +114,10 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     const regioned = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, regions: [{ start: 0 }] } })) } };
     const here: PlanSession = { ...session, databaseType: 'DuckDB' };
     await assert.rejects(() => runPlan(JSON.stringify(regioned), here), /per-key regions/);
+    // a relation of no declared column (a raw grid's: the columns its result reports): refused, never run as rows of
+    // no cell (the seam program's S3c, 2026-10-30)
+    const reported = { ...plan, root: { ...root, steps: root.steps.map((step) => ((step as { _type?: string })._type === 'tdsResult'
+      ? { ...step, shape: 'RELATION', columns: [] } : step)) } };
+    await assert.rejects(() => runPlan(JSON.stringify(reported), here), /the columns its result reports/);
   });
 });

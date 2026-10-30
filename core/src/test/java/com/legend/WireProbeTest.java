@@ -3,10 +3,6 @@
 
 package com.legend;
 
-import com.legend.driver.WireProbe;
-
-import com.legend.exec.PlanSessions;
-import com.legend.exec.WireTypes;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -15,16 +11,13 @@ import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
-import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.sql.Connection;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -32,8 +25,8 @@ import org.junit.jupiter.params.provider.MethodSource;
  * A wire-decided column (leg 3.3, §4t): the store says INT, the fixture created VARCHAR. Since the planner-driver seam
  * program's S3b (2026-10-30) no prepare at planning reconciles the slot: the grid canon asks the value in the
  * statement ({@code CanonicalRenderSql.textOrStamp}), so a String-declared cell stamped INTEGER spells as the text it
- * holds when the database stores text, and as the integer otherwise. The raw grid's frame ({@link WireProbe#staticized})
- * stays until S3c.
+ * holds when the database stores text, and as the integer otherwise. (The raw grid's frame by a describe, the
+ * staticizer, was deleted by S3c: a raw grid is a relation of the columns its result reports.)
  */
 class WireProbeTest {
 
@@ -65,16 +58,6 @@ class WireProbeTest {
         assertEquals(java.util.Set.of("'7'", "'a\\'b'", "TDSNull"), java.util.Set.copyOf(cells(conn, dialect, "t")),
                 "the text it holds, quoted");
         assertEquals(List.of("7"), cells(conn, dialect, "n"), "the integer, bare");
-        Map<String, List<WireTypes.ReportedColumn>> memo = new HashMap<>();
-        // the plan runner the reader goes through (the doors, 2026-10-29; the session seam since track B's B1a)
-        PlanSessions.Source c = PlanSessions.of(com.legend.testbackend.TestSessions.over(conn));
-        com.legend.executionplan.ExecutionPlan.Target target = new com.legend.executionplan.ExecutionPlan.Target(
-                new com.legend.executionplan.ExecutionPlan.Database.Platform(type),
-                new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of());
-        // a plan the compiler could not type, framed by the database's columns
-        SqlQuery framed = WireProbe.staticized(plan(SqlType.Scalar.INTEGER, "t"), dialect, c, target, memo);
-        assertEquals("id", framed.outputs().get(0).name());
-        assertEquals(SqlType.Scalar.VARCHAR, framed.outputs().get(0).type());
     }
 
     /** The grid canon's cells of {@code SELECT id FROM table}, its column declared String and stamped INTEGER. */

@@ -271,7 +271,9 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * their order. The session reads each row's cells from its driver by the plan's columns -- the slot first, the
      * Pure type where the slot is none -- and the runner holds the plan's facts, no model and no dialect. (Until
      * step 7 the statement wrote each row as one JSON object the runner parsed back; a document's row still reads
-     * that way, {@code result.RowDecode}.)
+     * that way, {@code result.RowDecode}.) A RELATION of NO column is a raw grid's (the planner-driver seam
+     * program's S3c, 2026-10-30): the columns its result reports, read from the real run by the session
+     * ({@code Statements.reportedRows}) and handed on before its rows, never read at planning.
      */
     public record TdsResult(Shape shape, List<Column> columns, Sql sql) implements Node {
         public TdsResult {

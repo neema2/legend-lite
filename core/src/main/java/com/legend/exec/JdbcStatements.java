@@ -253,6 +253,34 @@ final class JdbcStatements implements Statements {
         }
     }
 
+    /** {@inheritDoc} Each reported column named by the wire table ({@link WireTypes#column}). */
+    @Override
+    public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            ReportedColumns columns, Cells cells) throws IOException {
+        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
+            for (int i = 0; i < slots.size(); i++) {
+                bind(st, i + 1, slots.get(i), values.get(i));
+            }
+            DatabaseConnector.Decoding driver = this.driver;
+            if (driver == null) {
+                throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
+                        + " how its driver answers is its database's fact");
+            }
+            try (ResultSet rs = st.executeQuery()) {
+                List<ExecutionPlan.Column> reported = new java.util.ArrayList<>();
+                for (Reported r : reported(rs.getMetaData())) {
+                    reported.add(WireTypes.column(r));
+                }
+                columns.columns(reported);
+                while (rs.next()) {
+                    cells.row(JdbcDecode.row(rs, reported, driver));
+                }
+            }
+        } catch (SQLException e) {
+            throw failed(e);
+        }
+    }
+
     /** {@inheritDoc} JDBC: auto-commit off for the work, at the snapshot's isolation (the database's own kept for
      *  {@code TRANSACTION}), committed after it, rolled back if it fails, the connection's settings restored. */
     @Override
