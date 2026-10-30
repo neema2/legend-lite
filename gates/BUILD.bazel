@@ -335,6 +335,9 @@ test_suite(
         "//spec:phase3b_probes",
         # the DataCube model design's measurement (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11, 2026-10-10): manual
         "//datacube:model_scale_measure",
+        # the timeseries SQL's measurement (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md, the SQL's size, 2026-10-30):
+        # manual, its numbers printed
+        "//datacube:timeseries_sql_measure",
         # the DataCube screenshot tour (docs/DATACUBE_TOUR.md, 2026-10-17): manual, run from time to time; its gallery
         # in the test's outputs
         "//datacube:tour_test",
