@@ -664,6 +664,12 @@ class TsIslandTest {
                     + " value_at(CLOSE['AAA'], DATE '2024-01-01') AS vb, ohlc(CLOSE['AAA'], CLOSE['BBB'], CLOSE['AAA'],"
                     + " CLOSE['BBB']) AS c FROM PRICES ON DAY BY SYMBOL}#");
             assertClose(each(AAA.length, i -> AAA[5]), column(asOf, null, null, "va"), of + "as of the 25th");
+            // a base from a date (R9): the value as of it, the first a chart shows
+            List<Map<String, String>> from = rows(backend, "|#TS{SELECT index(CLOSE['AAA'], from => '2024-01-25') AS ix,"
+                    + " percent_change(CLOSE['AAA'], from => '2024-01-25') AS pc FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length, i -> AAA[i] / AAA[5]), column(from, null, null, "ix"), of + "an index from the 25th");
+            assertClose(each(AAA.length, i -> AAA[i] / AAA[5] - 1), column(from, null, null, "pc"),
+                    of + "a % change from the 25th");
             assertClose(each(AAA.length, i -> AAA[0]), column(asOf, null, null, "vb"), of + "as of before the first");
             assertEquals(List.of("DAY", "va", "vb", "c_open", "c_high", "c_low", "c_close"),
                     List.copyOf(asOf.get(0).keySet()), of + "a candle's columns");

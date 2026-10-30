@@ -201,3 +201,7 @@ that moves moves with its reason in the commit (AGENTS.md).
     there, so the writer writes each as a CASE.
   `callsLibrary` holds a query with a `#TS` island as calling the library (its planner the one over it): the grid-only
   page's bundle grows 9 bytes, its budget 430,500 -> 431,000 with its reason. P6 (the surfaces switched) next.
+- 2026-10-30: P6, its first step: a base from a date. `index`, `rebase`, `change` and `percent_change` take
+  `from => '2024-01-01'` (R9): the value as of that date, the first a chart shows (the library's `indexFrom`,
+  `changeFrom`, `percentChangeFrom`, the tile's anchor). The writer passes the tile's anchor so, and the parity test
+  runs each series that reads a base from a date too: **210 of 210** the same.

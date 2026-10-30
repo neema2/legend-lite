@@ -33,8 +33,9 @@ final class TsFunctions {
     private static final String DURATION = "meta::pure::functions::date::DurationUnit";
 
     /** A parameter's kind: a window or a lag ({@code SPAN}), a whole number, a number, a word of {@code words}, or a
-     *  date ({@code '2024-01-01'}, given always). */
-    enum Kind { SPAN, WHOLE, NUMBER, WORD, DATE }
+     *  date ({@code '2024-01-01'}: given always), or a date a base is taken as of ({@code SINCE}: none, the line's
+     *  first). */
+    enum Kind { SPAN, WHOLE, NUMBER, WORD, DATE, SINCE }
 
     /** A parameter: its name, its kind, its default, its words (a word's). */
     record Param(String name, Kind kind, Object fallback, List<String> words) {
@@ -62,6 +63,10 @@ final class TsFunctions {
 
     private static Param date(String name) {
         return new Param(name, Kind.DATE, "", List.of());
+    }
+
+    private static Param since(String name) {
+        return new Param(name, Kind.SINCE, "", List.of());
     }
 
     private static Signature one(Param... params) {
@@ -176,10 +181,11 @@ final class TsFunctions {
         Map<Fn, Signature> s = new java.util.EnumMap<>(Fn.class);
         s.put(Fn.PRICES, one(number("initial", 1), TYPE));
         s.put(Fn.ANNUALIZE, one());
-        s.put(Fn.INDEX, one(number("initial", 1)));
-        s.put(Fn.REBASE, one(number("base", 100)));
-        s.put(Fn.CHANGE, one());
-        s.put(Fn.PERCENT_CHANGE, one());
+        // each of its first value, or (from) of its value as of a date: the first a chart shows (R9)
+        s.put(Fn.INDEX, one(number("initial", 1), since("from")));
+        s.put(Fn.REBASE, one(number("base", 100), since("from")));
+        s.put(Fn.CHANGE, one(since("from")));
+        s.put(Fn.PERCENT_CHANGE, one(since("from")));
         s.put(Fn.RANGE_OF, one(span("w", 22)));
         s.put(Fn.ZSCORES, one(span("w", 0)));
         s.put(Fn.WINSORIZE, one(number("limit", 2.5)));
@@ -353,7 +359,7 @@ final class TsFunctions {
                 }
                 return d;
             }
-            case DATE -> {
+            case DATE, SINCE -> {
                 String text = e instanceof SqlAst.StringLit s ? s.value() : e instanceof SqlAst.TypedLit t
                         && "date".equalsIgnoreCase(t.type().name()) ? t.value() : null;
                 String date = fn + "'s " + p.name() + " is a date: '2024-01-01' (R9)";
@@ -417,10 +423,10 @@ final class TsFunctions {
             case PRICES -> w.done(w.ofLine("prices", "px", a, new CFloat(p.num("initial")),
                     option("Returns", p.word("type"))));
             case ANNUALIZE -> w.done(w.ofRow("annualize", "ann", new ColSpec(a), new ColSpec(w.perYear())));
-            case INDEX -> w.done(w.ofLine("index", "idx", a, new CFloat(p.num("initial"))));
-            case REBASE -> w.done(w.ofLine("index", "idx", a, new CFloat(p.num("base"))));
-            case CHANGE -> w.done(w.ofLine("change", "chg", a));
-            case PERCENT_CHANGE -> w.done(w.ofLine("percentChange", "pchg", a));
+            case INDEX -> w.done(w.based("index", "idx", a, p.word("from"), new CFloat(p.num("initial"))));
+            case REBASE -> w.done(w.based("index", "idx", a, p.word("from"), new CFloat(p.num("base"))));
+            case CHANGE -> w.done(w.based("change", "chg", a, p.word("from")));
+            case PERCENT_CHANGE -> w.done(w.based("percentChange", "pchg", a, p.word("from")));
             case RANGE_OF -> {
                 Span s = p.span("w");
                 yield w.done(w.rolled("range", a, s, s.period() == null ? s.obs() : 0));
@@ -945,6 +951,19 @@ final class TsFunctions {
                     new EnumValue(DURATION, p.unit())));
             all.addAll(List.of(args));
             return ofLine(name, what, value, all.toArray(new ValueSpecification[0]));
+        }
+
+        /** A BASE OVER THE WHOLE LINE (the tile's libraryBased): {@code name} of the line's first value, or, from a date
+         *  ({@code from}; none: ""), its {@code nameFrom} of the value as of it (the library's valueAt) -- {@code args}
+         *  after the date. */
+        String based(String name, String what, String value, String from, ValueSpecification... args) {
+            if (from.isEmpty()) {
+                return ofLine(name, what, value, args);
+            }
+            List<ValueSpecification> all = new ArrayList<>(List.of(new com.legend.protocol.spec.CDate(
+                    com.legend.values.PureDateLiteral.parse(line.seconds() ? from + "T00:00:00" : from))));
+            all.addAll(List.of(args));
+            return ofLine(name + "From", what, value, all.toArray(new ValueSpecification[0]));
         }
 
         /** {@code timeseries::name(args, ~out)}: of each row alone. */

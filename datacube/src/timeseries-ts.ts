@@ -24,6 +24,19 @@ const RENAMED: Readonly<Record<string, string>> = {
   day: 'day_of', month: 'month_of', year: 'year_of', quarter: 'quarter_of', weekday: 'weekday_of',
 };
 
+/** The functions of a base -- the line's first value, or its value as of the first date shown (`from`, the tile's
+ *  anchor). */
+const BASED: ReadonlySet<string> = new Set(['index', 'rebase', 'change', 'percent_change']);
+
+/** Whether `e` reads a base: what an anchor changes. */
+export function readsBase(e: TsExpr): boolean {
+  switch (e.kind) {
+    case 'call': return BASED.has(e.fn) || e.args.some(readsBase);
+    case 'binary': return readsBase(e.left) || readsBase(e.right);
+    default: return false;
+  }
+}
+
 /** The functions the builder writes itself (TsToPure's along): their window, lag and type by place. */
 const OWN: ReadonlySet<string> = new Set(['mean', 'sum', 'min', 'max', 'std', 'var', 'returns', 'diff', 'lag']);
 
@@ -57,8 +70,9 @@ function span(v: number | string): string {
   return `${m[1]}${m[2] === 'm' ? 'mo' : m[2]}`;
 }
 
-/** The #TS text of `series` of the tile `ts`, each source read as `$<alias>`: its one item `ts_value`. */
-export function tsQueryText(ts: TimeseriesSpec, series: TsSeries): string {
+/** The #TS text of `series` of the tile `ts`, each source read as `$<alias>`: its one item `ts_value`. `anchor`: the
+ *  first date shown, a base's (`from`). */
+export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: string): string {
   const expr = inlined(series.expr, ts.series);
   const read = sourcesOf(ts, expr);
   const many = read.length > 1;
@@ -129,6 +143,7 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries): string {
         });
         // the builder's own by place; the catalog's by name (R10)
         const params = OWN.has(e.fn) ? written.map(([, v]) => v) : written.map(([n, v]) => `${n} => ${v}`);
+        if (anchor !== undefined && BASED.has(e.fn)) params.push(`from => ${literal(anchor)}`);
         return `${RENAMED[e.fn] ?? e.fn}(${[...args, ...params].join(', ')})`;
       }
     }
@@ -146,13 +161,13 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries): string {
 
 /** The #TS query of `series`: each source it reads bound by `let` to its grid's rows (its derived columns too), then the
  *  island over them. */
-export function tsSeriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries): Lambda {
+export function tsSeriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, anchor?: string): Lambda {
   const read = sourcesOf(ts, inlined(series.expr, ts.series));
   const lets: ValueSpecification[] = read.map((alias) => {
     const input = inputs.get(alias);
     if (!input) throw new CubeRefusal(`source ${alias}'s grid is not open`);
     return fn('letFunction', lit.string(alias), sourceWithDerived(input.snapshot).node);
   });
-  const island: ValueSpecification = { _type: 'classInstance', type: 'TS', value: { ts: tsQueryText(ts, series) } };
+  const island: ValueSpecification = { _type: 'classInstance', type: 'TS', value: { ts: tsQueryText(ts, series, anchor) } };
   return lambda([], ...lets, island);
 }

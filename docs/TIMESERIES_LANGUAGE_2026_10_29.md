@@ -241,8 +241,9 @@ value.** An item with no value on a row is empty there.
 - SQL's date functions take dates: `date_trunc('year', latest)` (the first of `latest`'s year), `year(date)`,
   `quarter(date)`, `month(date)`, `day(date)`, `isodow(date)` (1 Monday to 7 Sunday).
 - **"As of" a date** means the last value on or before it. `value_at(x, '2024-01-01')` is x's value as of that date,
-  on every date. `lag(x, 1y)` is x's value as of a year before each date. `index(x, '2024-01-01')` divides by the value
-  as of 2024-01-01: 2023-12-29's close when the 1st is a holiday, as "performance since" is computed.
+  on every date. `lag(x, 1y)` is x's value as of a year before each date. `index(x, from => '2024-01-01')` (and
+  `rebase`, `change`, `percent_change`) divides by the value as of 2024-01-01: 2023-12-29's close when the 1st is a
+  holiday, as "performance since" is computed (a chart's first date shown); without `from`, by the line's first.
 
 ### R10. Options and results with several values
 

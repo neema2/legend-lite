@@ -16,13 +16,18 @@ import {
   type TsInput, type TsInputs,
 } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries, TsView } from '../src/timeseries-spec.ts';
-import { TS_ITEM, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
+import { readsBase, TS_ITEM, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
+import { inlined } from '../src/timeseries-expr.ts';
 import { catalogColumns, ingestFile } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
 
 const writer = plannerFor('', 'local::RT');
 
-/** The series that answer otherwise, by `<view> <series>`, and why. */
+/** The first date shown, where a series reads a base (an index's, a change's): each such series is compared from it
+ *  too. */
+const ANCHOR = '2022-03-15';
+
+/** The series that answer otherwise, by `<view> <series>` (`... from <date>` with an anchor), and why. */
 const DIFFERS: Readonly<Record<string, string>> = {};
 
 /** The columns compared: the tile's, and the #TS answer's of the same figure. */
@@ -110,8 +115,8 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
         // the series as the tile computes it, before its view's compare (the view's, around the answer: P6)
         const ts: TimeseriesSpec = view.spec.view === undefined ? view.spec : { ...view.spec, view: uncompared(view.spec.view) };
         const cubeOf = (alias: string): string => ts.sources.find((x) => x.alias === alias)!.cube;
-        for (const series of ts.series) {
-          const id = `${view.id} ${series.id}`;
+        for (const series of ts.series) for (const anchor of readsBase(inlined(series.expr, ts.series)) ? [undefined, ANCHOR] : [undefined]) {
+          const id = `${view.id} ${series.id}${anchor === undefined ? '' : ` from ${anchor}`}`;
           const aliases = seriesSources(ts, series);
           const [inputsOf, plannerOf]: [TsInputs, LitePlanner] = aliases.length > 1
             ? [new Map(aliases.map((a) => [a, together.get(cubeOf(a))!] as const)), joint]
@@ -119,11 +124,11 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
           ran += 1;
           let said: string;
           try {
-            const q = seriesQuery(inputsOf, ts, series, {}, {}, null);
+            const q = seriesQuery(inputsOf, ts, series, anchor === undefined ? {} : { from: anchor }, {}, null);
             const tile = await local.execute(await plannerOf.plan(q.query), 0);
             const pairs = fields(q.band, q.candles === true);
             const date = ts.sources.find((s) => s.alias === aliases[0])!.date;
-            const mine = await local.execute(await plannerOf.plan(tsSeriesQuery(inputsOf, ts, series)), 0);
+            const mine = await local.execute(await plannerOf.plan(tsSeriesQuery(inputsOf, ts, series, anchor)), 0);
             const d = difference(keyed(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)),
               keyed(mine, date, q.split, pairs.map(([, b]) => b)));
             said = d === undefined ? 'same' : `DIFFERS: ${d}`;
@@ -133,7 +138,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
           const expected = DIFFERS[id];
           if (said === 'same' && expected !== undefined) agreed.push(id);
           if (said !== 'same' && expected === undefined) unexpected.push(id);
-          outcomes.push(`${id} (${series.name ?? ''}) ${said === 'same' ? 'same' : said}\n    #TS{${tsQueryTextOrWhy(ts, series)}}#`);
+          outcomes.push(`${id} (${series.name ?? ''}) ${said === 'same' ? 'same' : said}\n    #TS{${tsQueryTextOrWhy(ts, series, anchor)}}#`);
         }
       }
     }
@@ -153,9 +158,9 @@ function uncompared(v: TsView): TsView {
   return rest;
 }
 
-function tsQueryTextOrWhy(ts: TimeseriesSpec, series: TsSeries): string {
+function tsQueryTextOrWhy(ts: TimeseriesSpec, series: TsSeries, anchor: string | undefined): string {
   try {
-    return tsQueryText(ts, series);
+    return tsQueryText(ts, series, anchor);
   } catch (e) {
     return `(not written: ${(e as Error).message})`;
   }
