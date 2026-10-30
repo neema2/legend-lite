@@ -3308,20 +3308,26 @@ Status lives in the plan's Progress table (rule 0b.16).
     with the split of `71-mapping-surface2.pure` (it stays excluded for its M2M explosion; the moved operations are
     loaded).
 - **Phase 5 (started 2026-10-30): M2M.** `stress_test/corpus` rebased onto `upstream/main` (`7bc0797d9`) first, with
-  no conflicts. It lands in stages, each committed when green. Inside the owned files: `55-canonical-store.pure`
-  split, its M2M mapping, `ModelChainConnection` and `stress::CanonicalRT` moving to a hand-written file without the
-  Money measure, so `M1_TradeCanonical` and `M2_CanonicalWithEnum` load in lite (`battery.py` and `build.py` write
-  them where lite reads them; only the measure's mapping, runtime and service stay excluded); a hand-written `m2m::`
-  pack (source classes mapped relationally over seeded tables, M2M mappings over them, `ModelChainConnection`s and
-  runtimes) and its seed, apart from the expansion; a generator `scripts/corpus/m2m.py` writing a new generated file
-  `99-m2m-services.pure` (`core/stress.bzl`'s `STRESS_GENERATED` and the layout JSON), each M2M service with a
-  relational twin in `battery.INVARIANCE_GROUPS`; a service over `75-surface-gaps.pure`'s M2M local property;
-  `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both
-  `MIN_PASS`.
+  no conflicts. Inside the owned files: `55-canonical-store.pure` split, its M2M mapping, `ModelChainConnection` and
+  `stress::CanonicalRT` moving to `55-canonical-chain.pure`, which has no Money measure, so `M1_TradeCanonical` and
+  `M2_CanonicalWithEnum` load in lite (only the measure's mapping, runtime and service stay excluded); a hand-written
+  `m2m::` pack, `8114-m2m.pure` (source classes mapped relationally over the seeded TRADE, COUNTERPARTY, BOOK and
+  ALLOCATION, M2M mappings over them, one `ModelChainConnection`, runtimes), with the two constructs lite refuses at
+  model build, the M2M enumeration transforms and the complex property passthrough, in `8115-m2m-gaps.pure`, which
+  lite excludes (the user's choice, 2026-10-30: exclude them rather than defer them in lite); 75-surface-gaps.pure's
+  local property given a source mapping, a chain and a value computed from the source; a generator
+  `scripts/corpus/m2m.py` writing `99-m2m-services.pure` and `94-gap-services.pure`, the latter the services over
+  8115's and 75's mappings, excluded with them (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON,
+  `scripts/corpus/BUILD.bazel`'s module lists), each M2M service with a relational twin in
+  `battery.INVARIANCE_GROUPS`; `model.py` (an Integer enumeration source value), `emit.py` (a TDS's sort and cut),
+  `spread.py` (no template over a class no table maps), `executed.py`, `quarantine.py`, four repros under
+  `scripts/corpus/repro/`, F84 to F87 in `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
 - **Cross-area, Phase 5 (announced 2026-10-30, before it lands):**
-  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (fifteen to sixteen).
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (fifteen to seventeen).
   - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
-    `99-m2m-services.pure`. The new hand-written pack and the file split out of `55-canonical-store.pure` hold
-    classes, mappings, connections and runtimes, which the trading model keeps, as it keeps Phase 7's packs.
+    `99-m2m-services.pure` and `94-gap-services.pure`. The new hand-written pack and the file split out of
+    `55-canonical-store.pure` hold classes, mappings, connections and runtimes, which the trading model keeps, as it
+    keeps Phase 7's packs.
   - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: kept consistent
-    with the split of `55-canonical-store.pure` (it stays excluded for its Money measure alone).
+    with the split of `55-canonical-store.pure` (it stays excluded for its Money measure alone), and
+    `8115-m2m-gaps.pure` and `94-gap-services.pure` excluded, each refusal with a case of its own.

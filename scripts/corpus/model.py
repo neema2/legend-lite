@@ -1502,8 +1502,12 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                 value = m.group(1)
                 # group(2) is the bracketed list, group(3) the single value.
                 for code in (m.group(2) if m.group(2) is not None else m.group(3)).split(","):
-                    code = code.strip().strip("'")
-                    if code:
+                    code = code.strip()
+                    # An unquoted integer is an Integer source value, which an INTEGER column's value matches; read as
+                    # text it matched nothing (2026-10-30, the improvement plan's Phase 5: m2m::SourceMapping's
+                    # DeskLoadCodes over BOOK.POSITION_COUNT, the first such mapping a service reads)
+                    code = int(code) if re.fullmatch(r"-?\d+", code) else code.strip("'")
+                    if code != "":
                         if code in c.enum_maps[enum_map]:
                             raise ValueError(
                                 f"EnumerationMapping {enum_map}: source code {code!r} "
@@ -1945,6 +1949,12 @@ SKIP_MAPPINGS = {
     # mapped from, which is what the invariance asserts.
     "canonical::M2MMapping",
     "canonical::MoneyMapping",
+    # The improvement plan's Phase 5: the m2m:: pack's M2M mappings (8114-m2m.pure) and 75-surface-gaps.pure's, for
+    # the same reason. Their expectations mirror relational twins over the source classes, which are read.
+    "m2m::Views",
+    "m2m::GapViews",
+    "m2m::Merged",
+    "surface::GapPureSurface",
     # Both map trading::Trade onto TRADE_FLAT_PARTIAL with embedded blocks; parsing them
     # would rebind Trade's ~mainTable exactly as EmbeddedFlatMapping would. Their
     # expectations are mirrored from the canonical model, which is the claim under test.

@@ -45,10 +45,67 @@ Mapping surface::GapPureSurface
       ~src surface::GapSrc
       k: $src.k,
       v: $src.v,
-      // A LOCAL property on a Pure mapping: declared by the mapping, not by the class.
-      +localTag: String[0..1]: 'from-m2m'
+      // A LOCAL property on a Pure mapping: declared by the mapping, not by the class. Since 2026-10-30 (the
+      // improvement plan's Phase 5) its value is computed from the source, not the constant 'from-m2m', so a
+      // relational twin can compute it too (scripts/corpus/m2m.py).
+      +localTag: String[0..1]: $src.v->map(s | $s->toLower())
    }
 )
+
+// GapSrc's relational mapping, which a ModelChainConnection feeds GapPureSurface from (2026-10-30, the improvement
+// plan's Phase 5): the local property's service reads GAP through the chain, and its twin reads it straight.
+Mapping surface::GapSourceMapping
+(
+   surface::GapSrc: Relational
+   {
+      ~mainTable [surface::GapDB]GAP
+      k: [surface::GapDB]GAP.K,
+      v: [surface::GapDB]GAP.A,
+      n: [surface::GapDB]GAP.N
+   }
+)
+
+###Connection
+RelationalDatabaseConnection surface::GapConn
+{
+   store: surface::GapDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+}
+
+ModelChainConnection surface::GapChain
+{
+   mappings: [
+      surface::GapSourceMapping
+   ];
+}
+
+###Runtime
+Runtime surface::GapSourceRT
+{
+   mappings:
+   [
+      surface::GapSourceMapping
+   ];
+   connections:
+   [
+      surface::GapDB: [ gapEnv: surface::GapConn ]
+   ];
+}
+
+Runtime surface::GapPureRT
+{
+   mappings:
+   [
+      surface::GapPureSurface
+   ];
+   connections:
+   [
+      ModelStore: [ chain: surface::GapChain ],
+      surface::GapDB: [ gapEnv: surface::GapConn ]
+   ];
+}
 
 ###Service
 // A NESTED multi-environment entry: one environment name holding SEVERAL named parameter

@@ -352,7 +352,35 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     _milestoning_features(c, specs, quarantined, add)
     _vocabulary_features(specs, quarantined, add)
     _unreached_features(c, specs, quarantined, add)
+    _m2m_features(specs, quarantined, add)
     return out
+
+
+def _m2m_features(specs, quarantined: set[str], add) -> None:
+    """M2M mappings chained over relational sources (the improvement plan's Phase 5, m2m.py), each executed when a
+    passing M2M service reaches the class mapping that holds it -- held here so a change that stops executing one fails
+    the build (the plan's rule 6). The merge has no entry: legend-engine cannot run one over a ModelChainConnection
+    (F86), so no passing service reaches it."""
+    import m2m
+
+    live = [s for s in specs if s.name not in quarantined and getattr(s, "mirrors", None) is not None]
+
+    def over(mapping, *roots):
+        return [s.short for s in live if s.mapping == mapping and s.root in roots]
+
+    views, gaps = m2m.VIEWS[0], m2m.GAP_VIEWS[0]
+    add("M5  M2M chained relational", [s.short for s in live
+                                       if s.mapping in (views, gaps, "canonical::M2MMapping", m2m.GAP_PURE[0])])
+    add("M5  M2M transform", over(views, "m2m::TradeView") + over("canonical::M2MMapping", "canonical::CanonicalTrade"))
+    add("M5  M2M derived source property", over(views, "m2m::TradeRef"))
+    add("M5  M2M enumeration transform", over(gaps, "m2m::DealSide", "m2m::PartyTier", "m2m::DeskLoad"))
+    add("M5  M2M nested set", over(views, "m2m::TradeCard"))
+    add("M5  M2M complex property passthrough", over(gaps, "m2m::TradeLink"))
+    add("M5  M2M target instantiation", over(views, "m2m::TradeStamp"))
+    add("M5  M2M ~filter", over(views, "m2m::OpenTrade", "m2m::UsdDeskTrade"))
+    add("M5  M2M union", over(views, "m2m::Ticket"))
+    add("M5  M2M transform over a to-many", over(views, "m2m::DealActivity"))
+    add("M5  M2M local property", over(m2m.GAP_PURE[0], "surface::GapTgt"))
 
 
 def _unreached_features(c: model.Corpus, specs, quarantined: set[str], add) -> None:
@@ -683,6 +711,12 @@ BASELINE = {
     # executed by passing services on legend-engine 4.145.0.
     "U1  DenseMapping respelling", "U2  router union", "U3  inheritance dispatch", "U4  merge operation",
     "U5  corpus profile", "U6  join chain ending in an expression", "U7  join not-equal", "U8  join numeric constant",
+    # 2026-10-30, the improvement plan's Phase 5 (m2m.py): M2M mappings chained over relational sources, each executed
+    # by passing services on legend-engine 4.145.0.
+    "M5  M2M chained relational", "M5  M2M transform", "M5  M2M derived source property",
+    "M5  M2M enumeration transform", "M5  M2M nested set", "M5  M2M complex property passthrough",
+    "M5  M2M target instantiation", "M5  M2M ~filter", "M5  M2M union", "M5  M2M transform over a to-many",
+    "M5  M2M local property",
 }
 
 

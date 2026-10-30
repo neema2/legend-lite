@@ -511,6 +511,12 @@ between them is two lines.
 Quarantined as `stress::M2_CanonicalWithEnum`. `stress::M1_TradeCanonical` deliberately
 omits the enum so the M2M invariance itself stays verified rather than being masked.
 
+**Not every path through a chain** (added 2026-10-30, the improvement plan's Phase 5). A source object PASSED THROUGH
+an M2M mapping and fetched as a graph keeps the translation: `stress::MX_TradeLinkTier` reads a relationally mapped
+counterparty's enumeration-mapped `tier` through the chain and gets the enum value, as its relational twin does. M2 is
+a projection of a transform that copies the enum-typed property; whether a graph fetch of that transform translates
+is not yet measured.
+
 **Worth noting alongside F10.** That was an unmapped code behaving differently across
 execution paths; this is a *mapped* code not being applied on one of them. Enumeration
 mappings appear to be handled per-path rather than once, and each path has its own answer.
@@ -2337,3 +2343,57 @@ compiler builds a join's operation through the same branch, so `Join j_ArrayArg(
 Integer. Pinned by `stress::UJ_JoinArrayArg` (quarantined), which asserts the answer `J1.N IN (1, 2, 3)` gives; the
 repro's `JoinPlain`, the same join with no list, passes, and `JoinIn`, under `in(D.N, [1, 3])`, fails with
 `...Literal`.
+
+## F84 — Fetched as a graph over a ModelChainConnection, a source class's derived property reads as absent
+
+**A wrong answer, silently, or an execution error.** Found 2026-10-30 by the improvement plan's Phase 5, whose M2M
+pack chains Pure mappings over relational ones through a `ModelChainConnection`. An M2M transform that reads a DERIVED
+property of its source class, `ref: $src.ref` where the source declares `ref() { $this.dealId + ':' + $this.currency }`,
+answers it correctly when the target is projected (a TDS: the chain inlines the transform into the source's SQL), and
+not when it is fetched as a graph (the source graph is fetched, then transformed in memory). legend-engine 4.145.0
+answers a String-typed derived property null for every row, and fails on a primitive one: "Error instantiating property
+'age' ... Cannot invoke java.lang.Long.longValue() because the return value of java.util.Map.get(Object) is null". The
+same expression written in the transform itself, `$src.first->toUpper()`, is fetched correctly, and so is a stored
+property. A relational graph fetch of a derived property serializes it under the key `shout()`, with its parentheses,
+which may be where the transform's read misses; that is observed, not traced in the source. Pinned by
+`stress::MX_TradeRefTree` (quarantined); `MX_TradeRef`, the same transforms projected, passes. Repro:
+`scripts/corpus/repro/m2m-derived-source-graphfetch/` (`DerivedTds` and `InlineGraph` pass; `DerivedGraph` answers
+null; `DerivedGraphInteger` fails).
+
+## F85 — In an M2M transform, `^Class(prop = a + b).prop` answers `a`
+
+**A wrong answer, silently.** Found 2026-10-30 by the improvement plan's Phase 5. A transform may instantiate a class
+with `^` and read a value back from it, as EMIT's target-instantiation model does (`instantiate($src.i).j`). legend-engine
+4.145.0 keeps only the first operand of a concatenation given as the new object's property: `^Box(label = $src.name +
+'!').label` answers 'n1' for the name 'n1', and `^m2m::Stamp(text = $src.dealId + ':' + $src.currency).text` the deal
+id alone, where `$src.name + '!'` written without the `^` answers 'n1!', and a function's result given to `^`
+(`$src.name->toUpper()`) is kept. Not the chain's: the repro's source is JSON, through a `JsonModelConnection`. Pinned
+by `stress::MX_TradeStampJoined` (quarantined); `MX_TradeStampTree`, whose `^` arguments are a function's result, a
+property and a literal, passes. Repro: `scripts/corpus/repro/m2m-new-concatenation/` (`S_Plain` and `S_NewFunction`
+pass; `S_NewConcatenation` answers the name alone).
+
+## F86 — An M2M merge over a ModelChainConnection fails before it runs
+
+**Not a wrong answer: a construct that cannot execute.** Found 2026-10-30 by the improvement plan's Phase 5. Phase 7
+found that legend-engine merges instances only in an M2M graph fetch; its own merge tests run over
+`JsonModelConnection`s (`core/store/m2m/tests/legend/merge.pure`). Over a `ModelChainConnection`, with the merged
+sets' source classes mapped relationally, legend-engine 4.145.0 fails at test setup: "Execution error at
+(resource:/core/store/m2m/chain.pure line:245 column:103), Cast exception: MergeOperationSetImplementation cannot be
+cast to PureInstanceSetImplementation". `chain.pure`'s `reprocess` casts every set it routes through to a Pure instance
+set, so an Operation set over a chain fails there: projected, a merge and a union both fail so; fetched as a graph a
+union runs (`stress::MX_TicketTree` passes) and a merge does not. Two `ModelChainConnection`s in one runtime, which
+would put the merge inside the chain as `mergeObjectsModelChainMapping` does, are refused outright ("Multiple
+ModelChainConnection's not supported yet!"), so a merge over relational data has no form that runs. Pinned by
+`stress::MX_PartyProfileTree` (quarantined), a merge of two Pure sets over two source classes of COUNTERPARTY joined
+on their key. Repro: `scripts/corpus/repro/m2m-merge-chain/` (`OneSet`, one of the sets alone, passes; `Merged` fails).
+
+## F87 — Projected over a ModelChainConnection, an M2M enumeration transform of an absent code answers ''
+
+**A wrong answer, silently.** Found 2026-10-30 by the improvement plan's Phase 5. An M2M enumeration transform,
+`side: EnumerationMapping M2MCodes: $src.code`, applied to a code the source does not have: legend-pure's transform of
+nothing is nothing, and legend-engine 4.145.0 answers so when the target is fetched as a graph, and when the source's
+own relational enumeration mapping of the column is projected. Projecting the M2M target (a TDS: the chain inlines the
+transform into the source's SQL) answers the empty string. An unmapped code answers '' the same way there, where the
+graph fetch raises ("Unmapped value: X"). Pinned by `stress::MX_PartyGrade` (quarantined), whose counterparty CP-0004
+has no rating; `MX_PartyGradeTree`, the same transform fetched, passes. Repro: `scripts/corpus/repro/m2m-absent-enum-tds/`
+(`RelationalTds` and `M2mGraph` pass; `M2mTds` answers '' for T3).

@@ -108,6 +108,10 @@ def _templates(c: model.Corpus, specs) -> list[Spec]:
     closure = executed.include_closure()
     best: dict[tuple, tuple[int, Spec]] = {}
     for s in specs:
+        # An M2M target (canonical::, m2m::) maps no table, so the oracle can evaluate no variant of it, and its paths
+        # do not resolve in the relational model (2026-10-30, the improvement plan's Phase 5)
+        if s.root not in c.main_table:
+            continue
         key = (s.root, getattr(s, "mapping", None))
         depth = len(stacking.spec_features(c, s, byclass, bymapping, closure))
         if key not in best or depth > best[key][0]:

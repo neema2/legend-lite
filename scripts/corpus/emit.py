@@ -681,10 +681,15 @@ def query_text(spec: Spec) -> str:
         keys = spec.sort if isinstance(spec.sort, list) else [spec.sort]
         rendered = ", ".join(
             f"~{alias}->{'descending' if desc else 'ascending'}()" for alias, desc in keys)
-        lines.append(f"        ->sort({rendered})" if len(keys) == 1
-                     else f"        ->sort([{rendered}])")
+        if spec.paradigm == "tds":
+            # A TDS sorts by its own SortInformation, `[desc('a'), asc('b')]`: the Relation's `~a->descending()` is no
+            # match for a TabularDataSet (2026-10-30, the improvement plan's Phase 5, the first TDS spec to sort)
+            lines.append(f"        ->sort({_order(keys, True)})")
+        else:
+            lines.append(f"        ->sort({rendered})" if len(keys) == 1
+                         else f"        ->sort([{rendered}])")
     if spec.limit is not None:
-        lines.append(f"        ->limit({spec.limit})")
+        lines.append(f"        ->take({spec.limit})" if spec.paradigm == "tds" else f"        ->limit({spec.limit})")
     # a lambda of several lines ends each after the first with `;`: `{|let t = 42; <query>;}`
     return "\n".join(lines) + (";};" if spec.lets else "};" if spec.params else ";")
 

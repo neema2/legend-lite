@@ -314,6 +314,21 @@ ENGINE_QUARANTINE.update({
 })
 # The same branch builds a join's condition: a literal list in a join fails alike (stage 3, the joins' services).
 ENGINE_QUARANTINE["stress::UJ_JoinArrayArg"] = ("F83", "a literal list in a join fails: unhandled type for value")
+# F84 to F87 -- the M2M pack (the improvement plan's Phase 5, m2m.py), each M2M service against a relational twin that
+# passes. F84: fetched as a graph over a ModelChainConnection, a source class's derived property reads as absent (a
+# String; a primitive fails); projected it is right (MX_TradeRef). Minimized in repro/m2m-derived-source-graphfetch/.
+ENGINE_QUARANTINE["stress::MX_TradeRefTree"] = ("F84", "a source's derived property reads as absent in an M2M graph "
+                                                       "fetch over a chain")
+# F85: `^Class(prop = a + b).prop` in an M2M transform answers `a`; a function's result is kept (MX_TradeStampTree).
+# Minimized, with a JSON source, in repro/m2m-new-concatenation/.
+ENGINE_QUARANTINE["stress::MX_TradeStampJoined"] = ("F85", "^Class(prop = a + b).prop answers a")
+# F86: an M2M merge over a ModelChainConnection fails at test setup (chain.pure's reprocess casts every set to a Pure
+# instance set); a union fetched as a graph runs (MX_TicketTree). Minimized in repro/m2m-merge-chain/.
+ENGINE_QUARANTINE["stress::MX_PartyProfileTree"] = ("F86", "an M2M merge over a ModelChainConnection fails: "
+                                                           "MergeOperationSetImplementation cannot be cast")
+# F87: projected over a chain, an M2M enumeration transform of an absent code answers ''; fetched as a graph it is
+# absent (MX_PartyGradeTree). Minimized in repro/m2m-absent-enum-tds/.
+ENGINE_QUARANTINE["stress::MX_PartyGrade"] = ("F87", "an M2M enumeration transform of an absent code projects as ''")
 
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the

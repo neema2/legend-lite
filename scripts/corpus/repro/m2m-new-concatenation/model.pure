@@ -1,0 +1,159 @@
+// F85: in an M2M transform, `^Class(prop = a + b).prop` answers `a`: the concatenation loses every operand but the first.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/m2m-new-concatenation/model.pure \
+//       --testable=demo::S_Plain --testable=demo::S_NewFunction --testable=demo::S_NewConcatenation
+//
+// No chain is needed: the source is JSON, through a JsonModelConnection. legend-engine 4.145.0:
+//   S_Plain             `plain: $src.name + '!'`: passes, 'n1!' and 'n2!'
+//   S_NewFunction       `boxed: ^demo::Box(label = $src.name->toUpper()).label`: passes, 'N1' and 'N2'
+//   S_NewConcatenation  `boxed: ^demo::Box(label = $src.name + '!').label`: answers 'n1' and 'n2'
+// The corpus met it over a ModelChainConnection with a relational source (stress::MX_TradeStampJoined, where
+// `^m2m::Stamp(text = $src.dealId + ':' + $src.currency).text` answers the deal id alone); this is the same defect with
+// neither.
+###Pure
+Class demo::Src
+{
+  name: String[1];
+}
+
+Class demo::Box
+{
+  label: String[1];
+}
+
+Class demo::Plain
+{
+  plain: String[1];
+}
+
+Class demo::NewFunction
+{
+  boxed: String[1];
+}
+
+Class demo::NewConcatenation
+{
+  boxed: String[1];
+}
+
+###Mapping
+Mapping demo::M
+(
+  *demo::Plain: Pure
+  {
+    ~src demo::Src
+    plain: $src.name + '!'
+  }
+  *demo::NewFunction: Pure
+  {
+    ~src demo::Src
+    boxed: ^demo::Box(label = $src.name->toUpper()).label
+  }
+  *demo::NewConcatenation: Pure
+  {
+    ~src demo::Src
+    boxed: ^demo::Box(label = $src.name + '!').label
+  }
+)
+
+###Connection
+JsonModelConnection demo::Json
+{
+  class: demo::Src;
+  url: 'executor:default';
+}
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ ModelStore: [ json: demo::Json ] ];
+}
+
+###Service
+Service demo::S_Plain
+{
+  pattern: '/plain';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Plain.all()->graphFetch(#{demo::Plain{plain}}#)->serialize(#{demo::Plain{plain}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ json: ExternalFormat #{ contentType: 'application/json'; data: '[{"name":"n1"},{"name":"n2"}]'; }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"plain":"n1!"},{"plain":"n2!"}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::S_NewFunction
+{
+  pattern: '/newFunction';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::NewFunction.all()->graphFetch(#{demo::NewFunction{boxed}}#)->serialize(#{demo::NewFunction{boxed}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ json: ExternalFormat #{ contentType: 'application/json'; data: '[{"name":"n1"},{"name":"n2"}]'; }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"boxed":"N1"},{"boxed":"N2"}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::S_NewConcatenation
+{
+  pattern: '/newConcatenation';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::NewConcatenation.all()->graphFetch(#{demo::NewConcatenation{boxed}}#)->serialize(#{demo::NewConcatenation{boxed}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ json: ExternalFormat #{ contentType: 'application/json'; data: '[{"name":"n1"},{"name":"n2"}]'; }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"boxed":"n1!"},{"boxed":"n2!"}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
