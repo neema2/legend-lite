@@ -16583,6 +16583,31 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — The seam program's S1a: a keyed result as a step of a sequence runs (the refusal lifted)
+
+The decisions log D78; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S1) and its F5. The stacked branch
+`claude/wizardly-dirac-rw6tim-seam` (on PR #82's head 86d60625; the user, 2026-10-30: "Let's start the work now on stacked
+PR").
+
+1. **Built:** `PlanRunner.sequence` and `steps` run an `ExecutionPlan.Keyed` step on the sequence's own statements
+   (`keyedOn`: the root keyed path's body, split from its session and snapshot bracket, so one body serves both). The
+   sequence's transaction is the keyed step's snapshot: opened at the strictest isolation a keyed step asks (`stricter`,
+   `rank`: SERIALIZABLE over REPEATABLE_READ over the database's own transaction over NONE) through `Statements.inSnapshot`
+   where the session owns its transaction, set before the first statement (Postgres refuses an isolation changed
+   mid-transaction); a transaction a caller holds is joined as it is through `inTransaction` and is the snapshot then.
+   The step counts as the sequence's one result (`ExecutionPlan.answer` counted it already); the body's null types are
+   checked with the keys' as the step's statement; the one-target rule holds through the record's own keys-equals-body
+   rule. The refusal "a keyed result inside a plan of several steps is not run yet" is gone from both arms. No format
+   change (a keyed node inside a sequence read back already). `ExecutionPlan.Sequence`'s javadoc says so.
+2. **Measured locally before the commit:** `//core:core_tests_planner` (96 tests, the new
+   `PlanMakerTest.aKeyedResultAsAStepOfASequenceRunsAsTheRootKeyedPlanDoes` among them: on every in-process database a
+   sequence of the keyed step alone answers the root keyed plan's CSV, reads back from its JSON, and on the platform's
+   database a check step before it runs in the same transaction), `//core:core_tests_exec`, `//core:core_tests_root`,
+   `//core:guardrails`, `//tools/deps:core_layering_test`: 5 of 5.
+3. **Not measured yet:** the corpus and channel B lanes (step H's measurement runs them next on this tree, with its
+   temporary prints; zero roster movement expected: no caller makes a keyed step yet), the rest of the chain; CI on the
+   stacked PR.
+
 ## 2026-10-30 — Step C, the root dissolved: the five doors at the root; the plan machinery com.legend.planner, the execution side com.legend.driver
 
 The decisions log D73.

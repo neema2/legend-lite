@@ -113,7 +113,9 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * session (docs/WRITES_DESIGN_2026_10_18.md §7, D7, and §8, leg 7): its changes all land or none do, and a
      * caller's open transaction is joined, never committed. Its answer is its one result step's (the steps after it
      * drop what the steps before it staged), passed on once its changes have committed: no answer leaves for a change
-     * rolled back.
+     * rolled back. A keyed result may be a step (the seam program's S1a, 2026-10-30: a test body's dynamic pivot
+     * beside its lets and its verdicts): its snapshot is the sequence's transaction, opened at the isolation the keyed
+     * result asks where the session owns it.
      */
     public record Sequence(List<Node> steps) implements Node {
         public Sequence {

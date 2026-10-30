@@ -272,6 +272,7 @@ public final class PlanRunner {
         ExecutionPlan.Target target = null;
         int results = 0;
         boolean changes = false;
+        ExecutionPlan.Keyed.Snapshot snapshot = null;
         for (ExecutionPlan.Node step : sequence.steps()) {
             ExecutionPlan.Sql sql = switch (step) {
                 case ExecutionPlan.Update u -> {
@@ -291,8 +292,16 @@ public final class PlanRunner {
                     results++;
                     yield t.sql();
                 }
-                case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
-                        + " inside a plan of several steps is not run yet");
+                case ExecutionPlan.Keyed k -> {
+                    // a keyed result among the steps (the seam program's S1a, 2026-10-30; refused by name until then):
+                    // its two statements run on the sequence's session, its snapshot the sequence's one transaction,
+                    // opened at the strictest isolation a keyed step asks (below); the body's null types checked here,
+                    // the keys' as the step's statement; one target for both is the record's own rule
+                    results++;
+                    nullTypes(k.body());
+                    snapshot = stricter(snapshot, k.snapshot());
+                    yield k.keys();
+                }
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
                         + " plan's steps are one list");
             };
@@ -310,6 +319,13 @@ public final class PlanRunner {
         ExecutionPlan.Target on = java.util.Objects.requireNonNull(target, "a sequence has a step");
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
             Statements st = opened(session, on);
+            if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
+                // a keyed step's snapshot is the sequence's own transaction, at the isolation the step asks, set
+                // before its first statement (Postgres refuses an isolation changed mid-transaction); a transaction a
+                // caller holds is joined as it is below, and is the snapshot then
+                st.inSnapshot(snapshot, () -> steps(sequence, checked, st, held));
+                return;
+            }
             try {
                 st.inTransaction(() -> {
                     try {
@@ -323,6 +339,25 @@ public final class PlanRunner {
                 throw e.getCause();
             }
         }
+    }
+
+    /** The stricter of two keyed snapshots ({@code a} null: none asked yet): a serializable transaction over a
+     *  repeatable-read one, that over the database's own, that over none. */
+    private static ExecutionPlan.Keyed.Snapshot stricter(ExecutionPlan.Keyed.@com.legend.base.Nullable Snapshot a,
+            ExecutionPlan.Keyed.Snapshot b) {
+        if (a == null) {
+            return b;
+        }
+        return rank(b) > rank(a) ? b : a;
+    }
+
+    private static int rank(ExecutionPlan.Keyed.Snapshot s) {
+        return switch (s) {
+            case NONE -> 0;
+            case TRANSACTION -> 1;
+            case REPEATABLE_READ -> 2;
+            case SERIALIZABLE -> 3;
+        };
     }
 
     /** The steps, each at its turn on {@code st}: a change's count bound under its name for the slots after it; a
@@ -358,8 +393,21 @@ public final class PlanRunner {
                     held.columns = t.columns();
                     st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(), held.rows::add);
                 }
-                case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
-                        + " inside a plan of several steps is not run yet");
+                case ExecutionPlan.Keyed k -> keyedOn(k, values, st, new KeyedSink() {
+                    @Override
+                    public void columns(List<ExecutionPlan.Column> columns) {
+                        held.columns = columns;
+                    }
+
+                    @Override
+                    public void row(List<Object> cells) {
+                        held.rows.add(cells);
+                    }
+
+                    @Override
+                    public void end() {
+                    }
+                });
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
             }
         }
@@ -392,13 +440,21 @@ public final class PlanRunner {
      */
     private static void keyed(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
             PlanSessions.Source sessions, KeyedSink sink) throws IOException {
-        for (ExecutionPlan.Sql sql : List.of(keyed.keys(), keyed.body())) {
-            for (ExecutionPlan.Slot slot : sql.slots()) {
-                if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                    JdbcStatements.nullType(one, slot);
-                }
-            }
+        nullTypes(keyed.keys());
+        nullTypes(keyed.body());
+        try (Sessions.Session session = sessions.open(keyed.keys().target())) {
+            Statements st = opened(session, keyed.keys().target());
+            st.inSnapshot(keyed.snapshot(), () -> keyedOn(keyed, checked, st, sink));
         }
+    }
+
+    /**
+     * A keyed plan's two statements on {@code st}, inside their snapshot already (a keyed plan's own, or the
+     * sequence's transaction where the keyed result is a step: the seam program's S1a, 2026-10-30): the keys probe
+     * read as typed rows, the body written for those keys and its rows handed to {@code sink}.
+     */
+    private static void keyedOn(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
+            Statements st, KeyedSink sink) throws IOException {
         int perKey = (int) keyed.outputs().stream().filter(o -> o instanceof ExecutionPlan.Keyed.PerKey).count();
         // each statement's cells read by the names it writes them under (a session reading by name, MongoDB's, needs
         // them; JDBC reads by place): the probe's keyFields, a fixed output's field, a per-key output's
@@ -408,67 +464,62 @@ public final class PlanRunner {
             keyColumns.add(new ExecutionPlan.Column(keyed.keyFields().get(i), "String",
                     new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null));
         }
-        try (Sessions.Session session = sessions.open(keyed.keys().target())) {
-            Statements st = opened(session, keyed.keys().target());
-            st.inSnapshot(keyed.snapshot(), () -> {
-                List<List<Object>> keys = new java.util.ArrayList<>();
-                ExecutionPlan.Sql probe = keyed.keys();
-                List<PlanParameters.Checked> probeValues = new java.util.ArrayList<>(probe.slots().size());
-                for (int i = 0; i < probe.slots().size(); i++) {
-                    probeValues.add(value(checked, probe.slots().get(i), i + 1));
-                }
-                st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
-                int fixed = keyed.outputs().size() - perKey;
-                int columns = fixed + keys.size() * perKey;
-                if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
-                    throw new com.legend.error.NotImplementedException("a dynamic pivot of " + keys.size() + " keys answers "
-                            + columns + " columns, more than the database's " + keyed.maxColumns());
-                }
-                List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
-                List<ExecutionPlan.Column> read = new java.util.ArrayList<>(columns);
-                for (int i = 0; i < keyed.outputs().size(); i++) {
-                    if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.Fixed f) {
-                        answered.add(f.column());
-                        read.add(named(f.column(), f.field()));
-                    }
-                }
-                for (int k = 0; k < keys.size(); k++) {
-                    for (int i = 0; i < keyed.outputs().size(); i++) {
-                        if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.PerKey p) {
-                            String name = cellText(keys.get(k), p.name());
-                            ExecutionPlan.Column c = p.column();
-                            ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
-                                    c.slot(), c.store(), c.precision());
-                            answered.add(a);
-                            read.add(named(a, "_pk" + k + "_" + p.field()));
-                        }
-                    }
-                }
-                // the answer in the relation's own order: the first perKeyAt fixed columns, the per-key ones, then the
-                // rest of the fixed ones -- read in the body's order (its fixed columns first), each cell placed
-                int at = keyed.perKeyAt();
-                int[] place = new int[columns];
-                for (int i = 0; i < columns; i++) {
-                    place[i] = i < at ? i : i < fixed ? i + (columns - fixed) : i - (fixed - at);
-                }
-                List<ExecutionPlan.Column> inOrder = new java.util.ArrayList<>(java.util.Collections.nCopies(columns,
-                        (ExecutionPlan.Column) null));
-                for (int i = 0; i < columns; i++) {
-                    inOrder.set(place[i], answered.get(i));
-                }
-                Expanded body = expand(keyed.body(), keys, checked);
-                sink.columns(inOrder);
-                StatementOrigin.sent(body.statement());
-                st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
-                    List<Object> placed = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, null));
-                    for (int i = 0; i < columns; i++) {
-                        placed.set(place[i], cells.get(i));
-                    }
-                    sink.row(placed);
-                });
-                sink.end();
-            });
+        List<List<Object>> keys = new java.util.ArrayList<>();
+        ExecutionPlan.Sql probe = keyed.keys();
+        List<PlanParameters.Checked> probeValues = new java.util.ArrayList<>(probe.slots().size());
+        for (int i = 0; i < probe.slots().size(); i++) {
+            probeValues.add(value(checked, probe.slots().get(i), i + 1));
         }
+        st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
+        int fixed = keyed.outputs().size() - perKey;
+        int columns = fixed + keys.size() * perKey;
+        if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
+            throw new com.legend.error.NotImplementedException("a dynamic pivot of " + keys.size() + " keys answers "
+                    + columns + " columns, more than the database's " + keyed.maxColumns());
+        }
+        List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
+        List<ExecutionPlan.Column> read = new java.util.ArrayList<>(columns);
+        for (int i = 0; i < keyed.outputs().size(); i++) {
+            if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.Fixed f) {
+                answered.add(f.column());
+                read.add(named(f.column(), f.field()));
+            }
+        }
+        for (int k = 0; k < keys.size(); k++) {
+            for (int i = 0; i < keyed.outputs().size(); i++) {
+                if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.PerKey p) {
+                    String name = cellText(keys.get(k), p.name());
+                    ExecutionPlan.Column c = p.column();
+                    ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
+                            c.slot(), c.store(), c.precision());
+                    answered.add(a);
+                    read.add(named(a, "_pk" + k + "_" + p.field()));
+                }
+            }
+        }
+        // the answer in the relation's own order: the first perKeyAt fixed columns, the per-key ones, then the
+        // rest of the fixed ones -- read in the body's order (its fixed columns first), each cell placed
+        int at = keyed.perKeyAt();
+        int[] place = new int[columns];
+        for (int i = 0; i < columns; i++) {
+            place[i] = i < at ? i : i < fixed ? i + (columns - fixed) : i - (fixed - at);
+        }
+        List<ExecutionPlan.Column> inOrder = new java.util.ArrayList<>(java.util.Collections.nCopies(columns,
+                (ExecutionPlan.Column) null));
+        for (int i = 0; i < columns; i++) {
+            inOrder.set(place[i], answered.get(i));
+        }
+        Expanded body = expand(keyed.body(), keys, checked);
+        sink.columns(inOrder);
+        StatementOrigin.sent(body.statement());
+        st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
+            List<Object> placed = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, null));
+            for (int i = 0; i < columns; i++) {
+                placed.set(place[i], cells.get(i));
+            }
+            sink.row(placed);
+        });
+        sink.end();
     }
 
     /** {@code c} read under the name its statement writes it: the column's facts, that name. */
