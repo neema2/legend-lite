@@ -78,9 +78,21 @@ all together in same PR don't worry about license for the moment".
 | | Who runs the query | How the rows reach Deephaven | For | Against |
 |---|---|---|---|---|
 | (a) | Deephaven itself: the generated program, over JDBC (`deephaven-extensions-jdbc-42.7`) | Deephaven reads the result into a table | no other process; the master's database does the query | every Deephaven server needs each master's JDBC driver (42.7 ships none), network route and password; the schedule, retries and errors written as Groovy; the query runs once per server; it serves Deephaven only |
-| (b) | the platform | written into a Deephaven table, as an Arrow upload into an input table | the passwords stay with the platform | a writer lite does not have; input tables are what the licence's section 4 restricts; after a server restart the table is empty until the next run |
-| (c) | the platform | published to a keyed topic (the door in the demo, Kafka in production), read like every stream | Deephaven has one way in for all its data; the query runs once however many servers read it; a restarted server reads the topic again; the passwords stay with the platform; no Deephaven input tables (the licence's section 4 still counts a topic-fed table as a source table: docs/DEEPHAVEN_START_HERE.md open decision 2) | the runner must publish (into the door in the same process in the demo; Kafka's Java client in production); a key a run no longer returns needs Kafka's delete marker, and how Deephaven's reader takes one is to be measured |
+| (b) | the platform | written into a Deephaven table, as an Arrow upload into an input table | the passwords stay with the platform | a writer lite does not have; after a server restart the table is empty until the next run |
+| (c) | the platform | published to a keyed topic (the door in the demo, Kafka in production), read like every stream | Deephaven has one way in for all its data; the query runs once however many servers read it; a restarted server reads the topic again; the passwords stay with the platform; no Deephaven input tables (the licence's section 4 still counts a topic-fed table as a source table: docs/DEEPHAVEN_START_HERE.md open decision 2) | the runner must publish (into the door in the same process in the demo; Kafka's Java client in production); a key a run no longer returns is published as a deleted record, so the runner keeps the last run's keys (measured below) |
 | (d) | the platform | written as a Parquet snapshot that Deephaven reads again, or an Iceberg table it refreshes from (both readers in 42.7) | each run's snapshot replaces the last, so keys that vanish vanish | storage shared by the runner and every server; a second way into Deephaven beside Kafka |
+
+The licence's section 4 does not choose between them: in all four the platform defines the table (START_HERE, open
+decision 2).
+
+**A deleted key, measured 2026-10-30** (the pinned 42.7, `KafkaTools.consumeToTable` with a `simpleSpec` key and a
+`jsonSpec` value, through the door): Kafka's own delete marker, a record with a key and no value, fails the whole
+table on the first one (`IllegalArgumentException: argument "content" is null`; every table over it fails after). A
+delete published as a record of the key with `"Deleted": true` works: over a blink table, `lastBy(key)` then
+`where("Deleted != true")` showed each key's latest row, a deleted key gone, the same key added again back, a JSON
+`null` kept, and nothing failed. Memory stays one row a key (a blink table's aggregation keeps only its state). So (c)
+never sends Kafka's marker: the generated program reads the flag, and the runner compares each run's keys with the
+last run's.
 
 **Recommended: (c).** It reverses the earlier lean to (a), for three reasons:
 
