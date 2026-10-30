@@ -3,21 +3,32 @@
 
 package com.legend.protocol.sql;
 
-import com.legend.protocol.spec.SqlIsland;
+import com.legend.protocol.spec.IslandLanguage;
+import com.legend.protocol.sql.iq.IqDialect;
+import com.legend.protocol.sql.iq.IqProfile;
 
 /**
- * The input languages a SQL island is written in, each by the name its island gives it (the dialect program's D11,
- * 2026-10-18): the registry of {@link InputDialect}s, which names each one, as the database registry names every
- * database. A language read under a profile (IQ's options) is that language's own to read.
+ * The input languages a SQL island is written in (the dialect program's D11, 2026-10-18): the registry of
+ * {@link InputDialect}s, each the dialect of one {@link IslandLanguage}, which names each one as the database registry
+ * names every database. A language read under a profile (IQ's options) is that language's own to read.
  */
 public final class InputLanguages {
 
     private InputLanguages() {
     }
 
-    /** The dialect an island in {@code language} that names no profile is read in, or null when that language has
-     *  none without one. */
-    public static @com.legend.base.Nullable InputDialect plain(String language) {
-        return language.equals(SqlIsland.SQL) ? PostgresDialect.INSTANCE : null;
+    /** The dialect an island in {@code language} is read in under {@code profile} (null: the language's default), or
+     *  null when the language is not SQL (the Cypher island: its own seam) or {@code profile} is not one of its own
+     *  ({@link IslandLanguage#unknownProfile}). */
+    public static @com.legend.base.Nullable InputDialect of(IslandLanguage language,
+            @com.legend.base.Nullable String profile) {
+        return switch (language) {
+            case SQL -> PostgresDialect.INSTANCE;
+            case IQ -> {
+                IqProfile named = profile == null ? IqProfile.DEFAULT : IqProfile.named(profile);
+                yield named == null ? null : IqDialect.of(named.settings());
+            }
+            case CYPHER -> null;
+        };
     }
 }

@@ -3267,42 +3267,24 @@ public final class SpecParser implements TokenStreamCursor {
     }
 
     /**
-     * {@code #IQ{ select ... }#} and {@code #IQ:<profile>{ select ... }#}: legend-lite's SAP IQ island
-     * (docs/IQ_SQL_STUDY_2026_10_13.md §4, I1-I2), carried like the SQL island, its text UNTRIMMED. A profile is one
-     * of a closed set ({@code IqProfile}); any other is refused by name. Upstream has no such island: the
-     * LEGEND_ENGINE surface refuses it as it refuses any unknown island type. On the LEGEND_PLATFORM surface the
-     * island takes the place of legend-pure's legacy graph-fetch reading of the same spelling (a tree rooted at a class
-     * named {@code IQ}, which nothing here writes), so the own-corpus census sees it as the lite extension it is.
+     * A query-text island ({@code #SQL{...}#}, {@code #IQ{...}#}, {@code #IQ:<profile>{...}#}, {@code #Cypher{...}#}):
+     * its language's facts are {@link com.legend.protocol.spec.IslandLanguage}'s, its text UNTRIMMED. A lite
+     * extension is refused on the LEGEND_ENGINE surface as any unknown island type; a profile outside the language's
+     * closed set is refused by name.
      */
-    /**
-     * {@code #Cypher{ MATCH ... }#}: legend-lite's Cypher island (docs/CYPHER_STUDY_2026_10_15.md §4, C1), carried
-     * like the SQL island, its text UNTRIMMED: a Cypher query as Neo4j accepts it, its {@code CYPHER 5} or
-     * {@code CYPHER 25} prefix included. Upstream has no such island: the LEGEND_ENGINE surface refuses it as it
-     * refuses any unknown island type; on the LEGEND_PLATFORM surface it takes the place of legend-pure's legacy
-     * graph-fetch reading of the same spelling, as the IQ island does.
-     */
-    private ValueSpecification cypherIsland(String dslType, String cypher, int islandStart) {
-        if (dialect().refusesLiteExtensions()) {
+    private ValueSpecification queryIsland(com.legend.protocol.spec.IslandLanguage language, String dslType,
+            String text, int islandStart) {
+        if (language.liteExtension() && dialect().refusesLiteExtensions()) {
             throw error("unknown DSL island type: '#" + dslType + "{'");
         }
-        return new com.legend.protocol.spec.SqlIsland(cypher, spanOf(islandStart, pos - 1),
-                com.legend.protocol.spec.SqlIsland.CYPHER, null);
-    }
-
-    private ValueSpecification iqIsland(String dslType, String sql, int islandStart) {
-        if (dialect().refusesLiteExtensions()) {
-            throw error("unknown DSL island type: '#" + dslType + "{'");
-        }
-        String profile = null;
-        if (dslType.startsWith("IQ:")) {
-            profile = dslType.substring("IQ:".length());
-            if (com.legend.protocol.sql.iq.IqProfile.named(profile) == null) {
-                throw TokenStreamCursor.throwAt(tokens, islandStart,
-                        com.legend.protocol.sql.iq.IqProfile.unknown(profile));
+        String profile = language.profileOf(dslType);
+        if (profile != null) {
+            String unknown = language.unknownProfile(profile);
+            if (unknown != null) {
+                throw TokenStreamCursor.throwAt(tokens, islandStart, unknown);
             }
         }
-        return new com.legend.protocol.spec.SqlIsland(sql, spanOf(islandStart, pos - 1),
-                com.legend.protocol.spec.SqlIsland.IQ, profile);
+        return new com.legend.protocol.spec.SqlIsland(text, spanOf(islandStart, pos - 1), language, profile);
     }
 
     private ValueSpecification parseDsl() {
@@ -3340,11 +3322,9 @@ public final class SpecParser implements TokenStreamCursor {
         }
         String contentText = content.toString().trim();
 
-        if (dslType.equals("IQ") || dslType.startsWith("IQ:")) {
-            return iqIsland(dslType, content.toString(), islandStart);
-        }
-        if (dslType.equals("Cypher")) {
-            return cypherIsland(dslType, content.toString(), islandStart);
+        com.legend.protocol.spec.IslandLanguage language = com.legend.protocol.spec.IslandLanguage.named(dslType);
+        if (language != null) {
+            return queryIsland(language, dslType, content.toString(), islandStart);
         }
         ValueSpecification result = switch (dslType) {
             // the tree is the source between the opener '#{' and the closer '}#'
@@ -3353,13 +3333,6 @@ public final class SpecParser implements TokenStreamCursor {
             // Engine convention (ProbeWireShapes "burn zoo 2" tref): the classInstance
             // spans the whole #>{...}# literal.
             case ">" -> parseTableReference(contentText, spanOf(islandStart, pos - 1));
-            // #SQL{ select ... }# — the sql-expression extension; carried
-            // as its wire classInstance (ZTailProbe "sql-island"), refused
-            // by the compiler. The sql value is the UNTRIMMED inner text —
-            // engine keeps trailing whitespace (corpus byte diff caught the
-            // trim on 2026-08-09)
-            case "SQL" -> new com.legend.protocol.spec.SqlIsland(
-                    content.toString(), spanOf(islandStart, pos - 1));
             // #GQL{ query {...} }# — the graphQL extension: the island
             // content parses from the RAW SOURCE SLICE (the token
             // reconstruction drops the spacing GraphQL names need) into

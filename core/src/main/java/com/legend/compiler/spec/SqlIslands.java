@@ -8,14 +8,13 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.SourceInfo;
+import com.legend.protocol.spec.IslandLanguage;
 import com.legend.protocol.spec.SqlIsland;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.sql.InputDialect;
 import com.legend.protocol.sql.InputLanguages;
 import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlTranslationException;
-import com.legend.protocol.sql.iq.IqDialect;
-import com.legend.protocol.sql.iq.IqProfile;
 
 import java.util.function.Function;
 
@@ -40,10 +39,17 @@ final class SqlIslands {
      *  neither. */
     static ValueSpecification desugar(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
             ModelContext model, Env env) {
-        if (island.language().equals(SqlIsland.CYPHER)) {
+        return switch (island.language()) {
             // the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §5.3): its own seam, over the class model
-            return CypherIslands.desugar(island, model);
-        }
+            case CYPHER -> CypherIslands.desugar(island, model);
+            // SQL read through its language's dialect: Postgres's, IQ's under the island's profile
+            case SQL, IQ -> translated(island, typeSource, model, env);
+        };
+    }
+
+    /** {@code island}, a SQL island, as the relation expression the translator reads it to mean. */
+    private static ValueSpecification translated(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
+            ModelContext model, Env env) {
         java.util.Set<String> read = new java.util.TreeSet<>();
         SqlToPure.Sources sources = sources(island, typeSource, model, env, read);
         try {
@@ -64,7 +70,7 @@ final class SqlIslands {
      *  with RETURNING, the writes design's leg 4, 2026-10-20; an ON CONFLICT DO UPDATE, PR #67's second review,
      *  2026-10-24): a program of statements ({@link #statements}), as a Cypher statement that updates the graph is. */
     static boolean isProgram(SqlIsland island) {
-        return island.language().equals(SqlIsland.SQL) && island.profile() == null
+        return island.language() == IslandLanguage.SQL
                 && SqlToPure.isProgram(island.sql(), dialect(island));
     }
 
@@ -229,23 +235,20 @@ final class SqlIslands {
         return true;
     }
 
-    /** The island's dialect: its language's ({@link InputLanguages}), IQ under the island's profile for
-     *  {@code #IQ{}}. */
+    /** The island's dialect: its language's ({@link InputLanguages}), under the island's profile for one that takes
+     *  one; a profile outside the language's closed set refused by name. */
     private static InputDialect dialect(SqlIsland island) {
-        InputDialect plain = island.profile() == null ? InputLanguages.plain(island.language()) : null;
-        if (plain != null) {
-            return plain;
+        String profile = island.profile();
+        String unknown = profile == null ? null : island.language().unknownProfile(profile);
+        if (unknown != null) {
+            throw new TypeInferenceException(unknown);
         }
-        if (!island.language().equals(SqlIsland.IQ)) {
-            throw new TypeInferenceException("an island of language " + island.language() + (island.profile() == null
-                    ? "" : " and profile " + island.profile()) + " has no SQL dialect");
+        InputDialect dialect = InputLanguages.of(island.language(), profile);
+        if (dialect == null) {
+            throw new TypeInferenceException("an island of language " + island.language().opener() + " has no SQL"
+                    + " dialect");
         }
-        String named = island.profile();
-        IqProfile profile = named == null ? IqProfile.DEFAULT : IqProfile.named(named);
-        if (profile == null) {
-            throw new TypeInferenceException(IqProfile.unknown(java.util.Objects.requireNonNull(named)));
-        }
-        return IqDialect.of(profile.settings());
+        return dialect;
     }
 
     /** A FROM source's columns, as the translator reads them: each column's name, its type's name, whether it may hold

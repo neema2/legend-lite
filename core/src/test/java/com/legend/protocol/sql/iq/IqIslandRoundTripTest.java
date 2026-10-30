@@ -51,7 +51,7 @@ class IqIslandRoundTripTest {
         assertTrue(named.contains("\"type\":\"IQ\",\"value\":{\"sql\":\"SELECT 1\",\"profile\":\"iq16-odbc\"}"), named);
         SqlIsland island = (SqlIsland) ((LambdaFunction) Compiler.parseQuery("|#IQ{SELECT 1}#"))
                 .body().get(0);
-        assertEquals(SqlIsland.IQ, island.language());
+        assertEquals(com.legend.protocol.spec.IslandLanguage.IQ, island.language());
         assertNull(island.profile());
     }
 
@@ -77,7 +77,7 @@ class IqIslandRoundTripTest {
                 + "}\n");
         com.legend.model.FunctionDefinition f = (com.legend.model.FunctionDefinition) model.elements().get(0);
         SqlIsland island = (SqlIsland) f.body().get(0);
-        assertEquals(SqlIsland.IQ, island.language());
+        assertEquals(com.legend.protocol.spec.IslandLanguage.IQ, island.language());
         assertNull(island.profile());
     }
 

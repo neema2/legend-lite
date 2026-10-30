@@ -74,11 +74,11 @@ class ValueSpecEqualityTest {
         }
         assertNotEquals(new SqlIsland("select 1", A), new SqlIsland("select 2", A));
         // the island's language and profile are its value too: the same text is a different query in each
-        assertNotEquals(new SqlIsland("select 1", A), new SqlIsland("select 1", A, SqlIsland.IQ, null));
-        assertNotEquals(new SqlIsland("select 1", A, SqlIsland.IQ, null),
-                new SqlIsland("select 1", A, SqlIsland.IQ, "iq16-odbc"));
-        assertEquals(new SqlIsland("select 1", A, SqlIsland.IQ, "iq16-odbc"),
-                new SqlIsland("select 1", B, SqlIsland.IQ, "iq16-odbc"));
+        assertNotEquals(new SqlIsland("select 1", A), new SqlIsland("select 1", A, IslandLanguage.IQ, null));
+        assertNotEquals(new SqlIsland("select 1", A, IslandLanguage.IQ, null),
+                new SqlIsland("select 1", A, IslandLanguage.IQ, "iq16-odbc"));
+        assertEquals(new SqlIsland("select 1", A, IslandLanguage.IQ, "iq16-odbc"),
+                new SqlIsland("select 1", B, IslandLanguage.IQ, "iq16-odbc"));
     }
 
     @Test

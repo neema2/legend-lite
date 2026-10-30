@@ -64,7 +64,7 @@ public final class CypherIslands {
      *  program of statements ({@link #statements}). A statement that does not parse is none: its error is the
      *  expression's reading's. */
     public static boolean updates(SqlIsland island) {
-        if (!island.language().equals(SqlIsland.CYPHER)) {
+        if (island.language() != com.legend.protocol.spec.IslandLanguage.CYPHER) {
             return false;
         }
         try {

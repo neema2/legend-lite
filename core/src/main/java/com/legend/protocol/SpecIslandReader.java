@@ -14,6 +14,7 @@ import com.legend.protocol.spec.ColSpecArray;
 import com.legend.protocol.spec.EnumValue;
 import com.legend.protocol.spec.GqlIsland;
 import com.legend.protocol.spec.GraphFetchLiteral;
+import com.legend.protocol.spec.IslandLanguage;
 import com.legend.protocol.spec.KeyExpression;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.NewInstance;
@@ -54,16 +55,6 @@ final class SpecIslandReader {
                     "colSpec", SpecIslandReader::colSpec,
                     "colSpecArray", SpecIslandReader::colSpecArray,
                     "path", (value, pos) -> pathLiteral(Wire.of(value, "path")),
-                    "SQL", (value, pos) -> {
-                        Wire w = Wire.of(value, "SQL island");
-                        return w.done(new SqlIsland(w.str("sql"), pos));
-                    },
-                    "IQ", SpecIslandReader::iqIsland,
-                    "Cypher", (value, pos) -> {
-                        // the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §5.3): {"cypher": <text>}
-                        Wire w = Wire.of(value, "Cypher island");
-                        return w.done(new SqlIsland(w.str("cypher"), pos, SqlIsland.CYPHER, null));
-                    },
                     "GQL", (value, pos) -> new GqlIsland(GqlReader.document(value), pos),
                     "TDS", (value, pos) -> {
                         Wire w = Wire.of(value, "TDS island");
@@ -73,20 +64,27 @@ final class SpecIslandReader {
     private static Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> withOlderKinds(
             Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> islands) {
         Map<String, BiFunction<Json.Node, SourceInfo, ValueSpecification>> all = new java.util.LinkedHashMap<>(islands);
+        for (IslandLanguage language : IslandLanguage.values()) {
+            all.put(language.opener(), (value, pos) -> queryIsland(language, value, pos));
+        }
         all.putAll(OlderSpecReader.KINDS);
         return java.util.Collections.unmodifiableMap(all);
     }
 
-    /** {@code #IQ{...}#}: {@code {"sql": ..., "profile": ...}}, the profile only when the island names one, and one of
-     *  the closed set ({@code IqProfile}). */
-    private static ValueSpecification iqIsland(Json.Node value, @com.legend.base.Nullable SourceInfo pos) {
-        Wire w = Wire.of(value, "IQ island");
-        String sql = w.str("sql");
-        String profile = w.optStr("profile");
-        if (profile != null && com.legend.protocol.sql.iq.IqProfile.named(profile) == null) {
-            throw Wire.refuse(com.legend.protocol.sql.iq.IqProfile.unknown(profile));
+    /** A query-text island of {@code language} ({@link IslandLanguage}): {@code {"<text key>": ...}}, and for a
+     *  language that takes one, {@code "profile": ...} when the island names one, one of the language's closed set. */
+    private static ValueSpecification queryIsland(IslandLanguage language, Json.Node value,
+            @com.legend.base.Nullable SourceInfo pos) {
+        Wire w = Wire.of(value, language.opener() + " island");
+        String text = w.str(language.textKey());
+        String profile = language.profiled() ? w.optStr("profile") : null;
+        if (profile != null) {
+            String unknown = language.unknownProfile(profile);
+            if (unknown != null) {
+                throw Wire.refuse(unknown);
+            }
         }
-        return w.done(new SqlIsland(sql, pos, SqlIsland.IQ, profile));
+        return w.done(new SqlIsland(text, pos, language, profile));
     }
 
     static ValueSpecification classInstance(Wire w) {
