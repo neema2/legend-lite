@@ -477,6 +477,9 @@ legend_java_library(
             # DataCube's timeseries library on every in-process database is :timeseries_library_test's alone: it reads
             # DataCube's Pure file (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B)
             "src/test/java/com/legend/integration/TimeseriesLibraryTest.java",
+            # the #TS{...}# island over the timeseries library is :ts_island_test's alone: it reads the timeseries
+            # project's file too (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2)
+            "src/test/java/com/legend/integration/TsIslandTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
@@ -1038,6 +1041,28 @@ junit_test(
     data = ["//projects:timeseries/model.pure"],
     jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
     select = ["--select-class=com.legend.integration.TimeseriesLibraryTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE, v0 (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): a #TS{...}# query over a class, a WITH source,
+# a table and a variable answers as the timeseries library's calls written in Pure, on every in-process database, and
+# every refusal says its fix
+junit_test(
+    name = "ts_island_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
     runtime_deps = [":drivers"],
     deps = [
         ":core",

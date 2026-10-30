@@ -275,6 +275,26 @@ public final class SqlToPure {
         return translation.inlineView(translated, statement).vs();
     }
 
+    /**
+     * THE {@code #TS{...}#} ISLAND'S PER-POINT SQL (the user, 2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md: every
+     * per-point expression and condition means what Postgres means, through this translator): {@code e}, a Postgres
+     * expression over the columns of {@code relation} (typed by {@code sources}, as a FROM source's are), read by
+     * {@code dialect} (the island seam's, from its language's registry), as the lambda over the relation's row whose
+     * body it is -- a value, or for {@code condition} the case where it is TRUE. An aggregate, a window or a subquery
+     * in it is this translator's to refuse, in the clause {@code clause} names.
+     */
+    public static LambdaFunction rowLambda(SqlAst.Expr e, ValueSpecification relation, Sources sources,
+            InputDialect dialect, boolean condition, String clause) {
+        SqlToPure t = new SqlToPure(sources, dialect, new Env(Map.of(), null, null, 0));
+        List<OutCol> cols = new ArrayList<>();
+        sources.columns(relation, (name, type, nullable, storeType) -> cols.add(new OutCol(name,
+                t.dialect.kindOf(type, storeType), nullable, t.dialect.detailOf(type, storeType))));
+        Source source = t.bound(new Rel(relation, cols), null, List.of(), e.pos());
+        Input input = t.new Input(source.bindings(), source.star(), clause);
+        ValueSpecification body = condition ? t.condition(e, input, clause) : held(t.tx(e, input, t.row));
+        return lambda(t.row, body);
+    }
+
     /** Whether {@code sql} is a statement that writes a table in more than one statement, a program of them
      *  ({@link #program}): one that returns the rows it wrote (RETURNING), or an ON CONFLICT DO UPDATE, whose rows are
      *  first held to one each of their key ({@link #onceEach}). One that does not parse is none: its error is

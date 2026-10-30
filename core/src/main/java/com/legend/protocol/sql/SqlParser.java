@@ -84,6 +84,18 @@ public final class SqlParser {
         return statement;
     }
 
+    /** The one value expression {@code tokens} hold, ending with an {@link Kind#EOF}: the {@code #TS{...}#} island's
+     *  per-point expressions and conditions (docs/TS_LANGUAGE_BUILD_2026_10_30.md), read by Postgres's grammar from
+     *  the island's own tokens, each where its text has it. */
+    public static SqlAst.Expr expression(List<Token> tokens) {
+        SqlParser p = new SqlParser(tokens);
+        SqlAst.Expr e = p.expr();
+        if (p.peek().kind() != Kind.EOF) {
+            throw p.unexpected();
+        }
+        return e;
+    }
+
     // ------------------------------------------------------------------ statements
 
     /** A query (Postgres's {@code SelectStmt}): {@code [WITH ...] term [UNION | EXCEPT term ...] [ORDER BY ...]

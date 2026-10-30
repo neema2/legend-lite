@@ -42,6 +42,8 @@ final class SqlIslands {
         return switch (island.language()) {
             // the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §5.3): its own seam, over the class model
             case CYPHER -> CypherIslands.desugar(island, model);
+            // the timeseries language (docs/TS_LANGUAGE_BUILD_2026_10_30.md): its own builder, the library's calls
+            case TS -> TsIslands.desugar(island, typeSource, model, env);
             // SQL read through its language's dialect: Postgres's, IQ's under the island's profile
             case SQL, IQ -> translated(island, typeSource, model, env);
         };
@@ -90,7 +92,7 @@ final class SqlIslands {
 
     /** What the translator asks of the model for {@code island}: a source's columns, the model's tables, a table's
      *  primary key, the variables of {@code env} (each one read added to {@code read}), the inline-view marker. */
-    private static SqlToPure.Sources sources(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
+    static SqlToPure.Sources sources(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
             ModelContext model, Env env, java.util.Set<String> read) {
         return new SqlToPure.Sources() {
             @Override

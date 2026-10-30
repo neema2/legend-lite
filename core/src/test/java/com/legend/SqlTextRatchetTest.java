@@ -141,6 +141,10 @@ class SqlTextRatchetTest {
         // SQL -- Neo4j's own error text "Cannot select datetime from: <value>", which the translator raises as
         // Neo4j does when a datetime is asked of a date or a time; the rule reads its "select ... from"
         REGISTER.put("protocol/cypher/CypherToPure.java", 1);
+        // 0 -> 11 (2026-10-30, the #TS island, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): no SQL -- the timeseries
+        // language's refusals quote its own queries as their fix ("a #TS query is SELECT item, ... FROM source ON
+        // date", "FROM (SELECT *, price * qty AS value FROM trades)"); its Pure is TsToPure's, which writes none
+        REGISTER.put("protocol/ts/TsParser.java", 11);
     }
 
     @Test

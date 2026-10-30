@@ -50,6 +50,8 @@ test_suite(
         # The timeseries library (projects/timeseries/model.pure, package timeseries::) on every in-process database: it compiles,
         # and a person's Pure calling it answers as arithmetic (2026-10-28)
         "//core:timeseries_library_test",
+        # the #TS{...}# island (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): its queries answer as the library's calls
+        "//core:ts_island_test",
         # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged
         # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
         "//core:iq_parity_test",

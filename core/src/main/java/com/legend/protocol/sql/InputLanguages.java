@@ -28,7 +28,8 @@ public final class InputLanguages {
                 IqProfile named = profile == null ? IqProfile.DEFAULT : IqProfile.named(profile);
                 yield named == null ? null : IqDialect.of(named.settings());
             }
-            case CYPHER -> null;
+            // Cypher's and the timeseries language's own translators read no SQL dialect
+            case CYPHER, TS -> null;
         };
     }
 }

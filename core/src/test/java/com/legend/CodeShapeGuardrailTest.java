@@ -153,6 +153,10 @@ class CodeShapeGuardrailTest {
             // parser-cursor family, scoped to one parse), and CypherToPure's fresh-name counter, scoped to one
             // translation (the SqlToPure.fresh shape)
             "CypherLexer.at", "CypherLexer.line", "CypherLexer.column", "CypherParser.at", "CypherToPure.fresh",
+            // #TS island, 2026-10-30 (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): TsParser's token cursor (the
+            // SqlParser.at family above, scoped to one parse) and TsToPure's fresh-name counter, scoped to one
+            // query's build (the SqlToPure.fresh shape)
+            "TsParser.at", "TsToPure.fresh",
             // Cypher island PR2, 2026-10-15 (docs/CYPHER_STUDY_2026_10_15.md §12.5.1): CypherToPure's depth of the
             // lambdas the database computes (a comprehension's or predicate's over a collection), raised and lowered
             // around their reading, scoped to one translation (the fresh-name counter's lifecycle)

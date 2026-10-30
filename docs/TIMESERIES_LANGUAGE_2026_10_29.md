@@ -99,7 +99,8 @@ A line is one instrument's column along its dates.
   per instrument.
 - A single line **broadcasts** against per-instrument lines: `close / close['SPX']` is each instrument relative to SPX.
 - With several sources, a line names its source: `px.close['SPX']`. With one, the alias is optional.
-- A source with many rows per date per instrument (trades) has no line until `SAMPLE BY` aggregates it (R5).
+- A source with many rows per date per instrument (trades) has no line until `SAMPLE BY` aggregates it (R5):
+  without it, a line is its column's rows, each one answered.
 
 ### R3. Four kinds of function
 
@@ -199,7 +200,7 @@ value.** An item with no value on a row is empty there.
 - A name may not be a source column's name (`AS close` is refused: "close is a column of prices; call it wk_close").
 - Every item is a column of the result; the tile draws the ones it is told to.
 - The result always carries the date (named as the first source's date column) and, for per-instrument lines, the
-  instrument. They need not be selected.
+  instrument. They need not be selected. Its rows are in date order, then the instrument's.
 
 ### R8. Filters: three, each in its own place
 

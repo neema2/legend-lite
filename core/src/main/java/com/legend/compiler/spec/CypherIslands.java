@@ -122,7 +122,9 @@ public final class CypherIslands {
                     java.util.Collections.unmodifiableMap(sets));
         }
 
-        private static String simpleName(String fqn) {
+        // package-visible since 2026-10-30: the #TS island's seam (TsIslands.Classes) indexes the model's classes
+        // by simple name too (R13 of docs/TIMESERIES_LANGUAGE_2026_10_29.md), with this one cut
+        static String simpleName(String fqn) {
             int i = fqn.lastIndexOf("::");
             return i < 0 ? fqn : fqn.substring(i + 2);
         }

@@ -27,7 +27,13 @@ public enum IslandLanguage {
     /** {@code #Cypher{ MATCH ... }#}: legend-lite's Cypher island (docs/CYPHER_STUDY_2026_10_15.md §4, C1), a query as
      *  Neo4j accepts it, its {@code CYPHER 5} or {@code CYPHER 25} prefix included; its wire value is
      *  {@code {"cypher": <text>}}. A lite extension, as the IQ island is. */
-    CYPHER("Cypher", "cypher", false, true);
+    CYPHER("Cypher", "cypher", false, true),
+
+    /** {@code #TS{ SELECT avg(close, 20) AS ma20 FROM prices ON date BY symbol }#}: legend-lite's timeseries language
+     *  (docs/TIMESERIES_LANGUAGE_2026_10_29.md; the user, 2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md), a query
+     *  of lines along time over a class, a table or a relation, each figure a call of the {@code timeseries} library;
+     *  its wire value is {@code {"ts": <text>}}. A lite extension, as the IQ and Cypher islands are. */
+    TS("TS", "ts", false, true);
 
     private final String opener;
     private final String textKey;

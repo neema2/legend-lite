@@ -32,6 +32,12 @@ starts at §5's status.
 6. **v0, then v1, and v1 draws every chart of the gallery** (`datacube/src/examples/timeseries-gallery.ts`: 69 tiles,
    173 series, about 80 of the tile's functions): each series written in `#TS`, planned and run, the same answer as
    the tile's TypeScript writer gives today (P5).
+7. **The Python DSL stays; it writes `#TS`** (the user, 2026-10-30: "i would keep the nice Python DSL ... that DSL
+   then maybe behind can write the #TS{} ... the pythonic way that matches gs-quant is very nice"). `Timeseries.plot`,
+   `edit`, `frame` and gs-quant's vocabulary (`returns(px:close[SPX], 1, log)`, `volatility($A, 63)`) are the user's
+   surface, unchanged; what changes is underneath: a series' expression becomes a `#TS{…}#` query (the thin writer of
+   P5), planned by the compiler, instead of the Pure `timeseries-query.ts` writes today. The tile's expression language
+   is the same surface on the screen. So "the TypeScript writer is deleted" means the Pure writer, not the vocabulary.
 
 **Open, to the user before it lands:** whether a model that names `#TS` must depend on the `timeseries` project (as a
 DataCube page sends the library with its model today), or the platform loads it for every model. The world-map tenet
@@ -80,7 +86,9 @@ docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md needs), and a test that plans and 
 DuckDB-WASM (as `//datacube:timeseries_sql_measure` runs its twelve), the same answers required. Every series that
 cannot be written is listed with why.
 
-**After v1 (not in this plan):** the tile and Python send `#TS` (step D), and `timeseries-query.ts`'s writer is deleted.
+**P6. The surfaces switched** (the user, 2026-10-30: "replace the charts and TS code with our new parsing/DSL"): the
+tile and the Python DSL send the `#TS` P5's writer makes from a series' expression (ruling 7: gs-quant's vocabulary and
+`Timeseries.plot` stay as they are), and `timeseries-query.ts`'s Pure writer is deleted once P5's test passes.
 
 ## 4. Gates for each phase
 
@@ -99,3 +107,29 @@ that moves moves with its reason in the commit (AGENTS.md).
 - 2026-10-30: P1 done: the library is `projects/timeseries/model.pure`, package `timeseries::`; every caller renamed,
   the page's text and option table regenerated; 162 of 163 targets green (1 skipped), the projects harness compiling it
   alone and with every project, `timeseries_queries_test` and the library test with every number unchanged. P2 next.
+- 2026-10-30: P2 (v0) and P3a built. `IslandLanguage.TS` (`#TS{…}#`, wire `{"ts": …}`, refused on the engine
+  surface); the parser `protocol/ts/TsParser` (the clauses found among Postgres's tokens, every expression read by
+  Postgres's grammar, `SqlParser.expression`, where the text has it; `$name`, `all` as a window and a subscript marked
+  in place); the builder `protocol/ts/TsToPure` with its line model `TsLines`, in the protocol layer as `SqlToPure`
+  and `CypherToPure` are (ArchUnit's L7 rule and the protocol-node ratchet keep Pure-building out of `compiler/spec`),
+  asking the model what it needs through `TsToPure.Model`, which the compiler seam `compiler/spec/TsIslands` answers.
+  - **Lines (R2, R4, R6), the tile's model** (`timeseries-query.ts` columnPart and joined): every column is a line of
+    its own -- the source's rows with a date and a value, a subscript's matches (`close['SPX', venue = 'NYSE']`,
+    `close[sector = 'Energy']`); a figure along time runs over its line's own rows; lines meet on the dates every one
+    has (an INNER join on the period, and on the instrument where both are per instrument; a single line meets each
+    instrument's, R2's broadcast); the answer is every period any item has a value in (a FULL join).
+  - Several sources, each by its alias (`px.close`, or `close` where one source has it).
+  - Decisions it took, each in the spec: the answer is in date order, then the instrument's; a line without SAMPLE BY
+    is its column's rows (R5: several rows a date need SAMPLE BY's aggregate), so no period is grouped and no
+    `maxBy` written until SAMPLE BY (H2 has no `ARG_MAX`); R13 is written on the translated condition, structurally:
+    a string beside an enumeration's column in a call is that enumeration's value (`ts::Sector.TECH`), a string it has
+    not refused naming its values.
+  - Guards moved with their reasons: `TsParser.at` and `TsToPure.fresh` allowlisted as the other islands' cursors
+    and counters are; `TsParser`'s 11 SQL-shaped literals registered (its refusals quote its own queries); the
+    simple-name cut reused from `CypherIslands.Labels`; the own corpus's matched models 3011 -> 3017 (the island's
+    test models joined and matched).
+  Found on the way, not #TS's (a task offered): lite compares an enumeration column with a string by its stored code
+  under `==` and by its value's name under `in()`.
+  `//core:ts_island_test`: ten tests, every in-process database (DuckDB, H2, SQLite), each answer checked against
+  plain arithmetic and v0's against the same library calls written in Pure; 26 refusals with their fixes.
+  `TsIslandRoundTripTest`: text, wire, text byte for byte, and the parser's clauses. P3b (SAMPLE BY, FILL) next.
