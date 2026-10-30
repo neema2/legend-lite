@@ -726,6 +726,24 @@ node_test(
     wasm = True,
 )
 
+# A MEASUREMENT, not a test (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.6): the SQL a timeseries tile's queries
+# plan to -- its bytes, its CASEs copied, its windows -- and DuckDB's time to run it. Manual: `bazel test
+# //datacube:timeseries_sql_measure --test_output=all` prints its numbers; each query's SQL is in its undeclared outputs.
+node_test(
+    name = "timeseries_sql_measure",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        ":src",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "test/catalog-builder.ts",
+        "test/host/node.ts",
+        "test/lite-compiler.ts",
+    ],
+    entry_point = "test/timeseries-sql.measure.ts",
+    wasm = True,
+)
+
 test_suite(
     name = "tests",
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [
