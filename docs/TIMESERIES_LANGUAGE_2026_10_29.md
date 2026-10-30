@@ -314,7 +314,7 @@ conventional 0 to 100 (§12, decision 5).
 **Two lines (along time, each with a window `w`; both lines P; of their simple returns unless `type => 'levels'` (the
 lines as they are) or `'changes'` (their differences, x − x[-1]: for yields and spreads))**
 - `correlation(x, y, w)`, `cov(x, y, w)`, `beta(x, y, w)`, `r_squared(x, y, w)`, `alpha(x, y, w)` (x's mean return
-  less beta times y's).
+  less beta times y's, annualized: times the periods a year, as gs-quant's).
 - `tracking_error(x, b, w)` (annualized, a ratio), `information_ratio(x, b, w)`, `up_capture(x, b, w)`,
   `down_capture(x, b, w)` (ratios: 1.0 matched the benchmark), `lead_lag(x, y, lag = 1, w)` (x's returns against y's
   `lag` observations before).
