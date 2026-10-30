@@ -435,3 +435,17 @@ Next:
 1. Your review, folded into version 4.
 2. A third test run on version 4.
 3. Then the build: the formula box and Python move onto the new language, and every chart in today's timeseries gallery must give the same numbers both ways before the old code is removed.
+
+## Feedback
+Add your comments below
+
+### tas00 - 20261030
+• I always struggle a bit with the constant/enum values for things like 3mo, 1w.  How do I know those are different to e.g. wk_qqq which was defined above?  I guess the syntax is commonly like this but your IDE would highlight them, not sure what that looks like as an API spec
+• Values for FILL could be PREV, FOLLOWING, MODIFIED FOLLOWING (roll forward unless you would cross a month/period in which case roll back), INTERP, NULL, NONE.  Perhaps people might describe PREV as STEP?  btw need to define what happens if there is no PREV value.
+• Can I tell SAMPLE BY which day of the week or date to start on?
+• I think FILTER is a good work but in your SQL explanation you could say it's like HAVING?
+• I don't like avg().  Need to define mean, median, mavg, wavg etc
+• I would like to use standard RDate values but I can see the minute/month problem
+• A really neat way to do the URLs would be - generate a URN for every plot expression.  Then save a URN for the single plot component, and finally for the whole dashboard definition.  This way, they are composable, they can be resused or copied.  I have an idea to have URNs for loads of Lakehouse artefacts (TDS, view, access point etc) then you can share by referring directly to them, and the receiver can load them in the appropriate local read context.  But also in the simplest form, a nice way to share definitions
+
+
