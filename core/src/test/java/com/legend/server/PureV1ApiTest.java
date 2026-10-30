@@ -39,7 +39,7 @@ class PureV1ApiTest {
 
     /** E8 through the server's driver, as {@code LegendHttpServer} runs it. */
     private static PureV1Api.Answer execute(String body) {
-        return PureV1Api.execute(body, new QueryService()::executeUpstream);
+        return PureV1Api.execute(body, ConnectionResolver.RUNNER);
     }
 
     /**
@@ -436,7 +436,7 @@ class PureV1ApiTest {
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
         PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/execution/execute", "serializationFormat=ARROW_IPC",
-                request, new QueryService()::executeUpstream);
+                request, ConnectionResolver.RUNNER);
         assertEquals(200, a.status(), a.json());
         assertEquals("application/json", a.contentType());
         assertEquals("FormatNotSet", a.headers().get("x-legend-response-format"));
@@ -468,7 +468,7 @@ class PureV1ApiTest {
         String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         PureV1Api.Answer graph = PureV1Api.executeArrow("{\"function\":" + fetch + ",\"model\":"
-                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", new QueryService()::executeUpstream,
+                + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", ConnectionResolver.RUNNER,
                 PureV1Api.Models.COMPILED);
         assertEquals(500, graph.status(), graph.json());
         assertTrue(Json.parseObject(graph.json()).getString("message").contains("graph fetch"), graph.json());

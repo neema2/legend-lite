@@ -139,13 +139,13 @@ class AssertVerdictsTest {
     void enumUnderAnyDeclinesToHost() throws Exception {
         // 2026-10-18 (step 6): the byte channel that rode the side query is retired; the agreement gate judges
         // the pair twice and the two verdicts must agree
-        long judged = com.legend.exec.CanonicalDivergence.sqlJudgedInDatabaseCount();
+        long judged = com.legend.judge.CanonicalDivergence.sqlJudgedInDatabaseCount();
         assertEquals(Boolean.TRUE, (runBoth(
                 "{|assertEquals(t::Kind.CITY, t::Kind.CITY->cast(@Any))}"))
                 .value());
-        assertEquals(judged + 1, com.legend.exec.CanonicalDivergence.sqlJudgedInDatabaseCount(),
+        assertEquals(judged + 1, com.legend.judge.CanonicalDivergence.sqlJudgedInDatabaseCount(),
                 "enum-under-Any pair must be JUDGED by the database judge, in agreement with the host: "
-                        + com.legend.exec.CanonicalDivergence.summary());
+                        + com.legend.judge.CanonicalDivergence.summary());
     }
 
     @Test

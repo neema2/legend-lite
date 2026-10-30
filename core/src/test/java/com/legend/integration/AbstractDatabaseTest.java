@@ -341,7 +341,7 @@ public abstract class AbstractDatabaseTest {
     }
 
     /**
-     * Compiles a Pure query and generates SQL using QueryService.
+     * Compiles a Pure query and generates SQL as the server does.
      * Uses the full model with Runtime to get dialect-specific SQL.
      * 
      * @param pureQuery The Pure query string
@@ -354,7 +354,7 @@ public abstract class AbstractDatabaseTest {
 
     /**
      * Executes a Pure query and returns results.
-     * Uses QueryService for full compile → plan → execute flow.
+     * Uses Execution.run for the full compile → plan → execute flow.
      * 
      * @param pureQuery The Pure query string
      * @return List of PersonResult

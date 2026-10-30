@@ -23,8 +23,14 @@
  *   <li>{@code resolver/}   — logical {@code TypedSpec} → physical {@code TypedSpec} (StoreResolver, phase H)</li>
  *   <li>{@code lowering/}   — {@code TypedSpec} → {@code sql.SqlQuery} (Lowerer, phase I)</li>
  *   <li>{@code sql/dialect/} — {@code SqlQuery} → SQL string (phase J)</li>
- *   <li>{@code exec/}       — SQL string + JDBC → typed {@code TypedSide} (Executor, phase K)</li>
+ *   <li>{@code exec/}       — a plan + a session → typed rows (PlanRunner, phase K)</li>
+ *   <li>{@code judge/}      — the verdict layer (D71, 2026-10-30): a test body's assertion judged over typed rows</li>
+ *   <li>{@code planner/}    — the plan machinery behind the three plan-side doors (step C, D73, 2026-10-30)</li>
+ *   <li>{@code driver/}     — the execution side's machinery behind the two execution doors: the body driver, the judges' arms, the seeds, the probes, the system database (D73)</li>
  * </ol>
+ * This package holds the five doors alone since D73: {@link com.legend.Compiler}, {@link com.legend.TypedQuery},
+ * {@link com.legend.HeldModels} (the plan side, {@code //core:planner}) and {@link com.legend.Execution},
+ * {@link com.legend.ExecuteOptions} (the execution side, {@code //core:driver}).
  *
  * <h2>Invariants</h2>
  * See {@code core/README.md §Strong invariants} for the authoritative

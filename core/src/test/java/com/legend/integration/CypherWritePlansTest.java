@@ -7,7 +7,6 @@ import com.legend.testing.LaneFloor;
 
 import com.legend.testing.Lean;
 
-import com.legend.TypedQuery;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;
@@ -103,7 +102,7 @@ class CypherWritePlansTest {
                 com.legend.executionplan.ExecutionPlan ran = com.legend.Execution.run(typed, CypherGraph.RUNTIME,
                         (target, ctx) -> {
                             throw new AssertionError("a program that writes opens no query session");
-                        }, PlanSessions.given(session), com.legend.Execution.Establish.DECLARED_SETUP,
+                        }, PlanSessions.of(com.legend.testbackend.TestSessions.over(session)), com.legend.Execution.Establish.DECLARED_SETUP,
                         plan -> new com.legend.result.JsonRowsWriter(answer, plan.answerShape()));
                 assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION, ran.answerShape(), detach);
                 return graph(session, model);
@@ -173,7 +172,7 @@ class CypherWritePlansTest {
                 .executionPlan(CypherGraph.RUNTIME);
         assertTrue(plan.root() instanceof ExecutionPlan.Sequence, cypher);
         List<String> rows = new ArrayList<>();
-        for (List<Object> row : PlanRunner.rows(plan, Map.of(), PlanSessions.given(session)).rows()) {
+        for (List<Object> row : PlanRunner.rows(plan, Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(session))).rows()) {
             List<String> cells = new ArrayList<>();
             for (Object value : row) {
                 cells.add(String.valueOf(value));

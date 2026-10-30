@@ -21,7 +21,7 @@ import java.util.List;
  * ({@code Compiler.buildModel}/{@code buildModule}) &mdash; the resolver
  * sees them exactly as parsed elements, no parallel lane. (2)
  * {@code MetamodelSeeds} renders the graph's facts per table, ONCE per
- * graph, into the graph's own SYSTEM DATABASE ({@code exec.SystemDatabase}
+ * graph, into the graph's own SYSTEM DATABASE ({@code SystemDatabase}
  * — separate from every user connection, read-only after those rows; the
  * executor ROUTES a store-reading body to it). A query's CONSTRUCTED
  * instances ride the query as inline relations (resolver-scoped class

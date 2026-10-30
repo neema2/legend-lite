@@ -58,6 +58,27 @@ public interface DatabaseConnector {
         }
     }
 
+    /** The facts of this database's JDBC driver that reading a row back needs and no plan column's slot can say
+     *  (D72, 2026-10-30; until then four {@code SqlDialect} hooks the runtime read through the plan side -- a driver's
+     *  fact is the connector's, the execution side's counterpart of a dialect): whether the driver re-fetches a
+     *  timestamp and a date cell as {@code java.time} (the BC-faithful carriers the reader reads every timestamp and
+     *  date as; measured 2026-10-17 on pgjdbc, DuckDB's and H2's drivers, the other drivers' JDBC 4.2 support of
+     *  LocalDate first measured in their cloud lanes), whether it hands a decimal back with its trailing zeros
+     *  dropped (padded back to the column's declared scale, never rounded), whether it opens the result of a
+     *  statement that fails before its columns are known with none (its error on the first read: a result with no
+     *  columns is then no claim to check), and whether the database's JSON writes a double that is not finite as a
+     *  bare token ({@code NaN}, {@code Infinity}, {@code -Infinity}: read as that double, written back as read,
+     *  {@link NonFiniteJson}). Default: re-fetches, keeps the zeros, reports its columns, writes JSON alone. */
+    default Decoding decoding() {
+        return new Decoding(true, false, false, false);
+    }
+
+    /** {@link #decoding}'s four facts, in the order the reader reads them (the connector's own record since the D72
+     *  audit: the decoder's package-private class had held it, a type no caller outside exec could name). */
+    record Decoding(boolean javaTime, boolean dropsDecimalZeros, boolean failedWithoutColumns,
+            boolean nonFiniteJson) {
+    }
+
     /** Whether its sessions are its own and not JDBC's (MongoDB's, docs/MONGODB_PLAN_2026_10_16.md D12, 2026-10-17):
      *  {@link #open} opens one on a declared connection, its credential read by the connector and carried no further,
      *  and nothing reads a JDBC product, an opening or a held raise from it. */

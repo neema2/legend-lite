@@ -502,6 +502,44 @@ PCT. PCT and the corpus remain the LEGACY judges. Track T of the start page.
 
 ## 9. Status
 
+- **2026-10-30, step C, the root dissolved** (the decisions log D73; GATES, step C's entry): the root package holds the
+  five public doors alone; the plan machinery is `com.legend.planner`, the execution side's `com.legend.driver`; the
+  planner-driver wall is the language's as well as the build's (`theDriverHasOneCaller`, `plannerIsExecutionFree`).
+  A move: zero roster movement. The seam-and-wall program is complete.
+- **2026-10-30, the seam's step B2, the wall** (the decisions log D72; GATES, step B2's entry): `exec` depends on no
+  planning library -- the judges' column and row to `judge`, the driver's four decode facts from the dialect to the
+  connector, the session source to the execution door, the system database to the driver, the wire table a name of a
+  type; `//core:exec`'s deps cut to base, json and the plan-side records, the ratchet map deleted and
+  `ArchitectureTest.execReachesNoPlanning` the wall. Zero roster movement. Next: step C (the root dissolved).
+- **2026-10-30, the seam's step B1** (the decisions log D71; GATES, step B1's entry): the judge layer out of `exec`
+  into `com.legend.judge` (`//core:judge`, thirteen classes moved verbatim), the schema probes to the root
+  (`WireProbe` split from the wire table), the census's dialect name gone; `//core:exec` loses lowering, plan and
+  platform and its planning ratchet shrinks to the runtime's five rows, B2's to cut. A move: zero roster movement.
+- **2026-10-30, the seam's step A** (the decisions log D70; GATES, step A's entry): one way into the session seam
+  (`Sessions.owned`, `borrowed`, `view`; the openers return sessions), the driver's connection the seam's alone (a
+  session is an abstract class no class outside `exec` can extend), the session's state the owning session's own and
+  the process-wide connection-keyed map deleted, the server's lease a session, the test side keeping one session per
+  connection it opened. Next: B1 (the judge layer out of `exec`), B2 (the runtime walled from the compiler).
+- **2026-10-30, the java.sql revamp, step 3** (the decisions log D69; GATES, the step 3 entry): the JDBC census is
+  a table of classes and the acts each may perform (opens, checks, sends, loads, decodes, transacts, closes),
+  measured in its source; the funnel exempts those classes and nothing else, one list for the two guards; no public
+  class outside `exec` offers a `java.sql` or driver type in a public signature (a new rule); the referee's SPI
+  names no JDBC. The revamp's three steps are built.
+- **2026-10-30, the java.sql revamp, step 2b** (the decisions log D68; GATES, the step 2b entry): the test runners,
+  the observer and the corpus harness hold sessions, not connections -- an owning session from the opener, a
+  non-closing view to the program entry, the harness asking the session for the driver's object where its own
+  referee needs it; core's `test` package holds no `java.sql`. Next: step 3 (the census by class and capability).
+- **2026-10-30, the java.sql revamp, step 2a** (the decisions log D67; GATES, the step 2a entry): the execution
+  front door holds a session and names no JDBC; `QueryService` and `OutputFormat` deleted -- the HTTP door's runner is
+  `ConnectionResolver.RUNNER` over `Execution.run`, and the text conveniences were tests' alone; six server
+  connectors lose an unused import; the runner's JDBC type number is the seam's. The JDBC census register shrinks by
+  nine files. Next: step 2b (the test runners, the observer and its harness on sessions), step 3 (the census by class
+  and capability).
+- **2026-10-30, the java.sql revamp, step 1** (the decisions log D66; GATES, the step 1 entry; PR #80 merged as
+  `7bc0797d` the same day, the branch restarted from main): a target's session statements run once per connection
+  (`SessionState`'s memo; a rollback clears it, Postgres's `SET` being transactional), where `PlanRunner.opened`
+  re-sent them before every statement -- a round trip per statement on a server, seven on MariaDB. Next: step 2 (the
+  carriers to sessions, `QueryService` deleted, the free tier), step 3 (the census pinned by class and capability).
 - **2026-10-29, the three routings** (the decisions log D65; GATES, the three routings' entry): the plan path's
   seeds and the server's held-database fill run as plan setup steps through the runner's `setUp` (the target's
   session statements first, the order upstream's test connections keep); the MariaDB raise recovery is two

@@ -74,7 +74,7 @@ class TestBackendsTest {
         List<TestBackend> inProcess = TestBackends.all().stream().filter(TestBackend::inProcess).toList();
         assertTrue(inProcess.contains(TestBackends.platform()));
         for (TestBackend backend : inProcess) {
-            try (Connection session = backend.open()) {
+            try (var session = backend.openSession()) {
                 Sessions.check(session, backend.type());
             }
             assertThrows(IllegalStateException.class, backend::openSystem, backend.name());

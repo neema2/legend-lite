@@ -60,7 +60,7 @@ class PureTestRunnerTest {
                 "ToFix is REPORTED, and the caller (here: the runnable view) skips it");
         assertEquals(Map.of("t", List.of("t::setUp")), found.setupsByPackage());
         try (PureTestRunner runner = new PureTestRunner(ctx, com.legend.test.StorelessRuntime.RUNTIME,
-                () -> TestBackends.platform().open(),
+                TestBackends.platform()::openSession,
                 List.of(), found.setupsByPackage(), TestObserver.NONE)) {
             PureTestRunner.Result fails = runner.run(found.runnable().get(0));
             PureTestRunner.Result passes = runner.run(found.runnable().get(1));

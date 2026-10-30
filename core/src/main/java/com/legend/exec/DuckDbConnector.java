@@ -61,4 +61,11 @@ final class DuckDbConnector implements DatabaseConnector {
     public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
         return null;
     }
+
+    /** {@inheritDoc} The dialect's {@code jsonSpellsNonFiniteNumbers} until D72 (2026-10-30), carried: Yes: DuckDB's JSON writes a double that is not finite as {@code NaN}, {@code Infinity} or
+     *  {@code -Infinity} (a float divided by a zero inside a list; the Cypher TCK's ordered values of every type). */
+    @Override
+    public DatabaseConnector.Decoding decoding() {
+        return new DatabaseConnector.Decoding(true, false, false, true);
+    }
 }

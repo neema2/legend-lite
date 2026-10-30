@@ -49,7 +49,7 @@ final class JdbcDecodeCases {
             List<ExecutionPlan.Column> columns) throws Exception {
         List<List<Object>> out = new ArrayList<>();
         // checked against its database first, as the runner checks every session (the timestamp re-read is its fact)
-        JdbcStatements st = new JdbcStatements(c);
+        JdbcStatements st = new JdbcStatements(c, new SessionState());
         st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
                 new ExecutionPlan.Servers.Every(), List.of(), List.of()));
         st.rows(sql, List.of(), List.of(), columns, out::add);

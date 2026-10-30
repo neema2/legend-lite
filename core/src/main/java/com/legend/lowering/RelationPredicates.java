@@ -3,7 +3,6 @@
 
 package com.legend.lowering;
 
-
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.sql.SqlAgg;

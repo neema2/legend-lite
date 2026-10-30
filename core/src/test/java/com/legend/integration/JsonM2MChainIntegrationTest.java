@@ -3,7 +3,6 @@ package com.legend.integration;
 import com.legend.testing.LaneFloor;
 
 import com.legend.testing.Lean;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -37,7 +36,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class JsonM2MChainIntegrationTest {
 
     private Connection conn;
-    private final QueryService qs = new QueryService();
 
     // ==================== JSON Data ====================
 

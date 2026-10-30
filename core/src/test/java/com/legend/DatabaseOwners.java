@@ -147,9 +147,10 @@ final class DatabaseOwners {
             MAIN + "database/Databases.java",
             // 2026-10-16, the dialect program's Phase 3: the engine-text registry, Databases' counterpart for
             // legend-engine's golden text (which engine-style dialect a declared type gets, and the engine's test
-            // database), the census's SEAM; it stays in the root package, where the engine-style dialects are
-            // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer)
-            MAIN + "EngineText.java",
+            // database), the census's SEAM; it stays in the root layer, where the engine-style dialects are
+            // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer) -- the layer's execution
+            // side, com.legend.driver, since step C (D73, 2026-10-30)
+            MAIN + "driver/EngineText.java",
             // 2026-10-16, the dialect program's Phase 5: the connector registry, Databases' counterpart on the
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",

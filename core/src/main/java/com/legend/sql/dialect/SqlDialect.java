@@ -3,11 +3,11 @@ package com.legend.sql.dialect;
 import com.legend.sql.SqlQuery;
 
 /**
- * The dialect seam: rendering (Phase J) and the facts of a database and its driver that reading a result back
- * needs (Phase K): a driver's own carriers (SQLite's dates as text, booleans as 1 or 0) are read by the plan
- * column's slot in the typed reader ({@code exec/JdbcDecode}); a dialect answers only what a slot cannot say
- * ({@link #refetchesTimestampAsJavaTime}, {@link #dropsDecimalTrailingZeros},
- * {@link #jsonSpellsNonFiniteNumbers}, {@link #opensFailedResultsWithoutColumns}).
+ * The dialect seam: rendering (Phase J). The facts of a database's driver that reading a result back needs are its
+ * CONNECTOR's since D72 (2026-10-30; {@code exec.DatabaseConnector.decoding} -- until then four hooks here, which the
+ * runtime read through the plan side): a driver's own carriers (SQLite's dates as text, booleans as 1 or 0) are read
+ * by the plan column's slot in the typed reader ({@code exec/JdbcDecode}), and what a slot cannot say the connector
+ * says.
  */
 public interface SqlDialect {
 
@@ -26,9 +26,10 @@ public interface SqlDialect {
     /** B6 (truthfulness burn) — SESSION SETUP IS DIALECT-OWNED as a
      * FACT: the statements a backend's session needs for the
      * platform's value contracts. The dialect DECIDES; the exec layer
-     * EXECUTES (F1.3: java.sql never enters this package) — applied at
-     * {@code Compiler.dialectOf}'s connection seam, idempotent by
-     * contract. Default: none. */
+     * EXECUTES (F1.3: java.sql never enters this package) — the plan
+     * runner runs them on a connection before its first statement for
+     * the target, once per connection and again after a rollback
+     * (D66, 2026-10-30), idempotent by contract. Default: none. */
     default java.util.List<String> sessionSetup() {
         return java.util.List.of();
     }
@@ -41,7 +42,7 @@ public interface SqlDialect {
     }
 
     /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
-     *  none) and only read after (a server engine's system database, exec.SystemDatabase). Default: the table, then
+     *  none) and only read after (a server engine's system database, SystemDatabase). Default: the table, then
      *  one INSERT of its rows -- this interface's own DDL and DML renders. */
     default java.util.List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
             com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
@@ -108,34 +109,6 @@ public interface SqlDialect {
         return false;
     }
 
-    /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} and a date cell
-     *  as {@code java.time.LocalDate} (the BC-faithful carriers the executor reads every timestamp and date as; dates
-     *  since 2026-10-17, measured then on pgjdbc, DuckDB's and H2's drivers: the other drivers' JDBC 4.2 support
-     *  of LocalDate is what their LocalDateTime re-fetch already relies on, and is first measured in their cloud
-     *  lanes). Default: it does, and a refusal fails loudly. */
-    default boolean refetchesTimestampAsJavaTime() {
-        return true;
-    }
-
-    /** Whether this dialect's driver hands a decimal back with its trailing zeros dropped, so the reader pads it back
-     *  to the scale its column declares, never rounding (BigQuery's: {@code BIGNUMERIC '3.0'} reads 3, measured).
-     *  The one driver fact the legacy executor's per-dialect {@code normalize} held that the typed reader had not
-     *  (the rest it reads by the slot: a struct or map as JSON text, a boolean as 1 or 0, H2's bytes, ClickHouse's
-     *  tuples; the hook was deleted with that executor, 2026-10-27, the result boundary program's phase 5, found by
-     *  the BigQuery lane: twelve Decimal tests answered {@code 3D} for {@code 3.0D}). Default: it does not. */
-    default boolean dropsDecimalTrailingZeros() {
-        return false;
-    }
-
-    /** Whether this database's JSON writes a double that is not finite as a bare token JSON has no number for
-     *  ({@code NaN}, {@code Infinity}, {@code -Infinity}), which the typed reader then reads as that double and writes
-     *  back as read ({@code exec/NonFiniteJson}; 2026-10-27, the result boundary program's phase 5: the old executor
-     *  handed the driver's own JSON object over unread, the typed reader's strict parse refused the token). Default:
-     *  it writes JSON alone. */
-    default boolean jsonSpellsNonFiniteNumbers() {
-        return false;
-    }
-
     /** A result column's type as this database's driver names it ({@code getColumnTypeName}), in the platform's wire
      *  vocabulary ({@link WireNames}): the type census compares a plan's label with it (the dialect program's Phase 4,
      *  2026-10-15: until then the census held each database's names, keyed by the dialect's class name). Default: the
@@ -157,12 +130,6 @@ public interface SqlDialect {
      *  {@link #wireTypeName}'s vocabulary) by a carrier convention of its own: the census counts it delivered, not a
      *  divergence. Default: it has none. */
     default boolean deliversOwn(com.legend.sql.SqlType label, String wire) {
-        return false;
-    }
-
-    /** Whether this database's driver opens the result of a statement that fails before its columns are known with
-     *  none, its error surfacing on the first read: a result with no columns is then no claim to check. */
-    default boolean opensFailedResultsWithoutColumns() {
         return false;
     }
 
@@ -195,7 +162,7 @@ public interface SqlDialect {
     }
 
     /** Whether dynamic PIVOT needs the two-phase staticization
-     * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
+     * pre-pass ({@link com.legend.driver.DynamicPivot} — no native
      * dynamic pivot on this backend). */
     default boolean needsStaticPivot() {
         return false;

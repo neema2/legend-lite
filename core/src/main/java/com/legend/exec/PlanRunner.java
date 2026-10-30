@@ -309,14 +309,7 @@ public final class PlanRunner {
         }
         ExecutionPlan.Target on = java.util.Objects.requireNonNull(target, "a sequence has a step");
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
-            Statements st = session.statements();
-            st.check(on);
-            try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
-                for (String s : on.session()) {
-                    StatementOrigin.sent(s);
-                    st.execute(s);
-                }
-            }
+            Statements st = opened(session, on);
             try {
                 st.inTransaction(() -> {
                     try {
@@ -376,7 +369,7 @@ public final class PlanRunner {
     private static void nullTypes(ExecutionPlan.Sql sql) {
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                nullType(one, slot);
+                JdbcStatements.nullType(one, slot);
             }
         }
     }
@@ -402,7 +395,7 @@ public final class PlanRunner {
         for (ExecutionPlan.Sql sql : List.of(keyed.keys(), keyed.body())) {
             for (ExecutionPlan.Slot slot : sql.slots()) {
                 if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                    nullType(one, slot);
+                    JdbcStatements.nullType(one, slot);
                 }
             }
         }
@@ -416,14 +409,7 @@ public final class PlanRunner {
                     new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null));
         }
         try (Sessions.Session session = sessions.open(keyed.keys().target())) {
-            Statements st = session.statements();
-            st.check(keyed.keys().target());
-            try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
-                for (String s : keyed.keys().target().session()) {
-                    StatementOrigin.sent(s);
-                    st.execute(s);
-                }
-            }
+            Statements st = opened(session, keyed.keys().target());
             st.inSnapshot(keyed.snapshot(), () -> {
                 List<List<Object>> keys = new java.util.ArrayList<>();
                 ExecutionPlan.Sql probe = keyed.keys();
@@ -606,7 +592,7 @@ public final class PlanRunner {
         // every null type checked before any session is opened: a plan whose null is of no type is refused whole
         for (ExecutionPlan.Slot slot : sql.slots()) {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                nullType(one, slot);
+                JdbcStatements.nullType(one, slot);
             }
         }
         List<PlanParameters.Checked> values = new java.util.ArrayList<>(sql.slots().size());
@@ -626,15 +612,29 @@ public final class PlanRunner {
     }
 
     /** {@code session}'s statements for {@code target}: checked against it (the database, the server versions the
-     *  statements are written for), the target's session statements run. The one place a session's statements are
-     *  taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}). */
+     *  statements are written for), the target's session statements run -- once per connection (the session's memo,
+     *  {@link SessionState#needsSessionStatements}; D66, 2026-10-30: until then they ran before every statement), and
+     *  again after a rollback the seam made. Inside a transaction the CALLER holds (autocommit off before the session
+     *  was handed in) they run before every statement, as before: a caller's rollback undoes what a session statement
+     *  set there (Postgres's {@code SET} is transactional) and the memo cannot see it. The one place a session's
+     *  statements are taken (the doors, 2026-10-29: {@code ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements}),
+     *  on every path: a statement, a schema read, a setup step, a sequence, a keyed plan. */
     private static Statements opened(Sessions.Session session, ExecutionPlan.Target target) {
         Statements st = session.statements();
         st.check(target);
-        try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
-            for (String s : target.session()) {
-                StatementOrigin.sent(s);
-                st.execute(s);
+        if (!target.session().isEmpty()) {
+            boolean memo = st.ownsTransaction();
+            if (!memo || session.state().needsSessionStatements(target.session())) {
+                try (var origin = StatementOrigin.enter(StatementOrigin.SESSION)) {
+                    for (String s : target.session()) {
+                        StatementOrigin.sent(s);
+                        st.execute(s);
+                    }
+                }
+                if (memo) {
+                    // recorded after every statement ran: one that failed leaves the list to run again
+                    session.state().sessionStatementsRan(target.session());
+                }
             }
         }
         return st;
@@ -719,17 +719,6 @@ public final class PlanRunner {
                     + " given a value with none");
         }
         return digits;
-    }
-
-    /** The JDBC type number of {@code one}'s null: the plan's null types are {@code java.sql.JDBCType} names (the
-     *  plan format's own vocabulary, which every session reads), or the plan is refused by name. */
-    static int nullType(ExecutionPlan.Binding.One one, ExecutionPlan.Slot slot) {
-        try {
-            return java.sql.JDBCType.valueOf(one.nullType()).getVendorTypeNumber();
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("slot of '" + slot.parameter() + "': its null type '" + one.nullType()
-                    + "' is no JDBC type", e);
-        }
     }
 
     /** The kind of a checked value (one {@link PlanParameters} makes). */

@@ -1,7 +1,8 @@
 # The Tenet Charter — "Java orchestrates, the DATABASE executes"
 
 > **F0.2 of `docs/FOUNDATIONS_PLAN.md`** (2026-08-16). This document is the adjudication
-> authority for every tenet question: the `java.sql` funnel's exemption list (F1.3), the
+> authority for every tenet question: the `java.sql` funnel's exemption list (F1.3; since 2026-10-30 the JDBC
+> census register's classes, each pinned to its acts: `JdbcSurfaceCensusTest.REGISTER`, D69), the
 > host-channel invariant (F1.5), the tenet ratchet's licensed seam (F1.10), and Phase 4's
 > Java residue each cite a clause here. It restores the two charter clauses audit round 1
 > demanded (V0.2 model-space vs data-space, V0.6 the host channel) and round 2 re-demanded
@@ -204,7 +205,7 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
 
 | Clause | Mechanical enforcement |
 |---|---|
-| C1/C2 boundary | F1.3 `java.sql` funnel (+ F1.3b root class-list pin); F1.10 tenet ratchet over ResultSet-consumption sites outside the C1.2/C1.5/Clause-4 seam |
+| C1/C2 boundary | F1.3 `java.sql` funnel, its exemption the JDBC census register's classes with their acts (`JdbcSurfaceCensusTest`, one list for both guards; F1.3b, the root class-list pin, deleted 2026-10-30 as subsumed, D69), and `noJdbcTypeInAPublicSignatureOutsideTheSeam`; F1.10 tenet ratchet over ResultSet-consumption sites outside the C1.2/C1.5/Clause-4 seam |
 | C2.3 | F1.4 positive harness rule (`sortedChain()`-gated, enumerated allowlist) |
 | Clause 2c Z2 | `VerdictChannelRegisterTest` (caller file-set pin over `PureAsserts.equal*`) |
 | Clause 3 | F1.5 `HostChannelPredicateTest` |

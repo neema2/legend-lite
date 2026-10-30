@@ -4,10 +4,8 @@
 package com.legend.test;
 
 import com.legend.ExecuteOptions;
-import com.legend.exec.AssertListener;
-import com.legend.exec.SqlReplayReferee;
-import java.sql.Connection;
-import java.sql.SQLException;
+import com.legend.judge.AssertListener;
+import com.legend.judge.SqlReplayReferee;
 
 /**
  * The seam a caller instruments a {@link PureTestRunner} through. Every
@@ -26,8 +24,10 @@ public interface TestObserver extends AssertListener {
     default void testStarted(PureTests.TestCase test) {
     }
 
-    /** A package session opened on {@code conn}; its setups run next. */
-    default void sessionBegan(String pkg, Connection conn) throws SQLException {
+    /** A package session opened on {@code conn} (a session the runner owns; D68, 2026-10-30: the observer sees
+     *  sessions, never connections -- a harness that needs the driver's object asks the session for it); its setups
+     *  run next. */
+    default void sessionBegan(String pkg, com.legend.exec.Sessions.Session conn) {
     }
 
     /** The current session is closing. */
@@ -53,17 +53,17 @@ public interface TestObserver extends AssertListener {
 
     /** The body is about to execute; {@code effectful} says the platform
      *  found statement effects in it (an attempt a referee may mark). */
-    default void bodyStarting(Connection conn, boolean effectful) throws SQLException {
+    default void bodyStarting(com.legend.exec.Sessions.Session conn, boolean effectful) {
     }
 
     /** The body executed and its verdicts held — an effectful body's session
      *  state stays, as the engine's run leaves it. */
-    default void bodyPassed(Connection conn, boolean effectful) throws SQLException {
+    default void bodyPassed(com.legend.exec.Sessions.Session conn, boolean effectful) {
     }
 
     /** The body failed (an exception, a failed assert, a missing verdict) —
      *  an effectful attempt is rolled back. */
-    default void bodyFailed(Connection conn, boolean effectful) throws SQLException {
+    default void bodyFailed(com.legend.exec.Sessions.Session conn, boolean effectful) {
     }
 
     /** The test finished on a shared session with {@code options}' recorder
@@ -82,12 +82,12 @@ public interface TestObserver extends AssertListener {
      *  for the statements that follow, appended LAST on the session's
      *  search path once {@link #fixtureIsolated} is called — every name
      *  stays as written; the session's own tables keep winning. Returns
-     *  the CONNECTION the fixture runs on (its default namespace is the
+     *  the SESSION the fixture runs on (its default namespace is the
      *  aside, its transaction its own — a body's open attempt may not
      *  write to a second namespace); null = no such primitive, the runner
-     *  refuses the fixture instead (never a silent clobber). */
-    default @com.legend.base.Nullable Connection isolateFixture(Connection conn, String setupFqn)
-            throws SQLException {
+     *  refuses the fixture instead (never a silent clobber). The session returned is the fixture's for the statements
+     *  that follow; the runner never closes it (the caller restores and releases it in {@link #fixtureIsolated}). */
+    default com.legend.exec.Sessions.@com.legend.base.Nullable Session isolateFixture(com.legend.exec.Sessions.Session conn, String setupFqn) {
         return null;
     }
 
@@ -95,11 +95,11 @@ public interface TestObserver extends AssertListener {
      *  session resolves names through its own tables first, the isolated
      *  namespace last. Runs in the runner's cleanup: a failure here is the
      *  caller's own (unchecked) wall. */
-    default void fixtureIsolated(Connection conn) {
+    default void fixtureIsolated(com.legend.exec.Sessions.Session conn) {
     }
 
     /** The runner seeded {@code storeFqn} on demand by running {@code
-     *  setupFqn} mid-test ({@link com.legend.exec.AssertListener#provideStore}):
+     *  setupFqn} mid-test ({@link com.legend.judge.AssertListener#provideStore}):
      *  the rows leg of an assert reads a mapping over a store another
      *  package's fixture owns. */
     default void fixtureProvided(String storeFqn, String setupFqn) {

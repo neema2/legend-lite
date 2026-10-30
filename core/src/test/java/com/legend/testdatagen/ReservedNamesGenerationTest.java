@@ -52,7 +52,7 @@ class ReservedNamesGenerationTest {
     static List<DatabaseType> inMemory() throws SQLException {
         List<DatabaseType> out = new ArrayList<>();
         for (DatabaseType t : DatabaseType.values()) {
-            try (Connection ignored = Sessions.openPrivate(t)) {
+            try (Connection ignored = com.legend.exec.Connectors.of(t).openPrivate()) {
                 out.add(t);
             } catch (NotImplementedException refused) {
                 // no in-memory instance of this type
@@ -66,7 +66,7 @@ class ReservedNamesGenerationTest {
     void generates(DatabaseType type) throws Exception {
         SqlDialect dialect = Databases.dialect(type);
         ModelContext ctx = Compiler.compileModel(MODEL);
-        try (Connection c = Sessions.openPrivate(type)) {
+        try (Connection c = com.legend.exec.Connectors.of(type).openPrivate()) {
             try (Statement s = c.createStatement()) {
                 for (String sql : CsvSeed.sqls(ReservedNames.CSV, "s::DB", ctx, dialect)) {
                     s.execute(sql);
@@ -76,14 +76,14 @@ class ReservedNamesGenerationTest {
                     query("|s::Order.all()->project([o|$o.name], ['name'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("default", "order",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(1L))))),
-                    null, false, com.legend.exec.PlanSessions.given(c), target(type), dialect, NO_VIEWS);
+                    null, false, com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), target(type), dialect, NO_VIEWS);
             assertFalse(order.sqls().isEmpty(), type.name());
             assertEquals("default\norder\nID,NAME\n1,a\n-----\n", order.dataCsvString(), type.name());
             TestDataGenerator.Result item = TestDataGenerator.generate(ctx,
                     query("|s::Item.all()->project([i|$i.id], ['id'])"), "s::M",
                     List.of(new TestDataGenerator.TableRowIds("select", "T",
                             List.of(new TestDataGenerator.RowId(List.of("ID"), List.of(7L))))),
-                    null, false, com.legend.exec.PlanSessions.given(c), target(type), dialect, NO_VIEWS);
+                    null, false, com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), target(type), dialect, NO_VIEWS);
             assertEquals("select\nT\nID\n7\n-----\n", item.dataCsvString(), type.name());
         }
     }

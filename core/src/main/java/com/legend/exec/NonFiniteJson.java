@@ -10,7 +10,7 @@ import java.util.Map;
 
 /**
  * A database's JSON text as JSON nodes where its writer spells a double that is not finite with a bare token
- * ({@code NaN}, {@code Infinity}, {@code -Infinity}: a dialect says so, {@code SqlDialect.jsonSpellsNonFiniteNumbers}), which
+ * ({@code NaN}, {@code Infinity}, {@code -Infinity}: a dialect says so, {@code DatabaseConnector.decoding().nonFiniteJson}), which
  * JSON has no number for (a float divided by a zero inside a list, the study's §12.79); every other value read as
  * {@link com.legend.json.Json} reads it, the non-finite number a {@link com.legend.json.Json.Num} of that double
  * carrying the token, which {@code Json.toCompact} writes back as read. The typed reader ({@link JdbcDecode}) reads

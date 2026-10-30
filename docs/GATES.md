@@ -16353,3 +16353,275 @@ that rules the seeds' order; the shape of the raise recovery; the bulk loader's 
    entries above that said "the MariaDB lane (CI alone)" were wrong on that. The raise recovery's mechanism is
    measured on H2 (item 1); MariaDB's own behavior (the raise sets the variable; a CASE arm not taken raises
    nothing) is unchanged and stands on its October measurement.
+
+## 2026-10-30 — The java.sql revamp, step 1: a target's session statements once per connection, again after a rollback
+
+The user's word after PR #80 merged (`7bc0797d`, 2026-10-30): "all the sql fixes above including the session values".
+The decisions log D66.
+
+1. **Built:** `exec/SessionState` remembers the session statement lists that ran on a connection
+   (`needsSessionStatements`, `sessionStatementsRan`, recorded after every statement of the list ran) and forgets
+   them on a rollback (`rolledBack`, called where the seam rolls back: `JdbcStatements.restore`, `Sessions.unwind`;
+   Postgres's `SET` is transactional); `PlanRunner.opened` runs a target's list only when the memo says so, where
+   it re-sent the list before every statement (a round trip per statement on a server, seven on MariaDB).
+   `SqlDialect.sessionSetup`'s javadoc brought current. Test: `exec/SessionStatementsOnceH2Test` (new: three
+   statements, the list once; another target's list, once; after the seam's bracket rolled back, once again; a target
+   with none sends none; inside a transaction the caller holds, before every statement and not remembered). The
+   independent audit (seven findings, none blocking; the rest confirmed) folded before the chain: the sequence and
+   the keyed plan through `opened` (they sent the list with loops of their own); the memo only where the session
+   owns its transactions (a caller's rollback undoes a `SET` on Postgres unseen); the memo cleared before the
+   rollback; the program entry's list the body target's (it ran as setup steps once per program, seven round trips
+   per test body on MariaDB); the metamodel session statements' scope and the URL-per-statement opening named. No
+   pin moves: no register counts SESSION.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT
+   lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless
+   host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+3. **CI:** this push opens the revamp's PR and runs every OS.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`); the server round trips saved are counted
+   (one SESSION list per connection where there was one per statement), not timed.
+
+## 2026-10-30 — The java.sql revamp, step 2a: the execution front door on sessions; QueryService and OutputFormat deleted; the free tier
+
+The decisions log D67.
+
+1. **Built:** `Execution.run` holds a `Sessions.Session` and asks it (`session.version()`,
+   `PlanSessions.given(session)`, `PlanSessions.setUp(session, target)`, `Sessions.check(session, type)`: new
+   overloads beside the connection ones). `server/QueryService` and `server/OutputFormat` DELETED: the HTTP door's
+   runner is `ConnectionResolver.RUNNER` over `Execution.run` (the resolver and its `SOURCE` public; the layer map's
+   representative of `server_lib`); the two tests that used the text conveniences pick the writer themselves;
+   thirteen integration tests lose an unused field. The independent audit (eleven findings, none on the code;
+   the census's walk simulated at zero drift) folded after the chain: a miscount, a stale table row, stale display
+   names and comments naming the deleted service as current, two javadoc placements -- comments, names and records
+   only, measured on the lanes they touch (root, server, integration, census, guardrails) after the chain. Six server connectors lose an unused `java.sql.Connection`
+   import; the runner's JDBC type number for a null is the seam's (`JdbcStatements.nullType`). Pins, dated: the JDBC
+   census register loses nine files (Execution, the six connectors, PlanRunner, QueryService); the Java-evaluation
+   ledger's server list loses QueryService and OutputFormat.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved); the 21 PCT lanes 21 of 21; the five Postgres PCT
+   lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless
+   host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty.
+3. **CI:** none yet: the branch has no pull request since #80 merged (the user's word opens the revamp's).
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+
+## 2026-10-30 — The java.sql revamp, step 2b: the test runners, the observer and the corpus harness on sessions
+
+The decisions log D68.
+
+1. **Built:** `PureTestRunner.Sessions.open()` and the service test runner's opener return a session the runner
+   OWNS (`PlanSessions.owned`, public; a test backend's `openSession`); the package session, a private workspace, a
+   fixture's target and the judge's session are sessions; `TestObserver`'s callbacks take and return sessions and
+   declare no `SQLException`; `Execution.runProgram` is given `Sessions.given(session)` (a non-closing view,
+   `PlanSessions.view` factored out of `of`); the service runner's shared sessions are sessions. The corpus harness
+   asks the session for the driver's connection where its own referee and fixture asides need it, telling their
+   `SQLException`s as `DataError`; a fixture's aside returns as a borrowed session the runner never closes. Six
+   runner callers hand owning sessions. Pins, dated: the JDBC census register loses `PureTestRunner.java`,
+   `ServiceTestRunner.java` and `TestObserver.java` (core's `test` package holds no `java.sql`). The independent
+   audit (ten findings, none blocking; the census's walk simulated at zero drift) folded after the chain: the session
+   view forwards a traced statements request to the session it wraps (a code edit of one override, measured on the
+   exec, test, ladder, integration, root and server lanes, the census, the guards and the corpus lanes after the
+   chain), a duplicated bullet, a javadoc that lost its class, two stale wordings, the step 3 list by role.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved: the harness's observer on sessions judges as it
+   did -- the two judge actions ran on the patch's jar at the build, 02:11 and 02:13, and wrote reports identical to
+   the last run's, so the ten roster shards were cache hits on identical inputs and the two verdicts re-ran); the 21 PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test`
+   the container's segmentation fault at the headless host's V8, as at every chain); `//datacube:python_execute_test`;
+   the product job's unlaned-tests guard empty.
+3. **CI:** none yet: the branch has no pull request since #80 merged (the user's word opens the revamp's).
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+
+## 2026-10-30 — The java.sql revamp, step 3: the JDBC surface pinned by class and act; the funnel on that one list; no JDBC type in a public signature outside the seam
+
+The decisions log D69.
+
+1. **Built:** `JdbcSurfaceCensusTest`'s register is a table of rows (the file, the acts it may perform, why); an act
+   is a set of spellings measured in comment-stripped source (OPENS, CHECKS, SENDS, LOADS, DECODES, TRANSACTS,
+   CLOSES); a third assertion, `eachRegisteredFileDoesItsActsAndNoOther`, fails on an act performed and not declared
+   and on one declared and no longer performed. The 22 rows by role: the openers, the seam, the decoders, one
+   carrier. `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam` exempts the register's classes and nothing else
+   (one list for the two guards, `registeredClasses()`), where it exempted four packages whole; the new
+   `noJdbcTypeInAPublicSignatureOutsideTheSeam` lets no public class outside `exec` offer a `java.sql` or driver type
+   in a public method's, constructor's or field's signature. `SqlReplayReferee.rows` declares no `SQLException` and
+   the SPI leaves the register; the harness's one caller loses a dead catch. Pins, dated: the register's rows (each
+   with its acts), the funnel's exemption. Both new rules proven to bite before the chain by a reverted probe: the
+   signature rule widened over `exec` named 52 public members of the seam; `JdbcDecode` un-chartered, the funnel
+   named it. The independent audit (22 findings, three named before the commit; it re-measured all 22 rows at zero drift) folded after the chain and measured on the census, the guardrails and the checks: the MongoDB statements' row said "documents inserted" where its `load` refuses (the row and the LOADS gloss corrected); the act spellings widened to the named JDBC calls a drifting file could use and still read "names only" (`prepareCall`, `executeLarge*`, `runCommand`, a data source's or a driver's open, the typed getters, `wasNull`, the metadata reads, the isolation level, savepoints, `isValid`, the JDBC `unwrap`: `DuckDbAppenderLoad` declares OPENS for its unwrap); the signature rule over every involved type (generic arguments, array components) and protected members; `PostgresCells` put on the product jars and the product-library list (a registered class no ArchitectureTest rule had judged since 2026-10-19); F1.3b `rootJavaSqlSurfaceIsPinned` deleted as subsumed (its last entry, `Execution`, held no `java.sql` since D67) and the charter's enforcement map corrected; the F1.3 javadoc states the pass-along limit and the signature rule's shipped marginal bite; a stale ledger comment
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 177 of 178,
+   1 skipped;
+   the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved; the two judge actions ran on the patch's jar at
+   the build, 03:14 to 03:19, and wrote reports identical to the last run's, so the ten roster shards were cache hits
+   on identical inputs and the two verdicts re-ran); the 21 PCT lanes 21 of 21; the five Postgres
+   PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the
+   headless host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard
+   empty. After the fold: `//core:census`, `//core:guardrails`, `//gates:checks` 145 of 146, 1 skipped (the new rules
+   ran: the funnel, the signature rule, the acts; F1.3b gone from the report).
+3. **CI:** none yet: the branch has no pull request since #80 merged (the user's word opens the revamp's).
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+
+## 2026-10-30 — The seam's step A: one way into the session seam; the driver's connection the seam's alone; the session's state the owning session's own
+
+The decisions log D70.
+
+1. **Built:** `Sessions.Session` an abstract class whose constructor and whose one door to the driver's connection
+   are package-private (no class outside `exec` can be a session; `ArchitectureTest.onlyTheSeamMakesSessions`,
+   proven to bite: widened over `exec` it named the four session classes); one way in (`Sessions.owned`,
+   `borrowed`, `view`, the openers returning owned sessions, `PlanSessions.of` and `setUp`), the ten old doors and
+   the server's `Lease` gone; the session's state the owning session's own field, shared by its views, the
+   process-wide connection-keyed map deleted (its static-state register entry moved, dated); the handle stores
+   keep sessions; the test side keeps one session per connection it opened (`TestSessions`), 40 test and harness
+   files on the one way in. Pins, dated: the census register loses `PlanSessions`, `SystemDatabase`, `SessionState`
+   and `ConnectionResolver` (18 rows) and `Sessions` declares CLOSES; `staticCollectionStateIsImmutableOrRegistered`
+   loses `SessionState.OF`. The chain's one failure folded: `ConnectionIsolationTest` expected the raw `SQLException` from the server's seeding helper, which sends through the seam now and tells a `DataError` (the exception seam's rule), DuckDB's catalog error its message. The independent audit (ten findings, five to fix before the commit) folded after the chain and measured: the referee DECLINES, as a counted `Unverifiable`, a body routed to the system database's session (product-owned, no connection of the test side's) where it threw; the cloud PCT lanes' held session is one session kept by the lane (a cloud backend's `held()` answers a new unclosable proxy per call); the test side purges closed connections' entries at each registration and keys its connections by an opaque session identity (`Sessions.identity`; `Sessions.owner` gone: it handed a view-holder the closing session); `Sessions.given(session)` checks nothing at open, as D68's did; a new rule `theProductBorrowsNoConnection` (proven to bite: turned on `owned` it named the seven openers) makes "each connection wrapped once" mechanical, since a declared seed is DROP IF EXISTS then CREATE and a second session over one connection would re-seed silently, not fail loudly as the row first said; the Postgres arm test proves the resolver's session is on the arm's own server by its port read through the seam; the seam's helpers unwrap views to the root session and ask only a JDBC one for its connection; stale texts naming the deleted doors corrected (two ArchitectureTest javadocs, the test runner's, two judge-plan links, core's README, the handle store's, the start page's 22-files line and its block naming B1's cost); the resolver's fill tells a close that fails beside the setup's failure; two unused imports and a dead throws clause gone
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test skipped),
+   `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`,
+   `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB parity lanes: 176 of 178,
+   1 skipped, 1 failed (`//core:core_tests_server`: the isolation test above, fixed in the fold);
+   the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2`
+   12 of 12 (the rosters and the outside-body registers unmoved; the two judge actions ran on the patch's jar at the
+   build and wrote reports identical to the last run's, so the ten roster shards were cache hits and the two verdicts
+   re-ran); the 21 PCT lanes 21 of 21; the five Postgres
+   PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the
+   headless host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard
+   empty. After the fold: `//core:census`, `//core:guardrails` (the two new rules ran), `//core:core_tests_server`,
+   `//core:core_tests_exec`, `//pct:pct_discipline`, `//gates:checks` 147 of 148, 1 skipped; `//core:postgres_arm_test`
+   and `//core:fixture_aside_postgres_test` as the unprivileged user 2 of 2; `//spec:judge_lanes`, both corpus gates 12 of
+   12 (the judge actions re-ran on the referee's change and wrote reports identical to the chain's: no verdict moved).
+3. **CI:** PR #82 (a draft, opened 2026-10-30 on the user's word so every push runs on every OS). On step 3's head
+   (dfbbcfa5), 49 of 50 jobs green on Linux, macOS, Windows and arm; `macos / datacube` ran no test (the remote cache
+   lost an input and Bazel's retry hit the runner's filesystem; commented on the PR, the re-run API refused to the
+   integration); this push is its re-run.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+## 2026-10-30 — The seam's step B1: the judge layer out of exec (com.legend.judge); the probes to the root; the census's dialect name gone
+
+The decisions log D71.
+
+1. **Built:** a move, no behavior. Thirteen classes `exec/` -> `judge/` (`//core:judge`: `PureAsserts`, `TdsCompare`,
+   `Equality`, `CanonicalForm`, `CanonicalDivergence`, `TypedSide`, `VerdictBatch`, `CanonRider`, `InstanceIds`,
+   `SqlTypeCensus`, `PrimitiveCensus`, `AssertListener`, `SqlReplayReferee`), each file's diff a package line and
+   imports (`InstanceIds`: one javadoc link made `{@code}`); the probes `ColumnProbe`, `GridProbe`, `DynamicPivot` to
+   the root and `WireProbe` split from the wire table `exec/WireTypes`; `Census` without `SCAN_ORDER_FIRINGS` (the
+   corpus lane reads `StableScanOrder.firings` itself); `//core:exec` minus `:lowering`, `:plan`, `:platform`
+   (`tools/deps/core-layers.txt`, dated); the planning ratchet `EXEC_PLANNING_REFERENCES` sixteen rows -> five
+   (`Column` 2, `JdbcStatements` 2, `Sessions` 2, `SystemDatabase` 3, `WireTypes` 1). Pins, dated: the ledger's
+   `EXEC_CLASSES` loses the sixteen, `JUDGE_CLASSES` is new (14, exact both ways), `ROOT_CLASSES` gains the four
+   probes; size pins GridProbe 48 -> 53, DynamicPivot 113 -> 118, Equality 447 -> 448 (the import lines the move
+   needs, no rule changed); the verdict-seam rule, the no-JDBC rule (the whole judge package and the four probes), the
+   RawSql quarantine, the static-state register, `VerdictChannelRegisterTest`, `HarnessDisciplineTest` re-pathed. The
+   audit's eleven findings (paperwork and javadoc; verdict: a pure move with the walls intact) folded: the start
+   page's live map, exec's package javadoc with no link into judge, the wire table's javadoc trimmed to the table and
+   its census stub moved to the probe, the root's package javadoc, four javadoc short forms, the no-JDBC rule's judge
+   alternation widened to `judge\.[A-Za-z0-9_]+`, the seam rule's exemption of the long-deleted `exec.JsonCompare`
+   deleted.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user; l19):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test
+   skipped), `//core:core_tests` (every lane, the new `core_tests_judge` among them), `//core:core_tests_lanes` (the
+   floors unmoved), `//core:guardrails`, `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four
+   DuckDB parity lanes: 178 of 179, 1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`,
+   `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the judge actions ran on the patch's jars at the build and
+   wrote reports identical to the last run's, so the ten roster shards were cache hits and the two verdicts re-ran:
+   zero roster movement, the move's oracle); the 21 PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the
+   readers 11 of 12 (`//python:engine_test` the container's segmentation fault at the headless host's V8, as at every
+   chain); `//datacube:python_execute_test`; the product job's unlaned-tests guard empty. After the fold (javadoc and
+   two guard texts): `bazel build //core:all //spec:spec_tests_lib //pct:all` green; `//core:guardrails`, `//core:census`,
+   `//core:core_tests_exec`, `//core:core_tests_root` 4 of 4.
+3. **CI:** PR #82 (a draft). On step A's head (fd060846), 49 of 50 lane jobs green on Linux, macOS, Windows and arm
+   (the macOS datacube re-run green); `windows / pct_channel_b` red before any test ran (Maven Central answered 403 to
+   the runner's fetch of `tomcat-dbcp`; commented on the PR); this push is its re-run.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+
+## 2026-10-30 — The seam's step B2, the wall: exec depends on no planning library; the ratchet deleted, execReachesNoPlanning the rule
+
+The decisions log D72.
+
+1. **Built:** the five reaches D71 left, one cut each, no behavior. The judges' column and row (`exec.Column`,
+   `exec.Row`) to `judge`; the four driver decode facts from the dialect to the connector
+   (`DatabaseConnector.decoding`, a `DatabaseConnector.Decoding`; overridden where the dialect overrode: Databricks,
+   Snowflake, BigQuery, DuckDB, Trino; the hooks deleted from `SqlDialect`, whose seam is rendering alone); the
+   session source to the execution door (`Execution.Source`, `Execution.Source.given`); `SystemDatabase` to the
+   driver (the root), reaching exec through public doors alone; `WireTypes` naming a type (`pureTypeNameOf`,
+   `pureTypeNameOrNull`) with the root's `WireProbe` rebuilding the typer's primitive. `//core:exec` depends on
+   base, json, cache, diagnostics, error, execution_plan, model, result, sql and values (`tools/deps/core-layers.txt`,
+   dated). Pins, dated: `ArchitectureTest.EXEC_PLANNING_REFERENCES` DELETED (sixteen rows at its widest) and
+   `execReachesNoPlanning` is the wall -- an exec class may reach exactly `//core:exec`'s packages and exec itself,
+   no other of `com.legend` (an allowlist, the audit's finding: a planning-package blacklist left the root and the
+   judge open to the two jars built against `:core`); the no-JDBC rule covers `SystemDatabase`; the ledger's
+   `EXEC_CLASSES` loses three, `JUDGE_CLASSES` gains two, `ROOT_CLASSES` one; GridProbe's size pin 53 -> 52 (the wire
+   table import gone). The audit's four should-fixes and eight nits folded: the fact's record the connector's own,
+   `ConnectorsTest` pinning all eleven JDBC connectors' four booleans (nothing had pinned the dialect's hooks), the
+   allowlist wall, an unbuilt connector refusing `decoding` by name, four stale comments, two loose sentences.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user; l20):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test
+   skipped), `//core:core_tests` (every lane), `//core:core_tests_lanes` (the floors unmoved), `//core:guardrails`
+   (the wall rule among them), `//core:census`, `//pct:pct_discipline`, `//core:mongodb_plan_test`, the four DuckDB
+   parity lanes: 178 of 179, 1 skipped; the nine Postgres targets 9 of 9; `//spec:judge_lanes`, `//gates:corpus_duckdb`,
+   `//gates:corpus_h2` 12 of 12 (the judge actions ran on the patch's jars at the build and wrote reports identical
+   to the last run's, so the ten roster shards were cache hits and the two verdicts re-ran: zero roster movement,
+   the oracle); the 21 PCT lanes 21 of 21; the five Postgres PCT lanes 5 of 5; the readers 11 of 12
+   (`//python:engine_test` the container's segmentation fault at the headless host's V8, as at every chain);
+   `//datacube:python_execute_test`; the product job's unlaned-tests guard empty. After the fold (the connector's
+   record, the pin test, the allowlist wall, comments): `bazel build //core:all //spec:spec_tests_lib //pct:all` green;
+   `//core:guardrails`, `//core:census`, `//core:core_tests_exec` (the pin test among them), `//core:core_tests_root`,
+   `//core:core_tests_server`, `//core:core_tests_sql`, `//tools/deps:core_layering_test` 7 of 7.
+3. **CI:** PR #82 (a draft). On step B1's head (7a6c899e), 51 of 51 checks green on Linux, macOS, Windows and arm
+   (`gates green` included); this push runs again.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+
+## 2026-10-30 — Step C, the root dissolved: the five doors at the root; the plan machinery com.legend.planner, the execution side com.legend.driver
+
+The decisions log D73.
+
+1. **Built:** a move, no behavior. The root package holds the product's five public doors alone (`Compiler`,
+   `TypedQuery`, `HeldModels`; `Execution`, `ExecuteOptions`: the five classes named outside core); six files to
+   `com.legend.planner` (`PlanMaker`, `MetamodelSeeds`, `OpSeeds`, `ProgramFacts`, `QueryParameters`,
+   `CrossStoreGuard`), twenty-five to `com.legend.driver` (the body driver and compiler, the judges' arms and their
+   plans, the seeds and loads, the schema probes, the system database), each a `git mv` with its package line and
+   imports; the BUILD names the three plan-side doors and globs each package; two new lanes (`core_tests_planner`,
+   `core_tests_driver`). The members that crossed a package line are public and marked as not the API's (`PlanMaker`
+   and four statics; `BodyDriver` and `execute`; seven of `TypedQuery`'s internals). Pins, dated: two new rules
+   (`theDriverHasOneCaller`: no class outside the driver but `Execution` depends on `BodyDriver`, nested types
+   included; `plannerIsExecutionFree`: the planner and the plan-side doors depend on no driver, exec or judge class);
+   the no-JDBC rule names the whole driver package; three root-layer rules name the driver and planner as the top
+   layer and the two engine-style quarantines drop the root from their exemptions (no door reaches a renderer); the
+   ledger's `ROOT_CLASSES` is the five doors, `PLANNER_CLASSES` (7) and `DRIVER_CLASSES` (26) new, exact both ways;
+   size pins re-pathed, two risen by the import lines the move needs (AssertVerdicts 1258 -> 1259, BodyDriver
+   2313 -> 2321); the RawSql seam, the verdict-channel register, the lane-order guard, the SQL-text ratchet's row,
+   the owners' engine-text path re-pathed; the harness discipline's roots gain the driver, the host judge's four
+   sorts, the body driver's two reorders and the plan allocations' accessor registered (the audit). Eight tests
+   moved with their classes (six plan tests sharing `PlanMakerTest`'s package-private helpers to the planner's
+   lane, two to the driver's). The audit's thirteen findings (no blocker; residue of the rewrite and the write-up)
+   folded: thirty unused imports deleted, the dead root exemptions, the discipline's reach, the row's counts, the
+   cosmetics.
+2. **Measured locally before the commit (the chain on the patch alone, as root; the Postgres targets as the
+   unprivileged user; l21):** `//json:tests`, `//:generated`, `//gates:checks` (the arm64-only classpath test
+   skipped), `//core:core_tests` (every lane, the two new ones among them), `//core:core_tests_lanes` (the floors
+   unmoved), `//core:guardrails` (the two new rules among them), `//core:census`, `//pct:pct_discipline`,
+   `//core:mongodb_plan_test`, the four DuckDB parity lanes: 180 of 181, 1 skipped; the nine Postgres targets 9 of
+   9; `//spec:judge_lanes`, `//gates:corpus_duckdb`, `//gates:corpus_h2` 12 of 12 (the judge actions ran on the
+   patch's jars at the build and wrote reports identical to the last run's, so the ten roster shards were cache
+   hits and the two verdicts re-ran: zero roster movement, the move's oracle); the 21 PCT lanes 21 of 21; the five
+   Postgres PCT lanes 5 of 5; the readers 11 of 12 (`//python:engine_test` the container's segmentation fault at
+   the headless host's V8, as at every chain); `//datacube:python_execute_test`; the product job's unlaned-tests
+   guard empty. After the fold (imports, the exemptions, the discipline, the cosmetics): `bazel build //core:all
+   //spec:spec_tests_lib //pct:all` green; `//core:guardrails`, `//core:census`, `//core:core_tests_driver`,
+   `//core:core_tests_planner`, `//core:core_tests_root`, `//gates:checks`, `//tools/deps:core_layering_test` 148 of 148.
+3. **CI:** PR #82 (a draft). On step B2's head (9f44d43c), 51 of 51 checks green on Linux, macOS, Windows and arm
+   (`gates green` included); this push runs again.
+4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
+

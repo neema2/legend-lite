@@ -343,7 +343,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         connection.createStatement().execute(
                 "INSERT INTO T_ADULT VALUES (1, 'Alice', 25), (2, 'Bob', 15), (3, 'Charlie', 30)");
 
-        // Execute the function body via QueryService
+        // Execute the function body via Execution.run
         String functionBody = "model::Adult.all()->filter({p | $p.age >= 18})";
         var result = Lean.run(pureSource, functionBody, "test::TestRuntime", connection);
 
@@ -421,7 +421,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         connection.createStatement().execute(
                 "INSERT INTO T_WORKER VALUES (1, 'Engineering', 100000), (2, 'Engineering', 120000), (3, 'Sales', 80000)");
 
-        // Execute the function body via QueryService
+        // Execute the function body via Execution.run
         String functionBody = "model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
         var result = Lean.run(pureSource, functionBody, "test::TestRuntime", connection);
 

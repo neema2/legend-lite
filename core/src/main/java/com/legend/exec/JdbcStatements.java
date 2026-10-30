@@ -24,6 +24,9 @@ import java.util.List;
 final class JdbcStatements implements Statements {
 
     private final Connection c;
+    /** The session's state (its memo of the session statements run, cleared by a rollback: D66); the owning
+     *  session's, handed with the connection (D70). */
+    private final SessionState state;
 
     /** The execution trace a query's stamp is published to (the body driver's, whose activity rows record the comment
      *  the statement carried); null for a session no trace reads ({@link ExecutionTrace#stampOnly}). */
@@ -32,23 +35,37 @@ final class JdbcStatements implements Statements {
     /** The session's driver facts the typed rows are read by (its database's: a timestamp re-read as
      *  {@code java.time}, a decimal's trailing zeros dropped, a failing statement's result opened with no columns),
      *  known once {@link #check} has checked the session against the plan's target; null before. */
-    private JdbcDecode.@com.legend.base.Nullable Driver driver;
+    private DatabaseConnector.@com.legend.base.Nullable Decoding driver;
 
-    JdbcStatements(Connection c) {
-        this(c, null);
+    JdbcStatements(Connection c, SessionState state) {
+        this(c, state, null);
     }
 
-    JdbcStatements(Connection c, @com.legend.base.Nullable ExecutionTrace trace) {
+    JdbcStatements(Connection c, SessionState state, @com.legend.base.Nullable ExecutionTrace trace) {
         this.c = c;
+        this.state = state;
         this.trace = trace;
+    }
+
+    /** The JDBC type number of {@code one}'s null: the plan's null types are {@code java.sql.JDBCType} names (the
+     *  plan format's own vocabulary, which every session reads; the runner checks every null's type by this before it
+     *  opens a session), or the plan is refused by name. The seam's, since D67 (2026-10-30): the runner names no JDBC
+     *  type. */
+    static int nullType(ExecutionPlan.Binding.One one, ExecutionPlan.Slot slot) {
+        try {
+            return java.sql.JDBCType.valueOf(one.nullType()).getVendorTypeNumber();
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("slot of '" + slot.parameter() + "': its null type '" + one.nullType()
+                    + "' is no JDBC type", e);
+        }
     }
 
     /** The error a failed statement is told as: its raise where the error carries one, else the raise the session
      *  holds ({@link #held}, read then alone -- the audit of D65, 2026-10-29: read before the error's own text was
      *  looked at, every failure paid the session's metadata read), else the database's own text
-     *  ({@link PlanSessions#dataError(SQLException, java.util.function.Supplier)}). */
+     *  ({@link RaisedErrors#dataError(SQLException, java.util.function.Supplier)}). */
     private com.legend.error.DataError failed(SQLException e) {
-        return PlanSessions.dataError(e, () -> held(c));
+        return RaisedErrors.dataError(e, () -> held(c));
     }
 
     /** The raise {@code c}'s session holds after a statement failed, read back and cleared by its connector's two
@@ -90,9 +107,7 @@ final class JdbcStatements implements Statements {
     @Override
     public void check(ExecutionPlan.Target target) {
         Sessions.check(c, target.database().type());
-        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(target.database().type());
-        driver = new JdbcDecode.Driver(dialect.refetchesTimestampAsJavaTime(), dialect.dropsDecimalTrailingZeros(),
-                dialect.opensFailedResultsWithoutColumns(), dialect.jsonSpellsNonFiniteNumbers());
+        driver = Connectors.of(target.database().type()).decoding();   // the driver's facts are its connector's (D72)
         switch (target.servers()) {
             case ExecutionPlan.Servers.Every every -> {
                 // the spelling depends on no version
@@ -175,7 +190,7 @@ final class JdbcStatements implements Statements {
 
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
-        return Sessions.inTransaction(c, work);
+        return Sessions.inTransaction(c, state, work);
     }
 
     @Override
@@ -210,7 +225,7 @@ final class JdbcStatements implements Statements {
             for (int i = 0; i < slots.size(); i++) {
                 bind(st, i + 1, slots.get(i), values.get(i));
             }
-            JdbcDecode.Driver driver = this.driver;
+            DatabaseConnector.Decoding driver = this.driver;
             if (driver == null) {
                 throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
                         + " how its driver answers is its database's fact");
@@ -294,6 +309,10 @@ final class JdbcStatements implements Statements {
     private void restore(ExecutionPlan.Keyed.Snapshot snapshot, boolean autoCommit, int isolation, boolean rollback)
             throws SQLException {
         if (rollback) {
+            // a session statement run inside the transaction may be undone with it (Postgres's SET is transactional):
+            // the session's memo forgets them, and the next statement runs them again (D66) -- before the rollback,
+            // whose own failure would leave the transaction's fate unknown
+            state.rolledBack();
             c.rollback();
         }
         if (snapshot != ExecutionPlan.Keyed.Snapshot.TRANSACTION) {
@@ -329,7 +348,7 @@ final class JdbcStatements implements Statements {
                             st.setObject(index, v.value());
                         }
                     }
-                    case PlanParameters.None none -> st.setNull(index, PlanRunner.nullType(one, slot));
+                    case PlanParameters.None none -> st.setNull(index, nullType(one, slot));
                     case PlanParameters.Many many -> throw new IllegalStateException("slot " + index + " binds one"
                             + " value of '" + slot.parameter() + "', given a list");
                 }

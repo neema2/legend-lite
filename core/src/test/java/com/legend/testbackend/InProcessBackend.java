@@ -21,7 +21,7 @@ abstract class InProcessBackend implements TestBackend {
 
     @Override
     public final Connection open() throws SQLException {
-        return Sessions.openPrivate(type());
+        return com.legend.exec.Connectors.of(type()).openPrivate();
     }
 
     @Override

@@ -97,7 +97,7 @@ class RowLoadH2Test {
                     new com.legend.executionplan.ExecutionPlan.Target(
                             new com.legend.executionplan.ExecutionPlan.Database.Platform(DatabaseType.H2),
                             new com.legend.executionplan.ExecutionPlan.Servers.Every(), List.of(), List.of()),
-                    PlanSessions.given(c), null);
+                    PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), null);
             assertEquals(before, Census.count(Census.Key.BULK_LOADS));
             assertEquals(List.of("1|a|null|null|null|null|null"), contents(c));
         }

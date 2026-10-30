@@ -111,7 +111,7 @@ final class StressSuites {
             }
         };
         try (var runner = new ServiceTestRunner(ctx,
-                backend::open, policy, sessionType, sink);
+                backend::openSession, policy, sessionType, sink);
              var progress = Files.newBufferedWriter(progressPath)) {
             for (var svc : services) {
                 if (!only.isEmpty() && !svc.qualifiedName().contains(only)) {

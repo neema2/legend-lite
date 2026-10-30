@@ -12,13 +12,12 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The AUTO-RESOLVING entry points of {@link QueryService} — the methods
+ * The AUTO-RESOLVING entry points of the server (QueryService's until D67, 2026-10-30) — the routes
  * that call {@code ConnectionResolver.resolve} themselves rather than taking a
  * caller's connection — and the resource contract they owe.
  *
@@ -53,7 +52,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class ConnectionLeaseTest {
 
-    private static QueryService qs;
     /** DuckDB, file-backed: the caller-owned (unpooled) arm. */
     private static Path duckFile;
     private static String duckModel;
@@ -62,7 +60,6 @@ class ConnectionLeaseTest {
 
     @BeforeAll
     static void setup() throws Exception {
-        qs = new QueryService();
         duckFile = Files.createTempFile("lease-test-", ".duckdb");
         Files.delete(duckFile);
         memModel = """
@@ -104,8 +101,20 @@ class ConnectionLeaseTest {
                 "test::TestRuntime");
     }
 
+    /** {@code query} over the file-backed model on the server's route, written by lite's CSV or JSON rows writer. */
+    private static byte[] written(String query, boolean csv) throws java.io.IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        java.io.Writer w = new java.io.OutputStreamWriter(out, java.nio.charset.StandardCharsets.UTF_8);
+        com.legend.Execution.run(duckModel, query, "test::TestRuntime", ConnectionResolver.SOURCE,
+                com.legend.exec.PlanSessions.shared(), plan -> csv
+                        ? new com.legend.result.CsvWriter(w, plan.answerShape())
+                        : new com.legend.result.JsonRowsWriter(w, plan.answerShape()));
+        w.flush();
+        return out.toByteArray();
+    }
+
     @Test
-    @DisplayName("all four auto-resolving entry points execute")
+    @DisplayName("the server's auto-resolving routes execute (two routes, two writers on one)")
     void allFour() throws Exception {
         String query = "|model::Person.all()->project(~[name: p|$p.firstName])";
 
@@ -121,20 +130,19 @@ class ConnectionLeaseTest {
                 + lambda + ",\"model\":" + com.legend.json.Json.toCompact(
                         java.util.Map.of("_type", "text", "code", duckModel))
                 + ",\"runtime\":{\"_type\":\"runtimePointer\",\"runtime\":\"test::TestRuntime\"}"
-                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}", qs::executeUpstream);
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}", ConnectionResolver.RUNNER);
         assertEquals(200, executed.status(), executed.json());
 
-        // 3. execute(…, OutputStream, OutputFormat) — QueryService:138
-        var csv = new ByteArrayOutputStream();
-        qs.execute(duckModel, query, "test::TestRuntime", csv, OutputFormat.CSV);
-        assertTrue(csv.size() > 0, "wire execute wrote nothing");
+        // 3. the CSV writer on the server's route (QueryService.execute(..., out, CSV) until D67, 2026-10-30: the
+        //    route is Execution.run on the resolver's sessions, the writer the caller's)
+        var csv = written(query, true);
+        assertTrue(csv.length > 0, "wire execute wrote nothing");
 
         // (executeSql and /engine/sql were deleted by plan W0.1: raw SQL is not a product surface)
 
-        // 5. stream(…, OutputStream) — QueryService:193
-        var streamed = new ByteArrayOutputStream();
-        qs.stream(duckModel, query, "test::TestRuntime", streamed);
-        assertTrue(streamed.size() > 0, "stream wrote nothing");
+        // 5. the JSON rows writer on the same route (QueryService.stream(..., out) until D67)
+        var streamed = written(query, false);
+        assertTrue(streamed.length > 0, "stream wrote nothing");
     }
 
     @Test
@@ -148,35 +156,35 @@ class ConnectionLeaseTest {
         // hides it) and only on POSIX. isClosed() is exact, is the same on
         // every platform including the Windows runner where the leak first
         // showed as an undeletable file, and says what we actually mean.
-        Connection owned;
-        try (ConnectionResolver.Lease lease =
-                ConnectionResolver.lease(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
-            owned = lease.connection();
-            assertTrue(!owned.isClosed(), "a lease must hand out a live connection");
+        com.legend.exec.Sessions.Session owned;
+        try (com.legend.exec.Sessions.Session session =
+                ConnectionResolver.session(com.legend.Compiler.compileModel(duckModel), "test::TestRuntime")) {
+            owned = session;
+            assertTrue(!com.legend.exec.Sessions.closed(owned), "a session must hand out a live connection");
         }
-        assertTrue(owned.isClosed(),
+        assertTrue(com.legend.exec.Sessions.closed(owned),
                 "a file-backed connection is CALLER-OWNED: the lease must close"
-                        + " it, or every auto-resolving QueryService call leaks"
+                        + " it, or every auto-resolving call leaks"
                         + " one (docs/CONNECTION_LEASE_DESIGN_2026_09_09.md)");
 
-        Connection borrowed;
-        try (ConnectionResolver.Lease lease =
-                ConnectionResolver.lease(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
-            borrowed = lease.connection();
+        com.legend.exec.Sessions.Session borrowed;
+        try (com.legend.exec.Sessions.Session session =
+                ConnectionResolver.session(com.legend.Compiler.compileModel(memModel), "test::TestRuntime")) {
+            borrowed = session;
         }
-        assertTrue(!borrowed.isClosed(),
+        assertTrue(!com.legend.exec.Sessions.closed(borrowed),
                 "an in-memory connection is STORE-OWNED: closing it would drop"
                         + " the tables HandleStore exists to keep, and break the"
                         + " persistence ConnectionIsolationTest pins");
     }
 
     @Test
-    @DisplayName("QueryService RELEASES the connection it resolved (end to end)")
-    void queryServiceReleasesWhatItResolves() throws Exception {
+    @DisplayName("the server RELEASES the connection it resolved (end to end)")
+    void theServerReleasesWhatItResolves() throws Exception {
         // THE REGRESSION WITNESS, and the only test here that would fail
         // against the unfixed product rather than fail to COMPILE against it:
-        // it names no lease type and goes through the public QueryService
-        // entry point, so it also catches a call site that stops closing.
+        // it names no lease type and goes through the public seeding entry
+        // (Seed.sql), so it also catches a call site that stops closing.
         //
         // The signal is DuckDB's own: a file-backed database keeps a
         // write-ahead log while any connection is open, and checkpoints it
@@ -195,7 +203,7 @@ class ConnectionLeaseTest {
             Seed.sql(ownModel, "INSERT INTO T_PERSON VALUES (1, 'Alice')",
                     "test::TestRuntime");
             assertTrue(!Files.exists(wal),
-                    "QueryService did not release the connection it resolved:"
+                    "the server did not release the connection it resolved:"
                             + " DuckDB left its write-ahead log at " + wal
                             + ", which it checkpoints away only when the last"
                             + " connection closes. Every auto-resolving call"

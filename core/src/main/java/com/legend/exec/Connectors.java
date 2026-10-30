@@ -112,6 +112,11 @@ public final class Connectors {
             throw unbuilt();
         }
 
+        @Override
+        public Decoding decoding() {
+            throw unbuilt();   // refused by name, as every fact of an unbuilt connector (the D72 audit)
+        }
+
         private com.legend.error.NotImplementedException unbuilt() {
             return new com.legend.error.NotImplementedException(
                     "sessions on database type '" + type + "' are not implemented" + (why == null ? "" : ": " + why));

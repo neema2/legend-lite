@@ -232,7 +232,7 @@ public class LegendHttpServer {
             }
             // the routes are the API's own (PureV1Api.route, the plan side); execute runs through the driver
             PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
-                    exchange.getRequestURI().getRawQuery(), body, new QueryService()::executeUpstream);
+                    exchange.getRequestURI().getRawQuery(), body, ConnectionResolver.RUNNER);
             // a binary answer (the ARROW_IPC execute, track A, 2026-10-29): its bytes under upstream's headers
             answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
             sendResponse(exchange, answer.status(), answer.body(), answer.contentType());

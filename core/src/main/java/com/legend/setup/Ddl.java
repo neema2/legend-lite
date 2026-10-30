@@ -448,7 +448,7 @@ public final class Ddl {
         return out;
     }
 
-    /** A store table's name in a SERVER engine's system database (exec.SystemDatabase): {@code schema_table}, one
+    /** A store table's name in a SERVER engine's system database (SystemDatabase): {@code schema_table}, one
      *  name in the system session's own namespace, where its temporary tables live (a temporary table takes no
      *  schema on most servers: Postgres keeps it in {@code pg_temp}, Databricks and BigQuery in the session). A query
      *  reads it under this name through its table renames. */

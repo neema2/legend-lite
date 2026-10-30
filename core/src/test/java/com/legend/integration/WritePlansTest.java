@@ -5,7 +5,6 @@ package com.legend.integration;
 
 import com.legend.testing.LaneFloor;
 
-import com.legend.TypedQuery;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.executionplan.ExecutionPlan;
@@ -155,7 +154,7 @@ class WritePlansTest {
     }
 
     private static String answer(ExecutionPlan plan, Connection c, Map<String, ?> values) throws Exception {
-        return run(plan, PlanSessions.given(c), values);
+        return run(plan, PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), values);
     }
 
     static String run(ExecutionPlan plan, PlanSessions.Source sessions, Map<String, ?> values)

@@ -1,6 +1,5 @@
 package com.legend.model;
 
-
 /**
  * Closed set of binary comparison operators that may appear in a relational
  * {@link RelationalOperation.Comparison} node.

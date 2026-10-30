@@ -3,7 +3,6 @@
 
 package com.legend.testbackend;
 
-
 import com.legend.exec.Sessions;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;

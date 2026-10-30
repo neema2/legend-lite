@@ -21,7 +21,7 @@ import java.sql.SQLException;
  *
  * <p>A server lane is also the host of a SYSTEM CONNECTION ({@link #systemConnections}): where the platform's system
  * database for that engine lives (a query reading the metamodel store runs there, apart from the user's session;
- * exec.SystemDatabase). This harness gives it the lane's own server and credentials, as its choice; a host
+ * SystemDatabase). This harness gives it the lane's own server and credentials, as its choice; a host
  * configures it apart. An in-process lane needs none (the platform opens its own private instance).
  *
  * <p>Both channels run on it (2026-10-11, the user's ask): channel A's adapter ({@link PctExecuteNative}) and channel
@@ -116,17 +116,15 @@ public final class PctBackend {
                         + e.getMessage(), e);
             }
             if (held != null) {
-                return new com.legend.exec.Sessions.Session() {
-                    @Override
-                    public Connection connection() {
-                        return held;
-                    }
-
-                    @Override
-                    public void close() {
-                        // held for the suite: the JVM's exit closes it
-                    }
-                };
+                // held for the suite (the JVM's exit closes it): ONE session over it, kept here, its memo kept (D70;
+                // the audit's finding: a cloud backend's held() answers a new unclosable proxy per call, so the
+                // connection's identity cannot key the session -- TestSessions.over would make one per plan)
+                com.legend.exec.Sessions.Session s = heldSession;
+                if (s == null) {
+                    s = com.legend.testbackend.TestSessions.over(held);
+                    heldSession = s;
+                }
+                return s;
             }
             Connection c;
             try {
@@ -135,22 +133,8 @@ public final class PctBackend {
                 throw new IllegalStateException("the " + name() + " lane's session could not be opened: "
                         + e.getMessage(), e);
             }
-            return new com.legend.exec.Sessions.Session() {
-                @Override
-                public Connection connection() {
-                    return c;
-                }
-
-                @Override
-                public void close() {
-                    try {
-                        c.close();
-                    } catch (SQLException e) {
-                        throw new IllegalStateException("the " + name() + " lane's session could not be closed: "
-                                + e.getMessage(), e);
-                    }
-                }
-            };
+            // a session of the lane's own, closed with the plan's use of it (D70: the seam's owned session)
+            return com.legend.testbackend.TestSessions.owning(c);
         };
     }
 
@@ -163,6 +147,9 @@ public final class PctBackend {
 
     private static volatile @com.legend.base.Nullable String serverVersion;
 
+    /** The one session over the lane's held connection ({@link #planSessions}). */
+    private static volatile com.legend.exec.Sessions.@com.legend.base.Nullable Session heldSession;
+
     /** The version of the server this lane's sessions connect to, read once off one session (the plan route plans
      *  for it: H2's dialect spells by the version, `TypedQuery.executionPlan`'s last argument; step 9, 2026-10-19);
      *  null for a lane with no JDBC session (MongoDB). */
@@ -173,7 +160,7 @@ public final class PctBackend {
         String v = serverVersion;
         if (v == null) {
             try (Connection c = connect()) {
-                v = com.legend.exec.Sessions.version(c);
+                v = com.legend.exec.Sessions.borrowed(c).version();
             } catch (SQLException e) {
                 throw new IllegalStateException("the " + name() + " lane's server version could not be read: "
                         + e.getMessage(), e);

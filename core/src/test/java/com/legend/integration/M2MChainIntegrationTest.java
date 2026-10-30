@@ -3,7 +3,6 @@ package com.legend.integration;
 import com.legend.testing.LaneFloor;
 
 import com.legend.testing.Lean;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -50,7 +49,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class M2MChainIntegrationTest {
 
     private Connection conn;
-    private final QueryService qs = new QueryService();
 
     private static final String PURE_MODEL = """
 ###Pure

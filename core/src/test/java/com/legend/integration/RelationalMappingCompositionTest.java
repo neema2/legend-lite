@@ -3,7 +3,6 @@ package com.legend.integration;
 import com.legend.testing.LaneFloor;
 
 import com.legend.testing.Lean;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -36,7 +35,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class RelationalMappingCompositionTest {
 
     private Connection conn;
-    private final QueryService qs = new QueryService();
 
     @BeforeEach
     void setUp() throws SQLException {

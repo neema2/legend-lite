@@ -64,7 +64,7 @@
 # the pure/v1 API answers an ARROW_IPC request with that stream; no other layer reaches it (ArrowClosureTest).
 # 2026-10-20 (the writes design's leg 7, docs/WRITES_DESIGN_2026_10_18.md §8; the plan program's step 4, the callers
 # switching to plans, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): driver reaches `execution_plan` -- Execution runs
-# a program that writes from its plan (executeUpstream: the plan made, run by PlanRunner, its answer's SQL reported).
+# a program that writes from its plan (ConnectionResolver.RUNNER: the plan made, run by PlanRunner, its answer's SQL reported).
 spi	
 cache	base
 values	base
@@ -89,20 +89,27 @@ lowering	base builtin compiler compiler_element_type error model platform protoc
 plan	base builtin compiler compiler_element_type error execution_plan lineage model sql
 resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
 setup	base cache compiler execution_plan model protocol sql sql_dialect
-exec	base cache compiler compiler_element_type database diagnostics error execution_plan json lowering model plan platform result setup sql sql_dialect values
+# D71, 2026-10-30 (the seam-and-wall program's B1, the decisions log): the judges and the probes left exec for `judge` and the
+# root, taking exec's reaches into `lowering`, `plan` and `platform` with them; `judge` reads the compiler's types and renders
+# through the dialect, and stands on exec (its verdicts read typed rows). exec's remaining planning reaches are B2's to cut.
+# D72, 2026-10-30 (B2, the wall): exec depends on no planning library -- compiler, compiler_element_type, database, setup and
+# sql_dialect gone with the judges' column and row (`judge`), the driver's decode facts (the connector's), the session source
+# and the system database (the driver's), and the wire table's compiler type (a name in the plan's vocabulary).
+exec	base cache diagnostics error execution_plan json model result sql values
+judge	base compiler compiler_element_type diagnostics error exec lowering sql sql_dialect values
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
 # `execution_plan` -- the generator's statements are plan statements of the body's target (ExecutionPlan.Sql.of), its
 # read-backs typed rows of plan columns.
-testdatagen	base builtin compiler compiler_element_type error exec execution_plan lineage model plan protocol resolver setup sql sql_dialect values
+testdatagen	base builtin compiler compiler_element_type error exec execution_plan judge lineage model plan protocol resolver setup sql sql_dialect values
 execution_plan	base json model sql
 result	arrow_ipc base error execution_plan json values
 planner	base builtin cache compiler compiler_element_type database door error execution_plan lineage lowering model normalizer parser plan platform protocol resolver setup sql sql_dialect validation values
 pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql_dialect
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
-driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
+driver	base builtin cache compiler compiler_element_type database diagnostics error exec execution_plan json judge lineage lowering model normalizer parser plan planner platform protocol resolver result setup sql sql_dialect testdatagen validation values
 ide	base door lexer model parser
-test	base compiler driver error exec execution_plan json model planner protocol result sql values
+test	base compiler driver error exec execution_plan json judge model planner protocol result sql values
 saved_queries	base json
 server_lib	base cache compiler compiler_element_type database driver error exec execution_plan json lowering model parser plan planner protocol pure_v1 result saved_queries setup sql_dialect

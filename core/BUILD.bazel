@@ -201,7 +201,21 @@ legend_java_library(
 legend_java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":execution_plan", ":lowering", ":model", ":plan", ":platform", ":result", ":setup", ":sql", ":sql_dialect", ":values"],
+    # THE WALL (D72, 2026-10-30, the seam-and-wall program's B2; D71 the day before took the judges and the probes out):
+    # the runtime depends on no planning library -- not the compiler, not lowering, not a dialect, not the plan side's
+    # setup or database facts. A plan and a session in, typed rows out: the plan records (:execution_plan) carry every
+    # type and spelling fact the runtime reads, the connector every driver fact. ArchitectureTest.execReachesNoPlanning
+    # says it at the class level; tools/deps/core-layers.txt pins this list.
+    deps = ["//base", "//json", ":cache", ":diagnostics", ":error", ":execution_plan", ":model", ":result", ":sql", ":values"],
+)
+# THE JUDGE (D71, 2026-10-30, the seam-and-wall program's B1): the verdict layer -- equality, the asserts, the TDS
+# compare, the canonical form, the SQL replay referee, the censuses -- out of exec. It reads the compiler's types and
+# renders through the dialect: planning-side work the runtime must not carry. Reachable from the body driver alone
+# (ArchitectureTest.hostVerdictIsReachableOnlyFromTheVerdictSeam).
+legend_java_library(
+    name = "judge",
+    srcs = glob(["src/main/java/com/legend/judge/*.java"]),
+    deps = ["//base", ":compiler", ":compiler_element_type", ":diagnostics", ":error", ":exec", ":lowering", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -212,26 +226,22 @@ legend_java_library(
     name = "testdatagen",
     srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
     # :execution_plan since 2026-10-29 (the doors): the generator's statements are plan statements of the body's target
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":execution_plan", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":values"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":execution_plan", ":judge", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":values"],
 )
 
 # THE PLANNER (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the root package's plan side --
 # model text to a compiled model, a query to its SQL. No :exec, no :testdatagen: planning never touches a database
 # (the build enforces it; a plan-only consumer carries no driver).
-_PLANNER_SRCS = [
+# step C (D73, 2026-10-30): the root package holds the five public doors alone -- the planner's three here, the driver's two
+# (Execution, ExecuteOptions) in :driver -- and the machinery is its own package on each side (com.legend.planner,
+# com.legend.driver), so the planner-driver wall is the language's as well as the build's.
+_PLANNER_DOORS = [
     "src/main/java/com/legend/Compiler.java",
-    "src/main/java/com/legend/CrossStoreGuard.java",
     # the models a host holds, compiled once and planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9)
     "src/main/java/com/legend/HeldModels.java",
-    # the system metamodel store's rows, written into a plan's setup by the plan maker (the plan path program's
-    # step 9, 2026-10-18); until then the legacy executor's seed of the graph's system database
-    "src/main/java/com/legend/MetamodelSeeds.java",
-    "src/main/java/com/legend/OpSeeds.java",
-    "src/main/java/com/legend/PlanMaker.java",
-    "src/main/java/com/legend/ProgramFacts.java",
-    "src/main/java/com/legend/QueryParameters.java",
     "src/main/java/com/legend/TypedQuery.java",
 ]
+_PLANNER_SRCS = _PLANNER_DOORS + glob(["src/main/java/com/legend/planner/*.java"])
 
 legend_java_library(
     name = "planner",
@@ -244,15 +254,16 @@ legend_java_library(
     ],
 )
 
-# the root package's execution side: Execution (the front door), BodyDriver, the judges
+# the execution side: the root's two execution doors (Execution, ExecuteOptions) and com.legend.driver, the machinery
+# behind them (the body driver, the judges' arms, the seeds, the probes, the system database; step C, D73, 2026-10-30)
 legend_java_library(
     name = "driver",
-    srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
+    srcs = glob(["src/main/java/com/legend/*.java", "src/main/java/com/legend/driver/*.java"], exclude = _PLANNER_DOORS),
     # //json since 2026-10-29 (the doors, door 1): the body driver writes a graph fetch's objects as host rows, one per
     # object of the array the database built, read as JSON nodes
     deps = [
         "//base", "//json", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
-        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
+        ":execution_plan", ":judge", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
         ":platform",
         ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
@@ -263,11 +274,11 @@ legend_java_library(
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
     # track Z, 2026-10-29: the service test runner spells a cell through the boundary's writer (result's CellText),
     # never by rules of its own
-    deps = ["//base", "//json", ":compiler", ":driver", ":error", ":exec", ":execution_plan", ":model", ":planner", ":protocol", ":result", ":sql", ":values"],
+    deps = ["//base", "//json", ":compiler", ":driver", ":error", ":exec", ":execution_plan", ":judge", ":model", ":planner", ":protocol", ":result", ":sql", ":values"],
 )
 # legend-engine's pure/v1 API as legend-lite answers it (server/PureV1Api.java): THE PLAN SIDE -- no database and
 # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
-# with the same code as the server. execute's run is its host's: the server hands in its driver (QueryService).
+# with the same code as the server. execute's run is its host's: the server hands in its driver (ConnectionResolver.RUNNER).
 legend_java_library(
     name = "pure_v1",
     srcs = [
@@ -299,7 +310,7 @@ legend_java_library(
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":probe", ":testdatagen",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":judge", ":probe", ":testdatagen",
     ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
 ]
 
@@ -591,9 +602,11 @@ _CORE_TEST_PACKAGES = [
     "builtin",
     "cache",
     "compiler",
+    "driver",
     "exec",
     "ide",
     "integration",
+    "judge",
     "ladder",
     "lexer",
     "lineage",
@@ -601,6 +614,7 @@ _CORE_TEST_PACKAGES = [
     "model",
     "normalizer",
     "parser",
+    "planner",
     "platform",
     "protocol",
     "resolver",
@@ -801,6 +815,8 @@ junit_test(
         ":core",
         ":test_backends",
         ":test_cases",
+        # the embedded server's port, the arm proof's (D70, 2026-10-30: read through the seam, no raw connection)
+        "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
@@ -1453,11 +1469,13 @@ junit_test(
         "--select-package=com.legend",
         "--include-tag=guardrail",
     ],
-    # :duckdb_load too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary)
+    # :duckdb_load too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
+    # :postgres_cells since 2026-10-30 (D69: a registered JDBC class the guards had never judged)
     runtime_deps = [
         ":core_tests_lib",
         ":duckdb_load",
         ":mongodb_connector",
+        ":postgres_cells",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -1469,7 +1487,7 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector"],
+    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector", ":postgres_cells"],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)

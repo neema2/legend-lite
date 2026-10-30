@@ -55,7 +55,7 @@ import java.util.Map;
  * the resolver, parameterized by the {@link SchemaReferee}: the
  * runtime-discovered column roster is an INPUT to a compiler phase run
  * at a later stage. The executor's referee is
- * {@code exec.GridProbe#probeNames}; the compiler never holds a
+ * {@code GridProbe#probeNames} (the root's); the compiler never holds a
  * connection. F1.3 funnels the JDBC surface to the exec layer at
  * BYTECODE level — even the driver's exception type may not appear
  * here — so the referee is UNCHECKED and the executor's implementation

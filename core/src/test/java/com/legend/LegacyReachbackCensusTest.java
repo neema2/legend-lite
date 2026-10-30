@@ -86,7 +86,7 @@ class LegacyReachbackCensusTest {
             // only on the parse artifact (the compiled binding is a lifted
             // function) — the store's property_mappings rows read them
             // there, the ONE reach the walk's arms used to make
-            "core/src/main/java/com/legend/MetamodelSeeds.java", 1,
+            "core/src/main/java/com/legend/planner/MetamodelSeeds.java", 1,
             // SURFACE CONTRACT: engine scanRelations is "static form off
             // the mapping" (#44, feature map §14.1) — join-NAME vocabulary
             // exists only on the authored surface (SCAN-1 reclassified)

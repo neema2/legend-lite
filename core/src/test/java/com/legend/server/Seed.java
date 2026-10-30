@@ -3,9 +3,6 @@
 
 package com.legend.server;
 
-import java.sql.SQLException;
-import java.sql.Statement;
-
 /**
  * Test-only seeding: runs raw SQL on the connection a model's runtime resolves to, the same leased (and, for an
  * in-memory database, cached) connection the server's queries then read. It replaces the product's
@@ -17,10 +14,11 @@ final class Seed {
     private Seed() {
     }
 
-    static void sql(String model, String sql, String runtimeName) throws SQLException {
-        try (ConnectionResolver.Lease lease = ConnectionResolver.lease(com.legend.Compiler.compileModel(model), runtimeName);
-                Statement stmt = lease.connection().createStatement()) {
-            stmt.execute(sql);
+    static void sql(String model, String sql, String runtimeName) {
+        // the server's session for the runtime, its statements the seam's (D70: no lease, no raw connection)
+        try (com.legend.exec.Sessions.Session session =
+                ConnectionResolver.session(com.legend.Compiler.compileModel(model), runtimeName)) {
+            session.statements().execute(sql);
         }
     }
 }

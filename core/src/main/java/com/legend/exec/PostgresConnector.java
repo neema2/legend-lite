@@ -7,7 +7,6 @@ import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.model.ConnectionSpecification;
 
-import java.sql.Connection;
 
 /** Postgres's sessions: a server, reached by its coordinates. */
 final class PostgresConnector implements DatabaseConnector {

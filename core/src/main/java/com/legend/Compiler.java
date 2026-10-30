@@ -1,5 +1,8 @@
 package com.legend;
 
+import com.legend.planner.CrossStoreGuard;
+import com.legend.planner.ProgramFacts;
+
 import com.legend.compiler.KnowledgeLayer;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.NameResolver;
