@@ -6,6 +6,7 @@ package com.legend.protocol.ts;
 import com.legend.protocol.sql.SqlAst;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -18,16 +19,30 @@ public final class TsAst {
     private TsAst() {
     }
 
-    /** A query: its WITH sources, its items, its FROM sources, its FILTER (none: null), and where {@code all} stands
-     *  as a window ({@code sum(x, all)}), each read as a column of the name {@link TsParser#ALL}. */
-    public record Query(List<With> withs, List<Item> items, List<From> sources,
-            SqlAst.@com.legend.base.Nullable Expr filter, Set<SqlAst.Pos> alls) {
+    /** A query: its WITH sources, its items, its FROM sources, its periods ({@code SAMPLE BY}; none: null), how lines
+     *  meet ({@code FILL}; none: null), its FILTER (none: null), where {@code all} stands as a window
+     *  ({@code sum(x, all)}, read as a column of the name {@link TsParser#ALL}), and each span it writes ({@code 3mo},
+     *  read as a column of its place's). */
+    public record Query(List<With> withs, List<Item> items, List<From> sources, @com.legend.base.Nullable Span sample,
+            @com.legend.base.Nullable Fill fill, SqlAst.@com.legend.base.Nullable Expr filter, Set<SqlAst.Pos> alls,
+            Map<SqlAst.Pos, Span> spans) {
         public Query {
             withs = List.copyOf(withs);
             items = List.copyOf(items);
             sources = List.copyOf(sources);
             alls = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(alls));
+            spans = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(spans));
         }
+    }
+
+    /** A span of time (§5): {@code n} of {@code unit} ({@code d}, {@code w}, {@code mo}, {@code q}, {@code y}, {@code h},
+     *  {@code min}, {@code s}), where it is written. */
+    public record Span(int n, String unit, SqlAst.Pos pos) {
+    }
+
+    /** How lines meet on dates one has and another has not (R6): {@code PREV}, {@code LINEAR}, {@code NULL},
+     *  {@code ZERO} ({@code FILL(0)}), where it is written. */
+    public record Fill(String how, SqlAst.Pos pos) {
     }
 
     /** {@code WITH name AS (source)}: a source named for the query, a flat subquery or a filtered source. */

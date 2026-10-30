@@ -52,25 +52,35 @@ public final class TsParser {
             "window", "#TS has no WINDOW clause: a function along time takes its window as an argument, avg(x, 20)",
             "fetch", "#TS has no FETCH: FILTER the answer's dates (FILTER date >= '2024-01-01')");
 
-    /** The spans of §5, which v1 reads: {@code 30d}, {@code 3mo}, {@code 1y}; {@code m} too, which it refuses. */
+    /** The spans of §5: {@code 30d}, {@code 3mo}, {@code 1y}; {@code m} too, which it refuses. */
     private static final Set<String> SPANS = Set.of("d", "w", "mo", "q", "y", "h", "min", "s", "m");
+
+    /** The calendar periods SAMPLE BY takes (R5). */
+    private static final Set<String> PERIODS = Set.of("d", "w", "mo", "q", "y");
+
+    /** FILL's ways (R6). */
+    private static final Set<String> FILLS = Set.of("PREV", "LINEAR", "NULL", "ZERO");
 
     private final List<Token> tokens;
     private final Set<SqlAst.Pos> variables;
     private final Set<SqlAst.Pos> alls;
+    private final Map<SqlAst.Pos, TsAst.Span> spans;
     private final Set<SqlAst.Pos> read = new java.util.LinkedHashSet<>();
     private int at;
 
-    private TsParser(List<Token> tokens, Set<SqlAst.Pos> variables, Set<SqlAst.Pos> alls) {
+    private TsParser(List<Token> tokens, Set<SqlAst.Pos> variables, Set<SqlAst.Pos> alls,
+            Map<SqlAst.Pos, TsAst.Span> spans) {
         this.tokens = tokens;
         this.variables = variables;
         this.alls = alls;
+        this.spans = spans;
     }
 
     /** The query {@code text} holds; a {@link SqlTranslationException} for text that is not one, placed in it. */
     public static TsAst.Query parse(String text) {
         Set<SqlAst.Pos> variables = new java.util.LinkedHashSet<>();
-        String marked = marked(text, variables);
+        Map<SqlAst.Pos, TsAst.Span> spans = new java.util.LinkedHashMap<>();
+        String marked = marked(text, variables, spans);
         List<Token> lexed;
         try {
             lexed = SqlLexer.tokenize(marked);
@@ -90,7 +100,7 @@ public final class TsParser {
                 tokens.add(t);
             }
         }
-        TsParser p = new TsParser(tokens, variables, alls);
+        TsParser p = new TsParser(tokens, variables, alls, spans);
         TsAst.Query q = p.query();
         for (SqlAst.Pos v : variables) {
             if (!p.read.contains(v)) {
@@ -103,9 +113,10 @@ public final class TsParser {
 
     // ------------------------------------------------------------------ the marks, in place
 
-    /** {@code text} with each {@code $name} made {@code _name} (its position in {@code variables}), a span refused by
-     *  name; every other character where it was, so a token's position is the text's. */
-    private static String marked(String text, Set<SqlAst.Pos> variables) {
+    /** {@code text} with each {@code $name} made {@code _name} (its position in {@code variables}) and each span's
+     *  digits made {@code _} ({@code 3mo} a name {@code _mo}, the span in {@code spans} by its position); every other
+     *  character where it was, so a token's position is the text's. */
+    private static String marked(String text, Set<SqlAst.Pos> variables, Map<SqlAst.Pos, TsAst.Span> spans) {
         StringBuilder out = new StringBuilder(text);
         int line = 1;
         int column = 1;
@@ -139,8 +150,19 @@ public final class TsParser {
                 }
                 String unit = text.substring(j, k).toLowerCase(Locale.ROOT);
                 if (k > j && SPANS.contains(unit) && (k >= text.length() || !identPart(text.charAt(k)))) {
-                    throw unsupported("a span (" + text.substring(i, k) + ") is v1's (§5): in v0 a window counts"
-                            + " observations, avg(x, 63), or is all, sum(x, all)", new SqlAst.Pos(line, column));
+                    SqlAst.Pos at = new SqlAst.Pos(line, column);
+                    if ("m".equals(unit)) {
+                        throw invalid("m is minutes or months: write " + text.substring(i, j) + "min or "
+                                + text.substring(i, j) + "mo (§5)", at);
+                    }
+                    String digits = text.substring(i, j).replace("_", "");
+                    if (digits.length() > 6) {
+                        throw invalid("a span of " + digits + " " + unit + " is too long", at);
+                    }
+                    spans.put(at, new TsAst.Span(Integer.parseInt(digits), unit, at));
+                    for (int d = i; d < j; d++) {
+                        out.setCharAt(d, '_');
+                    }
                 }
             }
             if (c == '\n') {
@@ -235,6 +257,8 @@ public final class TsParser {
         }
         at = sourcesEnd;
         SqlAst.Expr filter = null;
+        TsAst.Span sample = null;
+        TsAst.Fill fill = null;
         while (peek().kind() != Kind.EOF) {
             Token t = peek();
             String word = t.text().toLowerCase(Locale.ROOT);
@@ -242,17 +266,44 @@ public final class TsParser {
                 throw invalid("to filter the data, put the WHERE with its source: FROM (prices WHERE ...) ON date;"
                         + " to filter the answer, use FILTER", t.pos());
             }
-            if (t.is("sample")) {
-                throw unsupported("SAMPLE BY is v1's (R5)", t.pos());
+            if (t.is("sample") && sample == null && fill == null && filter == null) {
+                Token by = tokens.get(at + 1);
+                Token span = tokens.get(at + 2);
+                TsAst.Span s = by.is("by") ? spans.get(span.pos()) : null;
+                if (s == null || span.kind() != Kind.IDENT) {
+                    throw invalid("SAMPLE BY takes a calendar period: SAMPLE BY 1w (R5)", t.pos());
+                }
+                if (s.n() != 1 || !PERIODS.contains(s.unit())) {
+                    throw invalid("SAMPLE BY takes one calendar period: 1d, 1w, 1mo, 1q or 1y (R5)", span.pos());
+                }
+                sample = s;
+                at += 3;
+                continue;
             }
-            if (t.is("fill")) {
-                throw unsupported("FILL is v1's (R6)", t.pos());
+            if (t.is("fill") && fill == null && filter == null) {
+                Token open = tokens.get(at + 1);
+                Token how = tokens.get(at + 2);
+                Token close = tokens.get(at + 3);
+                String mode = how.kind() == Kind.INTEGER && "0".equals(how.text()) ? "ZERO"
+                        : how.kind() == Kind.IDENT ? how.text().toUpperCase(Locale.ROOT) : "";
+                if (open.kind() != Kind.LPAREN || close.kind() != Kind.RPAREN || !FILLS.contains(mode)) {
+                    throw invalid("FILL is FILL(PREV), FILL(LINEAR), FILL(NULL) or FILL(0) (R6)", t.pos());
+                }
+                fill = new TsAst.Fill(mode, t.pos());
+                at += 4;
+                continue;
+            }
+            if (t.is("sample") || t.is("fill")) {
+                throw invalid("after the sources come SAMPLE BY, then FILL, then FILTER, each once", t.pos());
             }
             if (t.kind() == Kind.IDENT && NOT_CLAUSES.containsKey(word)) {
                 throw invalid(NOT_CLAUSES.get(word), t.pos());
             }
             if (t.is("filter") && filter == null) {
-                int end = tokens.size() - 1;
+                // its condition up to a clause after it (refused below: FILTER is the last)
+                int stop = depthZero(at + 1, tokens.size() - 1, x -> x.kind() == Kind.IDENT
+                        && (x.is("sample") || x.is("fill") || NOT_CLAUSES.containsKey(x.text().toLowerCase(Locale.ROOT))));
+                int end = stop < 0 ? tokens.size() - 1 : stop;
                 if (at + 1 >= end) {
                     throw invalid("FILTER takes a condition over the answer's columns: FILTER date >= '2024-01-01'",
                             t.pos());
@@ -263,7 +314,7 @@ public final class TsParser {
             }
             throw invalid("syntax error at or near \"" + t.text() + "\"", t.pos());
         }
-        return new TsAst.Query(withs, items, sources, filter, alls);
+        return new TsAst.Query(withs, items, sources, sample, fill, filter, alls, spans);
     }
 
     /** {@code WITH name AS (source), ...}, up to its SELECT. */

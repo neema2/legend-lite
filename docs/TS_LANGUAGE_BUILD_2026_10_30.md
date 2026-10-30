@@ -133,3 +133,17 @@ that moves moves with its reason in the commit (AGENTS.md).
   `//core:ts_island_test`: ten tests, every in-process database (DuckDB, H2, SQLite), each answer checked against
   plain arithmetic and v0's against the same library calls written in Pure; 26 refusals with their fixes.
   `TsIslandRoundTripTest`: text, wire, text byte for byte, and the parser's clauses. P3b (SAMPLE BY, FILL) next.
+- 2026-10-30: P3b built. `SAMPLE BY 1d | 1w | 1mo | 1q | 1y` (R5): a period's aggregate (`last`, `first`, `max`,
+  `min`, `sum`, `avg`) of a source's column is its line by period (the tile's grouping, periods starting Monday), a
+  bare line under it refused with the fix, an aggregate with no window and no SAMPLE BY refused; a window then counts
+  periods. `FILL(PREV | LINEAR | NULL | 0)` (R6) where lines meet in an expression, through the library's alignment
+  functions (`lastValued`, `nextValued`, `valueAt`, `linearAt`, `fillZero`); `PREV` never takes a later value, as R6
+  says (the tile's `step` back-fills a line's start: P5 counts that difference). Spans (`3mo`) are read and marked in
+  place; their windows are P3c's. R6's rows applied: a row only where an item has a value.
+  - **Every period any line has is a spine**: the lines' keys concatenated and grouped once (each dated at its latest
+    line's date: R5's one date for every line), each line LEFT-joined onto it -- for the answer's items and for lines
+    meeting under FILL. Each line is read twice, linearly; the nested FULL joins the tile writes double at each level
+    on a database that writes FULL as a UNION (one in-process planner ran out of memory on them).
+  - The SAMPLE BY and FILL tests run on the platform's database (DuckDB): `last`/`first` need `ARG_MAX`/`ARG_MIN`,
+    and one in-process planner runs out of memory on the nesting a FILL writes.
+  `//core:ts_island_test`: thirteen tests. P3c (spans and date windows, options, `latest`) next.

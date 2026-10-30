@@ -5,6 +5,7 @@ package com.legend.protocol.ts;
 
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
 import com.legend.protocol.spec.ColSpecArray;
@@ -18,6 +19,7 @@ import com.legend.protocol.sql.SqlTranslationException;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * THE LINES OF A {@code #TS{...}#} QUERY (docs/TIMESERIES_LANGUAGE_2026_10_29.md R2, R4, R6): a line is one
@@ -113,12 +115,249 @@ final class TsLines {
         return new Valued(new Line(rel, instrument, split, AT), value);
     }
 
+    /** A period's function of a date (R5's calendar periods): its first day. */
+    private static final Map<String, String> PERIOD_START = Map.of("w", "firstDayOfWeek", "mo", "firstDayOfMonth",
+            "q", "firstDayOfQuarter", "y", "firstDayOfYear");
+
+    /** How a period's rows become one value (R5): the language's name, the aggregate. */
+    static final Map<String, String> TAKEN = Map.of("last", "maxBy", "first", "minBy", "max", "max", "min", "min",
+            "sum", "sum", "avg", "average", "mean", "average");
+
+    /**
+     * A COLUMN'S LINE BY PERIOD (R5, SAMPLE BY): its rows as {@link #column}'s, each row's period the first day of its
+     * calendar {@code unit} ({@code d} its day), grouped by the instrument and the period, its value {@code taken}
+     * ({@code last}, the period's last row's; {@code first}; {@code max}, {@code min}, {@code sum}, {@code avg}), the
+     * period dated at its last row's day -- the tile's frequency (timeseries-query.ts columnPart, periodOf).
+     */
+    static Valued sampled(Writer w, Source s, String column, List<SqlAst.Expr> matches, boolean split, String unit,
+            String taken) {
+        ValueSpecification rel = s.relation();
+        for (SqlAst.Expr m : matches) {
+            rel = call("filter", rel, w.rowLambda(m, rel, true, "a subscript"));
+        }
+        rel = call("filter", rel, lambda("x", call("and", call("isNotEmpty", col(s.date())),
+                call("isNotEmpty", col(column)))));
+        boolean day = "StrictDate".equals(s.dateType()) || "Date".equals(s.dateType());
+        ValueSpecification date = day ? col(s.date()) : call("datePart", one(s.date()));
+        String start = PERIOD_START.get(unit);
+        ValueSpecification period = start == null ? date : call(start, call("toOne", date));
+        String ordRow = w.fresh("or");
+        String atRow = w.fresh("ar");
+        rel = call("extend", rel, new ColSpecArray(List.of(
+                new ColSpec(PERIOD, lambda("x", period)),
+                new ColSpec(ordRow, lambda("x", call("dateDiff", epoch(), one(s.date()),
+                        new EnumValue(DURATION, day ? "DAYS" : "SECONDS")))),
+                new ColSpec(atRow, lambda("x", date)))));
+        String instrument = split ? java.util.Objects.requireNonNull(s.instrument(),
+                "a line per instrument of a source of none") : ONE_LINE;
+        List<ColSpec> keys = split ? List.of(new ColSpec(instrument), new ColSpec(PERIOD))
+                : List.of(new ColSpec(PERIOD));
+        String value = w.fresh("base");
+        String fn = java.util.Objects.requireNonNull(TAKEN.get(taken));
+        boolean byRow = "maxBy".equals(fn) || "minBy".equals(fn);
+        List<ColSpec> aggs = List.of(
+                new ColSpec(value, lambda("x", byRow ? call("rowMapper", col(column), col(ordRow)) : col(column)),
+                        lambda("y", call(fn, new Variable("y")))),
+                new ColSpec(ORD, lambda("x", col(ordRow)), lambda("y", call("max", new Variable("y")))),
+                new ColSpec(AT, lambda("x", col(atRow)), lambda("y", call("max", new Variable("y")))));
+        rel = call("groupBy", rel, new ColSpecArray(keys), new ColSpecArray(aggs));
+        if (!split) {
+            rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
+        }
+        rel = call("filter", rel, lambda("x", call("isNotEmpty", col(value))));
+        return new Valued(new Line(rel, instrument, split, AT), value);
+    }
+
+    /** Lines spread onto every period any of them has ({@link #spread}): the line, and each line's own number in
+     *  time there (none where it has no row), in the lines' order. */
+    record Spread(Line line, List<String> ords) {
+    }
+
+    /**
+     * EVERY PERIOD ANY OF {@code nodes} HAS (R6): each (instrument, period) one of them has a row in -- a line of one
+     * instrument under every instrument of the lines per instrument (R2's broadcast, the instruments those lines have)
+     * -- dated at its latest line's date and number in time (R5: one date for every line), each line's value LEFT-joined
+     * onto them under its own name with its own number in time. Each line is read twice, linearly: no FULL join nested
+     * in another (H2, which writes one as a UNION, plans a nesting of them exponentially).
+     */
+    static Spread spread(Writer w, List<Valued> nodes, SqlAst.Pos pos) {
+        List<Valued> split = nodes.stream().filter(n -> n.line().byInstrument()).toList();
+        String part = split.isEmpty() ? ONE_LINE : split.get(0).line().part();
+        for (Valued n : split) {
+            if (!n.line().part().equals(part)) {
+                throw SqlTranslationException.invalid("lines by " + part + " and lines by " + n.line().part()
+                        + " meet on no instrument: pick one line of one with a subscript (R2)", pos);
+            }
+        }
+        String at = w.fresh("sp_at");
+        String ord = w.fresh("sp_ord");
+        // the instruments the lines per instrument have
+        ValueSpecification instruments = null;
+        for (Valued n : split) {
+            ValueSpecification own = call("select", n.line().rel(), new ColSpecArray(List.of(new ColSpec(part))));
+            instruments = instruments == null ? own : call("concatenate", instruments, own);
+        }
+        String k1 = w.fresh("sp_k");
+        String k2 = w.fresh("sp_k");
+        String inst = w.fresh("sp_i");
+        if (instruments != null) {
+            instruments = call("extend", call("rename", call("distinct", instruments), new ColSpec(part),
+                    new ColSpec(inst)), new ColSpec(k1, lambda("x", new CInteger(1L))));
+        }
+        // the periods each line has, keyed alike
+        ValueSpecification keys = null;
+        for (Valued n : nodes) {
+            Line l = n.line();
+            ValueSpecification k = call("rename", call("rename", call("select", l.rel(), new ColSpecArray(List.of(
+                    new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at()), new ColSpec(ORD)))),
+                    new ColSpec(l.at()), new ColSpec(at)), new ColSpec(ORD), new ColSpec(ord));
+            if (instruments != null && !l.byInstrument()) {
+                // one line under every instrument
+                k = call("extend", call("select", k, new ColSpecArray(List.of(new ColSpec(PERIOD), new ColSpec(at),
+                        new ColSpec(ord)))), new ColSpec(k2, lambda("x", new CInteger(1L))));
+                k = call("join", instruments, k, new EnumValue("meta::pure::functions::relation::JoinKind", "INNER"),
+                        lambda2("l", "r", call("equal", prop("l", k1), prop("r", k2))));
+                k = call("rename", k, new ColSpec(inst), new ColSpec(part));
+                k = call("select", k, new ColSpecArray(List.of(new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
+                        new ColSpec(ord))));
+            }
+            keys = keys == null ? k : call("concatenate", keys, k);
+        }
+        ValueSpecification spine = call("groupBy", java.util.Objects.requireNonNull(keys, "lines to spread"),
+                new ColSpecArray(List.of(new ColSpec(part),
+                new ColSpec(PERIOD))), new ColSpecArray(List.of(
+                new ColSpec(at, lambda("x", col(at)), lambda("y", call("max", new Variable("y")))),
+                new ColSpec(ord, lambda("x", col(ord)), lambda("y", call("max", new Variable("y")))))));
+        // each line's value onto them
+        List<String> ords = new ArrayList<>();
+        List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
+                new ColSpec(ord)));
+        for (Valued n : nodes) {
+            Line l = n.line();
+            boolean byLine = l.byInstrument() || instruments == null;
+            String p = w.fresh("sp_p");
+            String per = w.fresh("sp_per");
+            String own = w.fresh("sp_ord");
+            List<ColSpec> cols = new ArrayList<>();
+            if (byLine) {
+                cols.add(new ColSpec(l.part()));
+            }
+            cols.add(new ColSpec(PERIOD));
+            cols.add(new ColSpec(ORD));
+            cols.add(new ColSpec(n.value()));
+            ValueSpecification r = call("select", l.rel(), new ColSpecArray(cols));
+            if (byLine) {
+                r = call("rename", r, new ColSpec(l.part()), new ColSpec(p));
+            }
+            r = call("rename", call("rename", r, new ColSpec(PERIOD), new ColSpec(per)), new ColSpec(ORD),
+                    new ColSpec(own));
+            ValueSpecification on = call("equal", prop("l", PERIOD), prop("r", per));
+            if (byLine) {
+                on = call("and", on, call("equal", prop("l", part), prop("r", p)));
+            }
+            spine = call("join", spine, r, new EnumValue("meta::pure::functions::relation::JoinKind", "LEFT"),
+                    lambda2("l", "r", on));
+            kept.add(new ColSpec(own));
+            kept.add(new ColSpec(n.value()));
+            spine = call("select", spine, new ColSpecArray(List.copyOf(kept)));
+            ords.add(own);
+        }
+        spine = call("rename", spine, new ColSpec(ord), new ColSpec(ORD));
+        return new Spread(new Line(spine, part, instruments != null, at), ords);
+    }
+
+    /**
+     * LINES MEETING UNDER FILL (R6): every period any line has ({@link #spread}), each one's value put onto them by
+     * {@code how}: {@code PREV}, its last value at or before the date (none before its first: never a later value);
+     * {@code LINEAR}, linear in time between its values either side (none outside them); {@code ZERO}, 0; {@code NULL},
+     * none -- the library's alignment functions (the tile's align, timeseries-query.ts fill).
+     */
+    static Line aligned(Writer w, List<Valued> nodes, String how, SqlAst.Pos pos) {
+        Spread s = spread(w, nodes, pos);
+        Line l = s.line();
+        for (int i = 0; i < nodes.size(); i++) {
+            l = fill(w, l, List.of(nodes.get(i).value()), s.ords().get(i), how);
+        }
+        return l;
+    }
+
+    /** THE ANSWER'S ROWS (R6): every period any item has a value in ({@link #spread}), the items' columns as named. */
+    static Line answer(Writer w, List<Valued> items, SqlAst.Pos pos) {
+        Line l = items.size() == 1 ? items.get(0).line() : spread(w, items, pos).line();
+        List<ColSpec> keep = new ArrayList<>(List.of(new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at())));
+        items.forEach(v -> keep.add(new ColSpec(v.value())));
+        return l.with(call("select", l.rel(), new ColSpecArray(keep)));
+    }
+
+    /** {@code line}'s {@code values} put onto its merged dates by {@code how} (R6), each under its own name; {@code ord}
+     *  the number in time of the periods they had a row in. */
+    private static Line fill(Writer w, Line line, List<String> values, String ord, String how) {
+        if ("NULL".equals(how) || values.isEmpty()) {
+            return line;
+        }
+        Line l = line;
+        if ("ZERO".equals(how)) {
+            for (String v : values) {
+                String out = w.fresh("al_zero");
+                l = replaced(w, l.with(call(TsToPure.LIBRARY + "fillZero", l.rel(), new ColSpec(v), new ColSpec(out))),
+                        v, out);
+            }
+            return l;
+        }
+        String lastP = w.fresh("al_lastp");
+        l = l.with(call(TsToPure.LIBRARY + "lastValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
+                new ColSpec(values.get(0)), new ColSpec(lastP)));
+        if ("PREV".equals(how)) {
+            for (String v : values) {
+                String[] out = new String[1];
+                l = valueAt(w, l, lastP, v, out);
+                l = replaced(w, l, v, out[0]);
+            }
+            return l;
+        }
+        String nextP = w.fresh("al_nextp");
+        l = l.with(call(TsToPure.LIBRARY + "nextValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
+                new ColSpec(values.get(0)), new ColSpec(nextP)));
+        String[] t0 = new String[1];
+        String[] t1 = new String[1];
+        l = valueAt(w, l, lastP, ord, t0);
+        l = valueAt(w, l, nextP, ord, t1);
+        for (String v : values) {
+            String[] a = new String[1];
+            String[] b = new String[1];
+            l = valueAt(w, l, lastP, v, a);
+            l = valueAt(w, l, nextP, v, b);
+            String out = w.fresh("al_lin");
+            l = l.with(call(TsToPure.LIBRARY + "linearAt", l.rel(), new ColSpec(t0[0]), new ColSpec(a[0]),
+                    new ColSpec(t1[0]), new ColSpec(b[0]), new ColSpec(ORD), new ColSpec(out)));
+            l = replaced(w, l, v, out);
+        }
+        return l;
+    }
+
+    /** {@code l} with {@code value}'s value at the period {@code at} names (a column of periods) as a fresh column,
+     *  named in {@code out[0]}: the library's valueAt. */
+    private static Line valueAt(Writer w, Line l, String at, String value, String[] out) {
+        out[0] = w.fresh("al_v");
+        return l.with(call(TsToPure.LIBRARY + "valueAt", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
+                new ColSpec(at), new ColSpec(value), new ColSpec(out[0])));
+    }
+
+    /** {@code l} with {@code filled} under {@code value}'s name, the column it filled kept under another. */
+    private static Line replaced(Writer w, Line l, String value, String filled) {
+        ValueSpecification rel = call("rename", l.rel(), new ColSpec(value), new ColSpec(w.fresh("al_raw")));
+        return l.with(call("rename", rel, new ColSpec(filled), new ColSpec(value)));
+    }
+
     /**
      * LINES MEETING on the dates every one has (R6, without FILL; the tile's intersect): joined on the period, and on
      * the instrument where both are lines per instrument -- a line of one instrument meets each instrument's (R2's
      * broadcast); each period dated at its latest line's. The first line's columns kept, each other's value carried.
      */
-    static Line joined(Writer w, List<Valued> nodes, SqlAst.Pos pos) {
+    static Line joined(Writer w, List<Valued> nodes, SqlAst.Pos pos, @com.legend.base.Nullable String fill) {
+        if (fill != null) {
+            return aligned(w, nodes, fill, pos);
+        }
         List<Valued> order = new ArrayList<>(nodes.stream().filter(n -> n.line().byInstrument()).toList());
         order.addAll(nodes.stream().filter(n -> !n.line().byInstrument()).toList());
         Line left = order.get(0).line();
@@ -153,120 +392,6 @@ final class TsLines {
             left = new Line(met, left.part(), left.byInstrument(), at);
         }
         return left;
-    }
-
-    /**
-     * THE ANSWER'S ROWS (R6): the items' lines, every period any item has a value in -- a FULL join on the period and
-     * the instrument, a line of one instrument under every instrument of the lines per instrument -- each period dated
-     * at its latest item's date. The items' columns kept as they are named.
-     */
-    static Line answer(Writer w, List<Valued> items, SqlAst.Pos pos) {
-        List<Valued> order = new ArrayList<>(items.stream().filter(n -> n.line().byInstrument()).toList());
-        order.addAll(items.stream().filter(n -> !n.line().byInstrument()).toList());
-        Line left = order.get(0).line();
-        List<String> carried = new ArrayList<>(List.of(order.get(0).value()));
-        left = left.with(call("select", left.rel(), new ColSpecArray(columns(left, carried))));
-        for (Valued right : order.subList(1, order.size())) {
-            Line r = right.line();
-            if (left.byInstrument() && r.byInstrument() && !left.part().equals(r.part())) {
-                throw SqlTranslationException.invalid("lines by " + left.part() + " and lines by " + r.part()
-                        + " share no row: pick one line of one with a subscript (R2)", pos);
-            }
-            if (left.byInstrument() && !r.byInstrument()) {
-                // one line under every instrument: each period's value beside each instrument's row of that period
-                left = under(w, left, carried, right);
-                carried.add(right.value());
-                continue;
-            }
-            String p = w.fresh("ap");
-            String a = w.fresh("aa");
-            String l = w.fresh("al");
-            ValueSpecification rel = call("rename", r.rel(), new ColSpec(PERIOD), new ColSpec(p));
-            rel = call("rename", rel, new ColSpec(r.at()), new ColSpec(a));
-            rel = call("rename", rel, new ColSpec(r.part()), new ColSpec(l));
-            rel = call("select", rel, new ColSpecArray(List.of(new ColSpec(p), new ColSpec(a), new ColSpec(l),
-                    new ColSpec(right.value()))));
-            ValueSpecification on = call("and", call("equal", prop("l", PERIOD), prop("r", p)),
-                    call("equal", prop("l", left.part()), prop("r", l)));
-            ValueSpecification met = call("join", left.rel(), rel,
-                    new EnumValue("meta::pure::functions::relation::JoinKind", "FULL"), lambda2("l", "r", on));
-            String part = w.fresh("apart");
-            String period = w.fresh("aper");
-            String at = w.fresh("aat");
-            met = call("extend", met, new ColSpecArray(List.of(
-                    new ColSpec(part, lambda("x", either(left.part(), l))),
-                    new ColSpec(period, lambda("x", either(PERIOD, p))),
-                    new ColSpec(at, lambda("x", latest(left.at(), a))))));
-            carried.add(right.value());
-            List<ColSpec> keep = new ArrayList<>(List.of(new ColSpec(part), new ColSpec(period), new ColSpec(at)));
-            carried.forEach(c -> keep.add(new ColSpec(c)));
-            met = call("select", met, new ColSpecArray(keep));
-            met = call("rename", met, new ColSpec(part), new ColSpec(left.part()));
-            met = call("rename", met, new ColSpec(period), new ColSpec(PERIOD));
-            left = new Line(met, left.part(), left.byInstrument(), at);
-        }
-        return left;
-    }
-
-    /** {@code left}'s rows (lines per instrument) with {@code one}'s value (a line of one instrument) beside each of
-     *  its periods -- and the periods {@code one} has that no instrument has, under every instrument {@code left}
-     *  has: a FULL join on the period, then each instrument's. */
-    private static Line under(Writer w, Line left, List<String> carried, Valued one) {
-        // the instruments: every one left has
-        String k1 = w.fresh("uk");
-        String k2 = w.fresh("uk");
-        String inst = w.fresh("ui");
-        ValueSpecification lines = call("extend", call("distinct", call("rename", call("select", left.rel(),
-                new ColSpecArray(List.of(new ColSpec(left.part())))), new ColSpec(left.part()), new ColSpec(inst)),
-                new ColSpecArray(List.of(new ColSpec(inst)))), new ColSpec(k1, lambda("x", new com.legend.protocol.spec
-                .CInteger(1L))));
-        String p = w.fresh("up");
-        String a = w.fresh("ua");
-        ValueSpecification r = call("rename", one.line().rel(), new ColSpec(PERIOD), new ColSpec(p));
-        r = call("rename", r, new ColSpec(one.line().at()), new ColSpec(a));
-        r = call("extend", call("select", r, new ColSpecArray(List.of(new ColSpec(p), new ColSpec(a),
-                new ColSpec(one.value())))), new ColSpec(k2, lambda("x", new com.legend.protocol.spec.CInteger(1L))));
-        // the one line under every instrument
-        ValueSpecification spread = call("join", lines, r, new EnumValue("meta::pure::functions::relation::JoinKind",
-                "INNER"), lambda2("l", "r", call("equal", prop("l", k1), prop("r", k2))));
-        ValueSpecification on = call("and", call("equal", prop("l", PERIOD), prop("r", p)),
-                call("equal", prop("l", left.part()), prop("r", inst)));
-        ValueSpecification met = call("join", left.rel(), call("select", spread, new ColSpecArray(List.of(
-                new ColSpec(inst), new ColSpec(p), new ColSpec(a), new ColSpec(one.value())))),
-                new EnumValue("meta::pure::functions::relation::JoinKind", "FULL"), lambda2("l", "r", on));
-        String part = w.fresh("apart");
-        String period = w.fresh("aper");
-        String at = w.fresh("aat");
-        met = call("extend", met, new ColSpecArray(List.of(
-                new ColSpec(part, lambda("x", either(left.part(), inst))),
-                new ColSpec(period, lambda("x", either(PERIOD, p))),
-                new ColSpec(at, lambda("x", latest(left.at(), a))))));
-        List<ColSpec> keep = new ArrayList<>(List.of(new ColSpec(part), new ColSpec(period), new ColSpec(at)));
-        carried.forEach(c -> keep.add(new ColSpec(c)));
-        keep.add(new ColSpec(one.value()));
-        met = call("select", met, new ColSpecArray(keep));
-        met = call("rename", met, new ColSpec(part), new ColSpec(left.part()));
-        met = call("rename", met, new ColSpec(period), new ColSpec(PERIOD));
-        return new Line(met, left.part(), true, at);
-    }
-
-    /** The columns of {@code l} an answer keeps: its line, its period, its date, and {@code values}. */
-    private static List<ColSpec> columns(Line l, List<String> values) {
-        List<ColSpec> out = new ArrayList<>(List.of(new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at())));
-        values.forEach(v -> out.add(new ColSpec(v)));
-        return out;
-    }
-
-    /** {@code x}'s value where it has one, else {@code y}'s. */
-    private static ValueSpecification either(String x, String y) {
-        return call("if", call("isEmpty", col(x)), thunk(col(y)), thunk(col(x)));
-    }
-
-    /** The later of {@code x} and {@code y}, either where the other has none. */
-    private static ValueSpecification latest(String x, String y) {
-        return call("if", call("isEmpty", col(x)), thunk(col(y)), thunk(call("if", call("isEmpty", col(y)),
-                thunk(col(x)), thunk(call("if", call("greaterThanEqual", one(x), one(y)), thunk(col(x)),
-                        thunk(col(y)))))));
     }
 
     /** The window of a figure along {@code line}: its line, its periods in order, and {@code frame} (none: null). */

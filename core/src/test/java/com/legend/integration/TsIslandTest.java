@@ -171,12 +171,16 @@ class TsIslandTest {
         return out;
     }
 
-    /** {@code ts}'s rows and {@code pure}'s, the same on every in-process database; {@code ts}'s rows. */
-    private static Map<TestBackend, List<Map<String, String>>> same(String ts, String pure) throws Exception {
+    /** {@code ts}'s rows and {@code pure}'s, the same on every in-process database -- {@code pure}'s where an item
+     *  has a value (R6), its first {@code keys} columns the date and the instrument; {@code ts}'s rows. */
+    private static Map<TestBackend, List<Map<String, String>>> same(String ts, String pure, int keys)
+            throws Exception {
         Map<TestBackend, List<Map<String, String>>> out = new LinkedHashMap<>();
         for (TestBackend backend : TestBackends.inProcess()) {
             List<Map<String, String>> got = rows(backend, "|#TS{" + ts + "}#");
-            assertEquals(rows(backend, pure), got, backend + ": the #TS query answers as the library's calls do");
+            List<Map<String, String>> want = rows(backend, pure).stream().filter(r -> r.values().stream().skip(keys)
+                    .anyMatch(java.util.Objects::nonNull)).toList();
+            assertEquals(want, got, backend + ": the #TS query answers as the library's calls do");
             out.put(backend, got);
         }
         assertTrue(out.size() >= 3, "on every in-process database: " + out.keySet());
@@ -209,6 +213,12 @@ class TsIslandTest {
         return out;
     }
 
+    /** The database a query of many lines is held to here: the platform's (one in-process planner re-renders every
+     *  nested derived table at each level, and runs out of memory on a FILL's or a SAMPLE BY's, 2026-10-30). */
+    private static List<TestBackend> deep() {
+        return List.of(TestBackends.platform());
+    }
+
     private static Double mean3(double[] x, int i) {
         return i < 2 ? null : (x[i] + x[i - 1] + x[i - 2]) / 3;
     }
@@ -237,7 +247,7 @@ class TsIslandTest {
     @Test
     void aClassReadAsObjectsIsTheLibrarysCallsOverItsPathsProjected() throws Exception {
         // R1.1: the paths it reads projected, a path named by its last step; each figure the library's call (R4)
-        var answers = same(TS_ONE, PURE_ONE);
+        var answers = same(TS_ONE, PURE_ONE, 2);
         for (Map.Entry<TestBackend, List<Map<String, String>>> a : answers.entrySet()) {
             for (Map.Entry<String, double[]> line : Map.of("AAA", AAA, "BBB", BBB).entrySet()) {
                 double[] x = line.getValue();
@@ -270,7 +280,7 @@ class TsIslandTest {
                   ->timeseries::mean(over(~[sym], [~day->ascending()], rows(-2, 0)), ~px, 3, ~ma3)
                   ->extend(~dev: r|if($r.px->isEmpty() || $r.ma3->isEmpty(), |[], |$r.px->toOne() / $r.ma3->toOne() - 1))
                   ->select(~[day, sym, ma3, dev])
-                  ->sort([~day->ascending(), ~sym->ascending()])""");
+                  ->sort([~day->ascending(), ~sym->ascending()])""", 2);
     }
 
     @Test
@@ -280,15 +290,15 @@ class TsIslandTest {
                 ->timeseries::mean(over(~[SYMBOL], [~DAY->ascending()], rows(-2, 0)), ~CLOSE, 3, ~ma3)
                   ->select(~[DAY, SYMBOL, ma3])
                   ->sort([~DAY->ascending(), ~SYMBOL->ascending()])""";
-        same("SELECT avg(CLOSE, 3) AS ma3 FROM PRICES ON DAY BY SYMBOL", "|#>{ts::DB.PRICES}#" + pure);
+        same("SELECT avg(CLOSE, 3) AS ma3 FROM PRICES ON DAY BY SYMBOL", "|#>{ts::DB.PRICES}#" + pure, 2);
         same("SELECT avg(CLOSE, 3) AS ma3 FROM (PRICES WHERE SYMBOL = 'AAA') ON DAY BY SYMBOL",
-                "|#>{ts::DB.PRICES}#->filter(r|$r.SYMBOL == 'AAA')" + pure);
+                "|#>{ts::DB.PRICES}#->filter(r|$r.SYMBOL == 'AAA')" + pure, 2);
         for (TestBackend backend : TestBackends.inProcess()) {
             List<Map<String, String>> got = rows(backend, """
                     |let p = #>{ts::DB.PRICES}#->filter(r|$r.SYMBOL == 'BBB');
                     #TS{SELECT avg(CLOSE, 3) AS ma3 FROM $p ON DAY BY SYMBOL}#;""");
-            assertClose(each(BBB.length, i -> mean3(BBB, i)), column(got, null, null, "ma3"),
-                    backend + ": a variable's relation");
+            assertClose(each(BBB.length - 2, i -> mean3(BBB, i + 2)), column(got, null, null, "ma3"),
+                    backend + ": a variable's relation, a row where the mean has a value (R6)");
         }
     }
 
@@ -306,7 +316,7 @@ class TsIslandTest {
                   ->timeseries::diff(over(~[__ts_line], [~day->ascending()]), ~close, 2, ~d2)
                   ->select(~[day, ma3, d2])
                   ->filter(r|$r.ma3->isNotEmpty() && ($r.day->toOne() < %2024-01-29))
-                  ->sort([~day->ascending()])""");
+                  ->sort([~day->ascending()])""", 1);
         for (Map.Entry<TestBackend, List<Map<String, String>>> a : answers.entrySet()) {
             // the 22nd's mean is the first full one; the 28th the last before the 29th
             assertClose(each(7, i -> mean3(AAA, i + 2)), column(a.getValue(), null, null, "ma3"),
@@ -329,13 +339,15 @@ class TsIslandTest {
                   ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-2, 0)), ~close, 3, ~__ts_2)
                   ->extend(~dev: r|if($r.close->isEmpty() || $r.__ts_2->isEmpty(), |[], |$r.close->toOne() / $r.__ts_2->toOne() - 1))
                   ->select(~[day, ticker, mr, dev])
+                  ->filter(r|$r.mr->isNotEmpty() || $r.dev->isNotEmpty())
                   ->filter(r|$r.ticker == 'BBB')
-                  ->sort([~day->ascending(), ~ticker->ascending()])""");
+                  ->sort([~day->ascending(), ~ticker->ascending()])""", 2);
         for (Map.Entry<TestBackend, List<Map<String, String>>> a : answers.entrySet()) {
             double[] x = BBB;
-            assertClose(each(x.length, i -> i < 2 ? null : (x[i] / x[i - 1] - 1 + x[i - 1] / x[i - 2] - 1) / 2),
+            // R6: no row where no item has a value (the first two dates)
+            assertClose(each(x.length - 2, i -> (x[i + 2] / x[i + 1] - 1 + x[i + 1] / x[i] - 1) / 2),
                     column(a.getValue(), null, null, "mr"), a.getKey() + ": the mean of two returns");
-            assertClose(each(x.length, i -> i < 2 ? null : x[i] / mean3(x, i) - 1),
+            assertClose(each(x.length - 2, i -> x[i + 2] / mean3(x, i + 2) - 1),
                     column(a.getValue(), null, null, "dev"), a.getKey() + ": the close against its mean");
         }
     }
@@ -347,7 +359,8 @@ class TsIslandTest {
             List<Map<String, String>> one = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
             assertEquals(List.of("DAY", "ma"), List.copyOf(one.get(0).keySet()), backend + ": one line, no instrument");
-            assertClose(each(AAA.length, i -> mean3(AAA, i)), column(one, null, null, "ma"), backend + ": AAA's mean");
+            assertClose(each(AAA.length - 2, i -> mean3(AAA, i + 2)), column(one, null, null, "ma"),
+                    backend + ": AAA's mean, a row where it has a value (R6)");
             List<Map<String, String>> rel = rows(backend, "|#TS{SELECT CLOSE / CLOSE['AAA'] AS rel"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
             assertClose(each(BBB.length, i -> BBB[i] / AAA[i]), column(rel, "SYMBOL", "BBB", "rel"),
@@ -361,7 +374,7 @@ class TsIslandTest {
             }
             assertClose(each(d.length, i -> d[i]), column(spread, null, null, "spread"), backend + ": two lines' spread");
             assertClose(each(d.length, i -> mean3(d, i)), column(spread, null, null, "ma"),
-                    backend + ": a later item's mean of an earlier one");
+                    backend + ": a later item's mean of an earlier one, beside it");
         }
     }
 
@@ -404,6 +417,82 @@ class TsIslandTest {
         }
     }
 
+    /** The periods of AAA's and BBB's days, Monday's week (R5): each week's days by their index. */
+    private static List<List<Integer>> weeks() {
+        Map<LocalDate, List<Integer>> out = new java.util.TreeMap<>();
+        for (int i = 0; i < AAA.length; i++) {
+            LocalDate d = FIRST.plusDays(i);
+            out.computeIfAbsent(d.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY)),
+                    k -> new ArrayList<>()).add(i);
+        }
+        return List.copyOf(out.values());
+    }
+
+    @Test
+    void sampleByAWeekTakesEachWeeksRowsByItsAggregate() throws Exception {
+        // R5: a row a week, each line taken by its aggregate, a window then counting weeks
+        List<List<Integer>> weeks = weeks();
+        for (TestBackend backend : deep()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT sum(CLOSE['AAA']) AS wk_sum,"
+                    + " max(CLOSE['BBB']) AS wk_max, avg(CLOSE['AAA']) AS wk_avg, sum(wk_sum, 2) AS two"
+                    + " FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1w}#");
+            assertEquals(weeks.size(), got.size(), backend + ": a row a week");
+            Double[] sums = weeks.stream().map(w -> w.stream().mapToDouble(i -> AAA[i]).sum()).toArray(Double[]::new);
+            assertClose(sums, column(got, null, null, "wk_sum"), backend + ": each week's total");
+            assertClose(weeks.stream().map(w -> w.stream().mapToDouble(i -> BBB[i]).max().orElseThrow())
+                    .toArray(Double[]::new), column(got, null, null, "wk_max"), backend + ": each week's highest");
+            assertClose(weeks.stream().map(w -> w.stream().mapToDouble(i -> AAA[i]).average().orElseThrow())
+                    .toArray(Double[]::new), column(got, null, null, "wk_avg"), backend + ": each week's average");
+            assertClose(each(sums.length, i -> i < 1 ? null : sums[i] + sums[i - 1]), column(got, null, null, "two"),
+                    backend + ": a window of two weeks");
+            List<String> dates = got.stream().map(r -> r.get("DAY")).toList();
+            assertEquals(weeks.stream().map(w -> FIRST.plusDays(w.get(w.size() - 1)).toString()).toList(), dates,
+                    backend + ": each week dated at its last day with data");
+        }
+    }
+
+    @Test
+    void aPeriodsLastIsItsLastRowsAndItsDateTheLatestOfItsLines() throws Exception {
+        // R5: last(x) the period's last row's value; a period one date for every line, its latest; ARG_MAX where the
+        // database has it (DuckDB's)
+        List<List<Integer>> weeks = weeks();
+        String source = "(PRICES WHERE SYMBOL = 'AAA' OR DAY <> '2024-01-28')";
+        List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT last(CLOSE['AAA']) AS a,"
+                + " last(CLOSE['BBB']) AS b, first(CLOSE['AAA']) AS f FROM " + source + " ON DAY BY SYMBOL SAMPLE BY 1w}#");
+        assertClose(weeks.stream().map(w -> AAA[w.get(w.size() - 1)]).toArray(Double[]::new),
+                column(got, null, null, "a"), "each week's last");
+        assertClose(weeks.stream().map(w -> AAA[w.get(0)]).toArray(Double[]::new), column(got, null, null, "f"),
+                "each week's first");
+        // BBB has no row on Sunday the 28th: its week's last is the 27th's, the week dated the 28th (AAA's)
+        int sunday = 8;
+        assertClose(weeks.stream().map(w -> BBB[w.get(w.size() - 1) == sunday ? sunday - 1 : w.get(w.size() - 1)])
+                .toArray(Double[]::new), column(got, null, null, "b"), "BBB's last in each week");
+        assertEquals(weeks.stream().map(w -> FIRST.plusDays(w.get(w.size() - 1)).toString()).toList(),
+                got.stream().map(r -> r.get("DAY")).toList(), "one date a week for every line, its latest");
+    }
+
+    @Test
+    void fillPutsEachLineOntoTheDatesAnyHas() throws Exception {
+        // R6: BBB has no row on the 25th; without FILL the spread has none there, with FILL each way gives BBB one
+        String source = "(PRICES WHERE SYMBOL = 'AAA' OR DAY <> '2024-01-25')";
+        int gap = 5;
+        Map<String, java.util.function.DoubleSupplier> b25 = new LinkedHashMap<>();
+        b25.put("PREV", () -> BBB[gap - 1]);
+        b25.put("LINEAR", () -> (BBB[gap - 1] + BBB[gap + 1]) / 2);
+        b25.put("0", () -> 0);
+        for (TestBackend backend : deep()) {
+            for (Map.Entry<String, java.util.function.DoubleSupplier> fill : b25.entrySet()) {
+                List<Map<String, String>> got = rows(backend, "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS spread"
+                        + " FROM " + source + " ON DAY BY SYMBOL FILL(" + fill.getKey() + ")}#");
+                assertClose(each(AAA.length, i -> AAA[i] - (i == gap ? fill.getValue().getAsDouble() : BBB[i])),
+                        column(got, null, null, "spread"), backend + " FILL(" + fill.getKey() + ")");
+            }
+            List<Map<String, String>> none = rows(backend, "|#TS{SELECT CLOSE['AAA'] - CLOSE['BBB'] AS spread"
+                    + " FROM " + source + " ON DAY BY SYMBOL FILL(NULL)}#");
+            assertEquals(AAA.length - 1, none.size(), backend + " FILL(NULL): the 25th's spread none, so no row (R6)");
+        }
+    }
+
     @Test
     void anEnumerationsValueIsWrittenAsAString() throws Exception {
         // R13: 'TECH' is ts::Sector.TECH, which the mapping stores as 'T' -- not the stored code compared with a string
@@ -416,15 +505,15 @@ class TsIslandTest {
         var tech = same("""
                 SELECT avg(close, 3) AS ma3
                 FROM   (Quote WHERE instrument.sector = 'TECH') ON day BY instrument.ticker""",
-                quotes + "->filter(r|$r.sector == ts::Sector.TECH)" + pure);
+                quotes + "->filter(r|$r.sector == ts::Sector.TECH)" + pure, 2);
         var both = same("""
                 SELECT avg(close, 3) AS ma3
                 FROM   (Quote WHERE instrument.sector IN ('TECH', 'ENERGY')) ON day BY instrument.ticker""",
-                quotes + "->filter(r|$r.sector->in([ts::Sector.TECH, ts::Sector.ENERGY]))" + pure);
+                quotes + "->filter(r|$r.sector->in([ts::Sector.TECH, ts::Sector.ENERGY]))" + pure, 2);
         for (TestBackend backend : tech.keySet()) {
-            assertClose(each(AAA.length, i -> mean3(AAA, i)), column(tech.get(backend), null, null, "ma3"),
-                    backend + ": the TECH instrument's line alone");
-            assertEquals(AAA.length + BBB.length, both.get(backend).size(), backend + ": both sectors' lines");
+            assertClose(each(AAA.length - 2, i -> mean3(AAA, i + 2)), column(tech.get(backend), null, null, "ma3"),
+                    backend + ": the TECH instrument's line alone, where its mean has a value (R6)");
+            assertEquals(AAA.length + BBB.length - 4, both.get(backend).size(), backend + ": both sectors' lines");
         }
         assertTrue(refused("SELECT avg(close, 3) AS ma3 FROM (Quote WHERE instrument.sector = 'TEK') ON day", true)
                 .contains("'TEK' is not a value of ts::Sector: TECH, ENERGY (R13)"), "a value the enumeration has not");
@@ -440,7 +529,7 @@ class TsIslandTest {
         refusals.put("SELECT avg(CLOSE, 3) AS close FROM PRICES ON DAY BY SYMBOL", "close is a column of the source (R7)");
         refusals.put("SELECT avg(CLOSE, 3) FROM PRICES ON DAY BY SYMBOL", "name the item");
         refusals.put("SELECT avg(CLOSE, 3) m FROM PRICES ON DAY BY SYMBOL", "name an item with AS: ... AS m");
-        refusals.put("SELECT avg(CLOSE) AS m FROM PRICES ON DAY BY SYMBOL", "avg(x) has no window");
+        refusals.put("SELECT avg(CLOSE) AS m FROM PRICES ON DAY BY SYMBOL", "a avg over what? add SAMPLE BY 1w");
         refusals.put("SELECT avg(CLOSE, 0) AS m FROM PRICES ON DAY BY SYMBOL", "a window counts observations");
         refusals.put("SELECT volatility(CLOSE, 3) AS v FROM PRICES ON DAY BY SYMBOL", "volatility is v1's");
         refusals.put("SELECT CLOSE['AAA', 'BBB'] AS a FROM PRICES ON DAY BY SYMBOL", "a subscript names one instrument");
@@ -451,8 +540,19 @@ class TsIslandTest {
                 "isn't a column of the answer");
         refusals.put("SELECT q.close - r.close AS d FROM Quote q ON day BY instrument.ticker,"
                 + " Quote r ON day BY instrument.sector", "lines by ticker and lines by sector meet on no instrument");
-        refusals.put("SELECT avg(CLOSE, 3mo) AS a FROM PRICES ON DAY BY SYMBOL", "a span (3mo) is v1's");
-        refusals.put("SELECT avg(CLOSE, 3) AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY week", "SAMPLE BY is v1's");
+        refusals.put("SELECT avg(CLOSE, 3mo) AS a FROM PRICES ON DAY BY SYMBOL", "a window of a span (3mo) is P3c's");
+        refusals.put("SELECT avg(CLOSE, 3) AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY week",
+                "SAMPLE BY takes a calendar period");
+        refusals.put("SELECT last(CLOSE['AAA']) AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY 2w",
+                "SAMPLE BY takes one calendar period");
+        refusals.put("SELECT CLOSE['AAA'] AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1w", "how is CLOSE taken each period");
+        refusals.put("SELECT last(CLOSE['AAA']) AS a FROM PRICES ON DAY BY SYMBOL", "last(x) is a period's last value");
+        refusals.put("SELECT sum(CLOSE['AAA'] * 2) AS a FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1w",
+                "a period's sum is of a source's column");
+        refusals.put("SELECT CLOSE AS a FROM PRICES ON DAY BY SYMBOL FILL(LAST)", "FILL is FILL(PREV)");
+        refusals.put("SELECT CLOSE AS a FROM PRICES ON DAY BY SYMBOL FILTER a > 0 SAMPLE BY 1w",
+                "then FILTER, each once");
+        refusals.put("SELECT avg(CLOSE, 3m) AS a FROM PRICES ON DAY BY SYMBOL", "m is minutes or months");
         refusals.put("SELECT avg(CLOSE, 3) AS a FROM PRICES ON DAY BY SYMBOL ORDER BY DAY", "#TS has no ORDER BY");
         refusals.put("SELECT CLOSE AS a FROM PRICES ON DAY BY SYMBOL, PRICES ON DAY", "two sources are called PRICES");
         refusals.put("SELECT CLOSE AS a FROM PRICES p ON DAY BY SYMBOL, PRICES r ON DAY", "CLOSE is a column of p and r");

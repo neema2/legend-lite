@@ -60,9 +60,9 @@ public final class TsToPure {
     private static final Set<String> LATER = Set.of("alpha", "annualize", "append", "atr", "basket", "beta",
             "bollinger_bands", "change", "compare", "consecutive", "correlation", "cov", "dickey_fuller",
             "donchian_channels", "down_capture", "drawdown", "excess_returns", "exponential_moving_average",
-            "exponential_spread_volatility", "exponential_std", "exponential_volatility", "filter_values", "first",
+            "exponential_spread_volatility", "exponential_std", "exponential_volatility", "filter_values",
             "first_of", "geometrically_aggregate", "half_life", "hedge_ratio", "if", "index", "information_ratio",
-            "interpolate", "keltner_channels", "last", "last_of", "lead_lag", "macd", "max_drawdown", "obv",
+            "interpolate", "keltner_channels", "last_of", "lead_lag", "macd", "max_drawdown", "obv",
             "percent_change", "percentile", "percentiles", "prepend", "prices", "product", "r_squared", "range_of",
             "rank", "rebase", "residual", "rsi", "seasonally_adjusted", "sharpe_ratio", "smooth_spikes",
             "smoothed_moving_average", "stochastic", "total_return", "tracking_error", "trend", "union_of",
@@ -244,6 +244,7 @@ public final class TsToPure {
             }
             TsLines.Line all = TsLines.answer(lines, answered, aliases.get(0).pos());
             String instrument = all.byInstrument() ? all.part() : null;
+            // a period dated at its latest line's date (R5: one date for every line)
             ValueSpecification rel = call("rename", all.rel(), new ColSpec(all.at()), new ColSpec(date));
             List<String> answer = new ArrayList<>(List.of(date));
             if (instrument != null) {
@@ -251,6 +252,13 @@ public final class TsToPure {
             }
             answer.addAll(names);
             rel = call("select", rel, new ColSpecArray(answer.stream().map(ColSpec::new).toList()));
+            // a row where at least one item has a value (R6)
+            ValueSpecification some = null;
+            for (String n : names) {
+                ValueSpecification has = call("isNotEmpty", new AppliedProperty(new Variable("x"), n));
+                some = some == null ? has : call("or", some, has);
+            }
+            rel = call("filter", rel, lambda("x", java.util.Objects.requireNonNull(some)));
             if (query.filter() != null) {
                 SqlAst.Expr condition = perPoint(query.filter());
                 visit(condition, x -> {
@@ -317,7 +325,7 @@ public final class TsToPure {
             /** {@code e}, a condition over {@code o}'s columns (a source's WHERE, a subscript's), each read by name. */
             SqlAst.Expr within(Opening o, SqlAst.Expr e) {
                 return map(e, x -> x instanceof SqlAst.ColumnRef c && !query.alls().contains(c.pos())
-                        ? TsToPure.column(single(o, c, "WHERE"), c.pos()) : x);
+                        && !query.spans().containsKey(c.pos()) ? TsToPure.column(single(o, c, "WHERE"), c.pos()) : x);
             }
 
             /** Item {@code i}'s expression, each column resolved to its source; an earlier item kept by its name. */
@@ -354,7 +362,7 @@ public final class TsToPure {
 
             /** A column reference of item {@code i}: an earlier item's name, {@code all}, or a source's column. */
             private SqlAst.Expr ref(SqlAst.ColumnRef c, int i) {
-                if (query.alls().contains(c.pos())) {
+                if (query.alls().contains(c.pos()) || query.spans().containsKey(c.pos())) {
                     return c;
                 }
                 if (c.parts().size() == 1 && names.subList(0, i).contains(text(c))) {
@@ -685,6 +693,7 @@ public final class TsToPure {
                     }
                     TsLines.Source s = c.parts().size() == 2 ? opened.get(c.parts().get(0).text()) : null;
                     if (s != null) {
+                        bare(c.parts().get(1).text(), c.pos());
                         return TsLines.column(this, s, c.parts().get(1).text(), List.of(), s.instrument() != null);
                     }
                     if (query.alls().contains(c.pos())) {
@@ -692,7 +701,11 @@ public final class TsToPure {
                     }
                 }
                 if (e instanceof SqlAst.FunctionCall fc && TsParser.PICK.equals(fn(fc))) {
-                    return picked(fc);
+                    bare(((SqlAst.ColumnRef) fc.args().get(0)).parts().get(1).text(), fc.pos());
+                    return picked(fc, null);
+                }
+                if (e instanceof SqlAst.FunctionCall fc && periodOf(fc)) {
+                    return period(fc);
                 }
                 if (e instanceof SqlAst.FunctionCall fc && alongTime(fc)) {
                     return along(fc);
@@ -700,9 +713,51 @@ public final class TsToPure {
                 return computed(e);
             }
 
+            /** Refused (R5): a source's column read bare under SAMPLE BY, which says how a period takes its rows. */
+            private void bare(String column, SqlAst.Pos pos) {
+                if (query.sample() != null) {
+                    throw invalid("how is " + column + " taken each period? write last(" + column + "['...']) AS"
+                            + " name (or first, max, min, sum, avg), then use the name (R5)", pos);
+                }
+            }
+
+            /** Whether {@code fc} is a period's aggregate (R5): {@code last(x)} and its kin, one argument, under
+             *  SAMPLE BY -- refused without it. */
+            private boolean periodOf(SqlAst.FunctionCall fc) {
+                String name = fn(fc);
+                if (name == null || !TsLines.TAKEN.containsKey(name) || fc.args().size() != 1) {
+                    return false;
+                }
+                if (query.sample() == null) {
+                    throw invalid("last".equals(name) || "first".equals(name)
+                            ? name + "(x) is a period's " + name + " value: add SAMPLE BY 1w for each week's (R5)"
+                            : "a " + name + " over what? add SAMPLE BY 1w for each week's, or write " + name
+                                    + "(x, 20) for the last 20, or " + name + "(x, all) to date (R5)", fc.pos());
+                }
+                return true;
+            }
+
+            /** A period's aggregate of a source's column (R5): its line by period. */
+            private TsLines.Valued period(SqlAst.FunctionCall fc) {
+                SqlAst.Expr arg = fc.args().get(0);
+                String taken = java.util.Objects.requireNonNull(fn(fc));
+                if (arg instanceof SqlAst.FunctionCall pick && TsParser.PICK.equals(fn(pick))) {
+                    return picked(pick, taken);
+                }
+                if (arg instanceof SqlAst.ColumnRef c && c.parts().size() == 2
+                        && opened.containsKey(c.parts().get(0).text())) {
+                    TsLines.Source s = java.util.Objects.requireNonNull(opened.get(c.parts().get(0).text()));
+                    return TsLines.sampled(this, s, c.parts().get(1).text(), List.of(), s.instrument() != null,
+                            java.util.Objects.requireNonNull(query.sample()).unit(), taken);
+                }
+                throw invalid("a period's " + taken + " is of a source's column, " + taken + "(close['SPX']); of an"
+                        + " expression of a source's rows, a flat source's column: FROM (SELECT *, price * qty AS"
+                        + " value FROM trades) (R5)", arg.pos());
+            }
+
             /** A subscript's line (R2): the column's rows of one instrument ({@code close['SPX']}), or of those that
              *  meet its conditions ({@code close['SPX', venue = 'NYSE']}, {@code close[sector = 'Energy']}). */
-            private TsLines.Valued picked(SqlAst.FunctionCall fc) {
+            private TsLines.Valued picked(SqlAst.FunctionCall fc, @com.legend.base.Nullable String taken) {
                 SqlAst.ColumnRef base = (SqlAst.ColumnRef) fc.args().get(0);
                 TsLines.Source s = java.util.Objects.requireNonNull(opened.get(base.parts().get(0).text()));
                 String instrument = s.instrument();
@@ -728,7 +783,10 @@ public final class TsToPure {
                                 && (names(b.left(), instrument) || names(b.right(), instrument));
                     }
                 }
-                return TsLines.column(this, s, base.parts().get(1).text(), matches, instrument != null && !one);
+                boolean split = instrument != null && !one;
+                return taken == null ? TsLines.column(this, s, base.parts().get(1).text(), matches, split)
+                        : TsLines.sampled(this, s, base.parts().get(1).text(), matches, split,
+                                java.util.Objects.requireNonNull(query.sample()).unit(), taken);
             }
 
             /** {@code e}, an expression of lines: its lines met on their dates (R6), {@code e} Postgres's over them;
@@ -739,7 +797,9 @@ public final class TsToPure {
                 if (parts.isEmpty()) {
                     return new TsLines.Constant(e);
                 }
-                TsLines.Line met = parts.size() == 1 ? parts.get(0).line() : TsLines.joined(this, parts, e.pos());
+                TsAst.Fill fill = query.fill();
+                TsLines.Line met = parts.size() == 1 ? parts.get(0).line()
+                        : TsLines.joined(this, parts, e.pos(), fill == null ? null : fill.how());
                 String value = fresh("pt");
                 return new TsLines.Valued(met.with(call("extend", met.rel(), new ColSpec(value, rowLambda(over,
                         met.rel(), false, "SELECT")))), value);
@@ -748,7 +808,9 @@ public final class TsToPure {
             /** {@code e} with each line in it read as its column, its lines added to {@code parts} (each once). */
             private SqlAst.Expr leaves(SqlAst.Expr e, List<TsLines.Valued> parts) {
                 boolean line = e instanceof SqlAst.ColumnRef c && !query.alls().contains(c.pos())
-                        || e instanceof SqlAst.FunctionCall fc && (TsParser.PICK.equals(fn(fc)) || alongTime(fc));
+                        && !query.spans().containsKey(c.pos())
+                        || e instanceof SqlAst.FunctionCall fc && (TsParser.PICK.equals(fn(fc)) || periodOf(fc)
+                                || alongTime(fc));
                 if (!line) {
                     return children(e, x -> leaves(x, parts));
                 }
@@ -799,6 +861,10 @@ public final class TsToPure {
                         throw invalid(name + " takes a line and a window: " + name + "(x, 20)", fc.pos());
                     }
                     SqlAst.Expr w = args.get(1);
+                    if (w instanceof SqlAst.ColumnRef c && query.spans().containsKey(c.pos())) {
+                        throw unsupported("a window of a span (3mo) is P3c's: for now a window counts observations,"
+                                + " " + name + "(x, 63)", w.pos());
+                    }
                     boolean all = w instanceof SqlAst.ColumnRef c && query.alls().contains(c.pos());
                     if ("count".equals(name)) {
                         if (!all) {
