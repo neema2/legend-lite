@@ -1593,7 +1593,7 @@ def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
 
 def _with_library(base: Mapping[str, Any], said: Mapping[str, Any]) -> Mapping[str, Any]:
     """A query's base with DataCube's Pure library beside its model, where DataCube says the query calls it
-    (headless ``library``: datacube/src/pure-library.ts, ``datacube::ts::mean`` and the rest), which the engine plans
+    (headless ``library``: datacube/src/pure-library.ts, ``timeseries::mean`` and the rest), which the engine plans
     it over after the model -- else the base as it is."""
     library = said.get('library')
     return base if library is None else {**base, 'library': library}

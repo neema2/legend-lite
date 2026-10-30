@@ -1707,7 +1707,7 @@ export class TimeseriesView {
   }
 
   /** DATACUBE'S PURE LIBRARY (pure-library.ts; the user, 2026-10-26): the functions its queries call by name
-   *  (`datacube::ts::mean`, ...), as the planner reads them after the model of a query that calls them, copied with a
+   *  (`timeseries::mean`, ...), as the planner reads them after the model of a query that calls them, copied with a
    *  click. Its text is a chunk of its own (pure-library-text.ts), read as the planner reads it. */
   #libraryPanel(): HTMLElement {
     const doc = this.#doc;

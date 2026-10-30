@@ -1732,7 +1732,7 @@ class UserFunctionIntegrationTest {
             assertEquals(List.of(), com.legend.Compiler.compileErrors(modelWith(LIBRARY)));
         }
 
-        /** A function of a COLUMN by its name (the DataCube library's form, datacube::ts::*): the column read and the
+        /** A function of a COLUMN by its name (the DataCube library's form, timeseries::*): the column read and the
          *  column written are the call's, renamed to the body's own names and back. */
         private static final String NAMED = """
                 function test::mean<T,X,Z,V,O>(rel: Relation<T>[1], part: ColSpec<X⊆T>[1], order: SortInfo<Z⊆T>[*], value: ColSpec<V⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<Any>[1]

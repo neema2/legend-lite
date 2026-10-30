@@ -298,7 +298,7 @@ describe('the Pure library spike: one function of each family, held to today\'s 
 
   it('two tables of different columns, aligned (pairOf), then two columns of one (correlation of their returns)', async () => {
     const returns = (s: string, r: string): string =>
-      `$prices->filter(x|$x.symbol == '${s}')->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, datacube::ts::Returns.simple, ~${r})`;
+      `$prices->filter(x|$x.symbol == '${s}')->timeseries::returns(over(~symbol, [~day->ascending()]), ~close, 1, timeseries::Returns.simple, ~${r})`;
     const q = `${returns('AAA', 'ra')}->select(~[symbol, day, ra])->spike::pairOf(~symbol, ~day, ~ra, ${returns('BBB', 'rb')}->select(~[symbol, day, rb])->rename(~symbol, ~sb), ~sb, ~day, ~rb, ~ra2, ~rb2)`
       + '->spike::correlation(~symbol, ~day, ~ra2, ~rb2, 10, ~c)';
     same(await spikeLine(q, 'c'), await today('correlation(close[AAA], close[BBB], 10)'), 'correlation');
@@ -329,7 +329,7 @@ describe('the Pure library spike: one function of each family, held to today\'s 
   });
 
   it('a partition by the line and a figure of its own (consecutive), over a library call (diff)', async () => {
-    same(await spikeLine('$prices->datacube::ts::diff(over(~symbol, [~day->ascending()]), ~close, 1, ~dx)->spike::consecutive(~symbol, ~day, ~dx, ~run)', 'run'),
+    same(await spikeLine('$prices->timeseries::diff(over(~symbol, [~day->ascending()]), ~close, 1, ~dx)->spike::consecutive(~symbol, ~day, ~dx, ~run)', 'run'),
       await today('consecutive(diff(close[AAA]))'), 'consecutive');
   });
 

@@ -772,7 +772,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       // its text a chunk of its own (pure-library-text.ts), read as the planner reads it
       await until(() => program(1) !== 'Reading…', 'the library read');
       assert.equal(program(1), DATACUBE_LIBRARY);
-      assert.match(program(1), /function datacube::ts::volatility</);
+      assert.match(program(1), /function timeseries::volatility</);
       windowButton(windows, 'Copy Library').click();
       await until(() => written.length === 1, 'the library copied');
       assert.equal(written[0], DATACUBE_LIBRARY);

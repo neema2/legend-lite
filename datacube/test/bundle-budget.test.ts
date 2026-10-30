@@ -491,7 +491,7 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  series, a seasonality's years, a histogram's bins, a curve's dates (timeseries-spec.ts TsView) -- which a saved page
  *  is read by as it opens; no startup file added). Measured 410,869.
  *  411,500 -> 413,400 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- DataCube's Pure
- *  library (pure-library.ts: datacube::ts::mean, the returns, volatility), its text with the planner, which takes it
+ *  library (pure-library.ts: timeseries::mean, the returns, volatility), its text with the planner, which takes it
  *  after the model of a query that calls it (lite-planner.ts #over): a person's own query may call it too; no startup
  *  file added). Measured 412,861.
  *  413,400 -> 414,000 (2026-10-27, Phase 5's drawings, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: the spec's

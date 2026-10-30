@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * DATACUBE'S TIMESERIES LIBRARY ON THE PLATFORM (docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md, step B): {@code
- * datacube::ts}, DataCube's Pure file as it is ({@code datacube/src/pure/datacube_ts.pure}: a program, input to the
+ * timeseries}, the timeseries project's Pure file as it is ({@code projects/timeseries/model.pure}: a program, input to the
  * compiler, never the platform's -- docs/WORLD_MAP.md), taken after a model's own sections with no TypeScript in the
  * path. It compiles -- its parse, names, signatures and enumerations; a body generic over relations, as every one of
  * its functions is, is typed at each call over that call's tables (register S112), so here where these tests call one
@@ -39,7 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * arithmetic over the same prices, never by the code under test.
  *
  * <p>Its own target ({@code //core:timeseries_library_test}): it reads DataCube's file, passed as {@code
- * -Ddatacube.library}.
+ * -Dtimeseries.library}.
  */
 class TimeseriesLibraryTest {
 
@@ -60,7 +60,7 @@ class TimeseriesLibraryTest {
     }
 
     private static String library() throws java.io.IOException {
-        return Files.readString(Runfile.property("datacube.library"), StandardCharsets.UTF_8);
+        return Files.readString(Runfile.property("timeseries.library"), StandardCharsets.UTF_8);
     }
 
     /** The prices' table: a store of the model's own, which each test's session is given by the platform's own DDL. */
@@ -180,12 +180,12 @@ class TimeseriesLibraryTest {
     @Test
     void aPersonsPureOverTheTableAnswersAsArithmeticOnEveryDatabase() throws Exception {
         String query = "|" + PRICES + """
-                  ->datacube::ts::mean(over(~SYMBOL, [~DAY->ascending()], rows(-2, 0)), ~CLOSE, 3, ~m)
-                  ->datacube::ts::returns(over(~SYMBOL, [~DAY->ascending()]), ~CLOSE, 1, datacube::ts::Returns.simple, ~r)
-                  ->datacube::ts::returns(over(~SYMBOL, [~DAY->ascending()]), ~CLOSE, 1, datacube::ts::Returns.log, ~lr)
+                  ->timeseries::mean(over(~SYMBOL, [~DAY->ascending()], rows(-2, 0)), ~CLOSE, 3, ~m)
+                  ->timeseries::returns(over(~SYMBOL, [~DAY->ascending()]), ~CLOSE, 1, timeseries::Returns.simple, ~r)
+                  ->timeseries::returns(over(~SYMBOL, [~DAY->ascending()]), ~CLOSE, 1, timeseries::Returns.log, ~lr)
                   ->extend(~py:x|252)
-                  ->datacube::ts::volatility(over(~SYMBOL, [~DAY->ascending()], rows(-4, 0)), ~r, 5, ~py, ~v)
-                  ->datacube::ts::periodIndex(~DAY, datacube::ts::Grain.month, ~mi)
+                  ->timeseries::volatility(over(~SYMBOL, [~DAY->ascending()], rows(-4, 0)), ~r, 5, ~py, ~v)
+                  ->timeseries::periodIndex(~DAY, timeseries::Grain.month, ~mi)
                   ->select(~[SYMBOL, DAY, m, r, lr, v, mi])
                   ->sort([~SYMBOL->ascending(), ~DAY->ascending()])""";
         List<TestBackend> ran = new ArrayList<>();
@@ -226,7 +226,7 @@ class TimeseriesLibraryTest {
     @Test
     void aWeeksReturnsAnswerWhereTheDialectWritesAnAsOfJoin() throws Exception {
         String query = "|" + PRICES + """
-                  ->datacube::ts::returnsPeriod(~SYMBOL, ~DAY, ~CLOSE, 1, meta::pure::functions::date::DurationUnit.WEEKS, datacube::ts::Returns.simple, ~wr)
+                  ->timeseries::returnsPeriod(~SYMBOL, ~DAY, ~CLOSE, 1, meta::pure::functions::date::DurationUnit.WEEKS, timeseries::Returns.simple, ~wr)
                   ->select(~[SYMBOL, DAY, wr])
                   ->sort([~SYMBOL->ascending(), ~DAY->ascending()])""";
         List<TestBackend> answered = new ArrayList<>();
@@ -256,9 +256,9 @@ class TimeseriesLibraryTest {
         String query = "|" + PRICES + """
                   ->filter(x|$x.SYMBOL == 'AAA')
                   ->extend(~[t:x|dateDiff(%%1970-01-01, $x.DAY->toOne(), meta::pure::functions::date::DurationUnit.DAYS), g:x|if($x.CLOSE > %s, |$x.CLOSE, |[])])
-                  ->datacube::ts::fillStep(~SYMBOL, ~DAY, ~g, ~g, ~st)
-                  ->datacube::ts::fillZero(~g, ~z)
-                  ->datacube::ts::fillTime(~SYMBOL, ~DAY, ~g, ~t, ~t, ~g, ~tm)
+                  ->timeseries::fillStep(~SYMBOL, ~DAY, ~g, ~g, ~st)
+                  ->timeseries::fillZero(~g, ~z)
+                  ->timeseries::fillTime(~SYMBOL, ~DAY, ~g, ~t, ~t, ~g, ~tm)
                   ->select(~[SYMBOL, DAY, st, z, tm])
                   ->sort([~DAY->ascending()])""".formatted(above);
         int n = AAA.length;

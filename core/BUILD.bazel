@@ -1026,7 +1026,7 @@ junit_test(
 )
 
 # DATACUBE'S TIMESERIES LIBRARY ON THE PLATFORM (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B):
-# datacube::ts, DataCube's Pure file as it is -- a program, input to the compiler (docs/WORLD_MAP.md), read here as a
+# timeseries::, the timeseries project's Pure file as it is -- a program, input to the compiler (docs/WORLD_MAP.md), read here as a
 # test's input as the linked projects' files are -- compiles (a body generic over relations typed where a call reaches
 # it: register S112), and a person's Pure calling it answers as
 # arithmetic on every in-process database (a calendar period's as-of join where the dialect writes one)
@@ -1035,8 +1035,8 @@ junit_test(
     memory_mb = 512,
     size = "medium",
     srcs = ["src/test/java/com/legend/integration/TimeseriesLibraryTest.java"],
-    data = ["//datacube:src/pure/datacube_ts.pure"],
-    jvm_flags = ["-Ddatacube.library=$(rlocationpath //datacube:src/pure/datacube_ts.pure)"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
     select = ["--select-class=com.legend.integration.TimeseriesLibraryTest"],
     runtime_deps = [":drivers"],
     deps = [

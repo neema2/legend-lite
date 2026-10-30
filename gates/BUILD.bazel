@@ -47,7 +47,7 @@ test_suite(
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",
         "//core:sql_parity_postgres_test",
-        # DataCube's timeseries library (datacube/src/pure/datacube_ts.pure) on every in-process database: it compiles,
+        # The timeseries library (projects/timeseries/model.pure, package timeseries::) on every in-process database: it compiles,
         # and a person's Pure calling it answers as arithmetic (2026-10-28)
         "//core:timeseries_library_test",
         # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged

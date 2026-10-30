@@ -97,7 +97,7 @@ final class StaticFold {
         }
     }
 
-    /** An enumeration's value as spelled ({@code datacube::ts::Grain.month}): an option a call's argument named, compared by
+    /** An enumeration's value as spelled ({@code timeseries::Grain.month}): an option a call's argument named, compared by
      *  its spelling alone (docs/WORLD_MAP.md: compare, never compute), so an {@code if} on it folds to the branch it names,
      *  as a spelled string's does (2026-10-28: a function's options as enums, the type checker refusing a value the
      *  enumeration has not). It reifies to the node it was read from, so a parameter bound to it and used whole

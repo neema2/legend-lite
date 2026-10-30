@@ -1549,7 +1549,7 @@ class Engine:
     def _library_refused(self, asked: Mapping[str, Any]) -> str | None:
         """Why a request's ``library`` is not planned over, in words -- or None: it carries none, or DataCube's own
         Pure library as DataCube's code writes it (datacube/src/pure-library.ts: the functions a timeseries tile's
-        queries call by name, ``datacube::ts::*``), which declares no table, so a model it follows reads only what that
+        queries call by name, ``timeseries::*``), which declares no table, so a model it follows reads only what that
         model read. Read before the frames are held (DataCube's code is asked for it once: its turn first)."""
         library = asked.get('library')
         if library is None:
@@ -1565,7 +1565,7 @@ class Engine:
                     return f'DataCube\'s own code could not say its Pure library: {type(failure).__name__}: {failure}'
             own = self._library
         if library != own:
-            return ('this engine plans a query over DataCube\'s own Pure library alone (datacube::ts), as DataCube '
+            return ('this engine plans a query over DataCube\'s own Pure library alone (timeseries), as DataCube '
                     'writes it')
         return None
 

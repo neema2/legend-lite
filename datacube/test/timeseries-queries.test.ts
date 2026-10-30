@@ -427,7 +427,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const ts = spec({ A: 'volatility(close[AAA], 10) + mean(close[AAA], 5)' });
     const of = seriesQuery(inputs, ts, ts.series[0]!, {}, {});
     const called = functionsCalled(of.query);
-    for (const f of ['datacube::ts::returns', 'datacube::ts::volatility', 'datacube::ts::mean']) assert.ok(called.has(f), `the query calls ${f}`);
+    for (const f of ['timeseries::returns', 'timeseries::volatility', 'timeseries::mean']) assert.ok(called.has(f), `the query calls ${f}`);
     // what a host that plans and runs is sent (Python's engine): the model as it is, and the library beside it
     const model = planner.source().model;
     const asked = await planner.planRequest(of.query);
@@ -484,14 +484,14 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['vol_swap_volatility(close[AAA], 1m)', 'volSwapVolatilityPeriod'], ['append(close[CCC], close[AAA])', 'append'],
       ['prepend(close[CCC], close[AAA])', 'prepend'],
     ];
-    for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`datacube::ts::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
+    for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`timeseries::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
   });
 
   it('a person\'s own query calls the library over the table: its mean as the tile\'s', async () => {
     const source = input.snapshot.source.query;
     const query = lambda([], new Relation(source)
       .filter(lambda(['x'], call('equal', column('x', 'symbol'), lit.string('AAA'))))
-      .call('datacube::ts::mean', call('over', colSpec('symbol'), collection([asc('day')]), call('rows', lit.integer(-4), lit.integer(0))),
+      .call('timeseries::mean', call('over', colSpec('symbol'), collection([asc('day')]), call('rows', lit.integer(-4), lit.integer(0))),
         colSpec('close'), lit.integer(5), colSpec('m'))
       .sort([call('descending', colSpec('day'))])
       .node);
@@ -505,11 +505,11 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
     const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
       ->extend(~t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS))
-      ->datacube::ts::tradedValue(~close, ~volume, ~pv)
+      ->timeseries::tradedValue(~close, ~volume, ~pv)
       ->extend(over(~symbol, [~day->ascending()]), ~[x0:{p,w,r|$p->lag($r).t}, y0:{p,w,r|$p->lag($r).close}, x1:{p,w,r|$p->lead($r).t}, y1:{p,w,r|$p->lead($r).close}])
-      ->datacube::ts::linearAt(~x0, ~y0, ~x1, ~y1, ~t, ~mid)
-      ->datacube::ts::periodIndex(~day, datacube::ts::Grain.month, ~mi)->datacube::ts::periodIndex(~day, datacube::ts::Grain.quarter, ~qi)->datacube::ts::periodIndex(~day, datacube::ts::Grain.week, ~wi)
-      ->datacube::ts::periodIndex(~day, datacube::ts::Grain.day, ~di)
+      ->timeseries::linearAt(~x0, ~y0, ~x1, ~y1, ~t, ~mid)
+      ->timeseries::periodIndex(~day, timeseries::Grain.month, ~mi)->timeseries::periodIndex(~day, timeseries::Grain.quarter, ~qi)->timeseries::periodIndex(~day, timeseries::Grain.week, ~wi)
+      ->timeseries::periodIndex(~day, timeseries::Grain.day, ~di)
       ->sort([~day->ascending()])`)), 0);
     close(values(t, 'pv').map(num), AAA.map((v, i) => v * VOL[i]!), 'price times volume', 1e-9);
     const at = DAYS.map((d) => Date.parse(`${d}T00:00:00Z`) / 86_400_000);
@@ -528,9 +528,9 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const source = (await planner.print(lambda([], input.snapshot.source.query))).trim().replace(/^\|/, '');
     const t = await engine.execute(await planner.plan(await planner.parse(`|${source}->filter(x|$x.symbol == 'AAA')
       ->extend(~[t:x|dateDiff(%1970-01-01, $x.day->toOne(), meta::pure::functions::date::DurationUnit.DAYS), g:x|if($x.close > 102, |$x.close, |[])])
-      ->datacube::ts::fillStep(~symbol, ~day, ~g, ~g, ~st)
-      ->datacube::ts::fillZero(~g, ~z)
-      ->datacube::ts::fillTime(~symbol, ~day, ~g, ~t, ~t, ~g, ~tm)
+      ->timeseries::fillStep(~symbol, ~day, ~g, ~g, ~st)
+      ->timeseries::fillZero(~g, ~z)
+      ->timeseries::fillTime(~symbol, ~day, ~g, ~t, ~t, ~g, ~tm)
       ->sort([~day->ascending()])`)), 0);
     const g = AAA.map((v) => (v > 102 ? v : null));
     const has = g.map((v, i) => (v === null ? -1 : i)).filter((i) => i >= 0);
@@ -999,8 +999,8 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
       ->join(${source}->filter(x|$x.symbol == 'CCC')->select(~[day, close])->rename(~day, ~cday)->rename(~close, ~c),
         meta::pure::functions::relation::JoinKind.LEFT, {l,r|$l.day == $r.cday})
       ->extend(~[ln:x|'one', ta:x|dateDiff(%1970-01-01, $x.day->toOne(), ${days}), tc:x|if($x.cday->isEmpty(), |[], |dateDiff(%1970-01-01, $x.cday->toOne(), ${days}))])
-      ->datacube::ts::fillStep(~ln, ~day, ~c, ~c, ~cs)
-      ->datacube::ts::fillTime(~ln, ~day, ~c, ~tc, ~ta, ~c, ~ct)
+      ->timeseries::fillStep(~ln, ~day, ~c, ~c, ~cs)
+      ->timeseries::fillTime(~ln, ~day, ~c, ~tc, ~ta, ~c, ~ct)
       ->extend(~[step:x|$x.a->toOne() - $x.cs->toOne(), time:x|if($x.ct->isEmpty(), |[], |$x.a->toOne() - $x.ct->toOne())])
       ->sort([~day->ascending()])`)), 0);
     close(values(t, 'step').map(num), (await line(aligned('step'))).values, 'step, as the tile\'s', 1e-9);
@@ -1157,7 +1157,7 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     close(after.values, m3.filter((v) => !(v !== null && v > 102)), 'a window read before', 1e-9);
     const empty = await line(spec({ A: 'filter(lag(close[AAA], 2))' }));
     assert.deepEqual(empty.dates, DAYS.slice(2), 'empty: the dates of none dropped');
-    // every other operator, each a value of datacube::ts::FilterOperator (the enum round's review, 2026-10-28)
+    // every other operator, each a value of timeseries::FilterOperator (the enum round's review, 2026-10-28)
     const at = AAA[7]!;
     const ops: [string, (v: number) => boolean][] = [['less_than', (v) => v < at], ['l_equals', (v) => v <= at],
       ['g_equals', (v) => v >= at], ['equals', (v) => v === at], ['not_equals', (v) => v !== at]];
@@ -1287,7 +1287,7 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     // the library's (2026-10-27): trend and seasonallyAdjusted, by name
     for (const [text, f] of [['trend(close[AAA], additive, month)', 'trend'], ['seasonally_adjusted(close[AAA], additive, month)', 'seasonallyAdjusted']] as const) {
       const ts = spec({ A: text }, { grain: 'week' });
-      assert.ok(functionsCalled(seriesQuery(inputs, ts, ts.series[0]!).query).has(`datacube::ts::${f}`), `${text} calls ${f}`);
+      assert.ok(functionsCalled(seriesQuery(inputs, ts, ts.series[0]!).query).has(`timeseries::${f}`), `${text} calls ${f}`);
     }
   });
 });
@@ -1403,9 +1403,9 @@ describe('a window by its rows: percentile ranks, medians and percentiles', () =
     // of every value: one aggregate a line joined back (the library's quantileOfLine), never each row joined to every
     // other (the E9 review's 5)
     const calls = (text: string): ReadonlySet<string> => functionsCalled(seriesQuery(inputs, spec({ A: text }), spec({ A: text }).series[0]!).query);
-    assert.ok(calls('percentile(close[AAA], 25)').has('datacube::ts::quantileOfLine'), 'one aggregate a line');
-    assert.ok(!calls('percentile(close[AAA], 25)').has('datacube::ts::quantile'), 'no self-join');
-    const body = DATACUBE_LIBRARY.slice(DATACUBE_LIBRARY.indexOf('function datacube::ts::quantileOfLine'));
+    assert.ok(calls('percentile(close[AAA], 25)').has('timeseries::quantileOfLine'), 'one aggregate a line');
+    assert.ok(!calls('percentile(close[AAA], 25)').has('timeseries::quantile'), 'no self-join');
+    const body = DATACUBE_LIBRARY.slice(DATACUBE_LIBRARY.indexOf('function timeseries::quantileOfLine'));
     assert.equal((body.slice(0, body.indexOf('\n}\n')).match(/->join\(/g) ?? []).length, 1, 'one join: the line\'s figure');
     // over a calendar period: the values after two weeks back, to this one, from the first date two weeks on
     const start = onBy(DAYS[0]!, 2, 'w');
@@ -1544,18 +1544,18 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
       }
     };
     // the line's own figures
-    same(await ask('->datacube::ts::summaryStatistics(~symbol, ~day, ~t, ~close, ~close, ~close, ~n, ~d0, ~d1, ~f, ~l, ~lo, ~la, ~hi, ~ha, ~m, ~s, ~dy, ~ch, ~pc)'),
+    same(await ask('->timeseries::summaryStatistics(~symbol, ~day, ~t, ~close, ~close, ~close, ~n, ~d0, ~d1, ~f, ~l, ~lo, ~la, ~hi, ~ha, ~m, ~s, ~dy, ~ch, ~pc)'),
       await tile(statsQuery(long, ts, A)), [['n', statName('count')], ['d0', statName('from')], ['d1', statName('to')], ['f', statName('first')], ['l', statName('last')],
         ['lo', statName('low')], ['la', statName('lowAt')], ['hi', statName('high')], ['ha', statName('highAt')], ['m', statName('mean')], ['s', statName('std')],
         ['dy', statName('days')], ['ch', statName('change')], ['pc', statName('pct')]], 1e-12);
     // a seasonality: by the week of the year, each year its week's last; and each year from its first value
     const seaCols = [['y', TS_SEA_YEAR], ['p', TS_SEA_PLACE], ['v', TS_VALUE], ['lo', TS_SEA_LOW], ['hi', TS_SEA_HIGH], ['mn', TS_SEA_MEAN], ['sp', TS_SEA_SPAN], ['ly', TS_SEA_LATEST]] as const;
     for (const compare of [undefined, 'rebase', 'percent'] as const) {
-      same(await ask(`->datacube::ts::seasonality(~symbol, ~day, ~t, ~close, datacube::ts::Grain.day, datacube::ts::Compare.${compare ?? 'none'}, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)->sort([~y->ascending(), ~day->ascending()])`),
+      same(await ask(`->timeseries::seasonality(~symbol, ~day, ~t, ~close, timeseries::Grain.day, timeseries::Compare.${compare ?? 'none'}, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)->sort([~y->ascending(), ~day->ascending()])`),
         await tile(seasonalityQuery(long, compare === undefined ? ts : { ...ts, view: { compare } }, A, 1)), seaCols, 1e-12);
     }
     // a projection: the line over its last 60 values, three months on
-    same(await ask('->datacube::ts::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, meta::pure::functions::date::DurationUnit.DAYS, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
+    same(await ask('->timeseries::projection(~symbol, ~day, ~t, ~close, 60, 3, meta::pure::functions::date::DurationUnit.MONTHS, meta::pure::functions::date::DurationUnit.DAYS, ~d0, ~v0, ~d1, ~v1, ~d2, ~v2, ~sl, ~k)'),
       await tile(projectionQuery(long, ts, { kind: 'projection', series: A.id, window: 60, ahead: '3m' })),
       [['d0', TS_PJ_FROM], ['v0', TS_PJ_FROM_VALUE], ['d1', TS_PJ_LAST], ['v1', TS_PJ_LAST_VALUE], ['d2', TS_PJ_END], ['v2', TS_PJ_END_VALUE], ['sl', TS_PJ_SLOPE], ['k', TS_PJ_N]], 1e-9);
     // an option it does not have is refused when the query compiles -- the type checker's, in its words -- never
@@ -1564,17 +1564,17 @@ describe('exponential averages: gs-quant\'s recursions, the database\'s closed f
     const refused = async (calls: string, said: RegExp): Promise<void> => {
       await assert.rejects(own.plan(await own.parse(`|${source}${calls}`)), said);
     };
-    await refused('->datacube::ts::seasonality(~symbol, ~day, ~symbol, ~close, datacube::ts::Grain.Day, datacube::ts::Compare.none, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
-      /enumeration datacube::ts::Grain has no value 'Day'/);
-    await refused('->datacube::ts::seasonality(~symbol, ~day, ~symbol, ~close, datacube::ts::Grain.day, datacube::ts::Compare.rebased, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
-      /enumeration datacube::ts::Compare has no value 'rebased'/);
-    await refused('->datacube::ts::periodIndex(~day, datacube::ts::Grain.months, ~i)', /enumeration datacube::ts::Grain has no value 'months'/);
-    await refused("->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, datacube::ts::Returns.Log, ~r)", /enumeration datacube::ts::Returns has no value 'Log'/);
+    await refused('->timeseries::seasonality(~symbol, ~day, ~symbol, ~close, timeseries::Grain.Day, timeseries::Compare.none, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
+      /enumeration timeseries::Grain has no value 'Day'/);
+    await refused('->timeseries::seasonality(~symbol, ~day, ~symbol, ~close, timeseries::Grain.day, timeseries::Compare.rebased, 1, ~y, ~p, ~v, ~lo, ~hi, ~mn, ~sp, ~ly)',
+      /enumeration timeseries::Compare has no value 'rebased'/);
+    await refused('->timeseries::periodIndex(~day, timeseries::Grain.months, ~i)', /enumeration timeseries::Grain has no value 'months'/);
+    await refused("->timeseries::returns(over(~symbol, [~day->ascending()]), ~close, 1, timeseries::Returns.Log, ~r)", /enumeration timeseries::Returns has no value 'Log'/);
     // and a word where an option is: refused by its type, not compared
-    await refused("->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, 'log', ~r)", /Returns/);
+    await refused("->timeseries::returns(over(~symbol, [~day->ascending()]), ~close, 1, 'log', ~r)", /Returns/);
     // a valid one folds to the branch it names: the others never reach the SQL (a statistic of a calendar period: its
     // mean's AVG alone, no SUM, MAX, MIN or VAR beside it)
-    const plan = JSON.stringify(await own.plan(await own.parse(`|${source}->datacube::ts::windowPeriod(~symbol, ~day, ~close, 1, meta::pure::functions::date::DurationUnit.WEEKS, datacube::ts::Statistic.mean, ~m)`)));
+    const plan = JSON.stringify(await own.plan(await own.parse(`|${source}->timeseries::windowPeriod(~symbol, ~day, ~close, 1, meta::pure::functions::date::DurationUnit.WEEKS, timeseries::Statistic.mean, ~m)`)));
     assert.ok(plan.includes('AVG('), 'its mean');
     for (const other of ['SUM(', 'MAX(', 'MIN(', 'VAR_SAMP(', 'STDDEV_SAMP(', 'COUNT(']) assert.ok(!plan.includes(other), `no ${other} beside it`);
   });
@@ -1992,7 +1992,7 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       ['lead_lag(close[P], close[Q], 1, 1m)', 'leadLagPeriod'], ['dickey_fuller(close[P], 2m)', 'dickeyFullerPeriod'],
       ['half_life(close[P], 2m)', 'halfLifePeriod'],
     ];
-    for (const [expr, f] of want) assert.ok(calls(expr).has(`datacube::ts::${f}`), `${expr} calls ${f}`);
+    for (const [expr, f] of want) assert.ok(calls(expr).has(`timeseries::${f}`), `${expr} calls ${f}`);
   });
 
   it('donchian_channels: the lowest low and the highest high of the last w', async () => {

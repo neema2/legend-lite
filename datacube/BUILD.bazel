@@ -999,7 +999,15 @@ js_run_binary(
     tool = ":test_imports_tool",
 )
 
-# THE LIBRARY'S OPTIONS (the user, 2026-10-28: one source): each enumeration of datacube::ts, read from the library's
+# the timeseries project's library copied into this package: js_run_binary copies its inputs to the output tree, and
+# takes none from another package
+copy_file(
+    name = "timeseries_model",
+    src = "//projects:timeseries/model.pure",
+    out = "timeseries_model.pure",
+)
+
+# THE LIBRARY'S OPTIONS (the user, 2026-10-28: one source): each enumeration of timeseries::, read from the library's
 # text, written as src/generated/library-enums.ts for the catalog and the writer, diff-tested below
 js_binary(
     name = "library_enums_tool",
@@ -1012,22 +1020,19 @@ js_binary(
 
 js_run_binary(
     name = "library_enums",
-    srcs = ["src/pure/datacube_ts.pure"],
+    srcs = [":timeseries_model"],
     outs = ["library_enums_generated.ts"],
     args = [
-        "$(rootpath src/pure/datacube_ts.pure)",
+        "$(rootpath :timeseries_model)",
         package_name() + "/library_enums_generated.ts",
     ],
     tool = ":library_enums_tool",
 )
 
-# THE LIBRARY, A PURE FILE (the platform step's B, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md): src/pure/datacube_ts.pure
-# the source, which the platform loads as it is; the page's module of it (src/pure-library-text.ts) written from it,
+# THE LIBRARY, A PURE FILE (the platform step's B, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md): the timeseries
+# project's model (//projects:timeseries/model.pure, package timeseries::; the user, 2026-10-30: not DataCube's) the
+# source, which the platform loads as it is; the page's module of it (src/pure-library-text.ts) written from it,
 # diff-tested below
-exports_files(
-    ["src/pure/datacube_ts.pure"],
-    visibility = ["//visibility:public"],
-)
 
 js_binary(
     name = "library_text_tool",
@@ -1040,10 +1045,10 @@ js_binary(
 
 js_run_binary(
     name = "library_text",
-    srcs = ["src/pure/datacube_ts.pure"],
+    srcs = [":timeseries_model"],
     outs = ["library_text_generated.ts"],
     args = [
-        "$(rootpath src/pure/datacube_ts.pure)",
+        "$(rootpath :timeseries_model)",
         package_name() + "/library_text_generated.ts",
     ],
     tool = ":library_text_tool",

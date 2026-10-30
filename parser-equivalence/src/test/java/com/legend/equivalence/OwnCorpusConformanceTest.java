@@ -278,7 +278,7 @@ class OwnCorpusConformanceTest {
                 Map.entry("PURE-DIALECT-diagram", 1),
                 // 16 -> 17 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112): UserFunctionIntegrationTest
                 // $RelationGeneric's columns-by-name library (test::mean<T,X,Z,V,O>, ColSpec<X⊆T>: DataCube's
-                // datacube::ts form), a function generic over relations
+                // timeseries form), a function generic over relations
                 // 17 -> 18 (2026-10-27, REVIEWED, docs/SEMANTICS_REGISTER.md S113): RelationGeneric's
                 // dropsItsWorkingColumns (test::fromMean<T,X,V,O>, ColSpec<X⊆T>), a generic function that drops the
                 // working column it made with without

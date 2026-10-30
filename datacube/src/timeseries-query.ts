@@ -231,7 +231,7 @@ const ORD = '__ts_ord';
 const AT = '__ts_at';
 
 /**
- * AN OPTION OF THE LIBRARY'S, AS ITS ENUMERATION'S VALUE (`datacube::ts::Returns.log`; the user, 2026-10-28: a parameter
+ * AN OPTION OF THE LIBRARY'S, AS ITS ENUMERATION'S VALUE (`timeseries::Returns.log`; the user, 2026-10-28: a parameter
  * checked when the query compiles, never in its SQL): the type checker refuses a value the enumeration has not, and the
  * static fold takes the branch it names. Its values are the library's own (generated/library-enums.ts, read from its
  * declarations); the tile's reader has checked the word against the same list (the catalog's words), so one not among
@@ -331,14 +331,14 @@ class Writer {
   /**
    * A FUNCTION OF DATACUBE'S PURE LIBRARY over a window of its line (pure-library.ts: the user, 2026-10-26, gs-quant's
    * functions as Pure; the conventions of docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.7):
-   * `->datacube::ts::<name>(over(~<line>, [~period->ascending()], <frame>), ~<value>, <args>, ~<out>)` -- the window the
+   * `->timeseries::<name>(over(~<line>, [~period->ascending()], <frame>), ~<value>, <args>, ~<out>)` -- the window the
    * writer's own would be (#over) -- its figure the column it writes.
    */
   library(name: string, what: string, value: string, frame: 'running' | 'all' | 'rest' | number | null, args: readonly ValueSpecification[]): string {
     return this.#libraryCall(name, what, [this.#over(frame), colSpec(value), ...args]);
   }
 
-  /** A function of the library over its line and its dates -- `->datacube::ts::<name>(~<line>, ~<date>, ~<value>,
+  /** A function of the library over its line and its dates -- `->timeseries::<name>(~<line>, ~<date>, ~<value>,
    *  <args>, ~<out>)`: a base over the whole line, an as-of join -- the date each period's value is of. */
   libraryOfLine(name: string, what: string, value: string, args: readonly ValueSpecification[]): string {
     return this.#libraryCall(name, what, [colSpec(this.part), colSpec(this.at), colSpec(value), ...args]);
@@ -360,7 +360,7 @@ class Writer {
     return [lit.integer(t.n), enumValue(DURATION, t.unit)];
   }
 
-  /** A function of the library of each row alone: `->datacube::ts::<name>(<args>, ~<out>)`. */
+  /** A function of the library of each row alone: `->timeseries::<name>(<args>, ~<out>)`. */
   libraryOfRow(name: string, what: string, args: readonly ValueSpecification[]): string {
     return this.#libraryCall(name, what, args);
   }
@@ -407,7 +407,7 @@ class Writer {
   }
 
   /**
-   * A STATISTIC OF A CALENDAR PERIOD, the library's (`datacube::ts::overPeriod`): `stat` of `value` over (date - n unit,
+   * A STATISTIC OF A CALENDAR PERIOD, the library's (`timeseries::overPeriod`): `stat` of `value` over (date - n unit,
    * date] of each date of its line, none before the line's first value's date that period on (gs-quant's
    * rolling_offset and apply_ramp).
    */
