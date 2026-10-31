@@ -16583,6 +16583,23 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S2b: a let's kind planned in the planner
+
+The decisions log D94; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2b). Zero movement.
+
+1. **Built:** `planner/LetPlanner` decides what a non-last `let` is, with no session (D75: a let is a staged table or a
+   compile-time splice): an ALIAS of a relation-rooted frame (`$r.values->at(0)`, `->toOne()`, `->first()`; `at(k>0)`
+   still refused by name), STAGED rows (`->stage()`), a FRAME (`execute`, `executeLegendQuery`: `FramePlanner`), a
+   STAGED GRID (a raw grid read after a later effect: the read-after-effect analysis moved with it), or a VALUE let,
+   a handle's included, spliced into its readers (`PlanAllocations.registerHandlesIn`, the planner's since D92). The
+   body compiler's loop dispatches on the kind and runs what runs (the staged rows' and grid's temporary tables, the
+   frame's run at its let). `ConnectionLets` (the read analysis of an effectful let bound only for its connection)
+   moved to the planner with it. `BodyDriver.aliasFrame` and the compiler's `readAfterEffect`/`reads` deleted where
+   they were.
+2. **Guards, dated:** the planner register gains `LetPlanner` and `ConnectionLets`, the driver register loses the
+   latter; `JavaEvalLedgerTest` `BodyDriver` 1,407 -> 1,369, `LetPlanner` 110 pinned where the code went.
+3. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's statement-origins census and pass/fail counts are identical to 3c18418e's (DuckDB host 2,471/108 `let=1974`, database 2,473/108 `body=6553`; H2 host 2,289/295 `let=1950`, database 2,233/353 `body=6430 fallback=18`); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time). The heavy lanes were not run for this step (a move).
+
 ## 2026-10-31 — The seam program's S2g, third step: a frame's chain planned in the planner
 
 The decisions log D93; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2g). Zero movement.

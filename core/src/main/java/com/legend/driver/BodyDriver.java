@@ -659,52 +659,6 @@ public final class BodyDriver {
     }
 
     /**
-     * {@code let tds = $r.values(->at(0)/->toOne()/->first())} over a RELATION-rooted
-     * frame: the wrappers are the Result envelope and the alias IS the same
-     * frame ({@code $tds->size()} keeps ONE-TDS semantics). {@code at(k>0)}
-     * is loud — the envelope holds one TDS. Class/scalar roots return null:
-     * their at/toOne are REAL selections and the binding is an ordinary let.
-     */
-    static @com.legend.base.Nullable ExecFrame aliasFrame(TypedSpec rhs,
-            java.util.Map<String, ExecFrame> execFrames) {
-        TypedSpec cur = rhs;
-        boolean badIndex = false;
-        while (true) {
-            if (cur instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
-                    && pa.property().equals("values")) {
-                cur = pa.source();
-                continue;
-            }
-            if (cur instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && (com.legend.compiler.spec.ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
-                            || com.legend.compiler.spec.ResultEnvelopeSplice.TO_ONE_FQN.equals(nc.callee().qualifiedName())
-                            || com.legend.compiler.spec.ResultEnvelopeSplice.FIRST_FQN.equals(nc.callee().qualifiedName()))
-                    && !nc.args().isEmpty()) {
-                if (com.legend.compiler.spec.ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
-                        && !(nc.args().size() == 2 && nc.args().get(1)
-                                instanceof com.legend.compiler.spec.typed.TypedCInteger k
-                                && k.value().longValue() == 0)) {
-                    badIndex = true;
-                }
-                cur = nc.args().get(0);
-                continue;
-            }
-            break;
-        }
-        if (cur instanceof com.legend.compiler.spec.typed.TypedVariable v
-                && execFrames.containsKey(v.name())
-                && execFrames.get(v.name()).relationRooted()) {
-            if (badIndex) {
-                throw new IllegalStateException("Result.values->at(k>0) on a"
-                        + " relation-rooted query — the values envelope holds"
-                        + " one TDS");
-            }
-            return execFrames.get(v.name());
-        }
-        return null;
-    }
-
-    /**
      * The TYPED splice — the REWRITE RULES live in the compiler
      * ({@link com.legend.compiler.spec.ResultEnvelopeSplice}, Invariant
      * 7: minting typed nodes is compiler work); this adapter supplies

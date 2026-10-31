@@ -124,61 +124,54 @@ public final class BodyCompiler {
             }
             seg.closeEffects();
             if (stmt instanceof TypedLet let && !last) {
-                BodyDriver.ExecFrame alias = BodyDriver.aliasFrame(let.value(), execFrames);
-                if (alias != null) {
-                    execFrames.put(let.name(), alias);
-                    continue;
+                // the let's KIND is the planner's (the seam program's S2b, 2026-10-31): where its rows live
+                java.util.function.Predicate<String> relationFrame =
+                        n -> execFrames.containsKey(n) && execFrames.get(n).relationRooted();
+                TypedSpec rhs = com.legend.planner.LetPlanner.rhs(let);
+                switch (com.legend.planner.LetPlanner.kind(let, stmts, i, specs, effectMemo, relationFrame)) {
+                    case ALIAS -> execFrames.put(let.name(), execFrames.get(java.util.Objects.requireNonNull(
+                            com.legend.planner.LetPlanner.aliasOf(let.value(), relationFrame))));
+                    case STAGED -> {
+                        // STAGED ROWS (the writes design's leg 6): computed at this statement's turn into a temporary
+                        // table of the session, which the statements after read by name: the writes between read the
+                        // rows as they were
+                        String table = BodyDriver.stagedTable(let.name());
+                        TypedSpec rows = ((TypedNativeCall) rhs).args().get(0);
+                        BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
+                                rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
+                        seg.value(pv, false);
+                        staged.add(table);
+                        letPrefix.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
+                                BodyDriver.storeOf(pv.body(), seg.env()), let.info()));
+                    }
+                    case FRAME -> {
+                        // a FRAME: planned here, its CTE defined on the batch when a reader
+                        // splices it (rung 12: a plain class frame as its root rows)
+                        execFrames.put(let.name(),
+                                BodyDriver.buildFrame((TypedNativeCall) rhs, letPrefix, true, specs, seg.env()));
+                        seg.fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
+                    }
+                    case STAGED_GRID -> {
+                        // a RAW READ bound by a let (let r = executeInDb('select …', $c)) that a statement reads
+                        // after a later effect: its rows held in a temporary table of the session at this
+                        // statement's turn, read by name after, dropped once the body has run (the planner-driver
+                        // seam program's S3c, 2026-10-30; until then the grid probe pinned its columns here at
+                        // planning, the temp-table port of 2026-09-22)
+                        String table = BodyDriver.stagedGridTable(let.name());
+                        seg.value(BodyDriver.prepareValue(rhs, rhs, letPrefix, execFrames, specs, seg.env())
+                                .stagedInto(table), false);
+                        stagedGrids.add(table);
+                        letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
+                                BodyDriver.stagedGridRead(table, seg.env()),
+                                (com.legend.compiler.spec.typed.TypedRawSqlRelation) rhs, let.info()));
+                    }
+                    case VALUE -> {
+                        // a HANDLE or a value binding: rows under its scope, the let rides the prefix
+                        com.legend.planner.PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs,
+                                seg.env().plan());
+                        letPrefix.add(let);
+                    }
                 }
-                TypedSpec rhs = let.value();
-                while (rhs instanceof com.legend.compiler.spec.typed.TypedFrom rf) {
-                    rhs = rf.source();
-                }
-                if (rhs instanceof TypedNativeCall sc
-                        && com.legend.builtin.Pure.Lite.STAGE.equals(sc.callee().qualifiedName())) {
-                    // STAGED ROWS (the writes design's leg 6): computed at this statement's turn into a temporary
-                    // table of the session, which the statements after read by name: the writes between read the
-                    // rows as they were
-                    String table = BodyDriver.stagedTable(let.name());
-                    TypedSpec rows = sc.args().get(0);
-                    BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
-                            rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
-                    seg.value(pv, false);
-                    staged.add(table);
-                    letPrefix.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
-                            BodyDriver.storeOf(pv.body(), seg.env()), let.info()));
-                    continue;
-                }
-                if (rhs instanceof TypedNativeCall ec
-                        && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
-                            || com.legend.builtin.NativeFn.Handle.of(ec.callee().id()).orElse(null)
-                                    == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
-                    // a FRAME: planned here, its CTE defined on the batch when a reader
-                    // splices it (rung 12: a plain class frame as its root rows)
-                    execFrames.put(let.name(),
-                            BodyDriver.buildFrame(ec, letPrefix, true, specs, seg.env()));
-                    seg.fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
-                    continue;
-                }
-                // a RAW READ bound by a let (let r = executeInDb('select …', $c)) that a statement reads
-                // after a later effect: the engine runs it AT the let, so it is a STAGED let (D75: a let
-                // is a staged table or a compile-time splice) -- its rows held in a temporary table of
-                // the session at this statement's turn, read by name after, dropped once the body has run
-                // (the planner-driver seam program's S3c, 2026-10-30; until then the grid probe pinned its
-                // columns here at planning, the temp-table port of 2026-09-22). Read before any effect, it
-                // stays a splice: the state it read is the state the readers see.
-                if (rhs instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation grid
-                        && readAfterEffect(stmts, i, let.name(), specs, effectMemo)) {
-                    String table = BodyDriver.stagedGridTable(let.name());
-                    seg.value(BodyDriver.prepareValue(rhs, rhs, letPrefix, execFrames, specs, seg.env())
-                            .stagedInto(table), false);
-                    stagedGrids.add(table);
-                    letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
-                            BodyDriver.stagedGridRead(table, seg.env()), grid, let.info()));
-                    continue;
-                }
-                // a HANDLE or a value binding: rows under its scope, the let rides the prefix
-                com.legend.planner.PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs, seg.env().plan());
-                letPrefix.add(let);
                 continue;
             }
             // a statement root (a trailing let IS its value): the arms claim an
@@ -222,39 +215,6 @@ public final class BodyCompiler {
             return null;
         }
         return seg.last;
-    }
-
-    /** Whether a statement after {@code at} reads the let {@code name} -- itself or through a let that reads it --
-     *  once an effect has run after it (an effect's own statement included: it may read the let, its change after). */
-    private static boolean readAfterEffect(List<TypedSpec> stmts, int at, String name, SpecCompiler specs,
-            Map<com.legend.model.FunctionId, Boolean> effectMemo) {
-        java.util.Set<String> names = new java.util.HashSet<>(List.of(name));
-        boolean effectSeen = false;
-        for (int j = at + 1; j < stmts.size(); j++) {
-            TypedSpec s = stmts.get(j);
-            boolean reads = reads(s, names);
-            if (effectSeen && reads) {
-                return true;
-            }
-            if (s instanceof TypedLet l && reads) {
-                names.add(l.name());
-            }
-            effectSeen |= com.legend.compiler.spec.StatementEffects.containsEffect(s, specs, effectMemo);
-        }
-        return false;
-    }
-
-    /** Whether {@code n} reads a variable named in {@code names}. */
-    private static boolean reads(TypedSpec n, java.util.Set<String> names) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v && names.contains(v.name())) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (reads(c, names)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** The segments of one body: the open verdicts segment (its batch, its prepared
@@ -336,7 +296,7 @@ public final class BodyCompiler {
             if (stmt instanceof TypedLet let && i < stmts.size() - 1) {
                 // an executeInDb binding: the corpus binds an opaque ResultSet handle as a
                 // smoke check and never reads it; any other read is walled up front
-                if (!ConnectionLets.onlyConnectionReads(stmts, i + 1, let.name())) {
+                if (!com.legend.planner.ConnectionLets.onlyConnectionReads(stmts, i + 1, let.name())) {
                     throw new IllegalStateException("reading an executeInDb result binding ('"
                             + let.name() + "') is not supported");
                 }

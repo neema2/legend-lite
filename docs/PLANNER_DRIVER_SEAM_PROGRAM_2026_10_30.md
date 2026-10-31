@@ -437,4 +437,5 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   let at its let (1,974 DuckDB, 1,950 H2), kept; dropping it is the user's question. **S2g's third step built
   2026-10-31** (D93): a frame's chain planned in `planner/FramePlanner`; the run at the let, its trace comment and the
   planned CTE stay in the driver, the CTE until the shared preparation's system route (S2h) and effect arms (S2d) move.
-  Next: the other S2 kinds.
+  **S2b built 2026-10-31** (D94): a let's kind planned in `planner/LetPlanner` (alias, staged rows, frame, staged grid,
+  value or handle let), the body compiler's loop dispatching on it. Next: the system route (S2h), then the other kinds.
