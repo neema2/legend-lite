@@ -41,6 +41,8 @@ steps with checkpoints (§7).
 | R13 | §9's N1, N2, N4, N5, N6 as recommended ("Agree to all except the assertError"): the product's query door refuses the test-only steps (B6); the test-only planning in its own library (B4); the eager run at a let on both passes (MV7); backups between checkpoints on the work branch `claude/wizardly-dirac-rw6tim-seam-wip` (no CI runs on it); a verdict group closes before every non-verdict step (2.D). N3: option A, `assertError`'s comparison in Java ("Okay that's fine"). |
 | R14 | The body is COMPILED WHOLE, then run ("Sounds good, I like it"). Two kinds of planning error, kept apart: an INVALID or UNSUPPORTED program (a type or model error, a construct lite refuses by name) is a compile error and the whole test fails, nothing recovers ("like a compiler error in another language that should just fail the whole function"); a VALID program whose evaluation raises (an error Pure raises at run time that lite detects early because its input is constant, e.g. `timeBucket`'s unit check) is planned as a RAISE at its position (`PureSql.raise`, or a raising step), so an untaken branch never raises and `assertError` catches it like any run-time error. ONE plan per body: what must run before a later statement can be written is a Keyed step inside it (the dynamic pivot's pattern, S110, S1a), never a plan in parts. |
 | R15 | 2026-10-31, the way of working: "Agree to go back to back but you need to add an audit at the end of each step before going to next step, that way we have confidence to not stop for me to look at brief or have to recheck your work manually". Each step's brief is written into this plan and the step proceeds without waiting; every step ends with an independent audit (a fresh reviewer given the code, the brief and the rulings, not the author's conclusions), its findings folded, before the next step starts. The stops that remain: an output spelling change (R12, case by case), a movement outside an approved class (§4), a brief that must depart from these rulings or a design choice no ruling covers, a red CI or lane result not attributable to infrastructure. |
+| R16 | 2026-10-31, the re-plan of M5-M10 ("Let's do it", on the recommendation of that day): **whole bodies move, class by class**, never a statement of a body. The per-statement bridge (the old B1: the old walk asking the product planner one statement at a time) is DROPPED. A body runs either entirely as one plan on the program road or entirely on the old walk; a router at the test door decides by a named rule over the body's typed shape (never by catching a failure), the classes moved are pinned in one closed list that only grows, and M10 moves the last class and deletes the walk and the router. Classes open as their features land: assert-free programs (M5), bodies whose asserts all have verdict steps (M6-M7), bodies needing the self-contained database judge's arms (M8), bodies with run-first kinds (M9). Every class moves in its own commit, measured whole (every statement, the census, the lanes). B1, S111's limit and the per-statement pairing go. |
+| R17 | 2026-10-31, M3's choices (the same go): (C1) the transaction rule is TODAY'S -- only a store write opens the program's transaction; an effect script commits itself, written with its dialect's bracket where the session owns its transaction (upstream's `executeInDb` runs with autocommit, legend-pure `ExecuteInDb.java:169-173`); B2's sentence corrected; MV10 = 0. (C4) the trace stamp is bound when the plan runs (a slot, as a write's count), so a plan stays deterministic and the stamp is per execution, as upstream mints it. (C7) B4's test-planning library is built NOW (M3), so effects, seeds and the eager run never ship into the WebAssembly or native planners. (C9) the `from()` frame's table renames apply on both roads at M3, the count and an example posted before they land (upstream applies a connection's post-processors to any query on it, `postprocessor.pure:66-80`). The smaller choices as recommended: the product door refuses a let-bound `execute(...)` by name (C12; an inline lazy read stays the product's); refusal messages are errors, not output spellings (C8); the test door's target carries no setup until a body class moves (C6); a savepoint is its dialect's text sent as a statement (C5); staged raw grids are refused on the program road and get a step at M9 (T12); `loadCsvToDbTable` stays on the walk until its body's class moves (C10). |
 | R12 | Unchanged from the predecessor program (§8.2): never push to main, never open or merge a PR without the user's word; no output spelling change without the user's word, case by case; an answer to a question is not a go to build something else; a guard pin or allowlist moves only with a dated justification; never read, print or copy credentials; records land with the code. |
 
 ## 2. The ledger
@@ -181,11 +183,11 @@ posted the same way (R7 decision 12).
 | MV3 | 2.E: the database judge self-contained, arm by arm | grid-pair verdicts and messages; instance `assertEq` (a loud refusal becomes a verdict or `unjudged`); messages built in SQL per dialect | M8 |
 | MV4 | R10: the canon over the product columns | verdicts and messages carrying a canon; untracked evaluations | M8 |
 | MV5 | R10/B9: one id counter per program | id literals in multi-statement product write programs (SQL text); tests: none expected, checked. **Measured at M1 (2026-10-31): 0 test statements moved** (every core test package's 17,373 sent statements byte-identical before and after; the corpora's and channel B's censuses identical); product write programs now spell one counter across their statements (`ProgramObjectSitesTest`) | M1 |
-| MV6 | 2.A's convergences | D5 milestoned reads, D7 streamed graph answers, D8 H2 type holes, D18 a new refusal, D27 value-shape facts, D36 target refusals | M5 |
-| MV7 | decision 1 in one plan for both modes | the eager run at a let on the DATABASE pass too (+about 1,950 statements per corpus pass), §9 N4 | M5 |
+| MV6 | 2.A's convergences | D5 milestoned reads, D7 streamed graph answers, D8 H2 type holes, D18 a new refusal, D27 value-shape facts, D36 target refusals | with each body class (R16), from M5 |
+| MV7 | decision 1 in one plan for both modes | the eager run at a let on the DATABASE pass too (+about 1,950 statements per corpus pass), §9 N4 | with the body classes that read frames (R16) |
 | MV8 | R14: compile errors fail the whole test; early-detected run-time errors become planned raises | a test failing today at an earlier assert that also holds an invalid or unsupported later statement reports the compile error instead (still failing); such a statement in a branch that never runs now fails the test; each of today's lowering-time guard errors classified compile-time or run-time by Pure's meaning (an ambiguous one posted) | M10 |
-| MV9 | D31/O9: a let read twice one form in both modes | host-mode text; outcome risk measured (the H2 pass's history of frames not found) | M3 |
-| MV10 | B2: the transaction rule | effect bodies' transaction scope; the savepoint before a fused statement in a transaction (F11) | M3 |
+| MV9 | D31/O9: a let read twice one form in both modes | host-mode text; outcome risk measured (the H2 pass's history of frames not found) | counted at M3; lands with the body classes that read frames (R16) |
+| MV10 | B2: the transaction rule | today's rule kept (R17): effect bodies' transaction scope unchanged (0); the savepoint before a fused statement in a transaction (F11), counted at M3 (M0: 0 such groups) | M3 |
 | MV11 | R9/B7: one code path to the system database | product metamodel queries move to the system database; statement order on the system session | M4 |
 | MV12 | R7 decision 6: constants in the product plan | the plan JSON format (a constant answer); product outputs unchanged | M2 |
 
@@ -222,18 +224,22 @@ posted the same way (R7 decision 12).
 
 ## 6. Design briefs (each written in full before its step's code; since R15 the step proceeds and its audit checks it)
 
-- **B1, the statement entry (M5).** `PlanMaker` gains a public per-statement entry (the program so far, one
-  statement -> its steps), so the old walk can ask the product planner statement by statement while asserts still take
-  the old road; after M10 it is the program road's own loop. The entry inlines a statement under its position's mark
-  (B9) and a statement's verdict sides in one inliner run, so a call written in two sides or two statements is two
-  objects (S111's test-road limit removed); the test road's ids take the product's spelling there (MV6).
+- **B1, the body router (M5; rewritten 2026-10-31 by R16, the per-statement entry dropped).** At the test door
+  (`Execution.runProgram`) a router decides, by a named rule over the body's typed shape, whether the body is planned
+  WHOLE by the program road (B12's test-door entry) and run as one plan, or walked by today's driver. The classes moved
+  are one closed list in one place, pinned by a guard that lets it only grow; nothing is decided by catching a
+  failure. A moved body's statements and verdict sides are inlined the program road's way (B9's marks), so S111's
+  test-road limit and the per-statement pairing go with the old walk; a moved body's ids take the product's spelling
+  (MV6). M10 deletes the router with the walk.
 - **B2, the runner (M3, M9).** One plan per body (R14). New: `ExpectFailure(sub-plan)` for `assertError` (the
   error its body raises at run time handed to the comparison, N3); a raising step where an early-detected run-time
   error stands as a statement of its own (R14; inside an expression it is `PureSql.raise`); `Setup` per from() (D35; established
   once per session with the seeds' memo); constant-only programs accepted (`PlanRunner.java:231-233` refuses them
-  today); the transaction rule: a program that changes the database runs in one transaction, effect scripts inside it
-  with the dialect's bracket, and a fused verdict statement inside a transaction is preceded by a savepoint where the
-  dialect aborts a transaction on error (F11), so the split rung can run. NOT new: what must run before a later
+  today); the transaction rule (corrected 2026-10-31 by R17: the first wording could not hold -- DuckDB's and Postgres's
+  scripts open their own `BEGIN ... COMMIT`, and upstream runs `executeInDb` with autocommit): only a store write opens
+  the program's transaction; an effect script commits itself, written with its dialect's bracket where the session owns
+  its transaction; and a fused verdict statement inside a transaction is preceded by a savepoint where the dialect
+  aborts a transaction on error (F11), so the split rung can run. NOT new: what must run before a later
   statement can be written (T8, T9, the map over `executeInDb`) is the existing `Keyed` step inside the `Sequence`
   (S110, S1a); an invalid or unsupported program is a compile error (R14), so there is no "refused" step.
 - **B3, the verdict record (M6).** Label, `check`, base sides, the database form, and every fact a judge reads at
@@ -308,6 +314,78 @@ posted the same way (R7 decision 12).
   three were built and measured in order (M2a's movement zero) and land as one commit with one chain, since none was
   usable alone.
 
+- **B12, the program road's effects, seeds and frames, and the query door (M3; written 2026-10-31 under R15, its
+  choices R17's; drafted from a read of the code at d9dc669a, `docs/test-is-product-homework/D_M3_BRIEF_DRAFT.md`).** The program road
+  (`PlanMaker.program`, `ProductStatements`) gains, behind a door, what a test body's non-verdict statements need. The
+  test road is not switched (bodies move from M5, R16); verdict steps reach the program road at M6; T8-T10 and T12 at
+  M9; the system database at M4 (refused by name on the test door until then).
+  1. **The doors (B6, N1).** `PlanMaker.plan` stays the QUERY door for every product caller; a new TEST-door entry plans
+     any body through `program`, called only from `com.legend.driver` (an ArchUnit rule; no caller until M5). The query
+     door scans the typed body once and refuses by name, at the first statement holding one: an effect, a `from()`'s
+     inline seeds or a named runtime's seeds, a let-bound `execute(...)` (its eager run, C12), a verdict, an
+     `assertError` (the owners reused: `StatementEffects.containsEffect`/`callsVerdict`, `ExecutionContext.reader()`,
+     `LetPlanner.kind`). An inline lazy `execute(...)` read stays the product's (D15).
+  2. **One program state.** `PlanMaker.program` holds one planning state for the program -- the plan rows and lets a
+     frame needs across statements, the frames, the minter (B9), the door, the last seed key emitted, the steps waiting
+     to be placed before a statement -- where `ProductStatements.prepare` makes a fresh environment per statement today.
+  3. **The test-planning library (B4 brought forward, C7).** A library the product server and the WebAssembly and
+     native planners do not depend on (`tools/deps/core-layers.txt`, an ArchUnit rule): the test door's entry, the
+     effect and seed planning, the eager run's step. The planner keeps what a product query can use (frames' lazy
+     reads, constants).
+  4. **Effects as `Effect` steps (R11, D34, decision 14; test door).** `Prepared.Effect` split by its catalog row: a
+     database effect's statements written by `EffectPlanner` (each String argument a literal, folded; a computed one
+     refused by name, T9 at M9; M0 counted 0 of 124,975); `setUpDataSQLs` a constant of its texts; `print`/`println`
+     no step (a null constant when last, both doors, R18); `connectionByElement` a handle; an effectful map refused
+     (T9, M9). Consecutive effect statements one script (today's segment rule and text); `ExecutionPlan.Effect` gains
+     the script's statements, its bracketed form and its abort statement, the runner sending the bracket only where
+     the session owns its transaction, the abort first on a failure (today's `sendScript` rules). The effect writer is
+     handed the program's dialect once the runtime is decided (M2's road names none). An effect as the program's last
+     statement answers as the test road's host rows do (C11).
+  5. **The transaction rule (R17 C1, MV10 = 0).** `PlanRunner.program` opens one transaction only when a step is an
+     `Update`; an `Effect` inside an open transaction sends its bare text; after each `Effect` the session is marked
+     written (as `BodyCompiler` does), so a later seed step re-seeds.
+  6. **F11's rung (built, emitted at M6/M7).** `SqlDialect` states whether its database aborts a transaction on error
+     and writes its savepoint, rollback-to and release texts (or none); `ExecutionPlan.Verdicts` gains the optional
+     savepoint; `PlanRunner.verdicts` sets it before the fused statement inside a transaction, rolls back to it before
+     the wrappers when the database rejects the fused statement, releases it otherwise (C5: texts sent as statements,
+     the JDBC census unmoved); `VerdictBatch` fills it. M0: 0 fused groups inside a body transaction.
+  7. **Seed steps (D35).** A new node `ExecutionPlan.Setup(key, steps)`, emitted before a statement whose seed sources
+     (the `from()`s under it, their named runtimes, the program's runtime: `establishContexts`' sources) name test
+     data, when the key differs from the last emitted or an `Effect` came since; its steps `CsvSeed.planned`'s; the
+     runner skips a key the session holds clean (`SessionState`) and otherwise runs it under SEED and records the key.
+     The planner memoizes the generated steps by the sources' value, never the model's identity (C2). The test door's
+     target carries no setup (C6).
+  8. **Frames (D15, B10).** `planner/ProgramFrames` implements `ResultEnvelopeSplice.Frames` (the pasted chain, an
+     inline execute's chain and activity rows, the activity SQL); `ProductStatements.prepare` inlines with the splice
+     hook; the let loop dispatches on `LetPlanner.kind` (FRAME into the frames, never the lets; on the test door the
+     eager run a `Check` step at the let, decision 1; ALIAS; STAGED as today; STAGED_GRID refused, T12 at M9; VALUE
+     into the lets); a value-position `execute(...)` a `Check` before the last statement and the result step over its
+     run chain; the renames widening (`BodyDriver.frameReplaceEnv`) moves to the planner.
+  9. **The frame's CTE (D31, MV9 counted).** Read as a CTE where a statement reads the frame more than once (B10's
+     words, per statement), lowered once at its let with the product's configuration and the program's minter, its
+     definition attached by `FrameCtes.attach`; the movement against today's two modes counted, landing with the
+     classes that read frames (R16).
+  10. **The activity's SQL and stamp (D47, D49; R17 C4).** The activity SQL is plan data already; the comment the
+      activity rows record is a slot the runner binds when the plan runs (as a write's count), its value the trace's
+      stamp for the statement it precedes -- the plan deterministic, the stamp per execution, as upstream's.
+  11. **The `from()` frame's table renames (R17 C9).** `BodyPlanner.prepare` reads the outermost `from()`'s context's
+      `tableReplace` and merges it with an execute frame's, loud on a conflict, on both roads -- its own sub-step,
+      measured, the count and an example posted before it lands.
+  Sub-steps, each its own commit with its measurement; the audit at M3's end:
+  M3a measure (C_M3_MEASUREMENTS.md: transaction scopes, seed sends inside an effect run, frames read once and twice,
+  activity comments read, inline eager executes, frames on the system store, staged grids, from()s carrying renames and
+  their statements, the door's refusals in core's tests, DuckDB's and H2's abort-on-error and savepoints);
+  M3b the plan records and the runner (`Effect`'s script, `Setup`, `Verdicts`' savepoint, the stamp slot; PlanJson 24;
+  the TypeScript runner refusing the new nodes by name; the transaction rule, the seed memo, F11's rung) -- no movement;
+  M3c the doors, the test-planning library, the program state -- refusal texts only;
+  M3d effects on the test door -- every corpus setup program planned whole, its scripts against the texts the walk
+  sends (byte-identical expected);
+  M3e seed steps -- per statement against the walk's seed texts, keys and skips;
+  M3f frames, the eager run, the stamp -- the D15 refusals become plans, census-paired;
+  M3g the frame's CTE -- counted;
+  M3h the `from()` renames -- test-road SQL moves: counted, posted, landed;
+  M3i the census re-run, the audit, the records, the checkpoint.
+
 ## 7. The steps (◆ = a checkpoint: the branch pushed, CI on every OS, the lane sessions, the movement register to the user)
 
 | Step | What | Size |
@@ -317,12 +395,12 @@ posted the same way (R7 decision 12).
 | **M2** | Product features, the safe set: D4, D6, D9, D10, D13, D14, D16, D17/R18, D26 + constant-only programs, D29, D30 | 1-1.5 weeks |
 | **M3** ◆ | Product features that need designs: effects + scripts + the transaction rule + F11 (B2), `Setup` seeds (B2), frames and the eager run (B10), the query door's refusals (B6) | 1.5-2 weeks |
 | **M4** ◆ | The system database, one code path (B7) | 3-5 days |
-| **M5** ◆ | Test statements planned by the product, statement by statement (B1); 2.A's convergences (MV6, MV7) | 1-1.5 weeks |
-| **M6** ◆ | The verdict record (B3), the assert module in its own library (B4, B5), the host judge on product sides | 1.5-2 weeks |
-| **M7** | The fused group composed at planning (from `VerdictBatch`'s flush) | 1 week |
-| **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3), then the canon over the product columns (B8, MV4) | 2 weeks |
-| **M9** ◆ | The kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); inline `execute(...)` | 1 week |
-| **M10** ◆ | One plan per body: `BodyCompiler` and `Segments` deleted; 2.D's rule (MV1); a planning failure a compile error (R14, MV8); `theDriverCompilesNothing`; the parity guard's permanent form; the layer file | 1 week |
+| **M5** ◆ | The body router at the test door (B1, R16); the first class moves whole: assert-free programs (the corpus setup programs, assert-free bodies), each planned whole by the program road and run as one plan; the 2.A convergences that class needs (MV6, MV7 where its frames are eager) | 1-1.5 weeks |
+| **M6** ◆ | The verdict record (B3), the assert module in the test-planning library (B4, begun at M3; B5), the host judge on product sides; verdict steps planned on the program road | 1.5-2 weeks |
+| **M7** ◆ | The fused group composed at planning (from `VerdictBatch`'s flush); the second class moves: bodies whose asserts all have verdict steps (2.D's rule, MV1, for the bodies moved) | 1 week |
+| **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3), then the canon over the product columns (B8, MV4); the bodies those arms gate move | 2 weeks |
+| **M9** ◆ | The kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move | 1 week |
+| **M10** ◆ | The last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave) and the router deleted; a planning failure a compile error (R14, MV8); `theDriverCompilesNothing`; the parity guard's permanent form; the layer file | 1 week |
 | **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
 
 ## 8. Start here (for a session picking this up)
@@ -437,3 +515,7 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   re-run (`docs/test-is-product-homework/C_M2_CENSUS.md`) finds no front-half difference outside `execute(...)` frames
   and one defect inside one (a `toSQLString`'s table renames), fixed. The audit's blocker (a keyed answer's shape) and
   seven should-fix folded. D30 posted to the user (§9). The lanes' round 8 on M1: all five identical. Next: M3.
+- 2026-10-31: M2 closed (its chain green but for a TypeScript guardrail its own code broke, fixed; two more product
+  tests; the audit's finding 3 recorded as partly folded). **The plan re-shaped (R16, D102)**: whole bodies move class
+  by class, the per-statement bridge dropped, M5-M10 rewritten. **M3 ruled (R17)** and its brief written (B12). Next:
+  M3a, the measurements.
