@@ -129,6 +129,33 @@ database.
 The host judge stays the independent referee (its 5,847-of-5,847 agreement is what says the canon SQL is right), but
 nothing depends on it: deleting it would be a small change, never a project.
 
+### 1.F What the database judge cannot do yet (measured 2026-10-31)
+
+Today's counts of asserts the database judge leaves unjudged (each such assert fails on the database pass, with its
+reason):
+
+| Run | Asserts | Unjudged by the database | Which |
+|---|---|---|---|
+| corpus, DuckDB | 5,847 | 0 | -- |
+| corpus, H2 | about 5,600 | 5 | all `assertJsonStringsEqual` (the canonical JSON text not byte-equal on H2) |
+| channel B, DuckDB, five suites | 2,683 | 1 | one `assertTdsEquivalent` (a side shape) |
+
+Caveat: today's "judged by the database" includes the three Java arms of 1.E (grid pairs, class-instance `assertEq`,
+the engine-text asserts); P0 counts them separately.
+
+The shapes the database judge's code declines, and what each becomes:
+
+| Shape | Why it declines today | After |
+|---|---|---|
+| class instances whose static kinds differ; object-graph sides | identity and graphs are not spelled in the canon | SQL forms (instances by `__id`; graphs canonized): work |
+| JSON equal as trees but not as canonical text | the canon compares sorted compact text; H2's JSON functions cannot always produce it | SQL on databases with JSON functions; a named `none` on H2 where they fall short |
+| a rendered grid text not byte-equal to its golden | the host's rule is lines in any order with a cell tolerance; the SQL compares bytes | the line multiset in SQL: work |
+| a `Number`/`Any` side of ambiguous kind | the canon must know the kind to spell the value | the kind decided while planning, or decoded by the kind the database reports |
+| a side that is a host value (an effect's result, a handle) | no query to wrap | a step of the plan (e.g. a write's count) |
+| `assertIs` of values that are neither enums nor tracked objects; `assertInstanceOf` without a catalog native | no SQL spelling of "the same object" for an arbitrary value | a design question, asked when met |
+| **the two sides read different databases** (the metamodel system database against a user database) | one statement runs on one database | **impossible as one statement**: a named `none` |
+| a statement the dialect cannot express, or an error at run time | the database's own limit | reported with the database's words, as today |
+
 ## 2. The target
 
 ```
@@ -150,30 +177,113 @@ judging; the judging stays.
 
 ## 3. The verdict step, as the planner will make it
 
-The record exists (S1b). The planner fills it for every assert, before anything runs, from the assert's family:
+The record exists (S1b). The planner fills it for every assert, before anything runs:
 
 ```
 Verdict(label,                          -- which assert, at which statement (the listener reports it)
-        check,                          -- the host judge's comparison: EQUALS, NOT_EQUALS, SAME_ELEMENTS, SIZE,
-                                        --   TOLERANCE, TDS_EQUIVALENT, JSON, CONTAINS, EMPTY, ... (today arm +
-                                        --   wantEqual; folded into one value, §7 Q5)
-        base:    [side plan | constant] -- each side the product plan of its expression (T1)
-        database: statement | constant | none)
-                                        -- the database judge's lowering of the assert over the base (T3): one
-                                        --   statement answering (holds, message, unjudged); a constant verdict where
-                                        --   planning decides it; none, with its reason, where the database has no
-                                        --   form (the database pass fails it, as today)
-Verdicts(fused, [Verdict...])           -- a run of verdicts as one statement (T2), closed before any step that
+        check,                          -- the host judge's comparison (§3.2), the polarity folded in: EQUALS,
+                                        --   NOT_EQUALS, SAME_ELEMENTS, SIZE, EMPTY, NOT_EMPTY, CONTAINS, EQ,
+                                        --   TOLERANCE, TDS_EQUIVALENT, JSON, CONDITION, NOT_CONDITION, IS,
+                                        --   INSTANCE_OF, GRID_PAIR, RENDERED_TEXT, ROWS_ALL (a quantified assert)
+        base:    [side plan | constant] -- each side the product plan of its expression, byte for byte (T1)
+        database: statement | constant | none(reason))
+                                        -- the database judge's form of the assert (§3.1)
+Verdicts(fused, [Verdict...])           -- consecutive verdicts as one statement (T2), closed before any step that
                                         --   changes the database (1.D)
 ```
 
+A verdict sits in the program where the assert is written. Under the host judge it runs there; under the database
+judge its group's one statement runs where the group closes, which is before the next step that changes the database
+(1.D), so every assert sees the state its position in the program sees.
+
+### 3.1 The database judge: 100% a SQL plan (RULED 2026-10-31)
+
+**What it is.** For each assert, the planner writes ONE statement that answers ONE row:
+
+| Column | Meaning |
+|---|---|
+| `holds` | BOOLEAN, never NULL: whether the assert holds, its polarity inside (the `NOT` of `assertNotEquals`, `assertFalse`, `assertNotEmpty`) |
+| `message` | the failure message, spelled exactly as today's (`<assert>\nexpected: <text>\nactual:   <text>`, `assertNotEquals: both sides are equal`, ...), NULL when it holds |
+| `unjudged` | NULL, or the reason the statement could not decide (a NULL canon cell, a tree cell it cannot spell, ...), with the bounded evidence today's messages carry |
+| `lenient` | a census flag only (the 2-ULP float leniency decided it); decides nothing |
+
+The statement is the assert's LOWERING over its sides: the sides' product plans are its subqueries, and the canon
+columns, the comparison and the message are written around them in SQL (T3). Nothing about a verdict is decided after
+the row comes back: the sink reports the row as it is.
+
+**The fused group.** Consecutive verdicts become one statement: each member's statement a `UNION ALL` branch
+carrying its index; a let read by several members is one shared CTE (today's frame CTEs); identical CTE bodies hoisted
+once. Members that read a raw grid's columns run as a keyed sub-group (their column names are read first). If the
+database rejects the fused statement, each member's own statement runs instead (the split rung; a member the
+database cannot even plan is counted with the database's words). All of it is composed by the PLANNER when the body is
+planned; today `VerdictBatch` composes it when the group is sent, after the segment's other statements have run.
+
+**Per assert, its database form:**
+
+| Assert | The database's form |
+|---|---|
+| `assertEquals`, `assertNotEquals` | the two sides' canonical texts compared in order (a collection as its ordered canon list; a scalar as one canon); `NOT` for not-equals |
+| `assertEquals` of two relations (the grid pair) | `VerdictSql.gridPair`: row canons in column order, rows under the sides' order (today judged in Java by `TdsCompare.grids`, even on the database pass) |
+| a relation against a list of cells | `gridRows` (the cells chunked by the grid's width) or `gridCells` (the loose cell pool) |
+| `assertSameElements` | the canon multisets equal |
+| `assertSize` | the side's count (a relation's rows; a graph's array length) against the number |
+| `assertEmpty`, `assertNotEmpty` | the count is zero, or not |
+| `assertContains` | the value's canon among the collection's |
+| `assertEq` | equal canons; for class instances, equal `__id` (today `HostJudge.eq` in Java; a short design first) |
+| `assertEqWithinTolerance` | `abs(e - a) <= delta` |
+| `assertTdsEquivalent` | `gridTolerance`: the same columns, each row's numbers within delta and times within the time delta |
+| `assertJsonStringsEqual` | both documents as canonical JSON (keys sorted, compact) compared as text |
+| `assert`, `assertFalse` | the condition, on the identity lane; `NOT` for assertFalse |
+| a quantified assert (`xs->forAll(x \| assert...(x))`) | the predicate as a column over the rows; holds when no row fails |
+| `assertIs` | enum pairs and tracked objects by identity |
+| `assertInstanceOf` | the catalog's two-argument native |
+| a rendered grid text against its golden (`toCSV`, `toString`) | today bytes; to be: the line multiset with the cell tolerance in SQL (the host's rule) |
+| the engine-text asserts (`assertSameSQL`, ...) | the two SQL texts are both known when planning: a CONSTANT verdict; where they differ, the rows leg as one statement comparing both queries' rows on the lane's database (T11). The H2 referee replay is not the database judge (T13) |
+
+**A verdict decided while planning** (the cross-kind gate: two different primitive kinds are never equal; a static
+column mismatch) is a verdict step with a constant answer and its message: a fact of the plan, nothing sent.
+
+**A shape with no database form** is a named entry, `none(reason)`, and the database pass fails it as unjudged, as
+today. The list, with today's counts, is §1.F.
+
+### 3.2 The host judge: the product's sides, then Java
+
+**What it is.** The runner runs each base side (each the product plan of its expression, byte for byte; a literal a
+constant, nothing sent) at the verdict's place in the program, and hands the sides' typed rows to the host judge,
+which compares them in Java by the step's `check`. That is all that is Java: the comparison (the user's ruling: the
+host judge is an exception to the Java rule only, never to the plan-then-run split).
+
+| `check` | The Java comparison (today's owners, unchanged) |
+|---|---|
+| EQUALS, NOT_EQUALS | the engine's equality over the two sides' values (`judge/Equality`'s lattice: kinds, numbers, dates, instances by identity), ordered unless a side's order is the database's arrival order (`OrderView.INCIDENTAL`: then as a multiset) |
+| GRID_PAIR | `TdsCompare.grids`: columns in order, rows under the order rule |
+| SAME_ELEMENTS | the multisets equal |
+| SIZE | a relation's row count (the one-carrier envelope rule), a graph's array length, a collection's size, against the number |
+| EMPTY, NOT_EMPTY | a relation's rows, else the values, empty or not |
+| CONTAINS | membership under the engine's equality |
+| EQ | equality, instances by identity over `__id` |
+| TOLERANCE | `PureAsserts.assertEqWithinTolerance` |
+| TDS_EQUIVALENT | `TdsCompare.tdsEquivalent` (delta, time delta) |
+| JSON | the parsed trees: object keys in any order, arrays in order |
+| CONDITION, NOT_CONDITION | the boolean; the forAll-contains subset fold |
+| IS, INSTANCE_OF | identity; the class test |
+| RENDERED_TEXT | `TdsCompare.renderedText`: the line multiset, the cell tolerance |
+| ROWS_ALL (quantified) | every row's element assert, judged as that assert's check |
+
+**What leaves the host's sides** so that each is the product plan byte for byte: the identity layout and the
+body-wide id minter (D1, D2, D20: identity is compared over the product layout's `__id`); the declared egress (D3:
+the writer's job); the RELATION shape of a value side and its Java timestamp trim (D27: the product's VALUE shape,
+after P0 shows them equivalent); the one-cell graph array (D7: the product's one object per row, the array built in
+Java for the comparison); and the `ORDER BY` added to a grid under assertion (D24: order-insensitivity is the
+comparison's, §7 Q4).
+
 ## 4. What each judge mode runs
 
-| Mode | The runner sends | The sink does |
+| Mode | The runner sends | The sink |
 |---|---|---|
-| HOST | each verdict's base sides | the host judge compares the rows by `check` |
-| DATABASE | each group's fused statement (on rejection, each member's own statement) | reports each verdict's row as it is: holds, or fails with the message the statement wrote, or unjudged with its reason; it decides nothing (1.E) |
-| BOTH | both | both judges, then their agreement (today 5,847 of 5,847 corpus asserts agree) |
+| HOST | each verdict's base sides, at its place | the host judge compares the rows by `check` (§3.2) |
+| DATABASE | each group's one statement where the group closes (on rejection, each member's own statement); a constant verdict sends nothing | reports each row as it is: holds; fails with the message the statement wrote; or unjudged with its reason. Decides nothing (§3.1) |
+| BOTH | both | both judges, then their agreement (today 5,847 of 5,847 DuckDB corpus asserts agree) |
 
 ## 5. Oracles and guards
 
@@ -193,7 +303,10 @@ Verdicts(fused, [Verdict...])           -- a run of verdicts as one statement (T
 ## 6. The steps
 
 Each step: its brief to the user first where §7 leaves a choice; the full local chain (the corpora uncached with
-their censuses, channel B, the gate, the Postgres targets unprivileged); the lane sessions; the records; one commit.
+their censuses, channel B, the gate, the Postgres targets unprivileged); the records; one commit. **Commits stay
+local; nothing is pushed to CI until a checkpoint the user agrees** (the user, 2026-10-31: "no need to push to CI
+until we have a good checkpoint"). At a checkpoint: the branch pushed, CI on every OS, and the lane sessions asked for
+every server and cloud backend.
 
 | Step | What | Size |
 |---|---|---|
@@ -218,9 +331,11 @@ P4 carry the order and text changes the user rules on.
    sees the state its position sees. Recommended: yes; the moved verdicts counted and posted at P0.
 3. ~~Host verdicts inside the database judge~~ **RULED 2026-10-31:** the database judge is self-contained, all in the
    database; the referee replay is a separate thing (1.E, T13).
-4. **The assert-boundary order on host sides (D24):** keep the `ORDER BY` the planner adds to a grid under
-   assertion (a named test-only rule, today's), or move order-insensitivity into the Java compare. Recommended: keep,
-   named.
+4. **The assert-boundary order on host sides (D24):** today the planner adds an `ORDER BY` to a grid under
+   assertion that the test did not sort, so the host's side is NOT the product plan. Either keep it as a named
+   exception, or move order-insensitivity into the Java comparison (the host's sides then byte-identical to the
+   product's; a FAILURE message may list rows in another order, each such change posted). Recommended: move it to
+   the comparison (§3.2). Inside the database judge's canon wrap the order stays: it is the assert's lowering (T3).
 5. **The verdict record:** fold `arm` + `wantEqual` into one `check` value (as §3), the database's polarity inside its
    wrapper. Recommended: yes (no statement changes; the plan's JSON format bumps).
 6. **Literal roots as constants (D26):** a product feature (any plan answers a literal root with no round trip), or
@@ -231,3 +346,9 @@ P4 carry the order and text changes the user rules on.
 9. **Two unjudged reason texts** read "AssertVerdicts.side" where "side" was meant (a rename that reached the strings;
    DatabaseJudge.java:116-117, :298). They appear in failure messages and census keys: correct them, or leave them.
    Recommended: correct (a message spelling change, so it is asked).
+10. **The database judge's sides and the identity layout (inventory finding 3):** today a database side is not the
+    product plan plus a wrapper: its inner lowering uses the identity layout (`__canon` per class) and per-node ids.
+    Either the canon is computed in the wrapper OVER the product plan's columns (the product's `__id` and `__type`
+    with the declared properties), so the side inside is the product plan byte for byte, or the identity layout stays
+    as part of the assert's lowering, named in T3. Recommended: over the product plan where P0 shows it expresses
+    the same canon; the rest named, each with its count.
