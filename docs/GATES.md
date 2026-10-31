@@ -16583,6 +16583,76 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The test-is-the-product plan's M2: the product's statement road
+
+The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §6 B11 and §7 (M2); the decisions log D101. Movement: product
+SQL only, as designed (below); the test road's statements unchanged.
+
+1. **Built:**
+   - `planner/ProductStatements`, the product's statement road: a query's body (`PlanMaker.plan`,
+     `TypedQuery.lower`) and each statement of a program that writes (`PlanMaker.program`) planned by the test road's
+     front half. Inlined with the consumed lets kept (only those the body reads free, `FreeVars.ofBody`), natives
+     staged (`planToString`/`toSQLString` the plan-time texts they print), resolved with the lets' bindings and the
+     plan rows (`BodyPlanner.resolver`), the runtime decided and the cross-store guard, prepared (`BodyPlanner.prepare`:
+     the outermost `from()`'s time zone, features and post-processors, the driver-PK and import-data-flow appends),
+     lowered with the product's configuration plus the frame's facts and the seedable let prefix, post-processed. The
+     road names no dialect (its caller renders), so the runtime is decided after the resolver as before.
+   - Constants (D26, D17, MV12): a String or Boolean literal answer and a DDL text are `ExecutionPlan.Constant`
+     (`PlanJson` 23); `PlanRunner` answers one with nothing sent (`stream`, `sequence`, and `program`: a program of
+     constants alone opens no session); the TypeScript runner answers it too; `answerShape`, `answerSql`,
+     `sendsTheAnswer` and `Execution.run` know it. Before a program's last statement a constant or an orchestration
+     handle plans no step; a handle answered by a query is refused by name. The admitted literal kinds have one owner
+     (`ProductStatements.ADMITTED`, read by the driver's `LiteralFold`).
+   - D29: `PlanMaker.typed` keys a raw grid's report (`rowsOrGridKeyed`) and a dynamic pivot, for a query and a
+     program's last statement alike (the product refused a grid's rows and column names until now); `Keyed` carries
+     its answer's shape (a value read off a grid answers as a value).
+   - `EnginePlans.toSqlString` applies the call's own runtime argument's table renames wherever it is planned (found by
+     the census re-run: the product printed the text without them; the engine's golden names them).
+   - `TypedQuery.resolve` deleted (no caller left).
+   - D30 (a `toOne()` over a relation held to one row) NOT built: it turns a product answer into an error, posted to
+     the user (the plan's §9).
+2. **The audit** (independent, R15): one blocker and seven should-fix, all folded -- the keyed shape (the blocker: a
+   `String[*]` read off a grid was written as a relation by the server's writer); `ConstantPlanParityTest`'s database
+   leg restored (it had folded into a constant too) and each leg's route asserted; product tests for a staged
+   `toSQLString`, a DDL text constant, a keyed shape and a constant-only program; the constant-only program in
+   `PlanRunner.program`; a DDL text refused by name on the lowering; the error order of every runtime refusal (no
+   dialect looked up early, so a runtime of a database with no dialect lowers again); `FreeVars.ofBody`; explicit arms;
+   the frame's table renames documented and carried to M3's B10. Its judgments: refusing a handle is right; dropping
+   a constant or a handle before the last statement is safe; D30 is not half built.
+3. **Measured:**
+   - Every core test package's sent statements against M1's baseline (17,373; 27 targets passing both times): 45
+     product queries answering a String or Boolean literal send no statement now (and 26 session statements with
+     them); 13 new statements are the new tests' (the grid reads, the parity test's database legs); every other
+     statement byte-identical, the test road's included.
+   - M0's parity census re-run on M2's code (`docs/test-is-product-homework/C_M2_CENSUS.md`): channel B has no
+     front-half difference; each corpus pass has two, both inside an `execute(...)` frame -- the STREAM factor the
+     census cannot attribute there (M3) and the `toSQLString` renames, fixed. The product road's refusals shrink
+     (DuckDB host pass 4,720 -> 4,415; the execute call's mapping, `getAll`, `$plan` handles, staged natives); the rest
+     is D15 (`execute(...)` read as a value, M3).
+4. **Guards, dated:** `JavaEvalLedgerTest`'s planner register gains `ProductStatements.java`; `EnginePlans` 707 -> 717
+   (the call's renames, read from the model); the parser-equivalence ratchet `own_corpus.matched` 3,013 -> 3,018 (the
+   new tests' models joined the own corpus, their five elements matching the reference parser).
+5. **The chain:** running (its result follows in the next commit).
+
+## 2026-10-31 — The lane sessions on M1: every server and cloud lane identical, ids included (round 8)
+
+The arrangement of D81, round 8: the five lane sessions MEASURE ONLY on 5befecda (M1: one object-id minter per
+program) against their 3de15e7d runs, every statement compared and every `'__id'` value called out.
+
+| session | lanes | round 8 (5befecda vs 3de15e7d) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; every statement byte-identical in order, ids included (Postgres `'__id', 'i1'` pairs in up to 86 statements per suite; Trino `"__id"` fields in up to 170); 0 errors in 15 logs; whole logs 0 differing lines |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test (0 of 20 rows); 117,990 `'__id'` values unchanged (the same 26, all `i<n>`); 39 of 40 targets byte-identical in order, the 40th one SQLite record carrying the anonymous id that flips between runs (not an `'__id'`, predates this work); system and effect statements identical |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement byte-identical in order in all 10 suites, the 46 system statements included; no `'__id'` value changed |
+| sibling 3 | Databricks, channels A and B | identical per test; every statement byte-identical in order in all 10 targets; 4,612 `'__id'` occurrences, the same 26 values in the same sequence |
+| sibling 4 | BigQuery, channels A and B | identical per test (the known `removeDuplicates` failure included); all 10 dumps byte-identical in order; channel B's `'__id'` counts unchanged |
+
+No `NotImplementedException` or `IllegalStateException` anywhere; every keyword scan unchanged. The only red is main's:
+SQLite channel B essential at 332.
+
+CI on 5befecda (run 41228804475): all 35 Linux, linux-arm and Windows jobs passed; the 15 macOS jobs were cancelled with
+no runner assigned, for the third push in a row, which alone left `gates green` red (PR comment 6546129674).
+
 ## 2026-10-31 — The test-is-the-product plan's M1: one object-id minter per program
 
 The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §6 B9 and §7 (M1); the decisions log D100. Zero test movement.

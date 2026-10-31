@@ -431,3 +431,9 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   statement with one `ObjectSites` and marks each statement's own evaluations; the test road's copy (`InstanceIds`)
   deleted. MV5 measured: 0 test statements moved. The audit folded (the statement mark; S111's test-road limit,
   removed at M5). Checkpoint: the branch pushed, CI, the lanes asked. Next: M2.
+- 2026-10-31: **M2 built** (D101). The product's statement road (`planner/ProductStatements`): a query's and a
+  program's statements planned by the test road's front half; constants as plan nodes (PlanJson 23); D29's keyed raw
+  grid in the product. Measured: core's statements move by design only (45 literal answers send nothing); the census
+  re-run (`docs/test-is-product-homework/C_M2_CENSUS.md`) finds no front-half difference outside `execute(...)` frames
+  and one defect inside one (a `toSQLString`'s table renames), fixed. The audit's blocker (a keyed answer's shape) and
+  seven should-fix folded. D30 posted to the user (§9). The lanes' round 8 on M1: all five identical. Next: M3.

@@ -2947,7 +2947,13 @@ asked. **The user's go for the whole program 2026-10-31, back to back, each step
 `compiler/spec/UserCallInliner.java` and `TypedQuery.java` (a program's statement inlined under its mark),
 `planner/PlanMaker.java` (one minter per program), `planner/PlanEnv.java`, `driver/BodyDriver.java`,
 `lowering/Lowerer.java` (a doc); `planner/InstanceIds.java` DELETED; `planner/ProgramObjectSitesTest.java` (new);
-`JavaEvalLedgerTest`. Next: M2.
+`JavaEvalLedgerTest`. **M2 built 2026-10-31 (D101)**: `planner/ProductStatements.java` (new), `planner/PlanMaker.java`,
+`TypedQuery.java` (`lower` on the new road; `resolve` deleted), `planner/PlanEnv.java` (the dialect optional,
+`writtenIn`), `planner/BodyPlanner.java`, `SidePlanner.java`, `EffectPlanner.java`, `EnginePlans.java` (a call's own
+runtime renames), `executionplan/ExecutionPlan.java` (`Constant`, `Keyed.shape`), `PlanJson.java` (format 23),
+`exec/PlanRunner.java`, `Execution.java`, `driver/LiteralFold.java`, `driver/BodyDriver.java`, the TypeScript runner
+and its test, `planner/ProductStatementsTest.java` (new), `ConstantPlanParityTest`, the ledger and the ratchet. Next:
+M3.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,
