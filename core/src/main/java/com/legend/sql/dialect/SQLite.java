@@ -2977,10 +2977,19 @@ public final class SQLite extends AnsiSqlRenderer {
         }
         if (f != null) {
             boolean inDays = days;
-            writer.append(any ? " " : "").append(f.kind().toString()).append(" BETWEEN ")
-                    .append(frameBound(f.from(), inDays)).append(" AND ").append(frameBound(f.to(), inDays));
+            writer.append(any ? " " : "").append(f.kind().toString()).append(" BETWEEN ");
+            frameBound(writer, f.from(), inDays).append(" AND ");
+            frameBound(writer, f.to(), inDays);
         }
         return writer.append(")");
+    }
+
+    /** A frame bound into the writer: an offset the database computes as its expression (writeBound; measured
+     *  2026-10-31: SQLite takes an expression and a parameter, refuses a negative offset), any other as its text. */
+    private SqlWriter frameBound(SqlWriter writer, SqlExpr.WindowCall.Frame.Bound b, boolean days) {
+        return b instanceof SqlExpr.WindowCall.Frame.Bound.ComputedPreceding
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.ComputedFollowing
+                ? writeBound(writer, b) : writer.append(frameBound(b, days));
     }
 
     private static boolean intervalBound(SqlExpr.WindowCall.Frame.Bound b) {

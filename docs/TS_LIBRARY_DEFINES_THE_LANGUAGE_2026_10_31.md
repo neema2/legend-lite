@@ -1,6 +1,6 @@
 # The library defines the language (2026-10-31)
 
-**Status: a proposal, from a spike. L2 is ruled and C1 is being built; §7 lists the rulings still open.** It
+**Status: a proposal, from a spike. L2 is ruled and C1 is built (2026-10-31); §7 lists the rulings still open.** It
 replaces decision D6 of `docs/TS_ONE_TREE_PLAN_2026_10_31.md` (the catalog as a JSON data file) and that plan's step
 1b, if ruled. The conversation: the user asked why the catalog was a new JSON format ("We literally have a full
 language to define things (pure) and you invented a json format instead?"), saw a mismatch between the language and
@@ -94,7 +94,8 @@ What the spike found core can't do yet:
   translation reads the window as a value it has already evaluated during planning, with the call's variables in scope
   (`pureToSQLQuery.pure`: the `_Window` from an `InstanceValue`, then `processWindowFrame` reading `offsetFrom` and
   `offsetTo` as numbers). So this is a gap between lite and upstream, not a design choice. It is the one change the move
-  depends on (§4, C1).
+  depends on (§4, C1). **Fixed by C1 (2026-10-31):** the spike's functions are now written with their windows sized by their
+  parameter, `rows(-($w - 1), 0)` (the spike's rerun on them is recorded when it has run).
 - **G2. A window can't be passed in instead.** `_Window<T>` is invariant. A window over the line's three columns can't
   be applied to the wider relation inside the function: "type variable T bound to relation [date, key, value, ord, py,
   r] cannot also bind relation [date, key, value]". A generic `_Window<W>` is refused too ("unbound type variable W").
@@ -143,7 +144,7 @@ What this means for C1:
 
 | # | Step | Size | Riskiest unknown |
 |---|---|---|---|
-| C1 | **Window frames from parameters** (G1; L2 ruled): the typed `over` keeps a bound that is not a literal as a typed expression, so β-inlining substitutes the call's arguments into it. At the lowering, a bound that is a literal by then is classified by its sign, as today. Any other bound takes its direction from its shape: `-(e)` is `e PRECEDING`, anything else `e FOLLOWING`. Its value goes into the SQL for the database to compute, guarded as §3a says | medium (core) | the guard in every dialect; MariaDB and MySQL refusing a computed offset |
+| C1 | **Window frames from parameters** (G1; L2 ruled): the typed `over` keeps a bound that is not a literal as a typed expression, so β-inlining substitutes the call's arguments into it. At the lowering, a bound that is a literal by then is classified by its sign, as today. Any other bound takes its direction from its shape: `-(e)` is `e PRECEDING`, anything else `e FOLLOWING`. Its value goes into the SQL for the database to compute, guarded as §3a says. **Built 2026-10-31**: `WindowFrame.Bound.Offset`, `Windows.sqlFrame`, `dialect/FrameGuard`; a frame whose shapes start after the current row and end at or before it is refused when planned; register row S129; `FrameFromParameterTest` on DuckDB, H2, SQLite and the embedded Postgres, `ComputedFrameOffsetTest` for every dialect's text or refusal | medium (core) | done |
 | M1 | **The line type and the generic rule, one family**: the rolling statistics (mean, std, volatility, zscores, ...) as `timeseries::line::` functions; their Java cases deleted; the generic rule finds functions through the model | medium | compile time when many line functions are typed in one query (measured here) |
 | M2 | **Family by family**: returns and levels; pairs and regressions (two lines); several columns of one instrument (ATR, OHLC, stochastic: N lines joined on date and key); calendar forms; first and last | large | joining N lines, measured against today's builder |
 | M3 | **The catalog from the functions**: completions, help, Python stubs and the guide generated from the signatures, `doc.doc` and the profile's tags; the JSON catalog (`git stash@{0}`) dropped | medium | the generator reads `model.pure` through core, inside the tile's bundle budget |

@@ -3368,12 +3368,21 @@ public class MariaDb extends AnsiSqlRenderer {
 
     private String frameBound(SqlExpr.WindowCall.Frame.Bound b, boolean days) {
         return switch (b) {
+            // measured 2026-10-31 (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a): MariaDB and MySQL take a
+            // frame offset only as a literal or a bare parameter, no expression
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw computedOffset();
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw computedOffset();
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> intervalDays(p.n(), p.unit(), days)
                     + " PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> intervalDays(fo.n(), fo.unit(), days)
                     + " FOLLOWING";
             default -> bound(b);
         };
+    }
+
+    private DialectCapability computedOffset() {
+        return new DialectCapability("a window frame offset the database computes reached " + product()
+                + ", which takes a frame offset only as a literal or a bare parameter (measured 2026-10-31)");
     }
 
     private String intervalDays(long n, String unit, boolean days) {

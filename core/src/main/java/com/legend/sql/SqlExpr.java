@@ -132,6 +132,9 @@ public sealed interface SqlExpr
                 for (SqlSelect.SortKey k : w.orderBy()) {
                     out.add(k.expr());
                 }
+                if (w.frame() != null) {
+                    out.addAll(w.frame().offsets());   // the offsets the database computes, last
+                }
                 yield out;
             }
             case Lambda l -> List.of(l.body());
@@ -255,8 +258,10 @@ public sealed interface SqlExpr
                     ks.add(new SqlSelect.SortKey(cs.get(base + np + i),
                             k.ascending(), k.nullOrder(), k.outputName()));
                 }
+                int nk = w.orderBy().size();
                 yield new WindowCall(fn, cs.subList(base, base + np), ks,
-                        w.frame());
+                        w.frame() == null || !w.frame().computed() ? w.frame()
+                                : w.frame().withOffsets(cs.subList(base + np + nk, cs.size())));
             }
             // supplied-leaf knowledge (the builder's, like Column's
             // type): a body swap keeps it — recomputable by no rule
@@ -1383,9 +1388,63 @@ public sealed interface SqlExpr
             this(fn, partitionBy, orderBy, frame, SqlTyping.UNKNOWN);
         }
 
-        /** {@code ROWS|RANGE BETWEEN <from> AND <to>}. */
-        public record Frame(Kind kind, Bound from, Bound to) {
+        /**
+         * {@code ROWS|RANGE BETWEEN <from> AND <to>}. {@code checked}: the window is written inside the check of its
+         * computed bounds ({@code ComputedPreceding}, {@code ComputedFollowing}) -- set by the renderer that writes the
+         * check around it, so the check is written once (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a).
+         */
+        public record Frame(Kind kind, Bound from, Bound to, boolean checked) {
             public enum Kind { ROWS, RANGE }
+
+            public Frame(Kind kind, Bound from, Bound to) {
+                this(kind, from, to, false);
+            }
+
+            /** Whether a bound is an offset the database computes. */
+            public boolean computed() {
+                return from instanceof Bound.ComputedPreceding || from instanceof Bound.ComputedFollowing
+                        || to instanceof Bound.ComputedPreceding || to instanceof Bound.ComputedFollowing;
+            }
+
+            /** This frame, written inside the check of its computed bounds. */
+            public Frame asChecked() {
+                return new Frame(kind, from, to, true);
+            }
+
+            /** The offsets the database computes, from then to. */
+            public java.util.List<SqlExpr> offsets() {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>(2);
+                offset(from, out);
+                offset(to, out);
+                return out;
+            }
+
+            /** This frame with its computed offsets replaced, in order, by {@code values}. */
+            public Frame withOffsets(java.util.List<SqlExpr> values) {
+                int[] i = {0};
+                java.util.function.UnaryOperator<Bound> next = b -> switch (b) {
+                    case Bound.ComputedPreceding c -> new Bound.ComputedPreceding(values.get(i[0]++));
+                    case Bound.ComputedFollowing c -> new Bound.ComputedFollowing(values.get(i[0]++));
+                    case Bound.UnboundedPreceding u -> b;
+                    case Bound.Preceding p -> b;
+                    case Bound.CurrentRow c -> b;
+                    case Bound.Following f -> b;
+                    case Bound.UnboundedFollowing u -> b;
+                    case Bound.IntervalPreceding p -> b;
+                    case Bound.IntervalFollowing f -> b;
+                };
+                Bound f = next.apply(from);
+                Bound t = next.apply(to);
+                return new Frame(kind, f, t, checked);
+            }
+
+            private static void offset(Bound b, java.util.List<SqlExpr> out) {
+                if (b instanceof Bound.ComputedPreceding c) {
+                    out.add(c.offset());
+                } else if (b instanceof Bound.ComputedFollowing c) {
+                    out.add(c.offset());
+                }
+            }
 
             public sealed interface Bound {
                 record UnboundedPreceding() implements Bound {
@@ -1408,6 +1467,16 @@ public sealed interface SqlExpr
                 }
 
                 record IntervalFollowing(long n, String unit) implements Bound {
+                }
+
+                /** {@code (offset) PRECEDING}: an offset the database computes -- a parameter, arithmetic over
+                 *  constants -- written as a bound {@code -(offset)} (the typed frame's {@code Offset}). */
+                record ComputedPreceding(SqlExpr offset) implements Bound {
+                }
+
+                /** {@code (offset) FOLLOWING}: an offset the database computes, written as a bound of any other
+                 *  shape. */
+                record ComputedFollowing(SqlExpr offset) implements Bound {
                 }
             }
         }

@@ -1219,6 +1219,11 @@ final class MongoDbPipeline {
             case SqlExpr.WindowCall.Frame.Bound.Following fo -> String.valueOf(fo.n());
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> "-" + p.n();
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> String.valueOf(fo.n());
+            // a $setWindowFields window's bounds are numbers in the stage itself
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached MongoDB, whose window bounds are numbers");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached MongoDB, whose window bounds are numbers");
         };
     }
 

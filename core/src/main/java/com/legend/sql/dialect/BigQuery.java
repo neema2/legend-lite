@@ -2885,6 +2885,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                     + " PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> intervalOffset(fo.n(), fo.unit(), scale)
                     + " FOLLOWING";
+            // not measured on BigQuery (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a): refused until it is
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached BigQuery, where it is not yet measured");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached BigQuery, where it is not yet measured");
         };
     }
 

@@ -326,8 +326,15 @@ public abstract class SqlRewriter {
                     return e2 == k.expr() ? k : new SqlSelect.SortKey(
                             e2, k.ascending(), k.nullOrder(), k.outputName());
                 });
-                yield fn2 == w.fn() && pb == w.partitionBy() && ob == w.orderBy()
-                        ? w : new SqlExpr.WindowCall(fn2, pb, ob, w.frame());
+                // the offsets the database computes, rewritten as any expression
+                SqlExpr.WindowCall.Frame fr = w.frame();
+                if (fr != null && fr.computed()) {
+                    List<SqlExpr> os = fr.offsets();
+                    List<SqlExpr> os2 = mapList(os, this::rewriteExpr);
+                    fr = os2 == os ? fr : fr.withOffsets(os2);
+                }
+                yield fn2 == w.fn() && pb == w.partitionBy() && ob == w.orderBy() && fr == w.frame()
+                        ? w : new SqlExpr.WindowCall(fn2, pb, ob, fr);
             }
             case SqlExpr.Lambda l -> {
                 SqlExpr b = rewriteExpr(l.body());

@@ -49,9 +49,8 @@ class TsLineSpikeTest {
             """;
 
     /** The line-level functions: each a function of lines to a line, its plumbing (the window over the instrument,
-     *  ordered by date; its ramp; its periods a year) written once, here, in Pure. Each frame is a literal in the body:
-     *  lite types a body once, its parameters as variables, so a frame sized by a parameter is refused (the note's G1);
-     *  the SQL is the same either way. */
+     *  ordered by date; its ramp; its periods a year) written once, here, in Pure. Each frame is sized by the function's
+     *  parameter, {@code rows(-($w - 1), 0)}: refused before C1 (the note's G1), the database's to compute since. */
     private static final String LINES = """
             ###Pure
             function timeseries::line::volatility(x: %1$s, w: Integer[1]): %1$s
@@ -59,7 +58,7 @@ class TsLineSpikeTest {
               $x->extend(~ord:r|%%1970-01-01->dateDiff($r.date, meta::pure::functions::date::DurationUnit.DAYS))
                 ->timeseries::periodsPerYear(~key, ~ord, meta::pure::functions::date::DurationUnit.DAYS, ~py)
                 ->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~r)
-                ->timeseries::volatility(over(~[key], [~date->ascending()], rows(-62, 0)), ~r, if($w < 2, |2, |$w), ~py, ~v)
+                ->timeseries::volatility(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~r, if($w < 2, |2, |$w), ~py, ~v)
                 ->select(~[date, key, v])->rename(~v, ~value)
             }
 
@@ -79,7 +78,7 @@ class TsLineSpikeTest {
               let b = $y->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~rb)
                 ->select(~[date, rb])->rename(~date, ~bdate);
               $a->join($b, meta::pure::functions::relation::JoinKind.INNER, {l, r|$l.date == $r.bdate})
-                ->timeseries::beta(over(~[key], [~date->ascending()], rows(-62, 0)), ~ra, ~rb, if($w < 2, |2, |$w), ~v)
+                ->timeseries::beta(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~ra, ~rb, if($w < 2, |2, |$w), ~v)
                 ->select(~[date, key, v])->rename(~v, ~value);
             }
 
@@ -88,7 +87,7 @@ class TsLineSpikeTest {
               $price->join($volume->rename(~date, ~vdate)->rename(~key, ~vkey)->rename(~value, ~vol),
                   meta::pure::functions::relation::JoinKind.INNER, {l, r|($l.date == $r.vdate) && ($l.key == $r.vkey)})
                 ->timeseries::tradedValue(~value, ~vol, ~traded)
-                ->timeseries::vwap(over(~[key], [~date->ascending()], rows(-19, 0)), ~value, ~traded, ~vol, $w, ~v)
+                ->timeseries::vwap(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, ~traded, ~vol, $w, ~v)
                 ->select(~[date, key, v])->rename(~v, ~value)
             }
             function timeseries::line::mean<D>(x: Relation<(date:D, key:String, value:Number)>[1], w: Integer[1]): Relation<(date:D, key:String, value:Number)>[1]

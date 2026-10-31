@@ -2587,6 +2587,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> b;
             case SqlExpr.WindowCall.Frame.Bound.Following f -> b;
             case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> b;
+            // an interval frame keeps literal bounds (Frames.intervalBound): never beside a computed one
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new IllegalStateException(
+                    "a computed frame offset in an interval RANGE frame");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new IllegalStateException(
+                    "a computed frame offset in an interval RANGE frame");
         };
     }
 
@@ -2608,6 +2613,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         SqlExpr.WindowCall.Frame frame = w.frame();
+        if (frame != null && frame.computed() && frame.kind() == SqlExpr.WindowCall.Frame.Kind.RANGE) {
+            // a RANGE frame of offsets is rewritten here (nullsAtEdge, fractionalRange) by its numbers; a ROWS frame's
+            // computed offset is ClickHouse's own (measured 2026-10-31: an expression and a parameter taken)
+            throw new DialectCapability("a RANGE window frame offset the database computes reached ClickHouse,"
+                    + " whose RANGE frames of offsets are rewritten by their numbers");
+        }
         if (frame != null && frame.kind() == SqlExpr.WindowCall.Frame.Kind.RANGE
                 && (isInterval(frame.from()) || isInterval(frame.to()))) {
             w = epochFramed(w, frame);

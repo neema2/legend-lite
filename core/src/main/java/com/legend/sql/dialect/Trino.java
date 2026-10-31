@@ -1801,6 +1801,10 @@ public final class Trino extends AnsiSqlRenderer {
             case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> super.bound(b);
             case SqlExpr.WindowCall.Frame.Bound.Following f -> super.bound(b);
             case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> super.bound(b);
+            // an offset the database computes: written by writeBound (measured 2026-10-31: Trino takes an expression
+            // and a parameter, refuses a negative offset)
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 

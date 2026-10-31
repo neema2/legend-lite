@@ -2643,6 +2643,11 @@ public final class Snowflake extends AnsiSqlRenderer {
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         SqlExpr.WindowCall.Frame frame = w.frame();
+        if (frame != null && frame.computed()) {
+            // not measured on Snowflake (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a): refused until it is
+            throw new DialectCapability("a window frame offset the database computes reached Snowflake, where it is"
+                    + " not yet measured");
+        }
         if (frame != null && w.orderBy().isEmpty()) {
             if (!(frame.from() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding
                     && frame.to() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing)) {
@@ -2878,6 +2883,9 @@ public final class Snowflake extends AnsiSqlRenderer {
                     "INTERVAL '" + p.n() + " " + p.unit() + "' PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     "INTERVAL '" + f.n() + " " + f.unit() + "' FOLLOWING";
+            // refused before a frame is written (windowCall): not yet measured on Snowflake
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 

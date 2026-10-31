@@ -1726,6 +1726,11 @@ public final class Databricks extends AnsiSqlRenderer {
             case SqlExpr.WindowCall.Frame.Bound.Following fo -> offset(fo.n(), key) + " FOLLOWING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> interval(p.n(), p.unit()) + " PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> interval(fo.n(), fo.unit()) + " FOLLOWING";
+            // not measured on Databricks (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a): refused until it is
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached Databricks, where it is not yet measured");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached Databricks, where it is not yet measured");
         };
     }
 

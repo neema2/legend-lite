@@ -2371,6 +2371,10 @@ public final class Postgres extends AnsiSqlRenderer {
                     frameInterval(p.n(), p.unit()) + " PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     frameInterval(f.n(), f.unit()) + " FOLLOWING";
+            // an offset the database computes: written by writeBound (measured 2026-10-31: Postgres 16 takes an
+            // expression and a parameter, refuses a negative offset)
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 

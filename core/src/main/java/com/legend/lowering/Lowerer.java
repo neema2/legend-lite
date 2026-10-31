@@ -2817,7 +2817,9 @@ public final class Lowerer {
                             : k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
                                     : SqlSelect.SortKey.NullOrder.NULLS_FIRST, null));
         }
-        return new Over(parts, keys, over.frame().map(Windows::sqlFrame).orElse(null));
+        // a bound the database computes (a parameter, arithmetic over one) lowered as any scalar: it reads no row
+        ColumnResolver none = scopedResolver(base, null);
+        return new Over(parts, keys, over.frame().map(f -> Windows.sqlFrame(f, v -> scalar(v, none))).orElse(null));
     }
 
     /**

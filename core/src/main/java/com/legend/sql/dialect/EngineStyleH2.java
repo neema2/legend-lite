@@ -1787,6 +1787,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      * by ... order by ...)} (the window-col goldens' spelling). */
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
+        if (w.frame() != null && w.frame().computed()) {
+            // legend-engine's text holds the number its planning computed; this printer computes none
+            throw new DialectCapability("a window frame offset the database computes reached legend-engine's text,"
+                    + " which holds the number its planning computed");
+        }
         // an ordered string aggregate over a window: legend-engine writes its WITHIN GROUP after the window
         // (withinGroupFunctionProcessor appends it after the OVER clause; 4.145.0 measured)
         if (w.fn() instanceof com.legend.sql.SqlAgg.Reducer r && r.fn() == com.legend.sql.SqlAgg.Fn.STRING_AGG

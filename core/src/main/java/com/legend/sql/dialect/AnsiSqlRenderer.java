@@ -782,7 +782,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"
                     + " list first (DeferredTdsString id " + d.id() + ")");
-            case SqlExpr.WindowCall w -> windowCall(writer, w);
+            // a window with a computed frame offset is written inside its check (FrameGuard), by this dialect's CASE
+            case SqlExpr.WindowCall w -> FrameGuard.guarded(w) instanceof SqlExpr.Case check
+                    ? caseExpr(writer, check) : windowCall(writer, w);
             case SqlExpr.Lambda l -> lambda(writer, l);
             // a cast to the tagged carrier is the identity: the column holds the tag, an index, and the label says
             // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
@@ -1244,10 +1246,29 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (w.frame() != null) {
             writer.append(" ").append(keyword(w.frame().kind().toString())).append(" ").append(keyword("BETWEEN"))
-                    .append(" ").append(bound(w.frame().from())).append(" ").append(keyword("AND")).append(" ")
-                    .append(bound(w.frame().to()));
+                    .append(" ");
+            writeBound(writer, w.frame().from()).append(" ").append(keyword("AND")).append(" ");
+            writeBound(writer, w.frame().to());
         }
         return writer.append(")");
+    }
+
+    /** A frame bound into the writer: an offset the database computes as its expression, parenthesized, so a bound
+     *  parameter is written at its place ({@code (? - 1) PRECEDING}); any other as {@link #bound}'s text. */
+    protected final SqlWriter writeBound(SqlWriter writer, SqlExpr.WindowCall.Frame.Bound b) {
+        return switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c ->
+                    writer.append("(").expr(c.offset(), 0).append(") ").append(keyword("PRECEDING"));
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c ->
+                    writer.append("(").expr(c.offset(), 0).append(") ").append(keyword("FOLLOWING"));
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.Following f -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f -> writer.append(bound(b));
+        };
     }
 
     /** A keyword of the window and aggregate syntax ({@code OVER}, {@code ORDER BY}, {@code DISTINCT} ...) as this
@@ -1276,6 +1297,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     keyword("INTERVAL") + " " + p.n() + " " + p.unit() + " " + keyword("PRECEDING");
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     keyword("INTERVAL") + " " + f.n() + " " + f.unit() + " " + keyword("FOLLOWING");
+            // an offset the database computes is an expression: written into the writer (writeBound), never as text
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new IllegalStateException(
+                    "a computed frame offset is written by writeBound, into the writer");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new IllegalStateException(
+                    "a computed frame offset is written by writeBound, into the writer");
         };
     }
 
