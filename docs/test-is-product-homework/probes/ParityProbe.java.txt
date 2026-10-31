@@ -1,0 +1,201 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.planner;
+
+import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.typed.TypedSpec;
+
+/**
+ * RESEARCH ONLY, NEVER COMMITTED (the merge-onto-product homework, 2026-10-31, measurement B): every statement the
+ * test road lowers, lowered again the PRODUCT way (TypedQuery.lowerer's configuration plus PlanMaker's post steps),
+ * the two texts compared, and each difference attributed to the configuration factors that cause it. Counts and a few
+ * examples are printed at JVM exit.
+ */
+public final class ParityProbe {
+
+    public static final boolean ON = true;
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> COUNTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.List<String>> EXAMPLES =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** Whether the body on this thread runs in a transaction (set by the driver; measurement C skips those). */
+    public static final ThreadLocal<Boolean> IN_TX = ThreadLocal.withInitial(() -> false);
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(ParityProbe::dump));
+    }
+
+    private ParityProbe() {
+    }
+
+    public static void count(String key) {
+        COUNTS.computeIfAbsent(key, k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    public static void example(String key, String text) {
+        java.util.List<String> l = EXAMPLES.computeIfAbsent(key,
+                k -> java.util.Collections.synchronizedList(new java.util.ArrayList<>()));
+        if (l.size() < 3) {
+            l.add(text.length() > 1600 ? text.substring(0, 1600) + "..." : text);
+        }
+    }
+
+    private static void dump() {
+        StringBuilder sb = new StringBuilder();
+        new java.util.TreeMap<>(COUNTS).forEach((k, v) -> sb.append("[parity] ").append(k).append(" = ")
+                .append(v.sum()).append('\n'));
+        new java.util.TreeMap<>(EXAMPLES).forEach((k, l) -> {
+            synchronized (l) {
+                for (String e : l) {
+                    sb.append("[parity-ex] ").append(k).append(" :: ").append(e.replace('\n', ' ')).append('\n');
+                }
+            }
+        });
+        System.err.print(sb);
+        System.err.flush();
+    }
+
+    /** The configuration factors on which the test road's lowering differs from the product's. */
+    enum F { LAYOUT, LANE, EGRESS, TZ, EXISTS, SEED, POST, ENUM, FEATURES, STREAM }
+
+    /** The test road's value of each factor for a statement lowered on the identity lane or not. */
+    private static java.util.EnumSet<F> test(boolean identity) {
+        java.util.EnumSet<F> s = java.util.EnumSet.of(F.TZ, F.EXISTS, F.SEED, F.POST, F.ENUM, F.FEATURES, F.STREAM);
+        if (identity) {
+            s.add(F.LAYOUT);
+            s.add(F.LANE);
+        } else {
+            s.add(F.EGRESS);
+        }
+        return s;
+    }
+
+    /** {@code body} lowered with the test road's value for the factors in {@code t} and the product's for the rest. */
+    private static String lower(java.util.Set<F> t, java.util.List<TypedSpec> body, PlanEnv env, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect) {
+        com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
+                ty -> t.contains(F.LAYOUT) ? com.legend.compiler.element.ClassLayouts.layoutOf(ctx, ty, true)
+                        : com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, ty),
+                f -> ctx.findClass(f).isPresent(), ctx.implementations());
+        boolean temporal = com.legend.compiler.element.Temporal.anyTemporalGetAll(body, ctx);
+        if (t.contains(F.EXISTS) || !temporal) {
+            lw = lw.withEngineExistsJoinForm();
+        }
+        if (t.contains(F.TZ)) {
+            lw = lw.withDbTimeZone(env.timeZone());
+        }
+        lw = lw.withInstanceKeys(ty -> com.legend.compiler.element.EqualityKeys.resolve(ctx, ty));
+        InstanceIds ids = new InstanceIds();
+        if (t.contains(F.LANE)) {
+            lw = lw.withInstanceIds(ids::idOf);
+        } else {
+            lw = lw.withObjectIdentity(ids::idOf);
+            if (t.contains(F.EGRESS)) {
+                lw = lw.withDeclaredEgress();
+            }
+        }
+        if (!t.contains(F.STREAM)) {
+            lw = lw.withStreamingGraphRoot();
+        }
+        java.util.Set<com.legend.platform.Feature> features = t.contains(F.FEATURES)
+                ? BodyPlanner.featuresOf(env, body) : env.features();
+        if (!features.isEmpty()) {
+            lw = lw.withFeatures(features);
+        }
+        java.util.List<TypedSpec> b = t.contains(F.SEED)
+                ? com.legend.lowering.SeedableLets.withSeedableLetPrefix(body, env.queryLets(), ctx) : body;
+        com.legend.sql.SqlQuery q = lw.lower(b);
+        if (t.contains(F.POST)) {
+            q = com.legend.lowering.SqlPostProcessors.applyRecorded(q, env.tableReplace(),
+                    env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
+        }
+        if (!t.contains(F.ENUM)) {
+            q = com.legend.sql.EnumValueTables.apply(q);
+        }
+        return dialect.render(q);
+    }
+
+    private static String road() {
+        return StackWalker.getInstance().walk(s -> s
+                .filter(f -> !f.getClassName().equals(ParityProbe.class.getName())
+                        && !f.getClassName().equals(BodyPlanner.class.getName()))
+                .findFirst().map(f -> f.getClassName().substring(f.getClassName().lastIndexOf('.') + 1) + "."
+                        + f.getMethodName()).orElse("?"));
+    }
+
+    /** Measurement B at the test road's lowering: {@code actual} is the plan the road made. */
+    public static void lowering(java.util.List<TypedSpec> body, PlanEnv env, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect, boolean identity, com.legend.sql.SqlQuery actual) {
+        String road = road();
+        try {
+            String actualText;
+            try {
+                actualText = dialect.render(actual);
+            } catch (RuntimeException e) {
+                count("B.render-fails");
+                return;
+            }
+            java.util.EnumSet<F> t = test(identity);
+            String testRe = lower(t, body, env, ctx, dialect);
+            count(testRe.equals(actualText) ? "B.relowered-same" : "B.relowered-renumbered-or-other");
+            String prod;
+            try {
+                prod = lower(java.util.EnumSet.noneOf(F.class), body, env, ctx, dialect);
+            } catch (RuntimeException e) {
+                String why = e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
+                why = why.length() > 90 ? why.substring(0, 90) : why;
+                count("B.product-refuses " + why);
+                count("B.road " + road + " product-refuses");
+                return;
+            }
+            if (prod.equals(testRe)) {
+                count("B.same");
+                count("B.road " + road + " same");
+                return;
+            }
+            java.util.List<String> causes = new java.util.ArrayList<>();
+            for (F f : t) {
+                try {
+                    String one = lower(java.util.EnumSet.of(f), body, env, ctx, dialect);
+                    if (!one.equals(prod)) {
+                        causes.add(f.name());
+                    }
+                } catch (RuntimeException e) {
+                    causes.add(f.name() + "!");
+                }
+            }
+            String sig = String.join("+", causes);
+            count("B.diff " + sig);
+            count("B.road " + road + " diff");
+            example("B.diff " + sig, "road=" + road + " | TEST: " + testRe + " || PRODUCT: " + prod);
+        } catch (RuntimeException e) {
+            count("B.probe-error " + e.getClass().getSimpleName());
+        }
+    }
+
+    /** Measurement B's front half at a side's inlining: which test-road features the side used. */
+    public static void front(String where, boolean hookChanged, boolean queryLets, boolean staged, PlanEnv env) {
+        StringBuilder sb = new StringBuilder("B.front-" + where);
+        if (hookChanged) {
+            sb.append(" splice");
+        }
+        if (queryLets) {
+            sb.append(" query-lets");
+        }
+        if (staged) {
+            sb.append(" native-stage");
+        }
+        if (!env.planRows().isEmpty()) {
+            sb.append(" plan-rows");
+        }
+        if (!env.tableReplace().isEmpty()) {
+            sb.append(" renames");
+        }
+        if (env.frame() != null) {
+            sb.append(" frame");
+        }
+        count(sb.toString());
+    }
+}

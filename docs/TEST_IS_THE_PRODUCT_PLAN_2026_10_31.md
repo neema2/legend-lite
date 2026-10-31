@@ -1,382 +1,346 @@
-# A test body is the product plan -- the plan (DRAFT for the user's review, 2026-10-31)
+# A test body is the product plan -- the plan (v2, 2026-10-31)
 
-Status: **DRAFT, not ratified.** No step of §6 starts until the user agrees to §1-§5 and answers §7. It replaces the
-remainder of `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` (S4b to S5). That program's S1 to S3 and S4a stand. Its
-way of working stops here: it relocated each test road into `planner/` byte for byte, and relocating twenty roads
-keeps twenty roads.
-
-Evidence: `docs/test-is-product-homework/A_CODE_INVENTORY.md` (the code inventory, read-only, 2026-10-31; every row
-below cites its D- or R-number, each with file and line there). The user's rulings this plan follows (2026-10-31): a
-test body is the product plan; the database judge has literally zero difference from the product plan except what is
-named here as test-only; the host judge differs only in that Java compares the rows after the SQL runs, and it is an
-exception to the Java rule ONLY, never to the plan-then-run split; the fused verdict statement is KEPT; the database
-judge is SELF-CONTAINED, 100% a SQL plan, its every verdict decided in the database, and the engine-text referee's
-replay on H2 is a separate instrument, not part of it (the user: "Yes exactly this all in database, agree that the
-replay is separate thing"); no output spelling changes without the user's word, case by case.
+Status: **v2, written after the independent audit (`docs/test-is-product-homework/B_PLAN_AUDIT.md`). The user ruled
+§1's decisions; §9 lists what is still open. No step of §7 starts until the user agrees v2.** It replaces the
+remainder of `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` (S4b to S5); that program's S1 to S3 and S4a stand, and
+its §7 rules stand unchanged (§8.2 restates them). Evidence: `docs/test-is-product-homework/` -- A, the code inventory
+(roads R1-R20, differences D1-D49, every claim with file and line); B, the audit (findings W, C, G, O, K); `probes/`,
+the parked measurement probe as text.
 
 ## 0. In plain words
 
 A test body is a Pure program: lets, statements, writes, effects and asserts. The product already plans a Pure
-program: `PlanMaker.program` turns a multi-statement body into one `ExecutionPlan` (a `Sequence`: lets spliced into
-their readers, a staged let a create-temp-table step, a store write an update step, an intermediate statement a check,
-the last statement typed), and `PlanRunner` runs it.
+program (`PlanMaker.program`: a `Sequence` of steps, lets spliced into their readers, a staged let a create-temp-table
+step, a write an update step), and `PlanRunner` runs it. The test road shares almost none of that: it never calls
+`TypedQuery.lowerer` or `PlanMaker.plan`/`program`, it plans over twenty roads of its own with 49 differences from the
+product (inventory §1-§2), and the product road cannot plan a test body today (a read-only body with a non-let
+statement before its last is refused, `UserCallInliner.java:204-207`; `program` is taken only for a body that writes;
+`PlanMaker` never emits an effect or a verdict step).
 
-The test road shares almost none of that. It never calls `TypedQuery.lower`/`lowerer` or `PlanMaker.plan`/`program`;
-it borrows five `PlanMaker` helpers and does every other step its own way, over twenty roads (R1 to R20), with 49
-differences from the product's planning (D1 to D49). And the product road cannot plan a test body today: a read-only
-body with any statement before its last that is not a let is refused by the inliner, `program` is chosen only for a
-body that writes, and `PlanMaker` never emits an effect step or a verdict step.
+After this plan: **the product planner plans a test body into one `ExecutionPlan`, `PlanRunner.program` runs it, and
+the judges and the test listener are the sink.** Every statement, let, write, effect and assert side is planned by the
+product's code; what is test-only is the short named list of §2.C. The database judge is 100% a SQL plan; the host
+judge is the product's sides, then Java compares the rows. Realistic size: **10 to 13 weeks of sessions**, in eleven
+steps with checkpoints (§7).
 
-After this plan: **the product planner plans the whole test body into one `ExecutionPlan`, `PlanRunner.program` runs
-it, and the judges are the sink.** Every value statement, let, write, effect and assert side is planned exactly as
-the product plans the same expression; a parity guard checks it byte for byte. What is test-only is a short list of
-named constructs (§1.C), each a plan node, a lowering of an assert, or a sink, never a second way of planning the
-same expression.
+## 1. The user's rulings (2026-10-31, verbatim where quoted)
 
-## 1. The ledger
-
-### 1.A Differences that go: the test road converges on the product's planning
-
-The product's way is right, or neither way has a stated reason; the test road takes the product's. Each changes
-statement TEXT somewhere and is posted, class by class, before it lands (§5).
-
-| D | What differs today | After |
-|---|---|---|
-| D1, D20 (host), D2 (values) | host identity asks, frame CTEs and value statements use the identity layout (`__canon`) or a body-wide id minter | the product's object layout and a fresh minter per statement; the host compares identity over `__id` in Java |
-| D3 | the value lane strips synthetic struct fields in SQL (`withDeclaredEgress`) | the writer strips them, as the product does |
-| D5 | the exists-join form always on (no stated reason) | the product's rule: on unless a temporal class is read |
-| D7, D28 (values) | a graph value is one aggregated JSON-array cell, split in Java | the product's streaming root, one object per row |
-| D8 | three render entries (`render`, `Sql.of`, `renderStatement`) | `renderStatement` alone |
-| D18 | no cross-store check on an effect let | checked on every resolve |
-| D21 | "wire reconciliation" comments with no code | deleted |
-| D27 | a value side planned as a RELATION, then trimmed in Java | the product's VALUE shape (its MINIMAL precision); the trim deleted if equivalent (measured first) |
-| D36 | the judges' target built separately (no `oneDefinition`, `forServer` always) | `PlanMaker.target` |
-| D40 | intermediate value statements decoded into Java | a `Check` step |
-| D41 | a write's count returned as a Java value | the product's count statement |
-| D46 | an effect or write run while a database side is being planned | a step of the plan, run in order |
-| dead | `BodyDriver.evalValue` (no caller) | deleted |
-
-### 1.B Product features the test road has and the product lacks: they move INTO the product planner
-
-Each is a fact of the Pure language, not of testing; a product program using the construct gets it too. Moving one
-changes nothing for a product query that does not use it.
-
-| D | The feature |
+| # | Ruling |
 |---|---|
-| (gate) | a multi-statement read-only body (today refused by the inliner unless it writes): `PlanMaker.program` plans any body |
-| D4 | a from()/execute context's connection time zone |
-| D6 | the context's feature flags and the tree's |
-| D9 | the inliner's consumed lets prefixed to the lowering (a surviving `$let` read resolves) |
-| D10 | the connection's post-processors (table renames, extractCtes, nonExecutable) |
-| D13 | the resolver's let bindings, plan rows and handle registrar (`executionPlan(...)`, `$plan`) |
-| D14 | `planToString`/`toSQLString` as plan-time strings (native staging) |
-| D15 | the Result-envelope splice: `execute(...)` inside a program, its readers spliced |
-| D16 | the driver-PK and import-data-flow appends; the declared collection root |
-| D17 | DDL text generators and orchestration handles answered with no statement |
-| D29 | raw-grid and late-bound-grid reads |
-| D30 | the to-one reader's exactly-one check (if the product lacks it: verified first) |
-| D35 | a from()'s inline test data and its named runtime as setup |
-| D37 | metamodel reads inside a program (`Metamodel` in `program`, today `Metamodel.NONE`) |
-| R11 | effects (`executeInDb`, the DDL natives) as `Effect` steps |
-| D26 | a literal root answered as a constant (no round trip): proposed as a product feature, §7 Q6 |
+| R1 | A test body is the product plan (the user agreed to "merge into product path"). |
+| R2 | The database judge: "exactly the same as product plan ... literally zero difference", except what is named test-only here. |
+| R3 | "The host judge could be exception to java rule only not exception to plan+exec split." |
+| R4 | The fused verdict statement is kept ("we definitely still want the assert fuze"). |
+| R5 | The database judge is self-contained: "Yes exactly this all in database, agree that the replay is separate thing." |
+| R6 | T13: the H2 referee replay stays the verdict source of the engine-text asserts where our text differs from the golden (agreed recommendation). |
+| R7 | "Agree with all recommendations": decisions 1 (the eager run at a let kept, a plan step), 2 (a verdict group closes before a database-changing step; refined in §9 N6), 5 (one `check` value), 6 (a literal root a constant, a product feature), 8 (the corpus row-order emulation a run option), 9 (the two "AssertVerdicts.side" texts corrected), 11 (step by step, outcomes frozen but for the approved movement register, §4), 12 (statement changes approved by class), 13 (the parity guard byte-identical, §5), 14 (consecutive effects one script, a product feature). |
+| R8 | Decision 4: "will keep as exception": the order key the planner adds to a grid under assertion that the test did not sort stays, a named test-only difference (it decides which rows a capped unsorted read returns, audit W7). |
+| R9 | Decision 7: "fine to keep ours but yes needs to be same code path": the graph's separate system database stays (the user's rulings of 2026-09-02 and 2026-10-11, `SystemDatabase.java:20-56`), and a product query and a test reach it by one code path (§6 B7). |
+| R10 | Decision 10: the canon computed over the product plan's columns, fully ("why would we not fix the cannon fully"); object ids: one counter per PROGRAM, for the product and tests alike (§6 B9) -- **proposed after the user's question on its meaning, awaiting the user's yes (§9).** |
+| R11 | "No need to push to CI until we have a good checkpoint": commits stay local between agreed checkpoints (with a backup, §9 N5). |
+| R12 | Unchanged from the predecessor program (§8.2): never push to main, never open or merge a PR without the user's word; no output spelling change without the user's word, case by case; an answer to a question is not a go to build something else; a guard pin or allowlist moves only with a dated justification; never read, print or copy credentials; records land with the code. |
 
-### 1.C Test-only, kept, named (the whole list)
+## 2. The ledger
 
-| # | Construct | What it is | D/R |
+### 2.A Differences that go: the test road takes the product's way
+
+| D | Today | After | Moves (§4) |
 |---|---|---|---|
-| T1 | the verdict step | `ExecutionPlan.Verdict`: one assert as data; its base sides are product plans (or constants the test wrote) | R7, R8 |
-| T2 | the fused verdict group | `ExecutionPlan.Verdicts.fused`: a run of asserts as one statement, one row per assert by index; its frames as shared CTEs; the keyed sub-group for raw-grid reads; the split rung (at planning: member by member; at run: each member's own wrapper) and appeals | R9, D31, D45 |
-| T3 | the database judge's lowering of an assert, SELF-CONTAINED | the wrapper around the sides: the canon columns (D22), the identity lane and a minter shared by the sides of one verdict (D1, D2, D20), JSON key order (D23), scan order inside the canon wrap (D24), the one-document graph form for JSON asserts (D7), a helper call that inlines to an assert root (D19) -- the assert's semantics in SQL, applied OVER the sides' product plans. It answers the WHOLE verdict: whether the assert holds (its polarity, `assertNotEquals`'s and `assertFalse`'s NOT, inside the SQL) and the finished failure message; Java decides nothing (1.E) | D1-D2, D7, D19-D24 |
-| T4 | the host judge | Java compares the sides' typed rows by the step's check (equals, same elements, size, tolerance, grid, JSON, contains, ...); the assert-boundary order (D24 host) as §7 Q4 rules | R7, D24 |
-| T5 | the sink | the test listener (verdicts, unjudged reasons, the last answer); the BOTH mode's agreement (D44); the trace stamp reserved for a fused statement (D49) | D44, D49 |
-| T6 | the corpus lanes' engine row order | `StableScanOrder` for the corpus goldens (980 tests changed on the host pass, 666 on the database pass); today a JVM global read by the DuckDB dialect, after a run option the lane passes (§7 Q8) | D25 |
-| T7 | effects as one script per run of consecutive effects | the session's script bracket | D34 |
-| T8 | the test-data generator's two-plan body | the generator's plan runs first, its rows become the next plan's declared inputs | D38 |
-| T9 | a computed effect string | a step whose one cell is the next step's statement text (the keyed pattern) | D39 |
-| T10 | `assertError` | a step whose sub-plan is run expecting a failure, the failure handed to the matcher | R17 |
-| T11 | the engine-text asserts and activity SQL | the engine-spelled text planned as a constant; the text comparison a constant verdict of the plan; where the texts differ, the rows leg one statement comparing both queries' rows on the lane's database | R10, D47 |
-| T13 | the engine-text REFEREE replay | the golden SQL replayed on an H2 referee database (a second database: it judges legend-engine's own SQL text, not our results): a separate test instrument, outside both judges and outside the body's plan (the user, 2026-10-31) | R10 |
-| T12 | staged raw grids | a raw grid read after an effect held in a temporary table | R6, D12 |
+| D1, D20 (host), D2 | host identity asks, frame CTEs and value statements on the identity layout (`__canon`) and per-node ids | the product's object layout; ids by one counter per program (B9) | MV5 |
+| D3 | the value lane strips synthetic fields in SQL (`withDeclaredEgress`) | the writer strips them, as the product does | text |
+| D5 | the exists-join form always on (no stated reason) | the product's rule: on unless a temporal class is read | MV6 (semantics of milestoned reads, measured) |
+| D7, D28 (values) | a graph value is one JSON-array cell, split in Java | the product's streaming root, one object per row | MV6 |
+| D8 | three render entries | `renderStatement` | MV6 (H2 type holes) |
+| D18 | no cross-store check on an effect let | checked on every resolve | MV6 (a new refusal) |
+| D21, dead code | stale "wire reconciliation" comments; `BodyDriver.evalValue` (no caller) | deleted | none |
+| D27 | a value side planned as a RELATION, its timestamps trimmed in Java | the product's VALUE shape, once M0 shows them equivalent | MV6 |
+| D36 | the judges' own target (no `oneDefinition`, `forServer` always) | `PlanMaker.target` | MV6 |
+| D40, D41 | intermediate values decoded into Java; a write's count returned in Java | a `Check` step; the product's count statement | text, count |
+| D46 | an effect or write run while a database side is being planned | a step of the plan, in order | order |
 
-### 1.D Order: the database judge's deferral (a hazard found by the inventory)
+### 2.B Product features: they move INTO the product planner (B6: what the product's query door refuses)
 
-Today a database-mode segment runs its value statements, its staged lets AND its store writes first, then its fused
-verdict statement (D33): a write does not close a segment, so an assert written before a write in one segment is
-judged on the state after the write. The engine judges it before. The plan: a verdict group closes before any step
-that changes the database (a write, a staged let, an effect), so every assert sees the state its position in the
-program sees. Measured first (how many corpus and channel B bodies have that shape; §6 P0), posted, §7 Q2.
-
-### 1.E The database judge, self-contained (RULED 2026-10-31)
-
-Today the database judge is not wholly the database's. In Java it applies the polarity (`held == wantEqual`,
-`DatabaseJudge.verdictOf`, DatabaseJudge.java:227-258), turns an unjudged reason into a failure and assembles the
-failure message from two cells; and three arms judge in Java even on the database pass, at the assert, outside the
-fused statement (D43): the grid-pair `assertEquals` (`TdsCompare.grids`, AssertVerdicts.java:319-345, though
-`VerdictSql.gridPair` exists), class-instance `assertEq` (`HostJudge.eq`, DatabaseJudge.java:643-652), and the
-engine-text asserts (sides evaluated at the assert, the appeal's rows leg in Java). The user's ruling: all of it in the
-database.
-
-| Today, in Java | After |
+| D/R | Feature |
 |---|---|
-| the polarity | the verdict statement answers whether the assert HOLDS (a `NOT` for the negated asserts) |
-| the failure message from two cells | the statement answers the finished message text; Java passes it on as any query result is passed on |
-| the grid pair (`TdsCompare.grids`) | `VerdictSql.gridPair`; its verdicts measured against today's and every moved one posted |
-| class-instance `assertEq` (`HostJudge.eq`) | identity over the `__id` the identity lane writes; a short design first |
-| a verdict decided statically at planning (the cross-kind gate, a static column mismatch) | a verdict step with a constant answer: a fact of the plan, nothing run |
-| an unjudged shape (refused at planning) | a named plan entry, "no database form" with its reason; the database pass fails it, as today |
-| the engine-text asserts | T11: the texts' comparison a constant, the rows leg one statement; T13 the referee replay, separate |
+| gate | any body, read-only or writing, planned by the program road |
+| D4, D6, D9, D10, D13, D14, D16 | a from()/execute context's time zone, feature flags, post-processors and driver-PK/import-data-flow appends; the inliner's consumed lets; the resolver's let bindings and plan rows; `planToString`/`toSQLString` as plan-time strings |
+| D15 | `execute(...)` inside a program: its chain spliced into its readers (design B10) |
+| D17, R18 | DDL text generators and orchestration handles answered with no statement; `print`'s argument never evaluated |
+| D26 | a literal root a constant (R7 decision 6; the runner accepts a constant-only program, B2) |
+| D29, D30 | raw-grid reads; the to-one reader's check (if the product lacks it: measured at M0) |
+| D35 | a from()'s inline test data and named runtime as `Setup` steps, established once per session (B2) |
+| R11, D34 | effects as `Effect` steps; consecutive effects one script (R7 decision 14); the transaction rule (B2) |
+| R13 | the effectful map (a map over `executeInDb`): a text-feeding step (B2) |
+| D37 | the system tables: one code path to the graph's system database (R9, B7) |
+| ids | one object-id counter per program (R10, B9) |
+| D31 | a let read more than once materialized once (a CTE) where both judge modes and the product read it alike (B10; MV9) |
 
-The host judge stays the independent referee (its 5,847-of-5,847 agreement is what says the canon SQL is right), but
-nothing depends on it: deleting it would be a small change, never a project.
+### 2.C Test-only, kept, named (the whole list)
 
-### 1.F What the database judge cannot do yet (measured 2026-10-31)
-
-Today's counts of asserts the database judge leaves unjudged (each such assert fails on the database pass, with its
-reason):
-
-| Run | Asserts | Unjudged by the database | Which |
-|---|---|---|---|
-| corpus, DuckDB | 5,847 | 0 | -- |
-| corpus, H2 | about 5,600 | 5 | all `assertJsonStringsEqual` (the canonical JSON text not byte-equal on H2) |
-| channel B, DuckDB, five suites | 2,683 | 1 | one `assertTdsEquivalent` (a side shape) |
-
-Caveat: today's "judged by the database" includes the three Java arms of 1.E (grid pairs, class-instance `assertEq`,
-the engine-text asserts); P0 counts them separately.
-
-The shapes the database judge's code declines, and what each becomes:
-
-| Shape | Why it declines today | After |
+| # | Construct | Where today |
 |---|---|---|
-| class instances whose static kinds differ; object-graph sides | identity and graphs are not spelled in the canon | SQL forms (instances by `__id`; graphs canonized): work |
-| JSON equal as trees but not as canonical text | the canon compares sorted compact text; H2's JSON functions cannot always produce it | SQL on databases with JSON functions; a named `none` on H2 where they fall short |
-| a rendered grid text not byte-equal to its golden | the host's rule is lines in any order with a cell tolerance; the SQL compares bytes | the line multiset in SQL: work |
-| a `Number`/`Any` side of ambiguous kind | the canon must know the kind to spell the value | the kind decided while planning, or decoded by the kind the database reports |
-| a side that is a host value (an effect's result, a handle) | no query to wrap | a step of the plan (e.g. a write's count) |
-| `assertIs` of values that are neither enums nor tracked objects; `assertInstanceOf` without a catalog native | no SQL spelling of "the same object" for an arbitrary value | a design question, asked when met |
-| **the two sides read different databases** (the metamodel system database against a user database) | one statement runs on one database | **impossible as one statement**: a named `none` |
-| a statement the dialect cannot express, or an error at run time | the database's own limit | reported with the database's words, as today |
+| T1 | the verdict step: one assert as data, its base sides the product plans of its expressions, every judge-time fact the host judge needs (B3) | R7, R8 |
+| T2 | the fused verdict group: consecutive verdicts as one statement (index per row), lets read by several members as shared CTEs, a keyed sub-group for raw-grid reads, the split rung on rejection | R9, D31, D45 |
+| T3 | the database judge's lowering of each assert: one statement answering `holds`, the finished `message`, `unjudged`, a census `lenient` flag; the canon over the product plan's columns (R10); JSON key order and the scan order inside the canon wrap; a constant verdict where planning decides; `none(reason)` where the database has no form (§3.1) | D1-D2, D7, D19-D24, D22-D23 |
+| T4 | the host judge: Java compares the sides' rows by `check` (§3.2); and the order key on a grid under assertion that the test did not sort (R8) | R7, D24 |
+| T5 | the sink: the test listener (verdicts, unjudged reasons, the last answer), the BOTH mode's agreement, the trace stamp reserved for a fused statement | D44, D49 |
+| T6 | the corpus lanes' engine row-order emulation (`StableScanOrder`), a run option the lanes pass, not a JVM global (R7 decision 8) | D25 |
+| T8 | the test-data generator: a two-plan body (the generator's plan runs, its rows fold into the next plan) | D38 |
+| T9 | a computed effect string: a step whose one cell is the next step's statement text | D39 |
+| T10 | `assertError`: a sub-plan run expecting a failure (a planning failure included, O8); Java's matcher compares the error's message and position (§9 N3) | R17 |
+| T11 | the engine-text asserts: the two SQL texts compared as a constant of the plan; where they differ, the rows leg one statement on the lane's database where the golden runs there | R10 |
+| T12 | staged raw grids (a raw grid read after an effect, held in a temporary table) | R6, D12 |
+| T13 | the H2 referee replay: the verdict source of an engine-text assert whose texts differ (about 1,258 replays per DuckDB corpus pass), outside the body's plan (R6) | R10 |
 
-## 2. The target
+### 2.D Order and 2.E the database judge self-contained
 
-```
-Execution.runProgram(body, runtime, options, listener)
-  -> the body's TypedQuery                      (the product's: Compiler.query)
-  -> PlanMaker.program(query, runtime, options) (the product's; 1.B added; asserts planned by the planner's
-                                                 assert module into T1/T2/T3)
-       = ExecutionPlan(Sequence[ statements, staged lets, writes, Effect steps, Verdicts{fused, Verdict{base, wrapper}},
-                                 ..., the last statement's answer ])
-  -> PlanRunner.program(plan, sessions, judging, sink)   (the runtime's, unchanged)
-  -> sink = the judges and the listener                  (the driver: T4, T5)
-```
+**2.D Order.** Today a database-mode segment runs its value statements, staged lets, store writes AND re-seeds first,
+then its fused statement (D33, audit O1): an assert before a write or a re-seed is judged on the later state. After: a
+verdict group closes before every non-verdict step (§9 N6), so an assert sees the state its position sees, in both
+modes and as the engine does. MV1.
 
-The driver is `runProgram`, the sink and the two judges. `BodyCompiler`, `Segments`, `BodyDriver`'s planning,
-`JudgePlans`' planning half, the routing of `AssertVerdicts`, the planning of `DatabaseJudge` and of
-`SqlTextVerdicts`, and `VerdictBatch`'s composition at the flush move to the planner or go. By the inventory's
-estimate (its §6) that is about 3,100 lines of planning in `driver/` today, beside about 2,000 of running and 4,150 of
-judging; the judging stays.
+**2.E The database judge, self-contained (R5).** Today, after the row returns, Java applies the polarity, turns an
+unjudged reason into a failure and builds the message (`DatabaseJudge.verdictOf`, `DatabaseJudge.java:227-258`), and
+three arms judge in Java even on the database pass (D43: the grid pair by `TdsCompare.grids`, class-instance `assertEq`
+by `HostJudge.eq`, the engine-text asserts' sides). After: polarity and message in the statement; the grid pair by
+`VerdictSql.gridPair`; instances by `__id`; constant and `none` verdicts as plan entries; the engine-text asserts by
+T11 and T13. MV3.
 
-## 3. The verdict step, as the planner will make it
+### 2.F What the database judge cannot do yet (measured 2026-10-31)
 
-The record exists (S1b). The planner fills it for every assert, before anything runs:
+| Run | Asserts | Unjudged by the database |
+|---|---|---|
+| corpus, DuckDB | 5,847 | 0 |
+| corpus, H2 | about 5,600 | 5, all `assertJsonStringsEqual` |
+| channel B, DuckDB | 2,683 | 1, an `assertTdsEquivalent` |
 
-```
-Verdict(label,                          -- which assert, at which statement (the listener reports it)
-        check,                          -- the host judge's comparison (§3.2), the polarity folded in: EQUALS,
-                                        --   NOT_EQUALS, SAME_ELEMENTS, SIZE, EMPTY, NOT_EMPTY, CONTAINS, EQ,
-                                        --   TOLERANCE, TDS_EQUIVALENT, JSON, CONDITION, NOT_CONDITION, IS,
-                                        --   INSTANCE_OF, GRID_PAIR, RENDERED_TEXT, ROWS_ALL (a quantified assert)
-        base:    [side plan | constant] -- each side the product plan of its expression, byte for byte (T1)
-        database: statement | constant | none(reason))
-                                        -- the database judge's form of the assert (§3.1)
-Verdicts(fused, [Verdict...])           -- consecutive verdicts as one statement (T2), closed before any step that
-                                        --   changes the database (1.D)
-```
+(Today's "judged by the database" includes 2.E's Java arms; M0 counts them apart.) The declining shapes and their
+fate: class instances of different static kinds and object-graph sides (a canon form: work); JSON equal as trees but
+not as canonical text (SQL where the database has JSON functions; `none` on H2 where they fall short); a rendered grid
+text not byte-equal (the line multiset in SQL: work); a `Number`/`Any` side of ambiguous kind (decided at planning or
+by the wire's kind); a host-value side (a step of the plan); `assertIs`/`assertInstanceOf` of untracked values (a
+design question when met); **two sides on two databases** (the system database and a user's, R9 keeps them apart:
+`none`, named); a dialect's own limit (reported in its words).
 
-A verdict sits in the program where the assert is written. Under the host judge it runs there; under the database
-judge its group's one statement runs where the group closes, which is before the next step that changes the database
-(1.D), so every assert sees the state its position in the program sees.
+## 3. The two judges
 
-### 3.1 The database judge: 100% a SQL plan (RULED 2026-10-31)
+### 3.1 The database judge (T3): 100% a SQL plan
 
-**What it is.** For each assert, the planner writes ONE statement that answers ONE row:
+One statement per assert, answering one row: `holds` (BOOLEAN, never NULL, the polarity inside), `message` (spelled
+exactly as today's messages, the bounded excerpt included; NULL when it holds), `unjudged` (NULL, or the reason with
+its evidence), `lenient` (a census flag only). The sides' product plans are its subqueries; the canon (over the product
+columns, R10), the comparison and the message are written around them. The sink reports the row as it is.
 
-| Column | Meaning |
+| Assert | Database form |
 |---|---|
-| `holds` | BOOLEAN, never NULL: whether the assert holds, its polarity inside (the `NOT` of `assertNotEquals`, `assertFalse`, `assertNotEmpty`) |
-| `message` | the failure message, spelled exactly as today's (`<assert>\nexpected: <text>\nactual:   <text>`, `assertNotEquals: both sides are equal`, ...), NULL when it holds |
-| `unjudged` | NULL, or the reason the statement could not decide (a NULL canon cell, a tree cell it cannot spell, ...), with the bounded evidence today's messages carry |
-| `lenient` | a census flag only (the 2-ULP float leniency decided it); decides nothing |
-
-The statement is the assert's LOWERING over its sides: the sides' product plans are its subqueries, and the canon
-columns, the comparison and the message are written around them in SQL (T3). Nothing about a verdict is decided after
-the row comes back: the sink reports the row as it is.
-
-**The fused group.** Consecutive verdicts become one statement: each member's statement a `UNION ALL` branch
-carrying its index; a let read by several members is one shared CTE (today's frame CTEs); identical CTE bodies hoisted
-once. Members that read a raw grid's columns run as a keyed sub-group (their column names are read first). If the
-database rejects the fused statement, each member's own statement runs instead (the split rung; a member the
-database cannot even plan is counted with the database's words). All of it is composed by the PLANNER when the body is
-planned; today `VerdictBatch` composes it when the group is sent, after the segment's other statements have run.
-
-**Per assert, its database form:**
-
-| Assert | The database's form |
-|---|---|
-| `assertEquals`, `assertNotEquals` | the two sides' canonical texts compared in order (a collection as its ordered canon list; a scalar as one canon); `NOT` for not-equals |
-| `assertEquals` of two relations (the grid pair) | `VerdictSql.gridPair`: row canons in column order, rows under the sides' order (today judged in Java by `TdsCompare.grids`, even on the database pass) |
-| a relation against a list of cells | `gridRows` (the cells chunked by the grid's width) or `gridCells` (the loose cell pool) |
-| `assertSameElements` | the canon multisets equal |
-| `assertSize` | the side's count (a relation's rows; a graph's array length) against the number |
-| `assertEmpty`, `assertNotEmpty` | the count is zero, or not |
-| `assertContains` | the value's canon among the collection's |
-| `assertEq` | equal canons; for class instances, equal `__id` (today `HostJudge.eq` in Java; a short design first) |
+| `assertEquals`, `assertNotEquals` | the canonical texts in order (a collection its ordered canon list); `NOT` for not-equals |
+| two relations (the grid pair) | `VerdictSql.gridPair` |
+| a relation against cells | `gridRows` / `gridCells` |
+| `assertSameElements` | the canon multisets |
+| `assertSize`, `assertEmpty`, `assertNotEmpty` | counts |
+| `assertContains` | membership of the canon |
+| `assertEq` | canons; instances by `__id` |
 | `assertEqWithinTolerance` | `abs(e - a) <= delta` |
-| `assertTdsEquivalent` | `gridTolerance`: the same columns, each row's numbers within delta and times within the time delta |
-| `assertJsonStringsEqual` | both documents as canonical JSON (keys sorted, compact) compared as text |
-| `assert`, `assertFalse` | the condition, on the identity lane; `NOT` for assertFalse |
-| a quantified assert (`xs->forAll(x \| assert...(x))`) | the predicate as a column over the rows; holds when no row fails |
-| `assertIs` | enum pairs and tracked objects by identity |
-| `assertInstanceOf` | the catalog's two-argument native |
-| a rendered grid text against its golden (`toCSV`, `toString`) | today bytes; to be: the line multiset with the cell tolerance in SQL (the host's rule) |
-| the engine-text asserts (`assertSameSQL`, ...) | the two SQL texts are both known when planning: a CONSTANT verdict; where they differ, the rows leg as one statement comparing both queries' rows on the lane's database (T11). The H2 referee replay is not the database judge (T13) |
+| `assertTdsEquivalent` | `gridTolerance` |
+| `assertJsonStringsEqual` | canonical JSON text (keys sorted, compact) |
+| `assert`, `assertFalse` | the condition; `NOT` |
+| a quantified assert | the predicate a column over the rows; holds when no row fails |
+| `assertIs`, `assertInstanceOf` | identity for enums and tracked objects; the catalog's native |
+| a rendered grid text | the line multiset with the cell tolerance |
+| the engine-text asserts | T11 (a constant, or the rows leg); T13 where the golden runs only on H2 |
 
-**A verdict decided while planning** (the cross-kind gate: two different primitive kinds are never equal; a static
-column mismatch) is a verdict step with a constant answer and its message: a fact of the plan, nothing sent.
+### 3.2 The host judge (T4): the product's sides, then Java
 
-**A shape with no database form** is a named entry, `none(reason)`, and the database pass fails it as unjudged, as
-today. The list, with today's counts, is §1.F.
+The runner runs each base side (the product plan of its expression; a literal a constant) at the verdict's place;
+Java compares the rows by `check`, with the facts the verdict record carries (B3), reading no model:
 
-### 3.2 The host judge: the product's sides, then Java
-
-**What it is.** The runner runs each base side (each the product plan of its expression, byte for byte; a literal a
-constant, nothing sent) at the verdict's place in the program, and hands the sides' typed rows to the host judge,
-which compares them in Java by the step's `check`. That is all that is Java: the comparison (the user's ruling: the
-host judge is an exception to the Java rule only, never to the plan-then-run split).
-
-| `check` | The Java comparison (today's owners, unchanged) |
+| `check` | Java comparison (today's owners) |
 |---|---|
-| EQUALS, NOT_EQUALS | the engine's equality over the two sides' values (`judge/Equality`'s lattice: kinds, numbers, dates, instances by identity), ordered unless a side's order is the database's arrival order (`OrderView.INCIDENTAL`: then as a multiset) |
-| GRID_PAIR | `TdsCompare.grids`: columns in order, rows under the order rule |
-| SAME_ELEMENTS | the multisets equal |
-| SIZE | a relation's row count (the one-carrier envelope rule), a graph's array length, a collection's size, against the number |
-| EMPTY, NOT_EMPTY | a relation's rows, else the values, empty or not |
-| CONTAINS | membership under the engine's equality |
-| EQ | equality, instances by identity over `__id` |
-| TOLERANCE | `PureAsserts.assertEqWithinTolerance` |
-| TDS_EQUIVALENT | `TdsCompare.tdsEquivalent` (delta, time delta) |
-| JSON | the parsed trees: object keys in any order, arrays in order |
-| CONDITION, NOT_CONDITION | the boolean; the forAll-contains subset fold |
-| IS, INSTANCE_OF | identity; the class test |
-| RENDERED_TEXT | `TdsCompare.renderedText`: the line multiset, the cell tolerance |
-| ROWS_ALL (quantified) | every row's element assert, judged as that assert's check |
+| EQUALS, NOT_EQUALS | the engine's equality (`judge/Equality`), ordered unless the side's order is arrival order |
+| GRID_PAIR | `TdsCompare.grids` |
+| SAME_ELEMENTS, SIZE, EMPTY, NOT_EMPTY, CONTAINS, EQ | multisets, counts, membership, identity over `__id` |
+| TOLERANCE, TDS_EQUIVALENT | `PureAsserts.assertEqWithinTolerance`, `TdsCompare.tdsEquivalent` |
+| JSON, RENDERED_TEXT | parsed trees; `TdsCompare.renderedText` |
+| CONDITION, IS, INSTANCE_OF, ROWS_ALL | the boolean (and the forAll-contains fold), identity, the class test, each row's element assert |
 
-**What leaves the host's sides** so that each is the product plan byte for byte: the identity layout and the
-body-wide id minter (D1, D2, D20: identity is compared over the product layout's `__id`); the declared egress (D3:
-the writer's job); the RELATION shape of a value side and its Java timestamp trim (D27: the product's VALUE shape,
-after P0 shows them equivalent); the one-cell graph array (D7: the product's one object per row, the array built in
-Java for the comparison); and the `ORDER BY` added to a grid under assertion (D24: order-insensitivity is the
-comparison's, §7 Q4).
+A host side differs from the product plan only by T4's order key on an unsorted grid under assertion (R8).
 
-## 4. What each judge mode runs
+## 4. The movement register (replaces "zero movement", audit O0)
 
-| Mode | The runner sends | The sink |
+Every test's outcome and message stay identical **except the classes below, each measured at M0 (count, one example
+before and after), ruled by the user, landed in its own commit, and listed in a committed register (test -> old ->
+new)**. A movement not in an approved class stops the step and is posted. SQL text and statement-order classes are
+posted the same way (R7 decision 12).
+
+| MV | Class | Moves | Step |
+|---|---|---|---|
+| MV1 | 2.D: a verdict group closes before every non-verdict step | DATABASE-pass verdicts of asserts before a write or a re-seed; fused-statement counts | M10 |
+| MV2 | decision 9: the two "AssertVerdicts.side" texts | failure messages, census keys | M8 |
+| MV3 | 2.E: the database judge self-contained, arm by arm | grid-pair verdicts and messages; instance `assertEq` (a loud refusal becomes a verdict or `unjudged`); messages built in SQL per dialect | M8 |
+| MV4 | R10: the canon over the product columns | verdicts and messages carrying a canon; untracked evaluations | M8 |
+| MV5 | R10/B9: one id counter per program | id literals in multi-statement product write programs (SQL text); tests: none expected, checked | M1 |
+| MV6 | 2.A's convergences | D5 milestoned reads, D7 streamed graph answers, D8 H2 type holes, D18 a new refusal, D27 value-shape facts, D36 target refusals | M5 |
+| MV7 | decision 1 in one plan for both modes | the eager run at a let on the DATABASE pass too (+about 1,950 statements per corpus pass), §9 N4 | M5 |
+| MV8 | O8: planning before running | a later statement's planning failure (made a `Refused` step at its position, B2) must not pre-empt an earlier assert; `assertError`'s planning-time catch kept (T10) | M10 |
+| MV9 | D31/O9: a let read twice one form in both modes | host-mode text; outcome risk measured (the H2 pass's history of frames not found) | M3 |
+| MV10 | B2: the transaction rule | effect bodies' transaction scope; the savepoint before a fused statement in a transaction (F11) | M3 |
+| MV11 | R9/B7: one code path to the system database | product metamodel queries move to the system database; statement order on the system session | M4 |
+| MV12 | R7 decision 6: constants in the product plan | the plan JSON format (a constant answer); product outputs unchanged | M2 |
+
+## 5. Guards and oracles
+
+- **Oracles.** The corpus censuses and rosters (`corpus_duckdb`, `corpus_h2`, host and database passes, uncached),
+  channel B, the five core lanes, the gate, the Postgres targets unprivileged, the heavy lanes by hand where a step
+  touches effects or the wire, and at each checkpoint the five lane sessions on every server and cloud backend (§8).
+  Frozen except the approved register (§4).
+- **The parity guard (R7 decision 13; audit K1).** Definition: for statement *i* of a body, the test road's steps are
+  byte-identical to the program road's steps for statement *i* over the same statements before it, under the same run
+  options; for a host side, the product plan of the side expression as statement *i*'s value, within the program;
+  allowlist: T4's order key, T3's wrappers (a database side's subqueries are themselves under the guard after M8).
+  During M2-M7 a census lane flag counts the differences by class, shrinking; after M10 the test road IS the program
+  road, and the permanent form is structural: an ArchUnit rule that only the planner's statement entry builds a body's
+  statement plans, plus a unit test per kind.
+- **`theDriverCompilesNothing` (end of M10).** No class of `com.legend.driver` depends on `compiler.spec..`,
+  `resolver..`, `lowering..`, `sql.dialect..`. Reachable only with B3's verdict record (today 15 of 19 driver files
+  name them, audit K2). The Bazel layer file can drop `lowering`, `resolver`, `sql_dialect`, `normalizer`, `parser`
+  from the driver's line; `compiler` stays (it also holds `compiler.element`, which `runProgram` needs).
+- **Guards that move**, each with a dated justification in its own step:
+
+| Guard | Why it moves | Step |
 |---|---|---|
-| HOST | each verdict's base sides, at its place | the host judge compares the rows by `check` (§3.2) |
-| DATABASE | each group's one statement where the group closes (on rejection, each member's own statement); a constant verdict sends nothing | reports each row as it is: holds; fails with the message the statement wrote; or unjudged with its reason. Decides nothing (§3.1) |
-| BOTH | both | both judges, then their agreement (today 5,847 of 5,847 DuckDB corpus asserts agree) |
+| `ArchitectureTest.plannerIsExecutionFree` | the assert module may not touch `com.legend.judge`: `KindClass`, the census and `CanonicalDivergence` calls move out of planning | M6 |
+| `hostVerdictIsReachableOnlyFromTheVerdictSeam` (its exemption list) | the judges' entries change | M6-M8 |
+| `theDriverHasOneCaller`, `theBodyDriverAndTheJudgesHoldNoJdbc` | the driver shrinks to the sink | M10 |
+| `onlyTheSeamMakesSessions`, `execReachesNoPlanning`, `theRunnerIsModelFree` | the runner's new step kinds; the system database opened by the runner | M3, M4 |
+| `JavaEvalLedgerTest` pins and registers | every moved and new file | each step |
+| `HarnessDisciplineTest` (driver and planner sections) | sites move | each step |
+| the spec registers (engine-order, outside-body), `native-claims.tsv`, `parser-equivalence/ratchets.tsv` | statements and claims move | M5-M10 |
+| `PlanJson.VERSION` (22) and the TypeScript runner's pin (`engine-client/src/plan-runner.ts`) | new step kinds and record fields | M2, M3, M6 |
+| `tools/deps/core-layers.txt` | the driver's line cut | M10 |
 
-## 5. Oracles and guards
+## 6. Design briefs (each written in full and agreed before its step's code)
 
-- **Results: zero movement.** Every corpus roster on both judges, channel B, the five core lanes, the heavy lanes by
-  hand, and the lane sessions on every server and cloud backend: every test's outcome and message identical. A moved
-  outcome stops the step and is posted.
-- **Statements: every change posted, one class at a time, before it lands.** Converging 1.A changes SQL text; 1.D
-  changes order. Each class is shown with one example before and after and its count; it lands on the user's word.
-  The statement-origin census and the lane sessions' statement-by-statement comparison measure it.
-- **The parity guard (new, permanent):** every value statement and every host side the corpus and channel B plan is
-  byte-identical to `PlanMaker`'s plan of the same expression with the same lets. It starts as a census (the count of
-  each difference class, shrinking step by step) and ends as a test that fails on any difference.
-- **`theDriverCompilesNothing`:** no class of `com.legend.driver` depends on `compiler.spec..`, `resolver..`,
-  `lowering..` or `sql.dialect..`; the layer file's driver line cut to match.
-- **One road:** the twenty roads' planning deleted from the driver; the ledger's pins shrink to zero for them.
+- **B1, the statement entry (M5).** `PlanMaker` gains a public per-statement entry (the program so far, one
+  statement -> its steps), so the old walk can ask the product planner statement by statement while asserts still take
+  the old road; after M10 it is the program road's own loop.
+- **B2, the runner's step kinds (M3, M9).** `Refused(reason)` (a planning failure raised at its position, O8);
+  `ExpectFailure(sub-plan)` (`assertError`; the failure, planning ones included, handed to the matcher); `TextFeed`
+  (a step whose rows become the next step's statement text: T9, R13); `Setup` per from() (D35; established once per
+  session with the seeds' memo); constant-only programs accepted (`PlanRunner.java:231-233` refuses them today); the
+  transaction rule: a program that changes the database runs in one transaction, effect scripts inside it with the
+  dialect's bracket, and a fused verdict statement inside a transaction is preceded by a savepoint where the dialect
+  aborts a transaction on error (F11), so the split rung can run.
+- **B3, the verdict record (M6).** Label, `check`, base sides, the database form, and every fact a judge reads at
+  judge time today (the sides' static types, the order view, the keyed-class restriction, the TDSNull direction, a
+  quantified assert's literal message, tolerance arguments), so no judge reads the model.
+- **B4, where test-only planning lives (M6).** The assert module, the fused composition and the database forms in a
+  library the product server and the WebAssembly and native planners do not depend on (`//core:plan_side` ships into
+  `wasm/BUILD.bazel:29-45`), held by an ArchUnit rule.
+- **B5, census and origins (M6).** Each plan step carries its statement origin; the runner counts by step kind; the
+  planner never touches `com.legend.judge` or `exec`.
+- **B6, the product's query door (M2-M3, §9 N1).** Effects, inline seeds, the eager run and verdict steps are allowed
+  through `Execution.runProgram` (the test door) and refused by name through `Execution.run` (the product door and the
+  HTTP query service).
+- **B7, the system database, one code path (M4, R9).** The planner names the system tables by one rule; a step's
+  `Target` names "the graph's system database"; the runner opens and seeds it once per graph, for a product query and
+  a test alike; `Metamodel.read`'s per-plan carriage and the driver's `SystemRoutes`/`openRoute` go; a body mixing the
+  system store with a user store stays refused by name.
+- **B8, the canon over the product columns (M8, R10).** `__canon` computed in the wrapper from the product layout's
+  declared properties, `__id` and `__type` (`ClassLayouts.objectLayoutOf` is the identity layout minus `__canon`);
+  arm by arm, each a commit and an MV4 count.
+- **B9, one id counter per program (M1, R10).** One `ObjectSites` per program instead of one per lowering
+  (`TypedQuery.lowerer`, `ObjectSites.java:14-24`). An object's identity is its evaluation (its construction site and
+  the positions of the maps it is built in, `compiler/spec/typed/Evaluation.java`; Pure: a new object per evaluation, a
+  let names one); the counter only names sites, and one program is the scope in which objects meet. M1 checks every
+  test's ids against today's.
+- **B10, `execute(...)` frames in the program (M3).** The chain spliced into its readers by the compiler's rules
+  (`ResultEnvelopeSplice`); the frame planned once and read as a CTE where it is read more than once (MV9); the eager
+  run at the let a `Check` step (decision 1); the activity's SQL and its reserved trace stamp as plan data.
 
-## 6. The steps
-
-Each step: its brief to the user first where §7 leaves a choice; the full local chain (the corpora uncached with
-their censuses, channel B, the gate, the Postgres targets unprivileged); the records; one commit. **Commits stay
-local; nothing is pushed to CI until a checkpoint the user agrees** (the user, 2026-10-31: "no need to push to CI
-until we have a good checkpoint"). At a checkpoint: the branch pushed, CI on every OS, and the lane sessions asked for
-every server and cloud backend.
+## 7. The steps (◆ = a checkpoint: the branch pushed, CI on every OS, the lane sessions, the movement register to the user)
 
 | Step | What | Size |
 |---|---|---|
-| **P0** | Measure, no product change: (a) the parity census -- every value statement and host side planned both ways, each difference attributed to its cause (the probe is written and parked); (b) the order hazard of 1.D, counted; (c) D27's VALUE-shape equivalence; (d) D30, whether the product enforces `toOne` at its reader | 1 day |
-| **P1** | The product planner gains 1.B, feature by feature, each with its own product tests; `PlanMaker.program` plans any body | 4-5 days |
-| **P2** | The test body's non-assert statements (values, lets, staged lets, writes, effects) planned by `PlanMaker.program`; the parity guard on value statements reaches zero; 1.A's value-statement rows land | 3 days |
-| **P3** | Host-judge verdicts: the planner's assert module classifies every assert (from `AssertVerdicts`), the host sides are product plans, `Verdict` steps planned before the body runs; the host arms take rows only; the parity guard on host sides reaches zero | 4 days |
-| **P4** | Database-judge verdicts: the wrapper composed by the planner over the product side plans (T3), the fused group composed at planning (from `VerdictBatch`'s flush); 1.D's closing rule; the database judge self-contained (1.E: polarity and message in SQL, the three Java arms given SQL forms, constant and no-form verdicts as plan entries); T13 the referee replay moved out of the judge | 5 days |
-| **P5** | One plan per body: `runProgram` = `PlanMaker.program` + `PlanRunner.program` + the sink; `BodyCompiler`, `Segments` and the driver's planning deleted; `theDriverCompilesNothing`; the parity guard permanent | 2 days |
-| **P6** | The kinds that feed planning: T8 the generator's two-plan body, T9 a computed effect string, an `execute(...)` met while inlining another statement (D15), T10 `assertError`, T11 the engine-text asserts | 3 days |
-| **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 1 day |
+| **M0** ◆ | Measure, no product change: the probe applied from `docs/test-is-product-homework/probes/`; every MV class counted with an example; the referee's MATCH/DIVERGED/DECLINED counts; capped host sides; seeds and errors inside groups; planning failures after a body's first failing statement; constant-only bodies; effectful maps and computed strings; frame CTE reads; D27, D30; the census baseline | 3-5 days |
+| **M1** ◆ | One id counter per program (B9); every test's ids checked | 2-3 days |
+| **M2** | Product features, the safe set: D4, D6, D9, D10, D13, D14, D16, D17/R18, D26 + constant-only programs, D29, D30 | 1-1.5 weeks |
+| **M3** ◆ | Product features that need designs: effects + scripts + the transaction rule + F11 (B2), `Setup` seeds (B2), frames and the eager run (B10), the query door's refusals (B6) | 1.5-2 weeks |
+| **M4** ◆ | The system database, one code path (B7) | 3-5 days |
+| **M5** ◆ | Test statements planned by the product, statement by statement (B1); 2.A's convergences (MV6, MV7) | 1-1.5 weeks |
+| **M6** ◆ | The verdict record (B3), the assert module in its own library (B4, B5), the host judge on product sides | 1.5-2 weeks |
+| **M7** | The fused group composed at planning (from `VerdictBatch`'s flush) | 1 week |
+| **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3), then the canon over the product columns (B8, MV4) | 2 weeks |
+| **M9** ◆ | The run-then-plan kinds: T8, T9, R13, T10, inline `execute(...)` (B2) | 1.5 weeks |
+| **M10** ◆ | One plan per body: `BodyCompiler` and `Segments` deleted; 2.D's rule (MV1); `Refused` steps (MV8); `theDriverCompilesNothing`; the parity guard's permanent form; the layer file | 1 week |
+| **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
 
-About four weeks of sessions. P1 and P2 are the largest and the safest (product features with product tests); P3 and
-P4 carry the order and text changes the user rules on.
+## 8. Start here (for a session picking this up)
 
-## 7. Decisions
+### 8.1 Where things are
 
-**RULED 2026-10-31** (the user: "Agree with all recommendations", the two exceptions below): 1 keep the eager run
-at a let as a plan step; 2 a verdict group closes before any step that changes the database; 4 order-insensitivity
-moves into the host's Java comparison; 5 one `check` value in the verdict record; 6 a literal root a constant, as a
-product feature; 8 the corpus row-order emulation a run option; 9 the two "AssertVerdicts.side" texts corrected;
-11 step by step, every outcome frozen; 12 statement changes approved by class (an example before and after, and a
-count); 13 the parity guard byte-identical; 14 consecutive effects one script, as a product feature.
+Branch `claude/wizardly-dirac-rw6tim-seam`, PR #83 (draft; the user lands it). Records: `docs/GATES.md` (one entry per
+step), `docs/result-boundary-homework/DECISIONS_LOG.md` (the next decision after D99), `docs/IN_FLIGHT.md`, this
+plan's §10 status, and a `docs/SEMANTICS_REGISTER.md` row for every divergence from upstream (2.D moves toward the
+engine; R8, R10 and T13 are reviewed for rows). Commit messages end with the session's attribution lines.
 
-**Revised after the user's questions, awaiting the user's yes:**
+### 8.2 The rules (verbatim from the user, in force)
 
-- **10, the canon over the product plan, FULLY** (the user: "why would we not fix the cannon fully?"). The product's
-  object layout already carries every declared property and `__id`, `__type` (`ClassLayouts.objectLayoutOf` is the
-  identity layout minus `__canon`), so the wrapper computes `__canon` over the product plan's columns and a database
-  side is the product plan byte for byte. The one design point is object ids: today both sides of a verdict share one
-  body-wide counter, so a construction site gets the same id on both; separately planned sides each get a fresh
-  counter. The fix is ids derived from the construction site, deterministic in every plan (a product change: id
-  literals in product SQL text change, posted). The risk is caught by the host judge, which decides every assert
-  independently (BOTH mode shows any moved verdict). About a week more, in `CanonicalRenderSql` and the dialects;
-  delivered in measured slices; nothing named at the end.
-- **7, the system tables** (the user: "we can't seed once for whole suite?"). Each plan carries the system tables
-  the product's way (`Metamodel`, setup steps), and the runner establishes them on the test's own session once per
-  graph and connection, with the same memo the seeds use: once per suite in practice. A statement can then read
-  the system tables and a user table together (1.F's one impossible case goes), and the separate system session and
-  its routing (`SystemDatabase`, `openRoute`, `SystemRoutes`' renames) are deleted. The system seeds move from the
-  system session into the test session's setup: an order change, posted.
+"Never push to main, never open a PR or merge without my explicit word in your session"; "never change how any output
+is spelled without asking me first, one case at a time, with the expression and the before and after ... An answer of
+mine to a question is not a go to build something else; ask. A guard pin or allowlist moves only with a dated
+justification. Never read, print or copy credentials; lane sessions measure only. Run the start page's §6 checks
+before each commit; commit and push to the branch; records ... land with the code." Upstream sources are spec input
+only. And R11: commits stay local between agreed checkpoints.
 
-### The questions as they were asked
+### 8.3 How to run every check
 
+Commands: `docs/RESULT_BOUNDARY_START_HERE.md` §6 (exact) and §7 (the lanes). Bazel in a cloud session:
+`docs/CLOUD_SESSIONS.md` (`tools/cloud-distdir.sh`, the disk allowance; never `bazel query //...`, it fetches every
+platform and fills the disk; clean `$(bazel info output_base)/execroot/_main/_tmp/*` and `sandbox/*` between runs).
+The chain used by the S2-S4a steps, in order:
 
-1. **The eager query run at a let (host pass, D32):** keep it as a `Check` step (the engine's order; a broken query
-   fails at its let; 1,974 statements on DuckDB, 1,950 on H2), or drop it (a broken query then fails at its first
-   reader). Recommended: keep.
-2. **The verdict group's closing rule (1.D):** a group closes before any step that changes the database, so an assert
-   sees the state its position sees. Recommended: yes; the moved verdicts counted and posted at P0.
-3. ~~Host verdicts inside the database judge~~ **RULED 2026-10-31:** the database judge is self-contained, all in the
-   database; the referee replay is a separate thing (1.E, T13).
-4. **The assert-boundary order on host sides (D24):** today the planner adds an `ORDER BY` to a grid under
-   assertion that the test did not sort, so the host's side is NOT the product plan. Either keep it as a named
-   exception, or move order-insensitivity into the Java comparison (the host's sides then byte-identical to the
-   product's; a FAILURE message may list rows in another order, each such change posted). Recommended: move it to
-   the comparison (§3.2). Inside the database judge's canon wrap the order stays: it is the assert's lowering (T3).
-5. **The verdict record:** fold `arm` + `wantEqual` into one `check` value (as §3), the database's polarity inside its
-   wrapper. Recommended: yes (no statement changes; the plan's JSON format bumps).
-6. **Literal roots as constants (D26):** a product feature (any plan answers a literal root with no round trip), or
-   test-only. Recommended: product.
-7. **The metamodel store:** the plan names its tables as the product's `Metamodel.read` does; the system database's
-   session, seeded once per graph, stays a runner optimization. Recommended: yes.
-8. **The engine row-order emulation (T6):** from a JVM global to a run option the corpus lanes pass. Recommended: yes.
-9. **Two unjudged reason texts** read "AssertVerdicts.side" where "side" was meant (a rename that reached the strings;
-   DatabaseJudge.java:116-117, :298). They appear in failure messages and census keys: correct them, or leave them.
-   Recommended: correct (a message spelling change, so it is asked).
-10. **The database judge's sides and the identity layout (inventory finding 3):** today a database side is not the
-    product plan plus a wrapper: its inner lowering uses the identity layout (`__canon` per class) and per-node ids.
-    Either the canon is computed in the wrapper OVER the product plan's columns (the product's `__id` and `__type`
-    with the declared properties), so the side inside is the product plan byte for byte, or the identity layout stays
-    as part of the assert's lowering, named in T3. Recommended: over the product plan where P0 shows it expresses
-    the same canon; the rest named, each with its count.
+```
+B=/root/.local/bin/bazel
+$B test --keep_going --disk_cache= --nocache_test_results --local_test_jobs=2 //spec:corpus_duckdb   # then //spec:corpus_h2
+grep -a "statement-origins\|\] pass=" bazel-bin/spec/judge_{host,database}_{duckdb,h2}/*.log           # the census
+$B test --keep_going --disk_cache= --nocache_test_results --local_test_jobs=2 //pct:pct_channel_b_{essential,grammar,relation,standard,unclassified}
+$B test --lockfile_mode=error --keep_going --disk_cache= --local_test_jobs=2 //gates:local               # 9 Postgres targets refuse root:
+$B test --keep_going --disk_cache= --local_test_jobs=1 --strategy=TestRunner=standalone \
+   --run_under="tools/postgres/as_unprivileged.sh ubuntu" <the nine Postgres targets of //gates:local>
+```
+
+Baseline census (fe643205 and 8a842acb, unchanged since S3): DuckDB host body=3972 let=1974 other=6219 system=121
+tdg=890 pass 2471/fail 108; DuckDB database body=6553 pass 2473/108; H2 host let=1950 other=5793 system=120 pass
+2289/295; H2 database body=6430 fallback=18 pass 2233/353; `probe=0` everywhere; DuckDB judge agreement 5,847/5,847.
+
+### 8.4 The lane sessions
+
+Five sessions measure every server and cloud backend, MEASURE ONLY (no edits, commits, pushes, PR comments or
+credentials): sibling 1 (Trino A/B, Postgres B), sibling 1b (SQLite, MariaDB, MySQL, ClickHouse), Snowflake,
+Databricks, BigQuery. They compare per test and per statement (with `-Dlegend.diagnostics=dump-sql`) against their
+previous round. Their brief and session ids: `docs/RESULT_BOUNDARY_START_HERE.md` §7 and GATES' lane entries (round 6,
+fe643205, all five identical). Asked at each checkpoint (◆), not at every commit.
+
+## 9. Still open (for the user)
+
+- **R10's ids:** one counter per program (§6 B9) -- the user's yes after the explanation of its meaning.
+- **N1, the product's query door (B6):** effects, inline seeds, the eager run and verdicts allowed only through the
+  test door and refused by name on the product door. Recommended: yes.
+- **N2, the test-only planning's library (B4):** kept out of the product server and the WebAssembly/native planners.
+  Recommended: yes.
+- **N3, `assertError`'s matcher (T10):** Java compares a caught error's message and position: a named Java step like
+  the host judge's comparison (it computes no value). Recommended: yes.
+- **N4, decision 1 in one plan (MV7):** the eager run at a let runs on BOTH passes (+about 1,950 statements on each
+  database pass), or is a host-pass-only step (a mode-dependent step in one plan). Recommended: both passes (one plan,
+  no mode-dependent steps); measured at M0.
+- **N5, backups between checkpoints (R11, audit 5.2):** a container loss loses every local commit; push each step's
+  commits to a non-PR work branch (`claude/wizardly-dirac-rw6tim-seam-wip`, no CI runs on it), or keep a `git
+  bundle`. Recommended: the work branch (needs the user's permission: a different branch).
+- **N6, decision 2 refined (2.D, audit O1):** a group closes before EVERY non-verdict step (seeds and value statements
+  too), the simplest rule that keeps both modes' order. Recommended: yes.
+
+## 10. Status
+
+- 2026-10-31: v1 drafted after the code inventory (A); the user's rulings R1-R12; the independent audit (B) found six
+  blockers and many majors in v1 (incoherent rulings, a hidden oracle conflict, the step order, missing designs,
+  resumability; 4 weeks under-sized to 9-13); v2 written from it. Next: the user's word on v2 and §9, then M0.

@@ -1,0 +1,57 @@
+diff --git a/core/src/main/java/com/legend/planner/BodyPlanner.java b/core/src/main/java/com/legend/planner/BodyPlanner.java
+index 567ef772..5d619332 100644
+--- a/core/src/main/java/com/legend/planner/BodyPlanner.java
++++ b/core/src/main/java/com/legend/planner/BodyPlanner.java
+@@ -118,6 +118,9 @@ public final class BodyPlanner {
+                 env.tableReplace(),
+                 env.postProcessors().extractCtes(),
+                 env.postProcessors().nonExecutable());
++        if (ParityProbe.ON) {
++            ParityProbe.lowering(body, env, ctx, dialect, identity, plan);
++        }
+         // A DYNAMIC PIVOT's TEXT whose columns nothing names (its templates unresolved): its columns exist only once the
+         // database is asked, and planning asks the database nothing (the seam program's S3a, 2026-10-30: the LIMIT-0
+         // column probe deleted; the six channel B bodies that reached it named their columns by a cast, F10). Refused
+@@ -179,11 +182,23 @@ public final class BodyPlanner {
+                     java.util.Set<String>, TypedSpec> hook) {
+         java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+         single.add(value);
+-        var inliner = hook == null
++        boolean[] spliced = {false};
++        java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> probed = hook == null ? null
++                : (n, names) -> {
++                    TypedSpec r = hook.apply(n, names);
++                    if (r != n) {
++                        spliced[0] = true;
++                    }
++                    return r;
++                };
++        var inliner = probed == null
+                 ? new com.legend.compiler.spec.UserCallInliner(specs)
+-                : new com.legend.compiler.spec.UserCallInliner(specs, hook);
++                : new com.legend.compiler.spec.UserCallInliner(specs, probed);
+         java.util.List<TypedSpec> body = new java.util.ArrayList<>(
+                 inliner.inlineBody(single));
++        if (ParityProbe.ON) {
++            ParityProbe.front("inline", spliced[0], !inliner.queryLets().isEmpty(), false, env);
++        }
+         env.queryLets().putAll(inliner.queryLets());
+         return body;
+     }
+@@ -192,8 +207,16 @@ public final class BodyPlanner {
+     public static java.util.List<TypedSpec> stagedSide(java.util.List<TypedSpec> body,
+             com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
+         final java.util.List<TypedSpec> stageEnv = body;
++        java.util.List<TypedSpec> before = new java.util.ArrayList<>(body);
+         body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch
+                 .stage(b, stageEnv, EnginePlans.nativeRoutines(specs, env)));
++        if (ParityProbe.ON) {
++            boolean staged = false;
++            for (int i = 0; i < body.size(); i++) {
++                staged |= body.get(i) != before.get(i);
++            }
++            ParityProbe.front("stage", false, false, staged, env);
++        }
+         return resolvedToExecute(resolver(specs, env), body, env);
+     }
+ 
