@@ -461,7 +461,7 @@ class TsIslandTest {
     @Test
     void aQueryOfTheLanguageIsASourceItsAnswerReadOn() throws Exception {
         // a line computed day by day, then each week's candle of it (the tile's candles of a computed series, its N4)
-        String ts = "|#TS{WITH d AS (SELECT CLOSE['AAA'] / CLOSE['BBB'] AS r FROM PRICES ON DAY BY SYMBOL)"
+        String ts = "|#TS{WITH d AS TS (SELECT CLOSE['AAA'] / CLOSE['BBB'] AS r FROM PRICES ON DAY BY SYMBOL)"
                 + " SELECT ohlc(first(d.r), max(d.r), min(d.r), last(d.r)) AS c FROM d ON DAY SAMPLE BY 1w}#";
         for (TestBackend backend : deep()) {
             List<Map<String, String>> got = rows(backend, ts);
@@ -476,7 +476,20 @@ class TsIslandTest {
                     .toArray(Double[]::new), column(got, null, null, "c_low"), backend + ": its lowest");
             assertClose(weeks.stream().map(w -> ratios.apply(w)[w.size() - 1]).toArray(Double[]::new),
                     column(got, null, null, "c_close"), backend + ": its last");
+            // the same query in FROM, marked alike
+            assertEquals(got, rows(backend, "|#TS{SELECT ohlc(first(d.r), max(d.r), min(d.r), last(d.r)) AS c FROM TS"
+                    + " (SELECT CLOSE['AAA'] / CLOSE['BBB'] AS r FROM PRICES ON DAY BY SYMBOL) d ON DAY SAMPLE BY 1w}#"),
+                    backend + ": FROM TS (...)");
         }
+        // a query of the language's own is marked AS TS; a body that is not one is SQL's -- each said with its fix
+        assertTrue(refused("WITH d AS (SELECT CLOSE['AAA'] AS r FROM PRICES ON DAY BY SYMBOL) SELECT last(d.r) AS c"
+                + " FROM d ON DAY SAMPLE BY 1w", true).contains("write WITH daily AS TS (SELECT ...)"), "unmarked");
+        assertTrue(refused("WITH d AS TS (PRICES WHERE SYMBOL = 'AAA') SELECT CLOSE AS c FROM d ON DAY", true)
+                .contains("a query of the language's own is SELECT ... FROM source ON date"), "TS of no query");
+        // a SQL body's join is a join's ON, never the language's
+        String join = refused("WITH q AS (SELECT * FROM PRICES JOIN INSTRUMENTS ON SYMBOL = TICKER) SELECT CLOSE AS c"
+                + " FROM q ON DAY", true);
+        assertTrue(!join.contains("write WITH daily AS TS") && join.contains("JOIN"), join);
     }
 
     @Test

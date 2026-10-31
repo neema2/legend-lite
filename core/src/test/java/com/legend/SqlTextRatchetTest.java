@@ -143,8 +143,11 @@ class SqlTextRatchetTest {
         REGISTER.put("protocol/cypher/CypherToPure.java", 1);
         // 0 -> 11 (2026-10-30, the #TS island, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): no SQL -- the timeseries
         // language's refusals quote its own queries as their fix ("a #TS query is SELECT item, ... FROM source ON
-        // date", "FROM (SELECT *, price * qty AS value FROM trades)"); its Pure is TsToPure's, which writes none
-        REGISTER.put("protocol/ts/TsParser.java", 11);
+        // date", "FROM (SELECT *, price * qty AS value FROM trades)"); its Pure is TsToPure's, which writes none.
+        // 11 -> 14 (2026-10-31, a query of the language's own marked AS TS, the user's ruling): its three refusals
+        // quote the marked forms as their fix ("WITH daily AS TS (SELECT ...)", "FROM TS (SELECT ...)",
+        // "SELECT ... FROM source ON date"); still no SQL written
+        REGISTER.put("protocol/ts/TsParser.java", 14);
     }
 
     @Test

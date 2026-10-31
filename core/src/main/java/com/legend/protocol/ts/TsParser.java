@@ -336,7 +336,9 @@ public final class TsParser {
         return new TsAst.Query(withs, items, sources, sample, dated, fill, filter, alls, spans);
     }
 
-    /** {@code WITH name AS (source), ...}, up to its SELECT. */
+    /** {@code WITH name AS (source), ...}, up to its SELECT: {@code AS TS (...)} a query of the language's own, plain
+     *  {@code AS (...)} SQL's (a flat subquery, a filtered source) -- the word in Postgres's own place between AS and
+     *  the parenthesis ({@code AS MATERIALIZED (...)}). */
     private List<TsAst.With> withs() {
         List<TsAst.With> out = new ArrayList<>();
         Token with = tokens.get(at++);
@@ -346,12 +348,15 @@ public final class TsParser {
         }
         while (true) {
             Token name = tokens.get(at);
+            boolean ts = tokens.get(at + 2).is("ts") && tokens.get(at + 3).kind() == Kind.LPAREN;
+            int open = ts ? at + 3 : at + 2;
             if (name.kind() != Kind.IDENT && name.kind() != Kind.QUOTED_IDENT || !tokens.get(at + 1).is("as")
-                    || tokens.get(at + 2).kind() != Kind.LPAREN) {
-                throw invalid("a WITH names a source: WITH quotes AS (SELECT ... FROM MarketQuote)", name.pos());
+                    || tokens.get(open).kind() != Kind.LPAREN) {
+                throw invalid("a WITH names a source: WITH quotes AS (SELECT ... FROM MarketQuote), or a query of"
+                        + " the language's own: WITH daily AS TS (SELECT ... FROM prices ON date)", name.pos());
             }
-            int close = closing(at + 2);
-            out.add(new TsAst.With(ident(name), parenthesized(at + 3, close, tokens.get(at + 2).pos())));
+            int close = closing(open);
+            out.add(new TsAst.With(ident(name), parenthesized(open + 1, close, tokens.get(open).pos(), ts)));
             at = close + 1;
             if (peek().kind() != Kind.COMMA) {
                 break;
@@ -415,12 +420,14 @@ public final class TsParser {
         Token first = tokens.get(from);
         int i;
         TsAst.Source source;
-        if (first.kind() == Kind.LPAREN) {
-            int close = closing(from);
+        boolean ts = first.is("ts") && from + 1 < to && tokens.get(from + 1).kind() == Kind.LPAREN;
+        if (first.kind() == Kind.LPAREN || ts) {
+            int open = ts ? from + 1 : from;
+            int close = closing(open);
             if (close >= to) {
                 throw invalid("syntax error at end of input", tokens.get(to).pos());
             }
-            source = parenthesized(from + 1, close, first.pos());
+            source = parenthesized(open + 1, close, first.pos(), ts);
             i = close + 1;
         } else {
             int[] end = new int[1];
@@ -454,14 +461,39 @@ public final class TsParser {
         return new TsAst.From(source, alias, on, by, first.pos());
     }
 
+    /** Whether the select in tokens {@code [from, to)} is the language's own: a source read ON its date (an ON after a
+     *  FROM item, never a JOIN's), or SAMPLE BY, FILL or FILTER of its own. */
+    private boolean reads(int from, int to) {
+        if (depthZero(from, to, t -> t.is("sample") || t.is("fill")) >= 0) {
+            return true;
+        }
+        // FILTER the clause, never an aggregate's FILTER (WHERE ...)
+        for (int i = depthZero(from, to, t -> t.is("filter")); i >= 0; i = depthZero(i + 1, to, t -> t.is("filter"))) {
+            if (i + 1 >= to || tokens.get(i + 1).kind() != Kind.LPAREN) {
+                return true;
+            }
+        }
+        int on = depthZero(from, to, t -> t.is("on"));
+        int join = depthZero(from, to, t -> t.is("join"));
+        return on >= 0 && (join < 0 || join > on);
+    }
+
     /** The source in parentheses in tokens {@code [from, to)}: {@code (SELECT items FROM source [WHERE condition])} or
      *  {@code (source WHERE condition)}. */
-    private TsAst.Source parenthesized(int from, int to, SqlAst.Pos pos) {
+    private TsAst.Source parenthesized(int from, int to, SqlAst.Pos pos, boolean ts) {
         if (from >= to) {
             throw invalid("a source in parentheses is (prices WHERE ...) or (SELECT ... FROM prices)", pos);
         }
-        if (tokens.get(from).is("select") && depthZero(from + 1, to, t -> t.is("on")) >= 0) {
-            // a query of the language's own (it names a date ON): parsed as one, its marks the whole text's
+        if (!ts && tokens.get(from).is("select") && reads(from + 1, to)) {
+            throw invalid("this subquery is a query of the language's own (it reads a source ON its date): write"
+                    + " WITH daily AS TS (SELECT ...), or FROM TS (SELECT ...)", pos);
+        }
+        if (ts) {
+            if (!tokens.get(from).is("select")) {
+                throw invalid("a query of the language's own is SELECT ... FROM source ON date: TS (SELECT ...)",
+                        tokens.get(from).pos());
+            }
+            // a query of the language's own, AS TS (...): parsed as one, its marks the whole text's
             List<Token> own = new ArrayList<>(tokens.subList(from, to));
             own.add(new Token(Kind.EOF, "", tokens.get(to).pos()));
             TsParser inner = new TsParser(own, variables, alls, spans);

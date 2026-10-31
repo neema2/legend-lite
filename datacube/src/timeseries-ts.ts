@@ -163,7 +163,7 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: strin
       items = expr.args.map((a, i) => `${daily.text(a)} AS ts_a${i}`);
       item = `${RENAMED[expr.fn] ?? expr.fn}(${[...roles.map((r, i) => `${TAKEN[ROLE[r]!]}(${own(i)})`), ...named(expr, anchor)].join(', ')})`;
     }
-    return `WITH ${DAILY} AS (SELECT ${items.join(', ')} FROM ${daily.from}${filled}) SELECT ${item} AS ${TS_ITEM}${also}`
+    return `WITH ${DAILY} AS TS (SELECT ${items.join(', ')} FROM ${daily.from}${filled}) SELECT ${item} AS ${TS_ITEM}${also}`
       + ` FROM ${DAILY} ON ${ident(at)}${split === undefined ? '' : ` BY ${ident(split)}`} SAMPLE BY ${SAMPLE[grain]}`;
   }
   const w = writer(ts, expr, split, grain, anchor);
