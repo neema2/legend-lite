@@ -56,6 +56,26 @@ class ComputedFrameOffsetTest {
     }
 
     @Test
+    @DisplayName("a literal frame is written as before on every dialect that writes frames: no check, no refusal")
+    void aLiteralFrameIsUnchanged() {
+        SqlExpr.WindowCall w = new SqlExpr.WindowCall(SqlAgg.Reducer.of(SqlAgg.Fn.SUM, new SqlExpr.Column("t0", "V",
+                new com.legend.sql.TypeFact.Typed(com.legend.sql.SqlType.Scalar.BIGINT),
+                com.legend.sql.OutputCol.Origin.PHYSICAL)), List.of(SqlExpr.Column.physical("t0", "P")),
+                List.of(SqlSelect.SortKey.asc(SqlExpr.Column.physical("t0", "O"))),
+                new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
+                        new SqlExpr.WindowCall.Frame.Bound.Preceding(2L),
+                        new SqlExpr.WindowCall.Frame.Bound.CurrentRow()));
+        SqlSelect q = SqlSelect.starOf(T).withProjections(List.of(new SqlSelect.Projection(w, "s", null)));
+        for (DatabaseType t : List.of(DatabaseType.MariaDB, DatabaseType.MySQL, DatabaseType.DuckDB, DatabaseType.H2,
+                DatabaseType.SQLite, DatabaseType.Postgres, DatabaseType.Trino, DatabaseType.ClickHouse,
+                DatabaseType.BigQuery, DatabaseType.Databricks, DatabaseType.Snowflake)) {
+            String sql = Databases.dialect(t).render(q);
+            assertTrue(sql.contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"), t + ": " + sql);
+            assertTrue(!sql.contains("CASE"), t + ": no check around a literal frame: " + sql);
+        }
+    }
+
+    @Test
     @DisplayName("MariaDB, MySQL and the dialects not yet measured refuse a computed offset by name")
     void refusedByName() {
         for (DatabaseType t : List.of(DatabaseType.MariaDB, DatabaseType.MySQL, DatabaseType.BigQuery,
