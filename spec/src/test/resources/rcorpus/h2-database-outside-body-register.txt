@@ -1,7 +1,6 @@
 meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty ||| statement=1
 meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone ||| fallback=2
 meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithAlloySerializationConfig ||| fallback=3
-meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| probe=1
 meta::relational::testDataGeneration::tests::TestDatGenForNestedViews ||| statement=2 tdg=21
 meta::relational::testDataGeneration::tests::testConstant ||| statement=1 tdg=4
 meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning ||| statement=1 tdg=8
@@ -10,9 +9,6 @@ meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateM
 meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates ||| statement=2 tdg=16
 meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning ||| tdg=8
 meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates ||| statement=1 tdg=8
-meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMilestoningTable ||| fallback=1
-meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMultiTables ||| fallback=1
-meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForSingleTable ||| fallback=1
 meta::relational::testDataGeneration::tests::testGenerateSeedDataWithQuotedColumns ||| tdg=1
 meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel ||| statement=1 tdg=60
 meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin ||| statement=1 tdg=36
@@ -39,101 +35,13 @@ meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels ||| 
 meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing ||| statement=1 tdg=60
 meta::relational::testDataGeneration::tests::testUnionViewOnView ||| statement=1 tdg=38
 meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin ||| statement=1 tdg=17
-meta::relational::tests::ddl::dropAndCreateTable ||| fallback=1 probe=2
-meta::relational::tests::ddl::dropAndCreateTempTable ||| probe=1
-meta::relational::tests::functions::fetchDbMetaData::testFetchDbColumnsMetaData ||| fallback=3
-meta::relational::tests::groupBy::testAggToManyWithFilter ||| fallback=1
+meta::relational::tests::ddl::dropAndCreateTempTable ||| other=2
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwice ||| fallback=1
 meta::relational::tests::groupBy::testUsingSameAggFunctionTwiceUsingQualifier ||| fallback=1
 meta::relational::tests::injection::testProjectThroughAssociation ||| fallback=2
 meta::relational::tests::injection::testProjectThroughAssociationAutoMap ||| fallback=2
-meta::relational::tests::mapping::dataType::testSimpleTypeMappingProject ||| fallback=9
-meta::relational::tests::mapping::dates::datetime::retrieveDateWithTimeZone ||| probe=1
-meta::relational::tests::mapping::dates::datetime::testProject ||| fallback=1
-meta::relational::tests::mapping::dates::strictdate::testGet ||| probe=1
-meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDatesInClass ||| fallback=4
-meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping ||| fallback=2
 meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat ||| fallback=2
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV1 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV2 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV3 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV4 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV5 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV1 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV2 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV3 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV4 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross3SetsV5 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV1 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV2 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV3 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV4 ||| fallback=1
-meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross4SetsV5 ||| fallback=1
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFilters ||| fallback=1
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFiltersAndProjections ||| fallback=1
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFiltersAndProjectionsDeep ||| fallback=1
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForFiltersDeep ||| fallback=1
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins ||| fallback=1
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForInnerJoins2 ||| fallback=1
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForProjections ||| fallback=1
-meta::relational::tests::mapping::union::sqlQueryMerging::testSQLQueryMergingForProjectionsDeep ||| fallback=1
 meta::relational::tests::milestoning::businessdate::testIsolationOfCaseStmtTrueFalseFilters ||| fallback=3
-meta::relational::tests::milestoning::businessdate::testPopulationOfMilestonedBusinessDateWithTimeComponentInQuery ||| fallback=1
-meta::relational::tests::milestoning::latestDate::testPopulationOfLatestMilestonedDateInQuery ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testAllVersionInRangeForProcessingSnapshotMilestoning ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testDateTimeMilestoningParam ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testDateTimeMilestoningParamPropagation ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testDateTimeMilestoningParamUnion ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testDateTimeVariableMilestoningParam ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testDateTimeVariableMilestoningParamPropagation ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testDateTimeVariableMilestoningParamUnion ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testQueryOnNonTemporalRootWithTemporalProperty ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testQueryOnTemporalRoot ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testQueryWithPropagationOnTemporalRoot ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testUnionQueryOnNonTemporalRootWithTemporalProperty ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testUnionQueryOnTemporalRoot ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| fallback=1
-meta::relational::tests::milestoning::processingSnapshot::testUnionQueryWithPropagationOnTemporalRoot ||| fallback=1
-meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionForEmbedded ||| fallback=2
-meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionForInlineEmbedded ||| fallback=2
-meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionForRoot ||| fallback=2
-meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionWithNonMilestonedTable ||| fallback=2
-meta::relational::tests::milestoning::rangeQuery::testBusinessTemporalRangeQueryOnProperty ||| fallback=2
-meta::relational::tests::milestoning::rangeQuery::testBusinessTemporalRangeQueryOnPropertyDeep ||| fallback=2
-meta::relational::tests::milestoning::rangeQuery::testBusinessTemporalRangeQueryOnRoot ||| fallback=2
-meta::relational::tests::milestoning::rangeQuery::testBusinessTemporalRangeQueryOnRootAndProperty ||| fallback=2
-meta::relational::tests::milestoning::rangeQuery::testBusinessTemporalRangeQueryOnRootAndPropertyDeep ||| fallback=2
-meta::relational::tests::milestoning::rangeQuery::testProcessingTemporalRangeQueryOnProperty ||| fallback=2
-meta::relational::tests::milestoning::rangeQuery::testProcessingTemporalRangeQueryOnRoot ||| fallback=2
-meta::relational::tests::milestoning::rangeQuery::testProcessingTemporalRangeQueryOnRootAndProperty ||| fallback=2
-meta::relational::tests::milestoning::snapshot::testAllVersionInRangeForBuisnessSnapshotMilestoning ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParam ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParamPropagation ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testDateTimeMilestoningParamUnion ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testDateTimeVariableMilestoningParam ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testDateTimeVariableMilestoningParamPropagation ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testDateTimeVariableMilestoningParamUnion ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testQueryOnNonTemporalRootWithTemporalProperty ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testQueryOnTemporalRoot ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testQueryWithPropagationOnTemporalRoot ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testUnionQueryOnNonTemporalRootWithTemporalProperty ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testUnionQueryOnTemporalRoot ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty ||| fallback=1
-meta::relational::tests::milestoning::snapshot::testUnionQueryWithPropagationOnTemporalRoot ||| fallback=1
-meta::relational::tests::milestoning::temporalDate::testBusinessDateForAllVersions ||| fallback=2
-meta::relational::tests::milestoning::temporalDate::testBusinessDateForAllVersionsInRange ||| fallback=2
-meta::relational::tests::milestoning::temporalDate::testProcessingDateForAllVersions ||| fallback=2
-meta::relational::tests::milestoning::temporalDate::testProcessingDateForAllVersionsInRange ||| fallback=2
-meta::relational::tests::milestoning::temporalDate::testTemporalDateForAllVersionsWithInFromInclusive ||| fallback=2
-meta::relational::tests::milestoning::temporalDate::testTemporalDateForAllVersionsWithInThruInclusive ||| fallback=2
-meta::relational::tests::milestoning::temporalDate::testTemporalDateForAllVersionsWithOutFromInclusive ||| fallback=2
-meta::relational::tests::milestoning::temporalDate::testTemporalDateForAllVersionsWithOutThruInclusive ||| fallback=2
-meta::relational::tests::projection::filter::dates::testDateWithSeconds ||| fallback=1
-meta::relational::tests::projection::filter::in::H2Test ||| probe=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupBy ||| statement=1
 meta::relational::tests::query::filter::exists::testWithFilterGroupByNestedAssociation ||| statement=1
 meta::relational::tests::runtime::extractDBs::testExtractDBsWithSubstituition ||| fallback=2
-meta::relational::tests::tds::tdsFilter::testFilterOnDynaFunctionColumn ||| fallback=1
-meta::relational::tests::tds::tdsFilter::testInOnColumnInSubselect ||| fallback=2

@@ -51,7 +51,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * counted): the egress decode cluster ({@code Executor.fetch/unwrap/
  * latticeKind/decodeAny} — decoding carriers the DATABASE produced, by
  * declared contract), {@code LiteralFold} (the engine's own
- * ConstantExecutionNode, differential-pinned), the harness COMPARISON
+ * ConstantExecutionNode, differential-pinned), the compiler's
+ * {@code Literals} fold of CONSTANT tokens (a literal, a list of them, a
+ * let bound to one, and three string operations over such constants
+ * alone -- {@code +}, {@code joinStrings}, {@code replace} -- never a
+ * value the database answered; the user's ruling of 2026-10-30, "it's
+ * okay to join CONSTANT strings only": the set is pinned by
+ * {@link #theCompilersLiteralFoldJoinsConstantsAlone} and proven equal to
+ * the database's answer by {@code LiteralsParityTest}), the harness COMPARISON
  * layer (verification consumes two sides, never produces a result),
  * and the deleted {@code JsonAssertCanon.sortByKey} (re-created the TEST'S OWN
  * canonicalization over a metamodel that never executes through SQL).
@@ -180,7 +187,8 @@ class JavaEvalLedgerTest {
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
-            Map.entry("core/src/main/java/com/legend/driver/AggAwareActivities.java", 211),
+            // path only (2026-10-31, the seam program's S2g): the activity rows' Java derivation left the driver for the planner
+            Map.entry("core/src/main/java/com/legend/planner/AggAwareActivities.java", 211),
             // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
             // "the sixth class the JDBC guard doesn't name" — these four
             // rows pin it until the relation-typed fetchDb leg DELETES
@@ -214,7 +222,8 @@ class JavaEvalLedgerTest {
             // 111 -> 113 (2026-10-29, the doors): the key's type probe is a plan statement of the body's target the
             // plan runner runs (PlanRunner.columns: checked, the target's session statements run) -- two lines of
             // parameters (the plan sessions, the target), no evaluation
-            Map.entry("core/src/main/java/com/legend/driver/DynamicPivot.java", 118),   // 113 -> 118 (2026-10-30, D71): at the root, out of exec -- the five exec imports the move needs (the runner, the sessions, the origin, the statements, the wire table); no rule changed
+            // DynamicPivot.java's row RETIRED 2026-10-31 (the planner-driver seam program's S3a): the staticizer deleted,
+            // a dynamic pivot keyed where it is planned, its keys read when the plan runs (KeyedPivotKeyRoundTripTest)
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
@@ -243,7 +252,7 @@ class JavaEvalLedgerTest {
             // Statements.columns; its own JDBC statement and metadata read are gone)
             // 46 -> 48 (2026-10-29, the doors): the LIMIT-0 probe is a plan statement of the body's target the plan
             // runner runs (PlanRunner.columns) -- two lines of parameters, no evaluation
-            Map.entry("core/src/main/java/com/legend/driver/GridProbe.java", 52),   // 48 -> 53 (2026-10-30, D71): at the root, out of exec -- the same five exec imports; 53 -> 52 (D72, the same day): the wire table import gone, the type rebuilt by the root's WireProbe; no rule changed
+            // GridProbe.java 52 -> gone (2026-10-30, the planner-driver seam program's S3c): the LIMIT-0 probe deleted with the stamp it fed; a raw grid's columns are the ones its result reports, read when the plan runs
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -567,11 +576,11 @@ class JavaEvalLedgerTest {
             // declared-one operand handed to VerdictSql as a one-row relation; plan
             // wiring, nothing evaluated
             // 806 -> 804 (2026-10-19, re-pinned to the measured count after the plan path program's step 6)
-            Map.entry("core/src/main/java/com/legend/driver/HostJudge.java", 804),   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
-            Map.entry("core/src/main/java/com/legend/driver/DatabaseJudge.java", 595),   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
+            Map.entry("core/src/main/java/com/legend/driver/HostJudge.java", 956),   // 817 -> 956 (2026-10-30, the seam program's step after S2f): the quantified assert's row form, and a zip's arms read as sides of one group and paired by position (zip's own rule, the pairing the unroll did; it replaces the unroll's database fetch and the compiler's literal re-spelling, both deleted) -- the zip's rows read ONCE and each judged as the element arm judges it (PureAsserts, the same decision and message), the predicate vector for assert/assertFalse; the host fetches no zip arm into Java any more (sideCells deleted)   // 804 -> 817 (2026-10-30, the seam program's S2f): the arms name their sides up front and take them back from the runner by position (the three ask helpers and the group fetch); no judgment moved into Java   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
+            Map.entry("core/src/main/java/com/legend/driver/DatabaseJudge.java", 596),   // 595 -> 596 (2026-10-30, the step after S2f): the vector arm's signature carries the source, the lambda and the element assert (one line); no evaluation added   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
             // 1249 -> 1258 (2026-10-27, the result boundary program's phase 5: Executor.structured moved here, its
             // one caller, when the old executor was deleted; a JSON text read to its structure, nothing evaluated)
-            Map.entry("core/src/main/java/com/legend/driver/AssertVerdicts.java", 1259),   // 1258 -> 1259 (2026-10-30, D73, step C): in com.legend.driver -- the one import line the move needs; no rule changed   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
+            Map.entry("core/src/main/java/com/legend/driver/AssertVerdicts.java", 1226),   // 1221 -> 1226 (2026-10-30, the seam program's S3c, third part): a raw grid's rendered text goes to the database judge (its columns exist only when the plan runs: the render a keyed statement, Render.gridCsv) -- routing, no evaluation   // 1242 -> 1221 (2026-10-30, the step after S2f): the dead two-branch-if site deleted (0 on every lane, measured), the unroll's fetch hook gone   // 1259 -> 1242 (2026-10-30, S2f): the one-side fetch helpers deleted (side, jsonSideText, tabular); the grid pair through HostSides   // 1258 -> 1259 (2026-10-30, D73, step C): in com.legend.driver -- the one import line the move needs; no rule changed   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -795,7 +804,30 @@ class JavaEvalLedgerTest {
             // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
             // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
             // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
-            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2321),   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
+            // the body driver's planning helpers (the seam program's S2g, 2026-10-31), moved with no rule changed and
+            // pinned where they went, so the code they hold stays on this ledger: the engine's plan text (D30's plan-time
+            // values: planToString, toSQLString, the plan model) and the body planner (the resolver, the Lowerer, the
+            // plan-preparation ladder, a value's road to its body); 2,281 = 1,498 + 658 + 127 - 2 (the generator's plan
+            // text handed in by the driver, two lines more there)
+            Map.entry("core/src/main/java/com/legend/planner/EnginePlans.java", 707),   // 663 -> 707 (2026-10-31, the shared preparation): the DDL text generators' text (ddlText, D30's plan-time values) from the body driver's prelude   // 658 -> 663 (2026-10-31, S2g's third step): engineTestSql, the frame planner's road to an activity's engine SQL (only the plan-text classes hold the engine-text dialect)
+            // 127 -> 268 (2026-10-31, the shared preparation): the body driver's prelude's framing and its classification of a
+            // statement's answer with no plan (prepare), the orchestration handle's type, the effect scan, and the bare plan with
+            // no session (bare) -- from the body driver; the answers that run stay there
+            Map.entry("core/src/main/java/com/legend/planner/BodyPlanner.java", 282),   // 268 -> 282 (2026-10-31, S2j's first piece): the generator's view SQL (viewSql), from the body driver
+            // a frame's chain planned (the seam program's S2g, third step, 2026-10-31): moved from the body driver, pinned where it went
+            Map.entry("core/src/main/java/com/legend/planner/FramePlanner.java", 140),   // 96 -> 140 (2026-10-31, the shared preparation): the frame's planned CTE and class extent rows (cte), from the body driver's buildFrame
+            // a let's kind (the seam program's S2b, 2026-10-31): the frame alias analysis from the body driver, the
+            // read-after-effect analysis from the body compiler, pinned where they went
+            Map.entry("core/src/main/java/com/legend/planner/LetPlanner.java", 110),
+            // the system route planned (the seam program's S2h, 2026-10-31): the route and its tables' names, from the body driver
+            Map.entry("core/src/main/java/com/legend/planner/SystemRoutes.java", 55),
+            // an effect's statements planned (the seam program's S2d, 2026-10-31): the effect arms' texts and the store data
+            // types' readers, from the body driver
+            Map.entry("core/src/main/java/com/legend/planner/EffectPlanner.java", 132),
+            // a side's plan made with no session (the seam program's S4a, 2026-10-31): the body driver's prelude's route
+            // and planStaged/wrapSide, pinned where they went
+            Map.entry("core/src/main/java/com/legend/planner/SidePlanner.java", 87),
+            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 1009),   // 1012 -> 1009 (2026-10-31, the test-is-the-product plan's M1, its audit): the environment's site-id accessor deleted (no caller; the minter is the planning half's, one per program); nothing evaluated   // 1062 -> 1012 (2026-10-31, the seam program's S4a): a side's plan made with no session in planner/SidePlanner (the body prepared under its system route, lowered, the canon wrap); the driver opens the route's session once the side is planned and answers a kind with no plan on it; nothing evaluated   // 1074 -> 1062 (2026-10-31, the seam program's S2j, first piece): the test-data generator's view SQL planned in the planner (BodyPlanner.viewSql); the renderer the driver hands the generator a call of it; nothing evaluated   // 1154 -> 1074 (2026-10-31, the seam program's S2d): the effect arms ask planner/EffectPlanner for their statements (two phases: the String arguments, evaluated here, then the texts) and send them; the referee's DDL spelling and the data types' readers left with them; nothing evaluated   // 1345 -> 1154 (2026-10-31, the seam program's shared preparation): the prelude prepares through the planner and runs only the answers that run (an effect's arm, a store write, an effectful map); the DDL text, the handle's type and the frame's planned CTE left for the planner; nothing evaluated   // 1369 -> 1345 (2026-10-31, the seam program's S2h): the system route's stores, refusal and table renames planned in planner/SystemRoutes; the driver opens the session and checks it names the tables as planned; ExecEnv.withSystemRoute gone; nothing evaluated   // 1407 -> 1369 (2026-10-31, the seam program's S2b): the frame alias analysis left for planner/LetPlanner with the let's kind; nothing evaluated   // 1498 -> 1407 (2026-10-31, the seam program's S2g, third step): the frame's chain planned in planner/FramePlanner (the plan-execute normalization, the string entry's envelope and activity SQL, the runtime's renames, the chain's assembly); the run at the let, its trace comment and the planned CTE stay; nothing evaluated   // 2281 -> 1498 (2026-10-31, the seam program's S2g, second step): the planning helpers left for the planner (EnginePlans and BodyPlanner, pinned above; PlanAllocations, PlanEnvelope, EngineText, SqlTextInputs and AggAwareActivities moved whole); nothing evaluated   // 2310 -> 2281 (2026-10-31, the seam program's S2g, first step): the environment split in two -- its planning half (the model, the runtime, the dialect, the lets, the renames, the frame, the features, the site ids) is planner/PlanEnv, the record here holds the session, the trace, the batch, the sink, the listeners and the options and delegates the rest; the six legacy constructors gone for one factory; nothing evaluated   // 2318 -> 2310 (2026-10-31, the seam program's S3a, the staticizer deleted): the static pivot's call and its key reader gone (a dynamic pivot keyed where it is planned)   // 2304 -> 2318 (2026-10-30, the seam program's S3c, third part): a raw grid let read after an effect is a STAGED TABLE (D75) -- its table named (stagedGridTable), dropped when the body ends (dropTables) and read back raw (stagedGridRead); plumbing to the one seam, nothing evaluated; the stamp and its referee deleted here, RawGridSchema (361 lines), GridProbe (87) and WireProbe (43) deleted outright   // 2309 -> 2304 (2026-10-30, the seam program's S3c): the database judge's late-bound grid side is not framed by a planning-time describe (WireProbe.staticized's call in wrapSide deleted)   // 2317 -> 2309 (2026-10-30, the seam program's S3b): the wire probe's reconcile call deleted (the canon asks the value in the statement)   // 2322 -> 2317 (2026-10-30, the seam program's S3a): the column probe's call deleted, a refusal by name in its place   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1000,7 +1032,7 @@ class JavaEvalLedgerTest {
             // judge under the verdict's own declared row-multiset
             // policy). All comparison-layer judgment: consumes two
             // produced sides, never produces a result.
-            Map.entry("core/src/main/java/com/legend/judge/TdsCompare.java", 343));   // in judge since 2026-10-30 (D71)   // 366 -> 343 (2026-09-20, one float rule: the printed-precision cell tolerance DELETED; cellEquals delegates to Equality.withinTwoUlp)
+            Map.entry("core/src/main/java/com/legend/judge/TdsCompare.java", 344));   // 343 -> 344 (2026-10-31, the seam program's S4a): the import of CanonRider, the lowering's now; nothing evaluated   // in judge since 2026-10-30 (D71)   // 366 -> 343 (2026-09-20, one float rule: the printed-precision cell tolerance DELETED; cellEquals delegates to Equality.withinTwoUlp)
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
@@ -1052,7 +1084,9 @@ class JavaEvalLedgerTest {
         // connectionStoreElementOf is gone — the plan connection reads
         // the bound ExecutionContext (its store, its connection instance).
         // connectionStoreElementOf) that PlanRows turns into rows.
-        EVICT_NAMES.put("core/src/main/java/com/legend/driver/BodyDriver.java",
+        // 2026-10-31 (the seam program's S2g): the plan MODEL left the body driver for the planner with the engine's
+        // plan text (planner/EnginePlans), the same three sites, so the row follows the file (path only)
+        EVICT_NAMES.put("core/src/main/java/com/legend/planner/EnginePlans.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
                         3});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
@@ -1355,8 +1389,10 @@ class JavaEvalLedgerTest {
                     "TypedSide.java",
                     "Column.java", "Row.java",   // the judged side's column and row, exec's until D72 (2026-10-30)
                     "VerdictBatch.java",
-                    "CanonRider.java",
-                    "InstanceIds.java",
+                    // CanonRider.java left for the lowering 2026-10-31 (the seam program's S4a): the canon wrap's outcome,
+                    // written by CanonicalRenderSql's caller where a side is planned and read by the judges
+                    // InstanceIds.java left for the planner 2026-10-31 (the seam program's S2g): the site-id minter is
+                    // planning state (the lowering mints ids from it), the planning half of the body's environment
                     "SqlTypeCensus.java",
                     "PrimitiveCensus.java",
                     "AssertListener.java",
@@ -1387,6 +1423,34 @@ class JavaEvalLedgerTest {
                     "ProgramFacts.java",
                     "QueryParameters.java",
                     "CrossStoreGuard.java",
+                    // the planning half of a body's environment (the seam program's S2g, 2026-10-31): the model, the
+                    // runtime, the dialect, the lets, the renames, the frame, the features -- what a statement is
+                    // planned against, no session. InstanceIds.java DELETED 2026-10-31 (the test-is-the-product plan's
+                    // M1, B9): it was the lowering's ObjectSites twice over, and one program's objects take one minter
+                    "PlanEnv.java",
+                    // the body driver's planning helpers (the seam program's S2g, 2026-10-31): the body planner (the
+                    // statement resolver, the Lowerer and the plan-preparation ladder, a value's road to its body),
+                    // the engine's plan text (EnginePlans, EngineText, PlanEnvelope, SqlTextInputs), the handles' and
+                    // activities' rows (PlanAllocations, AggAwareActivities) -- planning work, no session, moved from
+                    // the driver with no rule changed
+                    "BodyPlanner.java", "EnginePlans.java", "EngineText.java", "PlanEnvelope.java",
+                    // a frame's chain (S2g's third step, 2026-10-31): the execute call to the chain its readers splice
+                    "FramePlanner.java",
+                    // a let's kind and its read analyses (S2b, 2026-10-31): where a let's rows live, decided with no
+                    // session; the connection-chain read analysis with it, the driver's until then
+                    "LetPlanner.java", "ConnectionLets.java",
+                    // the system route (S2h, 2026-10-31): the system store's database and its tables' names, planned
+                    "SystemRoutes.java",
+                    // a statement's body prepared, or the kind of answer it is given with no plan (the shared
+                    // preparation, 2026-10-31): a closed result type the driver dispatches on
+                    "Prepared.java",
+                    // an effect's statements (S2d, 2026-10-31): the texts executeInDb and the DDL natives send, written from
+                    // their String arguments' values, which the driver evaluates
+                    "EffectPlanner.java",
+                    // a side's plan (S4a, 2026-10-31): a statement's or a verdict side's body prepared under its system
+                    // route, lowered and wrapped as its judge reads it, with no session; the driver opens the route
+                    "SidePlanner.java",
+                    "SqlTextInputs.java", "PlanAllocations.java", "AggAwareActivities.java",
                     "package-info.java");
 
     /** THE DRIVER, closed (step C, D73, 2026-10-30): the execution side's machinery behind the root's two execution
@@ -1398,22 +1462,28 @@ class JavaEvalLedgerTest {
     private static final java.util.Set<String> DRIVER_CLASSES =
             java.util.Set.of(
                     "AgreementArm.java", "JudgePlans.java",
-                    "AggAwareActivities.java", "AssertErrorNative.java",
+                    // the host judge's sides as a verdict step's base (the seam program's S2f, 2026-10-30): plans the
+                    // arm's sides, hands them to the runner as one verdict's base and carries the rows back by
+                    // position; judges nothing (D7: the host judge is the receiver's exception, never in the plan)
+                    "HostSides.java",
+                    "AssertErrorNative.java",
                     "AssertVerdicts.java",
                     "HostJudge.java", "DatabaseJudge.java",
                     "VerdictArm.java",
                     "BodyCompiler.java", "BodyDriver.java",
-                    "ConnectionLets.java",
+                    // ConnectionLets.java left for the planner 2026-10-31 (the seam program's S2b: a let's read analysis)
                     "KindClass.java",
                     "LiteralFold.java",
-                    "PlanAllocations.java", "PlanEnvelope.java",
+                    // AggAwareActivities, PlanAllocations, PlanEnvelope, SqlTextInputs and EngineText left for the
+                    // planner 2026-10-31 (the seam program's S2g: planning work, PLANNER_CLASSES above)
                     "SeedSqlForms.java",
                     "SqlTextVerdicts.java",
-                    "SqlTextInputs.java",
-                    "EngineText.java",
                     "CsvLoad.java",
-                    // the schema probes (D71) and the graph's system database (D72), out of exec
-                    "ColumnProbe.java", "GridProbe.java", "DynamicPivot.java", "WireProbe.java",
+                    // the schema probes (D71) and the graph's system database (D72), out of exec; ColumnProbe deleted
+                    // 2026-10-30 (the seam program's S3a: a cast-named pivot's columns are the compiler's, F10);
+                    // WireProbe and GridProbe the same day (S3b, S3c: the canon asks the value in the statement; a raw
+                    // grid's columns are the ones its result reports)
+                    // DynamicPivot.java deleted 2026-10-31 (the seam program's S3a: a dynamic pivot keyed where planned)
                     "SystemDatabase.java",
                     "package-info.java");
 
@@ -1606,6 +1676,28 @@ class JavaEvalLedgerTest {
         assertTrue(drift.length() == 0,
                 "the body driver, the judges and the generator's natives hold a session and never reach its"
                         + " connection (track B's B1b; banned at zero, no register):" + drift);
+    }
+
+    /** The compiler's fold of literal-only expressions ({@code compiler/spec/typed/Literals}): the operations it
+     *  evaluates are exactly three, each over constants the test wrote ({@code +}, {@code joinStrings},
+     *  {@code replace}), and every other native returns null so the side is sent to the database. A fourth operation
+     *  is a ruling first (the user, 2026-10-30, the seam program's S2f), then a parity leg in
+     *  {@code LiteralsParityTest}, then this pin. */
+    @Test
+    void theCompilersLiteralFoldJoinsConstantsAlone() throws IOException {
+        String src = Files.readString(SourceFiles.file("core/src/main/java/com/legend/compiler/spec/typed/Literals.java"))
+                .replaceAll("(?s)/\\*.*?\\*/", "")
+                .replaceAll("//.*", "");
+        java.util.List<String> operations = new java.util.ArrayList<>();
+        java.util.regex.Matcher m = Pattern.compile("case TypedNativeCall n when ([A-Za-z_.]+)").matcher(src);
+        while (m.find()) {
+            operations.add(m.group(1));
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("PlatformTypes.isPlus",
+                "PlatformTypes.STRING_JOIN_STRINGS.equals", "PlatformTypes.STRING_REPLACE.equals"), operations,
+                "the compiler's literal fold evaluates three string operations over constants, by the user's"
+                        + " ruling of 2026-10-30; a fourth is a ruling, a parity leg and this pin, in that order");
+        assertTrue(src.contains("default -> null;"), "anything the fold does not admit is sent to the database");
     }
 
     @Test

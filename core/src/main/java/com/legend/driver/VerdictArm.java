@@ -64,7 +64,12 @@ interface VerdictArm {
      * per-element assert is the predicate it means over a row source. The database arm plans the
      * vector and judges it in the fused statement; the host arm returns null (it fetches and
      * unrolls by design). 2026-09-22. */
-    @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+    /** A quantified assert under the vector contract: {@code predMap} the predicate vector the database computes,
+     *  {@code source} the rows, {@code lam} the per-element lambda, {@code root} the element assert call (the
+     *  host's row form reads the rows once and judges each as the element arm would: the seam program's step after
+     *  S2f, 2026-10-30). Null: not this arm's. */
+    @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
+            com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** The sorted flat-cells idiom of {@code assertEquals} ({@code $r.values.rows.values->sort()}

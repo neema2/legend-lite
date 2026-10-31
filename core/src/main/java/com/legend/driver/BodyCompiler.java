@@ -63,6 +63,39 @@ public final class BodyCompiler {
      *  rows at the end. Every other statement runs as before. */
     static @com.legend.base.Nullable TypedSide execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env0, Execution.@com.legend.base.Nullable Answer answer) {
+        // the staged raw grids' temporary tables (a raw-grid let read after an effect): plain temporary tables, which
+        // outlive the body's commits, so they are dropped however the body ends -- by the body when it runs through
+        // (executeBody), here when it fails, quietly: the body's failure is the error reported
+        List<String> stagedGrids = new java.util.ArrayList<>();
+        boolean ran = false;
+        try {
+            TypedSide last = executeBody(stmts, letPrefix, specs, env0, answer, stagedGrids);
+            ran = true;
+            return last;
+        } finally {
+            if (!ran) {
+                dropQuietly(env0, stagedGrids);
+            }
+        }
+    }
+
+    /** A failing body's staged grid tables dropped, each a statement of its own; a drop that fails as a send fails --
+     *  the database refusing it ({@code DataError}) or the session's transport ({@code UncheckedIOException}, the
+     *  send's own wrapping), the failure may have left the session unable to -- is not reported over the body's
+     *  failure, and its table's name is no later body's ({@link BodyDriver#stagedGridTable}). */
+    private static void dropQuietly(BodyDriver.ExecEnv env, List<String> tables) {
+        for (String t : tables) {
+            try {
+                BodyDriver.dropTables(env, List.of(t));
+            } catch (com.legend.error.DataError | java.io.UncheckedIOException ignore) {
+                // the session refused the drop: the body's own failure is the one reported
+            }
+        }
+    }
+
+    private static @com.legend.base.Nullable TypedSide executeBody(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env0, Execution.@com.legend.base.Nullable Answer answer,
+            List<String> stagedGrids) {
         Segments seg = new Segments(env0, specs, answer);
         Map<String, BodyDriver.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
@@ -91,59 +124,54 @@ public final class BodyCompiler {
             }
             seg.closeEffects();
             if (stmt instanceof TypedLet let && !last) {
-                BodyDriver.ExecFrame alias = BodyDriver.aliasFrame(let.value(), execFrames);
-                if (alias != null) {
-                    execFrames.put(let.name(), alias);
-                    continue;
-                }
-                TypedSpec rhs = let.value();
-                while (rhs instanceof com.legend.compiler.spec.typed.TypedFrom rf) {
-                    rhs = rf.source();
-                }
-                if (rhs instanceof TypedNativeCall sc
-                        && com.legend.builtin.Pure.Lite.STAGE.equals(sc.callee().qualifiedName())) {
-                    // STAGED ROWS (the writes design's leg 6): computed at this statement's turn into a temporary
-                    // table of the session, which the statements after read by name: the writes between read the
-                    // rows as they were
-                    String table = BodyDriver.stagedTable(let.name());
-                    TypedSpec rows = sc.args().get(0);
-                    BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
-                            rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
-                    seg.value(pv, false);
-                    staged.add(table);
-                    letPrefix.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
-                            BodyDriver.storeOf(pv.body(), seg.env()), let.info()));
-                    continue;
-                }
-                if (rhs instanceof TypedNativeCall ec
-                        && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
-                            || com.legend.builtin.NativeFn.Handle.of(ec.callee().id()).orElse(null)
-                                    == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
-                    // a FRAME: planned here, its CTE defined on the batch when a reader
-                    // splices it (rung 12: a plain class frame as its root rows)
-                    execFrames.put(let.name(),
-                            BodyDriver.buildFrame(ec, letPrefix, true, specs, seg.env()));
-                    seg.fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
-                    continue;
-                }
-                // a RAW READ bound by a let (let r = executeInDb('select …', $c)): the engine
-                // runs it AT the let; here its schema is pinned at the let when a later
-                // statement demands it (columnNames / values) — before any later effect
-                // changes the state it read (the temp-table port, 2026-09-22: the probe
-                // used to run at the verdict flush, after the drop). The data read stays
-                // late-bound; the single-query rule of RawGridSchema.stamp decides.
-                if (containsRawGrid(let.value())) {
-                    TypedSpec stampedLet = com.legend.resolver.RawGridSchema.stamp(
-                            stmts.subList(i, stmts.size()),
-                            BodyDriver.gridReferee(seg.env())).get(0);
-                    if (stampedLet instanceof TypedLet sl) {
-                        let = sl;
-                        rhs = let.value();
+                // the let's KIND is the planner's (the seam program's S2b, 2026-10-31): where its rows live
+                java.util.function.Predicate<String> relationFrame =
+                        n -> execFrames.containsKey(n) && execFrames.get(n).relationRooted();
+                TypedSpec rhs = com.legend.planner.LetPlanner.rhs(let);
+                switch (com.legend.planner.LetPlanner.kind(let, stmts, i, specs, effectMemo, relationFrame)) {
+                    case ALIAS -> execFrames.put(let.name(), execFrames.get(java.util.Objects.requireNonNull(
+                            com.legend.planner.LetPlanner.aliasOf(let.value(), relationFrame))));
+                    case STAGED -> {
+                        // STAGED ROWS (the writes design's leg 6): computed at this statement's turn into a temporary
+                        // table of the session, which the statements after read by name: the writes between read the
+                        // rows as they were
+                        String table = BodyDriver.stagedTable(let.name());
+                        TypedSpec rows = ((TypedNativeCall) rhs).args().get(0);
+                        BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
+                                rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
+                        seg.value(pv, false);
+                        staged.add(table);
+                        letPrefix.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
+                                BodyDriver.storeOf(pv.body(), seg.env()), let.info()));
+                    }
+                    case FRAME -> {
+                        // a FRAME: planned here, its CTE defined on the batch when a reader
+                        // splices it (rung 12: a plain class frame as its root rows)
+                        execFrames.put(let.name(),
+                                BodyDriver.buildFrame((TypedNativeCall) rhs, letPrefix, true, specs, seg.env()));
+                        seg.fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
+                    }
+                    case STAGED_GRID -> {
+                        // a RAW READ bound by a let (let r = executeInDb('select …', $c)) that a statement reads
+                        // after a later effect: its rows held in a temporary table of the session at this
+                        // statement's turn, read by name after, dropped once the body has run (the planner-driver
+                        // seam program's S3c, 2026-10-30; until then the grid probe pinned its columns here at
+                        // planning, the temp-table port of 2026-09-22)
+                        String table = BodyDriver.stagedGridTable(let.name());
+                        seg.value(BodyDriver.prepareValue(rhs, rhs, letPrefix, execFrames, specs, seg.env())
+                                .stagedInto(table), false);
+                        stagedGrids.add(table);
+                        letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
+                                BodyDriver.stagedGridRead(table, seg.env()),
+                                (com.legend.compiler.spec.typed.TypedRawSqlRelation) rhs, let.info()));
+                    }
+                    case VALUE -> {
+                        // a HANDLE or a value binding: rows under its scope, the let rides the prefix
+                        com.legend.planner.PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs,
+                                seg.env().plan());
+                        letPrefix.add(let);
                     }
                 }
-                // a HANDLE or a value binding: rows under its scope, the let rides the prefix
-                PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs, seg.env());
-                letPrefix.add(let);
                 continue;
             }
             // a statement root (a trailing let IS its value): the arms claim an
@@ -177,6 +205,8 @@ public final class BodyCompiler {
         seg.closeEffects();
         seg.closeVerdicts();
         BodyDriver.dropStaged(env0, staged);
+        BodyDriver.dropTables(env0, stagedGrids);
+        stagedGrids.clear();
         if (answer != null) {
             // a body whose last statement was a verdict (or answered nothing that streamed): its side as host rows
             if (seg.last != null) {
@@ -185,20 +215,6 @@ public final class BodyCompiler {
             return null;
         }
         return seg.last;
-    }
-
-    /** Whether the tree reads a raw grid or a catalog grid anywhere. */
-    private static boolean containsRawGrid(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation
-                || n instanceof com.legend.compiler.spec.typed.TypedCatalogGrid) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (containsRawGrid(c)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** The segments of one body: the open verdicts segment (its batch, its prepared
@@ -280,7 +296,7 @@ public final class BodyCompiler {
             if (stmt instanceof TypedLet let && i < stmts.size() - 1) {
                 // an executeInDb binding: the corpus binds an opaque ResultSet handle as a
                 // smoke check and never reads it; any other read is walled up front
-                if (!ConnectionLets.onlyConnectionReads(stmts, i + 1, let.name())) {
+                if (!com.legend.planner.ConnectionLets.onlyConnectionReads(stmts, i + 1, let.name())) {
                     throw new IllegalStateException("reading an executeInDb result binding ('"
                             + let.name() + "') is not supported");
                 }
@@ -289,7 +305,7 @@ public final class BodyCompiler {
                 List<TypedSpec> inlined = new com.legend.compiler.spec.UserCallInliner(
                         specs, BodyDriver.spliceHook(execFrames, letPrefix, specs, sinkEnv))
                         .inlineBody(single);
-                inlined = BodyDriver.resolver(specs, sinkEnv).resolve(inlined, sinkEnv.runtimeFqn());
+                inlined = com.legend.planner.BodyPlanner.resolver(specs, sinkEnv.plan()).resolve(inlined, sinkEnv.runtimeFqn());
                 last = BodyDriver.executeTyped(inlined, sinkEnv);
                 lastIsValue = true;
                 return;

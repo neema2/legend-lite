@@ -146,8 +146,16 @@ public final class TypedQuery {
      *  docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) inlined, resolved against {@code runtime}, every touched store
      *  checked against its connections -- every planning step before the lowering, no database. */
     public Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
+        return resolve(statements, runtime, null);
+    }
+
+    /** {@link #resolve(List, String)} for the statement at position {@code statement} of a program planned
+     *  statement by statement: its own constructions are evaluations of that statement
+     *  ({@link com.legend.compiler.spec.UserCallInliner#inlineBody(List, Integer)}, B9). */
+    public Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime,
+            @com.legend.base.Nullable Integer statement) {
         List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
-                new java.util.ArrayList<>(statements));   // Phase G½
+                new java.util.ArrayList<>(statements), statement);   // Phase G½
         boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
         b = new com.legend.resolver.StoreResolver(ctx, specs).resolve(b, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by
@@ -164,11 +172,19 @@ public final class TypedQuery {
      *  statement binds. */
     public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
             List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
+        return lowerer(temporal, streaming, slots, features, new com.legend.lowering.ObjectSites());
+    }
+
+    /** {@link #lowerer(boolean, boolean, List, java.util.Set)} naming its objects' sites with {@code sites}: the
+     *  program's one minter, shared by every statement of a program (the test-is-the-product plan's B9, 2026-10-31). */
+    public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
+            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features,
+            com.legend.lowering.ObjectSites sites) {
         com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
-                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf);
+                .withObjectIdentity(sites::idOf);
         if (!temporal) {
             planLw = planLw.withEngineExistsJoinForm();
         }

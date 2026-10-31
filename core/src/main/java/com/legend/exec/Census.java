@@ -31,8 +31,6 @@ public final class Census {
         FRAME_PASTED("frame.pasted"),
         FRAME_CLASS("frame.class"),
         FRAME_CLASS_CTE("frame.class-cte"),
-        WIRE_RETYPED("wire.retyped"),
-        WIRE_SLOT_SKEW("wire.slot-skew"),
         SQL_ROUND_TRIPS("sql.round-trips"),
         SQL_CHARS("sql.chars"),
         /** Row loads an engine's own bulk API took ({@link BulkLoad}). */

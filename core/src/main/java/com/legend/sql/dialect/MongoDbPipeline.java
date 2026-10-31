@@ -100,6 +100,8 @@ final class MongoDbPipeline {
                     + ") reached an executable dialect: plan-text vocabulary only");
             case SqlSource.RawSql r -> throw new DialectCapability("a raw statement as a relation reached MongoDb:"
                     + " a user's own pipeline as a source is not run yet");
+            case SqlSource.GridReport g -> throw new DialectCapability("a raw grid's report reached MongoDb: a raw grid is"
+                    + " an authored SQL text");
             case SqlSource.Catalog c -> throw new DialectCapability("a catalog grid reached MongoDb: its catalog"
                     + " (listCollections) is not read as a grid yet");
             case SqlSource.SourceUrl u -> throw new DialectCapability("sourceUrl reached MongoDb: no external"
@@ -381,6 +383,8 @@ final class MongoDbPipeline {
                     + ") reached an executable dialect: plan-text vocabulary only");
             case SqlSource.RawSql r -> throw new DialectCapability("a raw statement as a relation reached MongoDb:"
                     + " a user's own pipeline as a source is not run yet");
+            case SqlSource.GridReport g -> throw new DialectCapability("a raw grid's report reached MongoDb: a raw grid is"
+                    + " an authored SQL text");
             case SqlSource.Catalog c -> throw new DialectCapability("a catalog grid reached MongoDb: its catalog"
                     + " (listCollections) is not read as a grid yet");
             case SqlSource.SourceUrl u -> throw new DialectCapability("sourceUrl reached MongoDb: no external"

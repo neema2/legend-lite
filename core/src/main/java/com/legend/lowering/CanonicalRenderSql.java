@@ -427,6 +427,7 @@ public final class CanonicalRenderSql {
         for (int i = 0; i < width; i++) {
             com.legend.sql.OutputCol col = plan.outputs().get(i);
             Type kind = schema.columns().get(i).type();
+            Type declaredKind = kind;
             // the engine's boundary rule (dataTypeTransformer; the same rule
             // Equality.effectiveKind applies): a NUMERIC declaration converts
             // the wire cell; any other declaration keeps the WIRE's kind — a
@@ -494,6 +495,8 @@ public final class CanonicalRenderSql {
                                                         TDS_CELL_SEP)),
                                         new SqlExpr.IntLit(0)),
                                 new SqlExpr.NullLit())), cell);
+            } else if (declaredKind == Type.Primitive.STRING && kind == Type.Primitive.INTEGER) {
+                cell = textOrStamp(ref, cell);
             }
             cellCanons.add(cell);
         }
@@ -556,6 +559,36 @@ public final class CanonicalRenderSql {
                 new com.legend.sql.SqlSource.Subselect(cells, "cells", null),
                 null, List.of(), null, null, List.of(), null, null,
                 List.of()), null);
+    }
+
+    /**
+     * A String-declared cell over an integral store column, spelled by the kind the DATABASE holds (the
+     * planner-driver seam program's S3b, 2026-10-30): the engine reads a String declaration's cell by its result-set
+     * type, and a fixture may store the column as text where the store declares INT (the simple model's
+     * {@code Interaction.id}: {@code InteractionTable("id" VARCHAR(200))} under {@code ID INT}). Until S3b a
+     * prepare at planning asked the database for the column's type and re-typed the slot (the wire probe's
+     * reconcile); now the statement asks the value itself: its JSON form starts with a double quote exactly when it
+     * is text (measured on H2 2.1.214 and DuckDB 1.5.6, 2026-10-30: {@code "1"} for the text, {@code 1} for the
+     * integer) -- quoted as a string then, with the string's separator guard; otherwise {@code stampCell}, the
+     * integer's spelling, unchanged. A date's JSON form is a string too, so only the integral stamp takes the test.
+     */
+    private static SqlExpr textOrStamp(SqlExpr ref, SqlExpr stampCell) {
+        SqlExpr text = new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR);
+        SqlExpr isText = SqlExpr.Call.of(SqlFn.STARTS_WITH,
+                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.TO_VARIANT, ref), SqlType.Scalar.VARCHAR),
+                new SqlExpr.StringLit("\""));
+        SqlExpr quoted = new SqlExpr.Cast(
+                Objects.requireNonNull(LiteralSpelling.literal(text, Type.Primitive.STRING)),
+                SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, ref),
+                        new SqlExpr.StringLit("TDSNull")),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, isText,
+                        SqlExpr.Call.of(SqlFn.GREATER,
+                                SqlExpr.Call.of(SqlFn.STRPOS, text, new SqlExpr.StringLit(TDS_CELL_SEP)),
+                                new SqlExpr.IntLit(0))),
+                        new SqlExpr.NullLit()),
+                new SqlExpr.Case.When(isText, quoted)), stampCell);
     }
 
     /** The plan a {@link #wrapTdsCanon} wrap was built over: its rows, with

@@ -1,0 +1,338 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.planner;
+
+import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.typed.TypedSpec;
+
+/**
+ * RESEARCH ONLY, NEVER COMMITTED (the test-is-product plan's M0, 2026-10-31): counts and examples printed at JVM exit
+ * as {@code [m0] key = n} and {@code [m0-ex] key :: example}. The parity census plans each value statement and host
+ * side the PRODUCT way (TypedQuery.resolve's inliner and resolver, TypedQuery.lowerer's configuration with one id
+ * counter per program, B9, EnumValueTables) and compares the SQL with the test road's; a difference is attributed to
+ * the lowering's configuration factors or to the front half.
+ */
+public final class M0Census {
+
+    /** The MV1 experiment: a verdict group closes before every non-verdict step (2.D, N6). */
+    public static final boolean CLOSE_EARLY = false;
+
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> COUNTS =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.concurrent.ConcurrentHashMap<String, java.util.List<String>> EXAMPLES =
+            new java.util.concurrent.ConcurrentHashMap<>();
+    /** One id counter per program (B9): the product road's sites, reset at each body. */
+    public static final ThreadLocal<com.legend.lowering.ObjectSites> PROGRAM_SITES =
+            ThreadLocal.withInitial(com.legend.lowering.ObjectSites::new);
+    /** A statement or side the next test-road lowering on this thread plans: its source (the lets before it, then
+     *  it), the spec compiler, the road's label. */
+    public record Src(java.util.List<TypedSpec> stmts, com.legend.compiler.spec.SpecCompiler specs, String road) {
+    }
+    /** The source of the lowering about to happen on this thread (set by the caller, taken by lowerAndPrepare). */
+    public static final ThreadLocal<Src> PENDING = new ThreadLocal<>();
+    /** The value statements prepared, by their prepared body's identity (runValue sets PENDING from it). */
+    public static final java.util.Map<java.util.List<TypedSpec>, Src> VALUE_SRC =
+            java.util.Collections.synchronizedMap(new java.util.IdentityHashMap<>());
+    /** The bodies being walked on this thread, outermost first: each its statements and the index walked. */
+    public static final ThreadLocal<java.util.Deque<Object[]>> WALK =
+            ThreadLocal.withInitial(java.util.ArrayDeque::new);
+
+    /** The PROGRAM's lets before the statement walked (every let as written, frames and effect lets included, the
+     *  enclosing bodies' first), then {@code tail}: the product road's input for a statement or a side. */
+    public static java.util.List<TypedSpec> programPrefix(TypedSpec tail) {
+        java.util.List<TypedSpec> out = new java.util.ArrayList<>();
+        java.util.Iterator<Object[]> it = WALK.get().descendingIterator();
+        while (it.hasNext()) {
+            Object[] f = it.next();
+            @SuppressWarnings("unchecked")
+            java.util.List<TypedSpec> stmts = (java.util.List<TypedSpec>) f[0];
+            int at = ((int[]) f[1])[0];
+            for (int j = 0; j < at && j < stmts.size(); j++) {
+                if (stmts.get(j) instanceof com.legend.compiler.spec.typed.TypedLet) {
+                    out.add(stmts.get(j));
+                }
+            }
+        }
+        out.add(tail);
+        return out;
+    }
+
+    /** Take the pending source (cleared). */
+    public static @com.legend.base.Nullable Src take() {
+        Src s = PENDING.get();
+        PENDING.remove();
+        return s;
+    }
+
+    /** Where {@code e} was raised: the first com.legend frame's layer. */
+    public static String layer(Throwable e) {
+        Throwable t = e;
+        while (t.getCause() != null && t.getCause() != t && !(t instanceof com.legend.error.DataError)) {
+            t = t.getCause();
+        }
+        for (StackTraceElement f : t.getStackTrace()) {
+            String c = f.getClassName();
+            if (!c.startsWith("com.legend.")) {
+                continue;
+            }
+            String rest = c.substring("com.legend.".length());
+            int dot = rest.indexOf('.');
+            String pkg = dot < 0 ? "(root)" : rest.substring(0, dot);
+            if (pkg.equals("error") || pkg.equals("base")) {
+                continue;
+            }
+            return pkg + "." + c.substring(c.lastIndexOf('.') + 1);
+        }
+        return "?";
+    }
+    /** Whether the body on this thread runs in a transaction. */
+    public static final ThreadLocal<Boolean> IN_TX = ThreadLocal.withInitial(() -> false);
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(M0Census::dump));
+    }
+
+    private M0Census() {
+    }
+
+    public static void count(String key) {
+        COUNTS.computeIfAbsent(key, k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    public static void example(String key, String text) {
+        java.util.List<String> l = EXAMPLES.computeIfAbsent(key,
+                k -> java.util.Collections.synchronizedList(new java.util.ArrayList<>()));
+        if (l.size() < 3) {
+            l.add(text.length() > 900 ? text.substring(0, 900) + "..." : text);
+        }
+    }
+
+    public static String cls(Throwable e) {
+        String m = e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
+        m = m.replaceAll("[0-9]+", "N").replace('\n', ' ');
+        return m.length() > 110 ? m.substring(0, 110) : m;
+    }
+
+    private static void dump() {
+        com.legend.sql.ScanOrder.M0.forEach((k, v) -> COUNTS.computeIfAbsent("R8.scan-order key " + k,
+                x -> new java.util.concurrent.atomic.LongAdder()).add(v.sum()));
+        StringBuilder sb = new StringBuilder();
+        new java.util.TreeMap<>(COUNTS).forEach((k, v) -> sb.append("[m0] ").append(k).append(" = ")
+                .append(v.sum()).append('\n'));
+        new java.util.TreeMap<>(EXAMPLES).forEach((k, l) -> {
+            synchronized (l) {
+                for (String e : l) {
+                    sb.append("[m0-ex] ").append(k).append(" :: ").append(e.replace('\n', ' ')).append('\n');
+                }
+            }
+        });
+        System.err.print(sb);
+        System.err.flush();
+        try {
+            java.nio.file.Path dir = java.nio.file.Path.of(
+                    "/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/m0/dumps");
+            java.nio.file.Files.createDirectories(dir);
+            String label = System.getProperty("legend.judge.mode", "test") + "-"
+                    + ProcessHandle.current().pid() + "-" + System.currentTimeMillis();
+            java.nio.file.Files.writeString(dir.resolve(label + ".txt"), sb.toString());
+        } catch (java.io.IOException | RuntimeException e) {
+            System.err.println("[m0] dump file not written: " + e);
+        }
+    }
+
+    /** {@code stmts} (the lets before it, then the statement or side) planned the PRODUCT way, its SQL. */
+    public static String productSql(java.util.List<TypedSpec> stmts, com.legend.compiler.spec.SpecCompiler specs,
+            PlanEnv env) {
+        ModelContext ctx = env.ctx();
+        java.util.List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs)
+                .inlineBody(new java.util.ArrayList<>(stmts));
+        boolean temporal = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
+        b = new com.legend.resolver.StoreResolver(ctx, specs).resolve(b, env.runtimeFqn());
+        CrossStoreGuard.check(b, ctx, env.runtimeFqn());
+        com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
+                t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
+                f -> ctx.findClass(f).isPresent(), ctx.implementations())
+                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
+                .withObjectIdentity(PROGRAM_SITES.get()::idOf);
+        if (!temporal) {
+            lw = lw.withEngineExistsJoinForm();
+        }
+        lw = lw.withStreamingGraphRoot();
+        if (!env.features().isEmpty()) {
+            lw = lw.withFeatures(env.features());
+        }
+        com.legend.sql.SqlQuery q = com.legend.sql.EnumValueTables.apply(lw.lower(b));
+        return env.dialect().render(q);
+    }
+
+    /** The product road for a statement or side, or null (counted) when the product refuses it. */
+    public static @com.legend.base.Nullable String tryProduct(String road, java.util.List<TypedSpec> stmts,
+            com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
+        try {
+            return productSql(stmts, specs, env);
+        } catch (RuntimeException e) {
+            count("B." + road + ".product-refuses " + cls(e));
+            count("B." + road + ".product-refuses");
+            String src = String.valueOf(stmts.get(stmts.size() - 1));
+            example("B." + road + ".product-refuses " + cls(e), (src.length() > 500 ? src.substring(0, 500) : src)
+                    + " [prefix lets " + (stmts.size() - 1) + "]");
+            return null;
+        }
+    }
+
+    private static final java.util.regex.Pattern IDS = java.util.regex.Pattern.compile("'[oi][0-9]+#?'");
+    private static final java.util.regex.Pattern ALIASES =
+            java.util.regex.Pattern.compile("(?<![A-Za-z0-9_])(t|_tds|tds|__s|__e|_zip_e|__agg_ord|__agg_key|_s|ord)[0-9]+");
+
+    /** The two texts' first difference (after the cosmetic normalization), with a window of each. */
+    private static String window(String a, String b) {
+        String x = cosmetic(a);
+        String y = cosmetic(b);
+        int i = 0;
+        while (i < x.length() && i < y.length() && x.charAt(i) == y.charAt(i)) {
+            i++;
+        }
+        int from = Math.max(0, i - 160);
+        return "at " + i + "/" + x.length() + ": TEST ..." + x.substring(from, Math.min(x.length(), i + 260))
+                + "... || PRODUCT ..." + y.substring(from, Math.min(y.length(), i + 260)) + "...";
+    }
+
+    /** {@code sql} with the ids and the alias numbering normalized (a cosmetic difference: the counters). */
+    private static String cosmetic(String sql) {
+        return ALIASES.matcher(IDS.matcher(sql).replaceAll("'ID'")).replaceAll("$1#");
+    }
+
+    /** The pair compared, a difference attributed. {@code testBody} the test road's lowered body. */
+    public static void compare(String road, String product, com.legend.sql.SqlQuery testPlan,
+            java.util.List<TypedSpec> testBody, PlanEnv env, boolean identity) {
+        try {
+            String test = env.dialect().render(testPlan);
+            if (test.equals(product)) {
+                count("B." + road + ".same");
+                return;
+            }
+            if (IDS.matcher(test).replaceAll("'ID'").equals(IDS.matcher(product).replaceAll("'ID'"))) {
+                count("B." + road + ".ids-only");
+                example("B." + road + ".ids-only", "TEST: " + test + " || PRODUCT: " + product);
+                return;
+            }
+            if (cosmetic(test).equals(cosmetic(product))) {
+                count("B." + road + ".numbering-only");
+                example("B." + road + ".numbering-only", "TEST: " + test + " || PRODUCT: " + product);
+                return;
+            }
+            // the test body lowered with the product's configuration: equal -> the lowering's configuration explains
+            // it, and the factors that do; else the front half (inlining, resolution, staging) differs
+            String relowered;
+            try {
+                relowered = lower(java.util.EnumSet.noneOf(F.class), testBody, env, env.ctx(), env.dialect());
+            } catch (RuntimeException e) {
+                count("B." + road + ".diff relower-refuses " + cls(e));
+                return;
+            }
+            if (cosmetic(relowered).equals(cosmetic(product))) {
+                String sig = causes(testBody, env, identity, relowered);
+                count("B." + road + ".diff lowering " + sig);
+                count("B." + road + ".diff lowering");
+                example("B." + road + ".diff lowering " + sig, window(test, product));
+            } else {
+                StringBuilder f = new StringBuilder();
+                if (!env.queryLets().isEmpty()) {
+                    f.append(" query-lets");
+                }
+                if (!env.planRows().isEmpty()) {
+                    f.append(" plan-rows");
+                }
+                if (!env.tableReplace().isEmpty()) {
+                    f.append(" renames");
+                }
+                if (env.frame() != null) {
+                    f.append(" frame");
+                }
+                count("B." + road + ".diff front" + f);
+                count("B." + road + ".diff front");
+                example("B." + road + ".diff front" + f, window(test, product));
+            }
+        } catch (RuntimeException e) {
+            count("B." + road + ".probe-error " + cls(e));
+        }
+    }
+
+    /** The configuration factors on which the test road's lowering differs from the product's. */
+    enum F { LAYOUT, LANE, EGRESS, TZ, EXISTS, SEED, POST, ENUM, FEATURES, STREAM }
+
+    /** The test road's value of each factor for a statement lowered on the identity lane or not. */
+    private static java.util.EnumSet<F> test(boolean identity) {
+        java.util.EnumSet<F> s = java.util.EnumSet.of(F.TZ, F.EXISTS, F.SEED, F.POST, F.ENUM, F.FEATURES, F.STREAM);
+        if (identity) {
+            s.add(F.LAYOUT);
+            s.add(F.LANE);
+        } else {
+            s.add(F.EGRESS);
+        }
+        return s;
+    }
+
+    /** {@code body} lowered with the test road's value for the factors in {@code t} and the product's for the rest. */
+    static String lower(java.util.Set<F> t, java.util.List<TypedSpec> body, PlanEnv env, ModelContext ctx,
+            com.legend.sql.dialect.SqlDialect dialect) {
+        com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
+                ty -> t.contains(F.LAYOUT) ? com.legend.compiler.element.ClassLayouts.layoutOf(ctx, ty, true)
+                        : com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, ty),
+                f -> ctx.findClass(f).isPresent(), ctx.implementations());
+        boolean temporal = com.legend.compiler.element.Temporal.anyTemporalGetAll(body, ctx);
+        if (t.contains(F.EXISTS) || !temporal) {
+            lw = lw.withEngineExistsJoinForm();
+        }
+        if (t.contains(F.TZ)) {
+            lw = lw.withDbTimeZone(env.timeZone());
+        }
+        lw = lw.withInstanceKeys(ty -> com.legend.compiler.element.EqualityKeys.resolve(ctx, ty));
+        InstanceIds ids = new InstanceIds();
+        if (t.contains(F.LANE)) {
+            lw = lw.withInstanceIds(ids::idOf);
+        } else {
+            lw = lw.withObjectIdentity(ids::idOf);
+            if (t.contains(F.EGRESS)) {
+                lw = lw.withDeclaredEgress();
+            }
+        }
+        if (!t.contains(F.STREAM)) {
+            lw = lw.withStreamingGraphRoot();
+        }
+        java.util.Set<com.legend.platform.Feature> features = t.contains(F.FEATURES)
+                ? BodyPlanner.featuresOf(env, body) : env.features();
+        if (!features.isEmpty()) {
+            lw = lw.withFeatures(features);
+        }
+        java.util.List<TypedSpec> b = t.contains(F.SEED)
+                ? com.legend.lowering.SeedableLets.withSeedableLetPrefix(body, env.queryLets(), ctx) : body;
+        com.legend.sql.SqlQuery q = lw.lower(b);
+        if (t.contains(F.POST)) {
+            q = com.legend.lowering.SqlPostProcessors.applyRecorded(q, env.tableReplace(),
+                    env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
+        }
+        if (!t.contains(F.ENUM)) {
+            q = com.legend.sql.EnumValueTables.apply(q);
+        }
+        return dialect.render(q);
+    }
+
+    /** The factors each of which, alone at its test-road value, changes the product-configuration lowering. */
+    private static String causes(java.util.List<TypedSpec> body, PlanEnv env, boolean identity, String prod) {
+        java.util.List<String> causes = new java.util.ArrayList<>();
+        String p = cosmetic(prod);
+        for (F f : test(identity)) {
+            try {
+                String one = lower(java.util.EnumSet.of(f), body, env, env.ctx(), env.dialect());
+                if (!cosmetic(one).equals(p)) {
+                    causes.add(f.name());
+                }
+            } catch (RuntimeException e) {
+                causes.add(f.name() + "!");
+            }
+        }
+        return causes.isEmpty() ? "(combination)" : String.join("+", causes);
+    }
+}

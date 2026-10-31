@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.planner;
 
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -33,14 +33,14 @@ import java.util.List;
  * @param receiverForm true for the qualified-property form over a
  *     {@code toSQL} handle
  */
-record SqlTextInputs(TypedSpec query, TypedSpec mapping, TypedSpec dialect,
+public record SqlTextInputs(TypedSpec query, TypedSpec mapping, TypedSpec dialect,
         TypedSpec runtime, boolean receiverForm) {
 
     /** The inputs of a toSQLString-family call; null when the call is the
      * receiver form over something that is not a {@code toSQL} handle, or
      * a direct form short of its three structured arguments (a caller
      * that owns a wall throws its own). */
-    static @com.legend.base.Nullable SqlTextInputs of(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
+    public static @com.legend.base.Nullable SqlTextInputs of(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             List<TypedSpec> letPrefix) {
         String fqn = call.fqn();
         // the RECEIVER form: SQLResult's qualified property toSQLString(dbType,

@@ -1,6 +1,5 @@
 package com.legend;
 
-import com.legend.driver.GridProbe;
 
 import com.legend.protocol.TypeExpression;
 
@@ -244,6 +243,10 @@ final class ArchitectureTest {
             // exemption, which the rule carried since audit 19, named nothing and left (the D73 audit)
             .that().resideOutsideOfPackage("com.legend.driver")
             .and().resideInAPackage("com.legend..")
+            // 2026-10-31 (the seam program's S2g): the engine-text registry is planning work and left the driver for
+            // the planner; it alone constructs the renderers, so it alone of the planner is exempt (a plan the runner
+            // executes is never written by it: PlanMaker and the body planner's lowering hold no engine-style class)
+            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class)
             // the engine-style FAMILY (H2 + DB2 golden-text renderers)
             // may compose internally; the quarantine is against the
             // execution path, not against sibling dialects
@@ -272,6 +275,11 @@ final class ArchitectureTest {
             // exemption left the same day (no door holds the interface; the D73 audit)
             .that().resideOutsideOfPackages("com.legend.driver", "com.legend.sql.dialect", "com.legend.testdatagen")
             .and().resideInAPackage("com.legend..")
+            // 2026-10-31 (the seam program's S2g): the engine's plan text is planning work (D30: plan-time values) and
+            // left the driver for the planner -- the registry, the plan printer, the envelope and the plan-node
+            // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface
+            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class, com.legend.planner.EnginePlans.class,
+                    com.legend.planner.PlanEnvelope.class, com.legend.planner.PlanAllocations.class)
             .should().dependOnClassesThat().belongToAnyOf(com.legend.sql.dialect.EngineTextDialect.class)
             .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
             .check(CORE_PROD_CLASSES);
@@ -1108,8 +1116,9 @@ final class ArchitectureTest {
                     // renderer translates the text in place, SqlDialect.raw); executionplan.MirJson
                     // (2026-10-18, the plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3)): the plan's typed tree read back from its JSON, exactly as the planner
                     // wrote it -- no text composed
-                    // GridProbe at the root since 2026-10-30 (D71: the probes out of exec)
-                    "com\\.legend\\.(driver\\.GridProbe|lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
+                    // (GridProbe's LIMIT-0 probe deleted 2026-10-30, the planner-driver seam program's S3c: a raw grid's
+                    // columns are the ones its result reports, read when the plan runs)
+                    "com\\.legend\\.(lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
             .should().callConstructorWhere(
                     com.tngtech.archunit.core.domain.JavaCall.Predicates
                             .target(com.tngtech.archunit.core.domain
@@ -1119,9 +1128,8 @@ final class ArchitectureTest {
                                             .Predicates.name(
                                                     "com.legend.sql.SqlSource$RawSql"))))
             .as("Phase 1 quarantine: SqlSource.RawSql is constructed"
-                    + " ONLY by the chartered seams (GridProbe's"
-                    + " LIMIT-0 probe + the Lowerer TypedRawSqlRelation"
-                    + " case) — it carries authored text, never"
+                    + " ONLY by the chartered seam (the Lowerer's"
+                    + " TypedRawSqlRelation case) — it carries authored text, never"
                     + " platform-composed SQL")
             .check(CORE_PROD_CLASSES);
     }
@@ -1193,8 +1201,8 @@ final class ArchitectureTest {
     void theBodyDriverAndTheJudgesHoldNoJdbc() {
         noClasses()
             // the whole judge package since 2026-10-30 (D71: the judges out of exec into com.legend.judge), and
-            // the probes with them at the root (ColumnProbe, GridProbe, WireProbe, DynamicPivot: a probe asks the
-            // plan runner, never a connection)
+            // the probes with them at the root (ColumnProbe, WireProbe and GridProbe deleted 2026-10-30 and
+            // DynamicPivot 2026-10-31, the seam program's S3: no probe is left)
             // the whole driver package since 2026-10-30 (D73, step C: the execution side's machinery -- the body driver
             // and compiler, the judges' arms, the seeds, the probes, the system database -- is com.legend.driver)
             .that().haveNameMatching("com\\.legend\\.(driver\\.[A-Za-z0-9_]+"
@@ -1212,8 +1220,8 @@ final class ArchitectureTest {
      * "the doors").</strong> {@code Statements} is the session seam (text in; rows, a count, reported columns or text
      * out), and {@code PlanRunner} is the one place a statement meets it: every statement sent is a plan's, checked
      * against its target (the database, the server versions it is written for), given the target's session
-     * statements and counted. The schema probes ({@code ColumnProbe}, {@code GridProbe}, {@code WireProbe},
-     * {@code DynamicPivot}) ask the runner ({@code columns}, {@code describe}); the seeds, a program's session
+     * statements and counted. No schema probe is left (the seam program's S3, 2026-10-31: a dynamic pivot's keys and a
+     * raw grid's columns are read by a plan's own first step); the seeds, a program's session
      * statements and the system store's rows are setup steps it runs ({@code setUp}); the transaction bracket is the
      * session's own ({@code Sessions.Session.inTransaction}). The session owners ({@code PlanSessions},
      * {@code Sessions}) and the implementations ({@code JdbcStatements}, MongoDB's) are the seam itself. No other
@@ -1561,10 +1569,11 @@ final class ArchitectureTest {
      *       {@code ExecuteChainAssembly} (the executor interleaves its
      *       execution-bound steps BETWEEN compiler calls).</li>
      *   <li>Misfiled passes just MOVE — {@code resolver.DriverPkAppend}.</li>
-     *   <li>LATE BINDING is staged compilation — the runtime fact
-     *       becomes an INPUT: {@code resolver.RawGridSchema} takes the
-     *       probed roster through its {@code SchemaReferee};
-     *       {@code GridProbe} (at the root since D71, 2026-10-30) is the executor's referee.</li>
+     *   <li>LATE BINDING is a plan step, never a compiler input: a raw
+     *       grid's columns are a keyed plan's keys, read when it runs
+     *       (the planner-driver seam program's S3c, 2026-10-30; until
+     *       then {@code resolver.RawGridSchema} took GridProbe's probed
+     *       roster through its {@code SchemaReferee}).</li>
      *   <li>Verdict-query synthesis is compiler emission —
      *       {@code VerdictQueries} builds; {@code AssertVerdicts}
      *       fetches and judges, minting nothing.</li>

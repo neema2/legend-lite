@@ -43,6 +43,7 @@ class TypedPlanTest {
             case ExecutionPlan.Update u -> u.sql().target();
             case ExecutionPlan.Check k -> k.sql().target();
             case ExecutionPlan.Effect e -> e.sql().target();
+            case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a typed plan here is never a verdict group");
         };
     }
 

@@ -245,7 +245,8 @@ public final class RowDecode {
         return new BigDecimal(s.endsWith("D") || s.endsWith("d") ? s.substring(0, s.length() - 1) : s);
     }
 
-    private static final String ANY = "meta::pure::metamodel::type::Any";
+    /** Pure's top type, as a plan names a column of it (a raw grid's column read by name: its kind the wire's). */
+    public static final String ANY = "meta::pure::metamodel::type::Any";
 
     /** Whether the Pure type {@code type} is a number's: Integer, Float, Decimal (with or without its digits) or
      *  Number. */

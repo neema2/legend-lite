@@ -1199,4 +1199,22 @@ public final class DuckDb extends AnsiSqlRenderer {
     protected SqlWriter merge(com.legend.sql.SqlDml.Merge m) {
         return standardMerge(m);
     }
+
+    /** {@inheritDoc} {@code to_json(value)} (the seam program's S3c, 2026-10-30). */
+    @Override
+    protected SqlWriter variantOf(SqlWriter writer, SqlWriter.Piece value) {
+        return writer.append("to_json(").piece(value).append(")");
+    }
+
+    /** {@inheritDoc} A list literal, {@code [c1, c2, ...]} (the seam program's S3c, 2026-10-30). */
+    @Override
+    protected SqlWriter arrayOfCells(SqlWriter writer, SqlWriter.Piece cell) {
+        return writer.append("[").region("", ", ", null, cell).append("]");
+    }
+
+    /** {@inheritDoc} Measured on DuckDB 1.5.6.0 (the seam program's S3c, 2026-10-30). */
+    @Override
+    protected boolean writesGridReports() {
+        return true;
+    }
 }

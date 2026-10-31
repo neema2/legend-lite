@@ -1,0 +1,598 @@
+diff --git a/core/src/main/java/com/legend/driver/AssertErrorNative.java b/core/src/main/java/com/legend/driver/AssertErrorNative.java
+index 5e4525f0..caf87770 100644
+--- a/core/src/main/java/com/legend/driver/AssertErrorNative.java
++++ b/core/src/main/java/com/legend/driver/AssertErrorNative.java
+@@ -64,9 +64,13 @@ final class AssertErrorNative {
+             BodyDriver.executeStatements(f.body(),
+                     new ArrayList<>(letPrefix), specs, env);
+         } catch (com.legend.error.DataError e) {
++            com.legend.planner.M0Census.count("H14.assertError caught DataError");
+             caughtMessage = String.valueOf(e.getMessage());
+             caughtCause = e.getCause();
+         } catch (com.legend.error.ModelException e) {
++            com.legend.planner.M0Census.count("H14.assertError caught ModelException "
++                    + com.legend.planner.M0Census.layer(e) + " " + com.legend.planner.M0Census.cls(e));
++            com.legend.planner.M0Census.count("H14.assertError caught ModelException");
+             // A DEFERRED-BODY guard (the lowering's dynamic validations,
+             // e.g. timeBucket's duration-unit check): interpreted pure
+             // raises these lazily at EVAL, and for the assertError
+@@ -78,6 +82,7 @@ final class AssertErrorNative {
+             caughtMessage = String.valueOf(e.getMessage());
+         }
+         if (caughtMessage == null) {
++            com.legend.planner.M0Census.count("H14.assertError no error");
+             // interpreted AssertError.java: PureAssertFail("No error was
+             // thrown") — a FAIL, not an orchestration error
+             throw new com.legend.error.AssertFailed("No error was thrown");
+diff --git a/core/src/main/java/com/legend/driver/AssertVerdicts.java b/core/src/main/java/com/legend/driver/AssertVerdicts.java
+index e905b663..8dc61a96 100644
+--- a/core/src/main/java/com/legend/driver/AssertVerdicts.java
++++ b/core/src/main/java/com/legend/driver/AssertVerdicts.java
+@@ -136,6 +136,10 @@ final class AssertVerdicts {
+     }
+ 
+     static void flush(com.legend.judge.VerdictBatch batch, BodyDriver.ExecEnv env) {
++        if (batch.pendingCount() > 0) {
++            com.legend.planner.M0Census.count("F11.fused groups " + (com.legend.planner.M0Census.IN_TX.get()
++                    ? "inside a body transaction" : "outside a transaction"));
++        }
+         batch.flush(env.assertListener());
+     }
+ 
+@@ -338,6 +342,8 @@ final class AssertVerdicts {
+                             ta, com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                                     == com.legend.compiler.spec.OrderView.SORTED);
+                     com.legend.judge.CanonicalDivergence.sqlRoute(name, "grid-pair");
++                    com.legend.planner.M0Census.count("MV3.grid-pair arm (TdsCompare.grids in Java) "
++                            + (databaseMode(env) ? "database judge" : "host judge"));
+                     if (held != wantEqual) {
+                         yield fail(name + ":\n" + HostJudge.summarize(te)
+                                 + "\n does not match:\n" + HostJudge.summarize(ta));
+diff --git a/core/src/main/java/com/legend/driver/BodyCompiler.java b/core/src/main/java/com/legend/driver/BodyCompiler.java
+index 1779686a..efaf16ae 100644
+--- a/core/src/main/java/com/legend/driver/BodyCompiler.java
++++ b/core/src/main/java/com/legend/driver/BodyCompiler.java
+@@ -101,7 +101,98 @@ public final class BodyCompiler {
+         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
+         // the staged lets' temporary tables (Pure.Lite.STAGE), dropped once the body has run
+         List<String> staged = new java.util.ArrayList<>();
++        int m0Depth = M0_DEPTH.get()[0]++;
++        int[] m0At = {-1};
++        boolean[] m0Mv1 = {false};
++        com.legend.planner.M0Census.WALK.get().push(new Object[] {stmts, m0At});
++        try {
++            return m0Walk(stmts, letPrefix, specs, env0, answer, stagedGrids, seg, execFrames, effectMemo, staged,
++                    m0At, m0Mv1);
++        } catch (RuntimeException m0e) {
++            if (m0Depth == 0) {
++                m0Failed(m0e, stmts, letPrefix, specs, seg.env(), m0At[0]);
++            }
++            throw m0e;
++        } finally {
++            com.legend.planner.M0Census.WALK.get().pop();
++            M0_DEPTH.get()[0]--;
++            if (m0Depth == 0 && m0Mv1[0]) {
++                com.legend.planner.M0Census.count("MV1.bodies with a step after a deferred verdict");
++            }
++        }
++    }
++
++    private static final ThreadLocal<int[]> M0_DEPTH = ThreadLocal.withInitial(() -> new int[] {0});
++
++    /** M0 (research): R14, a top-level body's failure classified, and its unreached statements planned the product
++     *  way (an approximation of the whole-body compile: lets ride the prefix, an assert's non-lambda arguments planned
++     *  as its sides). */
++    private static void m0Failed(RuntimeException e, List<TypedSpec> stmts, List<TypedSpec> letPrefix,
++            SpecCompiler specs, BodyDriver.ExecEnv env, int at) {
++        String phase = e instanceof com.legend.error.AssertFailed ? "verdict"
++                : e instanceof com.legend.error.DataError ? "database"
++                : "other:" + com.legend.planner.M0Census.layer(e);
++        String where = at < 0 ? "before-walk" : at == stmts.size() - 1 ? "last" : "before-last";
++        com.legend.planner.M0Census.count("R14.fail " + (phase.startsWith("other") ? "other" : phase) + " " + where);
++        if (phase.startsWith("other")) {
++            com.legend.planner.M0Census.count("R14.fail-other " + phase + " " + e.getClass().getSimpleName());
++            com.legend.planner.M0Census.example("R14.fail-other " + phase + " " + e.getClass().getSimpleName(),
++                    com.legend.planner.M0Census.cls(e));
++        }
++        if (at < 0 || at >= stmts.size() - 1) {
++            return;
++        }
++        List<TypedSpec> prefix = com.legend.planner.M0Census.programPrefix(stmts.get(at));
++        prefix.remove(prefix.size() - 1);
++        if (stmts.get(at) instanceof TypedLet failedLet) {
++            prefix.add(failedLet);
++        }
++        Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
++        for (int j = at + 1; j < stmts.size(); j++) {
++            TypedSpec s = stmts.get(j);
++            if (com.legend.compiler.spec.StatementEffects.containsEffect(s, specs, memo)) {
++                com.legend.planner.M0Census.count("R14.unreached effect (" + phase.split(":")[0] + ")");
++                continue;
++            }
++            if (s instanceof TypedLet l && j < stmts.size() - 1) {
++                prefix.add(l);
++                continue;
++            }
++            TypedSpec bare = com.legend.compiler.spec.typed.Lets.bare(s);
++            String callee = com.legend.compiler.spec.typed.Calls.calleeOf(bare);
++            List<TypedSpec> targets = new java.util.ArrayList<>();
++            String kind;
++            if (callee != null && callee.toLowerCase(java.util.Locale.ROOT).contains("assert")
++                    && bare instanceof TypedNativeCall nc) {
++                kind = "assert-side";
++                for (TypedSpec a : nc.args()) {
++                    if (!(a instanceof com.legend.compiler.spec.typed.TypedLambda)
++                            && com.legend.compiler.spec.typed.Literals.fold(a, prefix) == null) {
++                        targets.add(a);
++                    }
++                }
++            } else {
++                kind = "value";
++                targets.add(s);
++            }
++            for (TypedSpec t : targets) {
++                List<TypedSpec> one = new java.util.ArrayList<>(prefix);
++                one.add(t);
++                String r = com.legend.planner.M0Census.tryProduct("unreached-" + kind + " (" + phase.split(":")[0]
++                        + ")", one, specs, env.plan());
++                if (r != null) {
++                    com.legend.planner.M0Census.count("R14.unreached " + kind + " plans (" + phase.split(":")[0] + ")");
++                }
++            }
++        }
++    }
++
++    private static @com.legend.base.Nullable TypedSide m0Walk(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
++            SpecCompiler specs, BodyDriver.ExecEnv env0, Execution.@com.legend.base.Nullable Answer answer,
++            List<String> stagedGrids, Segments seg, Map<String, BodyDriver.ExecFrame> execFrames,
++            Map<com.legend.model.FunctionId, Boolean> effectMemo, List<String> staged, int[] m0At, boolean[] m0Mv1) {
+         for (int i = 0; i < stmts.size(); i++) {
++            m0At[0] = i;
+             boolean effect = com.legend.compiler.spec.StatementEffects.containsEffect(stmts.get(i), specs, effectMemo);
+             boolean generator = com.legend.compiler.spec.StatementEffects.containsTdgGenerator(stmts.get(i));
+             if (generator) {
+@@ -115,6 +206,19 @@ public final class BodyCompiler {
+                     letPrefix,
+                     BodyDriver.ENGINE_TEXT,
+                     BodyDriver.viewSqlRenderer(specs, seg.env()));
++            if (stmt != stmts.get(i)) {
++                com.legend.planner.M0Census.count("T8.generator folds");
++                if (!stmt.info().equals(stmts.get(i).info())) {
++                    com.legend.planner.M0Census.count("T8.fold changes the statement's type");
++                    com.legend.planner.M0Census.example("T8.fold changes the statement's type",
++                            stmts.get(i).info() + " -> " + stmt.info());
++                }
++                if (!(stmt.info().type().equals(stmts.get(i).info().type()))) {
++                    com.legend.planner.M0Census.count("T8.fold changes the root type (multiplicity aside)");
++                }
++            } else if (generator) {
++                com.legend.planner.M0Census.count("T8.generator statement, no fold");
++            }
+             BodyDriver.establishContexts(stmt, seg.env());
+             boolean last = i == stmts.size() - 1;
+             if (effect || com.legend.compiler.spec.StatementEffects.containsEffect(stmt, specs, effectMemo)) {
+@@ -137,6 +241,7 @@ public final class BodyCompiler {
+                         // rows as they were
+                         String table = BodyDriver.stagedTable(let.name());
+                         TypedSpec rows = ((TypedNativeCall) rhs).args().get(0);
++                        m0Step(seg, "staged", m0Mv1);
+                         BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
+                                 rows, rows, letPrefix, execFrames, specs, seg.env()).stagedInto(table);
+                         seg.value(pv, false);
+@@ -147,6 +252,10 @@ public final class BodyCompiler {
+                     case FRAME -> {
+                         // a FRAME: planned here, its CTE defined on the batch when a reader
+                         // splices it (rung 12: a plain class frame as its root rows)
++                        if (seg.rows() > 0) {
++                            com.legend.planner.M0Census.count("MV1.after-verdict frame-let (no close: sends nothing in"
++                                    + " the database mode)");
++                        }
+                         execFrames.put(let.name(),
+                                 BodyDriver.buildFrame((TypedNativeCall) rhs, letPrefix, true, specs, seg.env()));
+                         seg.fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
+@@ -158,6 +267,7 @@ public final class BodyCompiler {
+                         // seam program's S3c, 2026-10-30; until then the grid probe pinned its columns here at
+                         // planning, the temp-table port of 2026-09-22)
+                         String table = BodyDriver.stagedGridTable(let.name());
++                        m0Step(seg, "staged-grid", m0Mv1);
+                         seg.value(BodyDriver.prepareValue(rhs, rhs, letPrefix, execFrames, specs, seg.env())
+                                 .stagedInto(table), false);
+                         stagedGrids.add(table);
+@@ -191,8 +301,18 @@ public final class BodyCompiler {
+             }
+             // … everything else is a VALUE statement, prepared now (a helper call
+             // inlines here; an inlined assert root is adjudicated by the preparation)
++            boolean m0Pending = seg.rows() > 0;
++            if (com.legend.planner.M0Census.CLOSE_EARLY && m0Pending) {
++                seg.closeVerdicts();
++                rowsBefore = seg.rows();
++            }
+             BodyDriver.PreparedValue pv = BodyDriver.prepareValue(
+                     stmt, bare, letPrefix, execFrames, specs, seg.env());
++            if (m0Pending && pv.verdict() == null) {
++                m0Mv1[0] = true;
++                com.legend.planner.M0Census.count("MV1.after-verdict " + (pv.contextOwner() != null ? "assertError"
++                        : pv.forcedFrame() != null ? "forced-frame" : last ? "value (last)" : "value"));
++            }
+             // a CONTEXT OWNER (assertError: f's body runs under the arm's catch) and a
+             // frame FORCED at value position (execute as a statement: its eager run IS
+             // the value) are values like any other — prepared here, run at the segment's
+@@ -217,6 +337,18 @@ public final class BodyCompiler {
+         return seg.last;
+     }
+ 
++    /** M0 (research): MV1, a database-changing or value step after a deferred verdict; the experiment closes the
++     *  group before it. */
++    private static void m0Step(Segments seg, String kind, boolean[] mv1) {
++        if (seg.rows() > 0) {
++            mv1[0] = true;
++            com.legend.planner.M0Census.count("MV1.after-verdict " + kind);
++            if (com.legend.planner.M0Census.CLOSE_EARLY) {
++                seg.closeVerdicts();
++            }
++        }
++    }
++
+     /** The segments of one body: the open verdicts segment (its batch, its prepared
+      * values), the open effect segment (its sink), the fragment map, the last result. */
+     private static final class Segments {
+@@ -306,6 +438,12 @@ public final class BodyCompiler {
+                         specs, BodyDriver.spliceHook(execFrames, letPrefix, specs, sinkEnv))
+                         .inlineBody(single);
+                 inlined = com.legend.planner.BodyPlanner.resolver(specs, sinkEnv.plan()).resolve(inlined, sinkEnv.runtimeFqn());
++                try {
++                    com.legend.planner.CrossStoreGuard.check(inlined, sinkEnv.ctx(), sinkEnv.runtimeFqn());
++                    com.legend.planner.M0Census.count("D18.effect-let guard passes");
++                } catch (RuntimeException m0e) {
++                    com.legend.planner.M0Census.count("D18.effect-let guard refuses " + com.legend.planner.M0Census.cls(m0e));
++                }
+                 last = BodyDriver.executeTyped(inlined, sinkEnv);
+                 lastIsValue = true;
+                 return;
+diff --git a/core/src/main/java/com/legend/driver/BodyDriver.java b/core/src/main/java/com/legend/driver/BodyDriver.java
+index 57311982..8d37f40d 100644
+--- a/core/src/main/java/com/legend/driver/BodyDriver.java
++++ b/core/src/main/java/com/legend/driver/BodyDriver.java
+@@ -73,11 +73,34 @@ public final class BodyDriver {
+                 || com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
+             com.legend.resolver.StagedRows.refuseLetsTheWritesChange(typedBody, specs);
+             ExecEnv tx = env;
+-            tx.session().inTransaction(() -> BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs,
+-                    tx, answer));
++            com.legend.planner.M0Census.PROGRAM_SITES.set(new com.legend.lowering.ObjectSites());
++            long m0Before = com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_ROUND_TRIPS);
++            com.legend.planner.M0Census.IN_TX.set(true);
++            try {
++                tx.session().inTransaction(() -> BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs,
++                        tx, answer));
++            } finally {
++                com.legend.planner.M0Census.IN_TX.set(false);
++                m0Sends(m0Before, true);
++            }
+             return;
+         }
+-        BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs, env, answer);
++        com.legend.planner.M0Census.PROGRAM_SITES.set(new com.legend.lowering.ObjectSites());
++        long m0Before = com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_ROUND_TRIPS);
++        try {
++            BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs, env, answer);
++        } finally {
++            m0Sends(m0Before, false);
++        }
++    }
++
++    /** M0 (research): W1, the bodies that send no statement. */
++    private static void m0Sends(long before, boolean tx) {
++        long sent = com.legend.exec.Census.count(com.legend.exec.Census.Key.SQL_ROUND_TRIPS) - before;
++        com.legend.planner.M0Census.count("W1.bodies" + (tx ? " tx" : ""));
++        if (sent == 0) {
++            com.legend.planner.M0Census.count("W1.zero-send bodies" + (tx ? " tx" : ""));
++        }
+     }
+ 
+     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
+@@ -353,8 +376,12 @@ public final class BodyDriver {
+         // the statement's env is widened LAST, after resolution — the loop's own order
+         // (computing it before resolution changed a lowering: an order dependence
+         // in the shared state the inliner touches, measured 2026-09-21, owed)
+-        return new PreparedValue(body, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
++        PreparedValue m0pv = new PreparedValue(body, frameReplaceEnv(stmt, execFrames, env, letPrefix, specs),
+                 lets, null, null, null);
++        java.util.List<TypedSpec> m0src = com.legend.planner.M0Census.programPrefix(stmt);
++        com.legend.planner.M0Census.VALUE_SRC.put(m0pv.body(), new com.legend.planner.M0Census.Src(m0src, specs,
++                env.effectSink() != null ? "effect-value" : "value"));
++        return m0pv;
+     }
+ 
+     /** The body's LAST value statement answered to the caller's sink (the doors, 2026-10-29): a planned statement
+@@ -372,6 +399,10 @@ public final class BodyDriver {
+         }
+         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
+                 com.legend.exec.StatementOrigin.STATEMENT)) {
++            com.legend.planner.M0Census.Src m0 = com.legend.planner.M0Census.VALUE_SRC.remove(pv.body());
++            if (m0 != null) {
++                com.legend.planner.M0Census.PENDING.set(m0);
++            }
+             executeTyped(pv.body(), pv.env(), false, answer);
+         }
+     }
+@@ -394,6 +425,10 @@ public final class BodyDriver {
+         }
+         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
+                 com.legend.exec.StatementOrigin.STATEMENT)) {
++            com.legend.planner.M0Census.Src m0 = com.legend.planner.M0Census.VALUE_SRC.remove(pv.body());
++            if (m0 != null) {
++                com.legend.planner.M0Census.PENDING.set(m0);
++            }
+             return executeTyped(pv.body(), pv.env());
+         }
+     }
+@@ -1016,10 +1051,14 @@ public final class BodyDriver {
+         java.util.List<TypedSpec> inlined = com.legend.planner.BodyPlanner.inlinedSide(value, letPrefix, specs, env.plan(), hook);
+         TypedSide constant = foldedSide(inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1));
+         if (constant != null) {
++            com.legend.planner.M0Census.count("B.eval-side.folded");
+             return constant;
+         }
+         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
+-            return executeTyped(com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan()), env, identity);
++            java.util.List<TypedSpec> m0src = com.legend.planner.M0Census.programPrefix(value);
++            java.util.List<TypedSpec> staged = com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan());
++            com.legend.planner.M0Census.PENDING.set(new com.legend.planner.M0Census.Src(m0src, specs, "eval-side"));
++            return executeTyped(staged, env, identity);
+         }
+     }
+ 
+@@ -1158,8 +1197,12 @@ public final class BodyDriver {
+             java.util.List<TypedSpec> body, ExecEnv env, boolean identityLane,
+             Execution.@com.legend.base.Nullable Answer answer) {
+         ModelContext ctx = env.ctx();
++        com.legend.planner.M0Census.Src m0 = com.legend.planner.M0Census.take();
+         Prelude p = prelude(body, env, null, identityLane);
+         if (p.answered() != null) {
++            if (m0 != null) {
++                com.legend.planner.M0Census.count("B." + m0.road() + ".answered-unplanned");
++            }
+             return answered(p.answered(), answer);
+         }
+         body = p.body();
+@@ -1168,8 +1211,14 @@ public final class BodyDriver {
+         com.legend.compiler.element.type.ExprType declaredInfo = p.declaredInfo();
+         com.legend.judge.TypedSide folded = LiteralFold.fold(root);
+         if (folded != null) {
++            if (m0 != null) {
++                com.legend.planner.M0Census.count("B." + m0.road() + ".folded");
++            }
+             return answered(folded, answer);
+         }
++        if (m0 != null) {
++            com.legend.planner.M0Census.PENDING.set(m0);
++        }
+         if (System.getenv("LL_DUMP_RESOLVED") != null) {
+             System.err.println("[resolved] " + body);
+         }
+@@ -1255,12 +1304,23 @@ public final class BodyDriver {
+         TypedSide constant = fold ? foldedSide(inlined.get(inlined.size() - 1),
+                 inlined.subList(0, inlined.size() - 1)) : null;
+         if (constant != null) {
++            com.legend.planner.M0Census.count("B.host-side.folded");
+             return new PlannedValue(null, constant, null, !com.legend.compiler.spec.typed.Literals.bare(
+                     inlined.get(inlined.size() - 1), inlined.subList(0, inlined.size() - 1)));
+         }
+         BarePlan b;
+         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
+-            b = planStaged(com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan()), value, env, null, identity, true);
++            java.util.List<TypedSpec> m0src = com.legend.planner.M0Census.programPrefix(value);
++            java.util.List<TypedSpec> staged = com.legend.planner.BodyPlanner.stagedSide(inlined, specs, env.plan());
++            com.legend.planner.M0Census.PENDING.set(new com.legend.planner.M0Census.Src(m0src, specs, "host-side"));
++            try {
++                b = planStaged(staged, value, env, null, identity, true);
++            } finally {
++                com.legend.planner.M0Census.PENDING.remove();
++            }
++            if (b.answered() != null) {
++                com.legend.planner.M0Census.count("B.host-side.answered-unplanned");
++            }
+         }
+         if (fold && b.answered() == null) {
+             // the planned root's own fold (executeTyped's second fold: a literal the staging exposed)
+@@ -1312,7 +1372,18 @@ public final class BodyDriver {
+             com.legend.lowering.@com.legend.base.Nullable CanonRider rider,
+             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
+                     java.util.Set<String>, TypedSpec> hook) {
+-        return planStaged(com.legend.planner.BodyPlanner.sideBody(value, letPrefix, specs, env.plan(), hook), value, env, rider, false, false);
++        java.util.List<TypedSpec> m0body = com.legend.planner.BodyPlanner.sideBody(value, letPrefix, specs, env.plan(), hook);
++        java.util.List<TypedSpec> m0src = com.legend.planner.M0Census.programPrefix(value);
++        com.legend.planner.M0Census.PENDING.set(new com.legend.planner.M0Census.Src(m0src, specs, "db-side"));
++        try {
++            BarePlan b = planStaged(m0body, value, env, rider, false, false);
++            if (b.answered() != null) {
++                com.legend.planner.M0Census.count("B.db-side.answered-unplanned");
++            }
++            return b;
++        } finally {
++            com.legend.planner.M0Census.PENDING.remove();
++        }
+     }
+ 
+     /** {@link #planBare} over a side already inlined, staged and resolved ({@code body}); {@code identityLane} the
+@@ -1325,6 +1396,7 @@ public final class BodyDriver {
+         // answered on it
+         com.legend.planner.SidePlanner.Staged s = com.legend.planner.SidePlanner.staged(body, env.plan(), rider,
+                 identityLane, hostSide);
++        com.legend.planner.M0Census.PENDING.remove();
+         ExecEnv routed = openRoute(s.route(), env);
+         return switch (s) {
+             case com.legend.planner.SidePlanner.Unplanned u -> new BarePlan(answer(u.prepared(), routed, rider,
+@@ -1342,6 +1414,10 @@ public final class BodyDriver {
+      * covers scalar reads, this covers whole-TDS consumption and the
+      * ZERO-row lower bound. */
+     private static void enforceToOneReader(TypedSpec root, TypedSide res) {
++        if (toOneReader(root)) {
++            com.legend.planner.M0Census.count("D30.toOne reader checks (collected)"
++                    + (res instanceof TypedSide.Tabular t0 && t0.rows().size() != 1 ? " refused" : ""));
++        }
+         if (toOneReader(root) && res instanceof TypedSide.Tabular tab && tab.rows().size() != 1) {
+             throw new IllegalStateException("toOne() over a relation returned "
+                     + tab.rows().size() + " row(s) — the exactly-one contract"
+@@ -1547,8 +1623,12 @@ public final class BodyDriver {
+             ExecEnv env) {
+         // a literal-only argument (a table name, a seed CSV) is folded, never sent
+         if (com.legend.compiler.spec.typed.Literals.fold(arg, body.subList(0, body.size() - 1)) instanceof String folded) {
++            com.legend.planner.M0Census.count("R13.effect-string-arg literal");
+             return folded;
+         }
++        com.legend.planner.M0Census.count("R13.effect-string-arg computed");
++        com.legend.planner.M0Census.example("R13.effect-string-arg computed", String.valueOf(arg).length() > 400
++                ? String.valueOf(arg).substring(0, 400) : String.valueOf(arg));
+         java.util.Set<String> needed = new java.util.HashSet<>();
+         collectVariableRefs(arg, needed);
+         java.util.List<TypedSpec> kept = new java.util.ArrayList<>();
+diff --git a/core/src/main/java/com/legend/driver/DatabaseJudge.java b/core/src/main/java/com/legend/driver/DatabaseJudge.java
+index ccb6e82d..1a7ff0aa 100644
+--- a/core/src/main/java/com/legend/driver/DatabaseJudge.java
++++ b/core/src/main/java/com/legend/driver/DatabaseJudge.java
+@@ -309,6 +309,8 @@ final class DatabaseJudge {
+     }
+ 
+     static TypedSide unjudged(String name, String why, String detail) {
++        com.legend.planner.M0Census.count("MV3.unjudged " + (why.length() > 90 ? why.substring(0, 90) : why)
++                .replaceAll("[0-9]+", "N"));
+         com.legend.judge.CanonicalDivergence.sqlUnjudged(name, why);
+         throw com.legend.error.AssertFailed.unjudged(why,
+                 name + ": UNJUDGED in database mode — " + why + detail);
+@@ -648,6 +650,7 @@ final class DatabaseJudge {
+                 return databaseVerdict(name, true, args.get(0), args.get(1),
+                         letPrefix, specs, env, hook, false, false);
+             }
++            com.legend.planner.M0Census.count("MV3.class-instance assertEq (HostJudge.eq in Java) database judge");
+             return HostJudge.eq(name, args, letPrefix, specs, env, hook);
+         }
+         @Override public @com.legend.base.Nullable TypedSide tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+diff --git a/core/src/main/java/com/legend/driver/JudgePlans.java b/core/src/main/java/com/legend/driver/JudgePlans.java
+index a3c8f1ab..bb8a838e 100644
+--- a/core/src/main/java/com/legend/driver/JudgePlans.java
++++ b/core/src/main/java/com/legend/driver/JudgePlans.java
+@@ -126,8 +126,8 @@ final class JudgePlans {
+         ExprType info = w.shapeInfo();
+         PlanSessions.Source on = PlanSessions.of(w.session(), env.trace());
+         switch (w.shape()) {
+-            case GRAPH -> host(new TypedSide.Graph(objectsShape(run(objectsPlan(w, env),
+-                    PlanSessions.of(w.session(), env.trace()))), info.type()), answer);
++            case GRAPH -> host(new TypedSide.Graph(objectsShape(m0Graph(run(objectsPlan(w, env),
++                    PlanSessions.of(w.session(), env.trace())))), info.type()), answer);
+             case TABULAR -> {
+                 SqlQuery plan = w.plan();
+                 Type.RelationType schema = Type.schemaView(info.type());
+@@ -294,6 +294,9 @@ final class JudgePlans {
+ 
+         @Override
+         public void end() throws java.io.IOException {
++            if (toOneReader) {
++                com.legend.planner.M0Census.count("D30.toOne reader checks (stream)" + (rows != 1 ? " refused" : ""));
++            }
+             if (toOneReader && rows != 1) {
+                 throw new IllegalStateException("toOne() over a relation returned " + rows
+                         + " row(s) — the exactly-one contract (engine reader semantics)");
+@@ -653,6 +656,12 @@ final class JudgePlans {
+      *  wire's carrier spelling of a value root (step 6), where a grid's cell keeps the nine digits of the engine's
+      *  relational read (its GRID_FETCH canon; step 7, 2026-10-18). A text-carried temporal (a literal's own digits)
+      *  is read as written and stays. */
++    /** M0 (research): D7, a graph answer streamed. */
++    private static <T> T m0Graph(T t) {
++        com.legend.planner.M0Census.count("D7.graph answers streamed (collected as host rows)");
++        return t;
++    }
++
+     private static PlanRunner.Rows valueLane(PlanRunner.Rows rows) {
+         List<ExecutionPlan.Column> columns = rows.columns();
+         boolean any = columns.stream().anyMatch(c -> c.slot() != null && c.slot().startsWith("TIMESTAMP"));
+@@ -666,6 +675,11 @@ final class JudgePlans {
+                 String slot = columns.get(i).slot();
+                 if (slot != null && slot.startsWith("TIMESTAMP")
+                         && cells.get(i) instanceof com.legend.values.PureDateLiteral d) {
++                    com.legend.planner.M0Census.count("D27.value-lane timestamp cells");
++                    if (!String.valueOf(d.trimmed()).equals(String.valueOf(d))) {
++                        com.legend.planner.M0Census.count("D27.value-lane timestamp cells trimmed");
++                        com.legend.planner.M0Census.example("D27.trimmed", d + " -> " + d.trimmed());
++                    }
+                     cells.set(i, d.trimmed());
+                 }
+             }
+diff --git a/core/src/main/java/com/legend/planner/BodyPlanner.java b/core/src/main/java/com/legend/planner/BodyPlanner.java
+index 567ef772..1fa3c27e 100644
+--- a/core/src/main/java/com/legend/planner/BodyPlanner.java
++++ b/core/src/main/java/com/legend/planner/BodyPlanner.java
+@@ -108,6 +108,7 @@ public final class BodyPlanner {
+     public static com.legend.sql.SqlQuery lowerAndPrepare(
+             java.util.List<TypedSpec> body, PlanEnv env, ModelContext ctx,
+             com.legend.sql.dialect.SqlDialect dialect, boolean identity, boolean named) {
++        M0Census.Src m0 = M0Census.take();
+         com.legend.lowering.Lowerer lowerer = lowererFor(body, env, ctx, identity);
+         com.legend.sql.SqlQuery plan =
+                 lowerer.lower(com.legend.lowering.SeedableLets
+@@ -118,6 +119,18 @@ public final class BodyPlanner {
+                 env.tableReplace(),
+                 env.postProcessors().extractCtes(),
+                 env.postProcessors().nonExecutable());
++        if (m0 != null) {
++            M0Census.count("B." + m0.road() + ".planned");
++            String prod = M0Census.tryProduct(m0.road(), m0.stmts(), m0.specs(), env);
++            if (prod != null) {
++                M0Census.compare(m0.road(), prod, plan, body, env, identity);
++            }
++        } else {
++            M0Census.count("B.unpaired-lowering " + StackWalker.getInstance().walk(s -> s.skip(1)
++                    .filter(f -> !f.getMethodName().equals("lowerAndPrepare"))
++                    .findFirst().map(f -> f.getClassName().substring(f.getClassName().lastIndexOf('.') + 1)
++                            + "." + f.getMethodName()).orElse("?")));
++        }
+         // A DYNAMIC PIVOT's TEXT whose columns nothing names (its templates unresolved): its columns exist only once the
+         // database is asked, and planning asks the database nothing (the seam program's S3a, 2026-10-30: the LIMIT-0
+         // column probe deleted; the six channel B bodies that reached it named their columns by a cast, F10). Refused
+@@ -311,6 +324,7 @@ public final class BodyPlanner {
+         // one statement-orchestration shape the corpus's setup bodies use).
+         if (root instanceof com.legend.compiler.spec.typed.TypedMap tm
+                 && containsEffectfulNode(java.util.List.of(tm.mapper()))) {
++            M0Census.count("T9.effectful-map prepared");
+             return new Prepared.EffectfulMap(body, tm, env);
+         }
+         return new Prepared.Planned(body, root, declaredInfo, env);
+diff --git a/core/src/main/java/com/legend/sql/ScanOrder.java b/core/src/main/java/com/legend/sql/ScanOrder.java
+index b77fb045..4dff27ce 100644
+--- a/core/src/main/java/com/legend/sql/ScanOrder.java
++++ b/core/src/main/java/com/legend/sql/ScanOrder.java
+@@ -34,6 +34,17 @@ public final class ScanOrder {
+     private ScanOrder() {
+     }
+ 
++    /** M0 (research, never committed): the key's firings by consumer and cap. */
++    public static final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> M0 =
++            new java.util.concurrent.ConcurrentHashMap<>();
++
++    private static void m0(String cap) {
++        String by = StackWalker.getInstance().walk(st -> st.map(StackWalker.StackFrame::getClassName)
++                .filter(c -> !c.equals(ScanOrder.class.getName())).findFirst().orElse("?"));
++        M0.computeIfAbsent(by.substring(by.lastIndexOf('.') + 1) + " " + cap,
++                k -> new java.util.concurrent.atomic.LongAdder()).increment();
++    }
++
+     /** The query with the deterministic scan-order key applied where
+      * the shape needs and permits it; identity otherwise. */
+     public static SqlQuery stabilize(SqlQuery q) {
+@@ -50,6 +61,7 @@ public final class ScanOrder {
+         }
+         SqlSource.Table base = orderableBase(s, frames);
+         if (base != null) {
++            m0(s.limit() != null || s.offset() != null ? "capped" : "uncapped");
+             return ordered(s, base, frames);
+         }
+         // a rows->at(N)-style cap whose inner carries the relation
+@@ -58,6 +70,7 @@ public final class ScanOrder {
+                 && (inner.limit() != null || inner.offset() != null)) {
+             SqlSource.Table innerBase = orderableBase(inner, frames);
+             if (innerBase != null) {
++                m0("capped (a cap wrapper)");
+                 return s.withFrom(new SqlSource.Subselect(
+                         ordered(inner, innerBase, frames), sub.alias(),
+                         sub.frameName()));

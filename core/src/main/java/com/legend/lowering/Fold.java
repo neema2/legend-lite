@@ -751,6 +751,7 @@ final class Fold {
                     || physicallyRenderable(j.right(), c);
             case SqlSource.VarSetPlaceholder vp -> false;
             case SqlSource.RawSql raw -> false;
+            case SqlSource.GridReport g -> false;
             case SqlSource.Catalog cat -> false;
             case SqlSource.Values v -> v.alias().equals(c.table())
                     && v.columns().contains(c.name());
@@ -1101,6 +1102,7 @@ final class Fold {
             case SqlSource.RawSql raw -> raw.outputs().isEmpty()
                     ? SqlExpr.Column.physical(raw.alias(), column) : null;
             // a catalog grid's schema is declared: it never claims, as a stamped grid
+            case SqlSource.GridReport g -> null;
             case SqlSource.Catalog cat -> null;
             case SqlSource.Subselect sub -> lateBoundGrid(sub)
                     ? SqlExpr.Column.derived(sub.alias(), column)

@@ -111,6 +111,8 @@ public final class KeyedPivot {
             }
             case SqlSource.RawSql r -> {
             }
+            case SqlSource.GridReport g -> {
+            }
             case SqlSource.Catalog c -> {
             }
         }
@@ -133,14 +135,18 @@ public final class KeyedPivot {
         List<Type.Column> templates = templates(pivot, schema);
         List<OutputCol> statics = pivot.outputs().stream()
                 .filter(oc -> !oc.name().contains(Type.RelationType.PIVOT_SEPARATOR)).toList();
-        // the key as the body binds it: its text, read back by the key's own type (the database's text of its own
-        // value is that value)
+        // the key as the body binds it: its text, the database's own text of the value (the keys probe's _pct_t), and
+        // a row is the key's where the database's text of its value is that text -- text against text, so the key
+        // matches exactly the rows it was read from whatever the column's physical type (2026-10-31, the planner-driver
+        // seam program's S3a: the text cast back to the key's slot type compared a REAL column with a DOUBLE, and on H2
+        // a REAL 3.14 widened to 3.140000104904175 matched no key -- audit finding D of 2026-08-18, which the staticizer
+        // had fixed for itself; KeyedPivotKeyRoundTripTest)
         SqlExpr keyText = new SqlExpr.KeyCell(0, new com.legend.sql.TypeFact.Typed(SqlType.Scalar.VARCHAR, false));
-        SqlExpr keyBound = keySlot == SqlType.Scalar.VARCHAR ? keyText : new SqlExpr.Cast(keyText, keySlot);
+        SqlExpr onText = keySlot == SqlType.Scalar.VARCHAR ? on : new SqlExpr.Cast(on, SqlType.Scalar.VARCHAR);
         SqlQuery body0 = new SqlRewriter() {
             @Override
             protected SqlSource source(SqlSource s) {
-                return s == pivot ? grouped(pivot, statics, on, keyBound) : s;
+                return s == pivot ? grouped(pivot, statics, onText, keyText) : s;
             }
         }.rewrite(lowered);
         if (body0 == lowered) {
@@ -189,7 +195,7 @@ public final class KeyedPivot {
 
     /** The pivot as the grouped CASE aggregation: its static columns, grouped, then each aggregate over the rows of
      *  each key, a per-key run. */
-    private static SqlSource grouped(SqlSource.Pivot pivot, List<OutputCol> statics, SqlExpr on, SqlExpr keyBound) {
+    private static SqlSource grouped(SqlSource.Pivot pivot, List<OutputCol> statics, SqlExpr onText, SqlExpr keyText) {
         List<SqlSelect.Projection> ps = new ArrayList<>();
         List<SqlExpr> group = new ArrayList<>();
         for (OutputCol oc : statics) {
@@ -197,7 +203,7 @@ public final class KeyedPivot {
             group.add(g);
             ps.add(new SqlSelect.Projection(g, oc.name(), oc));
         }
-        SqlExpr isKey = SqlExpr.Call.of(SqlFn.EQUAL, on, keyBound);
+        SqlExpr isKey = SqlExpr.Call.of(SqlFn.EQUAL, onText, keyText);
         for (int i = 0; i < pivot.usings().size(); i++) {
             SqlSource.Pivot.Using u = pivot.usings().get(i);
             SqlAgg.Reducer agg = u.agg();

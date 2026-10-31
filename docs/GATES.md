@@ -16583,6 +16583,928 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The test-is-the-product plan's M1: one object-id minter per program
+
+The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §6 B9 and §7 (M1); the decisions log D100. Zero test movement.
+
+1. **Built:**
+   - The lowering's `ObjectSites` is the one minter, with its spelling (`o`, or the test road's `i`); the planner's
+     `InstanceIds`, its copy, is deleted.
+   - `PlanMaker.program` lowers every statement of a program with one minter (until now one per statement's lowering,
+     each from `o1`).
+   - `PlanMaker.program` inlines each statement under a mark of its position (`UserCallInliner.inlineBody(body,
+     statement)`, `TypedQuery.resolve(..., statement)`): a site's instantiation numbers are counted per inliner run,
+     so one function's construction called in two statements had one site.
+   - The lets are reduced before the mark, so a let's construction keeps one site across statements.
+   - The test road keeps one minter per body, as before.
+2. **The audit** (independent, R15): no blocker. Folded:
+   - the statement mark (its should-fix 1, a narrow product regression the counter's scope made visible);
+   - the `count` step on the program's minter;
+   - the driver's dead accessor deleted;
+   - two stale javadocs and `docs/OBJECT_IDENTITY_2026_10_20.md` §3.2;
+   - a stronger `ProgramObjectSitesTest`: two statements' objects, a function called twice, a let read around another
+     construction, planning twice. Each fails on the old code.
+   - The plan's MV5 row and §2.A row reconciled.
+   - The test road's own limit (each statement and each verdict side inlined in its own run) recorded in S111 and in
+     B1, which removes it at M5.
+3. **Every test's ids checked:** every core test package was run before and after with every sent statement dumped:
+   17,373 statements, byte-identical (27 targets passing both times; in the `exec` package two adjacent type-probe
+   statements change order from run to run, the same multiset).
+4. **Guards, dated:**
+   - `JavaEvalLedgerTest`'s planner register drops `InstanceIds.java`.
+   - `BodyDriver` 1,012 -> 1,009 (the dead accessor).
+   - The parser-equivalence ratchet `own_corpus.matched` 3,008 -> 3,013: the new test's model joined the own corpus,
+     and its five elements match the reference parser.
+5. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's
+   statement-origins census and pass/fail counts are identical to the M0 baseline (DuckDB host 2,471/108, database
+   2,473/108; H2 host 2,289/295, database 2,233/353; `probe=0`). `bazel test --lockfile_mode=error //gates:local`
+   (`--local_test_jobs=2`): 445 pass and 1 skipped. Two more passed on a re-run after the dated moves above:
+   `//core:census` and `//parser-equivalence:update_ratchets_test`. The 9 that start a Postgres refuse root here and
+   pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The lane sessions on S4a: every server and cloud lane identical, statements included (round 7)
+
+The arrangement of D81, round 7: the five lane sessions MEASURE ONLY on 3de15e7d (S4a's code, 8a842acb, plus docs)
+against their fe643205 runs. Every statement was compared, the system statements in particular, since S4a opens the
+system route's session after planning instead of before.
+
+| session | lanes | round 7 (3de15e7d vs fe643205) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; every statement byte-identical in order (Trino A 1688/1108/948/1410/244, Trino B 2747/1237/1967/2303/433, Postgres B 2727/1169/1967/2303/429); the 46 system statements (Postgres channel B grammar) byte-identical in the same positions; whole logs 0 differing lines |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test (0 of 20 rows); 92,841 statement records (session 52,208, other 29,689, fallback 10,610, system 262, statement 68, seed 4), 40 of 40 targets byte-identical in order; system statements (MariaDB 52, MySQL 51, ClickHouse 45, SQLite 114) and effect statements identical |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement byte-identical in order in all 10 suites; the 46 system statements (channel B grammar) identical |
+| sibling 3 | Databricks, channels A and B | identical per test; every statement byte-identical in order in all 10 targets, session, system (36) and effect statements included |
+| sibling 4 | BigQuery, channels A and B | identical per test (no flake this round); all 10 dumps byte-identical in order; the system and session temporary-table statements (channel A grammar 2, channel B grammar 45) identical |
+
+No "names the store's tables" error, no `NotImplementedException` or `IllegalStateException` anywhere; every keyword
+scan unchanged. The only red is main's: SQLite channel B essential at 332.
+
+CI on the M0 checkpoint had two infrastructure failures. On 3de15e7d:
+- `windows / pct_duckdb` failed while loading, on Maven Central 403s;
+- every macOS job was cancelled with no runner.
+
+On 96affb24, every Linux, linux-arm and Windows job passed, `windows / pct_duckdb` included. The macOS jobs were again
+cancelled with no runner assigned (`runner_id` 0, about 8 minutes queued), which alone left `gates green` red. This
+session cannot re-run jobs (403); PR comment 6546129674 records both.
+
+## 2026-10-31 — The test-is-the-product plan's M0: the measurements (no product change)
+
+The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §7 (M0). The results are in
+`docs/test-is-product-homework/C_M0_MEASUREMENTS.md`.
+
+1. **How:** a research patch, never committed (saved as text in `docs/test-is-product-homework/probes/`). It counts
+   at the test road's lowering, the segment walk, the judges' arms, `assertError` and `ScanOrder`. It also plans each
+   statement and side the product way and compares the SQL. The patch ran on S4a's code (8a842acb), with no
+   change to the code since.
+2. **Outcomes under the patch:** identical to the baseline (DuckDB host 2,471/108, database 2,473/108; H2 host
+   2,289/295, database 2,233/353; channel B 5 of 5), and the statement-origins census is identical. The DuckDB
+   engine-order registers moved only because the probe's own renders count as firings of the engine-compatibility
+   order key. The source tree was restored after the runs.
+3. **The MV1 experiment** (a verdict group closed before every non-verdict step): no outcome or message moved on
+   either corpus (only the random trace ids differ). Fused groups went 2,521 -> 2,545 (DuckDB) and 2,520 -> 2,529
+   (H2). The outside-body register moved by construction: 14 DuckDB and 7 H2 pure bodies became more than one send.
+4. **Not measured:** the lanes (no product change; they are asked on this checkpoint's head).
+
+## 2026-10-31 — The lane sessions on S2d and S2j: every server and cloud lane identical, effect statements included (round 6)
+
+The arrangement of D81, round 6: the five lane sessions MEASURE ONLY on fe643205 (S2d: an effect's statements
+planned; S2j's view SQL) against their 90896121 runs. Every statement was compared, effect statements in particular.
+
+| session | lanes | round 6 (fe643205 vs 90896121) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; every statement byte-identical (Trino A 1688/1108/948/1410/244, Trino B 2747/1237/1967/2303/433, Postgres B 2727/1169/1967/2303/429); whole logs 0 differing lines; these channels send no effect natives (only the 45-46 system statements of Postgres channel B grammar, identical) |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test (0 of 20 rows); 92,841 statement records, the same per target and kind as round 5; 38 of 40 byte-identical, 2 differing only in the generated anonymous id inside a test's literal (run-to-run); effect statements identical in text, order and count (SQLite CREATE 35 DROP 35 INSERT 12; MariaDB CREATE 35 INSERT 12 SET 27,447; MySQL CREATE 35 INSERT 12 SET 23,538; ClickHouse CREATE 35 INSERT 12) |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement byte-identical in all 10 suites; no effect DDL on this lane (45 system INSERTs identical) |
+| sibling 3 | Databricks, channels A and B | identical per test on both channels; every statement byte-identical in order in all 10 targets, session, system and effect statements included (channel B grammar 34, channel A grammar 1) |
+| sibling 4 | BigQuery, channels A and B | identical per test (the known `testFilterInstance` row-order message, same verdict); all 10 dumps byte-identical; the effect and DDL statements only the system and session temporary tables, identical |
+
+No `NotImplementedException`, `IllegalStateException` or "is EFFECT but no arm" anywhere; every keyword scan
+unchanged. The only red is main's: SQLite channel B essential at 332.
+
+## 2026-10-31 — The seam program's S4a, first piece: a side's plan made with no session
+
+The decisions log D99; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.4b (S4's brief, step 6: S4a).
+Zero movement.
+
+1. **Built:** `planner/SidePlanner` makes a statement's or a verdict side's plan with no session: the body prepared
+   under the system route it reads (`prepare`: the route a fact of the plan, its tables' names on the planning half),
+   lowered as its judge asks (`staged`: the host judge's preparation or the verdict lane's; the canon's JSON key order
+   where a rider asks), and wrapped as a side (`wrap`: its shape, its shape's type, and the canon columns where the
+   database judge's rider asks). Until now the body driver's prelude opened the system session first and planned
+   under it, and `planStaged` and `wrapSide` stamped that session into the side as they planned. The driver now opens
+   the route's session once the body is planned (`openRoute`, which checks that the session names the tables as
+   planned, as S2h's did), answers a kind with no plan on it (`answer`: an effect's arm, a store write, an effectful
+   map's elements), and puts the session on the side it runs. `CanonRider` (the canon wrap's state: written while a
+   side is planned, read by the database judge and the grid compare) moved from `judge/` to `lowering/`, beside the
+   canon SQL it describes, so the planner can name it.
+2. **Why the order holds:** the planner sends nothing, so opening the system session after a body's planning instead
+   of before it sends the same statements in the same order; only a planning failure on a body reading the system
+   store would now come before the session's seeds instead of after them (the censuses below are identical).
+3. **The brief corrected:** its point 1 said S4 moves no statement. One move is expected at S4b, when the system
+   session opens at its step's run instead of at its planning: on the database judge's pass a segment's system seeds
+   would then come at the segment's verdict run, after the segment's value statements, where today they come at the
+   side's planning. It is measured and posted with S4b, before it lands.
+4. **Guards, dated:** the planner register gains `SidePlanner`; `JavaEvalLedgerTest` `BodyDriver` 1,062 -> 1,012 and
+   `SidePlanner` 87 pinned where the code went (the moved code, plus the two result types the driver dispatches on);
+   `TdsCompare` 343 -> 344 (`CanonRider`'s import from its new package); `HarnessDisciplineTest`'s canon JSON key
+   order site moves from `BodyDriver` to `SidePlanner`.
+5. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's
+   statement-origins census (the system route's `system=121`/`120`, the sessions' counts and `probe=0` included) and
+   pass/fail counts are identical to fe643205's (DuckDB host 2,471/108, database 2,473/108; H2 host 2,289/295,
+   database 2,233/353); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped,
+   and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The lane sessions on S2h and the shared preparation: every server and cloud lane identical, statements included (round 5)
+
+The arrangement of D81, round 5: the five lane sessions MEASURE ONLY on 90896121 (S2g's third step, S2b, S2h and the
+shared preparation: four moves of planning work) against their b84b51df runs, every statement compared, and asked in
+particular for any "names the store's tables" error (the check S2h added) and any change in the system statements.
+
+| session | lanes | round 5 (90896121 vs b84b51df) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; both commits with the SQL dumped: 22,680 statements per commit, byte-identical in order (`cmp`); the system statements (46, Postgres channel B grammar) identical; whole logs 0 differing lines |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test (0 of 20 rows); both commits re-run with the SQL dumped: 92,841 statement records per commit (session 52,208, other 29,689, fallback 10,610, system 262, statement 68, seed 4), 39 of 40 targets byte-identical in order, the 40th differing in one generated anonymous id inside a test's own literal (run-to-run, seen both ways in earlier rounds); the system statements (MariaDB 52, MySQL 51, ClickHouse 45, SQLite 114) identical in order |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement byte-identical in order; the system statements (46, channel B grammar) identical |
+| sibling 3 | Databricks, channels A and B | identical per test; every statement byte-identical in order in all 10 targets; the system statements (36, channel B grammar) identical |
+| sibling 4 | BigQuery, channels A and B | identical per test (the known `filter::testFilterInstance` order message, same verdict); every statement byte-identical in order; the system statements (45, channel B grammar: `CREATE TEMP TABLE` ...) identical |
+
+No "names the store's tables" error and no `IllegalStateException` anywhere; every keyword scan unchanged. The only
+red is main's: SQLite channel B essential at 332. CI on 4cb6358b (S2d) green on every OS (run 41185519882); on
+90896121 one red not of the commit (`linux / pct_h2`: the runner's disk filled before any test ran).
+
+## 2026-10-31 — The seam program's S2j, first piece: the test-data generator's view SQL planned
+
+The decisions log D98; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 (S2j). Zero movement.
+
+1. **Built:** `BodyPlanner.viewSql` plans the SQL the test-data generator fetches a view with -- the view's lifted
+   function as the compiler's relation, planned with no session (`BodyPlanner.bare`), its base tables renamed to the
+   generator's temporary tables, rendered in the lane's dialect -- which the driver's `viewSqlRenderer` did over its
+   own `planBare` until now; the renderer the driver hands the generator is a call of it.
+2. **What stays of S2j, and why:** the fold itself (`TestDataGenerationNatives.foldCensus`) runs the generator's
+   statements on the session before the statement after it is planned, and the generator's plan text is the
+   generator library's (handed to the planner on `PlanEnv` since D92). Both are S4's "two-plan body": the generator's
+   plan run first, its facts the next plan's declared inputs.
+3. **Guards, dated:** `JavaEvalLedgerTest` `BodyDriver` 1,074 -> 1,062, `BodyPlanner` 268 -> 282.
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's
+   statement-origins census (`tdg=890`, the generator's statements, included) and pass/fail counts are identical to
+   4cb6358b's; `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the
+   9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The seam program's S2d: an effect's statements planned
+
+The decisions log D97; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2d). Zero movement.
+
+1. **Built:** `planner/EffectPlanner` writes the statements `executeInDb`, `dropAndCreateSchemaInDb`,
+   `dropAndCreateTableInDb`, `createTempTable` and `dropTempTable` send -- in the session's dialect, with the text the
+   replay referee's ledger records (the referee's spelling of DDL, the authored text of raw SQL). Two phases, so the
+   planner computes no value: `stringArgs` names the String arguments a call needs (a `dropAndCreateTableInDb` whose
+   first argument is no store is refused there, before any is evaluated, as before), the driver gives their values
+   (a literal folded; a computed one run by the database -- the one place a value feeds a statement's text, as the
+   engine evaluates the string before it runs it), and `statements` writes the texts from them: a raw string split
+   per statement and translated from the language its connection declares (decision D2), the DDL natives' IR
+   rendered (the store model's tables, a temporary table's literal columns and their data types). Each arm in the
+   driver is now its values, the planner's statements and the sends (into an effect segment's script, as before);
+   `REFEREE_DDL` and the data types' readers left the driver with them. The planner dispatches on the catalog's
+   EFFECT row (`NativeFn.Effect`), not on a function's name: the identity-site guard (`NAME_COMPARE`) caught the first
+   cut's name comparisons, and the shape was changed rather than the pin.
+2. **Not moved:** `loadCsvToDbTable` (`CsvLoad`: a bulk load the connector performs), the seed-SQL forms
+   (`SeedSqlForms`), `print`/`println` (no statement), and the effect segments themselves (`BodyCompiler`'s sink:
+   collecting and sending a script is running) -- S4's.
+3. **Guards, dated:** the planner register gains `EffectPlanner`; `JavaEvalLedgerTest` `BodyDriver` 1,154 -> 1,074,
+   `EffectPlanner` 132 pinned where the code went.
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's statement-origins census (`other`, where the effect scripts' statements are counted, included) and pass/fail counts are identical to 90896121's; the heavy lanes by hand (the plan's rule at S2d): channel B on SQLite (4 of 5, essential at 332 -- main's red) and Postgres (5 of 5, unprivileged), and H2's relation suite, every per-test line identical to the S3a baseline (345, 137, 469, 205 and 93 lines per suite; H2 relation 469, its only differences the random execution-trace ids inside four error messages); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The seam program's shared preparation: a statement's body prepared in the planner; a frame's planned CTE with it
+
+The decisions log D96; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 (the kinds' common road). Zero
+movement.
+
+1. **Built:** `planner/BodyPlanner.prepare` does what the body driver's prelude decided with no session: the frame a
+   body runs under (its outermost `from`'s bound context; the driver table's keys and the import-data-flow threads
+   appended), its root under the execution contexts and the declared type of its outermost `from`, and the kind of
+   answer a body is given with no plan -- `planner/Prepared`: a body to plan, an effect native, a store write, a DDL
+   text generator's text (written at planning in the engine's spelling: `EnginePlans.ddlText`, D30), a collection of
+   them, an orchestration handle (a connection, a runtime: no rows, never lowered), an effectful map. The driver's
+   prelude opens the system route's session (S2h) and dispatches: it runs an effect's arm, a store write and an
+   effectful map's elements, and wraps the planned values; nothing else is its. `BodyPlanner.bare` plans a value as a
+   side with no session (the lets spliced, the stores resolved, the system tables named, the body prepared and
+   lowered); `FramePlanner.cte` plans a frame's CTE and a plain class frame's extent rows over it, which
+   `buildFrame` asked its own `planBare` for until now -- so a frame is the planner's but for its run at the let, its
+   activity's trace comment and the read census.
+2. **What is left of a frame in the driver:** the run at the let (the host judge's order; the user's question of
+   2026-10-31 on dropping it is open), the trace comment, the census, the `ExecFrame` record the splice hook reads.
+3. **Guards, dated:** the planner register gains `Prepared`; `JavaEvalLedgerTest` `BodyDriver` 1,345 -> 1,154,
+   `BodyPlanner` 127 -> 268, `FramePlanner` 96 -> 140, `EnginePlans` 663 -> 707 (the moved code, plus the result type
+   and the dispatch).
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's statement-origins census (the system route's `system=121`/`120` and the sessions' counts included) and pass/fail counts are identical to 28dc4899's; `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The lane sessions on S2g's first two steps: every server and cloud lane identical, statements included (round 4)
+
+The arrangement of D81, round 4: the five lane sessions MEASURE ONLY on b84b51df (S2g's first two steps, a pure move)
+against their 745b76de runs, asked for every statement as well as every test, since nothing observable may move.
+
+| session | lanes | round 4 (b84b51df vs 745b76de) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; both commits re-run with the SQL dumped: 22,680 statements per commit (session, system, fallback and plan statements), byte-identical in order (`cmp`, no normalization); whole logs 0 differing lines |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test; every engine-JSON marker's SQL byte-identical in order (these runs dump no SQL; a re-run with it offered); whole logs differ only in the echo's let order and one ClickHouse result's row order |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement, session statements included, byte-identical in order in all 10 suites |
+| sibling 3 | Databricks, channels A and B | identical per test; every statement, session statements included, byte-identical in order in all 10 targets |
+| sibling 4 | BigQuery, channels A and B | identical per test (the known `filter::testFilterInstance` UNION ALL order message, same verdict); every statement byte-identical in order in all 10 dumps |
+
+The only red is main's: SQLite channel B essential at 332 (and BigQuery channel A essential's failure block,
+`removeDuplicates...MixedTypes`, identical); the user's ruling on it is owed. CI on b84b51df (run 41171130793) green on
+every OS; on 3c18418e (S2g's third step) two reds not of the commit -- a runner's disk filled before any test ran, and
+one drag-timing check of DataCube's layout page on Linux (two 70 ms browser tasks) -- both green on e7b9d9a5's run.
+
+## 2026-10-31 — The seam program's S2h: the system route planned
+
+The decisions log D95; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2h). Zero movement.
+
+1. **Built:** `planner/SystemRoutes` plans a body's route to the graph's system metamodel store with no session: the
+   stores its resolved statements read (a body reading the system store AND a user store refused by name, as
+   before), the database its runtime executes on, and the names its plan gives the store's tables -- the store's own on
+   a database the platform runs in process (the dialect's `inProcess`, which
+   `ConnectorsTest.aDatabaseRunsInProcessOnBothSidesAlike` holds equal to the connector's), the system session's
+   temporary tables (`Ddl.systemTable`) on a server. The body driver opens and seeds the system session as before
+   (`SystemDatabase.routeFor`, once per graph and database), then checks the session names the tables as the plan
+   does (an `IllegalStateException` naming both if ever not), and plans with the planned names. The route is opened
+   before the planned names are asked, so a database with no dialect keeps its refusal of today (no system
+   connection), not a new one. `ExecEnv.withSystemRoute` deleted; the stale `com.legend.driver.EngineText` in
+   `Databases`' doc corrected.
+2. **What it unblocks:** the shared preparation's route is the planner's now, so a planner-side side plan can name the
+   system tables without opening a session -- the frame CTE's and `planBare`'s remaining tie to the driver is the
+   effect arms (S2d).
+3. **Guards, dated:** the planner register gains `SystemRoutes`; `JavaEvalLedgerTest` `BodyDriver` 1,369 -> 1,345,
+   `SystemRoutes` 55 pinned where the code went.
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, every corpus pass's statement-origins census (`system=121` DuckDB, `system=120` H2, unchanged) and pass/fail counts identical to e7b9d9a5's; channel B's grammar suite on Postgres (unprivileged), the local lane whose system route renames the store's tables, identical per test to the S3a baseline (132 of 132 lines; 132 pass, 5 errors, as before), and with the SQL dumped the route seen at work: the system session's temporary tables made (`metamodel_classes` and the rest) and read by the planned names (`FROM metamodel_classes`), the check passing; `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The seam program's S2b: a let's kind planned in the planner
+
+The decisions log D94; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2b). Zero movement.
+
+1. **Built:** `planner/LetPlanner` decides what a non-last `let` is, with no session (D75: a let is a staged table or a
+   compile-time splice): an ALIAS of a relation-rooted frame (`$r.values->at(0)`, `->toOne()`, `->first()`; `at(k>0)`
+   still refused by name), STAGED rows (`->stage()`), a FRAME (`execute`, `executeLegendQuery`: `FramePlanner`), a
+   STAGED GRID (a raw grid read after a later effect: the read-after-effect analysis moved with it), or a VALUE let,
+   a handle's included, spliced into its readers (`PlanAllocations.registerHandlesIn`, the planner's since D92). The
+   body compiler's loop dispatches on the kind and runs what runs (the staged rows' and grid's temporary tables, the
+   frame's run at its let). `ConnectionLets` (the read analysis of an effectful let bound only for its connection)
+   moved to the planner with it. `BodyDriver.aliasFrame` and the compiler's `readAfterEffect`/`reads` deleted where
+   they were.
+2. **Guards, dated:** the planner register gains `LetPlanner` and `ConnectionLets`, the driver register loses the
+   latter; `JavaEvalLedgerTest` `BodyDriver` 1,407 -> 1,369, `LetPlanner` 110 pinned where the code went.
+3. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's statement-origins census and pass/fail counts are identical to 3c18418e's (DuckDB host 2,471/108 `let=1974`, database 2,473/108 `body=6553`; H2 host 2,289/295 `let=1950`, database 2,233/353 `body=6430 fallback=18`); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time). The heavy lanes were not run for this step (a move).
+
+## 2026-10-31 — The seam program's S2g, third step: a frame's chain planned in the planner
+
+The decisions log D93; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2g). Zero movement.
+
+1. **Built:** `planner/FramePlanner` plans a frame's chain from its execute call, with no session: a plan-execute
+   peeled to its `executionPlan(...)` build (the two refusals by name unchanged), the string entry's chain, its
+   envelope and its activity's engine SQL (`executeLegendQuery`), the runtime argument's table renames on the
+   planning half, the chain's assembly (the query's lets folded, the explicit mapping attached). `BodyDriver.buildFrame`
+   asks for it and keeps what runs or reads the session's state: the run at the let (the host judge's order, the
+   engine's; under the database judge only a value-position frame runs), the activity rows' trace comment, the planned
+   CTE a database judge's readers reference and the census of how a frame is read. The CTE stays because it is planned
+   through the shared preparation (`planBare`), whose system-database route opens a session and whose answered arms
+   run effects: S2h moves the route (the planner needs the system store's table names on a server engine, a connector
+   fact today), S2d the effect arms; the CTE follows them. The string entry's activity SQL goes through
+   `EnginePlans.engineTestSql` (the engine's test database's text), so no class but the named plan-text ones holds an
+   engine-text dialect; the shared `EngineText.ENGINE_TEXT` instance replaces a fresh one per call (the renderer's two
+   nesting counters are restored in `finally`, so the two are the same).
+2. **Guards, dated:** the planner register gains `FramePlanner`; `JavaEvalLedgerTest` `BodyDriver` 1,498 -> 1,407,
+   `FramePlanner` 96 pinned where the code went, `EnginePlans` 658 -> 663 (`engineTestSql`).
+3. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's statement-origins census and pass/fail counts are identical to 745b76de's and b84b51df's (DuckDB host 2,471/108 `let=1974`, database 2,473/108 `body=6553`; H2 host 2,289/295 `let=1950`, database 2,233/353 `body=6430 fallback=18`); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped (the arm64-only classpath test), and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time). The heavy lanes were not run for this step (a move); the lane sessions measure it with the round after b84b51df's.
+
+## 2026-10-31 — The seam program's S2g, first two steps: the environment's planning half and the driver's planning helpers in the planner
+
+The decisions log D92; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2g). Zero movement: no
+statement, roster or register changed.
+
+1. **A correction first, posted to the user before any code:** the S2g brief of 2026-10-31 said frames never run at
+   their let on any corpus pass, so S2g would change no statement. That holds on the database judge's passes only
+   (`let=0`); on the host judge's passes every frame let runs once at its let (`let=1974` DuckDB, `let=1950` H2), rows
+   nobody reads but an `execute` at value position, the engine's own order (it runs `execute` at the let). S2g keeps
+   that run; dropping it (the program's §3.3 "the eager run dropped where nothing reads its rows") changes the host
+   passes' statement counts and the let-time failure of a frame nothing reads, so it is a question for the user with
+   its counts, never folded into S2g.
+2. **The environment split in two:** `planner/PlanEnv`, the planning half (the model, the runtime, the dialect, the
+   query's lets, the handles' rows, the renames, the frame, the run's features, the site-id minter, and the
+   generator's plan text handed in, below); the driver's `ExecEnv` composes it with what the body runs on (the
+   session, the trace, the verdict batch, the effect sink, the listeners, the options) and delegates the rest. The
+   six legacy constructors are one factory. `InstanceIds` (the site-id minter) left the judge layer for the planner:
+   planning state.
+3. **The driver's planning helpers in the planner, moved with no rule changed:** `planner/BodyPlanner` (the statement
+   resolver every site constructs, the Lowerer and the plan-preparation ladder, the run's features, an execute call's
+   bound context, a value's road to its executable body: `sideBody`, `inlinedSide`, `stagedSide`,
+   `resolvedToExecute`), `planner/EnginePlans` (the engine's plan text: `engineSql`, `planToString`, `toSQLString`,
+   the cross-store and sequence plans, the plan model -- D30's plan-time values, now returned as text, not a judge's
+   side), and, whole, `PlanAllocations`, `PlanEnvelope`, `EngineText`, `SqlTextInputs`, `AggAwareActivities`. Every
+   one was found pure planning by a call-graph scan of the driver (no session, trace, batch, runner or send reached).
+   One named seam: a test-data generator's plan text (`planToString` over the generator's carrier) is the generator
+   library's, which the planner may not reach (it also runs the generator's statements), so the driver hands it in on
+   the planning half until S2j moves the generator's planning; `TestDataGenerationNatives.planTextResult` returns the
+   text (it returned a judge's side).
+4. **Guards, dated:** `ArchitectureTest`'s two engine-text quarantine rules name the planner's plan-text classes by
+   name (`EngineText` constructs the renderers; it, `EnginePlans`, `PlanEnvelope` and `PlanAllocations` hold the
+   interface; no other planner class may); `JavaEvalLedgerTest`: `BodyDriver` 2,310 -> 2,281 (the split) -> 1,498 (the
+   move), `EnginePlans` 658 and `BodyPlanner` 127 pinned where the code went, the plan model's eviction row and
+   `AggAwareActivities`' row follow their files, the planner register gains the eight files and the driver and judge
+   registers lose them; `HarnessDisciplineTest` walks the planner too (`BodyDriver` 2 -> 1, `EnginePlans` 1,
+   `PlanAllocations` 1 moved, and the planner's own sites registered on their first walk: `CrossStoreGuard` 5,
+   `MetamodelSeeds` 2, `PlanMaker` 1 -- name sets and record accessors, none reorders a result); `DatabaseOwners`
+   names `planner/EngineText.java`. `plannerIsExecutionFree` holds unchanged.
+5. **Measured locally:** `corpus_duckdb`, `corpus_h2`, `pct_channel_b` (uncached) pass, and each corpus pass's
+   statement-origins census and pass/fail counts are identical to 745b76de's (DuckDB host 2,471/108 `let=1974`, database
+   2,473/108 `body=6553`; H2 host 2,289/295 `let=1950`, database 2,233/353 `body=6430 fallback=18`); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 446 pass, 1 skipped (the arm64-only classpath test); the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (`verify_app_test`'s headless page crashed once with another heavy test running beside it and passed alone); `update_generated_4_test` caught `native-claims.tsv` naming the class a claim's lowering sits in (`BodyDriver` -> `EnginePlans` on the two `in` rows), regenerated, and it and `spec_tests` pass. The heavy lanes were not run for this step (a move; S2d's and S3's steps carry them by hand); the lane sessions measure this head next..
+
+## 2026-10-31 — The lane sessions on S3a's remainder: every server and cloud lane identical per test (round 3)
+
+The arrangement of D81, round 3: the five lane sessions MEASURE ONLY on 745b76de (S3a's remainder: the staticizer
+deleted, a dynamic pivot's key compared as the database's text) against their 29286366 runs. The pivots' statements
+were asked about by name, since they change by design.
+
+| session | lanes | round 3 (745b76de vs 29286366) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B | identical per test |
+| sibling 2 | Snowflake, channels A and B | identical per test; channel B relation 1,531 -> 1,503 statements (the staticizer's 14 key reads, each dumped twice, gone; the native `PIVOT` statements byte-identical); channel A relation: 5 dynamic pivot bodies changed only in the key comparison (`CAST("year" AS VARCHAR) = ?` for `"year" = CAST(? AS BIGINT)`); every other statement byte-identical |
+| sibling 3 | Databricks, channels A and B | identical per test on both channels (A: essential 345/0, grammar 137/0, relation 469/0, standard 205/0, unclassified 93/0; B: 0 differences per test in every suite); channel B relation 1,522 -> 1,494 (the same 28 key reads); channel A relation 5 of 474 statements changed (``CAST(`year` AS STRING) = ?``), all 5 still pass; the keyword scan (variant, JSON, reported, raw grid, grid report, DialectCapability, snapshot, pivot) 0 new, 0 gone |
+| sibling 4 | BigQuery, channels A and B | identical per test; the same statement picture (28 fewer on channel B relation, 5 channel A pivot bodies `CAST(year AS STRING) = ?`); one message differs with the same verdict, `filter::testFilterInstance` (the known UNION ALL with no ORDER BY) |
+
+No dynamic pivot test changed outcome on any lane; no REAL or float key appears among the lanes' pivots as a changed
+outcome. The two reds are main's, as every round: SQLite channel B essential at 332 and BigQuery channel A essential
+(`removeDuplicates...MixedTypes`); the user's ruling on both is owed. CI on 745b76de (run 41164742968): green on every
+OS ("gates green" 04:12Z).
+
+## 2026-10-31 — The seam program's S3a, remainder: the staticizer deleted; a dynamic pivot's key compared as the database's text; no read at planning remains
+
+The decisions log D91; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3a).
+
+1. **Measured first (a temporary switch, reverted):** `DynamicPivot.staticize` made a no-op on the three heavy channel B
+   lanes this container runs: it was reached by 28 dynamic pivots on each of H2, SQLite and Postgres (the relation
+   suites; 0 elsewhere), and every per-test outcome, message and diff count stayed identical to the baseline -- the
+   keyed form downstream (`JudgePlans`, `PlanMaker.keyed`: the keys read by the plan's first step when it runs)
+   already planned them.
+2. **Found on the way, a bug in the shipped keyed pivot:** its body compared a key as `on = CAST(? AS <slot>)`, the slot
+   the store's Pure type (Float, so DOUBLE), not the column's physical REAL; a REAL `3.14` widened to
+   `3.140000104904175` matched no key, and its pivot column came back null -- on DuckDB (the platform's own database)
+   and H2; SQLite, whose REAL is a double, matched. This is audit finding D of 2026-08-18, which the staticizer had
+   fixed for itself (its `DynamicPivotKeyLiteralH2Test`). Fixed in `KeyedPivot`: a non-text key is compared as
+   `CAST(on AS VARCHAR) = ?`, the database's own text against the text the keys step read from the same column
+   (`_pct_t`), so a key matches exactly the rows it was read from whatever the column's type; a text key keeps
+   `on = ?`. `KeyedPivotKeyRoundTripTest` (DuckDB, H2, SQLite: a REAL key; timestamps at whole seconds and below) fails
+   on DuckDB and H2 without the fix and passes with it. The SQL of every dynamic pivot whose key is not text changes
+   (its CASE's comparison); its answers change only where a key matched no row before.
+3. **Deleted:** `driver/DynamicPivot.java` (the staticizer, its key reader, its key-literal spelling) and its call in
+   `BodyDriver.lowerAndPrepare`; `DynamicPivotKeyLiteralH2Test` (its cases carried by the new test, on three
+   databases). No statement is read at planning by any path now: the column probe (S3a's first part), the wire
+   probe's describe (S3b), the grid probe (S3c) and the staticizer's key read are gone.
+4. **Guards, dated:** `JavaEvalLedgerTest` `DynamicPivot.java`'s row retired and `BodyDriver` 2,318 -> 2,310 (the
+   static pivot's call and key reader gone); the driver register loses `DynamicPivot.java`; `ArchitectureTest`'s two
+   comments, `SqlDialect.needsStaticPivot`'s doc (the flag stays: no native PIVOT, a named pivot written as the CASE
+   emulation), `SqlExpr.DeferredTdsString`'s doc and the driver's `package-info` updated.
+5. **Measured locally:** `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped,
+   and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged; `corpus_duckdb`, `corpus_h2`,
+   `pct_channel_b` 17 of 17, uncached; the heavy lanes by hand: channel B on H2 1 of 1, SQLite 4 of 5 (essential at
+   332, the pre-existing main red) and Postgres 5 of 5 (unprivileged), every per-test line identical to the baseline taken before
+   the change (none of their suites pivots on a REAL column). The server and cloud lanes: the five lane sessions
+   measure this head next, the pivots' body statements changing by design.
+
+## 2026-10-31 — The lane sessions on S3b and S3c's three parts: every server and cloud lane identical per test (two rounds)
+
+The arrangement of D81 (the user, 2026-10-30: "use the other warm sessions here to run all the tests on the other
+server and cloud backends so we gain comfort on those as well"), the plan's §4 (the heavy lanes at every S3 step):
+the five lane sessions MEASURE ONLY -- no edits, commits, pushes or credential reads -- on 77dfa672 (S3a's first part,
+S3b, S3c's first two parts) against their PR #82 runs (86d60625), then on 29286366 (S3c's third part and the audit's
+fold) against 77dfa672.
+
+| session | lanes | round 1 (77dfa672 vs 86d60625) | round 2 (29286366 vs 77dfa672) |
+|---|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; 0 whole-log difference | identical per test; 0 whole-log difference |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test; only the echo's let order and engine-JSON row order differ | identical per test; the same |
+| sibling 2 | Snowflake, channels A and B | identical per test; 12 channel B statements changed (6 pivot #TDS texts lose a re-projection layer: S3a's first part, by design) and 14 side statements run one place earlier (the sides planned before any is sent) | identical per test; every statement byte-identical |
+| sibling 3 | Databricks, channels A and B | identical per test; the same 12 changed and 14 moved statements; channel B relation timed out at 900 s in the batch (881 s at the base) and passed alone, identical | identical per test; every statement byte-identical; channel B relation alone 670 s |
+| sibling 4 | BigQuery, channels A and B | identical per test; one message (`filter::testFilterInstance`, a UNION ALL with no ORDER BY read in two orders) matches main's and one base run's, not the other's | identical per test |
+
+No body on these lanes reaches a raw grid's report (the refusal by name on a dialect not measured for it appears 0
+times) or moves under the dialect's declared snapshot. The two reds every round are main's: SQLite channel B
+essential at 332 (`removeDuplicates...MixedTypes`, `SQLITE_TOOBIG`: lite's SQLite spelling of a mixed list's dedup and
+sort, 1.8 MB, measured 2026-10-31) and BigQuery channel A essential (the same test refused at render: "a list of lists
+reached BigQuery, whose arrays hold no array"); the user's ruling on both is owed.
+
+## 2026-10-31 — The seam program's S3c, third part: a raw grid's names, cells and rows are a keyed plan; the stamp, the grid probe and the wire probe deleted; `probe` 0
+
+The decisions log D90; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 and §4 (S3c). Reworked before its
+commit after the user's question of 2026-10-30 ("Did we hack things?"): the first cut's four workarounds are named in
+item 3 with what replaced each.
+
+1. **Built:** a raw grid's report is MIR (`SqlSource.GridReport`, four parts: `COLUMNS` its column names, `CELLS` and
+   `TEXTS` its cells one row each as the database's JSON or text, `ROWS` its rows each the list of its cells), written
+   by the dialect with a per-key region per column (`AnsiSqlRenderer.gridReport`; `variantOf` and `arrayOfCells` the
+   dialect's JSON value and list; written by DuckDB and H2, the two measured, and refused by name by every other). A statement
+   that reads one is a keyed plan whose keys are the columns the grid's result reports (`ExecutionPlan.Keyed.KeysOf
+   .COLUMNS`; `PlanMaker.rowsOrGridKeyed`), read by the plan's first step when the plan runs: one `LIMIT 0` of the
+   grid, a run-time step, never planning. `columnNames` and relation-level `values` lower to the report
+   (`Lowerer.gridReport`), `toCSV` over a raw grid to its texts (`Render.gridCsv`); a row read as its cells
+   (`$r.values`, in any operation over the rows) makes the grid's rows the lists of their cells, the row's one
+   column `values` (`ROWS`), and a statement that reads a raw grid's row both as its cells and by a column's name is
+   refused by name. A raw-grid let read after an effect is a STAGED TABLE (D75): a plain temporary table made at the
+   let's turn, read back raw by name after, dropped when the body ends however it ends. The database judge's keyed
+   verdicts are a verdict group of their own, each its keyed wrapper, run with the fused group under the body's origin;
+   `FALLBACK` is entered by the fallback path itself (`VerdictBatch.executeOne`, and the runner's split rung when the
+   database rejects a fused statement). A raw grid's rendered text in an assert is the database judge's, the two
+   texts compared as the strings they are (legend-pure's `assertEquals` over two strings).
+2. **Deleted:** `resolver/RawGridSchema.java` (the stamp and its referee, 361 lines), `driver/GridProbe.java` (the LIMIT-0
+   probe at planning, 87), `driver/WireProbe.java` (43), `RawGridSchemaDuckDbTest`; `WireProbeTest` renamed
+   `WireDecidedCellTest`. PlanJson format 22 (the keyed result's `keysOf`, a verdict's keyed wrapper), the TypeScript
+   runner's pin with it.
+3. **The first cut's workarounds, and what replaced each:** (a) a `Lowerer` arm for one shape (a projection whose lambdas
+   read only `$r.values`) -> the general `ROWS` form above, any operation, and the mixed read refused by name; (b) an H2
+   pass inlining every common table expression that read a grid report -> narrowed to the column-names report alone,
+   the one that binds a value (each column's name), deterministic so inlining it reads the same rows; the H2 defect it
+   exists for pinned by `H2LostCteParameterTest` (H2 2.1.214 and 2.2.224 lose a bound parameter inside a WITH clause
+   another reads, in every shape tried; the day H2 answers 1 the test fails and the pass goes); (c) a staged grid
+   table dropped only when the body succeeded, a counter hiding the leak -> dropped however the body ends (a success
+   flag; a failing body's drops quiet, catching `DataError` only, the codebase's `SystemDatabase` pattern), the
+   counter kept for a drop the failure left impossible; (d) keyed verdicts run through the fallback path and counted
+   `FALLBACK` -> a verdict group of their own under the body's origin. Kept as the canon's own convention, named:
+   the grid's rows numbered `ROW_NUMBER() OVER ()` in the result's order (the canon's `__ord` is numbered so; SQL
+   does not promise a derived table's order, and every database measured keeps it).
+4. **The independent audit of S3a-S3c (read-only, 2026-10-31), folded:** (1, in pushed code) a raw grid's column read
+   by name was decoded by guessing from its value -- a text starting with `[` or `{` parsed as JSON (`'[draft]'` an
+   error, `'[1]'` a list): such a column (no slot, `Any`) is now read by the type its result reports for it
+   (`WireTypes.decodedAs`, `JdbcStatements.rows`), `ExecuteInDbProbeCountTest.namedReadOfTextIsTheText` pins it;
+   (11, in pushed code) a reported type the wire table names no Pure type for was `Any` with no slot, a default --
+   now refused by name (`WireTypes.column`); (2) the grid report writes a derived table's column list, which SQLite's
+   grammar has not, while SQLite and Postgres claimed the hooks unmeasured -- a report is now written only by a
+   dialect measured to answer it (`writesGridReports`: DuckDB, H2), every other refuses it by name, the SQLite and
+   Postgres hooks removed; (3) two reports were judged one grid's by comparing their rendered SQL, which carries a
+   fresh alias each -- now by the grid's authored text and language (`PlanMaker.rawGridOf`; a report over a relation
+   derived from a grid refused by name); (4) the grid's keyed plan ignored the database's declared snapshot and
+   column limit -- now the dialect's (`snapshotOf`, `resultColumnLimit`), as the pivot's; (5) `toString` over a raw
+   grid fell to an internal "zero-column relation" error -- refused by name (`Render`); (6) the failing body's quiet
+   drop caught `DataError` alone -- now the send's two declared failures; (7) the keyed group dropped the rows it had
+   read when a later keyed statement failed -- kept; a member is judged keyed with the batch's frames, as planned;
+   (8) the H2 pass inlined only a top-level WITH -- now every WITH at any depth (`SqlRewriter.with`, a post-order
+   hook); (9) the rewriter treated a report's grid as text it never entered, so no dialect pass (H2's rewrites, alias
+   prefixing) saw inside it -- it is rewritten as any subselect is; (10) the cells decision was statement-wide and
+   computed after the lets were lowered -- now per grid (by its text: a lambda's row ranges over its operation's first
+   child, a picked row over its own expression, a let followed to its value), over the whole body first; the report
+   arm tests a relation-valued source, not "not a variable"; (12) dead code deleted (`Render.resolveAllDeferredTds`,
+   `resolveDeferredTds`, `sql/PlanProbe` and its self-test, the session's wire-type memo and `WireTypes.ReportedColumn`),
+   `HUGEINT` (never produced) out of the admitted kinds, stale comments and the refusal texts corrected (the pivot's
+   kept as spelled). Kept and named: S3b's member-by-member trial render (`VerdictBatch.spelled`, a render per member
+   at planning to find the ones the dialect spells) and the canon's row order (`ROW_NUMBER() OVER ()`); the runner's
+   pivot-worded empty-region refusal is unreachable for a raw grid (a result reports at least one column).
+5. **Guards, dated:** `JavaEvalLedgerTest` `BodyDriver` 2,304 -> 2,318 (the staged grid's table: its name, its drop, its
+   read; plumbing, nothing evaluated) and `AssertVerdicts` 1,221 -> 1,226 (the raw grid's text to the database judge;
+   routing); `CodeShapeGuardrailTest`'s mutable-field allowlist gains `Lowerer.reportInputs` (a depth raised and
+   lowered around a report's input, `correlatedReads`' lifecycle) and `Lowerer.cellGrids` (computed once over the whole
+   body before any of it is lowered, the builder flags' lifecycle); `RawSqlLedgerTest`, `ArchitectureTest`, `DialectOwnerExclusivityTest` and
+   the registers' comments lose the deleted classes.
+6. **Registers, dated:** both database passes' outside-body registers lose the four tests that sent only the probe
+   (`testExecuteInDbToTDS`, `in::H2Test`, `dates::datetime::retrieveDateWithTimeZone`, `dates::strictdate::testGet`:
+   they now send nothing outside their plan); `dropAndCreateTempTable`'s row says `other=2` (the staged grid's
+   `CREATE TEMPORARY TABLE ... AS` and its drop, which the driver sends until S4), not `probe=1`.
+   `h2-database-differential-register.txt` gains `in::H2Test`: it FAILS in both modes on H2 -- the grid's own SQL is
+   invalid there (H2 2.1.214: BOOLEAN and VARCHAR not comparable), which the host meets at #0; the database pass stops
+   at planning #0, before sending it: with no probe the cells are JSON and H2's dialect writes no JSON navigation for
+   `rows.values->at(0)` (the `lost` register's `testExecuteInDbToTDS` and `dropAndCreateTable` have had the same
+   refusal since 740e37c1).
+7. **Measured locally (uncached), after the fold:** `corpus_duckdb`, `corpus_h2`, `pct_channel_b` 17 of 17 after the register row (16 of
+   17 before it); every pass's pass/fail count unchanged (DuckDB host 2,471/108, database 2,473/108; H2 host 2,289/295,
+   database 2,233/353); `probe` 5 -> 0 on all four passes; the DuckDB database pass `body` 6,551 -> 6,553, `fallback`
+   0; the H2 database pass `fallback` 18 (unchanged), fused statements 2,450 -> 2,448 and batch fallbacks 127 -> 128,
+   accounted test by test against 77dfa672 (`testExecuteInDbToTDS` 1 -> 0 and 0 -> 1, `dropAndCreateTable` 1 -> 0,
+   `dropAndCreateTempTable` 1 -> 0; every test's outcome unchanged); every engine-order, unordered and ord register
+   unchanged. `core_tests_{exec,judge,driver,root,planner,lowering,sql,integration,architecture}`, `census`,
+   `guardrails`, `core_layering_test`, `//engine-client:plan_runner_test` green. `bazel test --lockfile_mode=error
+   //gates:local` (`--local_test_jobs=2`: four parallel tests OOM-killed the Bazel server once): 447 pass, 1 skipped
+   (the arm64-only classpath test), and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged.
+   Generated files regenerated: `native-claims.tsv` (`RawGridSchema` gone from three rows) and the parser-equivalence
+   ratchet (`own_corpus.matched` 3,010 -> 3,008: `RawGridSchemaDuckDbTest`'s two models deleted with it). The heavy
+   lanes this container runs, by hand: channel B on H2 (1 of 1), on Postgres unprivileged (5 of 5) and on SQLite (4 of
+   5: essential at 332 against its floor 333, the pre-existing main red the PR #82 heavy-lane entry names --
+   `removeDuplicates...MixedTypes`, `SQLITE_TOOBIG` -- the same 13 errors and the same diff, AGREE-PASS 320,
+   AGREE-FAIL 11, WIRE-BUG 2, B-FIXES-A 12, before and after the fold).
+8. **Not measured here:** the server and cloud lanes (MariaDB, MySQL, Trino, ClickHouse, Snowflake, Databricks,
+   BigQuery). The five lane sessions of D81 were asked on 2026-10-31 to measure 77dfa672 (S3a's first part, S3b, S3c's
+   first two parts) against their PR #82 runs, measure only, and will be asked again on this head; their reports land
+   in their own entry.
+
+## 2026-10-30 — CI red on S3b's head (7ce577db): the DuckDB database pass's engine-order register measured the deleted describe; re-pinned
+
+1. **Found by CI, not by the local chain:** run 2291 on 7ce577db failed `//spec:update_rcorpus_duckdb_4_test` on Linux
+   and Windows (`corpus_duckdb`): the DuckDB database pass's engine-order register measured 666 tests against the
+   committed 872. S3b's record below said "zero roster movement"; the corpus lanes' diff tests it read were cached
+   results, not a run of the commit's own jars. The check is now run with `--nocache_test_results`. The warehouse
+   lane's red on the same run is the runner's disk ("No space left on device" extracting the LLVM toolchain), not this
+   branch's; macOS's 15 jobs were cancelled before any step ran.
+2. **Root cause, measured:** the deleted `WireProbe.reconcile` rendered every store-reading database-pass side through
+   the dialect at planning (`dialect.render(whole)`, the text of its describe), and DuckDB's test-only scan-order pass
+   (`StableScanOrder`, `-Dlegend.exec.engineScanOrder=true`) counted a firing on that rendered describe. The judged
+   statement is not changed by the pass, before or after: the assert boundary's always-on `ScanOrder` has already
+   put the order in place. Proof on `fromMapping::testFromWithMapping` (`//spec:corpus_one` with the flag): the
+   database pass fires 0 at the head; one temporary line rendering the bare side as the reconcile did, nothing sent,
+   brings it back to 2; reverted. The host pass fires 2 at the head (the flag reaches the pass).
+3. **The movement, exactly:** 206 rows removed, none added (117 of them unordered-chain tests, compared as
+   multisets); the same 206 on the S3c second part's head (4ee64d01) and on the S3c third part's work tree. Every
+   other measured file of both corpus lanes unchanged; the DuckDB database pass's census `body=6551 fallback=0`, as
+   S3b recorded. `duckdb-database-engine-order-register.txt` 872 -> 666 lines by `bazel run //spec:update_rcorpus_duckdb_4`.
+4. **Also found, by the full local gate this time:** S3c's first part (57303fef) made `RawGridSchema` name the
+   `toString`/`toCSV` natives, and `native-claims.tsv` (generated: the classes that name each native) was not
+   regenerated -- `//core:update_generated_4_test` red on 57303fef and 4ee64d01, neither pushed. That commit was checked
+   by its lanes, not by `//gates:local`. Regenerated (`bazel run //core:update_generated_4`): the three rows add
+   `RawGridSchema`, which S3c's third part deletes.
+5. **Measured locally (uncached, on 4ee64d01 with the re-pin and the regenerated claims):** `//gates:corpus_duckdb`,
+   `//gates:corpus_h2`, `//gates:pct_channel_b` 17 of 17 (16 of 17 before the re-pin, the one this entry is about);
+   `bazel test --lockfile_mode=error //gates:local`: 446 pass, 1 skipped (the arm64-only classpath test), 10 fail --
+   the 9 that start a Postgres refuse root in this container and pass 9 of 9 run unprivileged, and
+   `update_generated_4_test` above, green after the regeneration. (The first gate run died at 354 of 457: the Bazel
+   server OOM-killed at four parallel tests; re-run with `--local_test_jobs=2`.)
+
+## 2026-10-30 — The seam program's S3c, second part: a raw grid is a relation of the columns its result reports; the staticizer deleted; F1 closed
+
+The decisions log D89; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 (item 3: "the columns come from
+the real run") and F1 (§2).
+
+1. **Built:** `ExecutionPlan.TdsResult` of shape RELATION and NO column is a raw grid's: the columns its result reports.
+   `Statements.reportedRows` (JDBC: the result set's metadata; MongoDB refuses by name) hands them to the sink before
+   any row, each named by the wire table (`WireTypes.column`: the label, the Pure type for the SQL type JDBC reports
+   and its slot; `Any` and no slot where the table names none, the cell then the driver's own kind), and reads each
+   cell by them. `PlanRunner` routes both typed-rows sites (`stream`, a step's `result`) to it.
+   `JudgePlans.streamResult` (a raw grid as the answer) and `tabularPlanned` (a host side) plan such a relation; the
+   side's shape takes the reported columns (`tabularShape`, `reportedType`). `WireProbe.staticized` (a describe at
+   planning) DELETED with its helpers; `WireProbe` keeps the wire table's types rebuilt as the typer's.
+2. **F1 closed:** the product path's plan for a raw grid of unknown schema (zero columns, `PlanMaker.typed`) now MEANS
+   the columns the real run reports and the Java runner reads them -- no longer a defaulting branch by omission. The
+   TypeScript runner (a host's write programs) refuses such a relation by name instead of writing rows of no cell
+   (`engine-client/src/plan-runner.ts`; its test).
+3. **Tests:** `exec/ReportedColumnsTest` on each in-process database (DuckDB, H2, SQLite): the columns `N`, `S` typed
+   `Integer`, `String`, no store, the row `[7, 'a']`; `WireProbeTest` loses its staticizer assertion.
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2`: zero roster movement, the statement censuses unchanged (`probe`
+   5: the describes were never counted under it); `pct_channel_b` 5 of 5; `core_tests_{exec,judge,driver,root,
+   planner,lowering,integration}`, `census`, `guardrails`, `core_layering_test`, `//engine-client:plan_runner_test`
+   green.
+5. **Left of S3c:** the reported-columns keys step and the keyed `columnNames`, `rows.values` and `toCSV`; the staged
+   raw-grid let; then the stamp and `GridProbe` deleted (`probe` 5 -> 0 on the corpus).
+
+## 2026-10-30 — The seam program's S3c, first part: a by-name read over a raw grid probes nothing; its cell decoded by the wire
+
+The decisions log D88; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 (item 3: "no first step where
+nothing needs the names before the grid runs") and §4 (S3c).
+
+1. **Measured first (the stamp switched off, reverted):** exactly the four raw-grid bodies of step H's H2 newly fail
+   (DuckDB host and database; H2 host three, `in::H2Test` failing there already), each for its own reason: a by-name
+   read's `Any` cell declared in a JSON slot while the raw read hands an integer (`dropAndCreateTable`,
+   `testExecuteInDbToTDS`'s first assert); `columnNames` evaluated at the assert, after `dropTempTable`
+   (`dropAndCreateTempTable`); `rows.values` lowered as a column (`in::H2Test`). The `dates` tests stand: their
+   setup's `println(... .rows.values)` judges nothing.
+2. **Built:** `RawGridSchema.demands` no longer counts a by-name field read (a relation's text over a late-bound grid,
+   `toString`/`toCSV`, demands the stamp until S3c's keyed form spells the header). `ColumnFacts.rawGridCell`: a
+   column whose provenance, through subselects, CTEs, joins and a one-cell scalar select, is a late-bound raw grid's
+   column carries no slot, and the runner decodes the driver's own kind (`JdbcDecode.byPureType`'s `Any` arm) -- the
+   engine reads a raw result set's cell by the type the database reports. `BodyDriver.wrapSide` no longer frames a
+   late-bound grid by `WireProbe.staticized` (a describe at planning): the canon declines a late-bound schema by name
+   and the row count reads the rows unwrapped. `ExecuteInDbProbeCountTest`'s by-name case now pins ZERO probes and the
+   cell typed from the real run (the §4bZ-U ruling of 2026-08-25 superseded by D76, dated in the test).
+3. **Measured locally:** `corpus_duckdb`, `corpus_h2`: zero roster movement; `probe` 8 -> 5 on every pass
+   (`dropAndCreateTable`'s three reads gone; in database mode its three verdicts are the database's, unchanged); the
+   database passes' outside-body registers lose `dropAndCreateTable` (DuckDB 43 -> 42, H2 52 -> 51 lines: it sends
+   nothing outside its plan now); `pct_channel_b` 5 of 5; `core_tests_{exec,judge,driver,root,planner,lowering,
+   integration}`, `census`, `guardrails`, `core_layering_test` green; `BodyDriver`'s pin 2,309 -> 2,304, dated.
+4. **Left of S3c:** the relation whose columns the real run reports (`streamResult`'s and `tabularPlanned`'s
+   `staticized`); the reported-columns keys step and the keyed `columnNames`, `rows.values` and `toCSV`; the staged
+   raw-grid let (`dropAndCreateTempTable`); then the stamp, `GridProbe` and `staticized` deleted.
+
+## 2026-10-30 — The seam program's S3b: the wire probe's reconcile deleted; a String-declared integral cell spelled by the kind the database holds
+
+The decisions log D87; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3b). The user's go of 2026-10-30
+for the whole remainder.
+
+1. **Measured first (a temporary print, reverted):** the reconcile re-typed exactly one shape, 7 times on each
+   database pass (`id` five times, `u_map__id` twice) and never on the host passes or channel B: a String-declared
+   column the store stamps BIGINT and the database reports VARCHAR -- `Interaction.id` (declared `String`, the store's
+   `ID INT`, the fixture's `InteractionTable("id" VARCHAR(200))`); its skews (55 on H2, 2 on DuckDB) re-typed nothing
+   (the slot stood). Disabling it lost three database verdicts on both databases (`testInWithDynaFunction`,
+   `testSimpleDistinct`, `testSimpleDistinctWithFilter`: `'Peter Smith''1'` against `'Peter Smith'1`).
+2. **Built:** `CanonicalRenderSql.textOrStamp`: the grid canon's cell for a String-declared column stamped INTEGER asks
+   the value in the statement -- its JSON form (`TO_VARIANT`, cast to text) starts with a double quote exactly when the
+   value is text (measured on H2 2.1.214 and DuckDB 1.5.6.0: `"1"` for the text, `1` for the integer, `"2014-12-01"` for
+   a date, so only the integral stamp takes the test) -- quoted as a string with the string's separator guard, else the
+   integer's spelling unchanged. The database computes it; nothing is read at planning. `WireProbe.reconcile` and its
+   call in `BodyDriver.planStaged` DELETED, with the census keys `WIRE_RETYPED`/`WIRE_SLOT_SKEW` only it fed (and their
+   two fields in the corpus's policy line). `WireProbe.staticized` (the raw grid's frame) stays for S3c.
+   `WireProbeTest` asserts the new spelling on each in-process database (DuckDB, H2, SQLite: `'7'`, `'a\'b'`, `TDSNull`
+   over a VARCHAR column, `7` over an INTEGER one).
+3. **Found by the oracle and fixed before the commit:** without the reconcile's render, a side the dialect cannot spell
+   (H2: an `UNNEST`) joined its verdict group and refused the group's fused statement, so the whole group fell back
+   (7 H2 tests newly sending fallback statements: the outside-body register's NEW 7). The reconcile had refused such a
+   side at its own planning -- by accident, and only for wire-decided sides. `VerdictBatch.flush`'s split rung at
+   planning now goes member by member (a render each, nothing sent): the members the dialect spells stay fused, the
+   others are refused at their place in the root loop as before. Every side, not only the wire-decided ones: on the H2
+   database pass fused statements 2,354 -> 2,450, fallbacks 210 -> 127, fallback statements 141 -> 18 (body 6,334 ->
+   6,430), and 87 tests no longer send anything outside their plan: `h2-database-outside-body-register.txt` 139 -> 52
+   lines (all 87 were fallback-only entries; the register's reason, a body sending outside its artifact, no longer
+   holds for them). DuckDB's database pass sent no fallback before or after.
+4. **Measured locally:** `bazel test --lockfile_mode=error //gates:local`: 447 of 457 pass, 1 skipped, and the 9 that
+   start a Postgres (eight `//core:*postgres*` targets and `//datacube:verify_app_test`) refuse root in this container
+   ("initdb refuses root") and pass 9 of 9 run unprivileged (`tools/postgres/as_unprivileged.sh`, the start page's §6);
+   `corpus_duckdb`, `corpus_h2`, `pct_channel_b` 5 of 5: zero
+   roster movement, every pass's pass/fail count unchanged (DuckDB host 2,471/108, database 2,473/108; H2 host
+   2,289/295, database 2,233/353), the host passes' and DuckDB database pass's statement censuses equal S3a's. **Corrected 2026-10-30 (CI run 2291): the DuckDB database pass's engine-order register DID move (872 -> 666 rows) -- the diff tests read here were cached; the entry above, "CI red on S3b's head".** The new
+   spelling is emitted 24 times on each corpus database pass and 0 times on channel B (a temporary count, reverted),
+   so the heavy channel B lanes never see it; the member-by-member rung reaches them (planning only, verdict-neutral):
+   their by-hand run is owed and batched with the staticizer's keyed form, which needs it by its nature.
+   `JavaEvalLedgerTest`: `BodyDriver` 2,317 -> 2,309, dated.
+5. **Also in this commit, CI on the previous head (`b921a818`, run 2290):** `checks` and `parser_equivalence` red on
+   Linux and Windows on one measured ratchet, `own_corpus.matched` 3,009 -> 3,010: `QuantifiedRowsTest`'s model
+   (`Class t::Marker {}` under its own `###Pure` header) joined the own corpus and matched -- a model joining, as the
+   ratchet records. `bazel run //parser-equivalence:update_ratchets`; the local chain had not covered that lane, so
+   this commit's proof is the whole local gate.
+
+## 2026-10-30 — The seam program's S3a, first part: the LIMIT-0 column probe deleted; a cast-named pivot's text composed from the compiler's columns
+
+The decisions log D86; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3a) and its F10. The order
+moved (the user's go for the whole remainder, 2026-10-30): S3 before the remaining S2 kinds, because those kinds
+already run as plans through the runner (track B) and what keeps their planning impure is the four probes, which
+send statements in the middle of planning.
+
+1. **Built:** `lowering/Render`'s two deferral triggers (a relation's `toString` and `toCSV`) defer only where the
+   relation's typed schema still carries a pivot's TEMPLATES (columns nothing names) or the inner is a late-bound raw
+   grid; a pivot whose columns a cast names composes directly from the compiler's columns (F10: until now ANY pivot
+   deferred). `driver/ColumnProbe` DELETED; `BodyDriver.lowerAndPrepare` refuses a remaining deferral by name ("a
+   relation's text ... over columns nothing names ... planning asks the database nothing"): no body in the corpus or
+   channel B reaches it (step H's H1), and the refusal would fail any that did. `Render.resolveAllDeferredTds` and
+   `sql.PlanProbe` stay, without a caller, for S3c's keyed form (a first step's rows feed them instead of a probe).
+   The ledger's driver register drops the class; `BodyDriver`'s line pin 2322 -> 2317, dated.
+2. **Measured locally before the commit:** `//gates:pct_channel_b` 5 of 5 with the committed censuses (Relation 469
+   of 469: the six `composition::test_*` cast-pivot bodies render the same `#TDS` text from the compiler's columns,
+   and channel B's 12 LIMIT-0 reads per Relation run, F9, are gone with the class); `//gates:corpus_duckdb`,
+   `//gates:corpus_h2`: zero roster movement, every pass's statement census equal to the previous step's
+   (`probe` 8/8/8/7: the column probe was never in it, F9); `//core:core_tests_driver`, `core_tests_root`,
+   `core_tests_lowering`, `core_tests_exec`, `core_tests_judge`, `core_tests_planner`, `core_tests_integration`,
+   `//core:census`, `//core:guardrails`: green.
+3. **Left of S3a:** `DynamicPivot.staticize` (the key read a database without native dynamic PIVOT needs: H2,
+   Postgres, SQLite) to the keyed form the product path has, with the heavy lanes by hand.
+
+## 2026-10-30 — The seam program's step after S2f: the quantified assert judged from one read; the unroll reads nothing; the dead if site gone
+
+The decisions log D85; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (the deferred asserts, the step
+S2f's ruling named). The user's go of 2026-10-30: "Let's do everything 1-6 and then do everything else we need to
+fully sever - keep going don't stop until completely severed".
+
+1. **Measured first (temporary prints, reverted):** of the 172 quantified unrolls on the DuckDB host pass (the same
+   172 on H2), 139 are `assert` with a computed message over a computed collection, 16 `assertEquals` over a literal
+   collection, 8 nested quantifications over an instance literal, 8 `assert` with a computed message over a literal
+   collection, 1 `assertEqWithinTolerance` under the vector contract; of these, THREE reach the database through the
+   unroll's fetch hook: two fetch a bare integer literal (folded, nothing sent) and ONE reads a zip's relation arm
+   (`stringToFloat::testProject`: `[123.456, 100.001]->zip($result...rows.values)->forAll(pair |
+   assertEqWithinTolerance(...))`). The other 169 rearrange the program's spelled tokens, which the world-map tenet
+   allows. The two-branch-if site in the router fired 0 times on both host passes (`assertEqualsH2Compatible`'s body
+   is the engine-text assert family's, S2i's).
+2. **Built:** `HostJudge.quantifiedRows`, the host arm's `quantifiedVector` (it declined by design until now): under
+   the vector contract, `assert`/`assertFalse` are judged from the predicate vector the database computes (every row
+   true; "Assert failed" on the first that is not: the element arm's own words), `assertEquals` and
+   `assertEqWithinTolerance` from the zip's rows read ONCE, each row judged as the element arm judges it
+   (`PureAsserts`: the same decision, the same message), the arguments a row's field (through a cast) or a literal and
+   anything else refused by name -- the host judge evaluates nothing. `VerdictArm.quantifiedVector` carries the
+   source, the lambda and the element assert; the agreement arm passes them. `VerdictQueries.unrollElements` takes no
+   fetch hook: a zip arm is a literal collection or a bare literal, and an arm the database would answer is null (the
+   vector form's, or loud); `literalSpec` (a database value as a literal spec) and `HostJudge.sideCells` deleted. The
+   router's two-branch-if site and its `branchStatement` deleted (dead on every lane). The ledger's line pins moved,
+   dated: `HostJudge` 817 -> 956 (item 3), `AssertVerdicts` 1242 -> 1221, `DatabaseJudge` 595 -> 596.
+3. **Found by the oracle and fixed before the commit:** the first cut read the whole zip as ONE value side, which the
+   lowering refuses for a zip over a table's row values ("a row value has no SQL carrier yet"): the host pass newly
+   failed `stringToFloat::testProject` (the database pass held it, so the database lane's register asked for a new
+   "gained" line -- never accepted: a newly failing test is a regression). The row form now reads each zip arm as its
+   own side of ONE group (a literal arm folded, nothing sent; a grid arm its row-major cells, as `$tds.rows.values`
+   reads) and pairs them by position, stopped at the shorter arm: zip's own rule, the pairing the unroll did. The
+   ledger's `HostJudge` pin moved 817 -> 956 for it, dated (it replaces the unroll's database fetch and the compiler's
+   literal re-spelling, both deleted).
+4. **Pinned:** `QuantifiedRowsTest` (the three families over a zip, passing and failing with the arm's own message;
+   an argument that is neither a field nor a literal refused by name).
+5. **Measured locally before the commit:** the eight fast lanes (driver, judge, exec, root, planner, census,
+   guardrails, layering) green; then `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//gates:pct_channel_b`,
+   `//core:core_tests_integration` with the census and the lanes again: 24 of 24, **zero roster movement** (every
+   roster and register file identical), the five channel B censuses the committed lines, the database passes' censuses
+   equal to S2f's to the statement. **What moved, explained, not a verdict:** the host passes' adjudication count for
+   `assertEqWithinTolerance` 11 -> 9 (DuckDB) and 10 -> 8 (H2) -- `stringToFloat::testProject`'s two elements are
+   judged in one row read instead of two unrolled adjudications -- and their statements `other` 6,222 -> 6,217
+   (DuckDB) and 5,796 -> 5,791 (H2): the unroll's database fetch and its re-planned element statements gone, one read
+   of the zip's grid arm in their place.
+
+## 2026-10-30 — The seam program's S2f: the host judge's sides as a verdict step's base through the plan runner; the constant side and the fold ruled
+
+The decisions log D83 (the rulings) and D84 (built); the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3
+and §4 (S2f). The user's rulings of 2026-10-30, after the brief and the plain-words explanation: the two shapes one
+pass cannot plan (the quantified unroll, the two-branch if) stay on today's path, named and counted, their own step
+after S2f; a folded side is a constant side of the plan, its cells the test's own tokens or the compiler's join of
+constant tokens, marked as folded ("I think it's okay to join CONSTANT strings only - is that what we mean?" -- yes:
+the folder admits a literal, a list of literals, a let bound to one, and `+`, `joinStrings`, `replace` over such
+constants alone; a value the database answered never folds); "Okay let's go".
+
+1. **Built:** `driver/HostSides` (new, registered in the ledger's driver register with its tenet argument): an arm
+   names its sides before any run (`Ask`: the argument and the three flags its fetch passed -- the identity lane, the
+   fold, the splice hook), they are planned into one `ExecutionPlan.Verdict`'s base (`JudgePlans.plannedSide`: typed
+   rows, a keyed result, or the program's constant), run through `PlanRunner.program` under `Judging.HOST` on the
+   sides' one session -- where a side reading a store was routed; a side reading no store runs on any session and
+   joins it (the metamodel bodies pair a side on the system database with a literal side: 33 of them on the DuckDB
+   host pass, the first run's one refusal, narrowed to two store-reading sides on two sessions, which none has) --
+   and each side is handed back by position
+   and shaped as the one-side route shapes it (`JudgePlans.shape`; the to-one reader's check per side). Every host
+   arm converted in its fetch order (`tdsEquivalent` in two groups, the grids then the tolerances, as it fetched),
+   the router's grid-pair arm too; the one-side helpers `AssertVerdicts.side`, `jsonSideText`, `tabular`,
+   `HostJudge.sideCanon`, `identitySide` deleted; `JudgePlans.evalSide` remains the one-side route for the two deferred
+   shapes (`sideCells` under the unroll, the two-branch if) and the engine-text asserts (S2i). `JudgePlans` split into
+   plan, run and shape halves (`PlannedSide`, `plannedOf`, `runSide`, `shape`; the four run-and-shape helpers are
+   their tails: `objectsShape`, `tabularShape`, `keyedShape`, `valuesShape`); the one-side route and a value
+   statement's result compose the same halves. **The constant side:** `JudgePlans.constantSide` writes a fold's value
+   as one column `value` of the declared type and one row per value, each cell the value's text (a String itself,
+   an Integer its digits, a Boolean its word; another kind refused by name); `decodeConstant` reads the plan's text
+   back by the column's type and checks it against the compiler's value -- a difference is raised by name, never a
+   fallback. `ExecutionPlan.Side.Constant` gains `folded` (format 21; `PlanJson`, the TypeScript runner's pin, the
+   test pins moved, dated); `BodyDriver.PlannedValue` gains `joined`, from the new `Literals.bare` (the program's
+   tokens alone, or an operation applied). **The runner hands held rows through the collector** (`PlanRunner.collected`:
+   a verdict's sides, the fused statement's rows, a single wrapper's row), so a cell reaches a judge as it reaches
+   every reader of a typed result -- a tagged column's value, not its carrier; the exec, root and integration tests
+   over mixed lists found the difference before any lane did. **Pinned:** `JavaEvalLedgerTest.theCompilersLiteralFoldJoinsConstantsAlone`
+   (the three guards of `Literals`' native-call arms, exactly; everything else `default -> null`; the ledger's
+   PERMANENT-ALLOWED list names the fold under the ruling); `LiteralsParityTest` (each operation's fold equals the
+   database's answer for the same text on the platform's database; a function over data or arithmetic does not fold);
+   `ConstantSideTest` (the round trip for the three kinds, a wide Integer, an empty collection, an absent scalar; a
+   drifted text refused; a Float refused). The ledger's line pins moved, dated: `HostJudge` 804 -> 817, `AssertVerdicts`
+   1259 -> 1242, `BodyDriver` 2321 -> 2322.
+2. **The deferred shapes, counted (a temporary print, reverted):** on the DuckDB corpus host pass 172 quantified
+   unrolls and 0 two-branch ifs; on channel B 0 and 0. They stay on `evalSide` by the ruling; their own step follows
+   (the quantified assert the database way, the version check decided at planning).
+3. **Measured locally before the commit:** `//core:core_tests_exec`, `core_tests_judge`, `core_tests_root`,
+   `core_tests_planner`, `core_tests_driver`, `//core:census`, `//core:guardrails`, `//tools/deps:core_layering_test`,
+   `//engine-client:plan_runner_test`: 9 of 9. Then `//gates:corpus_duckdb`, `//gates:corpus_h2`,
+   `//gates:pct_channel_b`, `//core:core_tests_integration`, twice: the first run refused 33 DuckDB host-pass
+   bodies by name ("the sides of assertEquals route to two sessions": the metamodel bodies pair a side on the
+   system database with a literal side), the rule narrowed as item 1 says; the second run: **zero roster movement**
+   on DuckDB and H2 (every roster and register file identical but one, below), the five channel B censuses the
+   committed lines, the integration lane green. The DuckDB host pass's assert census equals the baseline measured
+   on the committed head the same hour (assertEquals 3,011, assertSameElements 755, assertSize 682, assert 364,
+   assertJsonStringsEqual 177, the nine smaller families); the database passes' censuses equal S2e's to the
+   statement (DuckDB body 6551, fused 2579, fallbacks 0; H2 body 6334, fallback 141, fused 2354, fallbacks 210).
+   **Two things moved, both explained, neither a verdict:** (a) `h2-database-untriaged-register.txt` loses its two
+   entries (`graphFetch::tests::subType::testInheritanceMappingWithoutSubType`,
+   `testSubTypeAtRootLevelWithInheritanceMapping`, "#0 host FAIL, database never reached it", 2026-09-23): before,
+   the host sent the golden side first (`json_pretty`, which H2 lacks: a DataError after assert 0 was recorded as
+   FAIL); now every side is planned before any is sent, and the graph side is refused at planning (H2 has no list
+   encoding: `LIST_TRANSFORM`), so nothing is sent and no verdict row exists -- both tests fail before and after,
+   the fail roster is unchanged, and the register's own check asks for the stale lines' deletion (its reason here);
+   (b) the host passes send fewer statements in bodies that fail (DuckDB `other` 6,234 -> 6,222, `session`
+   6,521 -> 6,432; H2 `other` 5,877 -> 5,796, `session` unchanged), by the same rule -- a body whose later side the
+   planner refuses no longer sends its earlier sides (the failing bodies' messages are identical before and after
+   on both databases, the two above apart) -- and because a literal side now runs on the store-reading side's
+   session, so the body's own session is not touched in the 33 metamodel bodies (DuckDB's session statements).
+   The rosters, the verdict ledgers and the per-family censuses are the oracle, and they did not move.
+4. **Not measured yet:** the rest of the chain locally; CI on PR #83 on this head (its macOS stress lane runs again
+   here: the S2e head's was cancelled with no log, the S2e entry's note).
+
+## 2026-10-30 — The seam program's S2e: the database judge's batch runs its verdicts as a verdict group through the plan runner
+
+The decisions log D82; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2e, the body planner's
+first kind: the asserts the database judges). The stacked branch `claude/wizardly-dirac-rw6tim-seam`, PR #83.
+
+1. **Built:** `VerdictBatch.flush` builds, per session its pendings run on (the grouping it had), one
+   `ExecutionPlan.Verdicts`: each pending a `Verdict` (its name, the arm the name spells, `wantEqual`, no sides, no
+   wrapper), the group's fused statement the plan of the fusion over the group's statements and the frames (the batch
+   schema), and runs it through `PlanRunner.program` under `Judging.DATABASE` on the body's session under the BODY
+   origin; its sink (a program sink that answers no rows and is never asked for sides) records each verdict's row by
+   its place in the group and counts the census in `fused`: `VERDICT_FUSED` when the fused statement ran,
+   `VERDICT_FALLBACKS` with the reason's head and the frames it names when the database rejected it, and likewise when
+   the dialect refuses the fused statement at planning. A verdict whose row the fused statement did not give is judged
+   in the root loop as before, through `executeOne`: the wrapper planned (`Runner.plan(statement, false)`; a dialect's
+   refusal counted UNJUDGED `dialect-capability` and raised) and run as a verdict group of one step through `program`
+   (the runner sends it under the FALLBACK origin; the database's rejection counted UNJUDGED `statement-error` and
+   raised), so nothing is sent past a root's first failure and the statement sequence is the one it was.
+   `VerdictBatch.Runner` is a planner now (`plan(statement, fused)`, `chars`); `JudgePlans.runner` implements it with
+   `rowsPlan` and the verdict schemas; `executeFused` and the batch's rows path are deleted; `DatabaseJudge.runVerdict`
+   hands `executeOne` the verdict's `wantEqual`. `PlanRunner.ProgramSink.fused(group, rejected)` is new: the runner
+   counts nothing (the census left `PlanRunner.verdicts`). `PlanRunner.program` brackets a program in a transaction
+   only where a step changes the database or asks a snapshot (its javadoc's words; S1b's code bracketed always): a
+   verdict group's statements run unbracketed as they did before they were a plan's steps, and F11 names the split
+   rung inside a transaction for S4's brief. `//core:judge` gains `:execution_plan` and `:result` (`core/BUILD.bazel`,
+   `tools/deps/core-layers.txt`, dated). `ProgramRunnerTest` records the `fused` events.
+2. **Measured locally before the commit, twice (once with S1b's always-on bracket, once with the fix; identical):**
+   the seven lanes `//core:core_tests_exec`, `core_tests_judge`, `core_tests_driver`, `core_tests_root`,
+   `core_tests_planner`, `//core:guardrails`, `//tools/deps:core_layering_test`: 7 of 7; then `//gates:corpus_duckdb`,
+   `//gates:corpus_h2`, `//gates:pct_channel_b`, `//core:core_tests_integration`: 18 of 18 (the two corpus verdicts:
+   every roster identical to the committed one; the five channel B censuses the committed lines, `[chB]
+   census={PASS=336, ERROR=9} total=345`, `[chB-gram] 137`, `[chB-Relation] 469`, `[chB-std] 205`,
+   `[chB-Unclassified] 93`). **The statement-origin and verdict censuses equal step H's snapshot (D79) to the
+   statement:** the DuckDB database pass `body=6551 fallback=0 probe=8`, `batch-statements=2579 batch-fallbacks=0`;
+   the H2 database pass `body=6334 fallback=141 probe=7`, `batch-statements=2354 batch-fallbacks=210`
+   (`bazel-bin/spec/judge_database_{duckdb,h2}/database.log`, the `[corpus2] statement-origins` and `sql-census`
+   lines). Zero roster movement.
+3. **Not measured yet:** the rest of the chain locally; CI on PR #83 on this head. The heavy lanes are not S2e's
+   (the plan's §4: by hand at S2d and S3; no effect or wire change here).
+
+## 2026-10-30 — The heavy lanes on PR #82's head: every server and cloud backend identical per test (five lane sessions)
+
+The user, 2026-10-30: "use the other warm sessions here to run all the tests on the other server and cloud backends so
+we gain comfort on those as well". The 2026-10-28 lane sessions of the start page's §7 no longer exist; the dialect
+program's five sibling sessions (2026-10-13) still hold the environments and ran the lanes, MEASURE ONLY, on PR #82's
+head 86d60625 against the PR's base on main (7bc0797d, run fresh in each container, since their last logs were
+1,200 commits old). The decisions log D81.
+
+| session | lanes (channel A; channel B) | result head vs base |
+|---|---|---|
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse; channel B on all four | identical per test; 0 lost, 0 moved, 0 channel B difference; markers equal |
+| sibling 1 | Trino; channel B on Trino and on Postgres (unprivileged) | identical per test |
+| sibling 2 | Snowflake; channel B | identical per test; every executed statement byte-identical in all ten suites |
+| sibling 3 | Databricks; channel B | identical per test; every non-session statement byte-identical in all ten suites |
+| sibling 4 | BigQuery; channel B | identical per test; 7 of 10 logs identical to the line |
+
+Observed on the way, none the PR's:
+
+1. **The session statements run once per connection** (step 1 of the java.sql revamp, D66, intended): Snowflake's
+   `ALTER SESSION` and Databricks' two `SET`s went from once per statement to once per connection (Databricks channel
+   A: 844 to 1 per suite; channel A's wall-clock halved there). No outcome moved.
+2. **A new upstream test is red on main on two manual lanes**: `removeDuplicates::testRemoveDuplicatesPrimitive
+   StandardFunctionMixedTypes` errors on SQLite channel B ("String or BLOB exceeds size limit", the essential floor
+   333 -> 332, `//pct:pct_channel_b_sqlite_essential` red on main and on the head alike) and on BigQuery channel A
+   ("nested arrays are not supported", unpinned: `//pct:pct_bigquery_essential` red on main). Main's, between
+   d12474f5 and 7bc0797d; the user's ruling owed (fix the cause or move the pin, dated).
+3. **The harness's echo of a test's Pure expression lists its lets in another order** on every lane (a few dozen
+   lines per suite): the same lets, the same body, the same statements; the SQL-dump digests move because the echo is
+   in them. An iteration-order effect of the package rename in the echo's source (a map keyed by something the rename
+   changed); a finding, not a behavior.
+4. **Snowflake channel B essential exceeds the 900 s default test timeout** when five suites run at once (the base
+   takes 1,027 s too; alone with a 3600 s timeout it passes in 1,065 s): the lane's size, pre-existing.
+5. **BigQuery's wall-clock is variance, not a cost** (the lane session's second run of 86d60625, same ten targets,
+   same flags, reported 15:35 UTC): the first run's 31m01s against main's 24m19s came from a bigger rebuild (153
+   build actions from a two-week-old tree, against 112) and slower BigQuery answers in two channel B suites; the
+   second run is 26m52s, its summed JUnit time 3,498 s against main's 3,590 s, each suite on both sides of main by
+   up to 13 s, the pass counts unchanged. Nothing scales with what the PR changed.
+
+## 2026-10-30 — The seam program's S1b: the verdict steps and the program sink (no caller yet)
+
+The decisions log D80; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.2 to §3.4 and §4 (S1), as the user
+ruled it that day ("fusion with the fallback, both in the plan"; "judging stays out of the runner, both judges"; "no
+Java in the plan, the host judge an exception called by the receiver"; the program sink; the format bump), and in the
+user's own words for the verdict step: a BASE (the sides, what the host judge runs) and a WRAPPER (the verdict statement
+the planner composes around the base for the database judge), the group's fused statement the wrapper over wrappers.
+The stacked branch `claude/wizardly-dirac-rw6tim-seam`, PR #83.
+
+1. **Built:** `ExecutionPlan.Verdicts` (a run of asserts as one step: its verdicts and the fused statement, a typed
+   result of the batch schema or null) and `ExecutionPlan.Verdict` (name, arm, wantEqual, the base sides, the wrapper
+   as a typed result of the verdict schema or null where the database judge declines the arm); `ExecutionPlan.Side`
+   sealed: `Rows` (a typed result), `KeyedRows` (a keyed result), `Constant` (columns with their facts and TEXT cells
+   as the program wrote them; nothing sent). `PlanRunner.program(plan, values, sessions, judging, sink)`: the steps on
+   one session, in one transaction where one changes the database and at a keyed step's snapshot (S1a's rule),
+   every verdict group delivered as `Judging` asks -- DATABASE: the fused statement's rows, one per verdict by its
+   index, each verdict's own wrapper under the FALLBACK origin where the database rejects the fused one (the split
+   rung, counted `VERDICT_FALLBACKS` with its reason, as the batch counts today) or where there is none, a verdict
+   without a wrapper handed a null row; HOST: each base side's rows (a constant's its text cells); BOTH: the sides
+   first, then the rows -- and the program's answer, its at most one result step's rows, streamed after the steps (a
+   program may answer no rows). `PlanRunner.ProgramSink` (a result sink plus `verdict` and `sides`): the judges' door;
+   the runner judges nothing. The answer path refuses a verdict group by name (as a root, and as a step of a
+   sequence run by `stream`). `PlanJson` format 20 (`verdicts` node, the side tags); `PlanRoundTrip` and the plan
+   tests' switches gain the arm; the TypeScript plan runner's pin moves to 20 (it refuses the node by name, as any
+   step it never runs). The steps' sends (`update`, `check`, `effect`, `result`) are one helper each, shared by the
+   answer path and the program path.
+2. **Measured locally before the commit:** `//core:core_tests_exec` (the new `ProgramRunnerTest`: database judging
+   from the fused statement, the split rung on a rejected fused statement, no fused statement, host judging with a
+   constant side, both, a program with an answer and one without, the refusals, the JSON round trip of every side
+   kind), `//core:core_tests_planner`, `//core:core_tests_root` (the two format pins moved, dated),
+   `//core:core_tests_integration`, `//core:guardrails`, `//tools/deps:core_layering_test`,
+   `//engine-client:plan_runner_test`: 7 of 7.
+3. **Not measured yet:** the corpus and channel B lanes (no caller makes a verdict step: the roster oracle is S2e's),
+   the rest of the chain; CI on PR #83.
+
+## 2026-10-30 — The seam program's S1a: a keyed result as a step of a sequence runs (the refusal lifted)
+
+The decisions log D78; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S1) and its F5. The stacked branch
+`claude/wizardly-dirac-rw6tim-seam` (on PR #82's head 86d60625; the user, 2026-10-30: "Let's start the work now on stacked
+PR").
+
+1. **Built:** `PlanRunner.sequence` and `steps` run an `ExecutionPlan.Keyed` step on the sequence's own statements
+   (`keyedOn`: the root keyed path's body, split from its session and snapshot bracket, so one body serves both). The
+   sequence's transaction is the keyed step's snapshot: opened at the strictest isolation a keyed step asks (`stricter`,
+   `rank`: SERIALIZABLE over REPEATABLE_READ over the database's own transaction over NONE) through `Statements.inSnapshot`
+   where the session owns its transaction, set before the first statement (Postgres refuses an isolation changed
+   mid-transaction); a transaction a caller holds is joined as it is through `inTransaction` and is the snapshot then.
+   The step counts as the sequence's one result (`ExecutionPlan.answer` counted it already); the body's null types are
+   checked with the keys' as the step's statement; the one-target rule holds through the record's own keys-equals-body
+   rule. The refusal "a keyed result inside a plan of several steps is not run yet" is gone from both arms. No format
+   change (a keyed node inside a sequence read back already). `ExecutionPlan.Sequence`'s javadoc says so.
+2. **Measured locally before the commit:** `//core:core_tests_planner` (96 tests, the new
+   `PlanMakerTest.aKeyedResultAsAStepOfASequenceRunsAsTheRootKeyedPlanDoes` among them: on every in-process database a
+   sequence of the keyed step alone answers the root keyed plan's CSV, reads back from its JSON, and on the platform's
+   database a check step before it runs in the same transaction), `//core:core_tests_exec`, `//core:core_tests_root`,
+   `//core:guardrails`, `//tools/deps:core_layering_test`: 5 of 5.
+3. **Measured after the commit, on this head with step H's temporary prints applied (D79):** `//gates:corpus_duckdb`
+   (185 s), `//gates:corpus_h2` (213 s), `//gates:pct_channel_b` (75 s): every pass's rosters identical to the committed
+   ones (the five DuckDB and five H2 roster files diffed; the five channel B censuses equal), 2,575 bodies through the
+   driver per corpus pass. Zero roster movement.
+4. **Not measured yet:** the rest of the chain locally; CI on the stacked PR #83 runs on this head.
+
 ## 2026-10-30 — Step C, the root dissolved: the five doors at the root; the plan machinery com.legend.planner, the execution side com.legend.driver
 
 The decisions log D73.

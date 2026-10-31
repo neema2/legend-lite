@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""Aggregate M0 dumps: python3 agg.py runs/<label> [prefix-filter] -> a table key x column."""
+import sys, os, re, collections
+root = sys.argv[1]
+flt = sys.argv[2] if len(sys.argv) > 2 else ''
+cols = collections.OrderedDict()
+ex = collections.defaultdict(list)
+for d in sorted(os.listdir(root)):
+    if not d.startswith('dumps-'):
+        continue
+    target = d[len('dumps-'):]
+    for f in sorted(os.listdir(os.path.join(root, d))):
+        mode = f.split('-')[0]
+        col = target.replace('corpus_', '') + ('/' + mode if target.startswith('corpus') else '')
+        if target.startswith('chb'):
+            col = 'chB'
+        c = cols.setdefault(col, collections.Counter())
+        for line in open(os.path.join(root, d, f), errors='replace'):
+            m = re.match(r'\[m0\] (.*) = (\d+)$', line.rstrip('\n'))
+            if m:
+                c[m.group(1)] += int(m.group(2))
+                continue
+            m = re.match(r'\[m0-ex\] (.*?) :: (.*)$', line.rstrip('\n'))
+            if m and len(ex[m.group(1)]) < 2:
+                ex[m.group(1)].append(col + ': ' + m.group(2))
+keys = sorted({k for c in cols.values() for k in c if k.startswith(flt)})
+names = list(cols)
+print('| key | ' + ' | '.join(names) + ' |')
+print('|---|' + '---|' * len(names))
+for k in keys:
+    print('| ' + k.replace('|', '/') + ' | ' + ' | '.join(str(cols[n].get(k, 0)) for n in names) + ' |')
+if '--ex' in sys.argv:
+    for k in sorted(ex):
+        if k.startswith(flt):
+            for e in ex[k]:
+                print('EX ' + k + ' :: ' + e[:1500])

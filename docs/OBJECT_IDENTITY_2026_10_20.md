@@ -72,7 +72,8 @@ map's element positions. So each construction carries its evaluation as data (`c
 
 The **site** (origin and complete path) is a value: two runs of the inliner over the same statements (the statement
 executor inlines each statement with its let prefix) give a let's construction the same site, so channel B's verdict
-sides agree. The id is deterministic, numbered in lowering order (`ObjectSites`, `exec.InstanceIds`): a value the SQL
+sides agree. The id is deterministic, numbered in lowering order (`ObjectSites`, one per program since the
+test-is-the-product plan's M1, 2026-10-31; `exec.InstanceIds` was its test-road copy until then): a value the SQL
 reads twice (a spliced `let`, a subquery written twice) has the same id in both readings, which a database-generated
 `uuid()` would not give.
 

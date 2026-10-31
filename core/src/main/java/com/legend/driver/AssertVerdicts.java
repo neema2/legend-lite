@@ -150,14 +150,6 @@ final class AssertVerdicts {
         return s.info().type() instanceof com.legend.compiler.element.type.Type.ClassType;
     }
 
-    /** An if branch's statement: the lambda's last statement, or the
-     * expression itself. */
-    private static TypedSpec branchStatement(TypedSpec branch) {
-        return branch instanceof com.legend.compiler.spec.typed.TypedLambda l
-                && !l.body().isEmpty()
-                ? l.body().get(l.body().size() - 1) : branch;
-    }
-
     private static @com.legend.base.Nullable TypedSide adjudicate(TypedSpec bare,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env,
@@ -198,23 +190,6 @@ final class AssertVerdicts {
             if (u != null) {
                 return u;
             }
-        }
-        // an if whose BRANCHES are asserts (assertEqualsH2Compatible's body
-        // once the H2 version probe answers): the condition is a value
-        // query the database evaluates; the taken branch IS the verdict
-        if (bare instanceof com.legend.compiler.spec.typed.TypedIf ti
-                && ti.elseBranch().isPresent()
-                && calleeFqn(branchStatement(ti.thenBranch())) != null
-                && calleeFqn(branchStatement(ti.elseBranch().get())) != null) {
-            TypedSide c = JudgePlans.evalSide(
-                    ti.condition(), letPrefix, specs, env, false, true, null);
-            if (c instanceof TypedSide.Scalar sc
-                    && sc.value() instanceof Boolean taken) {
-                return adjudicate(branchStatement(taken
-                        ? ti.thenBranch() : ti.elseBranch().get()),
-                        letPrefix, specs, env, rawHook);
-            }
-            return null;
         }
         String fqn = calleeFqn(bare);
         if (fqn == null) {
@@ -349,10 +324,11 @@ final class AssertVerdicts {
                         args.get(0).info().type())
                         && com.legend.compiler.element.type.Type.isRelation(
                                 args.get(1).info().type())) {
-                    TypedSide.Tabular te = tabular(args.get(0),
-                            letPrefix, specs, env, hook);
-                    TypedSide.Tabular ta = tabular(args.get(1),
-                            letPrefix, specs, env, hook);
+                    List<TypedSide> grids = HostSides.fetch(name, List.of(
+                            new HostSides.Ask(args.get(0), false, true, hook),
+                            new HostSides.Ask(args.get(1), false, true, hook)), letPrefix, specs, env);
+                    TypedSide.Tabular te = grids.get(0) instanceof TypedSide.Tabular t0 ? t0 : null;
+                    TypedSide.Tabular ta = grids.get(1) instanceof TypedSide.Tabular t1 ? t1 : null;
                     if (te == null || ta == null) {
                         throw new com.legend.error.NotImplementedException(
                                 "relation-stamped assert side executed"
@@ -703,7 +679,7 @@ final class AssertVerdicts {
             if (pred != null && com.legend.compiler.spec.VerdictQueries.vectorContract(source, lam, root, pred)) {
                 TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVectorOver(source, qm, lam, pred);
                 TypedSide planned = arm(env).quantifiedVector(
-                        NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).map(NativeFn.Verdict::bareName).orElse(fqn), predMap, letPrefix, specs, env,
+                        NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).map(NativeFn.Verdict::bareName).orElse(fqn), predMap, source, lam, root, letPrefix, specs, env,
                         rawHook == null ? null : rawHook::apply);
                 if (planned != null) {
                     return planned;
@@ -717,12 +693,11 @@ final class AssertVerdicts {
         if (simplePredicate) {
             return null;
         }
-        // the elements are compiler-owned SYNTHESIS (VerdictQueries,
-        // Invariant 7); a zip arm's values come from the database
-        SpliceHook fetchHook = rawHook == null ? null : rawHook::apply;
+        // the elements are compiler-owned SYNTHESIS (VerdictQueries, Invariant 7) over LITERAL tokens alone: a zip
+        // arm the database would answer is the vector form's above, never fetched here (the seam program's step
+        // after S2f, 2026-10-30; the unroll rearranges spelled tokens and reads nothing)
         List<TypedSpec> elements = com.legend.compiler.spec.VerdictQueries
-                .unrollElements(source, letPrefix, env.ctx(),
-                        arm -> HostJudge.sideCells(arm, letPrefix, specs, env, fetchHook));
+                .unrollElements(source, letPrefix, env.ctx());
         if (elements == null) {
             return null;
         }
@@ -1226,6 +1201,14 @@ final class AssertVerdicts {
         if (r == null) {
             return DatabaseJudge.unjudged(name, "rendered-text: no side is a render the grammar names");
         }
+        if (r.grid() && com.legend.compiler.element.type.Type.schemaView(r.value().info().type())
+                instanceof com.legend.compiler.element.type.Type.RelationType late && late.isLateBound()) {
+            // a RAW GRID's text: its columns exist only when the plan runs (the planner-driver seam program's S3c,
+            // 2026-10-30), so the golden is not brought to rows; the two texts are compared as the strings they are,
+            // as legend-pure's assertEquals compares them (the render a keyed statement, Render.gridCsv)
+            return DatabaseJudge.databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env,
+                    hook, false, false);
+        }
         String text = com.legend.compiler.spec.VerdictQueries.goldenText(
                 goldenIsExpected ? args.get(0) : args.get(1), chase);
         if (text == null) {
@@ -1594,24 +1577,12 @@ final class AssertVerdicts {
 
 
 
-    static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable SpliceHook hook) {
-        return decodeSide(JudgePlans.evalSide(arg, letPrefix,
-                specs, env, false, true, hook));
-    }
-
     /** A JSON assert side's ONE document text: a GRAPH result's JSON
      * IS the {@code String[1]} (a serialize execute's {@code .values}
      * — leg 2 made its stamp String[1], and the DB-built envelope is
      * the value); any other result must decode to one string. Null =
-     * not this shape (generic path, loud downstream). */
-    static @com.legend.base.Nullable String jsonSideText(TypedSpec arg,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable SpliceHook hook) {
-        TypedSide r = JudgePlans.evalSide(arg, letPrefix,
-                specs, env, false, true, hook);
+     * not this shape (generic path, loud downstream). The side read already ({@code HostSides}, S2f). */
+    static @com.legend.base.Nullable String jsonSideTextOf(TypedSide r) {
         if (r instanceof TypedSide.Graph g) {
             return g.json();
         }
@@ -1679,16 +1650,6 @@ final class AssertVerdicts {
                     pr.fullPath();
             default -> null;
         };
-    }
-
-    /** The relation arg executed in the database, as its TABULAR frame;
-     * null = the value did not execute to a relation (fall through). */
-    static TypedSide.@com.legend.base.Nullable Tabular tabular(
-            TypedSpec arg, List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env, @com.legend.base.Nullable SpliceHook hook) {
-        TypedSide r = JudgePlans.evalSide(arg,
-                letPrefix, specs, env, false, true, hook);
-        return r instanceof TypedSide.Tabular t ? t : null;
     }
 
     /** Row-major cell stream of a tabular HostJudge.frame (the cell-zip input). */

@@ -73,6 +73,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             case Update u -> throw new IllegalStateException("a plan that only changes its database answers no rows");
             case Effect e -> throw new IllegalStateException("a plan that only sends an effect answers no rows");
             case Check c -> throw new IllegalStateException("a plan that only checks answers no rows");
+            case Verdicts v -> throw new IllegalStateException("a plan that only judges answers no rows: its verdicts"
+                    + " go to the program's sink");
         };
     }
 
@@ -105,7 +107,108 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Verdicts {
+    }
+
+    /**
+     * A run of consecutive ASSERTS as one step (the planner-driver seam program's S1b, 2026-10-30,
+     * docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md §3.3: a test body's verdicts as steps the database executes; a
+     * program's step, run by {@code PlanRunner.program}, never a plan's answer). Each {@link Verdict} is one assert.
+     * {@code fused}: the group's wrapper over its verdicts' wrappers -- the verdict statements as ONE statement
+     * answering one row per verdict, the verdict's index in the group first (the lowering's fusion, composed when the
+     * plan was made); null where the planner made none, and then each verdict's own wrapper runs. The runner sends
+     * what the judging mode asks ({@code PlanRunner.Judging}) and hands every row to the program's sink; it judges
+     * nothing: the comparison rules, the messages and the agreement of the two judges are the judges' own, outside
+     * the plan.
+     */
+    public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) implements Node {
+        public Verdicts {
+            verdicts = List.copyOf(verdicts);
+            if (verdicts.isEmpty()) {
+                throw new IllegalArgumentException("a verdict group holds at least one verdict");
+            }
+            if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
+                throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
+            }
+        }
+    }
+
+    /**
+     * One assert of a {@link Verdicts} group, as data: {@code name}, the label the test listener reports under;
+     * {@code arm}, the assert function's name as the program spells it ({@code assertEquals},
+     * {@code assertSameElements}, ...), which comparison the judges apply -- the judges' own vocabulary, never read by
+     * the runner; {@code wantEqual}, whether the assert holds on equality or on its negation; {@code base}, the sides
+     * in the assert's order, each a statement with its column facts (what the HOST judge runs) or a typed constant
+     * the program wrote; {@code wrapper}, the verdict statement the planner composed around the base for the
+     * DATABASE judge -- the canonical spelling of the cells and the comparison, answering one row of the verdict
+     * schema (the verdict, the expected and actual texts, an unjudged reason, a leniency flag) -- null where the
+     * database judge cannot express the arm, and then the database judges nothing here (the row the sink receives is
+     * null).
+     */
+    public record Verdict(String name, String arm, boolean wantEqual, List<Side> base,
+            @com.legend.base.Nullable Node wrapper) {
+        public Verdict {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(arm, "arm");
+            if (arm.isEmpty()) {
+                throw new IllegalArgumentException("a verdict names its arm");
+            }
+            base = List.copyOf(base);
+            // a wrapper answers the verdict's one row: a typed relation, or a keyed one where it reads a raw grid's
+            // column names or cells (the planner-driver seam program's S3c, 2026-10-30)
+            if (wrapper != null && !(wrapper instanceof TdsResult t && t.shape() == TdsResult.Shape.RELATION)
+                    && !(wrapper instanceof Keyed)) {
+                throw new IllegalArgumentException("a verdict's wrapper answers a relation: the verdict's one row");
+            }
+        }
+    }
+
+    /** A side of an assert: a result the database answers (typed rows, or a keyed result's), or a constant the
+     *  program wrote. */
+    public sealed interface Side permits Side.Rows, Side.KeyedRows, Side.Constant {
+
+        /** A statement with its column facts, run as any typed result is. */
+        record Rows(TdsResult result) implements Side {
+            public Rows {
+                Objects.requireNonNull(result, "result");
+            }
+        }
+
+        /** A keyed result (a dynamic pivot's), its keys read first. */
+        record KeyedRows(Keyed keyed) implements Side {
+            public KeyedRows {
+                Objects.requireNonNull(keyed, "keyed");
+            }
+        }
+
+        /**
+         * A constant the program wrote (a literal side: {@code assertEquals(3, ...)}'s 3): its columns with their
+         * type facts, and its rows as TEXT cells, each cell the literal's spelling as the program wrote it (null an
+         * absent value); nothing is sent for it, the sink reads the cells by the columns' facts. The program's own
+         * text, never a value the runner computed. {@code folded} (the seam program's S2f, the user's ruling of
+         * 2026-10-30: "it's okay to join CONSTANT strings only"): the cells are the COMPILER's join of the program's
+         * constant tokens ({@code 'a' + 'b'}, {@code joinStrings}, {@code replace} over literals, nothing else:
+         * {@code compiler.spec.typed.Literals}, its admitted set pinned), not the tokens verbatim; a reader of the plan
+         * knows which.
+         */
+        record Constant(List<Column> columns, List<List<String>> cells, boolean folded) implements Side {
+            public Constant {
+                columns = List.copyOf(columns);
+                if (columns.isEmpty()) {
+                    throw new IllegalArgumentException("a constant side has at least one column");
+                }
+                List<List<String>> copied = new java.util.ArrayList<>(cells.size());
+                for (List<String> row : cells) {
+                    if (row.size() != columns.size()) {
+                        throw new IllegalArgumentException("a constant side's row of " + row.size() + " cells under "
+                                + columns.size() + " columns");
+                    }
+                    // a cell may be null (an absent value), which List.of refuses
+                    copied.add(java.util.Collections.unmodifiableList(new java.util.ArrayList<>(row)));
+                }
+                cells = java.util.Collections.unmodifiableList(copied);
+            }
+        }
     }
 
     /**
@@ -113,7 +216,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * session (docs/WRITES_DESIGN_2026_10_18.md §7, D7, and §8, leg 7): its changes all land or none do, and a
      * caller's open transaction is joined, never committed. Its answer is its one result step's (the steps after it
      * drop what the steps before it staged), passed on once its changes have committed: no answer leaves for a change
-     * rolled back.
+     * rolled back. A keyed result may be a step (the seam program's S1a, 2026-10-30: a test body's dynamic pivot
+     * beside its lets and its verdicts): its snapshot is the sequence's transaction, opened at the isolation the keyed
+     * result asks where the session owns it. A verdict group may be a step (S1b): a program's, run by
+     * {@code PlanRunner.program}, whose answer may be no rows at all (a body ending in an assert).
      */
     public record Sequence(List<Node> steps) implements Node {
         public Sequence {
@@ -168,13 +274,19 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * their order. The session reads each row's cells from its driver by the plan's columns -- the slot first, the
      * Pure type where the slot is none -- and the runner holds the plan's facts, no model and no dialect. (Until
      * step 7 the statement wrote each row as one JSON object the runner parsed back; a document's row still reads
-     * that way, {@code result.RowDecode}.)
+     * that way, {@code result.RowDecode}.) A RELATION of NO column is a raw grid's (the planner-driver seam
+     * program's S3c, 2026-10-30): the columns its result reports, read from the real run by the session
+     * ({@code Statements.reportedRows}) and handed on before its rows, never read at planning.
      */
     public record TdsResult(Shape shape, List<Column> columns, Sql sql) implements Node {
         public TdsResult {
             Objects.requireNonNull(shape, "shape");
             columns = List.copyOf(columns);
             Objects.requireNonNull(sql, "sql");
+            if (!sql.regions().isEmpty()) {
+                throw new IllegalArgumentException("a typed result's statement is written once: per-key regions are a"
+                        + " keyed result's body");
+            }
             if (shape != Shape.RELATION && columns.size() != 1) {
                 throw new IllegalArgumentException("a " + shape + " answer is one column, given "
                         + columns.stream().map(Column::name).toList());
@@ -207,10 +319,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * columns). {@code maxColumns}: the most columns the database
      * answers, a body asked for more refused by name before it is sent; null where the database has no limit said.
      */
-    public record Keyed(Sql keys, List<String> keyFields, List<Output> outputs, int perKeyAt, Sql body,
-            Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
+    public record Keyed(Sql keys, KeysOf keysOf, List<String> admitted, List<String> keyFields, List<Output> outputs,
+            int perKeyAt, Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
         public Keyed {
             Objects.requireNonNull(keys, "keys");
+            Objects.requireNonNull(keysOf, "keysOf");
+            admitted = List.copyOf(admitted);
+            if (keysOf == KeysOf.ROWS && !admitted.isEmpty()) {
+                throw new IllegalArgumentException("a keyed result whose keys are rows admits no reported kinds");
+            }
             keyFields = List.copyOf(keyFields);
             outputs = List.copyOf(outputs);
             Objects.requireNonNull(body, "body");
@@ -233,8 +350,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                             + " fixed columns first");
                 }
             }
-            if (!perKey) {
+            if (!perKey && keysOf == KeysOf.ROWS) {
                 throw new IllegalArgumentException("a keyed result with no per-key output");
+            }
+            if (keysOf == KeysOf.COLUMNS && !keys.slots().isEmpty()) {
+                throw new IllegalArgumentException("a statement read for its reported columns binds nothing");
             }
             long fixedOutputs = outputs.stream().filter(o -> o instanceof Fixed).count();
             if (perKeyAt < 0 || perKeyAt > fixedOutputs) {
@@ -247,6 +367,25 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                         + " " + keyFields.size() + " fields for " + perKeyOutputs + " per-key outputs");
             }
         }
+
+        /** A keyed result whose keys are a statement's ROWS (a dynamic pivot's distinct values). */
+        public Keyed(Sql keys, List<String> keyFields, List<Output> outputs, int perKeyAt, Sql body,
+                Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) {
+            this(keys, KeysOf.ROWS, List.of(), keyFields, outputs, perKeyAt, body, snapshot, maxColumns);
+        }
+
+        /**
+         * What a key IS: a row the keys statement answers ({@code ROWS}: a dynamic pivot's, its cells the key and each
+         * per-key output's name), or a column its result REPORTS ({@code COLUMNS}: a raw grid's, the planner-driver
+         * seam program's S3c, 2026-10-30), read as the session reads a result's columns ({@code Statements.columns},
+         * the keys statement a {@code LIMIT 0} the planner wrote), each key one cell, the column's label, in the
+         * result's order. A body keyed by columns answers fixed columns alone where its regions spell rows (a grid's
+         * names, its cells). {@code admitted}: the slots a reported column may be in for the body to spell its cells
+         * exactly (the cell's JSON keeps an integer's, a text's, a boolean's, a double's kind; the database's text is
+         * the engine's for an integer and a text alone), every other column refused by name before the body is sent
+         * -- never spelled approximately (AGENTS.md invariant 4); empty: any column (the names alone are read).
+         */
+        public enum KeysOf { ROWS, COLUMNS }
 
         /** One output column of the body; {@code field}, the name the body's statement writes its cells under (a
          *  session reading a cell by name reads it so; JDBC reads by place). */

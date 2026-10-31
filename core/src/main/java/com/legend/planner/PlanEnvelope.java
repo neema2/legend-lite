@@ -1,24 +1,24 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.planner;
 
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.judge.TypedSide;
 
 /** The plan-text ENVELOPE assembly (extracted from BodyDriver at
  * the file guardrail): applies the temp-table IN protocol
  * (plan/InProtocol) and picks the envelope — the engine's rule:
  * let-allocations stay in the outer Sequence and the
  * RelationalBlockExecutionNode wraps only [in-allocs, Relational];
- * with no lets the block IS the envelope. */
-final class PlanEnvelope {
+ * with no lets the block IS the envelope. The planner's since the seam
+ * program's S2g (2026-10-31): plan text, written at planning. */
+public final class PlanEnvelope {
 
     private PlanEnvelope() {
     }
 
-    static TypedSide emit(BodyDriver.EngineSql es,
-            java.util.List<String> children, BodyDriver.ExecEnv env,
+    static String emit(EnginePlans.EngineSql es,
+            java.util.List<String> children, PlanEnv env,
             String rootClass, String[] impl, String mappingFqn,
             TypedSpec term, @com.legend.base.Nullable String connName,
             com.legend.model.ConnectionDefinition.DatabaseType dbType,
@@ -31,7 +31,7 @@ final class PlanEnvelope {
                 : com.legend.plan.InProtocol.allNodeTexts(inp, connName,
                         inList.threshold(), pd::collectionSplice, pd::inTempTableSelect);
         var planOut = inp != null ? inp.plan() : es.plan();
-        boolean pushDownEnums = BodyDriver.pushDownEnums(env, java.util.List.of(term));
+        boolean pushDownEnums = BodyPlanner.pushDownEnums(env, java.util.List.of(term));
         String rel = com.legend.plan.PlanText.single(env.ctx(), rootClass,
                 mappingFqn, planOut,
                 inp != null ? pd.render(planOut) : es.sql(),
@@ -45,15 +45,12 @@ final class PlanEnvelope {
             blockKids.add(rel);
             children.add(com.legend.plan.PlanText.relationalBlock(tb,
                     blockKids));
-            return new TypedSide.Scalar(
-                    com.legend.plan.PlanText.sequence(tb, children),
-                    com.legend.compiler.element.type.Type.Primitive.STRING);
+            return com.legend.plan.PlanText.sequence(tb, children);
         }
         children.addAll(inTexts);
         children.add(rel);
-        return new TypedSide.Scalar(inp != null
+        return inp != null
                 ? com.legend.plan.PlanText.relationalBlock(tb, children)
-                : com.legend.plan.PlanText.sequence(tb, children),
-                com.legend.compiler.element.type.Type.Primitive.STRING);
+                : com.legend.plan.PlanText.sequence(tb, children);
     }
 }

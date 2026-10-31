@@ -1,0 +1,124 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.driver;
+
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.SpecCompiler;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.judge.TypedSide;
+import com.legend.planner.ParityProbe;
+
+import java.util.List;
+
+/**
+ * RESEARCH ONLY, NEVER COMMITTED (the merge-onto-product homework, 2026-10-31, measurement C): on the host judge's
+ * pass, every statement-root assert's PREDICATE (the product expression it means: assertEquals(a, b) is equal(a, b))
+ * evaluated as an ordinary value through the plan path, its truth compared with the host judge's verdict.
+ */
+final class ParityC {
+
+    private ParityC() {
+    }
+
+    static void measure(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook,
+            boolean hostPassed, @com.legend.base.Nullable String hostMessage) {
+        String family = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare))
+                .map(NativeFn.Verdict::bareName).orElse(String.valueOf(com.legend.compiler.spec.typed.Calls.calleeOf(bare)));
+        try {
+            if (ParityProbe.IN_TX.get()) {
+                ParityProbe.count("C.skip-in-transaction " + family);
+                return;
+            }
+            if (com.legend.compiler.spec.StatementEffects.containsEffect(bare, specs, new java.util.HashMap<>())) {
+                ParityProbe.count("C.skip-effect " + family);
+                return;
+            }
+            TypedSpec pred = predicate(bare, specs);
+            if (pred == null) {
+                ParityProbe.count("C.no-predicate " + family);
+                return;
+            }
+            TypedSide v;
+            try {
+                v = BodyDriver.evalValue(pred, letPrefix, specs, env, false, hook);
+            } catch (RuntimeException e) {
+                String why = e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
+                why = why.length() > 100 ? why.substring(0, 100) : why;
+                ParityProbe.count("C.product-error " + family + " (host " + (hostPassed ? "pass" : "fail") + ") "
+                        + why.replaceAll("[0-9]+", "N"));
+                return;
+            }
+            Object b = v instanceof TypedSide.Scalar s ? s.value()
+                    : v instanceof TypedSide.Collection c && c.values().size() == 1 ? c.values().get(0) : v;
+            if (!(b instanceof Boolean productHeld)) {
+                ParityProbe.count("C.product-not-boolean " + family);
+                return;
+            }
+            if (productHeld == hostPassed) {
+                ParityProbe.count("C.agree " + family + " " + (hostPassed ? "pass" : "fail"));
+            } else {
+                ParityProbe.count("C.DISAGREE " + family + " host=" + (hostPassed ? "pass" : "fail"));
+                ParityProbe.example("C.DISAGREE " + family + " host=" + (hostPassed ? "pass" : "fail"),
+                        "args=" + com.legend.compiler.spec.typed.Calls.argsOf(bare).stream()
+                                .map(a -> a.info().type().typeName() + a.info().multiplicity().text()).toList()
+                                + " hostMessage=" + hostMessage);
+            }
+        } catch (RuntimeException e) {
+            ParityProbe.count("C.probe-error " + family + " " + e.getClass().getSimpleName());
+        }
+    }
+
+    /** The product expression an assert means, or null where it has no one-expression form. */
+    private static @com.legend.base.Nullable TypedSpec predicate(TypedSpec root, SpecCompiler specs) {
+        TypedSpec known = com.legend.compiler.spec.VerdictQueries.assertAsPredicate(root, specs);
+        if (known != null) {
+            return known;
+        }
+        String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(root);
+        List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
+        if (fqn == null) {
+            return null;
+        }
+        var ctx = specs.ctx();
+        return switch (fqn) {
+            case "meta::pure::functions::asserts::assertNotEquals" -> a.size() < 2 ? null
+                    : call(ctx, "meta::pure::functions::boolean::not",
+                            List.of(call(ctx, "meta::pure::functions::boolean::equal", List.of(a.get(0), a.get(1)))));
+            case "meta::pure::functions::asserts::assertEq" -> a.size() < 2 ? null
+                    : call(ctx, "meta::pure::functions::boolean::eq", List.of(a.get(0), a.get(1)));
+            case "meta::pure::functions::asserts::assertSize" -> a.size() < 2 ? null
+                    : call(ctx, "meta::pure::functions::boolean::equal", List.of(
+                            call(ctx, "meta::pure::functions::collection::size", List.of(a.get(0)), Type.Primitive.INTEGER),
+                            a.get(1)));
+            case "meta::pure::functions::asserts::assertEmpty" -> a.isEmpty() ? null
+                    : call(ctx, "meta::pure::functions::collection::isEmpty", List.of(a.get(0)));
+            case "meta::pure::functions::asserts::assertNotEmpty" -> a.isEmpty() ? null
+                    : call(ctx, "meta::pure::functions::collection::isNotEmpty", List.of(a.get(0)));
+            case "meta::pure::functions::asserts::assertContains" -> a.size() < 2 ? null
+                    : call(ctx, "meta::pure::functions::collection::contains", List.of(a.get(0), a.get(1)));
+            default -> null;
+        };
+    }
+
+    private static @com.legend.base.Nullable TypedSpec call(com.legend.compiler.element.ModelContext ctx, String fqn,
+            List<@com.legend.base.Nullable TypedSpec> args) {
+        return call(ctx, fqn, args, Type.Primitive.BOOLEAN);
+    }
+
+    private static @com.legend.base.Nullable TypedSpec call(com.legend.compiler.element.ModelContext ctx, String fqn,
+            List<@com.legend.base.Nullable TypedSpec> args, Type out) {
+        if (args.stream().anyMatch(java.util.Objects::isNull)) {
+            return null;
+        }
+        @SuppressWarnings("NullAway")
+        List<TypedSpec> nonNull = List.copyOf(args);
+        return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == nonNull.size()).findFirst()
+                .map(f -> (TypedSpec) new TypedNativeCall(f, nonNull, new ExprType(out, Multiplicity.Bounded.ONE)))
+                .orElse(null);
+    }
+}

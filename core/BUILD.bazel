@@ -215,7 +215,9 @@ legend_java_library(
 legend_java_library(
     name = "judge",
     srcs = glob(["src/main/java/com/legend/judge/*.java"]),
-    deps = ["//base", ":compiler", ":compiler_element_type", ":diagnostics", ":error", ":exec", ":lowering", ":sql", ":sql_dialect", ":values"],
+    # :execution_plan and :result since 2026-10-30 (the seam program's S2e): the verdict batch builds a verdict group
+    # and runs it through the plan runner, its program sink (a result sink) the batch's own
+    deps = ["//base", ":compiler", ":compiler_element_type", ":diagnostics", ":error", ":exec", ":execution_plan", ":lowering", ":result", ":sql", ":sql_dialect", ":values"],
 )
 legend_java_library(
     name = "probe",

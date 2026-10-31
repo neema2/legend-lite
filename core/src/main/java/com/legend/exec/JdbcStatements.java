@@ -244,8 +244,48 @@ final class JdbcStatements implements Statements {
                             .toList() + ": a typed-rows statement answers the plan's columns in their order"
                             + (declared == columns.size() ? "" : " (a tagged column's slots beside it)"));
                 }
+                // a column whose kind is the wire's (a raw grid's, read by name) is read as its result reports it
+                List<ExecutionPlan.Column> read = columns;
+                if (columns.stream().anyMatch(c -> c.slot() == null
+                        && com.legend.result.RowDecode.ANY.equals(c.type()))) {
+                    List<Reported> reported = reported(rs.getMetaData());
+                    read = new java.util.ArrayList<>(columns.size());
+                    int at = 0;   // the physical column (a tagged column answers its slots beside it)
+                    for (ExecutionPlan.Column c : columns) {
+                        read.add(WireTypes.decodedAs(c, reported.get(at)));
+                        at += com.legend.result.RowDecode.physicalColumns(List.of(c));
+                    }
+                }
                 while (rs.next()) {
-                    cells.row(JdbcDecode.row(rs, columns, driver));
+                    cells.row(JdbcDecode.row(rs, read, driver));
+                }
+            }
+        } catch (SQLException e) {
+            throw failed(e);
+        }
+    }
+
+    /** {@inheritDoc} Each reported column named by the wire table ({@link WireTypes#column}). */
+    @Override
+    public void reportedRows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            ReportedColumns columns, Cells cells) throws IOException {
+        try (PreparedStatement st = c.prepareStatement(stamped(statement))) {
+            for (int i = 0; i < slots.size(); i++) {
+                bind(st, i + 1, slots.get(i), values.get(i));
+            }
+            DatabaseConnector.Decoding driver = this.driver;
+            if (driver == null) {
+                throw new IllegalStateException("typed rows read on a session no plan target was checked against:"
+                        + " how its driver answers is its database's fact");
+            }
+            try (ResultSet rs = st.executeQuery()) {
+                List<ExecutionPlan.Column> reported = new java.util.ArrayList<>();
+                for (Reported r : reported(rs.getMetaData())) {
+                    reported.add(WireTypes.column(r));
+                }
+                columns.columns(reported);
+                while (rs.next()) {
+                    cells.row(JdbcDecode.row(rs, reported, driver));
                 }
             }
         } catch (SQLException e) {

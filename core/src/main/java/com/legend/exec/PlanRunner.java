@@ -70,6 +70,16 @@ public final class PlanRunner {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
         switch (plan.root()) {
             case ExecutionPlan.TdsResult tds -> {
+                if (reported(tds)) {
+                    // a relation of no declared column: the columns its result reports, read from the real run
+                    Streamed[] streamed = {null};
+                    send(tds.sql(), checked, sessions, (st, statement, bound) ->
+                            st.reportedRows(statement, tds.sql().slots(), bound,
+                                    columns -> streamed[0] = new Streamed(columns, sink, capacity),
+                                    cells -> streamed[0].row(cells)));
+                    java.util.Objects.requireNonNull(streamed[0], "the session handed no reported columns").end();
+                    return;
+                }
                 Streamed streamed = new Streamed(tds.columns(), sink, capacity);
                 send(tds.sql(), checked, sessions, (st, statement, bound) ->
                         st.rows(statement, tds.sql().slots(), bound, tds.columns(), streamed::row));
@@ -91,7 +101,300 @@ public final class PlanRunner {
                     + " plan's answer is a result");
             case ExecutionPlan.Effect effect -> throw new IllegalStateException("a plan whose answer is an effect: a"
                     + " plan's answer is a result (an effect alone is sent by effect(...))");
+            case ExecutionPlan.Verdicts verdicts -> throw new IllegalStateException("a plan whose root is a verdict"
+                    + " group: a program's step, run by program(...)");
         }
+    }
+
+    // ---- a program (a test body as one plan: the planner-driver seam program's S1b, 2026-10-30) ---------------------
+
+    /** Which judge a program's verdict steps are run for: the DATABASE judge (each group's fused statement, or each
+     *  verdict's wrapper), the HOST judge (each verdict's base sides, their rows to the sink), or BOTH. */
+    public enum Judging { DATABASE, HOST, BOTH }
+
+    /**
+     * Where a program's steps deliver (docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md §3.4): the program's answer, if
+     * it has one, as any typed result's ({@link com.legend.result.ResultSink}: the columns, the batches, the end,
+     * after the steps have run and their changes committed), and every verdict step's rows as they are read. The
+     * runner judges nothing: the sink is the judges' door. A failure the sink raises ends the program (the first
+     * failure's sequencing), its transaction rolled back.
+     */
+    public interface ProgramSink extends com.legend.result.ResultSink {
+
+        /** The DATABASE judge's row for {@code verdict}: the verdict schema's cells in the wrapper's column order
+         *  (the fused statement's index cell removed); null where the verdict has no wrapper (the database judges
+         *  nothing there). Delivered in the group's order. */
+        void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) throws IOException;
+
+        /** The group's fused statement ran ({@code rejected} null: every verdict's row came from it) or the database
+         *  rejected it ({@code rejected} the error: the split rung, each verdict's own wrapper runs instead, in the
+         *  group's order). Once per group that has a fused statement, before its verdicts; the sink's accounting (the
+         *  runner counts nothing). */
+        void fused(ExecutionPlan.Verdicts group, com.legend.error.@com.legend.base.Nullable DataError rejected)
+                throws IOException;
+
+        /** The HOST judge's sides for {@code verdict}: each base side's typed rows in the base's order -- a rows
+         *  side's and a keyed side's read from the database, a constant side's its columns and its TEXT cells as the
+         *  program wrote them (the sink reads them by the columns' facts). */
+        void sides(ExecutionPlan.Verdict verdict, List<Rows> sides) throws IOException;
+    }
+
+    /**
+     * Runs {@code plan} as a PROGRAM: its steps in order on one session, in one transaction where one changes the
+     * database (as {@link #stream}'s sequence; a keyed step's snapshot the same), every verdict step delivered to
+     * {@code sink} as {@code judging} asks, and the program's answer -- its one result step's typed rows, if it has
+     * one; a program may answer no rows -- streamed to the sink once the steps have run. A plain plan (one node) is
+     * a program of that one step.
+     */
+    public static void program(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
+            Judging judging, ProgramSink sink) throws IOException {
+        Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
+        ExecutionPlan.Sequence sequence = plan.root() instanceof ExecutionPlan.Sequence s ? s
+                : new ExecutionPlan.Sequence(List.of(plan.root()));
+        ExecutionPlan.Target target = null;
+        int results = 0;
+        boolean changes = false;
+        ExecutionPlan.Keyed.Snapshot snapshot = null;
+        for (ExecutionPlan.Node step : sequence.steps()) {
+            List<ExecutionPlan.Sql> sqls = new java.util.ArrayList<>();
+            switch (step) {
+                case ExecutionPlan.Update u -> {
+                    changes = true;
+                    if (u.count() != null && checked.containsKey(u.count())) {
+                        throw new IllegalStateException("a write's count is named '" + u.count() + "', as a declared"
+                                + " parameter is");
+                    }
+                    sqls.add(u.sql());
+                }
+                case ExecutionPlan.Check k -> sqls.add(k.sql());
+                case ExecutionPlan.Effect e -> {
+                    changes = true;
+                    sqls.add(e.sql());
+                }
+                case ExecutionPlan.TdsResult t -> {
+                    results++;
+                    sqls.add(t.sql());
+                }
+                case ExecutionPlan.Keyed k -> {
+                    results++;
+                    snapshot = stricter(snapshot, k.snapshot());
+                    sqls.add(k.keys());
+                    sqls.add(k.body());
+                }
+                case ExecutionPlan.Verdicts v -> {
+                    if (v.fused() != null) {
+                        sqls.add(v.fused().sql());
+                    }
+                    for (ExecutionPlan.Verdict each : v.verdicts()) {
+                        switch (each.wrapper()) {
+                            case null -> { }
+                            case ExecutionPlan.TdsResult t -> sqls.add(t.sql());
+                            case ExecutionPlan.Keyed k -> {
+                                snapshot = stricter(snapshot, k.snapshot());
+                                sqls.add(k.keys());
+                                sqls.add(k.body());
+                            }
+                            default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
+                                    + " result");
+                        }
+                        for (ExecutionPlan.Side side : each.base()) {
+                            switch (side) {
+                                case ExecutionPlan.Side.Rows r -> sqls.add(r.result().sql());
+                                case ExecutionPlan.Side.KeyedRows kr -> {
+                                    snapshot = stricter(snapshot, kr.keyed().snapshot());
+                                    sqls.add(kr.keyed().keys());
+                                    sqls.add(kr.keyed().body());
+                                }
+                                case ExecutionPlan.Side.Constant c -> {
+                                }
+                            }
+                        }
+                    }
+                }
+                case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
+                        + " plan's steps are one list");
+            }
+            for (ExecutionPlan.Sql sql : sqls) {
+                nullTypes(sql);
+                if (target == null) {
+                    target = sql.target();
+                } else if (!target.equals(sql.target())) {
+                    throw new com.legend.error.NotImplementedException("a plan whose steps name different targets:"
+                            + " its steps run on one session, in one transaction");
+                }
+            }
+        }
+        if (results > 1) {
+            throw new IllegalStateException("a program of " + results + " result steps: a program's answer is at most"
+                    + " one");
+        }
+        if (target == null) {
+            throw new IllegalStateException("a program of constant steps alone names no target: nothing to run");
+        }
+        ExecutionPlan.Target on = target;
+        Held held = new Held();
+        boolean[] answered = {false};
+        try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
+            Statements st = opened(session, on);
+            Statements.Work work = () -> {
+                Map<String, PlanParameters.Checked> live = new java.util.HashMap<>(checked);
+                for (ExecutionPlan.Node step : sequence.steps()) {
+                    switch (step) {
+                        case ExecutionPlan.Update u -> update(u, live, st);
+                        case ExecutionPlan.Check k -> check(k, live, st);
+                        case ExecutionPlan.Effect e -> effect(e, live, st);
+                        case ExecutionPlan.TdsResult t -> {
+                            answered[0] = true;
+                            result(t, live, st, held);
+                        }
+                        case ExecutionPlan.Keyed k -> {
+                            answered[0] = true;
+                            keyedOn(k, live, st, heldSink(held));
+                        }
+                        case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink);
+                        case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
+                    }
+                }
+            };
+            if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
+                st.inSnapshot(snapshot, work);
+            } else if (changes) {
+                try {
+                    st.inTransaction(() -> {
+                        try {
+                            work.run();
+                        } catch (IOException e) {
+                            throw new java.io.UncheckedIOException(e);
+                        }
+                        return null;
+                    });
+                } catch (java.io.UncheckedIOException e) {
+                    throw e.getCause();
+                }
+            } else {
+                // reads alone, no snapshot asked: each statement as the session sends it, no bracket -- a verdict
+                // group's statements ran so before they were a plan's steps (S2e, 2026-10-30), and a bracket would
+                // carry a rejected fused statement's abort into the wrappers that follow it on a database that aborts
+                // the transaction on any error (Postgres); a program that changes the database is S4's to settle
+                // (the plan's F11)
+                work.run();
+            }
+        }
+        if (answered[0]) {
+            Streamed streamed = new Streamed(held.columns, sink, com.legend.result.Batcher.DEFAULT_CAPACITY);
+            for (List<Object> row : held.rows) {
+                streamed.row(row);
+            }
+            streamed.end();
+        }
+    }
+
+    /** A verdict group as {@code judging} asks: the DATABASE judge's rows from the fused statement (each verdict's
+     *  own wrapper where the fused statement is none or the database rejects it: the split rung, counted) and the
+     *  HOST judge's sides, each verdict's rows to {@code sink} in the group's order. */
+    private static void verdicts(ExecutionPlan.Verdicts group, Judging judging,
+            Map<String, PlanParameters.Checked> values, Statements st, ProgramSink sink) throws IOException {
+        if (judging == Judging.HOST || judging == Judging.BOTH) {
+            for (ExecutionPlan.Verdict each : group.verdicts()) {
+                List<Rows> sides = new java.util.ArrayList<>(each.base().size());
+                for (ExecutionPlan.Side side : each.base()) {
+                    sides.add(switch (side) {
+                        case ExecutionPlan.Side.Rows r -> {
+                            Held h = new Held();
+                            result(r.result(), values, st, h);
+                            yield collected(h);
+                        }
+                        case ExecutionPlan.Side.KeyedRows k -> {
+                            Held h = new Held();
+                            keyedOn(k.keyed(), values, st, heldSink(h));
+                            yield collected(h);
+                        }
+                        case ExecutionPlan.Side.Constant c -> {
+                            List<List<Object>> rows = new java.util.ArrayList<>(c.cells().size());
+                            for (List<String> row : c.cells()) {
+                                rows.add(new java.util.ArrayList<Object>(row));
+                            }
+                            yield new Rows(c.columns(), rows);
+                        }
+                    });
+                }
+                sink.sides(each, sides);
+            }
+        }
+        if (judging == Judging.DATABASE || judging == Judging.BOTH) {
+            Map<Integer, List<Object>> rows = new java.util.HashMap<>();
+            boolean rejected = false;
+            if (group.fused() != null) {
+                Held h = new Held();
+                try {
+                    result(group.fused(), values, st, h);
+                    for (List<Object> row : collected(h).rows()) {
+                        if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
+                            throw new IllegalStateException("a fused verdict row's first cell is the verdict's index:"
+                                    + " " + (row.isEmpty() ? "no cell" : row.get(0)));
+                        }
+                        rows.put(index.intValue(), row.subList(1, row.size()));
+                    }
+                    if (rows.size() != group.verdicts().size()) {
+                        throw new IllegalStateException("the fused verdict statement answered " + rows.size()
+                                + " rows for " + group.verdicts().size() + " verdicts");
+                    }
+                    sink.fused(group, null);
+                } catch (com.legend.error.DataError e) {
+                    // the split rung: the database rejected the fused statement, so each verdict's own wrapper runs
+                    // below and the error lands on the verdict that owns it; the sink's accounting, never a verdict
+                    // change
+                    rows.clear();
+                    rejected = true;
+                    sink.fused(group, e);
+                }
+            }
+            for (int i = 0; i < group.verdicts().size(); i++) {
+                ExecutionPlan.Verdict each = group.verdicts().get(i);
+                List<Object> row = rows.get(i);
+                if (row == null && each.wrapper() != null) {
+                    Held h = new Held();
+                    // the split rung's wrapper (the database rejected the fused statement) is a fallback; a group
+                    // planned with no fused statement runs its wrappers as its caller sends them (the batch's keyed
+                    // verdicts as the body's, its one-verdict retry as a fallback: VerdictBatch.executeOne; the
+                    // planner-driver seam program's S3c, 2026-10-31)
+                    try (var origin = StatementOrigin.enter(rejected ? StatementOrigin.FALLBACK
+                            : StatementOrigin.current())) {
+                        switch (each.wrapper()) {
+                            case ExecutionPlan.TdsResult t -> result(t, values, st, h);
+                            case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(h));
+                            default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
+                                    + " result");
+                        }
+                    }
+                    Rows single = collected(h);
+                    if (single.rows().size() != 1) {
+                        throw new IllegalStateException(each.name() + ": the verdict statement answered "
+                                + single.rows().size() + " rows");
+                    }
+                    row = single.rows().get(0);
+                }
+                sink.verdict(each, row);
+            }
+        }
+    }
+
+    private static KeyedSink heldSink(Held held) {
+        return new KeyedSink() {
+            @Override
+            public void columns(List<ExecutionPlan.Column> columns) {
+                held.columns = columns;
+            }
+
+            @Override
+            public void row(List<Object> cells) {
+                held.rows.add(cells);
+            }
+
+            @Override
+            public void end() {
+            }
+        };
     }
 
     /**
@@ -244,6 +547,20 @@ public final class PlanRunner {
     }
 
     /** A plan of several steps' answer, held until its changes have committed: its typed rows. */
+    /** {@code held}'s rows as {@link #rows} hands them: through the result's batches and the collector, so a cell
+     *  reaches a judge as it reaches every other reader of a typed result (a tagged column's value, not its carrier;
+     *  the seam program's S2f, 2026-10-30: the held rows of a verdict's sides and of the fused statement go this way). */
+    private static Rows collected(Held held) throws IOException {
+        com.legend.result.Collector collector = new com.legend.result.Collector();
+        Streamed streamed = new Streamed(held.columns, collector, com.legend.result.Batcher.DEFAULT_CAPACITY);
+        for (List<Object> row : held.rows) {
+            streamed.row(row);
+        }
+        streamed.end();
+        com.legend.result.Collector.Collected c = collector.collected();
+        return new Rows(c.columns(), c.rows());
+    }
+
     private static final class Held {
         private List<ExecutionPlan.Column> columns = List.of();
         private final List<List<Object>> rows = new java.util.ArrayList<>();
@@ -272,6 +589,7 @@ public final class PlanRunner {
         ExecutionPlan.Target target = null;
         int results = 0;
         boolean changes = false;
+        ExecutionPlan.Keyed.Snapshot snapshot = null;
         for (ExecutionPlan.Node step : sequence.steps()) {
             ExecutionPlan.Sql sql = switch (step) {
                 case ExecutionPlan.Update u -> {
@@ -291,8 +609,18 @@ public final class PlanRunner {
                     results++;
                     yield t.sql();
                 }
-                case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
-                        + " inside a plan of several steps is not run yet");
+                case ExecutionPlan.Keyed k -> {
+                    // a keyed result among the steps (the seam program's S1a, 2026-10-30; refused by name until then):
+                    // its two statements run on the sequence's session, its snapshot the sequence's one transaction,
+                    // opened at the strictest isolation a keyed step asks (below); the body's null types checked here,
+                    // the keys' as the step's statement; one target for both is the record's own rule
+                    results++;
+                    nullTypes(k.body());
+                    snapshot = stricter(snapshot, k.snapshot());
+                    yield k.keys();
+                }
+                case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict step inside a plan run"
+                        + " for its answer: a program's step, run by program(...)");
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
                         + " plan's steps are one list");
             };
@@ -310,6 +638,13 @@ public final class PlanRunner {
         ExecutionPlan.Target on = java.util.Objects.requireNonNull(target, "a sequence has a step");
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
             Statements st = opened(session, on);
+            if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
+                // a keyed step's snapshot is the sequence's own transaction, at the isolation the step asks, set
+                // before its first statement (Postgres refuses an isolation changed mid-transaction); a transaction a
+                // caller holds is joined as it is below, and is the snapshot then
+                st.inSnapshot(snapshot, () -> steps(sequence, checked, st, held));
+                return;
+            }
             try {
                 st.inTransaction(() -> {
                     try {
@@ -325,6 +660,25 @@ public final class PlanRunner {
         }
     }
 
+    /** The stricter of two keyed snapshots ({@code a} null: none asked yet): a serializable transaction over a
+     *  repeatable-read one, that over the database's own, that over none. */
+    private static ExecutionPlan.Keyed.Snapshot stricter(ExecutionPlan.Keyed.@com.legend.base.Nullable Snapshot a,
+            ExecutionPlan.Keyed.Snapshot b) {
+        if (a == null) {
+            return b;
+        }
+        return rank(b) > rank(a) ? b : a;
+    }
+
+    private static int rank(ExecutionPlan.Keyed.Snapshot s) {
+        return switch (s) {
+            case NONE -> 0;
+            case TRANSACTION -> 1;
+            case REPEATABLE_READ -> 2;
+            case SERIALIZABLE -> 3;
+        };
+    }
+
     /** The steps, each at its turn on {@code st}: a change's count bound under its name for the slots after it; a
      *  check's rows read and dropped (the database computes what it may raise); the result's typed rows to
      *  {@code held}. */
@@ -333,36 +687,62 @@ public final class PlanRunner {
         Map<String, PlanParameters.Checked> values = new java.util.HashMap<>(checked);
         for (ExecutionPlan.Node step : sequence.steps()) {
             switch (step) {
-                case ExecutionPlan.Update u -> {
-                    String statement = statement(u.sql(), values);
-                    StatementOrigin.sent(statement);
-                    long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
-                    if (u.count() != null) {
-                        // (the database's count: a value it produced, bound where a later step reads it)
-                        values.put(u.count(), new PlanParameters.One(count));
-                    }
-                }
-                case ExecutionPlan.Check k -> {
-                    String statement = statement(k.sql(), values);
-                    StatementOrigin.sent(statement);
-                    st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
-                }
-                case ExecutionPlan.Effect e -> {
-                    String statement = statement(e.sql(), values);
-                    StatementOrigin.sent(statement);
-                    st.execute(statement);
-                }
-                case ExecutionPlan.TdsResult t -> {
-                    String statement = statement(t.sql(), values);
-                    StatementOrigin.sent(statement);
-                    held.columns = t.columns();
-                    st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(), held.rows::add);
-                }
-                case ExecutionPlan.Keyed k -> throw new com.legend.error.NotImplementedException("a keyed result"
-                        + " inside a plan of several steps is not run yet");
+                case ExecutionPlan.Update u -> update(u, values, st);
+                case ExecutionPlan.Check k -> check(k, values, st);
+                case ExecutionPlan.Effect e -> effect(e, values, st);
+                case ExecutionPlan.TdsResult t -> result(t, values, st, held);
+                case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(held));
+                case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict step inside a plan run"
+                        + " for its answer: a program's step, run by program(...)");
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
             }
         }
+    }
+
+    /** A change's statement on {@code st}, its count bound under its name for the slots after it. */
+    private static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
+            throws IOException {
+        String statement = statement(u.sql(), values);
+        StatementOrigin.sent(statement);
+        long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
+        if (u.count() != null) {
+            // (the database's count: a value it produced, bound where a later step reads it)
+            values.put(u.count(), new PlanParameters.One(count));
+        }
+    }
+
+    /** A check's rows read and dropped (the database computes what it may raise). */
+    private static void check(ExecutionPlan.Check k, Map<String, PlanParameters.Checked> values, Statements st)
+            throws IOException {
+        String statement = statement(k.sql(), values);
+        StatementOrigin.sent(statement);
+        st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
+    }
+
+    /** An effect sent for what it does. */
+    private static void effect(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st) {
+        String statement = statement(e.sql(), values);
+        StatementOrigin.sent(statement);
+        st.execute(statement);
+    }
+
+    /** A typed result's rows into {@code held}. */
+    private static void result(ExecutionPlan.TdsResult t, Map<String, PlanParameters.Checked> values, Statements st,
+            Held held) throws IOException {
+        String statement = statement(t.sql(), values);
+        StatementOrigin.sent(statement);
+        if (reported(t)) {
+            st.reportedRows(statement, t.sql().slots(), valuesOf(t.sql(), values), columns -> held.columns = columns,
+                    held.rows::add);
+            return;
+        }
+        held.columns = t.columns();
+        st.rows(statement, t.sql().slots(), valuesOf(t.sql(), values), t.columns(), held.rows::add);
+    }
+
+    /** A relation of no declared column: the columns its result reports (a raw grid's, the seam program's S3c). */
+    private static boolean reported(ExecutionPlan.TdsResult t) {
+        return t.shape() == ExecutionPlan.TdsResult.Shape.RELATION && t.columns().isEmpty();
     }
 
     /** Every null's type checked before any session is opened: a plan whose null is of no type is refused whole. */
@@ -392,13 +772,21 @@ public final class PlanRunner {
      */
     private static void keyed(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
             PlanSessions.Source sessions, KeyedSink sink) throws IOException {
-        for (ExecutionPlan.Sql sql : List.of(keyed.keys(), keyed.body())) {
-            for (ExecutionPlan.Slot slot : sql.slots()) {
-                if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
-                    JdbcStatements.nullType(one, slot);
-                }
-            }
+        nullTypes(keyed.keys());
+        nullTypes(keyed.body());
+        try (Sessions.Session session = sessions.open(keyed.keys().target())) {
+            Statements st = opened(session, keyed.keys().target());
+            st.inSnapshot(keyed.snapshot(), () -> keyedOn(keyed, checked, st, sink));
         }
+    }
+
+    /**
+     * A keyed plan's two statements on {@code st}, inside their snapshot already (a keyed plan's own, or the
+     * sequence's transaction where the keyed result is a step: the seam program's S1a, 2026-10-30): the keys probe
+     * read as typed rows, the body written for those keys and its rows handed to {@code sink}.
+     */
+    private static void keyedOn(ExecutionPlan.Keyed keyed, Map<String, PlanParameters.Checked> checked,
+            Statements st, KeyedSink sink) throws IOException {
         int perKey = (int) keyed.outputs().stream().filter(o -> o instanceof ExecutionPlan.Keyed.PerKey).count();
         // each statement's cells read by the names it writes them under (a session reading by name, MongoDB's, needs
         // them; JDBC reads by place): the probe's keyFields, a fixed output's field, a per-key output's
@@ -408,67 +796,79 @@ public final class PlanRunner {
             keyColumns.add(new ExecutionPlan.Column(keyed.keyFields().get(i), "String",
                     new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null));
         }
-        try (Sessions.Session session = sessions.open(keyed.keys().target())) {
-            Statements st = opened(session, keyed.keys().target());
-            st.inSnapshot(keyed.snapshot(), () -> {
-                List<List<Object>> keys = new java.util.ArrayList<>();
-                ExecutionPlan.Sql probe = keyed.keys();
-                List<PlanParameters.Checked> probeValues = new java.util.ArrayList<>(probe.slots().size());
-                for (int i = 0; i < probe.slots().size(); i++) {
-                    probeValues.add(value(checked, probe.slots().get(i), i + 1));
-                }
-                st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
-                int fixed = keyed.outputs().size() - perKey;
-                int columns = fixed + keys.size() * perKey;
-                if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
-                    throw new com.legend.error.NotImplementedException("a dynamic pivot of " + keys.size() + " keys answers "
-                            + columns + " columns, more than the database's " + keyed.maxColumns());
-                }
-                List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
-                List<ExecutionPlan.Column> read = new java.util.ArrayList<>(columns);
-                for (int i = 0; i < keyed.outputs().size(); i++) {
-                    if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.Fixed f) {
-                        answered.add(f.column());
-                        read.add(named(f.column(), f.field()));
+        List<List<Object>> keys = new java.util.ArrayList<>();
+        ExecutionPlan.Sql probe = keyed.keys();
+        if (keyed.keysOf() == ExecutionPlan.Keyed.KeysOf.COLUMNS) {
+            // a raw grid's: each column its result reports a key, its label the key's one cell (the seam program's
+            // S3c, 2026-10-30) -- read when the plan runs, never at planning
+            for (Statements.Reported r : st.columns(statement(probe, checked))) {
+                if (!keyed.admitted().isEmpty()) {
+                    String slot = r.type() == null ? null : com.legend.executionplan.ColumnFacts.slot(r.type());
+                    if (slot == null || !keyed.admitted().contains(slot)) {
+                        throw new com.legend.error.NotImplementedException("a raw grid's column '" + r.name()
+                                + "' is reported as " + r.driverType() + ": its cells are spelled here exactly only"
+                                + " in " + keyed.admitted() + " (never approximately)");
                     }
                 }
-                for (int k = 0; k < keys.size(); k++) {
-                    for (int i = 0; i < keyed.outputs().size(); i++) {
-                        if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.PerKey p) {
-                            String name = cellText(keys.get(k), p.name());
-                            ExecutionPlan.Column c = p.column();
-                            ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
-                                    c.slot(), c.store(), c.precision());
-                            answered.add(a);
-                            read.add(named(a, "_pk" + k + "_" + p.field()));
-                        }
-                    }
-                }
-                // the answer in the relation's own order: the first perKeyAt fixed columns, the per-key ones, then the
-                // rest of the fixed ones -- read in the body's order (its fixed columns first), each cell placed
-                int at = keyed.perKeyAt();
-                int[] place = new int[columns];
-                for (int i = 0; i < columns; i++) {
-                    place[i] = i < at ? i : i < fixed ? i + (columns - fixed) : i - (fixed - at);
-                }
-                List<ExecutionPlan.Column> inOrder = new java.util.ArrayList<>(java.util.Collections.nCopies(columns,
-                        (ExecutionPlan.Column) null));
-                for (int i = 0; i < columns; i++) {
-                    inOrder.set(place[i], answered.get(i));
-                }
-                Expanded body = expand(keyed.body(), keys, checked);
-                sink.columns(inOrder);
-                StatementOrigin.sent(body.statement());
-                st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
-                    List<Object> placed = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, null));
-                    for (int i = 0; i < columns; i++) {
-                        placed.set(place[i], cells.get(i));
-                    }
-                    sink.row(placed);
-                });
-                sink.end();
-            });
+                keys.add(List.of(r.name()));
+            }
+        } else {
+            List<PlanParameters.Checked> probeValues = new java.util.ArrayList<>(probe.slots().size());
+            for (int i = 0; i < probe.slots().size(); i++) {
+                probeValues.add(value(checked, probe.slots().get(i), i + 1));
+            }
+            st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
         }
+        int fixed = keyed.outputs().size() - perKey;
+        int columns = fixed + keys.size() * perKey;
+        if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
+            throw new com.legend.error.NotImplementedException((keyed.keysOf() == ExecutionPlan.Keyed.KeysOf.COLUMNS
+                    ? "a raw grid of " + keys.size() + " columns answers " : "a dynamic pivot of " + keys.size()
+                    + " keys answers ") + columns + " columns, more than the database's " + keyed.maxColumns());
+        }
+        List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
+        List<ExecutionPlan.Column> read = new java.util.ArrayList<>(columns);
+        for (int i = 0; i < keyed.outputs().size(); i++) {
+            if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.Fixed f) {
+                answered.add(f.column());
+                read.add(named(f.column(), f.field()));
+            }
+        }
+        for (int k = 0; k < keys.size(); k++) {
+            for (int i = 0; i < keyed.outputs().size(); i++) {
+                if (keyed.outputs().get(i) instanceof ExecutionPlan.Keyed.PerKey p) {
+                    String name = cellText(keys.get(k), p.name());
+                    ExecutionPlan.Column c = p.column();
+                    ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
+                            c.slot(), c.store(), c.precision());
+                    answered.add(a);
+                    read.add(named(a, "_pk" + k + "_" + p.field()));
+                }
+            }
+        }
+        // the answer in the relation's own order: the first perKeyAt fixed columns, the per-key ones, then the
+        // rest of the fixed ones -- read in the body's order (its fixed columns first), each cell placed
+        int at = keyed.perKeyAt();
+        int[] place = new int[columns];
+        for (int i = 0; i < columns; i++) {
+            place[i] = i < at ? i : i < fixed ? i + (columns - fixed) : i - (fixed - at);
+        }
+        List<ExecutionPlan.Column> inOrder = new java.util.ArrayList<>(java.util.Collections.nCopies(columns,
+                (ExecutionPlan.Column) null));
+        for (int i = 0; i < columns; i++) {
+            inOrder.set(place[i], answered.get(i));
+        }
+        Expanded body = expand(keyed.body(), keys, checked);
+        sink.columns(inOrder);
+        StatementOrigin.sent(body.statement());
+        st.rows(body.statement(), body.slots(), body.values(), read, cells -> {
+            List<Object> placed = new java.util.ArrayList<>(java.util.Collections.nCopies(columns, null));
+            for (int i = 0; i < columns; i++) {
+                placed.set(place[i], cells.get(i));
+            }
+            sink.row(placed);
+        });
+        sink.end();
     }
 
     /** {@code c} read under the name its statement writes it: the column's facts, that name. */

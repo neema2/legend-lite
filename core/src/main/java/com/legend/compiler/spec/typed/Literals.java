@@ -93,6 +93,32 @@ public final class Literals {
         };
     }
 
+    /**
+     * Whether {@code e} is the program's constant TOKENS alone -- a literal leaf, a collection of such, a variable
+     * bound by a let to such -- so that {@link #fold}'s value is the tokens verbatim and no operation was applied;
+     * false where the fold joins or transforms them ({@code +}, {@code joinStrings}, {@code replace}: the seam
+     * program's S2f, 2026-10-30, the plan's constant side marks these as folded).
+     */
+    public static boolean bare(TypedSpec e, List<TypedSpec> lets) {
+        return switch (e) {
+            case TypedCString s -> true;
+            case TypedCInteger i -> true;
+            case TypedCollection c -> {
+                for (TypedSpec el : c.elements()) {
+                    if (!bare(el, lets)) {
+                        yield false;
+                    }
+                }
+                yield true;
+            }
+            case TypedVariable v -> {
+                TypedLet let = Lets.binding(lets, v.name());
+                yield let != null && bare(let.value(), lets);
+            }
+            default -> false;
+        };
+    }
+
     /** Every argument folded and flattened to strings; null when any is not a string. */
     private static @com.legend.base.Nullable List<String> strings(List<TypedSpec> args, List<TypedSpec> lets) {
         List<String> out = new ArrayList<>();

@@ -187,6 +187,13 @@ public final class Lowerer {
      *  would fail the INNER pass, whose isolation cannot change an outer row's expression. */
     private int correlatedReads;
 
+    /** The raw grids whose rows the statement reads as their cells ({@link #cellGrids(List)}: each by its authored
+     *  text and language), computed once over the whole body before any of it is lowered; null before. */
+    private java.util.@com.legend.base.Nullable Set<String> cellGrids;
+
+    /** How deep the lowering is inside a raw grid report's input ({@link #gridReport}): that grid is read as itself. */
+    private int reportInputs;
+
     /** The connection's time zone DateTime literals spell in (engine
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
@@ -345,7 +352,7 @@ public final class Lowerer {
     }
 
     /** Every object carries its identity: its id, minted by {@code ids} from its site (docs/OBJECT_IDENTITY_2026_10_20.md
-     *  §3.2): one query's {@link ObjectSites}, or the statement executor's ids shared by every statement of a body. */
+     *  §3.2): the program's {@link ObjectSites}, one per program and shared by every statement of it (B9). */
     public Lowerer withObjectIdentity(Function<Object, String> ids) {
         this.instanceIdOf = ids;
         this.objectIdentity = true;
@@ -375,6 +382,9 @@ public final class Lowerer {
      * trace of the lets); the final statement is the query.
      */
     public SqlQuery lower(List<TypedSpec> body) {
+        if (cellGrids == null) {
+            cellGrids = cellGrids(body);   // before the lets are lowered (withQueryLets)
+        }
         // J-tail: demand-driven subselect column pruning (engine parity —
         // isolated composites enumerate only consumed columns)
         return SubselectPrune.prune(lower(withQueryLets(body)));
@@ -550,6 +560,9 @@ public final class Lowerer {
 
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
     public SqlQuery lower(TypedSpec spec) {
+        if (cellGrids == null) {
+            cellGrids = cellGrids(List.of(spec));
+        }
         // from() is execution-context metadata, fully consumed by Phase H —
         // the SQL is its source's. (Relation-typed from-roots take the
         // relation() arm below; a GRAPH-typed root needs the unwrap here.)
@@ -2382,10 +2395,148 @@ public final class Lowerer {
         return base.withProjections(ps);
     }
 
-    /** An authored raw read's rows: its text, in the language its connection declares (decision D2). */
+    /** A raw grid's {@code columnNames} (its report's names, in the result's order) or {@code values} (its cells,
+     *  row-major, each the database's JSON of the cell) as one list, aggregated in the report's order. */
+    private SqlExpr gridReport(TypedPropertyAccess pa) {
+        boolean names = "columnNames".equals(pa.property());
+        String alias = nextAlias();
+        SqlSelect grid;
+        reportInputs++;
+        try {
+            grid = relation(pa.source());
+        } finally {
+            reportInputs--;
+        }
+        SqlSource.GridReport report = new SqlSource.GridReport(grid,
+                names ? SqlSource.GridReport.Part.COLUMNS : SqlSource.GridReport.Part.CELLS, alias);
+        List<SqlSelect.SortKey> order = new java.util.ArrayList<>();
+        if (!names) {
+            order.add(new SqlSelect.SortKey(SqlExpr.Column.of(alias, report.outputs(), SqlSource.GridReport.ROW),
+                    true, null, null));
+        }
+        order.add(new SqlSelect.SortKey(SqlExpr.Column.of(alias, report.outputs(), SqlSource.GridReport.ORD), true,
+                null, null));
+        SqlExpr value = SqlExpr.Column.of(alias, report.outputs(), SqlSource.GridReport.VALUE);
+        SqlSelect listed = SqlSelect.starOf(report).withProjections(List.of(new SqlSelect.Projection(
+                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(value), false, order), null,
+                new OutputCol(SqlSource.GridReport.VALUE, new SqlType.Array(names ? SqlType.Scalar.VARCHAR
+                        : SqlType.Scalar.JSON), true))));
+        return new SqlExpr.ScalarSubquery(listed);
+    }
+
+    /** An authored raw read's rows: its text, in the language its connection declares (decision D2). Where the
+     *  statement reads THIS grid's rows as their cells ({@code $r.values}, {@link #cellGrids(List)}) and it is not a
+     *  report's input, each row is the list of its cells, the row's one column {@code values}
+     *  ({@link SqlSource.GridReport.Part#ROWS}: the grid's report, so the plan is keyed on its reported columns), which
+     *  any operation over the rows reads by name as it reads any column. */
     private SqlSelect rawGrid(com.legend.compiler.spec.typed.TypedRawSqlRelation raw) {
-        return SqlSelect.starOf(new SqlSource.RawSql(raw.sql(), nextAlias(), gridOutputs(raw.info()),
+        SqlSelect grid = SqlSelect.starOf(new SqlSource.RawSql(raw.sql(), nextAlias(), gridOutputs(raw.info()),
                 raw.writtenFor()));
+        if (reportInputs > 0 || cellGrids == null || !cellGrids.contains(gridKey(raw))) {
+            return grid;
+        }
+        return SqlSelect.starOf(new SqlSource.GridReport(grid, SqlSource.GridReport.Part.ROWS, nextAlias()));
+    }
+
+    /** A raw grid's identity: its authored text and the language it is written in (the same text is the same grid). */
+    private static String gridKey(com.legend.compiler.spec.typed.TypedRawSqlRelation raw) {
+        return raw.writtenFor() + "\u0000" + raw.sql();
+    }
+
+    /** The raw grids whose rows {@code body} reads as their cells (the planner-driver seam program's S3c audit,
+     *  2026-10-31): a row read as {@code .values} -- a lambda's row ({@code $r.values}: its grids are its operation's
+     *  source's, the operation's first child) or a picked one ({@code ->at(0).values}: its grids are its own
+     *  expression's) -- names the grids it ranges over, a let followed to its value. A grid whose rows are also read by
+     *  a column's name is refused by name: a row read as its cells is the list of them, with no column of its own. */
+    private static java.util.Set<String> cellGrids(List<TypedSpec> body) {
+        Map<String, TypedSpec> lets = new HashMap<>();
+        for (TypedSpec st : body) {
+            if (st instanceof TypedLet let) {
+                lets.put(let.name(), let.value());
+            }
+        }
+        java.util.Set<String> cells = new java.util.HashSet<>();
+        Map<String, String> byName = new HashMap<>();
+        for (TypedSpec st : body) {
+            scanRowReads(st, null, lets, cells, byName);
+        }
+        for (String grid : cells) {
+            if (byName.containsKey(grid)) {
+                throw new com.legend.error.NotImplementedException("a raw grid's row read both as its cells ($r.values)"
+                        + " and by a column's name ($r." + byName.get(grid) + "): a row read as its cells is the list"
+                        + " of them, with no column of its own");
+            }
+        }
+        return cells;
+    }
+
+    private static void scanRowReads(TypedSpec n, @com.legend.base.Nullable TypedSpec parent,
+            Map<String, TypedSpec> lets, java.util.Set<String> cells, Map<String, String> byName) {
+        if (n instanceof TypedLambda lambda && parent != null && !parent.children().isEmpty()
+                && parent.children().get(0) != n) {
+            // a lambda over its operation's rows: its parameters range over the operation's source
+            for (String param : lambda.parameters()) {
+                for (TypedSpec b : lambda.body()) {
+                    rowReads(b, param, gridsOf(parent.children().get(0), lets), cells, byName);
+                }
+            }
+        }
+        if (n instanceof TypedPropertyAccess pa && !(pa.source() instanceof TypedVariable)
+                && lateBoundRow(pa.source())) {
+            for (String grid : gridsOf(pa.source(), lets)) {
+                if ("values".equals(pa.property())) {
+                    cells.add(grid);
+                } else {
+                    byName.putIfAbsent(grid, pa.property());
+                }
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            scanRowReads(c, n, lets, cells, byName);
+        }
+    }
+
+    /** The reads of row {@code param} in {@code n}: {@code values} marks {@code grids} read as cells, any other
+     *  property marks them read by name. */
+    private static void rowReads(TypedSpec n, String param, java.util.Set<String> grids, java.util.Set<String> cells,
+            Map<String, String> byName) {
+        if (n instanceof TypedPropertyAccess pa && pa.source() instanceof TypedVariable v && v.name().equals(param)
+                && lateBoundRow(v)) {
+            for (String grid : grids) {
+                if ("values".equals(pa.property())) {
+                    cells.add(grid);
+                } else {
+                    byName.putIfAbsent(grid, pa.property());
+                }
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            rowReads(c, param, grids, cells, byName);
+        }
+    }
+
+    /** Whether {@code spec} is ONE row of a raw grid (not a relation of them, not an erased row). */
+    private static boolean lateBoundRow(TypedSpec spec) {
+        return Type.schemaView(spec.info().type()) instanceof Type.RelationType rt && rt.isLateBound()
+                && !rt.isErasedRow() && !Type.relationValued(spec.info());
+    }
+
+    /** The raw grids {@code spec} reads (a let followed to its value; a lambda's body is not its rows' source). */
+    private static java.util.Set<String> gridsOf(TypedSpec spec, Map<String, TypedSpec> lets) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        gridsOf(spec, lets, out, new java.util.HashSet<>());
+        return out;
+    }
+
+    private static void gridsOf(TypedSpec n, Map<String, TypedSpec> lets, java.util.Set<String> out,
+            java.util.Set<String> followed) {
+        switch (n) {
+            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> out.add(gridKey(raw));
+            case TypedVariable v when lets.containsKey(v.name()) && followed.add(v.name()) ->
+                    gridsOf(lets.get(v.name()), lets, out, followed);
+            case TypedLambda ignored -> { }
+            default -> n.children().forEach(c -> gridsOf(c, lets, out, followed));
+        }
     }
 
     /** A catalog grid: which grid and its patterns; the dialect reads its database's catalog. */
@@ -3009,6 +3160,16 @@ public final class Lowerer {
 
     private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
+            // a RAW GRID's column names or row-major cells (the planner-driver seam program's S3c, 2026-10-30): the
+            // grid's report, written per column its result reports (the keyed plan reads them first, D76); nothing
+            // is read at planning, no column is assumed -- first, so no arm reads either as a column
+            // (a ROW's cells are a row's, not a grid's -- the grid's rows as their cells, rawGrid: the report reads a
+            // relation's, the grid or its rows; until the S3c audit, 2026-10-31, "not a variable" stood for it)
+            case TypedPropertyAccess pa
+                    when ("columnNames".equals(pa.property()) || "values".equals(pa.property()))
+                    && Type.relationValued(pa.source().info())
+                    && Type.schemaView(pa.source().info().type()) instanceof Type.RelationType grt
+                    && grt.isLateBound() -> gridReport(pa);
             case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.

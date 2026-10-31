@@ -754,8 +754,6 @@ public class MinimalCorpusTest {
                 + " decimal-scale-only=" + com.legend.judge.CanonicalDivergence.decimalScaleOnlyCount()
                 + " disagree=" + com.legend.judge.CanonicalDivergence.sqlDisagreeCount()
                 + " declined=" + com.legend.judge.CanonicalDivergence.sqlDeclinedCount()
-                + " wire-retyped=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_RETYPED)
-                + " wire-slot-skew=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.WIRE_SLOT_SKEW)
                 + " batch-statements=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FUSED)
                 + " batch-fallbacks=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FALLBACKS)
                 + " frames[" + com.legend.judge.VerdictBatch.frameCensus() + "]");

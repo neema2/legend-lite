@@ -420,8 +420,7 @@ public final class VerdictQueries {
      * collection, a value with no literal spelling). */
     public static @com.legend.base.Nullable List<TypedSpec> unrollElements(
             TypedSpec source, List<TypedSpec> letPrefix,
-            com.legend.compiler.element.ModelContext ctx,
-            java.util.function.Function<TypedSpec, List<Object>> fetch) {
+            com.legend.compiler.element.ModelContext ctx) {
         if (source instanceof TypedCollection coll) {
             // elements that are let-bound values ([$_s1_hoisted, $_s2_hoisted]
             // — hoisted constructor programs) read through the caller's lets
@@ -440,8 +439,8 @@ public final class VerdictQueries {
                 && z.callee().qualifiedName().equals(
                         com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP)
                 && z.args().size() == 2) {
-            List<TypedSpec> left = armElements(z.args().get(0), letPrefix, fetch);
-            List<TypedSpec> right = armElements(z.args().get(1), letPrefix, fetch);
+            List<TypedSpec> left = armElements(z.args().get(0), letPrefix);
+            List<TypedSpec> right = armElements(z.args().get(1), letPrefix);
             if (left == null || right == null) {
                 return null;
             }
@@ -468,44 +467,23 @@ public final class VerdictQueries {
         return null;
     }
 
+    /** A zip arm's elements as the program SPELLED them: a literal collection's, or a bare literal as the
+     *  one-element collection pure's {@code [x] == x} law makes it; an arm the database would answer is null here --
+     *  the vector form reads it as rows (the seam program's step after S2f, 2026-10-30: the unroll fetches nothing). */
     private static @com.legend.base.Nullable List<TypedSpec> armElements(TypedSpec arm0,
-            List<TypedSpec> letPrefix,
-            java.util.function.Function<TypedSpec, List<Object>> fetch) {
+            List<TypedSpec> letPrefix) {
         TypedSpec arm = com.legend.compiler.spec.typed.Lets.bound(arm0, letPrefix);
         if (arm instanceof TypedCollection c) {
             return c.elements();
         }
-        List<TypedSpec> out = new java.util.ArrayList<>();
-        for (Object v : fetch.apply(arm)) {
-            TypedSpec lit = literalSpec(v);
-            if (lit == null) {
-                return null;
-            }
-            out.add(lit);
+        if (arm instanceof com.legend.compiler.spec.typed.TypedCString
+                || arm instanceof com.legend.compiler.spec.typed.TypedCInteger
+                || arm instanceof com.legend.compiler.spec.typed.TypedCFloat
+                || arm instanceof com.legend.compiler.spec.typed.TypedCDecimal
+                || arm instanceof com.legend.compiler.spec.typed.TypedCBoolean) {
+            return List.of(arm);
         }
-        return out;
-    }
-
-    /** A database value as the literal spec that spells it; null when
-     * the value has no literal spelling (dates, structures). */
-    public static @com.legend.base.Nullable TypedSpec literalSpec(@com.legend.base.Nullable Object v) {
-        return switch (v) {
-            case Long l -> new com.legend.compiler.spec.typed.TypedCInteger(l,
-                    ExprType.one(Type.Primitive.INTEGER));
-            case Integer i -> new com.legend.compiler.spec.typed.TypedCInteger((long) i,
-                    ExprType.one(Type.Primitive.INTEGER));
-            case Double d -> new com.legend.compiler.spec.typed.TypedCFloat(d, null,
-                    ExprType.one(Type.Primitive.FLOAT));
-            case Float f -> new com.legend.compiler.spec.typed.TypedCFloat(f, null,
-                    ExprType.one(Type.Primitive.FLOAT));
-            case java.math.BigDecimal bd -> new com.legend.compiler.spec.typed.TypedCDecimal(bd,
-                    ExprType.one(Type.Primitive.DECIMAL));
-            case String str -> new com.legend.compiler.spec.typed.TypedCString(str,
-                    ExprType.one(Type.Primitive.STRING));
-            case Boolean b -> new com.legend.compiler.spec.typed.TypedCBoolean(b,
-                    ExprType.one(Type.Primitive.BOOLEAN));
-            case null, default -> null;
-        };
+        return null;
     }
 
     public static List<TypedSpec> unrolledElement(SpecCompiler specs,

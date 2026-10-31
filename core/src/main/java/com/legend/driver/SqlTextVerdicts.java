@@ -76,7 +76,7 @@ final class SqlTextVerdicts {
         // the query lambda may be LET-BOUND (`let func = {|...};
         // toSQLString($func, mapping, DatabaseType.H2, ...)`) — chased
         // like the plan-text arm chases its lambda
-        SqlTextInputs in = SqlTextInputs.of(producer, letPrefix);
+        com.legend.planner.SqlTextInputs in = com.legend.planner.SqlTextInputs.of(producer, letPrefix);
         TypedSpec lamArg = in == null ? null
                 : com.legend.compiler.spec.typed.Lets.bound(
                         in.query(), letPrefix);
@@ -842,7 +842,7 @@ final class SqlTextVerdicts {
         bound.addAll(bindings.lets());
         // the plan producer's bound context rides the verdict's from
         com.legend.compiler.spec.typed.ExecutionContext planCtx = producer.args().size() >= 3
-                ? BodyDriver.boundContext(producer.args().get(2), scope, specs)
+                ? com.legend.planner.BodyPlanner.boundContext(producer.args().get(2), scope, specs)
                 : com.legend.compiler.spec.typed.ExecutionContext.NONE;
         // a multi-statement plan lambda ({|let a = 10; Firm.all()->...})
         // scopes its leading lets over the last statement — the rows leg
@@ -1579,7 +1579,7 @@ final class SqlTextVerdicts {
             TypedPackageableRef mappingRef =
                     ec.args().get(1) instanceof TypedPackageableRef mr ? mr : null;
             com.legend.compiler.spec.typed.ExecutionContext context = ec.args().size() >= 3
-                    ? BodyDriver.boundContext(ec.args().get(2), letPrefix, specs)
+                    ? com.legend.planner.BodyPlanner.boundContext(ec.args().get(2), letPrefix, specs)
                     : com.legend.compiler.spec.typed.ExecutionContext.NONE;
             TypedSpec chain = lamArg instanceof TypedLambda lam2 && !lam2.body().isEmpty()
                     ? lam2.body().get(lam2.body().size() - 1) : null;

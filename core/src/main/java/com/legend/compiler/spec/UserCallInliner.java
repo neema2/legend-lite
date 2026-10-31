@@ -192,6 +192,16 @@ public final class UserCallInliner {
     }
 
     public List<TypedSpec> inlineBody(List<TypedSpec> body) {
+        return inlineBody(body, null);
+    }
+
+    /** {@link #inlineBody(List)} for the statement at position {@code statement} of a PROGRAM whose statements are
+     *  inlined one by one, each after the lets before it (the test-is-the-product plan's B9, 2026-10-31): the
+     *  statement's own constructions are evaluated in it, so their sites are marked with its position (a mark no
+     *  instantiation number takes), and a call written in two statements is two evaluations, two objects. The lets
+     *  are reduced before the mark, exactly as in every statement's run, so a let's construction keeps one site
+     *  across the program's statements: one object. Null: a body that is the whole query, no mark. */
+    public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement) {
         // QUERY-level lets β-reduce exactly like callee lets — binders die
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
         // splices its pipeline into every use; downstream phases never see
@@ -216,9 +226,11 @@ public final class UserCallInliner {
             // (engine inScopeVars)
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            TypedSpec result = last instanceof TypedLet let
+            java.util.function.Supplier<TypedSpec> reduction = () -> last instanceof TypedLet let
                     ? reduce(let.value(), scope)
                     : reduce(last, scope);
+            // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
+            TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);
             readOnce(scope.terms, result);
             return List.of(finish(result, List.of(), List.of(), false));
         }

@@ -1,5 +1,5 @@
 // THE PLAN RUNNER, a host's (docs/WRITES_DESIGN_2026_10_18.md leg 7; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
-// into a table): an execution plan -- PlanJson's text, version 19, as legend-lite's planner writes it -- run on a host's own
+// into a table): an execution plan -- PlanJson's text, version 22, as legend-lite's planner writes it -- run on a host's own
 // database, for a host that runs its SQL itself: the tab (DuckDB-WASM) and Python's headless DataCube (its DuckDB). The
 // rules are Java's PlanRunner's (core/.../exec/PlanRunner.java), for the plans a host's program makes: a SEQUENCE of
 // steps in one transaction -- each `update` run for the change it makes, its count kept where a later step binds it
@@ -38,7 +38,11 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
  *  the written-precision fact on a column since S1.4) -- `update`, `check` and `sequence` as version 5 wrote them; a
  *  statement's per-key regions and a key's cell (a dynamic pivot's probe plan) are no write's. */
 // 19 since 2026-10-29: the LITERAL slot word retired (track L's L2; core's PlanJson.VERSION is the one owner)
-const PLAN_VERSION = 19;
+// 20 since 2026-10-30: the verdicts node (a run of asserts as one step: the planner-driver seam program's S1b) -- a
+// program's step, which this runner refuses by name as any step that is not an update, a check or a typed result
+// 21 since 2026-10-30: a verdict's constant side says whether the compiler folded its cells (S2f) -- inside the verdicts
+// node this runner refuses, so nothing here reads it
+const PLAN_VERSION = 22;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -99,6 +103,14 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   if (type !== session.databaseType) throw new PlanRefusal(`a plan of a ${String(type)} database is not run on this ${session.databaseType} one`);
   if (t.servers?._type !== 'every') throw new PlanRefusal("a plan for some servers' versions alone is not run here");
   if ((t.setup ?? []).length > 0) throw new PlanRefusal('a plan that sets its database up first is not run here: it runs on the host\'s own');
+  for (const s of steps) {
+    // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
+    // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one
+    if (s._type === 'tdsResult' && (s as { readonly shape?: string }).shape === 'RELATION'
+        && (s as { readonly columns: readonly Column[] }).columns.length === 0) {
+      throw new PlanRefusal("a relation of the columns its result reports (a raw grid's) is not run here: the planner runs it");
+    }
+  }
   for (const s of sqls) {
     if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
     for (const slot of s.slots) {

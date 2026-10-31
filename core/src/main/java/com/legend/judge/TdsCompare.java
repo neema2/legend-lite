@@ -3,6 +3,7 @@
 
 package com.legend.judge;
 
+import com.legend.lowering.CanonRider;
 import java.util.ArrayList;
 import java.util.List;
 

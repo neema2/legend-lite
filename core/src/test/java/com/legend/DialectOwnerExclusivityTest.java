@@ -64,9 +64,8 @@ class DialectOwnerExclusivityTest {
             // session tests whose subject is another database's text on that session: legend-engine's H2 SQL in an
             // executeInDb, translated for DuckDB (D2), and a connection helper whose overloads declare H2 and DuckDB
             new Crossing("core/src/test/java/com/legend/exec/ExecuteInDbDuckDbTest.java", "H2", 6,
-                    "legend-engine's H2 text run on a DuckDB session, translated (D2)"),
-            new Crossing("core/src/test/java/com/legend/exec/RawGridSchemaDuckDbTest.java", "H2", 4,
-                    "a connection helper's overloads declaring H2 and DuckDB: neither is guessed"));
+                    "legend-engine's H2 text run on a DuckDB session, translated (D2)"));
+            // (RawGridSchemaDuckDbTest's crossing gone with the test, 2026-10-30: the stamp it tested deleted, S3c)
 
     /** {@code DatabaseType.valueOf} and {@code .values()}: the vocabulary reading a name, deciding nothing. */
     private static final Pattern ANY_TYPE = Pattern.compile("\\bDatabaseType\\s*\\.\\s*(valueOf|values)\\b");

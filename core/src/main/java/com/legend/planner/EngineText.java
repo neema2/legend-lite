@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.planner;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.EngineStyleH2;
@@ -15,7 +15,7 @@ import com.legend.sql.dialect.EngineTextDialect;
  * run engine-H2 TEXT semantics against a real session. Every type is listed in every switch; none has a
  * {@code default} arm.
  */
-final class EngineText {
+public final class EngineText {
 
     private EngineText() {
     }
@@ -24,11 +24,15 @@ final class EngineText {
      *  (plan text, an activity's SQL, setup DDL: "goldens are engine-H2-spelled"). Where the connection behind a text
      *  cannot be read, the text is this database's — the reader gap docs/…_2026_10_03.md §3.2 hands to the rebuild
      *  (W2.1), which reads the real type instead. */
-    static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
+    public static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
+
+    /** The engine's golden DDL TEXT renderer: the text of the database legend-engine's test connections declare
+     *  (the body driver's until the seam program's S2g, 2026-10-31). */
+    public static final EngineTextDialect ENGINE_TEXT = engineText(ENGINE_TEST_DATABASE);
 
     /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
      *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). */
-    static EngineTextDialect engineText(DatabaseType type) {
+    public static EngineTextDialect engineText(DatabaseType type) {
         return switch (type) {
             case H2 -> new EngineStyleH2();
             case DB2 -> new com.legend.sql.dialect.EngineStyleDB2();
@@ -48,7 +52,7 @@ final class EngineText {
     /** legend-engine's IN-list-to-temp-table facts for {@code type} (the dialect program's Phase 5, 2026-10-16: moved
      *  here from {@code database.Databases}, which writes none of the engine's text; they are per declared type, not
      *  per engine-text dialect, as Composite's plan text is DB2's and its IN lists are not). */
-    static InListTempTables inListTempTables(DatabaseType type) {
+    public static InListTempTables inListTempTables(DatabaseType type) {
         return switch (type) {
             case DB2 -> new InListTempTables("SESSION.tempTableForIn_", 32767);
             case H2, DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto,
@@ -60,7 +64,7 @@ final class EngineText {
 
     /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
      *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
-    static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+    public static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
             @com.legend.base.Nullable String timeZone) {
         return switch (type) {
             case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);

@@ -79,14 +79,23 @@ final class JudgePlans {
      *  that is checked here where the statement's outputs are known: a column out of its output's place is a
      *  planner defect, refused by name. A sort key that is no output is carried as a hidden column
      *  ({@link TypedRows#statement}: H2's FULL OUTER JOIN emulation addresses its sort key among the outputs). */
-    static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
+    static ExecutionPlan.Node rowsPlan(SqlQuery statement, Type.RelationType schema,
             BodyDriver.ExecEnv env) {
         return rowsPlan(statement, schema, env, ExecutionPlan.TdsResult.Shape.RELATION);
     }
 
+    /** A side of {@code plan}: its typed rows, or its keyed result's. */
+    static ExecutionPlan.Side sideOf(ExecutionPlan.Node plan) {
+        return switch (plan) {
+            case ExecutionPlan.TdsResult t -> new ExecutionPlan.Side.Rows(t);
+            case ExecutionPlan.Keyed k -> new ExecutionPlan.Side.KeyedRows(k);
+            default -> throw new IllegalStateException("a side is a typed result or a keyed one, not " + plan);
+        };
+    }
+
     /** {@link #rowsPlan(SqlQuery, Type.RelationType, BodyDriver.ExecEnv)} in a result of {@code shape} (a value root's
      *  streamed answer is a VALUE, as the product's plan says it; the doors, 2026-10-29). */
-    static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
+    static ExecutionPlan.Node rowsPlan(SqlQuery statement, Type.RelationType schema,
             BodyDriver.ExecEnv env, ExecutionPlan.TdsResult.Shape shape) {
         List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement, shape);
         List<OutputCol> outs = statement.outputs();
@@ -100,8 +109,7 @@ final class JudgePlans {
                 }
             }
         }
-        return new ExecutionPlan.TdsResult(shape, columns,
-                PlanMaker.sql(TypedRows.statement(statement), env.dialect(), target(env)));
+        return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(statement), env.dialect(), target(env));
     }
 
     /**
@@ -118,15 +126,19 @@ final class JudgePlans {
         ExprType info = w.shapeInfo();
         PlanSessions.Source on = PlanSessions.of(w.session(), env.trace());
         switch (w.shape()) {
-            case GRAPH -> host(new TypedSide.Graph(objects(w, env), info.type()), answer);
+            case GRAPH -> host(new TypedSide.Graph(objectsShape(run(objectsPlan(w, env),
+                    PlanSessions.of(w.session(), env.trace()))), info.type()), answer);
             case TABULAR -> {
                 SqlQuery plan = w.plan();
                 Type.RelationType schema = Type.schemaView(info.type());
                 boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
                 if (lateBound) {
-                    plan = WireProbe.staticized(plan, env.dialect(), on, target(env),
-                            w.session().state().wireTypes());
-                    schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
+                    // a raw grid as the answer: a relation of no declared column, its columns the ones its result
+                    // reports (the seam program's S3c, 2026-10-30; until then a describe at planning framed it)
+                    stream(new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, List.of(),
+                            PlanMaker.sql(withFrames(plan, env), env.dialect(), target(env))), on,
+                            answer.of(ExecutionPlan.TdsResult.Shape.RELATION), toOne, 0, "", toOne);
+                    return;
                 }
                 if (schema == null) {
                     throw new IllegalStateException("TABULAR result without a relation root type: "
@@ -135,7 +147,7 @@ final class JudgePlans {
                 schema = TypedRows.flat(schema);
                 SqlQuery framed = withFrames(plan, env);
                 ExecutionPlan.Node node;
-                if (!lateBound && TypedRows.dynamicPivotUnnamed(plan, schema)) {
+                if (TypedRows.dynamicPivotUnnamed(plan, schema)) {
                     com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
                             com.legend.lowering.KeyedPivot.dynamic(framed),
                             "a dynamic pivot side whose plan holds no such pivot");
@@ -313,14 +325,20 @@ final class JudgePlans {
         }
     }
 
-    /** The database judge's statements as plans ({@link com.legend.judge.VerdictBatch.Runner}): a verdict statement's
-     *  one row, or a fused batch's rows, decoded by the verdict schema. */
+    /** The database judge's statements as plans ({@link com.legend.judge.VerdictBatch.Runner}): a verdict statement,
+     *  or a fused batch's, as a typed-rows plan of the verdict schema the batch runs as a verdict group (the seam
+     *  program's S2e, 2026-10-30; until then the batch asked this for the rows). */
     static com.legend.judge.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
         return new com.legend.judge.VerdictBatch.Runner() {
             @Override
-            public List<List<Object>> rows(SqlQuery statement, PlanSessions.Source on, boolean fused) {
+            public ExecutionPlan.Node plan(SqlQuery statement, boolean fused) {
                 Type.RelationType schema = fused ? VerdictSql.batchSchema() : VerdictSql.schema();
-                return run(rowsPlan(statement, schema, env), on).rows();
+                return rowsPlan(statement, schema, env);
+            }
+
+            @Override
+            public boolean keyed(SqlQuery statement) {
+                return PlanMaker.readsGridReport(statement);
             }
 
             @Override
@@ -349,8 +367,12 @@ final class JudgePlans {
             return java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
         }
         TypedSide result = sideResult(side, env);
-        // the engine's reader semantics for toOne() over a relation: exactly one row (the legacy executor's check)
-        TypedSpec root = pv.root();
+        toOneReader(pv.root(), result);
+        return result;
+    }
+
+    /** The engine's reader semantics for toOne() over a relation: exactly one row (the legacy executor's check). */
+    static void toOneReader(@com.legend.base.Nullable TypedSpec root, TypedSide result) {
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
                 && com.legend.builtin.Pure.isToOneCall(tw.callee().qualifiedName())
                 && !tw.args().isEmpty() && Type.isRelation(tw.args().get(0).info().type())
@@ -358,7 +380,6 @@ final class JudgePlans {
             throw new IllegalStateException("toOne() over a relation returned " + tab.rows().size()
                     + " row(s) — the exactly-one contract (engine reader semantics)");
         }
-        return result;
     }
 
     /** A planned side's result: its plan run by the runner, its rows decoded by the plan's types and shaped as the
@@ -398,29 +419,118 @@ final class JudgePlans {
 
     private static TypedSide sideResult0(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
             boolean assertBoundary) {
+        PlannedSide p = plannedOf(w, env, assertBoundary, null);
+        return shape(p, runSide(p, env));
+    }
+
+    // ---- a side as a plan value, and its shaping once read (the seam program's S2f, 2026-10-30) ------------------
+
+    /** The five forms a planned side's rows are shaped as. */
+    enum Kind { CONSTANT, GRAPH, TABULAR, KEYED, VALUES }
+
+    /**
+     * A side PLANNED before any run: the plan value a verdict step's base holds ({@link ExecutionPlan.Side}: typed
+     * rows, a keyed result, or the program's constant) with what its shaping needs once the runner has read it --
+     * the wrapped side (its shape and declared type), the relation schema a grid is typed by, the planned root (the
+     * to-one reader's check), and for a constant the compiler's value. The host judge's arms plan their sides so,
+     * hand them to the runner as one verdict's base and take each back by position ({@link HostSides});
+     * {@link #evalSide} plans, runs and shapes one side in place for the two shapes one pass cannot plan (the
+     * quantified unroll, the two-branch if; the user's ruling of 2026-10-30, S4's) and the engine-text asserts (S2i).
+     */
+    record PlannedSide(ExecutionPlan.Side side, Kind kind, BodyDriver.@com.legend.base.Nullable WrappedSide wrapped,
+            @com.legend.base.Nullable TypedSide answered, @com.legend.base.Nullable TypedSpec root,
+            Type.@com.legend.base.Nullable RelationType schema) {
+
+        BodyDriver.WrappedSide wrappedSide() {
+            return java.util.Objects.requireNonNull(wrapped, "a planned side with no plan: a constant");
+        }
+    }
+
+    /** A side planned as {@link #evalSide} plans it, as a plan value: the constant the compiler answered (the
+     *  program's tokens, or their join: {@code joined}), else the wrapped side's plan. */
+    static PlannedSide plannedSide(TypedSpec value, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env, boolean identity, boolean fold,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>,
+                    TypedSpec> hook) {
+        BodyDriver.PlannedValue pv = BodyDriver.planHostSide(value, letPrefix, specs, env, identity, fold, hook);
+        BodyDriver.WrappedSide side = pv.side();
+        if (side == null) {
+            TypedSide answered = java.util.Objects.requireNonNull(pv.answered(), "a side neither planned nor answered");
+            return new PlannedSide(constantSide(answered, pv.joined()), Kind.CONSTANT, null, answered, null, null);
+        }
+        return plannedOf(side, env, true, pv.root());
+    }
+
+    /** {@code w}'s plan value: a graph fetch's one-cell statement; a grid's typed rows (a late-bound grid framed by
+     *  the database's reported columns; a dynamic pivot nothing names as a keyed result; a grid under assertion
+     *  stabilized); a value root's one-column rows. */
+    static PlannedSide plannedOf(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env, boolean assertBoundary,
+            @com.legend.base.Nullable TypedSpec root) {
         ExprType info = w.shapeInfo();
         return switch (w.shape()) {
-            case GRAPH -> new TypedSide.Graph(objects(w, env), info.type());
-            case TABULAR -> tabular(w, env, assertBoundary);
-            case SCALAR, COLLECTION -> values(w, env);
+            case GRAPH -> new PlannedSide(new ExecutionPlan.Side.Rows(objectsPlan(w, env)), Kind.GRAPH, w, null,
+                    root, null);
+            case TABULAR -> tabularPlanned(w, env, assertBoundary, root);
+            case SCALAR, COLLECTION -> new PlannedSide(sideOf(
+                    rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env)), Kind.VALUES, w, null, root, null);
         };
     }
 
-    /** A graph fetch side's objects: its statement's one cell, the objects' JSON array as the database built it (the
-     *  side's graph root), read as a typed value of one text column -- the plan asks the database for no output text
+    /** {@code p}'s rows read in place (the one-side route): its typed rows or its keyed result through the runner on
+     *  the side's session; a constant's its text cells, as the runner hands a constant side's. */
+    static PlanRunner.Rows runSide(PlannedSide p, BodyDriver.ExecEnv env) {
+        return switch (p.side()) {
+            case ExecutionPlan.Side.Rows r -> run(r.result(), PlanSessions.of(p.wrappedSide().session(), env.trace()));
+            case ExecutionPlan.Side.KeyedRows k -> {
+                try {
+                    yield PlanRunner.rows(new ExecutionPlan(List.of(), k.keyed()), Map.of(),
+                            PlanSessions.of(p.wrappedSide().session(), env.trace()));
+                } catch (java.io.IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            }
+            case ExecutionPlan.Side.Constant c -> {
+                List<List<Object>> rows = new ArrayList<>(c.cells().size());
+                for (List<String> row : c.cells()) {
+                    rows.add(new ArrayList<Object>(row));
+                }
+                yield new PlanRunner.Rows(c.columns(), rows);
+            }
+        };
+    }
+
+    /** {@code rows}, read for {@code p}, shaped as the side's declared shape (the legacy executor's own shaping
+     *  rules, read from the plan's facts). */
+    static TypedSide shape(PlannedSide p, PlanRunner.Rows rows) {
+        return switch (p.kind()) {
+            case CONSTANT -> decodeConstant((ExecutionPlan.Side.Constant) p.side(),
+                    java.util.Objects.requireNonNull(p.answered(), "a constant side's value"), rows);
+            case GRAPH -> new TypedSide.Graph(objectsShape(rows), p.wrappedSide().shapeInfo().type());
+            case TABULAR -> tabularShape(rows, java.util.Objects.requireNonNull(p.schema(), "a grid's schema"),
+                    p.wrappedSide().shapeInfo());
+            case KEYED -> keyedShape(rows, java.util.Objects.requireNonNull(p.schema(), "a keyed grid's schema"),
+                    p.wrappedSide().shapeInfo());
+            case VALUES -> valuesShape(valueLane(rows), p.wrappedSide());
+        };
+    }
+
+    /** A graph fetch side's statement: its one cell, the objects' JSON array as the database built it (the side's
+     *  graph root), read as a typed value of one text column -- the plan asks the database for no output text
      *  (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */
-    private static String objects(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
+    private static ExecutionPlan.TdsResult objectsPlan(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
         SqlQuery plan = withFrames(w.plan(), env);
         List<OutputCol> outs = plan.outputs();
         if (outs.size() != 1) {
             throw new IllegalStateException("a graph fetch side's statement answers " + outs.size() + " columns "
                     + outs.stream().map(OutputCol::name).toList() + ": its objects' array is one cell");
         }
-        ExecutionPlan.TdsResult node = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+        return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
                         com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
                 PlanMaker.sql(plan, env.dialect(), target(env)));
-        PlanRunner.Rows rows = run(node, PlanSessions.of(w.session(), env.trace()));
+    }
+
+    private static String objectsShape(PlanRunner.Rows rows) {
         if (rows.rows().size() != 1) {
             throw new IllegalStateException("a graph fetch side's statement answered " + rows.rows().size()
                     + " rows: its objects' array is one row");
@@ -433,17 +543,20 @@ final class JudgePlans {
         };
     }
 
-    private static TypedSide tabular(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
-            boolean assertBoundary) {
+    private static PlannedSide tabularPlanned(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
+            boolean assertBoundary, @com.legend.base.Nullable TypedSpec root) {
         ExprType info = w.shapeInfo();
         SqlQuery plan = w.plan();
         Type.RelationType schema = Type.schemaView(info.type());
         boolean lateBound = plan.outputs().isEmpty() && (schema == null || schema.isLateBound());
         if (lateBound) {
-            // a raw grid (executeInDbToTDS) has no typed outputs: the database's reported columns frame it
-            plan = WireProbe.staticized(plan, env.dialect(),
-                    PlanSessions.of(w.session(), env.trace()), target(env), w.session().state().wireTypes());
-            schema = com.legend.compiler.spec.VerdictQueries.wireSchema(plan.outputs());
+            // a raw grid (executeInDbToTDS, an unstamped executeInDb) has no typed outputs: a relation of no declared
+            // column, the columns its result reports read from the real run (the seam program's S3c, 2026-10-30;
+            // until then WireProbe.staticized framed it by a describe at planning)
+            ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
+                    List.of(), PlanMaker.sql(withFrames(plan, env), env.dialect(), target(env)));
+            return new PlannedSide(new ExecutionPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
+                    new Type.RelationType(List.of()));
         }
         if (schema == null) {
             throw new IllegalStateException("TABULAR result without a relation root type: " + info.type().typeName());
@@ -451,10 +564,16 @@ final class JudgePlans {
         // a row-struct column is typed nesting over a flat physical reality: the prefixed columns the join emitted
         // (flattened before any route, the keyed one included; its dynamic columns kept)
         schema = TypedRows.flat(schema);
-        if (!lateBound && TypedRows.dynamicPivotUnnamed(plan, schema)) {
-            return keyed(plan, schema, info, w, env);
+        if (TypedRows.dynamicPivotUnnamed(plan, schema)) {
+            // a side over a DYNAMIC PIVOT nothing names: its keyed plan (PlanMaker.keyed, the probe plan the server
+            // runs), its keys read first and its body written for them
+            SqlQuery framed = withFrames(plan, env);
+            com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
+                    com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
+            ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
+            return new PlannedSide(new ExecutionPlan.Side.KeyedRows(keyed), Kind.KEYED, w, null, root, schema);
         }
-        if (!lateBound && assertBoundary) {
+        if (assertBoundary) {
             // ASSERT-BOUNDARY determinism (user design, 2026-08-29; the rule of the legacy TDS canon wrap this side
             // no longer rides, kept on the plan path): a grid under assertion is deterministically ordered even when
             // the test forgot to sort -- a FEATURE of the assert surface, always on; ScanOrder is the one key owner,
@@ -465,10 +584,22 @@ final class JudgePlans {
         }
         plan = withFrames(plan, env);
         // a grid's cells typed from the driver: a temporal cell by the database's own kind (a DATE a day)
-        PlanRunner.Rows rows = run(rowsPlan(plan, schema, env), PlanSessions.of(w.session(), env.trace()));
+        return new PlannedSide(sideOf(rowsPlan(plan, schema, env)), Kind.TABULAR, w, null,
+                root, schema);
+    }
+
+    private static TypedSide tabularShape(PlanRunner.Rows rows, Type.RelationType schema, ExprType info) {
         List<Column> columns = new ArrayList<>(schema.columns().size());
         for (Type.Column c : schema.columns()) {
             columns.add(new Column(c.name(), c.type(), c.multiplicity()));
+        }
+        if (schema.columns().isEmpty()) {
+            // a raw grid's: the columns its result reported, each typed by the Pure type the wire table named
+            for (ExecutionPlan.Column c : rows.columns()) {
+                columns.add(new Column(c.name(), reportedType(c), c.multiplicity().lower() == 0
+                        ? com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE
+                        : com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+            }
         }
         List<Row> out = new ArrayList<>(rows.rows().size());
         for (List<Object> r : rows.rows()) {
@@ -477,24 +608,25 @@ final class JudgePlans {
         return new TypedSide.Tabular(columns, out, info.type());
     }
 
-    /** A side over a DYNAMIC PIVOT nothing names: its keyed plan ({@link PlanMaker#keyed}, the probe plan the server
-     *  runs), its keys read first and its body written for them; each answered column typed by the schema -- a fixed
-     *  one by its name, a per-key one by its aggregate's template -- and named as the plan names it (a generated
-     *  name presented in its quotes, as the engine labels it). */
-    private static TypedSide keyed(SqlQuery plan, Type.RelationType schema, ExprType info,
-            BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
-        SqlQuery framed = withFrames(plan, env);
-        com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
-                com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
-        ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), target(env));
-        PlanRunner.Rows rows;
-        try {
-            rows = PlanRunner.rows(new ExecutionPlan(List.of(), keyed), Map.of(), PlanSessions.of(w.session(), env.trace()));
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
+    /** A reported column's Pure type: the primitive the wire table named, or Any (its cells the driver's kind). */
+    private static Type reportedType(ExecutionPlan.Column c) {
+        for (Type.Primitive p : Type.Primitive.values()) {
+            if (p.typeName().equals(c.type())) {
+                return p;
+            }
         }
-        // each answered column typed by the schema's one pivot rule (Type.RelationType.pivotColumnType): a fixed column
-        // by its name, a per-key one by its aggregate's template, which its generated name ends with
+        if (c.type().equals("Any")) {
+            return new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY);
+        }
+        throw new IllegalStateException("a reported column's type '" + c.type() + "' is no primitive the wire table"
+                + " names");
+    }
+
+    /** A keyed side's rows: each answered column typed by the schema's one pivot rule
+     *  ({@link Type.RelationType#pivotColumnType}): a fixed column by its name, a per-key one by its aggregate's
+     *  template, which its generated name ends with; named as the plan names it (a generated name presented in its
+     *  quotes, as the engine labels it). */
+    private static TypedSide keyedShape(PlanRunner.Rows rows, Type.RelationType schema, ExprType info) {
         List<Column> columns = new ArrayList<>(rows.columns().size());
         for (ExecutionPlan.Column c : rows.columns()) {
             Type t = schema.pivotColumnType(c.name());
@@ -546,11 +678,9 @@ final class JudgePlans {
      *  legacy executor's rules (a required root of no rows refuses; a scalar of two rows refuses; a null cell in a
      *  collection is the TDSNull value under a TDSNull root, a null slot on the Any and variant lanes, a lowering
      *  defect otherwise). */
-    private static TypedSide values(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env) {
+    private static TypedSide valuesShape(PlanRunner.Rows rows, BodyDriver.WrappedSide w) {
         ExprType info = w.shapeInfo();
         Type type = info.type();
-        PlanRunner.Rows rows = valueLane(run(rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env),
-                PlanSessions.of(w.session(), env.trace())));
         long lower = info.multiplicity().requireBounded("result shape").lower();
         boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));
         boolean anyRoot = PlatformTypes.isAny(type) || tdsNullRoot;
@@ -601,5 +731,107 @@ final class JudgePlans {
                     + " — NULL cells were dropped past the type's own contract");
         }
         return new TypedSide.Collection(values, type);
+    }
+
+    // ---- a constant side: the program's text in the plan, read back by its column's type (S2f) ------------------
+
+    /** The constant a fold answered, as the plan's constant side: one column {@code value} of the value's declared
+     *  type, one row per value, each cell the value's text -- a String itself, an Integer its digits, a Boolean its
+     *  word (the three kinds the folds admit; another kind refused by name); {@code joined} marks the compiler's join
+     *  of the program's constant tokens (the user's ruling, 2026-10-30). */
+    static ExecutionPlan.Side.Constant constantSide(TypedSide answered, boolean joined) {
+        String type = answered.returnType().typeName();
+        List<Object> values = switch (answered) {
+            case TypedSide.Scalar s -> java.util.Collections.singletonList(s.value());
+            case TypedSide.Collection c -> c.values();
+            default -> throw new com.legend.error.NotImplementedException("a constant side of a "
+                    + answered.getClass().getSimpleName() + ": the folds answer a scalar or a collection");
+        };
+        ExecutionPlan.Multiplicity multiplicity = answered instanceof TypedSide.Scalar s
+                ? new ExecutionPlan.Multiplicity(s.value() == null ? 0 : 1, 1)
+                : new ExecutionPlan.Multiplicity(0, null);
+        List<List<String>> cells = new ArrayList<>(values.size());
+        for (Object v : values) {
+            cells.add(java.util.Collections.singletonList(constantText(v, type)));
+        }
+        return new ExecutionPlan.Side.Constant(
+                List.of(new ExecutionPlan.Column("value", type, multiplicity, null, null, null)), cells, joined);
+    }
+
+    private static @com.legend.base.Nullable String constantText(@com.legend.base.Nullable Object v, String type) {
+        return switch (v) {
+            case null -> null;
+            case String s -> s;
+            case Boolean b -> b.toString();
+            case Number n when !(n instanceof Double) && !(n instanceof Float)
+                    && !(n instanceof java.math.BigDecimal) -> n.toString();
+            default -> throw new com.legend.error.NotImplementedException("a constant side's " + type
+                    + " cell carried as " + v.getClass().getSimpleName()
+                    + ": the folds admit String, Integer and Boolean");
+        };
+    }
+
+    /** A constant side's cells read back by its column's declared type -- the plan's text, not the compiler's value
+     *  -- and checked against that value: a difference is the plan's text being wrong, raised by name, never a
+     *  fallback to the value. */
+    static TypedSide decodeConstant(ExecutionPlan.Side.Constant c, TypedSide answered, PlanRunner.Rows rows) {
+        String type = c.columns().get(0).type();
+        List<Object> values = new ArrayList<>(rows.rows().size());
+        for (List<Object> row : rows.rows()) {
+            Object cell = row.get(0);
+            values.add(switch (cell) {
+                case null -> null;
+                case String s -> constantValue(s, type);
+                default -> throw new IllegalStateException("a constant side's cell is its text, not a "
+                        + cell.getClass().getSimpleName());
+            });
+        }
+        TypedSide decoded = answered instanceof TypedSide.Scalar
+                ? new TypedSide.Scalar(values.isEmpty() ? null : values.get(0), answered.returnType())
+                : new TypedSide.Collection(values, answered.returnType());
+        List<Object> expected = switch (answered) {
+            case TypedSide.Scalar s -> java.util.Collections.singletonList(s.value());
+            case TypedSide.Collection col -> col.values();
+            default -> throw new IllegalStateException("a constant side's value is a scalar or a collection");
+        };
+        if (!sameConstants(expected, values)) {
+            throw new IllegalStateException("a constant side read back from the plan's text differs from the"
+                    + " compiler's value: " + values + " against " + expected);
+        }
+        return decoded;
+    }
+
+    private static Object constantValue(String s, String type) {
+        return switch (type) {
+            case "String" -> s;
+            case "Boolean" -> switch (s) {
+                case "true" -> Boolean.TRUE;
+                case "false" -> Boolean.FALSE;
+                default -> throw new IllegalStateException("a Boolean constant's cell '" + s + "'");
+            };
+            case "Integer" -> {
+                java.math.BigInteger b = new java.math.BigInteger(s);
+                yield b.bitLength() < 64 ? (Object) b.longValue() : b;
+            }
+            default -> throw new com.legend.error.NotImplementedException("a constant side of type " + type
+                    + ": the folds admit String, Integer and Boolean");
+        };
+    }
+
+    private static boolean sameConstants(List<Object> expected, List<Object> read) {
+        if (expected.size() != read.size()) {
+            return false;
+        }
+        for (int i = 0; i < expected.size(); i++) {
+            Object e = expected.get(i);
+            Object r = read.get(i);
+            boolean same = e instanceof Number en && r instanceof Number rn
+                    ? en.toString().equals(rn.toString())
+                    : java.util.Objects.equals(e, r);
+            if (!same) {
+                return false;
+            }
+        }
+        return true;
     }
 }

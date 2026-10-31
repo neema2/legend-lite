@@ -1256,8 +1256,8 @@ public sealed interface SqlExpr
 
     /** A relation-toString whose COLUMN LIST is dynamic (a pivot with
      * runtime-discovered keys): the '#TDS' text cannot compose at
-     * lowering — the EXECUTION BOUNDARY resolves it (DynamicPivot's
-     * two-phase discipline; the lowering layer records the typed
+     * lowering — it is refused by name where it reaches a statement (the body driver: the pivot's keyed plan writes no
+     * text; until 2026-10-31 a staticizer read the keys at planning; the lowering layer records the typed
      * schema by {@code id}). Types-free by design — the sql package
      * never carries compiler types. A node reaching a renderer is a
      * routing bug and walls loudly there. */

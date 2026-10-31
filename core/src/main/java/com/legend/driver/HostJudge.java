@@ -25,17 +25,6 @@ final class HostJudge {
     private HostJudge() {
     }
 
-    /** A zip arm's values: a flat-cells arm ({@code $tds.rows.values})
-     * contributes its row-major cells — the same cell view the grid
-     * verdicts read; any other side decodes as a value list. */
-    static List<Object> sideCells(TypedSpec arm, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv env,
-            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        TypedSide r = JudgePlans.evalSide(arm, letPrefix,
-                specs, env, false, true, hook);
-        return r instanceof TypedSide.Tabular t ? AssertVerdicts.cells(t) : AssertVerdicts.decodeSide(r);
-    }
-
     static TypedSide finish(String family, boolean wantEqual,
             boolean hostHeld, @com.legend.base.Nullable Boolean byteHeld,
             String detail,
@@ -575,7 +564,7 @@ final class HostJudge {
      * the row-major CELLS, NULL slots kept — engine TDSRow semantics,
      * column names OUT) and its canon is the rider's per-ROW texts. */
     record SideFetch(List<Object> values,
-            com.legend.judge.CanonRider rider,
+            com.legend.lowering.CanonRider rider,
             TypedSide.@com.legend.base.Nullable Tabular grid) {
     }
 
@@ -589,19 +578,42 @@ final class HostJudge {
         return com.legend.judge.Equality.Typed.all(values, arg.info().type());
     }
 
-    static SideFetch sideCanon(TypedSpec arg,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env, boolean canonicalOrder,
+    // ---- the arm's sides as one verdict step's base (the seam program's S2f, 2026-10-30) ----------------------
+
+    /** The arm's sides through the runner, in the arm's order ({@link HostSides}). */
+    private static List<TypedSide> sides(String name, List<HostSides.Ask> asks, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env) {
+        return HostSides.fetch(name, asks, letPrefix, specs, env);
+    }
+
+    /** A side as {@code AssertVerdicts.side} fetched it: folded where literal, no identity lane. */
+    private static HostSides.Ask valueAsk(TypedSpec arg, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Ask(arg, false, true, hook);
+    }
+
+    /** A side on the IDENTITY LANE without a canon rider (F13c: the assert-condition/predicate evaluator; in-SQL
+     *  eq/equal needs instance identity, and the boolean egress keeps every other lane blind to the field): folded
+     *  where literal. */
+    private static HostSides.Ask identityAsk(TypedSpec arg,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Ask(arg, true, true, hook);
+    }
+
+    /** A side the canon fetch reads ({@link #sideCanonOf}): never folded, on the identity lane. */
+    private static HostSides.Ask canonAsk(TypedSpec arg, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Ask(arg, true, false, hook);
+    }
+
+    /** {@code r}, a side read on the identity lane (never folded: a literal evaluates in the database here too; a
+     *  keyless instance's identity, minted per construction site, is the rider's layout), as the canon fetch the
+     *  arms judge. */
+    static SideFetch sideCanonOf(TypedSide r, boolean canonicalOrder) {
         // step 6 (2026-10-18, the plan path program): the side is a plan's result, decoded by its declared types;
         // the byte channel that rode the side query declines here by name -- the database judge is the referee
         // (the agreement gate, AgreementArm) -- and the rider's wrap machinery is dead by construction until the
         // deletions (step 11)
-        var rider = new com.legend.judge.CanonRider(canonicalOrder);
+        var rider = new com.legend.lowering.CanonRider(canonicalOrder);
         rider.decline("plan path: the database judge is the referee");
-        // a side the rider rode was never folded (a literal evaluates in the database here too) and rode the
-        // identity lane (a keyless instance's identity, minted per construction site, is the rider's layout)
-        TypedSide r = JudgePlans.evalSide(arg, letPrefix, specs, env, true, false, hook);
         if (r instanceof TypedSide.Tabular t) {
             List<Object> cells = AssertVerdicts.cells(t);
             com.legend.judge.CanonicalDivergence.v7SideRows(cells.size());
@@ -619,17 +631,6 @@ final class HostJudge {
         return new SideFetch(AssertVerdicts.decodeSide(r), rider, null);
     }
 
-    /** F13c — a side on the IDENTITY LANE without a canon rider: the
-     * assert-condition/predicate evaluator (in-SQL eq/equal needs
-     * instance identity; the boolean egress keeps every other lane
-     * blind to the field). */
-    static List<Object> identitySide(TypedSpec arg,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        return AssertVerdicts.decodeSide(JudgePlans.evalSide(arg, letPrefix,
-                specs, env, true, true, hook));
-    }
-
     /** Failure-message sketch of a frame (columns + row count — the
      * spec's toString(true) grid rendering is message-position only;
      * no witness pins its spelling). */
@@ -644,19 +645,23 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide tdsEquivalent(String name, List<TypedSpec> targs,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        TypedSide.Tabular one =
-                AssertVerdicts.tabular(targs.get(0), letPrefix, specs, env, hook);
-        TypedSide.Tabular two =
-                AssertVerdicts.tabular(targs.get(1), letPrefix, specs, env, hook);
+        List<TypedSide> grids = sides(name, List.of(valueAsk(targs.get(0), hook), valueAsk(targs.get(1), hook)),
+                letPrefix, specs, env);
+        TypedSide.Tabular one = grids.get(0) instanceof TypedSide.Tabular t0 ? t0 : null;
+        TypedSide.Tabular two = grids.get(1) instanceof TypedSide.Tabular t1 ? t1 : null;
         if (one == null || two == null) {
             return null;   // non-tabular shape — fall through, loud later
         }
-        double delta = ((Number) AssertVerdicts.one(AssertVerdicts.side(targs.get(2), letPrefix,
-                specs, env, hook), "assertTdsEquivalent delta")).doubleValue();
+        List<HostSides.Ask> toleranceAsks = new java.util.ArrayList<>(List.of(valueAsk(targs.get(2), hook)));
+        if (targs.size() == 4) {
+            toleranceAsks.add(valueAsk(targs.get(3), hook));
+        }
+        List<TypedSide> tolerances = sides(name, toleranceAsks, letPrefix, specs, env);
+        double delta = ((Number) AssertVerdicts.one(AssertVerdicts.decodeSide(tolerances.get(0)),
+                "assertTdsEquivalent delta")).doubleValue();
         double timeDelta = targs.size() == 4
-                ? ((Number) AssertVerdicts.one(AssertVerdicts.side(targs.get(3), letPrefix, specs,
-                        env, hook), "assertTdsEquivalent timeDelta"))
-                        .doubleValue()
+                ? ((Number) AssertVerdicts.one(AssertVerdicts.decodeSide(tolerances.get(1)),
+                        "assertTdsEquivalent timeDelta")).doubleValue()
                 : 0.0;
         List<String> c1 = one.columns().stream()
                 .map(com.legend.judge.Column::name).toList();
@@ -675,16 +680,16 @@ final class HostJudge {
     static TypedSide size(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        Object n = AssertVerdicts.one(AssertVerdicts.side(args.get(1), letPrefix, specs, env, hook),
-                "assertSize size");
+        List<TypedSide> both = sides(name, List.of(valueAsk(args.get(1), hook), valueAsk(args.get(0), hook)),
+                letPrefix, specs, env);
+        Object n = AssertVerdicts.one(AssertVerdicts.decodeSide(both.get(0)), "assertSize size");
         // D3: the size rule is per-result-kind — grid ROWS,
         // graph array length, values otherwise; the ONE-CARRIER
         // envelope rule ({@code $r.values} of a relation-rooted
         // execute holds one TDS) is the MODEL's
         // (TypedSide.envelopeCarriers), keyed by the READ
         // SHAPE exactly as the harness's cluster-34 arm.
-        TypedSide r0 = JudgePlans.evalSide(
-                args.get(0), letPrefix, specs, env, false, true, hook);
+        TypedSide r0 = both.get(1);
         long actual = switch (r0) {
             case null -> 0L;
             case TypedSide.Tabular t ->
@@ -709,10 +714,10 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide contains(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<Object> coll = AssertVerdicts.side(args.get(0), letPrefix, specs,
-                env, hook);
-        List<Object> val = AssertVerdicts.side(args.get(1), letPrefix, specs,
-                env, hook);
+        List<TypedSide> both = sides(name, List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
+                letPrefix, specs, env);
+        List<Object> coll = AssertVerdicts.decodeSide(both.get(0));
+        List<Object> val = AssertVerdicts.decodeSide(both.get(1));
         if (val.size() != 1) {
             return null;   // non-[1] value arg — generic path
         }
@@ -727,13 +732,12 @@ final class HostJudge {
     static TypedSide tolerance(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        List<TypedSide> three = sides(name, List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook),
+                valueAsk(args.get(2), hook)), letPrefix, specs, env);
         String d = com.legend.judge.PureAsserts.assertEqWithinTolerance(
-                (Number) AssertVerdicts.one(AssertVerdicts.side(args.get(0), letPrefix, specs, env, hook),
-                        "tolerance expected"),
-                (Number) AssertVerdicts.one(AssertVerdicts.side(args.get(1), letPrefix, specs, env, hook),
-                        "tolerance actual"),
-                (Number) AssertVerdicts.one(AssertVerdicts.side(args.get(2), letPrefix, specs, env, hook),
-                        "tolerance delta"));
+                (Number) AssertVerdicts.one(AssertVerdicts.decodeSide(three.get(0)), "tolerance expected"),
+                (Number) AssertVerdicts.one(AssertVerdicts.decodeSide(three.get(1)), "tolerance actual"),
+                (Number) AssertVerdicts.one(AssertVerdicts.decodeSide(three.get(2)), "tolerance delta"));
         return d == null ? AssertVerdicts.ok() : AssertVerdicts.fail(d);
     }
 
@@ -750,10 +754,10 @@ final class HostJudge {
         // pure's own evaluation of this shape is in-memory).
         TypedSpec[] fc = AssertVerdicts.forAllContains(cond);
         if (fc != null) {
-            List<Object> need = AssertVerdicts.side(fc[0], letPrefix, specs,
-                    env, hook);
-            List<Object> have = AssertVerdicts.side(fc[1], letPrefix, specs,
-                    env, hook);
+            List<TypedSide> pair = sides(name, List.of(valueAsk(fc[0], hook), valueAsk(fc[1], hook)), letPrefix,
+                    specs, env);
+            List<Object> need = AssertVerdicts.decodeSide(pair.get(0));
+            List<Object> have = AssertVerdicts.decodeSide(pair.get(1));
             List<Object> missing = need.stream()
                     .filter(n2 -> have.stream().noneMatch(h ->
                             com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(n2), com.legend.judge.Equality.Typed.of(h))))
@@ -769,8 +773,8 @@ final class HostJudge {
         // equal over instances compile the engine relation
         // (identity/key canon); the egress is one boolean, so
         // no other lane ever sees the identity field
-        Object c = AssertVerdicts.one(identitySide(cond, letPrefix,
-                specs, env, hook), name + " condition");
+        Object c = AssertVerdicts.one(AssertVerdicts.decodeSide(
+                sides(name, List.of(identityAsk(cond, hook)), letPrefix, specs, env).get(0)), name + " condition");
         boolean held = Boolean.TRUE.equals(c) == wantTrue;
         return held ? AssertVerdicts.ok() : AssertVerdicts.fail("Assert failed");
     }
@@ -782,8 +786,7 @@ final class HostJudge {
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // §8 leg 1: a TABULAR side's emptiness is its ROW count
         // (engine relation semantics) — no canon involved
-        TypedSide er = JudgePlans.evalSide(
-                arg, letPrefix, specs, env, false, true, hook);
+        TypedSide er = sides(name, List.of(valueAsk(arg, hook)), letPrefix, specs, env).get(0);
         boolean empty = er instanceof TypedSide.Tabular te3
                 ? te3.rows().isEmpty()
                 : AssertVerdicts.decodeSide(er).isEmpty();
@@ -818,9 +821,10 @@ final class HostJudge {
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.quantified(fqn, predMap, wantTrue, message, letPrefix, specs, env, hook);
         }
-        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, List<TypedSpec> letPrefix,
+        @Override public @com.legend.base.Nullable TypedSide quantifiedVector(String fqn, TypedSpec predMap, TypedSpec source,
+                com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
                 SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-            return null;   // the host judge fetches and unrolls, by design
+            return HostJudge.quantifiedRows(fqn, predMap, source, lam, root, letPrefix, specs, env, hook);
         }
         @Override public TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
                 @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
@@ -869,10 +873,10 @@ final class HostJudge {
     static TypedSide eq(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                env, false, hook);
-        SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                env, false, hook);
+        List<TypedSide> pair = sides(name, List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+                letPrefix, specs, env);
+        SideFetch ef = sideCanonOf(pair.get(0), false);
+        SideFetch af = sideCanonOf(pair.get(1), false);
         Object ee = AssertVerdicts.one(ef.values(), "assertEq expected");
         Object aa = AssertVerdicts.one(af.values(), "assertEq actual");
         // host judgment FIRST: eq's non-primitive identity rule
@@ -897,7 +901,8 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide instanceOf(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        Object v = AssertVerdicts.one(AssertVerdicts.side(args.get(0), letPrefix, specs, env, hook),
+        Object v = AssertVerdicts.one(AssertVerdicts.decodeSide(
+                sides(name, List.of(valueAsk(args.get(0), hook)), letPrefix, specs, env).get(0)),
                 "assertInstanceOf instance");
         String type = AssertVerdicts.typeRefName(args.get(1));
         if (type == null) {
@@ -934,7 +939,8 @@ final class HostJudge {
         if (AssertVerdicts.elementTyped(args.get(0), specs) && AssertVerdicts.elementTyped(args.get(1), specs)) {
             TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
                     specs.ctx(), args.get(0), args.get(1));
-            Object c2 = AssertVerdicts.one(identitySide(cond, letPrefix, specs, env, hook),
+            Object c2 = AssertVerdicts.one(AssertVerdicts.decodeSide(
+                    sides(name, List.of(identityAsk(cond, hook)), letPrefix, specs, env).get(0)),
                     name + " condition");
             return Boolean.TRUE.equals(c2) ? AssertVerdicts.ok()
                     : AssertVerdicts.fail("assertIs: the element references differ");
@@ -948,10 +954,10 @@ final class HostJudge {
     static TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                env, !gridPair, hook);
-        SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                env, !gridPair, hook);
+        List<TypedSide> pair = sides(name, List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+                letPrefix, specs, env);
+        SideFetch ef = sideCanonOf(pair.get(0), !gridPair);
+        SideFetch af = sideCanonOf(pair.get(1), !gridPair);
         // §8 leg 1 — TABULAR sides under the MULTISET form:
         // loose CELL pool (the corpus writes flat expected sets
         // column-grouped — loose multiset IS this assert's
@@ -992,7 +998,8 @@ final class HostJudge {
     static TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<Object> verdicts = identitySide(predMap, letPrefix, specs, env, hook);
+        List<Object> verdicts = AssertVerdicts.decodeSide(
+                sides(fqn, List.of(identityAsk(predMap, hook)), letPrefix, specs, env).get(0));
         for (Object v : verdicts) {
             if (Boolean.TRUE.equals(v) != wantTrue) {
                 return AssertVerdicts.fail(message);
@@ -1001,13 +1008,186 @@ final class HostJudge {
         return AssertVerdicts.ok();
     }
 
+    /**
+     * A quantified assert under the vector contract, judged by the host from ONE read (the seam program's step after
+     * S2f, 2026-10-30; until then the host fetched a zip's arm into Java and unrolled one statement per element):
+     * {@code assert}/{@code assertFalse} over the predicate vector the database computes, every row true
+     * (the element arm's own words, "Assert failed", on the first that is not); {@code assertEquals} and
+     * {@code assertEqWithinTolerance} over the rows themselves, each row judged as the element arm judges it
+     * ({@link com.legend.judge.PureAsserts}: the same decision, the same message), the arguments the row's fields
+     * (through a cast) or literals -- any other argument is refused by name, never evaluated here. Null: another
+     * family (the unroll over literal elements continues).
+     */
+    static @com.legend.base.Nullable TypedSide quantifiedRows(String fqn, TypedSpec predMap, TypedSpec source,
+            com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        com.legend.builtin.NativeFn.Verdict family = com.legend.builtin.NativeFn.Verdict
+                .of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).orElse(null);
+        List<TypedSpec> args = com.legend.compiler.spec.typed.Calls.argsOf(root);
+        boolean isAssert = family == com.legend.builtin.NativeFn.Verdict.ASSERT;
+        boolean isAssertFalse = family == com.legend.builtin.NativeFn.Verdict.ASSERT_FALSE;
+        if (isAssert || isAssertFalse) {
+            List<Object> verdicts = AssertVerdicts.decodeSide(
+                    sides(fqn, List.of(identityAsk(predMap, hook)), letPrefix, specs, env).get(0));
+            for (Object v : verdicts) {
+                if (Boolean.TRUE.equals(v) != isAssert) {
+                    return AssertVerdicts.fail("Assert failed");
+                }
+            }
+            return AssertVerdicts.ok();
+        }
+        boolean isEquals = family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS;
+        boolean isTolerance = family == com.legend.builtin.NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE;
+        if (!isEquals && !isTolerance) {
+            return null;
+        }
+        String binder = lam.parameters().get(0);
+        List<Object> rows = rowsOf(fqn, source, letPrefix, specs, env, hook);
+        if (rows == null) {
+            return null;
+        }
+        for (Object row : rows) {
+            Object e = rowValue(args.get(0), binder, row, fqn);
+            Object a = rowValue(args.get(1), binder, row, fqn);
+            String d = isTolerance
+                    ? com.legend.judge.PureAsserts.assertEqWithinTolerance(number(e, fqn), number(a, fqn),
+                            number(rowValue(args.get(2), binder, row, fqn), fqn))
+                    : com.legend.judge.PureAsserts.assertEquals(
+                            java.util.Collections.singletonList(e), java.util.Collections.singletonList(a),
+                            args.get(0).info().type(), args.get(1).info().type());
+            if (d != null) {
+                return AssertVerdicts.fail(d);
+            }
+        }
+        return AssertVerdicts.ok();
+    }
+
+    /** The quantified assert's rows: a zip's arms each read as a side of ONE group (a literal arm folded, nothing
+     *  sent; a grid arm its row-major cells, as {@code $tds.rows.values} reads), paired by position and stopped at the
+     *  shorter arm -- zip's own rule (zip.pure), the pairing the unroll did, orchestration and no computation; a
+     *  relation source its rows as records by column name. Null: another source (the unroll continues). */
+    private static @com.legend.base.Nullable List<Object> rowsOf(String fqn, TypedSpec source, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        List<TypedSpec> arms = new java.util.ArrayList<>();
+        zipArms(com.legend.compiler.spec.typed.Lets.bound(source, letPrefix), letPrefix, arms);
+        if (arms.size() == 1) {
+            TypedSide only = sides(fqn, List.of(valueAsk(source, hook)), letPrefix, specs, env).get(0);
+            if (!(only instanceof TypedSide.Tabular t)) {
+                return null;
+            }
+            List<Object> records = new java.util.ArrayList<>(t.rows().size());
+            for (com.legend.judge.Row r : t.rows()) {
+                java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+                for (int i = 0; i < t.columns().size(); i++) {
+                    m.put(t.columns().get(i).name(), r.values().get(i));
+                }
+                records.add(m);
+            }
+            return records;
+        }
+        List<HostSides.Ask> asks = new java.util.ArrayList<>(arms.size());
+        for (TypedSpec arm : arms) {
+            asks.add(valueAsk(arm, hook));
+        }
+        List<TypedSide> read = sides(fqn, asks, letPrefix, specs, env);
+        List<List<Object>> values = new java.util.ArrayList<>(read.size());
+        for (TypedSide r : read) {
+            values.add(r instanceof TypedSide.Tabular t ? AssertVerdicts.cells(t) : AssertVerdicts.decodeSide(r));
+        }
+        int[] next = {0};
+        return paired(com.legend.compiler.spec.typed.Lets.bound(source, letPrefix), letPrefix, values, next);
+    }
+
+    /** The arms of a (nested) zip, left to right; a source that is no zip is its own one arm. */
+    private static void zipArms(TypedSpec source, List<TypedSpec> letPrefix, List<TypedSpec> out) {
+        if (source instanceof com.legend.compiler.spec.typed.TypedNativeCall z
+                && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(z.callee().qualifiedName())
+                && z.args().size() == 2) {
+            for (TypedSpec arm : z.args()) {
+                TypedSpec bound = com.legend.compiler.spec.typed.Lets.bound(arm, letPrefix);
+                if (bound instanceof com.legend.compiler.spec.typed.TypedNativeCall inner
+                        && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(
+                                inner.callee().qualifiedName())) {
+                    zipArms(bound, letPrefix, out);
+                } else {
+                    out.add(arm);
+                }
+            }
+            return;
+        }
+        out.add(source);
+    }
+
+    /** The zip's pairs over the arms' values read in {@link #zipArms}' order: each pair a record of {@code first} and
+     *  {@code second} (a Pair's two properties), stopped at the shorter arm. */
+    private static List<Object> paired(TypedSpec source, List<TypedSpec> letPrefix, List<List<Object>> values,
+            int[] next) {
+        com.legend.compiler.spec.typed.TypedNativeCall z = (com.legend.compiler.spec.typed.TypedNativeCall) source;
+        List<Object> left = armValues(z.args().get(0), letPrefix, values, next);
+        List<Object> right = armValues(z.args().get(1), letPrefix, values, next);
+        int n = Math.min(left.size(), right.size());
+        List<Object> out = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            java.util.Map<String, Object> pair = new java.util.LinkedHashMap<>();
+            pair.put("first", left.get(i));
+            pair.put("second", right.get(i));
+            out.add(pair);
+        }
+        return out;
+    }
+
+    private static List<Object> armValues(TypedSpec arm, List<TypedSpec> letPrefix, List<List<Object>> values,
+            int[] next) {
+        TypedSpec bound = com.legend.compiler.spec.typed.Lets.bound(arm, letPrefix);
+        if (bound instanceof com.legend.compiler.spec.typed.TypedNativeCall inner
+                && com.legend.compiler.element.type.PlatformTypes.COLLECTION_ZIP.equals(inner.callee().qualifiedName())) {
+            return paired(bound, letPrefix, values, next);
+        }
+        return values.get(next[0]++);
+    }
+
+    /** An element assert's argument read off the row: the binder itself, one of its fields (a Pair's {@code first}
+     *  or {@code second}), either through a cast, or a literal. */
+    private static @com.legend.base.Nullable Object rowValue(TypedSpec arg, String binder, Object row, String fqn) {
+        return switch (arg) {
+            case com.legend.compiler.spec.typed.TypedCast c -> rowValue(c.source(), binder, row, fqn);
+            case com.legend.compiler.spec.typed.TypedVariable v when v.name().equals(binder) -> row;
+            case com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                    when pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                            && v.name().equals(binder) -> {
+                if (!(row instanceof java.util.Map<?, ?> m) || !m.containsKey(pa.property())) {
+                    throw new com.legend.error.NotImplementedException(fqn + ": the quantified assert's row holds no"
+                            + " field '" + pa.property() + "': " + row);
+                }
+                yield m.get(pa.property());
+            }
+            case com.legend.compiler.spec.typed.TypedCString l -> l.value();
+            case com.legend.compiler.spec.typed.TypedCInteger l -> l.value();
+            case com.legend.compiler.spec.typed.TypedCFloat l -> l.value();
+            case com.legend.compiler.spec.typed.TypedCBoolean l -> l.value();
+            default -> throw new com.legend.error.NotImplementedException(fqn + ": a quantified assert over database"
+                    + " rows takes a row's field or a literal as an argument, not " + arg.getClass().getSimpleName()
+                    + " (the host judge evaluates nothing)");
+        };
+    }
+
+    private static Number number(@com.legend.base.Nullable Object v, String fqn) {
+        if (v instanceof Number n) {
+            return n;
+        }
+        throw new com.legend.error.NotImplementedException(fqn + ": assertEqWithinTolerance over a row whose value is"
+                + " not a number: " + v);
+    }
+
     /** The cell-pool multiset of the sorted flat-cells idiom: a grid side's cells against
      * the pool. Null = neither side is a grid (the ordinary equality continues). */
     static @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        SideFetch ef0 = sideCanon(cellsE, letPrefix, specs, env, false, hook);
-        SideFetch af0 = sideCanon(cellsA, letPrefix, specs, env, false, hook);
+        List<TypedSide> pair = sides(name, List.of(canonAsk(cellsE, hook), canonAsk(cellsA, hook)), letPrefix,
+                specs, env);
+        SideFetch ef0 = sideCanonOf(pair.get(0), false);
+        SideFetch af0 = sideCanonOf(pair.get(1), false);
         if (ef0.grid() != null || af0.grid() != null) {
             return tdsRowValuesSameElements(name, ef0, af0);
         }
@@ -1021,10 +1201,10 @@ final class HostJudge {
     static TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args,
             boolean incidental, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
-                env, incidental && !gridPair, hook);
-        SideFetch af = sideCanon(args.get(1), letPrefix, specs,
-                env, incidental && !gridPair, hook);
+        List<TypedSide> pair = sides(name, List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+                letPrefix, specs, env);
+        SideFetch ef = sideCanonOf(pair.get(0), incidental && !gridPair);
+        SideFetch af = sideCanonOf(pair.get(1), incidental && !gridPair);
         // the FLAT-CELLS verdict (grid canon byte channel +
         // host cell lattice referee)
         if (ef.grid() != null || af.grid() != null) {
@@ -1078,10 +1258,10 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide jsonStringsEqual(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        String ejson = AssertVerdicts.jsonSideText(args.get(0), letPrefix,
-                specs, env, hook);
-        String ajson = AssertVerdicts.jsonSideText(args.get(1), letPrefix,
-                specs, env, hook);
+        List<TypedSide> pair = sides(name, List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
+                letPrefix, specs, env);
+        String ejson = AssertVerdicts.jsonSideTextOf(pair.get(0));
+        String ajson = AssertVerdicts.jsonSideTextOf(pair.get(1));
         if (ejson == null || ajson == null) {
             return null;   // non-[1]-string shape: generic path
         }
@@ -1129,8 +1309,10 @@ final class HostJudge {
             TypedSpec rendered, @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm,
             boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<Object> ev = AssertVerdicts.side(args.get(0), letPrefix, specs, env, hook);
-        List<Object> av = AssertVerdicts.side(args.get(1), letPrefix, specs, env, hook);
+        List<TypedSide> pair = sides(name, List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
+                letPrefix, specs, env);
+        List<Object> ev = AssertVerdicts.decodeSide(pair.get(0));
+        List<Object> av = AssertVerdicts.decodeSide(pair.get(1));
         if (ev.size() == 1 && ev.get(0) instanceof String et
                 && av.size() == 1 && av.get(0) instanceof String at) {
             // a BOTH-rendered pair always judges as a multiset (even
