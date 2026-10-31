@@ -16583,6 +16583,37 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-30 — CI red on S3b's head (7ce577db): the DuckDB database pass's engine-order register measured the deleted describe; re-pinned
+
+1. **Found by CI, not by the local chain:** run 2291 on 7ce577db failed `//spec:update_rcorpus_duckdb_4_test` on Linux
+   and Windows (`corpus_duckdb`): the DuckDB database pass's engine-order register measured 666 tests against the
+   committed 872. S3b's record below said "zero roster movement"; the corpus lanes' diff tests it read were cached
+   results, not a run of the commit's own jars. The check is now run with `--nocache_test_results`. The warehouse
+   lane's red on the same run is the runner's disk ("No space left on device" extracting the LLVM toolchain), not this
+   branch's; macOS's 15 jobs were cancelled before any step ran.
+2. **Root cause, measured:** the deleted `WireProbe.reconcile` rendered every store-reading database-pass side through
+   the dialect at planning (`dialect.render(whole)`, the text of its describe), and DuckDB's test-only scan-order pass
+   (`StableScanOrder`, `-Dlegend.exec.engineScanOrder=true`) counted a firing on that rendered describe. The judged
+   statement is not changed by the pass, before or after: the assert boundary's always-on `ScanOrder` has already
+   put the order in place. Proof on `fromMapping::testFromWithMapping` (`//spec:corpus_one` with the flag): the
+   database pass fires 0 at the head; one temporary line rendering the bare side as the reconcile did, nothing sent,
+   brings it back to 2; reverted. The host pass fires 2 at the head (the flag reaches the pass).
+3. **The movement, exactly:** 206 rows removed, none added (117 of them unordered-chain tests, compared as
+   multisets); the same 206 on the S3c second part's head (4ee64d01) and on the S3c third part's work tree. Every
+   other measured file of both corpus lanes unchanged; the DuckDB database pass's census `body=6551 fallback=0`, as
+   S3b recorded. `duckdb-database-engine-order-register.txt` 872 -> 666 lines by `bazel run //spec:update_rcorpus_duckdb_4`.
+4. **Also found, by the full local gate this time:** S3c's first part (57303fef) made `RawGridSchema` name the
+   `toString`/`toCSV` natives, and `native-claims.tsv` (generated: the classes that name each native) was not
+   regenerated -- `//core:update_generated_4_test` red on 57303fef and 4ee64d01, neither pushed. That commit was checked
+   by its lanes, not by `//gates:local`. Regenerated (`bazel run //core:update_generated_4`): the three rows add
+   `RawGridSchema`, which S3c's third part deletes.
+5. **Measured locally (uncached, on 4ee64d01 with the re-pin and the regenerated claims):** `//gates:corpus_duckdb`,
+   `//gates:corpus_h2`, `//gates:pct_channel_b` 17 of 17 (16 of 17 before the re-pin, the one this entry is about);
+   `bazel test --lockfile_mode=error //gates:local`: 446 pass, 1 skipped (the arm64-only classpath test), 10 fail --
+   the 9 that start a Postgres refuse root in this container and pass 9 of 9 run unprivileged, and
+   `update_generated_4_test` above, green after the regeneration. (The first gate run died at 354 of 457: the Bazel
+   server OOM-killed at four parallel tests; re-run with `--local_test_jobs=2`.)
+
 ## 2026-10-30 — The seam program's S3c, second part: a raw grid is a relation of the columns its result reports; the staticizer deleted; F1 closed
 
 The decisions log D89; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 (item 3: "the columns come from
@@ -16672,7 +16703,7 @@ for the whole remainder.
    ("initdb refuses root") and pass 9 of 9 run unprivileged (`tools/postgres/as_unprivileged.sh`, the start page's §6);
    `corpus_duckdb`, `corpus_h2`, `pct_channel_b` 5 of 5: zero
    roster movement, every pass's pass/fail count unchanged (DuckDB host 2,471/108, database 2,473/108; H2 host
-   2,289/295, database 2,233/353), the host passes' and DuckDB database pass's statement censuses equal S3a's. The new
+   2,289/295, database 2,233/353), the host passes' and DuckDB database pass's statement censuses equal S3a's. **Corrected 2026-10-30 (CI run 2291): the DuckDB database pass's engine-order register DID move (872 -> 666 rows) -- the diff tests read here were cached; the entry above, "CI red on S3b's head".** The new
    spelling is emitted 24 times on each corpus database pass and 0 times on channel B (a temporary count, reverted),
    so the heavy channel B lanes never see it; the member-by-member rung reaches them (planning only, verdict-neutral):
    their by-hand run is owed and batched with the staticizer's keyed form, which needs it by its nature.
