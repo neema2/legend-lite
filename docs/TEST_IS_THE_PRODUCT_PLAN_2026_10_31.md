@@ -20,7 +20,7 @@ statement before its last is refused, `UserCallInliner.java:204-207`; `program` 
 After this plan: **the product planner plans a test body into one `ExecutionPlan`, `PlanRunner.program` runs it, and
 the judges and the test listener are the sink.** Every statement, let, write, effect and assert side is planned by the
 product's code; what is test-only is the short named list of §2.C. The database judge is 100% a SQL plan; the host
-judge is the product's sides, then Java compares the rows. Realistic size: **10 to 13 weeks of sessions**, in eleven
+judge is the product's sides, then Java compares the rows. Realistic size: **9 to 12 weeks of sessions**, in eleven
 steps with checkpoints (§7).
 
 ## 1. The user's rulings (2026-10-31, verbatim where quoted)
@@ -39,6 +39,7 @@ steps with checkpoints (§7).
 | R10 | Decision 10: the canon computed over the product plan's columns, fully ("why would we not fix the cannon fully"); object ids: one counter per PROGRAM, for the product and tests alike (§6 B9), agreed after the explanation of its meaning. |
 | R11 | "No need to push to CI until we have a good checkpoint": commits stay local between agreed checkpoints (with a backup, §9 N5). |
 | R13 | §9's N1, N2, N4, N5, N6 as recommended ("Agree to all except the assertError"): the product's query door refuses the test-only steps (B6); the test-only planning in its own library (B4); the eager run at a let on both passes (MV7); backups between checkpoints on the work branch `claude/wizardly-dirac-rw6tim-seam-wip` (no CI runs on it); a verdict group closes before every non-verdict step (2.D). N3: option A, `assertError`'s comparison in Java ("Okay that's fine"). |
+| R14 | A planning failure is a COMPILE ERROR: the whole test fails, nothing recovers ("like a compiler error in another language that should just fail the whole function"); the one exception is `assertError`'s body, whose planning error is the error under test (T10). And ONE plan per body: what must run before a later statement can be written is a Keyed step inside that plan -- the dynamic pivot's pattern, already built (S110; Keyed inside a Sequence since S1a) -- never a plan in parts ("single plan with multi step like dynamic pivot"). |
 | R12 | Unchanged from the predecessor program (§8.2): never push to main, never open or merge a PR without the user's word; no output spelling change without the user's word, case by case; an answer to a question is not a go to build something else; a guard pin or allowlist moves only with a dated justification; never read, print or copy credentials; records land with the code. |
 
 ## 2. The ledger
@@ -59,7 +60,7 @@ steps with checkpoints (§7).
 | D40, D41 | intermediate values decoded into Java; a write's count returned in Java | a `Check` step; the product's count statement | text, count |
 | D46 | an effect or write run while a database side is being planned | a step of the plan, in order | order |
 
-### 2.B Product features: they move INTO the product planner (B6: what the product's query door refuses)
+### 2.B Language features: they move INTO the product planner (the rows marked "test library" are planned by B4's library on the product's statement entry and refused on the product door, B6: the product planner, which ships in the WebAssembly and native planners, gains only what a product query can use)
 
 | D/R | Feature |
 |---|---|
@@ -69,9 +70,8 @@ steps with checkpoints (§7).
 | D17, R18 | DDL text generators and orchestration handles answered with no statement; `print`'s argument never evaluated |
 | D26 | a literal root a constant (R7 decision 6; the runner accepts a constant-only program, B2) |
 | D29, D30 | raw-grid reads; the to-one reader's check (if the product lacks it: measured at M0) |
-| D35 | a from()'s inline test data and named runtime as `Setup` steps, established once per session (B2) |
-| R11, D34 | effects as `Effect` steps; consecutive effects one script (R7 decision 14); the transaction rule (B2) |
-| R13 | the effectful map (a map over `executeInDb`): a text-feeding step (B2) |
+| D35 | a from()'s inline test data and named runtime as `Setup` steps, established once per session (B2) -- in the test library (B4), refused on the product door (B6) |
+| R11, D34 | effects as `Effect` steps; consecutive effects one script (R7 decision 14); the transaction rule (B2) -- planned by the TEST library (B4) on the product's statement entry, refused on the product door (B6) |
 | D37 | the system tables: one code path to the graph's system database (R9, B7) |
 | ids | one object-id counter per program (R10, B9) |
 | D31 | a let read more than once materialized once (a CTE) where both judge modes and the product read it alike (B10; MV9) |
@@ -86,8 +86,8 @@ steps with checkpoints (§7).
 | T4 | the host judge: Java compares the sides' rows by `check` (§3.2); and the order key on a grid under assertion that the test did not sort (R8) | R7, D24 |
 | T5 | the sink: the test listener (verdicts, unjudged reasons, the last answer), the BOTH mode's agreement, the trace stamp reserved for a fused statement | D44, D49 |
 | T6 | the corpus lanes' engine row-order emulation (`StableScanOrder`), a run option the lanes pass, not a JVM global (R7 decision 8) | D25 |
-| T8 | the test-data generator: a two-plan body (the generator's plan runs, its rows fold into the next plan) | D38 |
-| T9 | a computed effect string: a step whose one cell is the next step's statement text | D39 |
+| T8 | the test-data generator: a Keyed step (its queries the keys step, its rows filling the value regions of the statements after it; R14); if M0 finds a statement whose compiled SHAPE depends on the generator's rows, that case is posted before any other form | D38 |
+| T9 | a computed effect string, and the map over `executeInDb` (R13): a Keyed step -- the string's query the keys step, the effect statement its region (one effect per row for the map; R14) | D39, R13 |
 | T10 | `assertError`: an `ExpectFailure` sub-plan (a planning failure included, O8); the captured error compared with the expected message and position (§9 N3: in Java, recommended) | R17 |
 | T11 | the engine-text asserts: the two SQL texts compared as a constant of the plan; where they differ, the rows leg one statement on the lane's database where the golden runs there | R10 |
 | T12 | staged raw grids (a raw grid read after an effect, held in a temporary table) | R6, D12 |
@@ -182,7 +182,7 @@ posted the same way (R7 decision 12).
 | MV5 | R10/B9: one id counter per program | id literals in multi-statement product write programs (SQL text); tests: none expected, checked | M1 |
 | MV6 | 2.A's convergences | D5 milestoned reads, D7 streamed graph answers, D8 H2 type holes, D18 a new refusal, D27 value-shape facts, D36 target refusals | M5 |
 | MV7 | decision 1 in one plan for both modes | the eager run at a let on the DATABASE pass too (+about 1,950 statements per corpus pass), §9 N4 | M5 |
-| MV8 | O8: planning before running | a later statement's planning failure (made a `Refused` step at its position, B2) must not pre-empt an earlier assert; `assertError`'s planning-time catch kept (T10) | M10 |
+| MV8 | R14: a planning failure fails the whole test | a test failing today at an earlier assert that also holds an unplannable later statement reports the compile error instead (still failing); an unplannable statement in a branch that never runs now fails the test; `assertError`'s body keeps its planning error as the error under test | M10 |
 | MV9 | D31/O9: a let read twice one form in both modes | host-mode text; outcome risk measured (the H2 pass's history of frames not found) | M3 |
 | MV10 | B2: the transaction rule | effect bodies' transaction scope; the savepoint before a fused statement in a transaction (F11) | M3 |
 | MV11 | R9/B7: one code path to the system database | product metamodel queries move to the system database; statement order on the system session | M4 |
@@ -224,13 +224,14 @@ posted the same way (R7 decision 12).
 - **B1, the statement entry (M5).** `PlanMaker` gains a public per-statement entry (the program so far, one
   statement -> its steps), so the old walk can ask the product planner statement by statement while asserts still take
   the old road; after M10 it is the program road's own loop.
-- **B2, the runner's step kinds (M3, M9).** `Refused(reason)` (a planning failure raised at its position, O8);
-  `ExpectFailure(sub-plan)` (`assertError`; the failure, planning ones included, handed to the matcher); `TextFeed`
-  (a step whose rows become the next step's statement text: T9, R13); `Setup` per from() (D35; established once per
-  session with the seeds' memo); constant-only programs accepted (`PlanRunner.java:231-233` refuses them today); the
-  transaction rule: a program that changes the database runs in one transaction, effect scripts inside it with the
-  dialect's bracket, and a fused verdict statement inside a transaction is preceded by a savepoint where the dialect
-  aborts a transaction on error (F11), so the split rung can run.
+- **B2, the runner (M3, M9).** One plan per body (R14). New: `ExpectFailure(sub-plan)` for `assertError` (the
+  failure, from running or from planning its body, handed to the comparison, N3); `Setup` per from() (D35; established
+  once per session with the seeds' memo); constant-only programs accepted (`PlanRunner.java:231-233` refuses them
+  today); the transaction rule: a program that changes the database runs in one transaction, effect scripts inside it
+  with the dialect's bracket, and a fused verdict statement inside a transaction is preceded by a savepoint where the
+  dialect aborts a transaction on error (F11), so the split rung can run. NOT new: what must run before a later
+  statement can be written (T8, T9, the map over `executeInDb`) is the existing `Keyed` step inside the `Sequence`
+  (S110, S1a); a planning failure is a compile error (R14), so there is no "refused" step.
 - **B3, the verdict record (M6).** Label, `check`, base sides, the database form, and every fact a judge reads at
   judge time today (the sides' static types, the order view, the keyed-class restriction, the TDSNull direction, a
   quantified assert's literal message, tolerance arguments), so no judge reads the model.
@@ -262,7 +263,7 @@ posted the same way (R7 decision 12).
 
 | Step | What | Size |
 |---|---|---|
-| **M0** ◆ | Measure, no product change: the probe applied from `docs/test-is-product-homework/probes/`; every MV class counted with an example; the referee's MATCH/DIVERGED/DECLINED counts; capped host sides; seeds and errors inside groups; planning failures after a body's first failing statement; constant-only bodies; effectful maps and computed strings; frame CTE reads; D27, D30; the census baseline | 3-5 days |
+| **M0** ◆ | Measure, no product change. The parity census BUILT (the parked probe in `docs/test-is-product-homework/probes/` re-lowers already-resolved bodies only, audit W4: the census plans each statement both ways through a statement entry, front half included); every MV class counted with an example; whether any statement's compiled shape depends on the test-data generator's rows (T8); the referee's MATCH/DIVERGED/DECLINED counts; capped host sides; seeds and errors inside groups; planning failures after a body's first failing statement; constant-only bodies; effectful maps and computed strings; frame CTE reads; D27, D30; the census baseline | 3-5 days |
 | **M1** ◆ | One id counter per program (B9); every test's ids checked | 2-3 days |
 | **M2** | Product features, the safe set: D4, D6, D9, D10, D13, D14, D16, D17/R18, D26 + constant-only programs, D29, D30 | 1-1.5 weeks |
 | **M3** ◆ | Product features that need designs: effects + scripts + the transaction rule + F11 (B2), `Setup` seeds (B2), frames and the eager run (B10), the query door's refusals (B6) | 1.5-2 weeks |
@@ -271,8 +272,8 @@ posted the same way (R7 decision 12).
 | **M6** ◆ | The verdict record (B3), the assert module in its own library (B4, B5), the host judge on product sides | 1.5-2 weeks |
 | **M7** | The fused group composed at planning (from `VerdictBatch`'s flush) | 1 week |
 | **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3), then the canon over the product columns (B8, MV4) | 2 weeks |
-| **M9** ◆ | The run-then-plan kinds: T8, T9, R13, T10, inline `execute(...)` (B2) | 1.5 weeks |
-| **M10** ◆ | One plan per body: `BodyCompiler` and `Segments` deleted; 2.D's rule (MV1); `Refused` steps (MV8); `theDriverCompilesNothing`; the parity guard's permanent form; the layer file | 1 week |
+| **M9** ◆ | The kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); inline `execute(...)` | 1 week |
+| **M10** ◆ | One plan per body: `BodyCompiler` and `Segments` deleted; 2.D's rule (MV1); a planning failure a compile error (R14, MV8); `theDriverCompilesNothing`; the parity guard's permanent form; the layer file | 1 week |
 | **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
 
 ## 8. Start here (for a session picking this up)
@@ -345,4 +346,6 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
 - 2026-10-31: v1 drafted after the code inventory (A); the user's rulings R1-R12; the independent audit (B) found six
   blockers and many majors in v1 (incoherent rulings, a hidden oracle conflict, the step order, missing designs,
   resumability; 4 weeks under-sized to 9-13); v2 written from it. The user agreed v2's §9 but N3 (R13) and R10's ids;
-  N3 explained. Next: the user's word on N3, then M0.
+  N3 ruled A. The user's review questions led to R14 (a planning failure a compile error; one plan per body, Keyed
+  steps for what must run first) and two corrections (the test-only kinds planned by the test library; M0 builds the
+  parity census). Next: the user's word on v2 as it stands, then M0.
