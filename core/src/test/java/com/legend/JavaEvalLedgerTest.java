@@ -1451,6 +1451,12 @@ class JavaEvalLedgerTest {
                     // route, lowered and wrapped as its judge reads it, with no session; the driver opens the route
                     "SidePlanner.java",
                     "SqlTextInputs.java", "PlanAllocations.java", "AggAwareActivities.java",
+                    // the product's statement road (the test-is-the-product plan's M2, B11, 2026-10-31): a query's and
+                    // a program's statements planned by the test road's front half (inlined with the lets kept, natives
+                    // staged, resolved with the lets' bindings, prepared, lowered with the product's configuration and
+                    // the frame's facts, post-processed); a String or Boolean literal and a DDL text the plan's own
+                    // constant. Planning, no session; nothing evaluated: a constant is the literal's or the model's text
+                    "ProductStatements.java",
                     "package-info.java");
 
     /** THE DRIVER, closed (step C, D73, 2026-10-30): the execution side's machinery behind the root's two execution

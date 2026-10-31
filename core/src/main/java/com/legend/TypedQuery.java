@@ -129,9 +129,14 @@ public final class TypedQuery {
      *  §9, step 2's landing 2). */
     public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
             List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
-        Resolved r = resolve(new java.util.ArrayList<>(body()), runtime);
-        return new Compiler.LoweredQuery(lowerer(r.temporal(), streaming, slots, features).lower(r.body()), r.root(),
-                ctx);
+        // the product's statement road (the test-is-the-product plan's M2, B11): the test road's front half, the
+        // product's lowering
+        com.legend.planner.ProductStatements.Statement s = com.legend.planner.ProductStatements.prepare(this,
+                body(), runtime, null, features);
+        com.legend.planner.Prepared.Planned p = com.legend.planner.ProductStatements.planned(s);
+        com.legend.sql.SqlQuery plan = com.legend.planner.ProductStatements.lower(this, p, s.temporal(), streaming,
+                slots, new com.legend.lowering.ObjectSites());
+        return new Compiler.LoweredQuery(plan, p.body().get(p.body().size() - 1), ctx);
     }
 
     /** Statements inlined (G½) and resolved (H) for a runtime, every store they touch bound to it: what a lowering

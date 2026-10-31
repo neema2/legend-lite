@@ -7,6 +7,7 @@ import com.legend.Compiler;
 import com.legend.TypedQuery;
 
 import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.element.type.Type;
 import com.legend.database.Databases;
 import com.legend.executionplan.ExecutionPlan;
@@ -60,8 +61,17 @@ public final class PlanMaker {
             return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
                     program(query, runtime, slots, features, serverVersion));
         }
+        // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
+        ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, features);
+        ExecutionPlan.Constant constant = ProductStatements.constant(st);
+        if (constant != null) {
+            return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(), constant);
+        }
         // a typed plan answers a graph fetch's objects one per row: the streaming graph root
-        Compiler.LoweredQuery l = query.lower(runtime, true, slots, features);
+        Prepared.Planned planned = ProductStatements.planned(st);
+        Compiler.LoweredQuery l = new Compiler.LoweredQuery(ProductStatements.lower(query, planned, st.temporal(), true,
+                slots, new com.legend.lowering.ObjectSites()), planned.body().get(planned.body().size() - 1),
+                query.context());
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
@@ -72,20 +82,9 @@ public final class PlanMaker {
         Metamodel metamodel = metamodel(l, dialect);
         ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l.ctx(), dialect, servers,
                 metamodel);
-        ExprType root = l.root().info();
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
-        com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(lowered);
-        // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns kept)
-        Type.RelationType rowSchema = Type.schemaView(root.type()) == null ? null : TypedRows.schema(root);
-        if (dynamic != null && rowSchema != null && !rowSchema.dynamicColumns().isEmpty()
-                && com.legend.plan.ResultShape.of(l.root()) == com.legend.plan.ResultShape.TABULAR) {
-            // a pivot no cast names: its columns are the data's, so its plan reads its keys first (the probe plan,
-            // 2026-10-20, KeyedPivot); every database
-            return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
-                    keyed(lowered, dynamic, rowSchema, dialect, target));
-        }
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
                 typed(l.root(), lowered, dialect, target));
     }
@@ -135,38 +134,49 @@ public final class PlanMaker {
                 // STAGED ROWS: computed at this statement's turn into a temporary table of the session, which the
                 // statements after read by name (the writes between read the rows as they were)
                 String table = com.legend.resolver.StagedRows.table(let.name());
-                TypedQuery.Resolved r = query.resolve(with(lets, rows), runtime, i);
-                com.legend.lowering.Lowerer lowerer = query.lowerer(r.temporal(), false, slots, features, sites);
-                SqlQuery q = com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(lowerer.lower(r.body())));
+                // the product's statement road (M2, B11): the test road's front half, the product's lowering
+                ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, rows), runtime, i, features);
+                Prepared.Planned sp = ProductStatements.planned(st);
+                com.legend.lowering.Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false, slots,
+                        sites);
+                SqlQuery q = com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(ProductStatements.postProcessed(
+                        lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)), sp.env())));
+                TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
                 steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(com.legend.sql.SqlDml.CreateTempTableAs
-                        .staged(table, q, com.legend.resolver.StagedRows.columns(r.root().info()))), target, null),
+                        .staged(table, q, com.legend.resolver.StagedRows.columns(rowsRoot.info()))), target, null),
                         null));
                 staged.add(table);
                 lets.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
-                        com.legend.resolver.StagedRows.storeOf(r.body(), ctx, runtime), let.info()));
+                        com.legend.resolver.StagedRows.storeOf(sp.body(), ctx, runtime), let.info()));
                 continue;
             }
-            TypedQuery.Resolved r = query.resolve(with(lets, stmt), runtime, i);
-            com.legend.compiler.spec.typed.TypedSpec root = com.legend.compiler.spec.typed.Lets.bare(r.root());
-            while (root instanceof com.legend.compiler.spec.typed.TypedFrom f) {
-                root = f.source();
-            }
-            if (com.legend.compiler.spec.StatementEffects.isStoreWrite(root)) {
-                List<com.legend.compiler.spec.typed.TypedSpec> write = new ArrayList<>(r.body().subList(0,
-                        r.body().size() - 1));
-                write.add(root);
-                com.legend.sql.SqlDml dml = query.lowerer(r.temporal(), false, slots, features, sites)
-                        .lowerStoreWrite(write);
-                steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
-                        last ? ExecutionPlan.COUNT : null));
+            ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, stmt), runtime, i, features);
+            ExecutionPlan.Constant constant = ProductStatements.constant(st);
+            if (constant != null) {
+                // a value the program wrote: the answer where it is the last statement; before it, nothing to run
                 if (last) {
-                    steps.add(count(query, root, dialect, target, features, sites));
+                    steps.add(constant);
                 }
                 continue;
             }
-            SqlQuery q = com.legend.sql.EnumValueTables.apply(query.lowerer(r.temporal(), last, slots, features, sites)
-                    .lower(r.body()));
-            steps.add(last ? typed(r.root(), q, dialect, target)
+            if (!last && st.prepared() instanceof Prepared.Handle) {
+                // an orchestration handle (a connection, a runtime) before the last statement: nothing to run
+                continue;
+            }
+            if (st.prepared() instanceof Prepared.StoreWrite w) {
+                com.legend.sql.SqlDml dml = ProductStatements.storeWrite(query, w, st.temporal(), slots, sites);
+                steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
+                        last ? ExecutionPlan.COUNT : null));
+                if (last) {
+                    steps.add(count(query, w.write(), dialect, target, features, sites));
+                }
+                continue;
+            }
+            Prepared.Planned p = ProductStatements.planned(st);
+            SqlQuery q = com.legend.sql.EnumValueTables.apply(ProductStatements.lower(query, p, st.temporal(), last,
+                    slots, sites));
+            TypedSpec answer = p.body().get(p.body().size() - 1);
+            steps.add(last ? typed(answer, q, dialect, target)
                     : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)));
         }
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : staged) {
@@ -206,9 +216,12 @@ public final class PlanMaker {
      * from the driver by the plan's columns and their three facts, no output text in it. A relation answers its rows;
      * a value its elements in the one column {@code value}; a graph fetch its objects, one per row, each the object's
      * JSON as the database built it (the streaming graph root). A sort key that is no output rides as a hidden column
-     * ({@link TypedRows#statement}).
+     * ({@link TypedRows#statement}). Two answers are KEYED, their columns the data's (the test-is-the-product plan's
+     * M2, B11 step 7, D29: the test road's rule, now the product's for a query and a program's last statement alike):
+     * a pivot no cast names (its keys read first, the probe plan of 2026-10-20,
+     * {@link com.legend.lowering.KeyedPivot}), and a statement that reads a raw grid's report ({@link #rowsOrGridKeyed}).
      */
-    private static ExecutionPlan.TdsResult typed(com.legend.compiler.spec.typed.TypedSpec rootSpec, SqlQuery lowered,
+    private static ExecutionPlan.Node typed(com.legend.compiler.spec.typed.TypedSpec rootSpec, SqlQuery lowered,
             SqlDialect dialect, ExecutionPlan.Target target) {
         ExprType root = rootSpec.info();
         return switch (com.legend.plan.ResultShape.of(rootSpec)) {
@@ -227,14 +240,22 @@ public final class PlanMaker {
                                         outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS))),
                         sql(lowered, dialect, target));
             }
-            case TABULAR -> new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
-                    com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered,
-                            ExecutionPlan.TdsResult.Shape.RELATION),
-                    sql(TypedRows.statement(lowered), dialect, target));
-            case SCALAR, COLLECTION -> new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
+            case TABULAR -> {
+                // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns
+                // kept)
+                Type.RelationType rowSchema = TypedRows.schema(root);
+                com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(lowered);
+                if (dynamic != null && !rowSchema.dynamicColumns().isEmpty()) {
+                    yield keyed(lowered, dynamic, rowSchema, dialect, target);
+                }
+                yield rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.RELATION, com.legend.plan.PlanColumns.of(
+                        rowSchema, lowered, ExecutionPlan.TdsResult.Shape.RELATION), TypedRows.statement(lowered),
+                        dialect, target);
+            }
+            case SCALAR, COLLECTION -> rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.VALUE,
                     com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered,
                             ExecutionPlan.TdsResult.Shape.VALUE),
-                    sql(TypedRows.statement(lowered), dialect, target));
+                    TypedRows.statement(lowered), dialect, target);
         };
     }
 

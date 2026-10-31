@@ -44,6 +44,8 @@ class TypedPlanTest {
             case ExecutionPlan.Check k -> k.sql().target();
             case ExecutionPlan.Effect e -> e.sql().target();
             case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a typed plan here is never a verdict group");
+            case ExecutionPlan.Constant c -> throw new IllegalStateException("a typed plan here reads a database: a"
+                    + " constant answer names no target");
         };
     }
 

@@ -95,6 +95,14 @@ public final class PlanRunner {
                 }
                 streamed.end();
             }
+            case ExecutionPlan.Constant constant -> {
+                // a value the program wrote: answered with nothing sent, no session opened
+                Streamed streamed = new Streamed(constant.columns(), sink, capacity);
+                for (List<Object> row : constantRows(constant)) {
+                    streamed.row(row);
+                }
+                streamed.end();
+            }
             case ExecutionPlan.Update update -> throw new IllegalStateException("a plan whose answer is an update: a"
                     + " plan's answer is a result");
             case ExecutionPlan.Check check -> throw new IllegalStateException("a plan whose answer is a check: a"
@@ -175,6 +183,7 @@ public final class PlanRunner {
                     results++;
                     sqls.add(t.sql());
                 }
+                case ExecutionPlan.Constant c -> results++;
                 case ExecutionPlan.Keyed k -> {
                     results++;
                     snapshot = stricter(snapshot, k.snapshot());
@@ -246,6 +255,10 @@ public final class PlanRunner {
                         case ExecutionPlan.TdsResult t -> {
                             answered[0] = true;
                             result(t, live, st, held);
+                        }
+                        case ExecutionPlan.Constant c -> {
+                            answered[0] = true;
+                            constant(c, held);
                         }
                         case ExecutionPlan.Keyed k -> {
                             answered[0] = true;
@@ -591,6 +604,11 @@ public final class PlanRunner {
         boolean changes = false;
         ExecutionPlan.Keyed.Snapshot snapshot = null;
         for (ExecutionPlan.Node step : sequence.steps()) {
+            if (step instanceof ExecutionPlan.Constant) {
+                // a value the program wrote: the answer, with nothing sent
+                results++;
+                continue;
+            }
             ExecutionPlan.Sql sql = switch (step) {
                 case ExecutionPlan.Update u -> {
                     changes = true;
@@ -621,6 +639,8 @@ public final class PlanRunner {
                 }
                 case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict step inside a plan run"
                         + " for its answer: a program's step, run by program(...)");
+                case ExecutionPlan.Constant c -> throw new IllegalStateException("not reached: a constant step sends"
+                        + " nothing");
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
                         + " plan's steps are one list");
             };
@@ -691,6 +711,7 @@ public final class PlanRunner {
                 case ExecutionPlan.Check k -> check(k, values, st);
                 case ExecutionPlan.Effect e -> effect(e, values, st);
                 case ExecutionPlan.TdsResult t -> result(t, values, st, held);
+                case ExecutionPlan.Constant c -> constant(c, held);
                 case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(held));
                 case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict step inside a plan run"
                         + " for its answer: a program's step, run by program(...)");
@@ -724,6 +745,37 @@ public final class PlanRunner {
         String statement = statement(e.sql(), values);
         StatementOrigin.sent(statement);
         st.execute(statement);
+    }
+
+    /** A constant answer's rows into {@code held}. */
+    private static void constant(ExecutionPlan.Constant c, Held held) {
+        held.columns = c.columns();
+        held.rows.addAll(constantRows(c));
+    }
+
+    /** A constant answer's TEXT cells read back by its column's declared type: a String the text, a Boolean
+     *  {@code true} or {@code false}; any other type refused by name (the planner writes no other constant). */
+    static List<List<Object>> constantRows(ExecutionPlan.Constant c) {
+        String type = c.columns().get(0).type();
+        List<List<Object>> rows = new java.util.ArrayList<>(c.cells().size());
+        for (List<String> row : c.cells()) {
+            String text = row.get(0);
+            Object cell = text == null ? null : switch (type) {
+                case "String" -> text;
+                case "Boolean" -> switch (text) {
+                    case "true" -> Boolean.TRUE;
+                    case "false" -> Boolean.FALSE;
+                    default -> throw new IllegalStateException("a Boolean constant's text is true or false, not '"
+                            + text + "'");
+                };
+                default -> throw new com.legend.error.NotImplementedException("a constant answer of " + type
+                        + ": the planner writes a String or a Boolean");
+            };
+            List<Object> one = new java.util.ArrayList<>(1);
+            one.add(cell);
+            rows.add(one);
+        }
+        return rows;
     }
 
     /** A typed result's rows into {@code held}. */

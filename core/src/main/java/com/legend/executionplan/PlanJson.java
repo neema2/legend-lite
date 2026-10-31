@@ -66,15 +66,17 @@ public final class PlanJson {
      *  seam program's S1b; 21 since 2026-10-30: a constant side's {@code folded} (its cells the compiler's join of the
      *  program's constant tokens, not the tokens verbatim: S2f, the user's ruling "it's okay to join CONSTANT strings
      *  only"); 22 since 2026-10-31: a keyed result's {@code keysOf} and {@code admitted} (its keys a raw grid's
-     *  reported columns, the kinds its cells may be in) and a verdict's keyed wrapper (the seam program's S3c). */
-    public static final int VERSION = 22;
+     *  reported columns, the kinds its cells may be in) and a verdict's keyed wrapper (the seam program's S3c); 23 since
+     *  2026-10-31: the {@code constant} node (a value the program wrote, answered with nothing sent: the
+     *  test-is-the-product plan's M2, MV12). */
+    public static final int VERSION = 23;
 
     private PlanJson() {
     }
 
     /** The {@code _type} tags of the lite format, one spelling for the writer and the reader: an exhaustive switch over
      *  each family, an unknown tag refused by name ({@link #tag}). */
-    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, verdicts }
+    enum NodeTag { sequence, tdsResult, keyed, update, check, effect, verdicts, constant }
 
     enum SideTag { rows, keyedRows, constant }
 
@@ -185,6 +187,11 @@ public final class PlanJson {
             case ExecutionPlan.Effect e -> {
                 o.put("_type", NodeTag.effect.name());
                 o.put("sql", sql(e.sql()));
+            }
+            case ExecutionPlan.Constant c -> {
+                o.put("_type", NodeTag.constant.name());
+                o.put("columns", columns(c.columns()));
+                o.put("cells", c.cells());
             }
             case ExecutionPlan.Verdicts v -> {
                 o.put("_type", NodeTag.verdicts.name());
@@ -509,6 +516,27 @@ public final class PlanJson {
                 }
                 Json.Obj f = o.getObjOr("fused", null);
                 yield new ExecutionPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"));
+            }
+            case constant -> {
+                List<List<String>> cells = new ArrayList<>();
+                for (Json.Node r : o.getArr("cells").items()) {
+                    if (!(r instanceof Json.Arr row)) {
+                        throw new IllegalArgumentException("a constant answer's row is an array of cells");
+                    }
+                    List<String> out = new ArrayList<>();
+                    for (Json.Node cell : row.items()) {
+                        out.add(switch (cell) {
+                            case Json.Str s -> s.value();
+                            case Json.Null x -> null;
+                            case Json.Num x -> throw notTextSide();
+                            case Json.Bool x -> throw notTextSide();
+                            case Json.Obj x -> throw notTextSide();
+                            case Json.Arr x -> throw notTextSide();
+                        });
+                    }
+                    cells.add(out);
+                }
+                yield new ExecutionPlan.Constant(readRelationColumns(o.getArr("columns")), cells);
             }
         };
     }

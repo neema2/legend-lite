@@ -63,6 +63,7 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Update u -> new ExecutionPlan.Update(withoutTree(u.sql()), u.count());
             case ExecutionPlan.Check c -> new ExecutionPlan.Check(withoutTree(c.sql()));
             case ExecutionPlan.Effect e -> new ExecutionPlan.Effect(withoutTree(e.sql()));
+            case ExecutionPlan.Constant c -> c;
             case ExecutionPlan.Verdicts v -> new ExecutionPlan.Verdicts(v.verdicts().stream().map(each ->
                     new ExecutionPlan.Verdict(each.name(), each.arm(), each.wantEqual(),
                             each.base().stream().map(PlanRoundTrip::withoutTrees).toList(),
@@ -91,6 +92,7 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Update u -> u.sql().statement().length();
             case ExecutionPlan.Check c -> c.sql().statement().length();
             case ExecutionPlan.Effect e -> e.sql().statement().length();
+            case ExecutionPlan.Constant c -> 0;
             case ExecutionPlan.Verdicts v -> {
                 long chars = v.fused() == null ? 0 : statementChars(v.fused());
                 for (ExecutionPlan.Verdict each : v.verdicts()) {
@@ -124,6 +126,9 @@ public final class PlanRoundTrip {
             }
             case ExecutionPlan.Check c -> assertRenders(c.sql(), what);
             case ExecutionPlan.Effect e -> assertRenders(e.sql(), what);
+            case ExecutionPlan.Constant c -> {
+                // a value the program wrote: no statement to render
+            }
             case ExecutionPlan.Verdicts v -> {
                 if (v.fused() != null) {
                     assertRenders(v.fused(), what);

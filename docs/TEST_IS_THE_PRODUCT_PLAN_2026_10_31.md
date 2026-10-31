@@ -268,6 +268,34 @@ posted the same way (R7 decision 12).
 - **B10, `execute(...)` frames in the program (M3).** The chain spliced into its readers by the compiler's rules
   (`ResultEnvelopeSplice`); the frame planned once and read as a CTE where it is read more than once (MV9); the eager
   run at the let a `Check` step (decision 1); the activity's SQL and its reserved trace stamp as plan data.
+- **B11, the product's statement road (M2; written 2026-10-31 under R15).** The product planner gains the test road's
+  language features, so a product query and a test statement are planned by the same functions; the test road is not
+  touched (its own walk stays until M5). One road, `planner/ProductStatements`, used by `PlanMaker.plan` (a query) and
+  by `PlanMaker.program` (each statement):
+  1. inlined with the inliner's consumed lets KEPT (D9, D13; `TypedQuery.resolve` drops them today), under the
+     statement's mark in a program (B9);
+  2. natives staged (`NativeDispatch.stage` with `EnginePlans.nativeRoutines`, D14: `planToString`/`toSQLString` become
+     the plan-time strings they print);
+  3. resolved with the let bindings and the plan rows (`BodyPlanner.resolver`, D13), then the cross-store guard;
+  4. prepared (`BodyPlanner.prepare`'s framing, D16): the OUTERMOST from()'s context is the frame -- its connection's
+     time zone (D4), its features (D6, with the tree's and the caller's), its connection post-processors (D10) -- and
+     its driver-PK and import-data-flow appends and the declared root kept; an answered kind (D17/R18: a DDL text, a
+     handle) a constant answer, never a statement;
+  5. lowered with the PRODUCT's configuration (object layout, the program's minter, the exists-join form unless
+     temporal, the streaming graph root on the answer, the slots) plus the frame's time zone and features and the
+     seedable let prefix (D9); post-processed (`SqlPostProcessors.applyRecorded`, D10); `EnumValueTables`,
+     `Metamodel.read`, the keyed pivot as today;
+  6. a String or Boolean literal answer folded to a constant (D26, the test road's own rule, `LiteralFold`: the only
+     types whose database spelling cannot differ from the literal's), a constant answer a new plan node (MV12:
+     `PlanJson` 23, the TypeScript runner's pin); a program of constants only accepted by the runner (B2's
+     constant-only programs, `PlanRunner.java:231-233`);
+  7. a raw grid's or a dynamic pivot's rows keyed where the test road keys them (`rowsOrGridKeyed`, D29); a `toOne()`
+     reader's cardinality held where the product answers (D30), by the same rule the test road's sink applies.
+  Not in M2: `execute(...)` read as a value (D15, the frames of B10, M3); effects (M3); the system database (M4).
+  Movement: product SQL only, for queries that use these features; measured by every core test package's sent
+  statements before and after (the M1 method) and by the M0 parity census re-run (its refusals for D9, D13, D14, D16
+  and the generator carriers shrink, its TZ and POST differences go). The test road's statements: none expected.
+  Sub-steps, each its own commit with the chain: M2a (1-5), M2b (6), M2c (7); the audit at M2's end.
 
 ## 7. The steps (◆ = a checkpoint: the branch pushed, CI on every OS, the lane sessions, the movement register to the user)
 

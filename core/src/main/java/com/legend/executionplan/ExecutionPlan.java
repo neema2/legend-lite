@@ -28,23 +28,34 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
 
     /** The shape of the typed rows this plan answers (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of
      *  2026-10-27): its result's -- a keyed result's is a relation's -- or, for a plan of steps, its one result step's.
-     *  A plan that answers no rows is refused by name: a writer has nothing to write. */
+     *  A plan that answers no rows is refused by name: a writer has nothing to write. A constant answer is a value's
+     *  (the test-is-the-product plan's M2, B11). */
     public TdsResult.Shape answerShape() {
         return switch (answer(root)) {
             case TdsResult t -> t.shape();
             case Keyed k -> TdsResult.Shape.RELATION;
+            case Constant c -> TdsResult.Shape.VALUE;
             default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
         };
     }
 
     /** The statement whose rows are this plan's typed answer: its result's, a keyed result's body, or a plan of
-     *  steps' one result step's ({@link #answerShape}'s rule). */
+     *  steps' one result step's ({@link #answerShape}'s rule). A constant answer sends no statement, and is refused
+     *  by name ({@link #sendsTheAnswer} asks first). */
     public Sql answerSql() {
         return switch (answer(root)) {
             case TdsResult t -> t.sql();
             case Keyed k -> k.body();
+            case Constant c -> throw new IllegalStateException("a constant answer sends no statement: the plan wrote"
+                    + " its value");
             default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
         };
+    }
+
+    /** Whether this plan's answer is a statement's rows ({@link #answerSql}), not a value the plan wrote
+     *  ({@link Constant}). */
+    public boolean sendsTheAnswer() {
+        return !(answer(root) instanceof Constant);
     }
 
     /** The columns of this plan's typed answer where the plan states them: its result's (or its one result step's);
@@ -52,6 +63,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     public @com.legend.base.Nullable List<Column> answerColumns() {
         return switch (answer(root)) {
             case TdsResult t -> t.columns();
+            case Constant c -> c.columns();
             case Keyed k -> null;
             default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
         };
@@ -61,9 +73,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         return switch (n) {
             case TdsResult t -> t;
             case Keyed k -> k;
+            case Constant c -> c;
             case Sequence s -> {
                 List<Node> answers = s.steps().stream()
-                        .filter(x -> x instanceof TdsResult || x instanceof Keyed).toList();
+                        .filter(x -> x instanceof TdsResult || x instanceof Keyed || x instanceof Constant).toList();
                 if (answers.size() != 1) {
                     throw new IllegalStateException("a plan of steps answers through one result step; this one has "
                             + answers.size());
@@ -107,7 +120,34 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Verdicts {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Verdicts, Constant {
+    }
+
+    /**
+     * A VALUE the program wrote, answered with nothing sent (the test-is-the-product plan's M2, B11, MV12, 2026-10-31):
+     * its one column {@code value} with its type facts and its elements as TEXT cells, each the literal's spelling as
+     * the program wrote it (null an absent value), read back by the column's declared type -- the same form a
+     * constant verdict side carries ({@link Side.Constant}). A query whose answer the planner knows as written: a
+     * String or Boolean literal (the kinds whose database spelling cannot differ from the literal's), a DDL text the
+     * model gives.
+     */
+    public record Constant(List<Column> columns, List<List<String>> cells) implements Node {
+        public Constant {
+            columns = List.copyOf(columns);
+            if (columns.size() != 1 || !columns.get(0).name().equals("value")) {
+                throw new IllegalArgumentException("a constant answer is one column, value: given "
+                        + columns.stream().map(Column::name).toList());
+            }
+            List<List<String>> copied = new java.util.ArrayList<>(cells.size());
+            for (List<String> row : cells) {
+                if (row.size() != 1) {
+                    throw new IllegalArgumentException("a constant answer's row of " + row.size() + " cells");
+                }
+                // a cell may be null (an absent value), which List.of refuses
+                copied.add(java.util.Collections.unmodifiableList(new java.util.ArrayList<>(row)));
+            }
+            cells = java.util.Collections.unmodifiableList(copied);
+        }
     }
 
     /**

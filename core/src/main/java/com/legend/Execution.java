@@ -80,7 +80,10 @@ public final class Execution {
                     session.version());
             com.legend.result.ResultSink sink = sinkOf.apply(plan);
             com.legend.exec.PlanSessions.Source on = switch (establish) {
-                case DECLARED_SETUP -> com.legend.exec.PlanSessions.setUp(session, plan.answerSql().target());
+                // a constant answer sends nothing: no setup to run (the test-is-the-product plan's M2, B11)
+                case DECLARED_SETUP -> plan.sendsTheAnswer()
+                        ? com.legend.exec.PlanSessions.setUp(session, plan.answerSql().target())
+                        : com.legend.exec.PlanSessions.of(session);
                 case AS_GIVEN -> com.legend.exec.PlanSessions.of(session);
             };
             com.legend.exec.PlanRunner.stream(plan, java.util.Map.of(), on, sink, batchRows);
