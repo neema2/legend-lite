@@ -35,6 +35,7 @@ that IS asserted — but the corpus must never claim to test ordering through th
 """
 from __future__ import annotations
 
+import decimal
 import json
 import math
 
@@ -94,10 +95,64 @@ def _operand(c: Corpus, node, binding: dict):
         return None if row is None else row.get(col)
     if tag == "call":
         fn, args = body
+        if fn == "explodeSemiStructured":
+            # The element of the exploded array the condition is being tested for (_general_targets binds it).
+            if _EXPLODED not in binding:
+                raise Unsupported("explodeSemiStructured outside a join's per-element evaluation")
+            return binding[_EXPLODED]
         return _dynafunction(fn, [_operand(c, a, binding) for a in args])
     if tag == "array":
         return [_operand(c, a, binding) for a in body]
     raise Unsupported(f"join operand {tag!r} has no evaluation rule")
+
+
+# The binding key of the element an exploded join condition is tested for.
+_EXPLODED = "{exploded}"
+
+
+def _explode_call(node):
+    """The one explodeSemiStructured call in a join condition, or None. The engine allows one per join, after
+    duplicates are removed (relational-semistructured-explode.emit.yaml), which is what a repeated call is."""
+    found = []
+
+    def visit(n):
+        if not isinstance(n, tuple):
+            return
+        tag, body = n
+        if tag == "call":
+            fn, args = body
+            if fn == "explodeSemiStructured" and n not in found:
+                found.append(n)
+            for a in args:
+                visit(a)
+        elif tag in ("and", "or"):
+            visit(body[0])
+            visit(body[1])
+        elif tag == "cmp":
+            visit(body[0])
+            visit(body[2])
+        elif tag in ("pred",):
+            visit(body)
+        elif tag == "null":
+            visit(body[0])
+        elif tag == "array":
+            for a in body:
+                visit(a)
+    visit(node)
+    if len(found) > 1:
+        raise Unsupported(f"a join condition explodes {len(found)} different arrays")
+    return found[0] if found else None
+
+
+def _explode_elements(c: Corpus, call, binding: dict) -> list:
+    """The elements explodeSemiStructured(column, path, 'SEMISTRUCTURED') fans a row into: the array at the path, one
+    joined row per element. No array there -- an absent key, a JSON null, a NULL document -- is no element, so the row
+    lands on nothing, as a join with no match (probed on 4.145.0, scripts/corpus/semi.py)."""
+    _tag, (_fn, args) = call
+    if len(args) != 3 or _operand(c, args[2], binding) != "SEMISTRUCTURED":
+        raise Unsupported(f"explodeSemiStructured{args!r}: the oracle reads (column, path, 'SEMISTRUCTURED')")
+    arr = _semi_walk(_semi_doc(_operand(c, args[0], binding)), _semi_tokens(_operand(c, args[1], binding)))
+    return arr if isinstance(arr, list) else []
 
 
 def _condition(c: Corpus, node, binding: dict) -> bool:
@@ -141,6 +196,7 @@ def _general_targets(c: Corpus, data, join, from_table: str, src: dict,
     named = rhs.condition_tables(join.condition)
     a, b = join.tables
     to_table = b if from_table == a else a
+    exploded = _explode_call(join.condition)
     out = []
     for tgt in data.get(to_table, []):
         if "{target}" in named:
@@ -148,6 +204,12 @@ def _general_targets(c: Corpus, data, join, from_table: str, src: dict,
                        else {from_table: src, "{target}": tgt})
         else:
             binding = {from_table: src, to_table: tgt}
+        if exploded is not None:
+            # EXPLODE (the improvement plan's Phase 9): the condition holds per ELEMENT of the exploded array, every
+            # part of it for the same element, and each element that pairs with this row is a joined row of its own.
+            out.extend(tgt for elem in _explode_elements(c, exploded, binding)
+                       if _condition(c, join.condition, {**binding, _EXPLODED: elem}))
+            continue
         if _condition(c, join.condition, binding):
             out.append(tgt)
     return out
@@ -328,22 +390,52 @@ def _value(c: Corpus, data, row, root: str, path: list[str], args=(), func=None,
 # -- the same discipline as the dynafunctions: the expected value comes from what the payload
 # MEANS, not from what the engine returned for it.
 def _json_property(c: Corpus, data, row, root: str, path: list[str], src):
+    doc, keys = _json_document(c, data, row, root, path, src)
+    if doc is _NO_DOCUMENT:
+        return None
+    for i, key in enumerate(keys):
+        if isinstance(doc, list):
+            # A JSON array mid-path is a to-many the planner flattens one row per element (Phase 9): only a fan-out
+            # projection reads it (_fan_rows), as only one reads a to-many association.
+            raise Fanout(f"{'.'.join(path)}: {'.'.join(keys[:i])} is a JSON array, which fans the row set out")
+        doc = doc.get(key) if isinstance(doc, dict) else None
+    if isinstance(doc, list):
+        raise Fanout(f"{'.'.join(path)} ends on a JSON array")
+    return doc
+
+
+# The document of a row whose payload column is NULL: every key under it is absent.
+_NO_DOCUMENT = object()
+
+
+def _json_document(c: Corpus, data, row, root: str, path: list[str], src):
+    """(the parsed document, the keys after the Binding's hop) for a path into a JSON-backed class.
+
+    Everything before the binding hop is ordinary navigation; the payload hangs off whatever row that lands on. The
+    hop is the step whose property a Binding transformer maps (c.bindings); a document nests classes below it, each
+    key a step (the improvement plan's Phase 9; before it a binding was one level deep, hier::Profile)."""
     import json
 
     table, col = src
-    # Everything before the binding hop is ordinary navigation; the payload hangs off
-    # whatever row that lands on.
-    if len(path) > 2:
-        _t, _c, prefix = c.resolve(root, path[:-2])
-        row = walk(c, data, row, prefix)
+    cls = root
+    for b, step in enumerate(path):
+        if (cls, step) in c.bindings:
+            break
+        end = c.ends.get((cls, step))
+        cls = end.target if end is not None else c.embedded[(cls, step)]
+    else:
+        raise Unsupported(f"{'.'.join(path)} crosses no Binding transformer")
+    if b:
+        hops, _cls = c.resolve_assoc(root, path[:b])
+        row = walk(c, data, row, hops)
         if row is None:
-            return None
+            return _NO_DOCUMENT, []
     raw = row.get(col) if row else None
     if raw is None:
-        return None
+        return _NO_DOCUMENT, []
     try:
-        return json.loads(raw).get(path[-1])
-    except (ValueError, AttributeError):
+        return json.loads(raw), list(path[b + 1:])
+    except ValueError:
         # A payload that is not valid JSON is a SEED defect, not a value. Refusing beats
         # returning None, which would look like an absent key.
         raise Unsupported(f"{table}.{col} does not hold valid JSON: {raw!r:.60}")
@@ -1985,6 +2077,184 @@ IMPL.update({
     "columnProjectionsFromRoot": lambda vals: _column_projections_from_root(*vals),
 })
 
+# ------------------------------------------------- semi-structured documents (the improvement plan's Phase 9)
+#
+# A SEMISTRUCTURED column holds a JSON document, and the store reads into it with extractFromSemiStructured(column,
+# path, type). Each rule below is stated from the pinned sources, read as spec (dbExtension.pure's
+# parseSemiStructuredPathNavigation, duckdbExtension.pure's renderings, the EMIT models' assertions), and every one was
+# probed on 4.145.0 against both test databases before a service asserted it (scripts/corpus/semi.py's header).
+
+def _semi_tokens(path: str) -> list[tuple]:
+    """A path as legend-engine reads it: a leading key, then `.key`, `[n]` or `["quoted key"]` (which may hold a dot or
+    a space), left to right; and `[*]`, a wildcard, which the engine desugars into an array_transform before it parses
+    the rest. ('key', name) | ('index', n) | ('all',)."""
+    toks, i = [], 0
+    m = re.compile(r"[^.\[]*").match(path, 0)
+    if m.group(0):
+        toks.append(("key", m.group(0)))
+        i = m.end()
+    while i < len(path):
+        if path[i] == ".":
+            m = re.compile(r"[^.\[]+").match(path, i + 1)
+            if m is None:
+                raise Unsupported(f"path {path!r}: an empty key at {i}")
+            toks.append(("key", m.group(0)))
+            i = m.end()
+        elif path.startswith("[*]", i):
+            toks.append(("all",))
+            i += 3
+        elif path.startswith('["', i):
+            end = path.find('"]', i + 2)
+            if end < 0:
+                raise Unsupported(f"path {path!r}: an unterminated quoted key at {i}")
+            toks.append(("key", path[i + 2:end]))
+            i = end + 2
+        elif path[i] == "[":
+            end = path.find("]", i)
+            if end < 0 or not path[i + 1:end].isdigit():
+                raise Unsupported(f"path {path!r}: an index that is not a whole number at {i}")
+            toks.append(("index", int(path[i + 1:end])))
+            i = end + 1
+        else:
+            raise Unsupported(f"path {path!r}: invalid token at {i}")
+    return toks
+
+
+def _semi_doc(v):
+    """A column's JSON text parsed (decimals kept exact), or a value already inside a document, as it is."""
+    import json
+
+    if isinstance(v, str):
+        try:
+            return json.loads(v, parse_float=decimal.Decimal)
+        except ValueError:
+            raise Unsupported(f"a semi-structured value that is not JSON: {v!r:.60}")
+    return v
+
+
+class _Many(list):
+    """What a wildcard collects: a flat sequence, Pure having no nested collection (the EMIT wildcard model's twoLevels)."""
+
+
+def _semi_walk(doc, toks):
+    """The value at a path. Absent at a missing key, a JSON null, an index past either end, or a step into something
+    that is not the container the step needs: each is NULL in the engine's SQL (probed: 'nope', 'legs[5].qty',
+    'legs[1].venue' over one leg). A wildcard reads the rest of the path in each element and collects what is there."""
+    for k, t in enumerate(toks):
+        if doc is None:
+            return None
+        if t[0] == "all":
+            if not isinstance(doc, list):
+                return None
+            out = _Many()
+            for e in doc:
+                v = _semi_walk(e, toks[k + 1:])
+                if isinstance(v, _Many):
+                    out.extend(v)
+                elif v is not None:
+                    out.append(v)
+            return out
+        if t[0] == "key":
+            doc = doc.get(t[1]) if isinstance(doc, dict) else None
+        else:
+            doc = doc[t[1]] if isinstance(doc, list) and t[1] < len(doc) else None
+    return doc
+
+
+_SEMI_SCALAR = {"CHAR", "VARCHAR", "STRING", "INTEGER", "FLOAT", "DECIMAL", "BOOLEAN", "DATE", "DATETIME", "TIMESTAMP",
+                "SEMISTRUCTURED"}
+
+
+def _semi_cast(v, ty: str):
+    """A value read out of a document, as the extraction's type names it. NULL stays NULL. A value that is not of the
+    type is refused rather than coerced: what a database's cast makes of a string read as an INTEGER is the database's
+    choice, and no service here asks it."""
+    if v is None:
+        return None
+    t = ty.upper()
+    if t.endswith("[]"):
+        # An array extraction: the array at the path, or what a wildcard collected, element by element. One with no
+        # element is absent, as the engine's EMIT flatten probe asserts (allEmpty: array_to_string over nothing is null).
+        elems = v if isinstance(v, list) else None
+        if elems is None:
+            raise Unsupported(f"an array extraction ({ty}) of a value that is not an array: {v!r:.40}")
+        out = [_semi_cast(e, t[:-2]) for e in elems]
+        return out or None
+    if t not in _SEMI_SCALAR:
+        raise Unsupported(f"extractFromSemiStructured to {ty!r}, which is not in the engine's whitelist")
+    if t == "SEMISTRUCTURED":
+        return v
+    if isinstance(v, (dict, list)):
+        raise Unsupported(f"a {ty} read of a sub-document")
+    if t in ("CHAR", "VARCHAR", "STRING"):
+        if not isinstance(v, str):
+            raise Unsupported(f"a {ty} read of the JSON {type(v).__name__} {v!r}")
+        return v
+    if t == "BOOLEAN":
+        if not isinstance(v, bool):
+            raise Unsupported(f"a BOOLEAN read of {v!r}")
+        return v
+    if t == "INTEGER":
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise Unsupported(f"an INTEGER read of {v!r}")
+        return v
+    if t in ("FLOAT", "DECIMAL"):
+        if isinstance(v, bool) or not isinstance(v, (int, decimal.Decimal)):
+            raise Unsupported(f"a {ty} read of {v!r}")
+        # Pure's Decimal is the number written, digit for digit; a FLOAT the double nearest it.
+        return decimal.Decimal(v) if t == "DECIMAL" else float(v)
+    if t == "DATE":
+        if not (isinstance(v, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", v)):
+            raise Unsupported(f"a DATE read of {v!r}")
+        return v
+    # DATETIME and TIMESTAMP: an ISO local date-time, held as the seed holds a TIMESTAMP ("2024-06-03 09:30:15");
+    # render() writes it as Legend does.
+    m = re.fullmatch(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})", v) if isinstance(v, str) else None
+    if m is None:
+        raise Unsupported(f"a {ty} read of {v!r}: the oracle reads a date-time written YYYY-MM-DDTHH:MM:SS")
+    return f"{m.group(1)} {m.group(2)}"
+
+
+def _semi_extract(vals):
+    """extractFromSemiStructured(document, path, type): NULL over a NULL document."""
+    doc, path, ty = vals
+    if doc is None:
+        return None
+    return _semi_cast(_semi_walk(_semi_doc(doc), _semi_tokens(path)), ty)
+
+
+def _semi_array(fn):
+    """The array_* functions over an extracted array, by duckdbExtension.pure's renderings (the pin plans them on no
+    other test database): array_size is `ifnull(json_array_length(..), 0)` and array_contains `ifnull(.., false)`, so
+    an absent array has none and contains nothing; array_max and array_sum aggregate it, absent over nothing, as a
+    group's aggregate is (D8); array_to_string joins it, absent over nothing (EMIT's allEmpty); array_sort orders it."""
+    def impl(vals):
+        xs = vals[0]
+        if xs is not None and not isinstance(xs, list):
+            raise Unsupported(f"{fn} of a value that is not an array: {xs!r:.40}")
+        if fn == "array_size":
+            return len(xs) if xs else 0
+        if fn == "array_contains":
+            return bool(xs) and vals[1] in xs
+        present = [x for x in (xs or []) if x is not None]
+        if fn == "array_to_string":
+            if len(present) != len(xs or []):
+                raise Unsupported("array_to_string over an array holding a null element")
+            return vals[1].join(str(x) for x in present) if present else None
+        if fn in ("array_max", "array_min"):
+            return (max if fn == "array_max" else min)(present) if present else None
+        if fn == "array_sum":
+            return sum(present) if present else None
+        if fn == "array_sort":
+            return sorted(present) if present else None
+        raise Unsupported(f"{fn} has no rule here")
+    return impl
+
+
+IMPL.update({"extractFromSemiStructured": _semi_extract,
+             **{n: _semi_array(n) for n in ("array_size", "array_contains", "array_to_string", "array_max",
+                                            "array_min", "array_sum", "array_sort")}})
+
 RELATION_IMPL.update({
     "asOfJoin": _as_of_join,
     "lateral": _lateral,
@@ -2526,7 +2796,10 @@ def _filter_holds(c: Corpus, name: str, row: dict | None) -> bool:
     """
     if row is None:
         return False
-    _table, col, op, val = c.filters[name]
+    table, col, op, val = c.filters[name]
+    if op == "cond":
+        # A predicate over a dynafunction (model._FILTER_HEAD; Phase 9): SQL's three-valued rule, as a join's.
+        return _condition(c, val, {table: row})
     if op == "isnull":
         return row.get(col) is None
     if op == "isnotnull":
@@ -3840,6 +4113,66 @@ def _pred(c: Corpus, data, row, root: str, f, params: dict | None = None,
     return _cmp(f.op, v, _bound(f.value, params))
 
 
+def _fan_prefix(c: Corpus, root: str, path) -> tuple | None:
+    """The path up to and including its to-many step -- an association end, or a JSON array in a Binding's document
+    (model.json_many) -- or None for a to-one path."""
+    cls = root
+    for i, step in enumerate(path[:-1]):
+        end = c.ends.get((cls, step))
+        if end is not None:
+            if end.to_many:
+                return tuple(path[:i + 1])
+            cls = end.target
+            continue
+        if (cls, step) in c.json_many:
+            return tuple(path[:i + 1])
+        cls = c.embedded[(cls, step)]
+    return None
+
+
+def _fan_rows(c: Corpus, data, row: dict, spec: Spec) -> list[dict]:
+    """A projection that crosses ONE to-many, as legend-engine 4.145.0 plans it (the improvement plan's Phase 9, which
+    asks for it by Spec.fan_out): an outer join to the elements, one row per element and the to-one columns repeated,
+    and one row with the element columns NULL when there is none. Probed for a join that explodes a document's array
+    and for a Binding's JSON array, on both test databases, over an empty array, an absent key, a NULL document and
+    elements that join nothing (scripts/corpus/semi.py's header). Columns crossing the same to-many read the same
+    element; two different to-manys would be a product, which no service asks for and the oracle refuses."""
+    fanned = {p.alias: _fan_prefix(c, spec.root, p.path) for p in spec.projections
+              if p.agg is None and not p.func and getattr(p, "apply", None) is None}
+    prefixes = {v for v in fanned.values() if v is not None}
+    if len(prefixes) != 1:
+        raise Unsupported(f"{spec.short}: a fan-out projection crosses {len(prefixes)} to-manys; the oracle reads one")
+    (prefix,) = prefixes
+    owner = c.owner_of(spec.root, list(prefix))
+    if (owner, prefix[-1]) in c.json_many:
+        doc, keys = _json_document(c, data, row, spec.root, list(prefix), c.json_backed[owner])
+        arr = None if doc is _NO_DOCUMENT else _semi_walk(doc, [("key", k) for k in keys])
+        elems, read = (arr if isinstance(arr, list) else []), "json"
+    else:
+        hops, target = c.resolve_assoc(spec.root, list(prefix))
+        elems, read = walk_many(c, data, row, hops, _reverse_hops(c, spec.root, list(prefix))), "row"
+    out = []
+    for e in elems or [None]:
+        r = {}
+        for p in spec.projections:
+            if fanned.get(p.alias) is None:
+                r[p.alias] = (_agg(c, data, row, spec.root, p) if p.agg
+                              else _value(c, data, row, spec.root, p.path, p.args, p.func))
+                continue
+            rest = list(p.path[len(prefix):])
+            if e is None:
+                r[p.alias] = None
+            elif read == "row":
+                r[p.alias] = _value(c, data, e, target, rest)
+            else:
+                v = _semi_walk(e, [("key", k) for k in rest])
+                if isinstance(v, (list, dict)):
+                    raise Unsupported(f"{spec.short}: {'.'.join(p.path)} reads a sub-document, not a value")
+                r[p.alias] = v
+        out.append(r)
+    return out
+
+
 def _dated_for(c: Corpus, spec: Spec, params: dict | None) -> _Dated:
     root = c.classes.get(spec.root)
     return _Dated(root.temporal if root else None, _root_dates(c, spec, params), params)
@@ -3855,7 +4188,8 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
         params = {**dict(spec.lets), **(params or {})}
     plain = [p for p in spec.projections if p.agg is None and not p.func
              and not (len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS)]
-    if any(c.to_many_on(spec.root, p.path) for p in plain):
+    fan_out = getattr(spec, "fan_out", False)
+    if not fan_out and any(c.to_many_on(spec.root, p.path) for p in plain):
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
 
@@ -3870,7 +4204,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
                       if getattr(p, "apply", None) is not None
                       else _value(c, data, r, spec.root, p.path, p.args, p.func, dated))
             for p in spec.projections}
-           for r in kept]
+           for r in kept] if not fan_out else [x for r in kept for x in _fan_rows(c, data, r, spec)]
 
     if spec.root in c.distinct_sets:
         # ~distinct on the class mapping: the SET is the distinct rows, so all() sees 16
@@ -3958,7 +4292,16 @@ def render(value, kind: str):
 # here is type-preserving (toUpper, trim, abs, coalesce, plus...), which is why the map is
 # short rather than 228 entries long: only the exceptions have to be stated.
 DYNA_RETURN = {"length": "int", "sign": "int", "sqrt": "float",
-               "isNull": "bool", "isNotNull": "bool", "in": "bool"}
+               "isNull": "bool", "isNotNull": "bool", "in": "bool",
+               "array_size": "int", "array_contains": "bool", "array_to_string": "string"}
+
+# A Binding's property, by its declared type (Phase 9).
+_JSON_KIND = {"String": "string", "Integer": "int", "Float": "float", "Decimal": "float", "Boolean": "bool",
+              "StrictDate": "date", "DateTime": "timestamp"}
+
+# extractFromSemiStructured's kind is its type argument's (Phase 9); an array aggregate's, its array's element type's.
+_SEMI_KIND = {"CHAR": "string", "VARCHAR": "string", "STRING": "string", "INTEGER": "int", "FLOAT": "float",
+              "DECIMAL": "float", "BOOLEAN": "bool", "DATE": "date", "DATETIME": "timestamp", "TIMESTAMP": "timestamp"}
 
 
 def _node_kind(c: Corpus, owner: str, node) -> str:
@@ -3982,6 +4325,16 @@ def _dyna_kind(c: Corpus, owner: str, dyn) -> str:
     ret = DYNA_RETURN.get(fn)
     if ret is not None:
         return ret
+    if fn == "extractFromSemiStructured":
+        ty = args[2][1].upper() if len(args) == 3 and args[2][0] == "lit" else ""
+        if ty not in _SEMI_KIND:
+            raise Unsupported(f"extractFromSemiStructured to {ty!r} projects no scalar")
+        return _SEMI_KIND[ty]
+    if fn in ("array_max", "array_min", "array_sum"):
+        inner = args[0]
+        if inner[0] == "call" and inner[1][0] == "extractFromSemiStructured" and inner[1][1][2][0] == "lit":
+            return _SEMI_KIND[inner[1][1][2][1].upper().removesuffix("[]")]
+        raise Unsupported(f"{fn} over {inner[0]!r}: the oracle types it from an extraction's element type")
     if not args:
         raise Unsupported(f"{fn}() takes no arguments, so its result cannot be typed")
     return _node_kind(c, owner, args[0])
@@ -4036,6 +4389,11 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
             continue
         if c.enum_props.get((c.owner_of(spec.root, p.path), p.path[-1])):
             out[p.alias] = "string"     # an enum renders as its VALUE NAME
+            continue
+        owner = c.owner_of(spec.root, p.path)
+        if owner in c.json_backed and owner.startswith("semi::"):
+            # A key of a Binding's document (Phase 9) is typed by its class's property, not by the payload column.
+            out[p.alias] = _JSON_KIND[c.classes[owner].props[p.path[-1]].type]
             continue
         dyn = c.dyna.get((c.owner_of(spec.root, p.path), p.path[-1]))
         if dyn is not None:

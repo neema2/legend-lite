@@ -356,7 +356,28 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     _relmap_features(specs, quarantined, add)
     _checks_features(specs, quarantined, add)
     _test_form_features(specs, quarantined, add)
+    _semi_features(specs, quarantined, add)
     return out
+
+
+def _semi_features(specs, quarantined: set[str], add) -> None:
+    """Semi-structured documents (the improvement plan's Phase 9, semi.py), each executed when a passing service of
+    its form runs, on either side (SJ_ on H2 over SURFACE_TYPES, SD_ on DuckDB over SEMI_DOC)."""
+    live = {s.short for s in specs if s.name not in quarantined and s.name.startswith(("stress::SJ_", "stress::SD_"))}
+
+    def of(*forms):
+        return sorted(n for n in live if n[3:] in forms)
+
+    add("S9  semi-structured navigation", of("Text", "Numbers", "Dates"))
+    add("S9  semi-structured array index", of("Index"))
+    add("S9  semi-structured quoted key", of("Quoted"))
+    add("S9  semi-structured filter", of("BigQty", "RefFilter"))
+    add("S9  semi-structured store filter", of("StoreFilter"))
+    add("S9  Binding over a semi-structured column", of("Body", "BodyDates"))
+    add("S9  semi-structured flatten", of("Flatten", "FlattenLegs"))
+    add("S9  semi-structured explode", of("Explode", "ExplodeAny"))
+    add("S9  semi-structured wildcard path", of("HopList", "LegCount", "MaxQty", "SumQty", "OnXnas", "SortedHops"))
+    add("S9  semi-structured array function", of("HopList", "LegCount", "MaxQty", "SumQty", "OnXnas", "SortedHops"))
 
 
 def _test_form_features(specs, quarantined: set[str], add) -> None:
@@ -732,9 +753,10 @@ def all_specs(c: model.Corpus):
     # The typed and intraday services after spread's, which must not see them: spread measures what
     # the walking generators leave uncovered (literals.FIXTURE_TABLES says why the packs are apart).
     import checks
+    import semi
 
     return (base + spread.build(c, seeded, base) + literals.build() + intraday.build()
-            + vocab.build(c, tables) + unreached.build(c, tables) + checks.specs(c))
+            + vocab.build(c, tables) + unreached.build(c, tables) + checks.specs(c) + semi.specs(c))
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.
@@ -812,6 +834,13 @@ BASELINE = {
     # 2026-10-31, the improvement plan's Phase 8, stage 3 (shapes.py): a second test of a service's suite, holding two
     # assertions, one an EqualTo, passing on legend-engine 4.145.0.
     "T8  several tests in a suite", "T8  several assertions in a test", "T8  EqualTo assertion",
+    # 2026-10-31, the improvement plan's Phase 9, stage 1 (semi.py): semi-structured documents, each form executed by
+    # passing services on legend-engine 4.145.0, on H2 and on DuckDB (the wildcard path and the array functions on
+    # DuckDB alone, which the pin's H2 cannot plan).
+    "S9  semi-structured navigation", "S9  semi-structured array index", "S9  semi-structured quoted key",
+    "S9  semi-structured filter", "S9  semi-structured store filter", "S9  Binding over a semi-structured column",
+    "S9  semi-structured flatten", "S9  semi-structured explode", "S9  semi-structured wildcard path",
+    "S9  semi-structured array function",
 }
 
 

@@ -17,6 +17,7 @@
     "99-m2m-services.pure": "stress",
     "99-mapping-tests.pure": "stress",
     "99-relmap-services.pure": "stress",
+    "99-semi-services.pure": "stress",
     "99-typed-services.pure": "stress",
     "99-unreached-services.pure": "stress",
     "99-vocab-services.pure": "stress"

@@ -1825,6 +1825,12 @@ Workaround: `FLOAT` or `DOUBLE`.
 
 Repro: `repro/real-column-type/`, `scripts/corpus/probe_column_types.py`.
 
+2026-10-31, the improvement plan's Phase 9: `OTHER` fails the same way ("Match failure: OtherObject instanceOf
+Other"), so DuckDB cannot create 66-store-surface.pure's `SURFACE_TYPES`, which declares both. Its semi-structured
+column is read by TDS services, which run their tests on H2; the Relation services, which run theirs on DuckDB, read a
+table of their own (`scripts/corpus/semi.py`). With `REAL`, `OTHER`, `ARRAY`, `BINARY` and `VARBINARY` all removed the
+table loads; the last three were not tried one at a time.
+
 ## F54 — A qualified property that concatenates fabricates a value on a broken chain
 
     $x.target.label('BBG')
@@ -2440,3 +2446,61 @@ model loading; the same query in a service, or written `filter(x|$x.id == 'A1')`
 writes a mapping test's lambdas without braces (`scripts/corpus/mapping_tests.py`), so nothing is quarantined. Repro:
 `scripts/corpus/repro/mapping-test-brace-lambda/` (`model.pure`: the suite without braces and the service with them
 pass; `braced.pure`, the same suite with braces, does not parse).
+
+## F90 — `extractFromSemiStructured` to `'DECIMAL'` answers the document's number on neither test database
+
+**Severity: silent wrong answer on H2, a wrong type on DuckDB.** Found 2026-10-31 by the improvement plan's Phase 9. A
+property mapped `extractFromSemiStructured([db]T.DOC, 'fee', 'DECIMAL')`, over a document holding `"fee":12.5`:
+
+- On H2 (a service answering a TDS or a graph runs its tests there) the property is 13, and `0.25` is 0. H2's rendering
+  (`h2Extension2_1_214.pure`'s `processExtractFromSemiStructuredParamsForH2`) passes the type name through, `cast(... as
+  DECIMAL)`, and H2's DECIMAL with no precision has scale 0.
+- On DuckDB (a service answering a Relation runs its tests there) it is `"12.5"`, a string: the rendering
+  (`duckdbExtension.pure`'s `processExtractFromSemiStructuredParamsFoDuckDb`) casts the extracted JSON for DATE, DATETIME,
+  TIMESTAMP, BOOLEAN, FLOAT and INTEGER, not for DECIMAL, so the value is the JSON text.
+
+Every other type the whitelist names answers the document's value on both. Pinned by `stress::SJ_Fee` and
+`stress::SD_Fee` (quarantined); `SJ_Numbers` and `SD_Numbers`, the same documents read as INTEGER, FLOAT and BOOLEAN,
+pass. Repro: `scripts/corpus/repro/semi-structured-decimal/` (`FeeTds` answers 13, `FeeRelation` "12.5"; `QtyTds` and
+`QtyRelation` pass).
+
+## F91 — A JSON-typed column takes no document in a service's test data
+
+**Not a wrong answer: a declared column type that test data cannot fill.** Found 2026-10-31 by the improvement plan's
+Phase 9, which was to seed 66-store-surface.pure's `C_JSON JSON` with documents. Both test-data loaders write a JSON
+column's cell unquoted, as SQL: the H2 loader's `convertValuesToCsvH2` and the generic `convertValuesToCsv` the DuckDB
+one uses quote VARCHAR, CHAR, SEMISTRUCTURED, DATE and TIMESTAMP values and write any other type as it is. So on H2
+`insert into T (ID,J) values ('A',{"name":"Alpha","qty":4})` is a syntax error, and on DuckDB the document reads as a
+STRUCT literal whose string value is a column name ("Binder Error: Referenced column "Alpha" not found"; a document of
+numbers alone happens to load as a STRUCT). The same column declared SEMISTRUCTURED loads. A NULL loads either way, so
+the corpus seeds `C_JSON` NULL and maps nothing over it; the semi-structured services read `C_SEMI`. Repro:
+`scripts/corpus/repro/json-column-test-data/` (`model.pure`, the column JSON: both services error; `control.pure`, the
+same column SEMISTRUCTURED: both pass).
+
+## F92 — The two test-data loaders read a quoted CSV field's quotes differently
+
+**Not a wrong answer: one `###Data` element cannot carry a JSON document to both test databases.** Found 2026-10-31 by
+the improvement plan's Phase 9. A document travels in a `Relational` test-data CSV field, quoted because it holds
+commas. DuckDB's loader reads the field as RFC 4180 does: a doubled quote is one quote, and an inner quote that is not
+doubled is an error ("invalid char between encapsulated token and delimiter"). H2's keeps every character between the
+field's outer quotes (`meta::alloy::service::execution::splitCsvRow` toggles its quote state on each `"` and keeps it),
+so an RFC-encoded document reaches H2 with its quotes doubled, which is not JSON, and every navigation over it raises in
+`legend_h2_extension_json_navigate`; and it unwraps a quoted field only when the field holds a comma (`"{}"` arrives
+with its quotes). A service's tests run on H2 or on DuckDB by what its query answers (a TDS or a graph, a Relation), so
+the corpus writes each database's documents in their own `###Data`: `semi::SurfaceData` the H2 way (inner quotes as
+they are; no JSON string holding a comma or a quote, which the splitter would misread), `semi::DuckData` as RFC 4180
+does (`scripts/corpus/semi.py`). Nothing is quarantined. Repro: `scripts/corpus/repro/semi-structured-csv-quotes/`
+(`RawTds` and `RfcRelation` pass; `RfcTds` raises in the navigation, `RawRelation` before it runs).
+
+## F93 — On H2, flattening a semi-structured array fails if any row of the table holds a NULL document
+
+**Not a wrong answer: an error that depends on rows the query does not select.** Found 2026-10-31 by the improvement
+plan's Phase 9. On H2, a Binding's to-many projected one row per element, and a join that explodes a document's array,
+both call `legend_h2_extension_flatten_array(connection, table, column, paths)`, which reads the whole column of the
+named table itself rather than the rows the query selects, and fails on a NULL document ("argument content is null").
+So one NULL document anywhere in the table fails every flatten and explode over it, including through a view whose
+filter excludes NULL documents, since the function reads the base table. DuckDB flattens a NULL document to nothing.
+The corpus keeps NULL documents out of the table its H2 services read (SURFACE_TYPES) and puts one in the table its
+DuckDB services read (SEMI_DOC, `SD-06`). Nothing is quarantined. Repro:
+`scripts/corpus/repro/semi-structured-flatten-null-h2/` (`model.pure`, one row NULL: `HopsTds` raises, `HopsRelation`
+passes; `control.pure`, no row NULL: both pass).

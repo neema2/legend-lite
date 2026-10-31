@@ -441,6 +441,10 @@ class Corpus:
     # class -> (table, column) whose JSON payload backs it, via a Binding transformer. Its
     # properties are keys in that JSON, not columns.
     json_backed: dict[str, tuple[str, str]] = field(default_factory=dict)
+    # (class, property) inside a Binding's document whose value is a JSON ARRAY: a to-many the planner flattens
+    # laterally, one row per element (the improvement plan's Phase 9). Embedded otherwise, so it is on the same row,
+    # and to_many_on reads it as fanning out.
+    json_many: set = field(default_factory=set)
 
     # mapping set id -> the class it maps. Needed to resolve `extends [setId]`, which names
     # a SET rather than a class.
@@ -679,7 +683,10 @@ class Corpus:
                 # An EMBEDDED hop cannot fan out: the sub-object lives on the same row, so
                 # it contributes exactly one. Third navigation helper to need this -- resolve,
                 # owner_of and now to_many_on -- which is the cost of adding a hop KIND
-                # rather than a new association.
+                # rather than a new association. A JSON array inside a Binding's document is the
+                # exception: same row, but one value per element (Phase 9).
+                if (cls, step) in self.json_many:
+                    return True
                 cls = self.embedded[(cls, step)]
                 continue
             if end.to_many:
@@ -726,6 +733,9 @@ _FILTER_DECL = re.compile(
     # reported as "uses undeclared store filter" against the CLASS rather than the filter.
     r"^\s*(?:MultiGrain)?Filter\s+(\w+)\s*\(\s*(?:\[[\w:]+\]\s*)?(?:\w+\.)?(\w+)\.(\w+)\s*"
     r"(?:(=|<>|<=|>=|<|>)\s*(.+?)|(is\s+not\s+null|is\s+null))\s*\)\s*$")
+# A Filter whose predicate _FILTER_DECL does not read: one over a dynafunction (Phase 9). Matched only once
+# _FILTER_DECL has failed, and parsed as a condition, so a form neither reads raises rather than vanishing.
+_FILTER_HEAD = re.compile(r"^\s*Filter\s+(\w+)\s*\((.*)\)\s*$")
 _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 # `~filter [db]@J1 > @J2 | [db]NAME` -- a filter reached through a JOIN CHAIN. The predicate
 # applies to the row the chain LANDS on, so a row whose chain breaks is excluded.
@@ -1066,7 +1076,10 @@ def _parse_view(name: str, body: str, c: Corpus) -> None:
     c.views[name] = v
 
 
-_DATABASE = re.compile(r"^\s*Database\s+([\w:]+)\s*$", re.M)
+# A Database header may carry a stereotype and a tagged value before its name, as 66-store-surface.pure's
+# surface::SurfaceDB does; read without them, its tables belonged to no database and its include was lost, which
+# was harmless only while none of its tables had rows (the improvement plan's Phase 9 seeds SURFACE_TYPES).
+_DATABASE = re.compile(r"^\s*Database\s+(?:<<[^>]*>>\s*)?(?:\{[^}]*\}\s*)?([\w:]+)\s*$", re.M)
 
 
 
@@ -1131,7 +1144,7 @@ def _fold_joins(text: str) -> str:
 
 def _parse_store(text: str, c: Corpus) -> None:
     text = _fold_joins("\n".join(_strip(l) for l in text.splitlines()))
-    m = re.search(r"^Database\s+([\w:]+)", text, re.M)
+    m = _DATABASE.search(text)
     if m:
         c.store_includes.setdefault(m.group(1), []).extend(
             n for n in re.findall(r"^\s*include\s+([\w:]+)\s*$", text, re.M))
@@ -1201,6 +1214,17 @@ def _parse_store(text: str, c: Corpus) -> None:
             c.filters[m.group(1)] = (m.group(2), m.group(3), op, val)
             if line.lstrip().startswith("MultiGrainFilter"):
                 c.multigrain.add(m.group(1))
+            continue
+        m = _FILTER_HEAD.match(line)
+        if m:
+            # A predicate over a dynafunction -- `Filter F(extractFromSemiStructured(T.DOC, 'qty', 'INTEGER') > 100)`,
+            # the improvement plan's Phase 9 -- read as a general condition, as a Join's is, over the ONE table it
+            # names. Recorded as (table, None, "cond", condition); oracle._filter_holds evaluates it.
+            cond = rhs.parse_condition(m.group(2))
+            named = sorted(rhs.condition_tables(cond))
+            if len(named) != 1:
+                raise ValueError(f"Filter {m.group(1)} names {named}: a store filter tests one table")
+            c.filters[m.group(1)] = (named[0], None, "cond", cond)
             continue
         m = _JOIN.match(line)
         if m:
@@ -1879,6 +1903,7 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                     c.embedded[(cur, prop)] = child
                     c.json_backed[child] = (btbl, bcol)
                     c.main_table.setdefault(child, btbl)
+                    _json_nested(c, child, (btbl, bcol), {child})
             line = _BINDINGMAP.sub("", line)
             line = _value_forms(line, c, cur, tbl)
             # Anything that still LOOKS like a property mapping after the recognised forms
@@ -1921,6 +1946,24 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
                         and (cur, leftover) not in c.chains
                         and (cur, leftover) not in c.dyna):
                     c.unparsed.append((cur, leftover))
+
+
+def _json_nested(c: "Corpus", cls: str, src: tuple[str, str], seen: set) -> None:
+    """The classes a Binding's document nests: each class-typed property of a JSON-backed class is a key of the same
+    document, so its class reads the same column (json_backed) and its hop stays on the row (embedded); a to-many one is
+    a JSON array (json_many). Before the improvement plan's Phase 9 a binding was one level deep (hier::Profile)."""
+    kl = c.classes.get(cls)
+    for name, p in (kl.props.items() if kl else ()):
+        if p.type not in c.classes:
+            continue
+        c.embedded[(cls, name)] = p.type
+        if p.upper is None or p.upper > 1:
+            c.json_many.add((cls, name))
+        if p.type not in seen:
+            seen.add(p.type)
+            c.json_backed[p.type] = src
+            c.main_table.setdefault(p.type, src[0])
+            _json_nested(c, p.type, src, seen)
 
 
 def _value_forms(line: str, c: "Corpus", owner: str, tbl: str,

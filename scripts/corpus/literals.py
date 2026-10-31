@@ -61,7 +61,9 @@ FIXTURE_TABLES = frozenset({"TYPED_VALUE", "BOOK_LIMIT_PT", "BOOK_STATUS_PT", "M
                             "LIMIT_CHECK", "VALUATION_RUN", "OP_A", "OP_B", "OP_C", "OP_CAR", "OP_TRUCK",
                             "MG_A", "MG_B", "J1", "J2", "J3", "LEG",
                             # the constraints pack's rows (Phase 8), which violate its constraints by design
-                            "CK_DESK", "CK_DEAL", "CK_BASKET", "CK_LINE"})
+                            "CK_DESK", "CK_DEAL", "CK_BASKET", "CK_LINE",
+                            # the semi-structured documents (Phase 9), read only through semi.py's services
+                            "SURFACE_TYPES", "SEMI_DOC", "SEMI_HOP"})
 
 
 def walked(tables: dict[str, list[dict]]) -> set[str]:

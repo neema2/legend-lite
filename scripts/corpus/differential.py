@@ -85,6 +85,10 @@ def seed_json(c: model.Corpus, TABLES) -> str:
             continue
         table = c.tables[name]
         cols = table.columns
+        if any(col.kind == "unseedable" for col in cols.values()):
+            # A semi-structured document (SURFACE_TYPES, SEMI_DOC; the improvement plan's Phase 9) has no kind the
+            # seed's DDL spells, and no service here reads one: semi.py's services are not the differential's.
+            continue
         lines.append(json.dumps({
             "schema": None if table.schema == "default" else table.schema,
             "table": name,

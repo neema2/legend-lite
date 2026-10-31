@@ -390,6 +390,9 @@ class Spec:
     # 'json' (EqualToJson, unordered) or 'text' (EqualTo, the serialized answer exactly), each judging the same
     # expected rows the first test does.
     more_tests: list = field(default_factory=list)
+    # A projection crossing ONE to-many -- an association, or a JSON array in a Binding's document -- answered one row
+    # per element (Phase 9's flatten and explode services; oracle._fan_rows). Every other spec refuses the fan-out.
+    fan_out: bool = False
 
     @property
     def short(self) -> str:

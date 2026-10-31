@@ -336,6 +336,14 @@ ENGINE_QUARANTINE["stress::MX_PartyGrade"] = ("F87", "an M2M enumeration transfo
 ENGINE_QUARANTINE["stress::RM_BookTotalsRelation"] = ("F88", "a relation-API projection over a grouped relation "
                                                              "mapping: GROUP BY term out of range")
 
+# F90 -- the semi-structured pack (the improvement plan's Phase 9, semi.py): extractFromSemiStructured to 'DECIMAL'
+# answers the document's number on neither test database. H2 casts it to a DECIMAL of scale 0, so 12.5 is 13 and 0.25
+# is 0; DuckDB casts it to nothing, so the value is the document's JSON text, "12.5". Every other type of the whitelist
+# the pack reads passes on both (SJ_Numbers, SD_Numbers). Minimized in repro/semi-structured-decimal/.
+for _svc in ("stress::SJ_Fee", "stress::SD_Fee"):
+    ENGINE_QUARANTINE[_svc] = ("F90", "extractFromSemiStructured to DECIMAL: H2 rounds to a whole number, DuckDB "
+                                      "answers the JSON text")
+
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the
 # same mapping and the same serialization format, so the JSON TYPE of `values` depends on

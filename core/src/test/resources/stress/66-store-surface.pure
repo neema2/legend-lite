@@ -2,9 +2,13 @@
 //
 // The tables here carry COMPOSITE primary keys deliberately. That keeps them out of the
 // seeder -- which only fills single-key tables -- so column types the oracle has no
-// rendering for (BINARY, ARRAY, SEMISTRUCTURED) can be DECLARED without inventing an
-// expectation for them. Types the oracle can render are exercised for real in the
-// combination matrix instead; this file is about what the grammar admits.
+// rendering for (BINARY, ARRAY) can be DECLARED without inventing an expectation for them.
+// Types the oracle can render are exercised for real in the combination matrix instead;
+// this file is about what the grammar admits. One exception, 2026-10-31 (the improvement
+// plan's Phase 9): SURFACE_TYPES's keys and C_SEMI are seeded by hand with JSON documents
+// (seed.py's _SEMI_DOCS), which 8118-semi.pure's H2 services navigate. C_JSON stays NULL:
+// neither test database loads a document into a JSON column (UPSTREAM_FINDINGS F91), and
+// DuckDB cannot create the table at all, for its REAL and OTHER columns (F53).
 //
 // REAL is here for the same reason it is absent from the matrix: it compiles and then fails
 // at execution on DuckDB (F31), so it can be written but never read.

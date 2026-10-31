@@ -21301,13 +21301,64 @@ CK_LINE = [
     _ck_line("B11-1", "B11", 10.0),
 ]
 
+# ---- semi-structured documents (8118-semi.pure; Phase 9) ----
+#
+# Booking payloads, one JSON document per row, in 66-store-surface.pure's SURFACE_TYPES.C_SEMI (the H2 side: TDS
+# services run their tests on H2) and in semi::SemiDB's SEMI_DOC.DOC (the DuckDB side: a relation-returning service
+# runs its tests on DuckDB, and DuckDB cannot create SURFACE_TYPES, whose REAL and OTHER columns it has no type for).
+# The same five documents in both, so each navigation answers alike on the two databases; SEMI_DOC adds a NULL
+# document, which H2's flatten cannot meet (it reads the whole table, scripts/corpus/semi.py's header). Each awkward
+# shape is placed: a JSON null (SD-03's ref), a zero (its qty), an empty array (its legs and grid), an absent object
+# (no dates), an index past the end (SD-02's second leg), a leg whose hop no SEMI_HOP row has (SD-04's HP-9) and a
+# null venue beside it, keys reachable only bracket-quoted ("desk info", "book.code"), and an empty document (SD-05).
+# No JSON string holds a comma, a quote or a backslash: H2's test-data splitter reads a field's quotes by parity
+# (semi.py). C_JSON stays NULL: neither test database loads a value into a JSON column at the pin (semi.py).
+_SEMI_DOCS = [
+    {"ref": "TKT-1001", "qty": 400, "px": 187.25, "fee": 12.5, "live": True,
+     "dates": {"trade": "2024-06-03", "stamp": "2024-06-03T09:30:15"},
+     "legs": [{"hop": "HP-1", "venue": "XNYS", "qty": 300}, {"hop": "HP-2", "venue": "XNAS", "qty": 100}],
+     "grid": [[1, 2], [3, 4]], "desk info": {"book.code": "EQ-NY"}},
+    {"ref": "TKT-1002", "qty": 50, "px": 0.75, "fee": 0.25, "live": False,
+     "dates": {"trade": "2024-06-04", "stamp": "2024-06-04T16:59:59"},
+     "legs": [{"hop": "HP-3", "venue": "XLON", "qty": 50}],
+     "grid": [[9, 8]], "desk info": {"book.code": "EQ-LN"}},
+    {"ref": None, "qty": 0, "px": -12.5, "live": False, "legs": [], "grid": []},
+    {"ref": "TKT-1004", "qty": 120,
+     "legs": [{"hop": "HP-9", "venue": None, "qty": 20}, {"hop": "HP-4", "venue": "BATS", "qty": 100},
+              {"hop": "HP-5", "venue": "XNAS", "qty": 0}]},
+    {},
+]
+
+
+def _semi_text(doc) -> str | None:
+    import json
+
+    return None if doc is None else json.dumps(doc, separators=(",", ":"))
+
+
+SURFACE_TYPES = [dict(TK=f"ST-0{i}", TK2=tk2, C_SEMI=_semi_text(d), C_JSON=None)
+                 for i, (tk2, d) in enumerate(zip("AABAC", _SEMI_DOCS), start=1)]
+SEMI_DOC = ([dict(DOC_ID=f"SD-0{i}", DOC=_semi_text(d)) for i, d in enumerate(_SEMI_DOCS, start=1)]
+            + [dict(DOC_ID="SD-06", DOC=None)])
+SEMI_HOP = [
+    dict(HOP_ID="HP-1", LABEL="NYSE primary"),
+    dict(HOP_ID="HP-2", LABEL="Nasdaq sweep"),
+    dict(HOP_ID="HP-3", LABEL="LSE auction"),
+    dict(HOP_ID="HP-4", LABEL="BATS route"),
+    dict(HOP_ID="HP-5", LABEL="Nasdaq odd lot"),
+    dict(HOP_ID="HP-7", LABEL="unused route"),           # no leg names it
+]
+
 # The tables a Phase 7 pack writes by hand, apart from the expansion (expand.candidates, expand._reserved) and joined to
 # the seed after it (flat.all_tables). A hand-written table joins the expansion's base, so J1's joins made it reach J2
 # and LEG from J1 in its first ring, rings earlier than before, which moved every later table's generated values.
-# Phase 8's CK_ tables are apart for the same reason.
+# Phase 8's CK_ tables are apart for the same reason, and Phase 9's: SEMI_DOC and SEMI_HOP have single keys the
+# expansion would otherwise fill, and SURFACE_TYPES, whose composite key the expansion never fills, is apart so the
+# rule names every hand-seeded table.
 PACK_TABLES: dict[str, list[dict]] = {"OP_CAR": OP_CAR, "OP_TRUCK": OP_TRUCK, "J1": J1,
                                       "CK_DESK": CK_DESK, "CK_DEAL": CK_DEAL, "CK_BASKET": CK_BASKET,
-                                      "CK_LINE": CK_LINE}
+                                      "CK_LINE": CK_LINE,
+                                      "SURFACE_TYPES": SURFACE_TYPES, "SEMI_DOC": SEMI_DOC, "SEMI_HOP": SEMI_HOP}
 
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,

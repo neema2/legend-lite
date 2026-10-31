@@ -1,0 +1,202 @@
+// F92 (docs/UPSTREAM_FINDINGS.md): the two test-data loaders read a quoted CSV field's quotes differently, so one
+// ###Data element cannot carry a JSON document to both test databases. RfcData doubles each inner quote (RFC 4180);
+// RawData leaves them as they are. A TDS service runs its tests on H2, a Relation service on DuckDB. Run:
+//   bazel run //tools/engine-runner:testable -- <this file> --testable=demo::RfcTds --testable=demo::RawTds
+//     --testable=demo::RfcRelation --testable=demo::RawRelation
+// RfcRelation and RawTds pass. RfcTds raises in legend_h2_extension_json_navigate: H2 stored the document with its
+// quotes still doubled, which is not JSON. RawRelation fails before it runs: DuckDB's reader rejects the inner quotes
+// ("invalid char between encapsulated token and delimiter").
+###Pure
+Class demo::Doc
+{
+  id: String[1];
+  name: String[0..1];
+}
+
+###Relational
+Database demo::DB ( Table T ( ID VARCHAR(8) PRIMARY KEY, DOC SEMISTRUCTURED ) )
+
+###Mapping
+Mapping demo::M
+(
+  demo::Doc: Relational
+  {
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    name: extractFromSemiStructured([demo::DB]T.DOC, 'name', 'VARCHAR')
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::RfcData { Relational #{ default.T: 'ID,DOC\n' + 'A,"{""name"":""Alpha"",""qty"":4}"\n'; }# }
+Data demo::RawData { Relational #{ default.T: 'ID,DOC\n' + 'A,"{"name":"Alpha","qty":4}"\n'; }# }
+
+###Service
+Service demo::RfcTds
+{
+  pattern: '/demo/rfctds';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project([x|$x.id, x|$x.name], ['id', 'name']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    RfcTdsSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::RfcData }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","name":"Alpha"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+Service demo::RawTds
+{
+  pattern: '/demo/rawtds';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project([x|$x.id, x|$x.name], ['id', 'name']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    RawTdsSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::RawData }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","name":"Alpha"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+Service demo::RfcRelation
+{
+  pattern: '/demo/rfcrelation';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project(~[id:x|$x.id, name:x|$x.name]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    RfcRelationSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::RfcData }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","name":"Alpha"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+Service demo::RawRelation
+{
+  pattern: '/demo/rawrelation';
+  documentation: 'repro';
+  execution: Single
+  {
+    query: |demo::Doc.all()->project(~[id:x|$x.id, name:x|$x.name]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    RawRelationSuite:
+    {
+      data: [ connections: [ env: Reference #{ demo::RawData }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"id":"A","name":"Alpha"}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
