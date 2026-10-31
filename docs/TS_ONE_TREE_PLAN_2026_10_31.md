@@ -1,6 +1,7 @@
 # Timeseries, one reader: gs-quant's words everywhere (2026-10-31)
 
-**Status: PROPOSED, version 2, for the user to ratify (§9 lists the rulings asked). Nothing here is built yet.**
+**Status: version 2, ratified in part (2026-10-31: D1, D3-D4's scope rule, D11-D13, the order; §9 says which rulings
+stay open -- each needed only by a later step). Step 1 is under way.**
 Version 1 was reviewed the same day by an agent that wrote none of it, against the code and gs-quant's source; its
 findings were checked and §10 says what changed. The plan replaces the direction of
 `docs/TS_LANGUAGE_BUILD_2026_10_30.md` from its P6 on, and revises `docs/TIMESERIES_LANGUAGE_2026_10_29.md` (the
@@ -58,22 +59,51 @@ unless that meaning reads the future (look-ahead) or clashes with SQL inside the
 - Everything else -- volatility in percent, percentiles 0 to 100, `weekday` 0 for Monday, `cov` of the series as
   given, `correlation` and `beta` of returns of prices -- is gs-quant's, and is mostly built already (§4).
 
-**D3. A period's aggregate keeps the short words** (the user, 2026-10-31; the set widened after the review): under
-`SAMPLE BY`, `first`, `last`, `min`, `max`, `sum`, `mean`, `median`, `std`, `var`, `count`, `prod` are the period's,
-as pandas' `resample` names them (and kdb+'s `select last price by date`, QuestDB's `SAMPLE BY` with `last`,
-TimescaleDB's `last(price, time)`; gs-quant's own `bucketize` takes max, min, mean, sum, first, last). gs-quant's
-whole-line `first(x)` and `last(x)` ("series with last value of X for all dates", `analysis.py`) keep a name of their
-own: `latest` is taken -- it is already `#TS`'s keyword for the data's last date, `FILTER date > latest - 1y`
-(`TsToPure.java:314`) -- so the names are today's `first_of(x)` and `last_of(x)` unless the user rules another (R8).
+**D3. The scope rule: every aggregate's rows have one home** (ruled by the user, 2026-10-31: "Do you like it? If so
+let's print it and get started", after asking which SQL or kdb+ convention to take instead of a `.last()` postfix).
+An aggregate answers three questions -- which rows, what shape, which function -- and SQL, kdb+, pandas and gs-quant
+each give every answer one place. `#TS` takes the convention SQL, kdb+ and QuestDB share for periods
+(`SELECT last(price), sum(size) ... GROUP BY week`; q's `select last price, sum size by 7 xbar date from trade`;
+QuestDB's `SAMPLE BY 1w`), and gs-quant's own window argument for every other scope:
 
-**D4. Nothing is read from context, and a window is always written in text** (the user, 2026-10-31, "there is no way
-to tell from context if last() should be latest()?"; extended after the review). A word never changes meaning because
-a far clause is there or not, nor because of where in a statement it stands. In `#TS` text a windowed function's
-window is written: `volatility(x)` is refused -- "volatility over what? volatility(x, 22) for the last 22, or
-volatility(x, all) from the start, gs-quant's default" -- and a period word with no window and no `SAMPLE BY` likewise
-("the last of what? SAMPLE BY 1w for each week's last; last_of(x) for the line's last value on every date"). This
-removes the tile's own window counts, which are neither gs-quant's nor written. The Python DSL keeps gs-quant's
-defaults in its signatures (visible in the stub), and its printer writes them out, so the text always says the window.
+| Which rows | gs-quant | `#TS` |
+|---|---|---|
+| the last 22 | `mean(x, 22)` | `mean(x, 22)` (the same) |
+| from the start to each date | `mean(x)` | `mean(x, all)` |
+| the whole line, on every date (reads the future, on purpose) | `last(x)` | `last(x, whole)` |
+| the first value, on every date | `first(x)` | `first(x, all)` (the same number, and it reads nothing ahead) |
+| each period's | `bucketize(x, AggregateFunction.LAST, AggregatePeriod.WEEK)` | `last(x)` under `SAMPLE BY 1w` |
+
+- **A window written says the rows**, whatever the clauses: `22` (or a span, `3mo`), `all` from the start, `whole`
+  the whole line. `whole` is the one new word; it is how a query asks for look-ahead, and nothing else reads ahead.
+- **An aggregate word with no window** -- `first`, `last`, `min`, `max`, `sum`, `mean`, `median`, `std`, `var`,
+  `count`, `prod`, pandas' `resample` set -- is the period's under `SAMPLE BY`, and without it is refused with
+  gs-quant's fix: "mean over what? mean(x, all) from the start (gs-quant's mean(x)), mean(x, 22) for the last 22, or
+  SAMPLE BY 1w for each week's".
+- **A function that is no aggregate** (`volatility`, `zscores`, `drawdown`, `beta`, ...) with no window takes
+  gs-quant's default, from the start: no clause gives it another meaning, so nothing is refused. `zscores` and
+  `winsorize`, whose gs-quant default reads the whole series, are causal here (D2).
+- **An aggregate's argument is computed per row, before the period** -- SQL's own rule (`sum(price * qty)` multiplies
+  each row, then groups). So a line computed day by day and then sampled needs no nesting:
+
+  ```sql
+  SELECT last(close[A] / close[B])   AS wk_ratio,   -- the daily ratio, each week's last
+         last(mean(close[A], 20))    AS wk_ma20,    -- the 20-day mean, computed daily, each week's last
+         mean(last(close[A]), 4)     AS ma_4w       -- each week's close, then a 4-week mean
+  FROM   prices ON date BY symbol
+  SAMPLE BY 1w
+  ```
+
+  The builder writes such an aggregate as the nested daily query R1.5 already reads.
+- **Under `SAMPLE BY`, a windowed call on a raw line** is refused with the question experts get wrong: "last(mean(close,
+  20)) for each week's last 20-day mean, or mean(last(close), 20) for a 20-week mean?"
+
+**D4. Nothing is read from context.** A word never changes meaning because a far clause is there or not, nor because of
+where in a statement it stands (the user, 2026-10-31, "there is no way to tell from context if last() should be
+latest()?"). Under D3, `SAMPLE BY` decides only between "the period's" and "refused", never between two numbers, so a
+frequency switched in the tile never silently changes a formula. The tile's own window counts (`volatility` 22,
+`sharpe_ratio` 252, the pair functions 63), which are neither gs-quant's nor written, are removed. The Python DSL takes
+gs-quant's signatures and defaults exactly (`bucketize` included) and its printer writes the window out.
 
 **D5. Subscripts take bare words** (the user's question, 2026-10-31; its edges set after the review): `close[SPX]` is
 the value `SPX`, as written (no case folding); `close[SPX, venue = NYSE]` likewise on the right of `=`. Quoted, single
@@ -202,11 +232,12 @@ a ruling (§9, R1).
 
 | | gs-quant 2.2.3 | `#TS` today (the code) | Proposed |
 |---|---|---|---|
-| No window | `Window(None, 0)`: the series' length, no ramp (`helper.normalize_window`) -- each date from the series' start for most functions; `zscores` and `winsorize` over the whole series, the future included; `percentile` a single number | the tile's counts: `volatility` 22, `median` 22, `sharpe_ratio` 252, the pair functions 63; `zscores`, `drawdown`, `percentiles` from the start (`TsFunctions.java:190-222`); the period words refused | always written in text (D4), refused with gs-quant's default as the fix (`all`); Python's signatures keep gs-quant's default and print it |
+| No window | `Window(None, 0)`: the series' length, no ramp (`helper.normalize_window`) -- each date from the series' start for most functions; `zscores` and `winsorize` over the whole series, the future included; `percentile` a single number | the tile's counts: `volatility` 22, `median` 22, `sharpe_ratio` 252, the pair functions 63; `zscores`, `drawdown`, `percentiles` from the start (`TsFunctions.java:190-222`); the period words refused | ruled (D3): gs-quant's default, from the start, for a function that is no aggregate; an aggregate word the period's under `SAMPLE BY`, else refused with `all` the fix |
 | An integer `w` | `Window(w, w)`: a ramp of `w`, the first `w` points dropped by position (`apply_ramp`, `x[window.r:]`) | the library's ramp is a minimum count (`model.pure:62-65`): the first value one point earlier (spec §12 item 11) | gs-quant's: a change to the library's ramp, not a new parameter |
 | `Window(w, r)` | size and ramp apart | `w` only | gs-quant's: `Window(63, 10)` in Python, `w => 63, r => 10` in text |
 | A calendar window | `'1m'`: `m` is months (letters h, d, w, m, y) | `3mo`; `m` refused (in QuestDB `1m` is a minute) | text keeps `3mo` and refuses `m`; Python's tenor strings are gs-quant's (`'3m'`), printed `3mo` |
 | From the start | `w=None` | `all` | `all` |
+| The whole line, the future included | `last(x)`, `first(x)`; `zscores(x)`'s default | none | `whole`, the one way to ask for it (D3) |
 
 ### 4.2 Words
 
@@ -214,7 +245,7 @@ a ruling (§9, R1).
 |---|---|---|---|
 | `log(x)` | natural | SQL's base 10 (`PostgresFunctions.java:99`); `ln` natural | refused in text with both fixes (D2); Python's `log` natural, printed `ln` |
 | `floor(x, value=0)`, `ceil(x, value=0)` | a bound, default 0 | SQL's rounding | refused in text with both fixes (D2); Python's are gs-quant's, printed `greatest`/`least` |
-| `first(x)`, `last(x)` | the whole line's value on every date | the period's under `SAMPLE BY`; `first_of`, `last_of` the whole line's | as today (D3), the names ruled (R8) |
+| `first(x)`, `last(x)` | the whole line's value on every date | the period's under `SAMPLE BY`; `first_of`, `last_of` the whole line's | ruled (D3): the period's under `SAMPLE BY`; gs-quant's are `first(x, all)` and `last(x, whole)`; `first_of`/`last_of` deleted |
 | `volatility` | annualized, in percent | in percent (`model.pure:281-286`) | the same: no change |
 | `percentile(x, n, w)` | `n` 0 to 100 | `n` 0 to 100, default 50 (`TsFunctions.java:205,492`) | the same; its window written (D4) |
 | `weekday(x)` | 0 is Monday | `weekday_of`, 0 is Monday (`model.pure:884-886`) | the same meaning; the name ruled (R3) |
@@ -294,17 +325,21 @@ the user and written down, with gs-quant's answer beside lite's: the oracle's re
 
 ## 9. The rulings asked
 
+Still open, and when each is needed: R5 by step 2 (the oracle); R1, R3, R7 and R9 by step 4 (the words); R10 an
+acknowledgement. Step 1 needs none of them.
+
 - **R1.** §4.1 and §4.2, row by row.
-- **R2.** D4: a window always written in text (the tile's counts removed; Python's gs-quant defaults printed out).
+- **R2. Ruled 2026-10-31** (D3, the scope rule): a missing window is gs-quant's default for a function that is no
+  aggregate; an aggregate word without one is the period's under `SAMPLE BY`, else refused.
 - **R3.** The names: `weekday` or `weekday_of`; `range`/`filter`/`union` or `range_of`/`filter_values`/`union_of`;
   §4.3's printed forms.
-- **R4.** The order and sizes of §6.
+- **R4. Ruled 2026-10-31** ("let's print it and get started"): the order of §6, step 1 first.
 - **R5.** The oracle lane: gs-quant and its dependencies pinned in one test lane; the frozen answers for the rest.
 - **R6. Ruled 2026-10-31:** D1 as revised -- one reader, a `#TS` query as its text inside the protocol's tree, as
   upstream carries `#SQL`. Version 1's tree on the wire is dropped.
 - **R7.** D2 as narrowed: gs-quant's meaning unless it looks ahead or clashes with SQL in the statement; the clashing
   words refused in text.
-- **R8.** The whole-line first and last: `first_of`/`last_of` (today's, no clash), or new names (`latest` is taken).
+- **R8. Gone** (D3): the whole-line first and last are `first(x, all)` and `last(x, whole)`.
 - **R9.** Two lines meeting: the dates both have (today), gs-quant's step, or pandas' union.
 - **R10.** The rulings this plan changes, listed so none changes unsaid: build ruling 7 (the tile's notation stays the
   surface) is replaced -- the user, 2026-10-31: `#TS` is the tile's language, and nobody uses the tile yet; the spec's
