@@ -2156,7 +2156,6 @@ class Timeseries(Tile):
         series' points, or with ``table`` one of the tables its screen's statistics panel shows) -- of one grid, as the
         grid is read (its copy, snapped; a class's mapping; the page's filters on it: headless gridTimeseries), of several
         over one model of their tables. Called within a read of the frames (Frames.reading)."""
-        from . import compiler
         page = self._page
         session = page._session
         engine, frames = session.headless(), session.frames
@@ -2174,7 +2173,7 @@ class Timeseries(Tile):
         said = _json.loads(engine.call('gridTimeseries', spec, _json.dumps(asked)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
-        return compiler.parse(said['query']), _with_library(spec, said), said
+        return said['query'], _with_library(spec, said), said
 
     def _rows(self, asked: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         """The rows of one of the tile's queries (``_query``) as a pandas DataFrame, and its answer's words: planned and

@@ -971,7 +971,8 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'no series reads S'):
             tile.swap('S', 'T')
         q = tile.query('B')
-        self.assertTrue(q['pure'].lstrip().startswith('|'), q['pure'])
+        # a lambda, braced where it binds its grids first (`{| let px = ...; #TS{...}#...}`: the tile's #TS, 2026-10-31)
+        self.assertRegex(q['pure'].lstrip(), r'^\{?\|', q['pure'])
         self.assertIn("'T'", q['pure'], 'the instrument swapped in, in the query DataCube wrote')
         self.assertIn('SELECT', q['sql'].upper())
         both = tile.table()
@@ -1082,13 +1083,13 @@ class Document(Paged):
             ('correlations', 'B', 'B', 'correlations'), ('calendar', 'A', None, 'calendar')])
         for q in asked:
             self.assertNotIn('refused', q, q['what'])
-            self.assertTrue(q['pure'].lstrip().startswith('|'), q['what'])
+            self.assertRegex(q['pure'].lstrip(), r'^\{?\|', q['what'])  # braced where it binds its grids first
             self.assertIn('SELECT', q['sql'].upper(), q['what'])
         self.assertEqual(asked[1]['what'], 'Series A (close[S]): its points')
         self.assertIn("'S'", asked[1]['pure'])
-        # a return is a call of DataCube's Pure library (datacube/src/pure-library.ts), planned over the model with it
-        # after
-        self.assertIn('timeseries::returns', asked[2]['pure'])
+        # a return is #TS's returns (2026-10-31, the tile's #TS), which the compiler writes as the timeseries library's
+        # call (timeseries::returns), planned over the model with the library after it (datacube/src/pure-library.ts)
+        self.assertIn('#TS{SELECT returns(', asked[2]['pure'])
         # a view's question with them, as the screen asks it: after the series', before the panel's
         tile.options(view={'mode': 'histogram'})
         kinds = [(q['kind'], q.get('series')) for q in tile.queries()]

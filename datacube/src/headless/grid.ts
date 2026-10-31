@@ -1659,32 +1659,34 @@ export async function gridWriteTable(spec: GridSpec, output: string, query: stri
  * P1): `spec` the grid over its base as every grid call has it -- its copy, snapped (baseOnHost); a class's mapping; the
  * page's filters on it (its lens) -- and `asked` (JSON `{page, tile, series, window}`) the series of a tile of the page.
  * Its query written over the grid as the grid is (timeseries-query.ts seriesQuery, every point of the window: the
- * drawing's limit is the drawing's), through the page's filters, composed as it is sent to be planned, as gridRelation
- * is -- what the tab's viewer reads through the grid's own runner. JSON: `{query, columns, unit, band, candles, split,
- * name, library?}`, the query Pure text (`library`: DataCube's Pure library, which a query calling it is planned over after
- * the grid's model), or `{problems}`, in DataCube's words.
+ * drawing's limit is the drawing's), through the page's filters, as it is sent to be planned -- what the tab's viewer
+ * reads through the grid's own runner. JSON: `{query, columns, unit, band, candles, split, name, library?}`, the query
+ * the protocol's tree, which its host plans as it is (`library`: DataCube's Pure library, which a query calling it is
+ * planned over after the grid's model), or `{problems}`, in DataCube's words. The tree, never its text: a text the host
+ * parsed back would go through the engine-exact grammar, which refuses a #TS{...}# island as legend-engine refuses an
+ * island it does not know (2026-10-31, the #TS switch's Python reds: the query had been printed here and parsed there).
  */
 export async function gridTimeseries(spec: GridSpec, asked: string): Promise<string> {
   try {
     return await using(spec, async ({ planner, lens, state }) => {
       const a = JSON.parse(asked) as { readonly page: unknown; readonly tile: string; readonly series?: string; readonly window?: TsWindow; readonly table?: TsTable | 'bounds' | 'marks' | 'projection'; readonly with?: string; readonly source?: string; readonly marks?: number; readonly projection?: number; readonly anchor?: string; readonly years?: number; readonly bins?: number; readonly dates?: readonly string[] };
-      const compose = async (said: Record<string, unknown>): Promise<string> => {
+      const sent = (said: Record<string, unknown>): string => {
         const query = fromJson(JSON.stringify(said['query'])) as Lambda;
-        const text = await planner.compose(planner.sent(lens ? lens(query) : query), 'STANDARD');
         // a query calling DataCube's Pure library: its text, which the host plans it over after the grid's model
-        return JSON.stringify({ ...said, query: text, ...(callsLibrary(query) ? { library: DATACUBE_LIBRARY } : {}) });
+        return JSON.stringify({ ...said, query: JSON.parse(toJson(planner.sent(lens ? lens(query) : query))) as unknown,
+          ...(callsLibrary(query) ? { library: DATACUBE_LIBRARY } : {}) });
       };
       // a source's bounds, over the grid as it is read (headless timeseries.ts timeseriesWindow reads the tile's range from them)
       if (a.table === 'bounds') {
         const view = readPage(a.page, { empty: true }).views.find((v) => v.id === a.tile);
         if (!view || view.kind !== 'timeseries') throw new Problem(`'${a.tile}' is no timeseries tile of the page`);
-        return await compose(JSON.parse(`{${boundsOf(view.spec, a.source ?? '', { snapshot: state.snapshot, filter: state.snapshot.filter })}}`) as Record<string, unknown>);
+        return sent(JSON.parse(`{${boundsOf(view.spec, a.source ?? '', { snapshot: state.snapshot, filter: state.snapshot.filter })}}`) as Record<string, unknown>);
       }
       // marks from the grid's rows (TsMarks), over the grid as it is read, as its bounds are
       if (a.table === 'marks') {
         const view = readPage(a.page, { empty: true }).views.find((v) => v.id === a.tile);
         if (!view || view.kind !== 'timeseries') throw new Problem(`'${a.tile}' is no timeseries tile of the page`);
-        return await compose(JSON.parse(`{${marksAsked(view.spec, a.marks, { snapshot: state.snapshot, filter: state.snapshot.filter })}}`) as Record<string, unknown>);
+        return sent(JSON.parse(`{${marksAsked(view.spec, a.marks, { snapshot: state.snapshot, filter: state.snapshot.filter })}}`) as Record<string, unknown>);
       }
       const { ts, series } = seriesOf(readPage(a.page, { empty: true }), a.tile, a.series);
       const { table, ...rest } = a;
@@ -1694,8 +1696,8 @@ export async function gridTimeseries(spec: GridSpec, asked: string): Promise<str
         throw new Problem(`series ${series.id} reads ${aliases.length} grids: it is read over their tables together (timeseriesQuery)`);
       }
       const inputs: TsInputs = new Map([[aliases[0]!, { snapshot: state.snapshot, filter: state.snapshot.filter }]]);
-      // its points, or one of its tables (headless timeseries.ts askedOf): the query composed as it is sent
-      return await compose(JSON.parse(`{${askedOf(told, inputs, ts, series)}}`) as Record<string, unknown>);
+      // its points, or one of its tables (headless timeseries.ts askedOf): the query as it is sent
+      return sent(JSON.parse(`{${askedOf(told, inputs, ts, series)}}`) as Record<string, unknown>);
     });
   } catch (e) {
     if (e instanceof Problem || e instanceof CubeRefusal) return JSON.stringify({ problems: [e.message] });
