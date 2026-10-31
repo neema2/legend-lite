@@ -341,10 +341,11 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
     collation per dialect to be right.
   Today's failure texts ("Execution error message mismatch. The actual message was ...", "No error was thrown", the
   line and column forms) are kept either way.
-- **R14's one ambiguous case (posted by M0, 2026-10-31):** the host judge's "golden JSON does not parse" (`sql.Json`,
-  2 failing tests per corpus, host pass only). The golden is a literal, so the failure is knowable at compile time,
-  but the engine parses it when the assert runs. Compile error or planned raise? Every other planning failure M0 saw is
-  classified in `docs/test-is-product-homework/C_M0_MEASUREMENTS.md` §4.
+- **R14's one ambiguous case -- RULED 2026-10-31: a planned raise.** The host judge's "golden JSON does not parse"
+  (`sql.Json`, 2 failing tests per corpus, host pass only) was posted by M0. The golden is a literal, so the failure is
+  knowable at compile time, but the engine parses it when the assert runs. The user: "Planned raise is fine". It
+  becomes a planned raise at the assert's position, as the engine raises it there. Every other planning failure M0 saw
+  is classified in `docs/test-is-product-homework/C_M0_MEASUREMENTS.md` §4.
 
 ## 10. Status
 

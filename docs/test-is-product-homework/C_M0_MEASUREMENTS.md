@@ -192,7 +192,7 @@ last statement):
 | `resolver` `MappingResolutionException` / `NotImplementedException` | 16 | 15 | compile error (unsupported or invalid mapping use) |
 | `lowering.MatchFold`, `plan.PlanText`, `planner.EnginePlans`, `lineage`, `testdatagen` `NotImplementedException` | 15 | 15 | compile error (unsupported) |
 | `sql` `DialectCapability` (`LIST_FILTER`, `encodeBaseN`, ... on a database without it) | 2 | 223 (database) / 161 (host) | compile error for that target |
-| `sql.Json` `IllegalStateException` "golden JSON does not parse" (host pass only) | 2 | 2 | **ambiguous, posted**: the golden is a literal (knowable at compile time), but the engine parses it when the assert runs |
+| `sql.Json` `IllegalStateException` "golden JSON does not parse" (host pass only) | 2 | 2 | posted as ambiguous (the golden is a literal, knowable at compile time, but the engine parses it when the assert runs); **ruled 2026-10-31: a planned raise** |
 
 **The lowering-time guards that are run-time errors by Pure's meaning.** A census of the code finds four
 `ModelException` sites in `lowering/`. Channel B's `assertError` catches three of them:
@@ -266,6 +266,7 @@ last statement):
 - **MV1 needs no ruling on outcomes.** It changes statement counts and the outside-body register's rule, and nothing
   else.
 - **MV8 is one H2 test at most.** R14's split of the guards is mechanical: the four `ModelException` guards become
-  planned raises, and every other planning failure is a compile error. One case is posted, the golden-JSON parse.
+  planned raises, and every other planning failure is a compile error. The golden-JSON parse, posted as ambiguous,
+  was ruled a planned raise.
 - **Empty risks:** T8 (no re-typing), R13 (no computed strings), D18, F11 and D30 have no corpus or channel B case.
   The designs stay as written, smaller in practice.
