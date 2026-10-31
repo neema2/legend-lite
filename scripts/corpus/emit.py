@@ -288,6 +288,67 @@ def _unserializable(o):
     raise TypeError(f"{type(o).__name__} {o!r} has no JSON form in an expected result")
 
 
+def _java_double(x: float) -> str:
+    """A double as Java's Double.toString writes it (Jackson's writeNumber, the PURE_TDSOBJECT serializer): the
+    shortest digits that read back as the double, as Python's repr finds them, written plainly between 10^-3 and
+    10^7 with at least one fraction digit. Outside that range Java writes `1.0E7`, which is not asserted."""
+    if x == 0:
+        return "-0.0" if str(x).startswith("-") else "0.0"
+    if not 1e-3 <= abs(x) < 1e7:
+        raise ValueError(f"{x!r}: Java writes it in scientific notation, which no exact text here asserts")
+    r = repr(float(x))
+    return r if "." in r else r + ".0"
+
+
+def exact_text(rows: list[dict]) -> str:
+    """Rows as the pinned engine's PURE_TDSOBJECT serializer writes them, character for character (the improvement
+    plan's Phase 8: an EqualTo assertion compares the answer's text exactly, ORDER included): compact JSON, each row's
+    columns in their order, a double in Java's spelling, a Decimal digit for digit, as Pure string text."""
+    import flat
+
+    def value(v):
+        if v is None:
+            return "null"
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, int):
+            return str(v)
+        if isinstance(v, decimal.Decimal):
+            return _decimal_text(v)
+        if isinstance(v, flat.F32):
+            return _java_double(float(repr(v)))
+        if isinstance(v, float):
+            return _java_double(v)
+        if isinstance(v, str):
+            return json.dumps(v, ensure_ascii=False)
+        raise TypeError(f"{type(v).__name__} {v!r} has no exact text")
+
+    text = "[" + ",".join("{" + ",".join(f"{json.dumps(k)}:{value(v)}" for k, v in r.items()) + "}"
+                          for r in rows) + "]"
+    return _pure_str(text)
+
+
+def _shaped_test(test_id: str, payload: str, text: str, asserts) -> str:
+    """A further test of a service's suite (shapes.py): PURE_TDSOBJECT, and an assertion per (id, kind), 'json' the
+    rows (EqualToJson) and 'text' the exact answer (EqualTo)."""
+    blocks = []
+    for aid, kind in asserts:
+        if kind == "json":
+            blocks.append(f"            {aid}:\n              EqualToJson\n"
+                          f"              #{{\n                expected:\n"
+                          f"                  ExternalFormat\n                  #{{\n"
+                          f"                    contentType: 'application/json';\n"
+                          f"                    data: '{payload}';\n                  }}#;\n"
+                          f"              }}#")
+        elif kind == "text":
+            blocks.append(f"            {aid}:\n              EqualTo\n"
+                          f"              #{{\n                expected: '{text}';\n              }}#")
+        else:
+            raise ValueError(f"assertion kind {kind!r}")
+    return (f"        {test_id}:\n        {{\n          serializationFormat: PURE_TDSOBJECT;\n"
+            f"          asserts:\n          [\n" + ",\n".join(blocks) + "\n          ]\n        }")
+
+
 def test_suite(spec: Spec, expected, note: str) -> str:
     """The testSuites block.
 
@@ -300,6 +361,10 @@ def test_suite(spec: Spec, expected, note: str) -> str:
         payload = [(test_id, params, _payload(spec, rows)) for test_id, params, rows in expected]
     else:
         payload = _payload(spec, expected)
+    tests = _tests(spec, payload)
+    # further tests of the suite (shapes.py, the improvement plan's Phase 8), each judging the same rows
+    for test_id, asserts in getattr(spec, "more_tests", ()):
+        tests += ",\n" + _shaped_test(test_id, payload, exact_text(expected), asserts)
     return f"""  testSuites:
   [
     {spec.short}_suite:
@@ -318,7 +383,7 @@ def test_suite(spec: Spec, expected, note: str) -> str:
       tests:
       [
         // {note}
-{_tests(spec, payload)}
+{tests}
       ]
     }}
   ]"""

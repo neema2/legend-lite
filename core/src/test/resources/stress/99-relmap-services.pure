@@ -482,6 +482,28 @@ Service stress::RMR_DealsTop
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"dealId":"TRD-0018","notional":4912500.0},{"dealId":"TRD-0019","notional":1960000.0},{"dealId":"TRD-0020","notional":975000.0},{"dealId":"TRD-0009","notional":576750.0},{"dealId":"TRD-0010","notional":498000.0}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"dealId":"TRD-0018","notional":4912500.0},{"dealId":"TRD-0019","notional":1960000.0},{"dealId":"TRD-0020","notional":975000.0},{"dealId":"TRD-0009","notional":576750.0},{"dealId":"TRD-0010","notional":498000.0}]';
+              }#
+          ]
         }
       ]
     }
@@ -536,6 +558,28 @@ Service stress::RM_SourcedTop
                     contentType: 'application/json';
                     data: '[{"dealId":"TRD-0018","notional":4912500.0},{"dealId":"TRD-0019","notional":1960000.0},{"dealId":"TRD-0020","notional":975000.0},{"dealId":"TRD-0009","notional":576750.0},{"dealId":"TRD-0010","notional":498000.0}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"dealId":"TRD-0018","notional":4912500.0},{"dealId":"TRD-0019","notional":1960000.0},{"dealId":"TRD-0020","notional":975000.0},{"dealId":"TRD-0009","notional":576750.0},{"dealId":"TRD-0010","notional":498000.0}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"dealId":"TRD-0018","notional":4912500.0},{"dealId":"TRD-0019","notional":1960000.0},{"dealId":"TRD-0020","notional":975000.0},{"dealId":"TRD-0009","notional":576750.0},{"dealId":"TRD-0010","notional":498000.0}]';
               }#
           ]
         }
@@ -3346,6 +3390,28 @@ Service stress::RMR_DealDeskTop
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"dealId":"TRD-0013","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0014","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0015","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0016","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0017","deskName":"EMEA Cash Equity"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"dealId":"TRD-0013","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0014","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0015","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0016","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0017","deskName":"EMEA Cash Equity"}]';
+              }#
+          ]
         }
       ]
     }
@@ -3400,6 +3466,28 @@ Service stress::RM_CrossedDealDeskTop
                     contentType: 'application/json';
                     data: '[{"dealId":"TRD-0013","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0014","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0015","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0016","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0017","deskName":"EMEA Cash Equity"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"dealId":"TRD-0013","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0014","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0015","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0016","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0017","deskName":"EMEA Cash Equity"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"dealId":"TRD-0013","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0014","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0015","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0016","deskName":"EMEA Cash Equity"},{"dealId":"TRD-0017","deskName":"EMEA Cash Equity"}]';
               }#
           ]
         }

@@ -362,8 +362,9 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
 def _test_form_features(specs, quarantined: set[str], add) -> None:
     """Test forms (the improvement plan's Phase 8): a mapping's test suites (mapping_tests.py), each executed when a
     mirrored service is emitted and its test mapping is not quarantined -- the engine judges the mapping's suites as a
-    testable of their own."""
+    testable of their own; and the test shapes (shapes.py), each executed by a shaped service not quarantined."""
     import mapping_tests
+    import shapes
 
     emitted = {s.name: s for s in specs}
     add("T8  mapping test suite", sorted(
@@ -371,6 +372,10 @@ def _test_form_features(specs, quarantined: set[str], add) -> None:
         f"{emitted[n].short}" for n in mapping_tests.MIRRORED
         if n in emitted and mapping_tests.test_mapping(emitted[n].mapping or mapping_tests.DEFAULT_MAPPING)
         not in quarantined))
+    shaped = sorted(n.split("::")[-1] for n in shapes.SHAPED if n not in quarantined)
+    add("T8  several tests in a suite", shaped)
+    add("T8  several assertions in a test", shaped)
+    add("T8  EqualTo assertion", shaped)
 
 
 def _checks_features(specs, quarantined: set[str], add) -> None:
@@ -804,6 +809,9 @@ BASELINE = {
     # 2026-10-31, the improvement plan's Phase 8, stage 2 (mapping_tests.py): a mapping's test suites, each mirroring a
     # service, passing on legend-engine 4.145.0.
     "T8  mapping test suite",
+    # 2026-10-31, the improvement plan's Phase 8, stage 3 (shapes.py): a second test of a service's suite, holding two
+    # assertions, one an EqualTo, passing on legend-engine 4.145.0.
+    "T8  several tests in a suite", "T8  several assertions in a test", "T8  EqualTo assertion",
 }
 
 

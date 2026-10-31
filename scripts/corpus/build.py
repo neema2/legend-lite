@@ -30,6 +30,7 @@ import model
 import oracle
 import query
 import seed
+import shapes
 import aggregates
 import checks
 import mapping_tests
@@ -295,10 +296,14 @@ def generate() -> dict[Path, str]:
     results = []
     # name -> (spec, expected rows) of every service written with one test, which a mapping test may mirror
     emitted: dict = {}
+    # the services given a second test, shapes.py's (the improvement plan's Phase 8)
+    SHAPED = set(shapes.SHAPED)
 
     def service(spec, expected, note):
         if not spec.cases:
             emitted[spec.name] = (spec, expected)
+        if spec.name in SHAPED:
+            spec.more_tests = list(shapes.TESTS)
         return emit.service(spec, expected, note)
 
     out = []
@@ -505,9 +510,9 @@ def generate() -> dict[Path, str]:
     checks_text = (CHECKS_HEADER + "\n" + checks.data_element(c, TABLES) + "\n\n"
                    + "###Service\n" + "\n\n".join(checks_svc) + "\n")
 
-    problems = mapping_tests.check(emitted)
+    problems = mapping_tests.check(emitted) + shapes.check(c, emitted)
     if problems:
-        raise SystemExit("mapping tests:\n  " + "\n  ".join(problems))
+        raise SystemExit("mapping tests and test shapes:\n  " + "\n  ".join(problems))
     # the runtimes the mirrored services name: the hand-written files' and the two this build writes (hier's, combo's)
     corpus_text = "".join(p.read_text(encoding="utf-8") for p in model.stress_sources()) + hier_text + combo_text
     mapping_tests_text = (MAPPING_TESTS_HEADER + "\n###Mapping\n"

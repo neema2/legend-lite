@@ -731,6 +731,12 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
 - **Timestamps render as `2024-06-03T19:00:00.000000000+0000`**, dates as `2024-06-03`.
   Not a defect — but undocumented anywhere we could find, and the difference between the
   two is the whole reason 8 of 12 services failed on the first calibrated run.
+- **A DECIMAL column's value is written at the column's scale** (4.145.0, probed 2026-10-31, the stress corpus plan's
+  Phase 8): under `PURE_TDSOBJECT` a Float property read from `DECIMAL(18,4)` comes back as `8.0000`, one from
+  `DECIMAL(18,2)` as `666400.00`, and a value computed from one at the database's scale for the arithmetic
+  (`-666400.000`), where a `DOUBLE` column's is Java's `Double.toString` (`8.0`). `EqualToJson` compares numbers by
+  value, so no expectation before noticed; an `EqualTo` of the text does. The corpus's EqualTo services read their
+  doubles from `DOUBLE` columns alone (`scripts/corpus/shapes.py`).
 - **A graph-fetch result is not a bare array.** `serialize()` wraps it as
   `{"builder":{"_type":"json"},"values":[...]}`. Not a defect, but an expectation written
   as a bare array fails with both sides looking identical for the first 300 characters.

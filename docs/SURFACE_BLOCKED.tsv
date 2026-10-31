@@ -31,9 +31,8 @@ R67	TabularFunction: ###Data materializes Tables only (our F-series)
 RM-05	RelationalMapper include: rule unreachable from definition
 RT-14	Runtime includes: token does not exist
 SV-12	extensionExec: zero registered handlers in this repo
-TST-15	EqualToTDS: complete grammar pair, NO registered parser
+TST-15	EqualToTDS: legend-engine 4.145.0 refuses it at parse ("Unknown test assertion type: EqualToTDS": a grammar pair in relationalStore-grammar, and no assertion parser registers it), so one would stop the whole corpus loading on the engine (probed 2026-10-31, the stress corpus plan's Phase 8, which writes EqualTo and its TA-01 instead)
 P03	documentation slot declared on classDefinition and rejected in both string forms (F33)
-TA-01	EqualTo asserts a primitive; a relational service returns a result envelope carrying a per-run UUID, so the two cannot meet
 P12	property documentation: same slot as P03, rejected (F33)
 PP-02	relationalMapper reference does not resolve in the full model (open, not isolated)
 REL-02	~src inline relation expr: legend-engine 4.145.0's parser overflows on a raw relation under ~src (EMIT's relation-src model), so the corpus's ~src takes a typed relation function's call (8116-relmap.pure, 2026-10-30, the stress corpus plan's Phase 6, which also wrote REL-03 and REL-04)

@@ -1954,6 +1954,28 @@ Service stress::OT5_UncollateralisedTrades
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"otcId":"OTC-000006","productType":"CAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":false},{"otcId":"OTC-000010","productType":"FX_OPTION","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":false},{"otcId":"OTC-000012","productType":"VARIANCE_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000013","productType":"COMMODITY_SWAP","collateralised":false,"masterAgreement":null,"noOptionTerms":true},{"otcId":"OTC-000014","productType":"CONSTANT_MATURITY_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000016","productType":"ACCRETING_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000018","productType":"CALLABLE_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000020","productType":"MIDCURVE_SWAPTION","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000022","productType":"CDS_TRANCHE","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000024","productType":"CREDIT_LINKED_NOTE","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000026","productType":"FX_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000028","productType":"FX_ACCUMULATOR","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000030","productType":"EQUITY_OPTION_OTC","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000032","productType":"REVERSE_CONVERTIBLE","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000034","productType":"RAINBOW_OPTION","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000036","productType":"EQUITY_REPO","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000038","productType":"WEATHER_DERIVATIVE","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000040","productType":"CALLABLE_RANGE_ACCRUAL","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000042","productType":"LONGEVITY_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"otcId":"OTC-000006","productType":"CAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":false},{"otcId":"OTC-000010","productType":"FX_OPTION","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":false},{"otcId":"OTC-000012","productType":"VARIANCE_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000013","productType":"COMMODITY_SWAP","collateralised":false,"masterAgreement":null,"noOptionTerms":true},{"otcId":"OTC-000014","productType":"CONSTANT_MATURITY_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000016","productType":"ACCRETING_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000018","productType":"CALLABLE_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000020","productType":"MIDCURVE_SWAPTION","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000022","productType":"CDS_TRANCHE","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000024","productType":"CREDIT_LINKED_NOTE","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000026","productType":"FX_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000028","productType":"FX_ACCUMULATOR","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000030","productType":"EQUITY_OPTION_OTC","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000032","productType":"REVERSE_CONVERTIBLE","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000034","productType":"RAINBOW_OPTION","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000036","productType":"EQUITY_REPO","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000038","productType":"WEATHER_DERIVATIVE","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000040","productType":"CALLABLE_RANGE_ACCRUAL","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true},{"otcId":"OTC-000042","productType":"LONGEVITY_SWAP","collateralised":false,"masterAgreement":"ISDA_2002","noOptionTerms":true}]';
+              }#
+          ]
         }
       ]
     }
@@ -2012,6 +2034,28 @@ Service stress::MR0_RunSummary
                     contentType: 'application/json';
                     data: '[{"runId":"RUN-20240626-EOD","cobDate":"2024-06-26","runType":"EOD","status":"FAILED","approvedBy":null,"durationMinutes":null,"noMeasures":true},{"runId":"RUN-20240627-EOD","cobDate":"2024-06-27","runType":"EOD","status":"COMPLETE","approvedBy":"risk.controller","durationMinutes":87,"noMeasures":false},{"runId":"RUN-20240628-EOD","cobDate":"2024-06-28","runType":"EOD","status":"COMPLETE","approvedBy":"risk.controller","durationMinutes":93,"noMeasures":false},{"runId":"RUN-20240628-INTRA","cobDate":"2024-06-28","runType":"INTRADAY","status":"COMPLETE","approvedBy":null,"durationMinutes":9,"noMeasures":false}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"runId":"RUN-20240626-EOD","cobDate":"2024-06-26","runType":"EOD","status":"FAILED","approvedBy":null,"durationMinutes":null,"noMeasures":true},{"runId":"RUN-20240627-EOD","cobDate":"2024-06-27","runType":"EOD","status":"COMPLETE","approvedBy":"risk.controller","durationMinutes":87,"noMeasures":false},{"runId":"RUN-20240628-EOD","cobDate":"2024-06-28","runType":"EOD","status":"COMPLETE","approvedBy":"risk.controller","durationMinutes":93,"noMeasures":false},{"runId":"RUN-20240628-INTRA","cobDate":"2024-06-28","runType":"INTRADAY","status":"COMPLETE","approvedBy":null,"durationMinutes":9,"noMeasures":false}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"runId":"RUN-20240626-EOD","cobDate":"2024-06-26","runType":"EOD","status":"FAILED","approvedBy":null,"durationMinutes":null,"noMeasures":true},{"runId":"RUN-20240627-EOD","cobDate":"2024-06-27","runType":"EOD","status":"COMPLETE","approvedBy":"risk.controller","durationMinutes":87,"noMeasures":false},{"runId":"RUN-20240628-EOD","cobDate":"2024-06-28","runType":"EOD","status":"COMPLETE","approvedBy":"risk.controller","durationMinutes":93,"noMeasures":false},{"runId":"RUN-20240628-INTRA","cobDate":"2024-06-28","runType":"INTRADAY","status":"COMPLETE","approvedBy":null,"durationMinutes":9,"noMeasures":false}]';
               }#
           ]
         }
@@ -2554,6 +2598,28 @@ Service stress::MO3_BreakAgeing
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"breakId":"BRK-00001","breakType":"ECONOMIC_BREAK","severity":"HIGH","status":"OPEN","ageDays":51,"resolvedDate":null,"fieldName":"STRIKE","ourValue":"1.0850","theirValue":"1.0855"},{"breakId":"BRK-00002","breakType":"CONFIRMATION_BREAK","severity":"MEDIUM","status":"OPEN","ageDays":144,"resolvedDate":null,"fieldName":null,"ourValue":null,"theirValue":null},{"breakId":"BRK-00003","breakType":"SETTLEMENT_BREAK","severity":"LOW","status":"RESOLVED","ageDays":4,"resolvedDate":"2024-02-06","fieldName":"SETTLEMENT_DATE","ourValue":"2024-02-01","theirValue":"2024-02-02"},{"breakId":"BRK-00004","breakType":"REFERENCE_DATA_BREAK","severity":"LOW","status":"RESOLVED","ageDays":3,"resolvedDate":"2024-03-25","fieldName":"REFERENCE_ENTITY","ourValue":"RED-8G836G","theirValue":"RED-8G836H"},{"breakId":"BRK-00005","breakType":"VALUATION_BREAK","severity":"HIGH","status":"ESCALATED","ageDays":2,"resolvedDate":null,"fieldName":"MTM","ourValue":"-482150.00","theirValue":"-511900.00"},{"breakId":"BRK-00006","breakType":"COLLATERAL_BREAK","severity":"MEDIUM","status":"OPEN","ageDays":1,"resolvedDate":null,"fieldName":"MARGIN_CALL","ourValue":"1250000.00","theirValue":"1180000.00"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"breakId":"BRK-00001","breakType":"ECONOMIC_BREAK","severity":"HIGH","status":"OPEN","ageDays":51,"resolvedDate":null,"fieldName":"STRIKE","ourValue":"1.0850","theirValue":"1.0855"},{"breakId":"BRK-00002","breakType":"CONFIRMATION_BREAK","severity":"MEDIUM","status":"OPEN","ageDays":144,"resolvedDate":null,"fieldName":null,"ourValue":null,"theirValue":null},{"breakId":"BRK-00003","breakType":"SETTLEMENT_BREAK","severity":"LOW","status":"RESOLVED","ageDays":4,"resolvedDate":"2024-02-06","fieldName":"SETTLEMENT_DATE","ourValue":"2024-02-01","theirValue":"2024-02-02"},{"breakId":"BRK-00004","breakType":"REFERENCE_DATA_BREAK","severity":"LOW","status":"RESOLVED","ageDays":3,"resolvedDate":"2024-03-25","fieldName":"REFERENCE_ENTITY","ourValue":"RED-8G836G","theirValue":"RED-8G836H"},{"breakId":"BRK-00005","breakType":"VALUATION_BREAK","severity":"HIGH","status":"ESCALATED","ageDays":2,"resolvedDate":null,"fieldName":"MTM","ourValue":"-482150.00","theirValue":"-511900.00"},{"breakId":"BRK-00006","breakType":"COLLATERAL_BREAK","severity":"MEDIUM","status":"OPEN","ageDays":1,"resolvedDate":null,"fieldName":"MARGIN_CALL","ourValue":"1250000.00","theirValue":"1180000.00"}]';
+              }#
+          ]
         }
       ]
     }
@@ -2670,6 +2736,28 @@ Service stress::MO5_CleanTrades
                     contentType: 'application/json';
                     data: '[{"otcId":"OTC-000001","productType":"IRS","noBreaks":false,"noEvents":false},{"otcId":"OTC-000002","productType":"OIS","noBreaks":true,"noEvents":false},{"otcId":"OTC-000003","productType":"BASIS_SWAP","noBreaks":false,"noEvents":false},{"otcId":"OTC-000004","productType":"FRA","noBreaks":true,"noEvents":true},{"otcId":"OTC-000005","productType":"SWAPTION","noBreaks":false,"noEvents":false},{"otcId":"OTC-000006","productType":"CAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000007","productType":"CDS","noBreaks":false,"noEvents":false},{"otcId":"OTC-000008","productType":"CDS_INDEX","noBreaks":true,"noEvents":false},{"otcId":"OTC-000009","productType":"NDF","noBreaks":true,"noEvents":false},{"otcId":"OTC-000010","productType":"FX_OPTION","noBreaks":false,"noEvents":true},{"otcId":"OTC-000011","productType":"EQUITY_SWAP","noBreaks":true,"noEvents":false},{"otcId":"OTC-000012","productType":"VARIANCE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000013","productType":"COMMODITY_SWAP","noBreaks":false,"noEvents":false},{"otcId":"OTC-000014","productType":"CONSTANT_MATURITY_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000015","productType":"CROSS_CURRENCY_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000016","productType":"ACCRETING_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000017","productType":"ZERO_COUPON_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000018","productType":"CALLABLE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000019","productType":"CMS_SPREAD_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000020","productType":"MIDCURVE_SWAPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000021","productType":"COLLAR","noBreaks":true,"noEvents":true},{"otcId":"OTC-000022","productType":"CDS_TRANCHE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000023","productType":"NTH_TO_DEFAULT","noBreaks":true,"noEvents":true},{"otcId":"OTC-000024","productType":"CREDIT_LINKED_NOTE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000025","productType":"LOAN_CDS","noBreaks":true,"noEvents":true},{"otcId":"OTC-000026","productType":"FX_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000027","productType":"FX_DIGITAL","noBreaks":true,"noEvents":true},{"otcId":"OTC-000028","productType":"FX_ACCUMULATOR","noBreaks":true,"noEvents":true},{"otcId":"OTC-000029","productType":"QUANTO_FORWARD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000030","productType":"EQUITY_OPTION_OTC","noBreaks":true,"noEvents":true},{"otcId":"OTC-000031","productType":"TOTAL_RETURN_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000032","productType":"REVERSE_CONVERTIBLE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000033","productType":"LOOKBACK_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000034","productType":"RAINBOW_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000035","productType":"CORRIDOR_VARIANCE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000036","productType":"EQUITY_REPO","noBreaks":true,"noEvents":true},{"otcId":"OTC-000037","productType":"COMMODITY_SPREAD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000038","productType":"WEATHER_DERIVATIVE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000039","productType":"EMISSIONS_FORWARD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000040","productType":"CALLABLE_RANGE_ACCRUAL","noBreaks":true,"noEvents":true},{"otcId":"OTC-000041","productType":"EQUITY_LINKED_NOTE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000042","productType":"LONGEVITY_SWAP","noBreaks":true,"noEvents":true}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"otcId":"OTC-000001","productType":"IRS","noBreaks":false,"noEvents":false},{"otcId":"OTC-000002","productType":"OIS","noBreaks":true,"noEvents":false},{"otcId":"OTC-000003","productType":"BASIS_SWAP","noBreaks":false,"noEvents":false},{"otcId":"OTC-000004","productType":"FRA","noBreaks":true,"noEvents":true},{"otcId":"OTC-000005","productType":"SWAPTION","noBreaks":false,"noEvents":false},{"otcId":"OTC-000006","productType":"CAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000007","productType":"CDS","noBreaks":false,"noEvents":false},{"otcId":"OTC-000008","productType":"CDS_INDEX","noBreaks":true,"noEvents":false},{"otcId":"OTC-000009","productType":"NDF","noBreaks":true,"noEvents":false},{"otcId":"OTC-000010","productType":"FX_OPTION","noBreaks":false,"noEvents":true},{"otcId":"OTC-000011","productType":"EQUITY_SWAP","noBreaks":true,"noEvents":false},{"otcId":"OTC-000012","productType":"VARIANCE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000013","productType":"COMMODITY_SWAP","noBreaks":false,"noEvents":false},{"otcId":"OTC-000014","productType":"CONSTANT_MATURITY_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000015","productType":"CROSS_CURRENCY_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000016","productType":"ACCRETING_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000017","productType":"ZERO_COUPON_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000018","productType":"CALLABLE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000019","productType":"CMS_SPREAD_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000020","productType":"MIDCURVE_SWAPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000021","productType":"COLLAR","noBreaks":true,"noEvents":true},{"otcId":"OTC-000022","productType":"CDS_TRANCHE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000023","productType":"NTH_TO_DEFAULT","noBreaks":true,"noEvents":true},{"otcId":"OTC-000024","productType":"CREDIT_LINKED_NOTE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000025","productType":"LOAN_CDS","noBreaks":true,"noEvents":true},{"otcId":"OTC-000026","productType":"FX_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000027","productType":"FX_DIGITAL","noBreaks":true,"noEvents":true},{"otcId":"OTC-000028","productType":"FX_ACCUMULATOR","noBreaks":true,"noEvents":true},{"otcId":"OTC-000029","productType":"QUANTO_FORWARD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000030","productType":"EQUITY_OPTION_OTC","noBreaks":true,"noEvents":true},{"otcId":"OTC-000031","productType":"TOTAL_RETURN_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000032","productType":"REVERSE_CONVERTIBLE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000033","productType":"LOOKBACK_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000034","productType":"RAINBOW_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000035","productType":"CORRIDOR_VARIANCE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000036","productType":"EQUITY_REPO","noBreaks":true,"noEvents":true},{"otcId":"OTC-000037","productType":"COMMODITY_SPREAD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000038","productType":"WEATHER_DERIVATIVE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000039","productType":"EMISSIONS_FORWARD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000040","productType":"CALLABLE_RANGE_ACCRUAL","noBreaks":true,"noEvents":true},{"otcId":"OTC-000041","productType":"EQUITY_LINKED_NOTE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000042","productType":"LONGEVITY_SWAP","noBreaks":true,"noEvents":true}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"otcId":"OTC-000001","productType":"IRS","noBreaks":false,"noEvents":false},{"otcId":"OTC-000002","productType":"OIS","noBreaks":true,"noEvents":false},{"otcId":"OTC-000003","productType":"BASIS_SWAP","noBreaks":false,"noEvents":false},{"otcId":"OTC-000004","productType":"FRA","noBreaks":true,"noEvents":true},{"otcId":"OTC-000005","productType":"SWAPTION","noBreaks":false,"noEvents":false},{"otcId":"OTC-000006","productType":"CAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000007","productType":"CDS","noBreaks":false,"noEvents":false},{"otcId":"OTC-000008","productType":"CDS_INDEX","noBreaks":true,"noEvents":false},{"otcId":"OTC-000009","productType":"NDF","noBreaks":true,"noEvents":false},{"otcId":"OTC-000010","productType":"FX_OPTION","noBreaks":false,"noEvents":true},{"otcId":"OTC-000011","productType":"EQUITY_SWAP","noBreaks":true,"noEvents":false},{"otcId":"OTC-000012","productType":"VARIANCE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000013","productType":"COMMODITY_SWAP","noBreaks":false,"noEvents":false},{"otcId":"OTC-000014","productType":"CONSTANT_MATURITY_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000015","productType":"CROSS_CURRENCY_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000016","productType":"ACCRETING_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000017","productType":"ZERO_COUPON_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000018","productType":"CALLABLE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000019","productType":"CMS_SPREAD_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000020","productType":"MIDCURVE_SWAPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000021","productType":"COLLAR","noBreaks":true,"noEvents":true},{"otcId":"OTC-000022","productType":"CDS_TRANCHE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000023","productType":"NTH_TO_DEFAULT","noBreaks":true,"noEvents":true},{"otcId":"OTC-000024","productType":"CREDIT_LINKED_NOTE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000025","productType":"LOAN_CDS","noBreaks":true,"noEvents":true},{"otcId":"OTC-000026","productType":"FX_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000027","productType":"FX_DIGITAL","noBreaks":true,"noEvents":true},{"otcId":"OTC-000028","productType":"FX_ACCUMULATOR","noBreaks":true,"noEvents":true},{"otcId":"OTC-000029","productType":"QUANTO_FORWARD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000030","productType":"EQUITY_OPTION_OTC","noBreaks":true,"noEvents":true},{"otcId":"OTC-000031","productType":"TOTAL_RETURN_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000032","productType":"REVERSE_CONVERTIBLE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000033","productType":"LOOKBACK_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000034","productType":"RAINBOW_OPTION","noBreaks":true,"noEvents":true},{"otcId":"OTC-000035","productType":"CORRIDOR_VARIANCE_SWAP","noBreaks":true,"noEvents":true},{"otcId":"OTC-000036","productType":"EQUITY_REPO","noBreaks":true,"noEvents":true},{"otcId":"OTC-000037","productType":"COMMODITY_SPREAD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000038","productType":"WEATHER_DERIVATIVE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000039","productType":"EMISSIONS_FORWARD","noBreaks":true,"noEvents":true},{"otcId":"OTC-000040","productType":"CALLABLE_RANGE_ACCRUAL","noBreaks":true,"noEvents":true},{"otcId":"OTC-000041","productType":"EQUITY_LINKED_NOTE","noBreaks":true,"noEvents":true},{"otcId":"OTC-000042","productType":"LONGEVITY_SWAP","noBreaks":true,"noEvents":true}]';
               }#
           ]
         }
@@ -2914,6 +3002,28 @@ Service stress::BO3_StandingInstructions
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"ssiId":"SSI-EUR-CP0001","currency":"EUR","instrumentType":"CASH","correspondentBic":"DEUTDEFF","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Meridian Asset Management"},{"ssiId":"SSI-SEC-CP0003","currency":null,"instrumentType":"SECURITIES","correspondentBic":"ECLRLULL","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"O\'Neill Capital Partners"},{"ssiId":"SSI-USD-CP0001","currency":"USD","instrumentType":"CASH","correspondentBic":"CHASUS33","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Meridian Asset Management"},{"ssiId":"SSI-USD-CP0002","currency":"USD","instrumentType":"CASH","correspondentBic":"BOFAUS3N","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Halberd Securities"},{"ssiId":"SSI-USD-CP0002-OLD","currency":"USD","instrumentType":"CASH","correspondentBic":"CITIUS33","isDefault":false,"effectiveTo":"2021-05-31","status":"SUPERSEDED","legalName":"Halberd Securities"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"ssiId":"SSI-EUR-CP0001","currency":"EUR","instrumentType":"CASH","correspondentBic":"DEUTDEFF","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Meridian Asset Management"},{"ssiId":"SSI-SEC-CP0003","currency":null,"instrumentType":"SECURITIES","correspondentBic":"ECLRLULL","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"O\'Neill Capital Partners"},{"ssiId":"SSI-USD-CP0001","currency":"USD","instrumentType":"CASH","correspondentBic":"CHASUS33","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Meridian Asset Management"},{"ssiId":"SSI-USD-CP0002","currency":"USD","instrumentType":"CASH","correspondentBic":"BOFAUS3N","isDefault":true,"effectiveTo":null,"status":"ACTIVE","legalName":"Halberd Securities"},{"ssiId":"SSI-USD-CP0002-OLD","currency":"USD","instrumentType":"CASH","correspondentBic":"CITIUS33","isDefault":false,"effectiveTo":"2021-05-31","status":"SUPERSEDED","legalName":"Halberd Securities"}]';
+              }#
+          ]
         }
       ]
     }
@@ -3092,6 +3202,28 @@ Service stress::MD0_SeriesCatalogue
                     contentType: 'application/json';
                     data: '[{"seriesId":"BRENT.M1","seriesName":"Brent Crude Front Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/ICE:BRENT.M1"},{"seriesId":"CPI.US.YOY","seriesName":"US CPI All Items Year on Year","assetClass":"MACRO","frequency":"MONTHLY","currency":"USD","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/BLS:CPI.US.YOY"},{"seriesId":"DBR.10Y","seriesName":"German Bund 10 Year Yield","assetClass":"RATES","frequency":"DAILY","currency":"EUR","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/BUNDESBANK:DBR.10Y"},{"seriesId":"EURIBOR.3M","seriesName":"Euribor 3 Month","assetClass":"RATES","frequency":"DAILY","currency":"EUR","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/EMMI:EURIBOR.3M"},{"seriesId":"EURUSD","seriesName":"Euro US Dollar Spot","assetClass":"FX","frequency":"DAILY","currency":"USD","decimalPlaces":4,"isDaily":true,"bloombergTicker":"BBG/WMR16:EURUSD"},{"seriesId":"GBPUSD","seriesName":"Sterling US Dollar Spot","assetClass":"FX","frequency":"DAILY","currency":"USD","decimalPlaces":4,"isDaily":true,"bloombergTicker":"BBG/WMR16:GBPUSD"},{"seriesId":"HICP.EA.YOY","seriesName":"Euro Area HICP Year on Year","assetClass":"MACRO","frequency":"MONTHLY","currency":"EUR","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/EUROSTAT:HICP.EA.YOY"},{"seriesId":"LME.CU3M","seriesName":"LME Copper 3 Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/LME:LME.CU3M"},{"seriesId":"SOFR.ON","seriesName":"SOFR Overnight Financing Rate","assetClass":"RATES","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/NYFED:SOFR.ON"},{"seriesId":"SPX.CLOSE","seriesName":"S&P 500 Index Close","assetClass":"EQUITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/CBOE:SPX.CLOSE"},{"seriesId":"UNRATE.US","seriesName":"US Unemployment Rate","assetClass":"MACRO","frequency":"MONTHLY","currency":"USD","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/BLS:UNRATE.US"},{"seriesId":"USDJPY","seriesName":"US Dollar Japanese Yen Spot","assetClass":"FX","frequency":"DAILY","currency":"JPY","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/WMR16:USDJPY"},{"seriesId":"UST.10Y","seriesName":"US Treasury 10 Year Yield","assetClass":"RATES","frequency":"DAILY","currency":"USD","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/FEDH15:UST.10Y"},{"seriesId":"VIX","seriesName":"CBOE Volatility Index","assetClass":"EQUITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/CBOE:VIX"},{"seriesId":"WTI.M1","seriesName":"WTI Crude Front Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/NYMEX:WTI.M1"},{"seriesId":"XAU.PM","seriesName":"Gold LBMA PM Fix","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/LBMA:XAU.PM"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"seriesId":"BRENT.M1","seriesName":"Brent Crude Front Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/ICE:BRENT.M1"},{"seriesId":"CPI.US.YOY","seriesName":"US CPI All Items Year on Year","assetClass":"MACRO","frequency":"MONTHLY","currency":"USD","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/BLS:CPI.US.YOY"},{"seriesId":"DBR.10Y","seriesName":"German Bund 10 Year Yield","assetClass":"RATES","frequency":"DAILY","currency":"EUR","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/BUNDESBANK:DBR.10Y"},{"seriesId":"EURIBOR.3M","seriesName":"Euribor 3 Month","assetClass":"RATES","frequency":"DAILY","currency":"EUR","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/EMMI:EURIBOR.3M"},{"seriesId":"EURUSD","seriesName":"Euro US Dollar Spot","assetClass":"FX","frequency":"DAILY","currency":"USD","decimalPlaces":4,"isDaily":true,"bloombergTicker":"BBG/WMR16:EURUSD"},{"seriesId":"GBPUSD","seriesName":"Sterling US Dollar Spot","assetClass":"FX","frequency":"DAILY","currency":"USD","decimalPlaces":4,"isDaily":true,"bloombergTicker":"BBG/WMR16:GBPUSD"},{"seriesId":"HICP.EA.YOY","seriesName":"Euro Area HICP Year on Year","assetClass":"MACRO","frequency":"MONTHLY","currency":"EUR","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/EUROSTAT:HICP.EA.YOY"},{"seriesId":"LME.CU3M","seriesName":"LME Copper 3 Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/LME:LME.CU3M"},{"seriesId":"SOFR.ON","seriesName":"SOFR Overnight Financing Rate","assetClass":"RATES","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/NYFED:SOFR.ON"},{"seriesId":"SPX.CLOSE","seriesName":"S&P 500 Index Close","assetClass":"EQUITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/CBOE:SPX.CLOSE"},{"seriesId":"UNRATE.US","seriesName":"US Unemployment Rate","assetClass":"MACRO","frequency":"MONTHLY","currency":"USD","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/BLS:UNRATE.US"},{"seriesId":"USDJPY","seriesName":"US Dollar Japanese Yen Spot","assetClass":"FX","frequency":"DAILY","currency":"JPY","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/WMR16:USDJPY"},{"seriesId":"UST.10Y","seriesName":"US Treasury 10 Year Yield","assetClass":"RATES","frequency":"DAILY","currency":"USD","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/FEDH15:UST.10Y"},{"seriesId":"VIX","seriesName":"CBOE Volatility Index","assetClass":"EQUITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/CBOE:VIX"},{"seriesId":"WTI.M1","seriesName":"WTI Crude Front Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/NYMEX:WTI.M1"},{"seriesId":"XAU.PM","seriesName":"Gold LBMA PM Fix","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/LBMA:XAU.PM"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"seriesId":"BRENT.M1","seriesName":"Brent Crude Front Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/ICE:BRENT.M1"},{"seriesId":"CPI.US.YOY","seriesName":"US CPI All Items Year on Year","assetClass":"MACRO","frequency":"MONTHLY","currency":"USD","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/BLS:CPI.US.YOY"},{"seriesId":"DBR.10Y","seriesName":"German Bund 10 Year Yield","assetClass":"RATES","frequency":"DAILY","currency":"EUR","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/BUNDESBANK:DBR.10Y"},{"seriesId":"EURIBOR.3M","seriesName":"Euribor 3 Month","assetClass":"RATES","frequency":"DAILY","currency":"EUR","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/EMMI:EURIBOR.3M"},{"seriesId":"EURUSD","seriesName":"Euro US Dollar Spot","assetClass":"FX","frequency":"DAILY","currency":"USD","decimalPlaces":4,"isDaily":true,"bloombergTicker":"BBG/WMR16:EURUSD"},{"seriesId":"GBPUSD","seriesName":"Sterling US Dollar Spot","assetClass":"FX","frequency":"DAILY","currency":"USD","decimalPlaces":4,"isDaily":true,"bloombergTicker":"BBG/WMR16:GBPUSD"},{"seriesId":"HICP.EA.YOY","seriesName":"Euro Area HICP Year on Year","assetClass":"MACRO","frequency":"MONTHLY","currency":"EUR","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/EUROSTAT:HICP.EA.YOY"},{"seriesId":"LME.CU3M","seriesName":"LME Copper 3 Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/LME:LME.CU3M"},{"seriesId":"SOFR.ON","seriesName":"SOFR Overnight Financing Rate","assetClass":"RATES","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/NYFED:SOFR.ON"},{"seriesId":"SPX.CLOSE","seriesName":"S&P 500 Index Close","assetClass":"EQUITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/CBOE:SPX.CLOSE"},{"seriesId":"UNRATE.US","seriesName":"US Unemployment Rate","assetClass":"MACRO","frequency":"MONTHLY","currency":"USD","decimalPlaces":1,"isDaily":false,"bloombergTicker":"BBG/BLS:UNRATE.US"},{"seriesId":"USDJPY","seriesName":"US Dollar Japanese Yen Spot","assetClass":"FX","frequency":"DAILY","currency":"JPY","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/WMR16:USDJPY"},{"seriesId":"UST.10Y","seriesName":"US Treasury 10 Year Yield","assetClass":"RATES","frequency":"DAILY","currency":"USD","decimalPlaces":3,"isDaily":true,"bloombergTicker":"BBG/FEDH15:UST.10Y"},{"seriesId":"VIX","seriesName":"CBOE Volatility Index","assetClass":"EQUITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/CBOE:VIX"},{"seriesId":"WTI.M1","seriesName":"WTI Crude Front Month","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/NYMEX:WTI.M1"},{"seriesId":"XAU.PM","seriesName":"Gold LBMA PM Fix","assetClass":"COMMODITY","frequency":"DAILY","currency":"USD","decimalPlaces":2,"isDaily":true,"bloombergTicker":"BBG/LBMA:XAU.PM"}]';
               }#
           ]
         }
@@ -3993,6 +4125,28 @@ Service stress::CV5_CurveCatalogue
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"EUR.DBR.GOVT","curveName":"German Bund Zero Curve","currency":"EUR","curveType":"GOVERNMENT","interpolation":"BOOTSTRAP","dayCountBasis":"ACT/ACT","isActive":true},{"curveId":"EUR.ESTR.OIS","curveName":"EUR Euro Short Term Rate OIS","currency":"EUR","curveType":"OIS","interpolation":"LINEAR_ZERO","dayCountBasis":"ACT/360","isActive":true},{"curveId":"EUR.EURIBOR.6M","curveName":"EUR 6M Euribor Swap","currency":"EUR","curveType":"SWAP","interpolation":"CUBIC_SPLINE","dayCountBasis":"30/360","isActive":false},{"curveId":"GBP.SONIA.OIS","curveName":"GBP SONIA Overnight Index Swap","currency":"GBP","curveType":"OIS","interpolation":"LINEAR_ZERO","dayCountBasis":"ACT/365","isActive":true},{"curveId":"JPY.TONA.OIS","curveName":"JPY TONA Overnight Index Swap","currency":"JPY","curveType":"OIS","interpolation":"LINEAR_ZERO","dayCountBasis":"ACT/365","isActive":true},{"curveId":"USD.LIBOR.3M","curveName":"USD 3M LIBOR Swap (legacy)","currency":"USD","curveType":"SWAP","interpolation":"CUBIC_SPLINE","dayCountBasis":"ACT/360","isActive":false},{"curveId":"USD.SOFR.OIS","curveName":"USD SOFR Overnight Index Swap","currency":"USD","curveType":"OIS","interpolation":"LINEAR_ZERO","dayCountBasis":"ACT/360","isActive":true},{"curveId":"USD.UST.GOVT","curveName":"US Treasury Zero Curve","currency":"USD","curveType":"GOVERNMENT","interpolation":"BOOTSTRAP","dayCountBasis":"ACT/ACT","isActive":true}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"curveId":"EUR.DBR.GOVT","curveName":"German Bund Zero Curve","currency":"EUR","curveType":"GOVERNMENT","interpolation":"BOOTSTRAP","dayCountBasis":"ACT/ACT","isActive":true},{"curveId":"EUR.ESTR.OIS","curveName":"EUR Euro Short Term Rate OIS","currency":"EUR","curveType":"OIS","interpolation":"LINEAR_ZERO","dayCountBasis":"ACT/360","isActive":true},{"curveId":"EUR.EURIBOR.6M","curveName":"EUR 6M Euribor Swap","currency":"EUR","curveType":"SWAP","interpolation":"CUBIC_SPLINE","dayCountBasis":"30/360","isActive":false},{"curveId":"GBP.SONIA.OIS","curveName":"GBP SONIA Overnight Index Swap","currency":"GBP","curveType":"OIS","interpolation":"LINEAR_ZERO","dayCountBasis":"ACT/365","isActive":true},{"curveId":"JPY.TONA.OIS","curveName":"JPY TONA Overnight Index Swap","currency":"JPY","curveType":"OIS","interpolation":"LINEAR_ZERO","dayCountBasis":"ACT/365","isActive":true},{"curveId":"USD.LIBOR.3M","curveName":"USD 3M LIBOR Swap (legacy)","currency":"USD","curveType":"SWAP","interpolation":"CUBIC_SPLINE","dayCountBasis":"ACT/360","isActive":false},{"curveId":"USD.SOFR.OIS","curveName":"USD SOFR Overnight Index Swap","currency":"USD","curveType":"OIS","interpolation":"LINEAR_ZERO","dayCountBasis":"ACT/360","isActive":true},{"curveId":"USD.UST.GOVT","curveName":"US Treasury Zero Curve","currency":"USD","curveType":"GOVERNMENT","interpolation":"BOOTSTRAP","dayCountBasis":"ACT/ACT","isActive":true}]';
+              }#
+          ]
         }
       ]
     }
@@ -4047,6 +4201,28 @@ Service stress::CV8_CurveDates
                     contentType: 'application/json';
                     data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","curveLabel":"USD.UST.GOVTGOVT"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","curveLabel":"USD.UST.GOVTGOVT"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","curveLabel":"USD.UST.GOVTGOVT"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","curveLabel":"USD.UST.GOVTGOVT"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-19","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.DBR.GOVT","cobDate":"2024-06-20","curveLabel":"EUR.DBR.GOVTGOVT"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-19","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.ESTR.OIS","cobDate":"2024-06-20","curveLabel":"EUR.ESTR.OISOIS"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-19","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"EUR.EURIBOR.6M","cobDate":"2024-06-20","curveLabel":"EUR.EURIBOR.6MIBOR_SWAP"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-19","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"GBP.SONIA.OIS","cobDate":"2024-06-20","curveLabel":"GBP.SONIA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-19","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"JPY.TONA.OIS","cobDate":"2024-06-20","curveLabel":"JPY.TONA.OISOIS"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-19","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.LIBOR.3M","cobDate":"2024-06-20","curveLabel":"USD.LIBOR.3MIBOR_SWAP"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-19","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.SOFR.OIS","cobDate":"2024-06-20","curveLabel":"USD.SOFR.OISOIS"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-19","curveLabel":"USD.UST.GOVTGOVT"},{"curveId":"USD.UST.GOVT","cobDate":"2024-06-20","curveLabel":"USD.UST.GOVTGOVT"}]';
               }#
           ]
         }
@@ -4347,6 +4523,28 @@ Service stress::BK2_ClearingRoutes
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","venue":"XNAS","tradeType":"AGENCY","notional":190500.0,"matchingRules":2},{"tradeId":"TRD-0002","venue":"BATS","tradeType":"AGENCY","notional":477500.0,"matchingRules":2},{"tradeId":"TRD-0003","venue":"IEXG","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0004","venue":"XLON","tradeType":"PRINCIPAL","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0005","venue":"XNYS","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0006","venue":"XNAS","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0007","venue":"BATS","tradeType":"AGENCY","notional":282000.0,"matchingRules":2},{"tradeId":"TRD-0008","venue":"IEXG","tradeType":"AGENCY","notional":18975.0,"matchingRules":2},{"tradeId":"TRD-0009","venue":"XLON","tradeType":"AGENCY","notional":576750.0,"matchingRules":2},{"tradeId":"TRD-0010","venue":"XNYS","tradeType":"AGENCY","notional":498000.0,"matchingRules":2},{"tradeId":"TRD-0011","venue":"XNAS","tradeType":"AGENCY","notional":167300.0,"matchingRules":2},{"tradeId":"TRD-0012","venue":"BATS","tradeType":"AGENCY","notional":369000.0,"matchingRules":2},{"tradeId":"TRD-0013","venue":"IEXG","tradeType":"PRINCIPAL","notional":171250.0,"matchingRules":2},{"tradeId":"TRD-0014","venue":"xnas","tradeType":"AGENCY","notional":69000.0,"matchingRules":1},{"tradeId":"TRD-0015","venue":"XNYS","tradeType":"AGENCY","notional":35000.0,"matchingRules":2},{"tradeId":"TRD-0016","venue":"XNAS","tradeType":"AGENCY","notional":264600.0,"matchingRules":2},{"tradeId":"TRD-0017","venue":"BATS","tradeType":"PRINCIPAL","notional":385000.0,"matchingRules":2},{"tradeId":"TRD-0018","venue":"IEXG","tradeType":"AGENCY","notional":4912500.0,"matchingRules":2},{"tradeId":"TRD-0019","venue":"XLON","tradeType":"AGENCY","notional":1960000.0,"matchingRules":2},{"tradeId":"TRD-0020","venue":"XNYS","tradeType":"AGENCY","notional":975000.0,"matchingRules":2}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"tradeId":"TRD-0001","venue":"XNAS","tradeType":"AGENCY","notional":190500.0,"matchingRules":2},{"tradeId":"TRD-0002","venue":"BATS","tradeType":"AGENCY","notional":477500.0,"matchingRules":2},{"tradeId":"TRD-0003","venue":"IEXG","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0004","venue":"XLON","tradeType":"PRINCIPAL","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0005","venue":"XNYS","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0006","venue":"XNAS","tradeType":"AGENCY","notional":250000.0,"matchingRules":2},{"tradeId":"TRD-0007","venue":"BATS","tradeType":"AGENCY","notional":282000.0,"matchingRules":2},{"tradeId":"TRD-0008","venue":"IEXG","tradeType":"AGENCY","notional":18975.0,"matchingRules":2},{"tradeId":"TRD-0009","venue":"XLON","tradeType":"AGENCY","notional":576750.0,"matchingRules":2},{"tradeId":"TRD-0010","venue":"XNYS","tradeType":"AGENCY","notional":498000.0,"matchingRules":2},{"tradeId":"TRD-0011","venue":"XNAS","tradeType":"AGENCY","notional":167300.0,"matchingRules":2},{"tradeId":"TRD-0012","venue":"BATS","tradeType":"AGENCY","notional":369000.0,"matchingRules":2},{"tradeId":"TRD-0013","venue":"IEXG","tradeType":"PRINCIPAL","notional":171250.0,"matchingRules":2},{"tradeId":"TRD-0014","venue":"xnas","tradeType":"AGENCY","notional":69000.0,"matchingRules":1},{"tradeId":"TRD-0015","venue":"XNYS","tradeType":"AGENCY","notional":35000.0,"matchingRules":2},{"tradeId":"TRD-0016","venue":"XNAS","tradeType":"AGENCY","notional":264600.0,"matchingRules":2},{"tradeId":"TRD-0017","venue":"BATS","tradeType":"PRINCIPAL","notional":385000.0,"matchingRules":2},{"tradeId":"TRD-0018","venue":"IEXG","tradeType":"AGENCY","notional":4912500.0,"matchingRules":2},{"tradeId":"TRD-0019","venue":"XLON","tradeType":"AGENCY","notional":1960000.0,"matchingRules":2},{"tradeId":"TRD-0020","venue":"XNYS","tradeType":"AGENCY","notional":975000.0,"matchingRules":2}]';
+              }#
+          ]
         }
       ]
     }
@@ -4405,6 +4603,28 @@ Service stress::BK3_RoutingRules
                     contentType: 'application/json';
                     data: '[{"routeId":"RTE-AGENCY","venueCode":null,"productCode":"AGENCY","clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":17},{"routeId":"RTE-BATS","venueCode":"BATS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":false,"tradesRouted":4},{"routeId":"RTE-IEXG","venueCode":"IEXG","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4},{"routeId":"RTE-PRINCIPAL","venueCode":null,"productCode":"PRINCIPAL","clearingHouse":"OCC","settlementCycle":"T+2","isNetted":false,"tradesRouted":3},{"routeId":"RTE-XLON","venueCode":"XLON","productCode":null,"clearingHouse":"CREST","settlementCycle":"T+2","isNetted":true,"tradesRouted":3},{"routeId":"RTE-XNAS","venueCode":"XNAS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4},{"routeId":"RTE-XNYS","venueCode":"XNYS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"routeId":"RTE-AGENCY","venueCode":null,"productCode":"AGENCY","clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":17},{"routeId":"RTE-BATS","venueCode":"BATS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":false,"tradesRouted":4},{"routeId":"RTE-IEXG","venueCode":"IEXG","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4},{"routeId":"RTE-PRINCIPAL","venueCode":null,"productCode":"PRINCIPAL","clearingHouse":"OCC","settlementCycle":"T+2","isNetted":false,"tradesRouted":3},{"routeId":"RTE-XLON","venueCode":"XLON","productCode":null,"clearingHouse":"CREST","settlementCycle":"T+2","isNetted":true,"tradesRouted":3},{"routeId":"RTE-XNAS","venueCode":"XNAS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4},{"routeId":"RTE-XNYS","venueCode":"XNYS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"routeId":"RTE-AGENCY","venueCode":null,"productCode":"AGENCY","clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":17},{"routeId":"RTE-BATS","venueCode":"BATS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":false,"tradesRouted":4},{"routeId":"RTE-IEXG","venueCode":"IEXG","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4},{"routeId":"RTE-PRINCIPAL","venueCode":null,"productCode":"PRINCIPAL","clearingHouse":"OCC","settlementCycle":"T+2","isNetted":false,"tradesRouted":3},{"routeId":"RTE-XLON","venueCode":"XLON","productCode":null,"clearingHouse":"CREST","settlementCycle":"T+2","isNetted":true,"tradesRouted":3},{"routeId":"RTE-XNAS","venueCode":"XNAS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4},{"routeId":"RTE-XNYS","venueCode":"XNYS","productCode":null,"clearingHouse":"DTCC","settlementCycle":"T+1","isNetted":true,"tradesRouted":4}]';
               }#
           ]
         }
@@ -5015,6 +5235,28 @@ Service stress::LE6_ExemptionRules
                     contentType: 'application/json';
                     data: '[{"ruleId":"EX-CPTY-06","exemptCounterpartyId":"CP-0006","exemptCountryCode":null,"basis":"CENTRAL_BANK","linesReached":1},{"ruleId":"EX-CTY-DE","exemptCounterpartyId":null,"exemptCountryCode":"DE","basis":"INTRAGROUP_LOCAL","linesReached":2},{"ruleId":"EX-CTY-IE","exemptCounterpartyId":null,"exemptCountryCode":"IE","basis":"COVERED_BOND_RELIEF","linesReached":1},{"ruleId":"EX-CTY-SG","exemptCounterpartyId":null,"exemptCountryCode":"SG","basis":"TRADE_FINANCE_RELIEF","linesReached":1},{"ruleId":"EX-SOV-JP","exemptCounterpartyId":"CP-0005","exemptCountryCode":null,"basis":"SOVEREIGN_EXPOSURE","linesReached":1}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"ruleId":"EX-CPTY-06","exemptCounterpartyId":"CP-0006","exemptCountryCode":null,"basis":"CENTRAL_BANK","linesReached":1},{"ruleId":"EX-CTY-DE","exemptCounterpartyId":null,"exemptCountryCode":"DE","basis":"INTRAGROUP_LOCAL","linesReached":2},{"ruleId":"EX-CTY-IE","exemptCounterpartyId":null,"exemptCountryCode":"IE","basis":"COVERED_BOND_RELIEF","linesReached":1},{"ruleId":"EX-CTY-SG","exemptCounterpartyId":null,"exemptCountryCode":"SG","basis":"TRADE_FINANCE_RELIEF","linesReached":1},{"ruleId":"EX-SOV-JP","exemptCounterpartyId":"CP-0005","exemptCountryCode":null,"basis":"SOVEREIGN_EXPOSURE","linesReached":1}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"ruleId":"EX-CPTY-06","exemptCounterpartyId":"CP-0006","exemptCountryCode":null,"basis":"CENTRAL_BANK","linesReached":1},{"ruleId":"EX-CTY-DE","exemptCounterpartyId":null,"exemptCountryCode":"DE","basis":"INTRAGROUP_LOCAL","linesReached":2},{"ruleId":"EX-CTY-IE","exemptCounterpartyId":null,"exemptCountryCode":"IE","basis":"COVERED_BOND_RELIEF","linesReached":1},{"ruleId":"EX-CTY-SG","exemptCounterpartyId":null,"exemptCountryCode":"SG","basis":"TRADE_FINANCE_RELIEF","linesReached":1},{"ruleId":"EX-SOV-JP","exemptCounterpartyId":"CP-0005","exemptCountryCode":null,"basis":"SOVEREIGN_EXPOSURE","linesReached":1}]';
               }#
           ]
         }
@@ -5714,6 +5956,28 @@ Service stress::PL12_InstrumentTypeCensus
                     contentType: 'application/json';
                     data: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND","subType":"GOVERNMENT","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"EUR"},{"instrumentId":"CI-BD-002","instrumentType":"BOND","subType":"CORPORATE","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-BD-003","instrumentType":"BOND","subType":"CONVERTIBLE","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"GBP"},{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT","subType":null,"assetClass":"EQUITY","status":"MATURED","currency":"USD"},{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY","subType":"COMMON","assetClass":"EQUITY","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY","subType":"PREFERRED","assetClass":"EQUITY","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY","subType":null,"assetClass":"EQUITY","status":"SUSPENDED","currency":"GBP"},{"instrumentId":"CI-ET-001","instrumentType":"ETF","subType":null,"assetClass":"FUND","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-FU-001","instrumentType":"FUTURE","subType":"COMMODITY","assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE","subType":"EQUITY_INDEX","assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"EUR"},{"instrumentId":"CI-OP-001","instrumentType":"OPTION","subType":null,"assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION","subType":null,"assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-001","instrumentType":"SWAP","subType":"IRS","assetClass":"OTC_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP","subType":"CDS","assetClass":"OTC_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP","subType":"TRS","assetClass":"OTC_DERIVATIVE","status":"SUSPENDED","currency":"GBP"},{"instrumentId":"CI-WR-001","instrumentType":"WARRANT","subType":null,"assetClass":"STRUCTURED","status":"ACTIVE","currency":"USD"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND","subType":"GOVERNMENT","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"EUR"},{"instrumentId":"CI-BD-002","instrumentType":"BOND","subType":"CORPORATE","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-BD-003","instrumentType":"BOND","subType":"CONVERTIBLE","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"GBP"},{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT","subType":null,"assetClass":"EQUITY","status":"MATURED","currency":"USD"},{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY","subType":"COMMON","assetClass":"EQUITY","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY","subType":"PREFERRED","assetClass":"EQUITY","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY","subType":null,"assetClass":"EQUITY","status":"SUSPENDED","currency":"GBP"},{"instrumentId":"CI-ET-001","instrumentType":"ETF","subType":null,"assetClass":"FUND","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-FU-001","instrumentType":"FUTURE","subType":"COMMODITY","assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE","subType":"EQUITY_INDEX","assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"EUR"},{"instrumentId":"CI-OP-001","instrumentType":"OPTION","subType":null,"assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION","subType":null,"assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-001","instrumentType":"SWAP","subType":"IRS","assetClass":"OTC_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP","subType":"CDS","assetClass":"OTC_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP","subType":"TRS","assetClass":"OTC_DERIVATIVE","status":"SUSPENDED","currency":"GBP"},{"instrumentId":"CI-WR-001","instrumentType":"WARRANT","subType":null,"assetClass":"STRUCTURED","status":"ACTIVE","currency":"USD"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND","subType":"GOVERNMENT","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"EUR"},{"instrumentId":"CI-BD-002","instrumentType":"BOND","subType":"CORPORATE","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-BD-003","instrumentType":"BOND","subType":"CONVERTIBLE","assetClass":"FIXED_INCOME","status":"ACTIVE","currency":"GBP"},{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT","subType":null,"assetClass":"EQUITY","status":"MATURED","currency":"USD"},{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY","subType":"COMMON","assetClass":"EQUITY","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY","subType":"PREFERRED","assetClass":"EQUITY","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY","subType":null,"assetClass":"EQUITY","status":"SUSPENDED","currency":"GBP"},{"instrumentId":"CI-ET-001","instrumentType":"ETF","subType":null,"assetClass":"FUND","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-FU-001","instrumentType":"FUTURE","subType":"COMMODITY","assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE","subType":"EQUITY_INDEX","assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"EUR"},{"instrumentId":"CI-OP-001","instrumentType":"OPTION","subType":null,"assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION","subType":null,"assetClass":"LISTED_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-001","instrumentType":"SWAP","subType":"IRS","assetClass":"OTC_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP","subType":"CDS","assetClass":"OTC_DERIVATIVE","status":"ACTIVE","currency":"USD"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP","subType":"TRS","assetClass":"OTC_DERIVATIVE","status":"SUSPENDED","currency":"GBP"},{"instrumentId":"CI-WR-001","instrumentType":"WARRANT","subType":null,"assetClass":"STRUCTURED","status":"ACTIVE","currency":"USD"}]';
               }#
           ]
         }
@@ -9880,6 +10144,28 @@ Service stress::D_BookDense
                     contentType: 'application/json';
                     data: '[{"bookId":"BK-CASH-US","rollupBookRollupBookId":"BK-CASH-US","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"},{"bookId":"BK-CREDIT","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"},{"bookId":"BK-CREDIT-SP1","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001"},{"bookId":"BK-EQ","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookId":"BK-CASH-US","rollupBookRollupBookId":"BK-CASH-US","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"},{"bookId":"BK-CREDIT","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"},{"bookId":"BK-CREDIT-SP1","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001"},{"bookId":"BK-EQ","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"bookId":"BK-CASH-US","rollupBookRollupBookId":"BK-CASH-US","rollupBookDeskName":"Cash Equities","deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"},{"bookId":"BK-CREDIT","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"},{"bookId":"BK-CREDIT-SP1","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001"},{"bookId":"BK-EQ","rollupBookRollupBookId":null,"rollupBookDeskName":null,"deskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003"}]';
               }#
           ]
         }
@@ -14537,6 +14823,28 @@ Service stress::AA_CurvesYieldCurveCounts
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"curveId":"EUR.DBR.GOVT","pointsCount":24,"summariesCount":2},{"curveId":"EUR.ESTR.OIS","pointsCount":24,"summariesCount":2},{"curveId":"EUR.EURIBOR.6M","pointsCount":24,"summariesCount":2},{"curveId":"GBP.SONIA.OIS","pointsCount":24,"summariesCount":2},{"curveId":"JPY.TONA.OIS","pointsCount":24,"summariesCount":2},{"curveId":"USD.LIBOR.3M","pointsCount":24,"summariesCount":2},{"curveId":"USD.SOFR.OIS","pointsCount":24,"summariesCount":2},{"curveId":"USD.UST.GOVT","pointsCount":24,"summariesCount":2}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"curveId":"EUR.DBR.GOVT","pointsCount":24,"summariesCount":2},{"curveId":"EUR.ESTR.OIS","pointsCount":24,"summariesCount":2},{"curveId":"EUR.EURIBOR.6M","pointsCount":24,"summariesCount":2},{"curveId":"GBP.SONIA.OIS","pointsCount":24,"summariesCount":2},{"curveId":"JPY.TONA.OIS","pointsCount":24,"summariesCount":2},{"curveId":"USD.LIBOR.3M","pointsCount":24,"summariesCount":2},{"curveId":"USD.SOFR.OIS","pointsCount":24,"summariesCount":2},{"curveId":"USD.UST.GOVT","pointsCount":24,"summariesCount":2}]';
+              }#
+          ]
         }
       ]
     }
@@ -14701,6 +15009,28 @@ Service stress::AA_ClearingRouteCounts
                     contentType: 'application/json';
                     data: '[{"routeId":"RTE-AGENCY","routedTradesCount":17},{"routeId":"RTE-BATS","routedTradesCount":4},{"routeId":"RTE-IEXG","routedTradesCount":4},{"routeId":"RTE-PRINCIPAL","routedTradesCount":3},{"routeId":"RTE-XLON","routedTradesCount":3},{"routeId":"RTE-XNAS","routedTradesCount":4},{"routeId":"RTE-XNYS","routedTradesCount":4}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"routeId":"RTE-AGENCY","routedTradesCount":17},{"routeId":"RTE-BATS","routedTradesCount":4},{"routeId":"RTE-IEXG","routedTradesCount":4},{"routeId":"RTE-PRINCIPAL","routedTradesCount":3},{"routeId":"RTE-XLON","routedTradesCount":3},{"routeId":"RTE-XNAS","routedTradesCount":4},{"routeId":"RTE-XNYS","routedTradesCount":4}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"routeId":"RTE-AGENCY","routedTradesCount":17},{"routeId":"RTE-BATS","routedTradesCount":4},{"routeId":"RTE-IEXG","routedTradesCount":4},{"routeId":"RTE-PRINCIPAL","routedTradesCount":3},{"routeId":"RTE-XLON","routedTradesCount":3},{"routeId":"RTE-XNAS","routedTradesCount":4},{"routeId":"RTE-XNYS","routedTradesCount":4}]';
               }#
           ]
         }
@@ -16154,6 +16484,28 @@ Service stress::TM_TradeEmpty
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"tradeId":"TRD-0001","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":false,"clearedTradesAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":false,"correctionsAny":true},{"tradeId":"TRD-0002","allocationsEmpty":false,"allocationsAny":true,"clearedTradesEmpty":false,"clearedTradesAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":false,"correctionsAny":true},{"tradeId":"TRD-0003","allocationsEmpty":false,"allocationsAny":true,"clearedTradesEmpty":false,"clearedTradesAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":false,"correctionsAny":true},{"tradeId":"TRD-0004","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0005","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0006","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0007","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0008","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0009","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0010","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0011","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0012","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0013","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0014","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0015","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0016","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0017","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0018","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0019","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0020","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"tradeId":"TRD-0001","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":false,"clearedTradesAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":false,"correctionsAny":true},{"tradeId":"TRD-0002","allocationsEmpty":false,"allocationsAny":true,"clearedTradesEmpty":false,"clearedTradesAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":false,"correctionsAny":true},{"tradeId":"TRD-0003","allocationsEmpty":false,"allocationsAny":true,"clearedTradesEmpty":false,"clearedTradesAny":true,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":false,"correctionsAny":true},{"tradeId":"TRD-0004","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0005","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0006","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0007","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0008","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0009","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0010","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0011","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0012","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0013","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0014","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0015","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0016","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0017","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0018","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0019","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":false,"confirmationsAny":true,"correctionsEmpty":true,"correctionsAny":false},{"tradeId":"TRD-0020","allocationsEmpty":true,"allocationsAny":false,"clearedTradesEmpty":true,"clearedTradesAny":false,"confirmationsEmpty":true,"confirmationsAny":false,"correctionsEmpty":true,"correctionsAny":false}]';
+              }#
+          ]
         }
       ]
     }
@@ -16214,6 +16566,28 @@ Service stress::TM_BookEmpty
                     contentType: 'application/json';
                     data: '[{"bookId":"BK-CASH-EU","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-CASH-US","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":false,"cashFlowsAny":true,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-CREDIT","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-CREDIT-SP1","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-EQ","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-FX","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-LEGACY","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-RATES","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":false,"cashFlowsAny":true,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-VOL-01","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"bookId":"BK-CASH-EU","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-CASH-US","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":false,"cashFlowsAny":true,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-CREDIT","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-CREDIT-SP1","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-EQ","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-FX","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-LEGACY","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-RATES","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":false,"cashFlowsAny":true,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-VOL-01","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"bookId":"BK-CASH-EU","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-CASH-US","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":false,"cashFlowsAny":true,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-CREDIT","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-CREDIT-SP1","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true},{"bookId":"BK-EQ","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-FX","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-LEGACY","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-RATES","allocationsEmpty":true,"allocationsAny":false,"cashBalancesEmpty":true,"cashBalancesAny":false,"cashFlowsEmpty":false,"cashFlowsAny":true,"dailyPnLsEmpty":true,"dailyPnLsAny":false},{"bookId":"BK-VOL-01","allocationsEmpty":false,"allocationsAny":true,"cashBalancesEmpty":false,"cashBalancesAny":true,"cashFlowsEmpty":true,"cashFlowsAny":false,"dailyPnLsEmpty":false,"dailyPnLsAny":true}]';
               }#
           ]
         }
@@ -16517,6 +16891,28 @@ Service stress::CI_All
                     contentType: 'application/json';
                     data: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND"},{"instrumentId":"CI-BD-002","instrumentType":"BOND"},{"instrumentId":"CI-BD-003","instrumentType":"BOND"},{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT"},{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY"},{"instrumentId":"CI-ET-001","instrumentType":"ETF"},{"instrumentId":"CI-FU-001","instrumentType":"FUTURE"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE"},{"instrumentId":"CI-OP-001","instrumentType":"OPTION"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION"},{"instrumentId":"CI-SW-001","instrumentType":"SWAP"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP"},{"instrumentId":"CI-WR-001","instrumentType":"WARRANT"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND"},{"instrumentId":"CI-BD-002","instrumentType":"BOND"},{"instrumentId":"CI-BD-003","instrumentType":"BOND"},{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT"},{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY"},{"instrumentId":"CI-ET-001","instrumentType":"ETF"},{"instrumentId":"CI-FU-001","instrumentType":"FUTURE"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE"},{"instrumentId":"CI-OP-001","instrumentType":"OPTION"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION"},{"instrumentId":"CI-SW-001","instrumentType":"SWAP"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP"},{"instrumentId":"CI-WR-001","instrumentType":"WARRANT"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"instrumentId":"CI-BD-001","instrumentType":"BOND"},{"instrumentId":"CI-BD-002","instrumentType":"BOND"},{"instrumentId":"CI-BD-003","instrumentType":"BOND"},{"instrumentId":"CI-DR-001","instrumentType":"DEPOSITARY_RECEIPT"},{"instrumentId":"CI-EQ-001","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-002","instrumentType":"EQUITY"},{"instrumentId":"CI-EQ-003","instrumentType":"EQUITY"},{"instrumentId":"CI-ET-001","instrumentType":"ETF"},{"instrumentId":"CI-FU-001","instrumentType":"FUTURE"},{"instrumentId":"CI-FU-002","instrumentType":"FUTURE"},{"instrumentId":"CI-OP-001","instrumentType":"OPTION"},{"instrumentId":"CI-OP-002","instrumentType":"OPTION"},{"instrumentId":"CI-SW-001","instrumentType":"SWAP"},{"instrumentId":"CI-SW-002","instrumentType":"SWAP"},{"instrumentId":"CI-SW-003","instrumentType":"SWAP"},{"instrumentId":"CI-WR-001","instrumentType":"WARRANT"}]';
               }#
           ]
         }
@@ -23265,6 +23661,28 @@ Service stress::TXE_All
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"eventId":"EVT-000001","eventType":"NEW_TRADE","settlementLagDays":4,"tradeProduct":"IRS","tradeCurrency":"USD"},{"eventId":"EVT-000002","eventType":"RATE_RESET","settlementLagDays":0,"tradeProduct":"IRS","tradeCurrency":"USD"},{"eventId":"EVT-000003","eventType":"PARTIAL_TERMINATION","settlementLagDays":4,"tradeProduct":"IRS","tradeCurrency":"USD"},{"eventId":"EVT-000004","eventType":"AMENDMENT","settlementLagDays":0,"tradeProduct":"BASIS_SWAP","tradeCurrency":"EUR"},{"eventId":"EVT-000005","eventType":"CREDIT_EVENT","settlementLagDays":0,"tradeProduct":"CDS","tradeCurrency":"USD"},{"eventId":"EVT-000006","eventType":"NOVATION","settlementLagDays":2,"tradeProduct":"EQUITY_SWAP","tradeCurrency":"USD"},{"eventId":"EVT-000007","eventType":"COMPRESSION","settlementLagDays":3,"tradeProduct":"OIS","tradeCurrency":"USD"},{"eventId":"EVT-000008","eventType":"EXERCISE","settlementLagDays":2,"tradeProduct":"SWAPTION","tradeCurrency":"USD"},{"eventId":"EVT-000009","eventType":"FULL_TERMINATION","settlementLagDays":4,"tradeProduct":"COMMODITY_SWAP","tradeCurrency":"USD"},{"eventId":"EVT-000010","eventType":"INCREASE","settlementLagDays":2,"tradeProduct":"CDS_INDEX","tradeCurrency":"EUR"},{"eventId":"EVT-000011","eventType":"RATE_RESET","settlementLagDays":0,"tradeProduct":"BASIS_SWAP","tradeCurrency":"EUR"},{"eventId":"EVT-000012","eventType":"FIXING","settlementLagDays":2,"tradeProduct":"NDF","tradeCurrency":"USD"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"eventId":"EVT-000001","eventType":"NEW_TRADE","settlementLagDays":4,"tradeProduct":"IRS","tradeCurrency":"USD"},{"eventId":"EVT-000002","eventType":"RATE_RESET","settlementLagDays":0,"tradeProduct":"IRS","tradeCurrency":"USD"},{"eventId":"EVT-000003","eventType":"PARTIAL_TERMINATION","settlementLagDays":4,"tradeProduct":"IRS","tradeCurrency":"USD"},{"eventId":"EVT-000004","eventType":"AMENDMENT","settlementLagDays":0,"tradeProduct":"BASIS_SWAP","tradeCurrency":"EUR"},{"eventId":"EVT-000005","eventType":"CREDIT_EVENT","settlementLagDays":0,"tradeProduct":"CDS","tradeCurrency":"USD"},{"eventId":"EVT-000006","eventType":"NOVATION","settlementLagDays":2,"tradeProduct":"EQUITY_SWAP","tradeCurrency":"USD"},{"eventId":"EVT-000007","eventType":"COMPRESSION","settlementLagDays":3,"tradeProduct":"OIS","tradeCurrency":"USD"},{"eventId":"EVT-000008","eventType":"EXERCISE","settlementLagDays":2,"tradeProduct":"SWAPTION","tradeCurrency":"USD"},{"eventId":"EVT-000009","eventType":"FULL_TERMINATION","settlementLagDays":4,"tradeProduct":"COMMODITY_SWAP","tradeCurrency":"USD"},{"eventId":"EVT-000010","eventType":"INCREASE","settlementLagDays":2,"tradeProduct":"CDS_INDEX","tradeCurrency":"EUR"},{"eventId":"EVT-000011","eventType":"RATE_RESET","settlementLagDays":0,"tradeProduct":"BASIS_SWAP","tradeCurrency":"EUR"},{"eventId":"EVT-000012","eventType":"FIXING","settlementLagDays":2,"tradeProduct":"NDF","tradeCurrency":"USD"}]';
+              }#
+          ]
         }
       ]
     }
@@ -23959,6 +24377,28 @@ Service stress::TXB_All
                     contentType: 'application/json';
                     data: '[{"breakId":"BRK-00001","breakType":"ECONOMIC_BREAK","ageDays":51,"tradeProduct":"FX_OPTION","counterpartyId":"CP-0004"},{"breakId":"BRK-00002","breakType":"CONFIRMATION_BREAK","ageDays":144,"tradeProduct":"SWAPTION","counterpartyId":"CP-0002"},{"breakId":"BRK-00003","breakType":"SETTLEMENT_BREAK","ageDays":4,"tradeProduct":"COMMODITY_SWAP","counterpartyId":"CP-0005"},{"breakId":"BRK-00004","breakType":"REFERENCE_DATA_BREAK","ageDays":3,"tradeProduct":"CDS","counterpartyId":"CP-0001"},{"breakId":"BRK-00005","breakType":"VALUATION_BREAK","ageDays":2,"tradeProduct":"BASIS_SWAP","counterpartyId":"CP-0001"},{"breakId":"BRK-00006","breakType":"COLLATERAL_BREAK","ageDays":1,"tradeProduct":"IRS","counterpartyId":"CP-0001"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"breakId":"BRK-00001","breakType":"ECONOMIC_BREAK","ageDays":51,"tradeProduct":"FX_OPTION","counterpartyId":"CP-0004"},{"breakId":"BRK-00002","breakType":"CONFIRMATION_BREAK","ageDays":144,"tradeProduct":"SWAPTION","counterpartyId":"CP-0002"},{"breakId":"BRK-00003","breakType":"SETTLEMENT_BREAK","ageDays":4,"tradeProduct":"COMMODITY_SWAP","counterpartyId":"CP-0005"},{"breakId":"BRK-00004","breakType":"REFERENCE_DATA_BREAK","ageDays":3,"tradeProduct":"CDS","counterpartyId":"CP-0001"},{"breakId":"BRK-00005","breakType":"VALUATION_BREAK","ageDays":2,"tradeProduct":"BASIS_SWAP","counterpartyId":"CP-0001"},{"breakId":"BRK-00006","breakType":"COLLATERAL_BREAK","ageDays":1,"tradeProduct":"IRS","counterpartyId":"CP-0001"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"breakId":"BRK-00001","breakType":"ECONOMIC_BREAK","ageDays":51,"tradeProduct":"FX_OPTION","counterpartyId":"CP-0004"},{"breakId":"BRK-00002","breakType":"CONFIRMATION_BREAK","ageDays":144,"tradeProduct":"SWAPTION","counterpartyId":"CP-0002"},{"breakId":"BRK-00003","breakType":"SETTLEMENT_BREAK","ageDays":4,"tradeProduct":"COMMODITY_SWAP","counterpartyId":"CP-0005"},{"breakId":"BRK-00004","breakType":"REFERENCE_DATA_BREAK","ageDays":3,"tradeProduct":"CDS","counterpartyId":"CP-0001"},{"breakId":"BRK-00005","breakType":"VALUATION_BREAK","ageDays":2,"tradeProduct":"BASIS_SWAP","counterpartyId":"CP-0001"},{"breakId":"BRK-00006","breakType":"COLLATERAL_BREAK","ageDays":1,"tradeProduct":"IRS","counterpartyId":"CP-0001"}]';
               }#
           ]
         }
@@ -24660,6 +25100,28 @@ Service stress::TXI_All
                     contentType: 'application/json';
                     data: '[{"reconId":"REC-00001","itemType":"MATCHED","ageDays":0,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00002","itemType":"MATCHED","ageDays":0,"accountName":"EUR clearing - DB","correspondentBic":"DEUTDEFF"},{"reconId":"REC-00003","itemType":"UNMATCHED_STATEMENT","ageDays":6,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00004","itemType":"UNMATCHED_LEDGER","ageDays":44,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00005","itemType":"VALUE_DATE_MISMATCH","ageDays":6,"accountName":"EUR clearing - DB","correspondentBic":"DEUTDEFF"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"reconId":"REC-00001","itemType":"MATCHED","ageDays":0,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00002","itemType":"MATCHED","ageDays":0,"accountName":"EUR clearing - DB","correspondentBic":"DEUTDEFF"},{"reconId":"REC-00003","itemType":"UNMATCHED_STATEMENT","ageDays":6,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00004","itemType":"UNMATCHED_LEDGER","ageDays":44,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00005","itemType":"VALUE_DATE_MISMATCH","ageDays":6,"accountName":"EUR clearing - DB","correspondentBic":"DEUTDEFF"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"reconId":"REC-00001","itemType":"MATCHED","ageDays":0,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00002","itemType":"MATCHED","ageDays":0,"accountName":"EUR clearing - DB","correspondentBic":"DEUTDEFF"},{"reconId":"REC-00003","itemType":"UNMATCHED_STATEMENT","ageDays":6,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00004","itemType":"UNMATCHED_LEDGER","ageDays":44,"accountName":"USD clearing - JPM","correspondentBic":"CHASUS33"},{"reconId":"REC-00005","itemType":"VALUE_DATE_MISMATCH","ageDays":6,"accountName":"EUR clearing - DB","correspondentBic":"DEUTDEFF"}]';
               }#
           ]
         }
@@ -108541,6 +109003,28 @@ Service stress::CUSTX_All
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"instructionId":"CUS-00001","instructionType":"SAFEKEEPING","daysLate":0,"custodian":"Euroclear","isUrgent":false,"settledOn":"2024-06-05"},{"instructionId":"CUS-00002","instructionType":"DELIVERY_VS_PAYMENT","daysLate":1,"custodian":"Clearstream","isUrgent":false,"settledOn":"2024-06-07"},{"instructionId":"CUS-00004","instructionType":"RECEIVE_VS_PAYMENT","daysLate":null,"custodian":"Euroclear","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00005","instructionType":"INTERNAL_TRANSFER","daysLate":1,"custodian":"Clearstream","isUrgent":false,"settledOn":"2024-06-10"},{"instructionId":"CUS-00007","instructionType":"PLEDGE","daysLate":null,"custodian":"Euroclear","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00008","instructionType":"RELEASE_PLEDGE","daysLate":null,"custodian":"Clearstream","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00010","instructionType":"REDEMPTION_INSTR","daysLate":0,"custodian":"Euroclear","isUrgent":false,"settledOn":"2024-06-14"},{"instructionId":"CUS-00011","instructionType":"SWITCH","daysLate":null,"custodian":"Clearstream","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00013","instructionType":"CORPORATE_ELECTION","daysLate":0,"custodian":"Euroclear","isUrgent":false,"settledOn":"2024-06-17"},{"instructionId":"CUS-00014","instructionType":"TAX_RECLAIM","daysLate":1,"custodian":"Clearstream","isUrgent":false,"settledOn":"2024-06-19"},{"instructionId":"CUS-00016","instructionType":"REGISTRATION","daysLate":null,"custodian":"Euroclear","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00017","instructionType":"REREGISTRATION","daysLate":1,"custodian":"Clearstream","isUrgent":false,"settledOn":"2024-06-22"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"instructionId":"CUS-00001","instructionType":"SAFEKEEPING","daysLate":0,"custodian":"Euroclear","isUrgent":false,"settledOn":"2024-06-05"},{"instructionId":"CUS-00002","instructionType":"DELIVERY_VS_PAYMENT","daysLate":1,"custodian":"Clearstream","isUrgent":false,"settledOn":"2024-06-07"},{"instructionId":"CUS-00004","instructionType":"RECEIVE_VS_PAYMENT","daysLate":null,"custodian":"Euroclear","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00005","instructionType":"INTERNAL_TRANSFER","daysLate":1,"custodian":"Clearstream","isUrgent":false,"settledOn":"2024-06-10"},{"instructionId":"CUS-00007","instructionType":"PLEDGE","daysLate":null,"custodian":"Euroclear","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00008","instructionType":"RELEASE_PLEDGE","daysLate":null,"custodian":"Clearstream","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00010","instructionType":"REDEMPTION_INSTR","daysLate":0,"custodian":"Euroclear","isUrgent":false,"settledOn":"2024-06-14"},{"instructionId":"CUS-00011","instructionType":"SWITCH","daysLate":null,"custodian":"Clearstream","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00013","instructionType":"CORPORATE_ELECTION","daysLate":0,"custodian":"Euroclear","isUrgent":false,"settledOn":"2024-06-17"},{"instructionId":"CUS-00014","instructionType":"TAX_RECLAIM","daysLate":1,"custodian":"Clearstream","isUrgent":false,"settledOn":"2024-06-19"},{"instructionId":"CUS-00016","instructionType":"REGISTRATION","daysLate":null,"custodian":"Euroclear","isUrgent":false,"settledOn":null},{"instructionId":"CUS-00017","instructionType":"REREGISTRATION","daysLate":1,"custodian":"Clearstream","isUrgent":false,"settledOn":"2024-06-22"}]';
+              }#
+          ]
         }
       ]
     }
@@ -116742,6 +117226,28 @@ Service stress::DOCX_All
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"documentId":"DOC-00001","documentType":"ISDA_MASTER","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00002","documentType":"CSA","daysValid":2948,"governingLaw":"NEW_YORK","isExecuted":true,"custodyRef":"VAULT-0101"},{"documentId":"DOC-00004","documentType":"GMSLA","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00005","documentType":"CONFIRMATION_DOC","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":false,"custodyRef":"VAULT-0104"},{"documentId":"DOC-00007","documentType":"PROSPECTUS","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00008","documentType":"KID","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":true,"custodyRef":"VAULT-0107"},{"documentId":"DOC-00010","documentType":"BOARD_RESOLUTION","daysValid":2574,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00011","documentType":"CERTIFICATE_INCORPORATION","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":false,"custodyRef":"VAULT-0110"},{"documentId":"DOC-00013","documentType":"W9","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00014","documentType":"CRS_SELF_CERT","daysValid":1110,"governingLaw":"NEW_YORK","isExecuted":true,"custodyRef":"VAULT-0113"},{"documentId":"DOC-00016","documentType":"SIGNATURE_MANDATE","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00017","documentType":"SSI_LETTER","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":false,"custodyRef":"VAULT-0116"},{"documentId":"DOC-00019","documentType":"COLLATERAL_OPINION","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00020","documentType":"AUDIT_REPORT","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":true,"custodyRef":"VAULT-0119"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"documentId":"DOC-00001","documentType":"ISDA_MASTER","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00002","documentType":"CSA","daysValid":2948,"governingLaw":"NEW_YORK","isExecuted":true,"custodyRef":"VAULT-0101"},{"documentId":"DOC-00004","documentType":"GMSLA","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00005","documentType":"CONFIRMATION_DOC","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":false,"custodyRef":"VAULT-0104"},{"documentId":"DOC-00007","documentType":"PROSPECTUS","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00008","documentType":"KID","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":true,"custodyRef":"VAULT-0107"},{"documentId":"DOC-00010","documentType":"BOARD_RESOLUTION","daysValid":2574,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00011","documentType":"CERTIFICATE_INCORPORATION","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":false,"custodyRef":"VAULT-0110"},{"documentId":"DOC-00013","documentType":"W9","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00014","documentType":"CRS_SELF_CERT","daysValid":1110,"governingLaw":"NEW_YORK","isExecuted":true,"custodyRef":"VAULT-0113"},{"documentId":"DOC-00016","documentType":"SIGNATURE_MANDATE","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00017","documentType":"SSI_LETTER","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":false,"custodyRef":"VAULT-0116"},{"documentId":"DOC-00019","documentType":"COLLATERAL_OPINION","daysValid":null,"governingLaw":"ENGLISH","isExecuted":true,"custodyRef":null},{"documentId":"DOC-00020","documentType":"AUDIT_REPORT","daysValid":null,"governingLaw":"NEW_YORK","isExecuted":true,"custodyRef":"VAULT-0119"}]';
+              }#
+          ]
         }
       ]
     }
@@ -117979,6 +118485,28 @@ Service stress::EXCX_All
                     contentType: 'application/json';
                     data: '[{"exceptionId":"EXC-00001","exceptionType":"VALIDATION_ERROR","minutesToResolve":null,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00002","exceptionType":"REFERENCE_DATA_MISSING","minutesToResolve":490,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00004","exceptionType":"STALE_PRICE","minutesToResolve":null,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00005","exceptionType":"LIMIT_BREACH_EX","minutesToResolve":490,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00007","exceptionType":"SETTLEMENT_FAIL","minutesToResolve":null,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00008","exceptionType":"MATCHING_FAIL","minutesToResolve":490,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00010","exceptionType":"ORPHAN_TRADE","minutesToResolve":null,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00011","exceptionType":"TIMEOUT","minutesToResolve":-50,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00013","exceptionType":"AUTHORISATION","minutesToResolve":null,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00014","exceptionType":"CALCULATION_ERROR","minutesToResolve":670,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00016","exceptionType":"DATA_QUALITY","minutesToResolve":null,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00017","exceptionType":"SCHEMA_MISMATCH","minutesToResolve":670,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00019","exceptionType":"REPLAY_DETECTED","minutesToResolve":null,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00020","exceptionType":"CUTOFF_MISSED","minutesToResolve":130,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00022","exceptionType":"MANUAL_INTERVENTION","minutesToResolve":null,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"exceptionId":"EXC-00001","exceptionType":"VALIDATION_ERROR","minutesToResolve":null,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00002","exceptionType":"REFERENCE_DATA_MISSING","minutesToResolve":490,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00004","exceptionType":"STALE_PRICE","minutesToResolve":null,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00005","exceptionType":"LIMIT_BREACH_EX","minutesToResolve":490,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00007","exceptionType":"SETTLEMENT_FAIL","minutesToResolve":null,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00008","exceptionType":"MATCHING_FAIL","minutesToResolve":490,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00010","exceptionType":"ORPHAN_TRADE","minutesToResolve":null,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00011","exceptionType":"TIMEOUT","minutesToResolve":-50,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00013","exceptionType":"AUTHORISATION","minutesToResolve":null,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00014","exceptionType":"CALCULATION_ERROR","minutesToResolve":670,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00016","exceptionType":"DATA_QUALITY","minutesToResolve":null,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00017","exceptionType":"SCHEMA_MISMATCH","minutesToResolve":670,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00019","exceptionType":"REPLAY_DETECTED","minutesToResolve":null,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00020","exceptionType":"CUTOFF_MISSED","minutesToResolve":130,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00022","exceptionType":"MANUAL_INTERVENTION","minutesToResolve":null,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"exceptionId":"EXC-00001","exceptionType":"VALIDATION_ERROR","minutesToResolve":null,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00002","exceptionType":"REFERENCE_DATA_MISSING","minutesToResolve":490,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00004","exceptionType":"STALE_PRICE","minutesToResolve":null,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00005","exceptionType":"LIMIT_BREACH_EX","minutesToResolve":490,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00007","exceptionType":"SETTLEMENT_FAIL","minutesToResolve":null,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00008","exceptionType":"MATCHING_FAIL","minutesToResolve":490,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00010","exceptionType":"ORPHAN_TRADE","minutesToResolve":null,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00011","exceptionType":"TIMEOUT","minutesToResolve":-50,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00013","exceptionType":"AUTHORISATION","minutesToResolve":null,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00014","exceptionType":"CALCULATION_ERROR","minutesToResolve":670,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"},{"exceptionId":"EXC-00016","exceptionType":"DATA_QUALITY","minutesToResolve":null,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00017","exceptionType":"SCHEMA_MISMATCH","minutesToResolve":670,"severity":"LOW","sourceSystem":"BOOKING","message":null},{"exceptionId":"EXC-00019","exceptionType":"REPLAY_DETECTED","minutesToResolve":null,"severity":"HIGH","sourceSystem":"SETTLEMENT","message":null},{"exceptionId":"EXC-00020","exceptionType":"CUTOFF_MISSED","minutesToResolve":130,"severity":"CRITICAL","sourceSystem":"MARKETDATA","message":null},{"exceptionId":"EXC-00022","exceptionType":"MANUAL_INTERVENTION","minutesToResolve":null,"severity":"MEDIUM","sourceSystem":"RISK","message":"Downstream returned no payload"}]';
               }#
           ]
         }
@@ -122168,6 +122696,28 @@ Service stress::KYCX_All
                     contentType: 'application/json';
                     data: '[{"checkId":"KYC-00001","checkType":"IDENTITY_VERIFICATION","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00002","checkType":"ADDRESS_VERIFICATION","daysToExpiry":743,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00004","checkType":"SANCTIONS_SCREENING","daysToExpiry":null,"outcome":"FAIL","riskRating":"LOW","findings":null},{"checkId":"KYC-00005","checkType":"PEP_SCREENING","daysToExpiry":739,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00007","checkType":"SOURCE_OF_FUNDS","daysToExpiry":null,"outcome":"REFERRED","riskRating":"LOW","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00008","checkType":"SOURCE_OF_WEALTH","daysToExpiry":918,"outcome":"FAIL","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00010","checkType":"FATCA_CLASSIFICATION","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00011","checkType":"CRS_CLASSIFICATION","daysToExpiry":917,"outcome":"REFERRED","riskRating":"MEDIUM","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00013","checkType":"REGULATORY_STATUS","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00014","checkType":"CREDIT_ASSESSMENT","daysToExpiry":731,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00016","checkType":"SUITABILITY","daysToExpiry":null,"outcome":"FAIL","riskRating":"LOW","findings":null},{"checkId":"KYC-00017","checkType":"CLIENT_CATEGORISATION","daysToExpiry":727,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00019","checkType":"ENHANCED_DUE_DILIGENCE","daysToExpiry":null,"outcome":"REFERRED","riskRating":"LOW","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00020","checkType":"TRANSACTION_MONITORING","daysToExpiry":906,"outcome":"FAIL","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00022","checkType":"REFRESH_REVIEW","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"checkId":"KYC-00001","checkType":"IDENTITY_VERIFICATION","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00002","checkType":"ADDRESS_VERIFICATION","daysToExpiry":743,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00004","checkType":"SANCTIONS_SCREENING","daysToExpiry":null,"outcome":"FAIL","riskRating":"LOW","findings":null},{"checkId":"KYC-00005","checkType":"PEP_SCREENING","daysToExpiry":739,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00007","checkType":"SOURCE_OF_FUNDS","daysToExpiry":null,"outcome":"REFERRED","riskRating":"LOW","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00008","checkType":"SOURCE_OF_WEALTH","daysToExpiry":918,"outcome":"FAIL","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00010","checkType":"FATCA_CLASSIFICATION","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00011","checkType":"CRS_CLASSIFICATION","daysToExpiry":917,"outcome":"REFERRED","riskRating":"MEDIUM","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00013","checkType":"REGULATORY_STATUS","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00014","checkType":"CREDIT_ASSESSMENT","daysToExpiry":731,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00016","checkType":"SUITABILITY","daysToExpiry":null,"outcome":"FAIL","riskRating":"LOW","findings":null},{"checkId":"KYC-00017","checkType":"CLIENT_CATEGORISATION","daysToExpiry":727,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00019","checkType":"ENHANCED_DUE_DILIGENCE","daysToExpiry":null,"outcome":"REFERRED","riskRating":"LOW","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00020","checkType":"TRANSACTION_MONITORING","daysToExpiry":906,"outcome":"FAIL","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00022","checkType":"REFRESH_REVIEW","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"checkId":"KYC-00001","checkType":"IDENTITY_VERIFICATION","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00002","checkType":"ADDRESS_VERIFICATION","daysToExpiry":743,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00004","checkType":"SANCTIONS_SCREENING","daysToExpiry":null,"outcome":"FAIL","riskRating":"LOW","findings":null},{"checkId":"KYC-00005","checkType":"PEP_SCREENING","daysToExpiry":739,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00007","checkType":"SOURCE_OF_FUNDS","daysToExpiry":null,"outcome":"REFERRED","riskRating":"LOW","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00008","checkType":"SOURCE_OF_WEALTH","daysToExpiry":918,"outcome":"FAIL","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00010","checkType":"FATCA_CLASSIFICATION","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00011","checkType":"CRS_CLASSIFICATION","daysToExpiry":917,"outcome":"REFERRED","riskRating":"MEDIUM","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00013","checkType":"REGULATORY_STATUS","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null},{"checkId":"KYC-00014","checkType":"CREDIT_ASSESSMENT","daysToExpiry":731,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00016","checkType":"SUITABILITY","daysToExpiry":null,"outcome":"FAIL","riskRating":"LOW","findings":null},{"checkId":"KYC-00017","checkType":"CLIENT_CATEGORISATION","daysToExpiry":727,"outcome":"PASS","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00019","checkType":"ENHANCED_DUE_DILIGENCE","daysToExpiry":null,"outcome":"REFERRED","riskRating":"LOW","findings":"Possible name match - cleared on review"},{"checkId":"KYC-00020","checkType":"TRANSACTION_MONITORING","daysToExpiry":906,"outcome":"FAIL","riskRating":"MEDIUM","findings":null},{"checkId":"KYC-00022","checkType":"REFRESH_REVIEW","daysToExpiry":null,"outcome":"PASS","riskRating":"LOW","findings":null}]';
               }#
           ]
         }
@@ -133591,6 +134141,28 @@ Service stress::DSLocal_Settlement
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"settlementId":"STL-0001","currency":"USD","priority":5},{"settlementId":"STL-0002","currency":"USD","priority":5},{"settlementId":"STL-0003","currency":"USD","priority":5},{"settlementId":"STL-0004","currency":"USD","priority":5},{"settlementId":"STL-0005","currency":"USD","priority":1},{"settlementId":"STL-0006","currency":"USD","priority":5},{"settlementId":"STL-0007","currency":"USD","priority":5},{"settlementId":"STL-0008","currency":"USD","priority":5},{"settlementId":"STL-0009","currency":"USD","priority":5}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"settlementId":"STL-0001","currency":"USD","priority":5},{"settlementId":"STL-0002","currency":"USD","priority":5},{"settlementId":"STL-0003","currency":"USD","priority":5},{"settlementId":"STL-0004","currency":"USD","priority":5},{"settlementId":"STL-0005","currency":"USD","priority":1},{"settlementId":"STL-0006","currency":"USD","priority":5},{"settlementId":"STL-0007","currency":"USD","priority":5},{"settlementId":"STL-0008","currency":"USD","priority":5},{"settlementId":"STL-0009","currency":"USD","priority":5}]';
+              }#
+          ]
         }
       ]
     }
@@ -134698,6 +135270,28 @@ Service stress::DSLocal_OpsConfirmation
                     contentType: 'application/json';
                     data: '[{"confirmId":"CNF-0001","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0002","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0003","status":"DISPUTED","daysOutstanding":4},{"confirmId":"CNF-0004","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0005","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0006","status":"DISPUTED","daysOutstanding":4},{"confirmId":"CNF-0007","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0008","status":"CONFIRMED","daysOutstanding":0}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"confirmId":"CNF-0001","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0002","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0003","status":"DISPUTED","daysOutstanding":4},{"confirmId":"CNF-0004","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0005","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0006","status":"DISPUTED","daysOutstanding":4},{"confirmId":"CNF-0007","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0008","status":"CONFIRMED","daysOutstanding":0}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"confirmId":"CNF-0001","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0002","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0003","status":"DISPUTED","daysOutstanding":4},{"confirmId":"CNF-0004","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0005","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0006","status":"DISPUTED","daysOutstanding":4},{"confirmId":"CNF-0007","status":"CONFIRMED","daysOutstanding":0},{"confirmId":"CNF-0008","status":"CONFIRMED","daysOutstanding":0}]';
               }#
           ]
         }
@@ -214745,6 +215339,28 @@ Service stress::DSDeep_CommodityContract
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"recordId":"CMD-00001","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"CMD-00002","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"EUR"},{"recordId":"CMD-00003","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"},{"recordId":"CMD-00004","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"CMD-00005","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"CHF"},{"recordId":"CMD-00006","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"CMD-00010","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"CHF"},{"recordId":"CMD-00011","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"CMD-00012","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"EUR"},{"recordId":"CMD-00013","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"},{"recordId":"CMD-00014","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"CMD-00015","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"CHF"},{"recordId":"CMD-00019","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"CMD-00020","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"CHF"},{"recordId":"CMD-00021","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"CMD-00022","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"EUR"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"recordId":"CMD-00001","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"CMD-00002","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"EUR"},{"recordId":"CMD-00003","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"},{"recordId":"CMD-00004","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"CMD-00005","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"CHF"},{"recordId":"CMD-00006","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"CMD-00010","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"CHF"},{"recordId":"CMD-00011","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"CMD-00012","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"EUR"},{"recordId":"CMD-00013","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"},{"recordId":"CMD-00014","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"CMD-00015","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"CHF"},{"recordId":"CMD-00019","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"CMD-00020","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"CHF"},{"recordId":"CMD-00021","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"CMD-00022","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-001","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"EUR"}]';
+              }#
+          ]
         }
       ]
     }
@@ -255804,6 +256420,28 @@ Service stress::DSPost_FundingSource
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"recordId":"FUN-00001","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"FUN-00003","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"},{"recordId":"FUN-00004","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"FUN-00006","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"FUN-00011","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"FUN-00013","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"},{"recordId":"FUN-00014","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"FUN-00019","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"FUN-00021","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"FUN-00023","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"recordId":"FUN-00001","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"FUN-00003","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"},{"recordId":"FUN-00004","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"FUN-00006","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"FUN-00011","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"FUN-00013","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"},{"recordId":"FUN-00014","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"FUN-00019","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":"BK-CASH-US","bookDeskName":"Cash Equities","currency":"JPY"},{"recordId":"FUN-00021","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"USD"},{"recordId":"FUN-00023","bookDeskBusinessUnitLegalEntityJurisdiction":"JURISDICTION-003","bookDeskBusinessUnitName":"Kestrel","bookRollupBookId":null,"bookDeskName":"Cash Equities","currency":"GBP"}]';
+              }#
+          ]
         }
       ]
     }
@@ -269210,6 +269848,28 @@ Service stress::DSLocal_CouponPayment
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"paymentId":"PAY-DE000A289N78-001","currency":"EUR"},{"paymentId":"PAY-DE000A289N78-002","currency":"EUR"},{"paymentId":"PAY-DE000A289N78-003","currency":"EUR"},{"paymentId":"PAY-DE000A289N78-004","currency":"EUR"},{"paymentId":"PAY-US037833DX90-001","currency":"USD"},{"paymentId":"PAY-US037833DX90-002","currency":"USD"},{"paymentId":"PAY-US037833DX90-003","currency":"USD"},{"paymentId":"PAY-US037833DX90-004","currency":"USD"},{"paymentId":"PAY-US037833DX90-005","currency":"USD"},{"paymentId":"PAY-US037833DX90-006","currency":"USD"},{"paymentId":"PAY-US037833DX90-007","currency":"USD"},{"paymentId":"PAY-US912810TM08-001","currency":"USD"},{"paymentId":"PAY-US912810TM08-002","currency":"USD"},{"paymentId":"PAY-US912810TM08-003","currency":"USD"},{"paymentId":"PAY-US912810TM08-004","currency":"USD"},{"paymentId":"PAY-US912810TM08-005","currency":"USD"},{"paymentId":"PAY-US912810TM08-006","currency":"USD"},{"paymentId":"PAY-US912810TM08-007","currency":"USD"},{"paymentId":"PAY-US912810TM08-008","currency":"USD"},{"paymentId":"PAY-US912810TM08-009","currency":"USD"},{"paymentId":"PAY-US912810TM08-010","currency":"USD"},{"paymentId":"PAY-US912828YY08-001","currency":"USD"}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"paymentId":"PAY-DE000A289N78-001","currency":"EUR"},{"paymentId":"PAY-DE000A289N78-002","currency":"EUR"},{"paymentId":"PAY-DE000A289N78-003","currency":"EUR"},{"paymentId":"PAY-DE000A289N78-004","currency":"EUR"},{"paymentId":"PAY-US037833DX90-001","currency":"USD"},{"paymentId":"PAY-US037833DX90-002","currency":"USD"},{"paymentId":"PAY-US037833DX90-003","currency":"USD"},{"paymentId":"PAY-US037833DX90-004","currency":"USD"},{"paymentId":"PAY-US037833DX90-005","currency":"USD"},{"paymentId":"PAY-US037833DX90-006","currency":"USD"},{"paymentId":"PAY-US037833DX90-007","currency":"USD"},{"paymentId":"PAY-US912810TM08-001","currency":"USD"},{"paymentId":"PAY-US912810TM08-002","currency":"USD"},{"paymentId":"PAY-US912810TM08-003","currency":"USD"},{"paymentId":"PAY-US912810TM08-004","currency":"USD"},{"paymentId":"PAY-US912810TM08-005","currency":"USD"},{"paymentId":"PAY-US912810TM08-006","currency":"USD"},{"paymentId":"PAY-US912810TM08-007","currency":"USD"},{"paymentId":"PAY-US912810TM08-008","currency":"USD"},{"paymentId":"PAY-US912810TM08-009","currency":"USD"},{"paymentId":"PAY-US912810TM08-010","currency":"USD"},{"paymentId":"PAY-US912828YY08-001","currency":"USD"}]';
+              }#
+          ]
         }
       ]
     }
@@ -269328,6 +269988,28 @@ Service stress::DSAgg_CouponPeriod
                     contentType: 'application/json';
                     data: '[{"securityId":"DE000A289N78","n":7,"total":2556},{"securityId":"US037833DX90","n":12,"total":2160},{"securityId":"US912810TM08","n":60,"total":10957},{"securityId":"US912828YY08","n":20,"total":3653}]';
                   }#;
+              }#
+          ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"securityId":"DE000A289N78","n":7,"total":2556},{"securityId":"US037833DX90","n":12,"total":2160},{"securityId":"US912810TM08","n":60,"total":10957},{"securityId":"US912828YY08","n":20,"total":3653}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"securityId":"DE000A289N78","n":7,"total":2556},{"securityId":"US037833DX90","n":12,"total":2160},{"securityId":"US912810TM08","n":60,"total":10957},{"securityId":"US912828YY08","n":20,"total":3653}]';
               }#
           ]
         }

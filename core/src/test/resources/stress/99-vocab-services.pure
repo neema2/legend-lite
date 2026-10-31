@@ -19350,6 +19350,28 @@ Service stress::VGN_CountName
                   }#;
               }#
           ]
+        },
+        in_order:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            sameRows:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"A","r":0},{"k":"B","r":4},{"k":"C","r":5},{"k":"D","r":3}]';
+                  }#;
+              }#,
+            inOrder:
+              EqualTo
+              #{
+                expected: '[{"k":"A","r":0},{"k":"B","r":4},{"k":"C","r":5},{"k":"D","r":3}]';
+              }#
+          ]
         }
       ]
     }

@@ -274,6 +274,15 @@ public class TestableMain
             else if (a instanceof AssertFail af)
             {
                 System.out.println("      " + oneLine(af.message, 300));
+                // the whole message too: an EqualTo's names both texts, and its first 300 characters are the
+                // expected's alone (docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 8)
+                if (dumpDir != null)
+                {
+                    String base = id.replaceAll("[^A-Za-z0-9_.-]", "_") + "." + String.valueOf(af.id)
+                            .replaceAll("[^A-Za-z0-9_.-]", "_");
+                    Files.writeString(Cwd.of(dumpDir, base + ".message.txt"), af.message == null ? "null" : af.message);
+                    System.out.println("      dumped  : " + base + ".message.txt");
+                }
             }
         }
     }
