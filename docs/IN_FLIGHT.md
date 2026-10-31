@@ -3367,13 +3367,18 @@ Status lives in the plan's Progress table (rule 0b.16).
   `changed.py` and the engine runner taking a `stress::` mapping's test suites as testables; several tests per suite,
   several assertions per test, and `EqualTo` (and `EqualToTDS` if the pin parses it) on existing services;
   `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both
-  `MIN_PASS`.
+  `MIN_PASS`. As built (done 2026-10-31, three stages: `9582d30d2`, `346fd9bcf`, `9823f0701`): the pack is
+  `8117-checks.pure` with `checks.py` writing `99-checks-services.pure`; `mapping_tests.py` writes
+  `99-mapping-tests.pure` (nine `stress::MT_` mappings, 60 suites); `shapes.py` gives 36 services a second test;
+  `oracle.py`, `model.py`, `emit.py`, `query.py`, `build.py`, `run.py`, `changed.py`, `executed.py`; F89 with a repro
+  and two non-findings in `docs/UPSTREAM_FINDINGS.md`; no quarantine entry.
 - **Cross-area, Phase 8 (announced 2026-10-31, before it lands):**
   - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files.
   - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out the new generated
     files.
   - `tools/engine-runner/` (the Bazel program's): only if `TestableMain` needs a change to run a mapping's test suites
-    or to report a non-JSON assertion's failure.
+    or to report a non-JSON assertion's failure. As built: with `--dump`, it writes a non-JSON assertion's whole
+    failure message too (stage 3); a mapping's suites needed no change.
   - `docs/SURFACE_BLOCKED.tsv` (the scoreboard's ledger): TA-01 and TST-15 restated or removed if a stage writes
     `EqualTo` or `EqualToTDS`.
   - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
