@@ -414,4 +414,25 @@ public final class BodyPlanner {
         }
         return new Bare(lowerAndPrepare(p.body(), p.env(), p.env().ctx(), p.env().dialect(), true), p.root());
     }
+
+    /** The test-data generator's VIEW fetch SQL: the view's lifted function (E.5, reached through the include closure
+     *  like a table) as the compiler's relation -- the same node a user's accessor inlines to -- planned like any
+     *  query with no session (the resolver materializes its joins), the fetched base tables renamed to their
+     *  temporary tables (the replaceTables pass, the engine's {@code fixTables}), rendered in the lane's own dialect
+     *  (the text runs on this connection). The generator's package never reaches the lowering: the driver hands it
+     *  this (the seam program's S2j, 2026-10-31: planned here; the body driver's {@code planBare} until then). */
+    public static String viewSql(String db, String view, java.util.Map<String, String> tableToTemp,
+            SpecCompiler specs, PlanEnv env) {
+        com.legend.compiler.element.TypedFunction fn = env.ctx().findViewFunction(db, view)
+                .orElseThrow(() -> new com.legend.error.NotImplementedException(
+                        "testDataGen: view '" + view + "' is not a view of '" + db + "'"));
+        Bare b = bare(specs.viewRelation(fn), java.util.List.of(), specs, env);
+        if (b == null) {
+            throw new com.legend.error.NotImplementedException(
+                    "testDataGen: view '" + view + "' planned to a host answer, not a query");
+        }
+        com.legend.sql.SqlQuery plan = com.legend.lowering.SqlPostProcessors.apply(
+                b.plan(), t -> tableToTemp.getOrDefault(t, t));
+        return env.dialect().render(plan);
+    }
 }

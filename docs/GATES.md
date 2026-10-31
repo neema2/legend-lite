@@ -16583,6 +16583,24 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S2j, first piece: the test-data generator's view SQL planned
+
+The decisions log D98; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 (S2j). Zero movement.
+
+1. **Built:** `BodyPlanner.viewSql` plans the SQL the test-data generator fetches a view with -- the view's lifted
+   function as the compiler's relation, planned with no session (`BodyPlanner.bare`), its base tables renamed to the
+   generator's temporary tables, rendered in the lane's dialect -- which the driver's `viewSqlRenderer` did over its
+   own `planBare` until now; the renderer the driver hands the generator is a call of it.
+2. **What stays of S2j, and why:** the fold itself (`TestDataGenerationNatives.foldCensus`) runs the generator's
+   statements on the session before the statement after it is planned, and the generator's plan text is the
+   generator library's (handed to the planner on `PlanEnv` since D92). Both are S4's "two-plan body": the generator's
+   plan run first, its facts the next plan's declared inputs.
+3. **Guards, dated:** `JavaEvalLedgerTest` `BodyDriver` 1,074 -> 1,062, `BodyPlanner` 268 -> 282.
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's
+   statement-origins census (`tdg=890`, the generator's statements, included) and pass/fail counts are identical to
+   4cb6358b's; `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the
+   9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
 ## 2026-10-31 — The seam program's S2d: an effect's statements planned
 
 The decisions log D97; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2d). Zero movement.

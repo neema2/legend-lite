@@ -253,6 +253,47 @@ line loses `compiler`, `compiler_element_type`, `lowering`, `resolver`, `normali
 `sql_dialect`, `validation`, `builtin`, `protocol` (the exact list is the measurement at S5; the target is "the
 runtime's libraries plus `:planner`'s doors, `:judge` and `:execution_plan`").
 
+### 3.4b S4's brief (written 2026-10-31, after S2's moves)
+
+Where S2 left it: every piece of a statement's planning is the planner's (`BodyPlanner`, `FramePlanner`,
+`LetPlanner`, `SystemRoutes`, `EffectPlanner`, `EnginePlans`, `PlanAllocations`; D92-D98), but the body compiler's
+segment walk still plans a statement and then runs it (the host judge at once, the database judge at its segment's
+close) before it plans the next. S4 makes it plan, then run, keeping every statement in the order it runs today.
+
+1. **The oracle is the run order.** The lane sessions compare every statement, byte for byte and in order (rounds 4
+   and 5); the corpus pins its engine order and its statement-origin census. S4 moves no statement: the body's
+   steps run in today's walk order, and what sends at a step today sends at the same step. In particular the system
+   route's session is opened at its step, not when the step is planned (today the prelude opens it while planning a
+   side), and a frame's run at its let stays where the host judge runs it (the user's question of 2026-10-31 on
+   dropping it stays open; S4 does not decide it).
+2. **The steps.** A statement plans to one or more steps of the body's plan: its execution contexts' seeds; a frame
+   (its chain, its planned CTE, and the run at the let where the host judge runs it); a staged let (the create-as,
+   and the drop at the body's end); an effect (`EffectPlanner`'s statements); a verdict (the host judge's sides, or a
+   database judge's group); a value (the last one the body's answer); `assertError` (its body's steps run expecting a
+   failure, the failure handed to the matcher -- D30's carriage of an error, a step kind of its own).
+3. **A computed effect string is a step, not a break.** `executeInDb($sql, $c)` with a computed `$sql`: the value's
+   plan is a step whose one cell is the next step's statement text -- the Keyed pattern of §3.2 with the whole
+   statement as the region, which is the engine's own order (it evaluates the string, then runs it). The planner
+   writes the translation (D2) at the effect step from the language its connection declares; the runner fills it.
+4. **The generator's fold is the one phase break** (S2j, F6; 37 executing bodies, H5): the body is planned up to the
+   statement that reads the generator, that prefix runs, the generator runs and folds to instance literals, and the
+   rest of the body is planned with them as declared inputs -- the two-plan body D30 named. No other kind breaks a
+   phase: planning reads nothing from the database (`probe` 0 since S3).
+5. **F11, the split rung in a transaction: a savepoint, measured first.** A body that writes runs in one
+   transaction; if a fused verdict statement inside it is rejected on Postgres, the abort carries into what follows.
+   Proposed: the runner brackets a fused statement with a savepoint only when its session is in a transaction and the
+   dialect aborts on error (a dialect fact), rolling back to it before the split rung. Measured first on Postgres
+   channel B and the corpus: how many bodies reach the rung inside a transaction (expected 0 -- channel B writes
+   nothing, and the corpus's writing bodies are the 5 with direct effects); if 0, the savepoint is written and pinned
+   by a test of its own, not by a lane.
+6. **The order of work, each a commit with the full chain and the lanes asked for every statement:**
+   S4a -- the step records and a planner entry that plans one statement to its steps; the body compiler's loop runs
+   steps (the strangler's last step; zero movement). S4b -- the body planned whole before it runs (per phase, §4), the
+   loop gone; the system route opened at its step. S4c -- `BodyCompiler` and `Segments` deleted; `BodyDriver.execute`
+   is plan, run, judge; `ExecEnv` loses `queryLets`, `planRows` and the frame. S4d -- `theDriverCompilesNothing` (no
+   class of `com.legend.driver` depends on `compiler.spec..`, `resolver..`, `lowering..`, `sql.dialect..`) and the
+   layer file's driver line cut to what it measures.
+
 ### 3.5 The raw grid: the pivot's pattern, not a probe and not an oracle
 
 The first draft asked whether the RAW GRID (the rows of a SQL string a test author typed, `executeInDb('select
@@ -444,5 +485,7 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   in `BodyPlanner.prepare` (its frame, its root, the kind of answer it gets with no plan: `planner/Prepared`), the
   driver's prelude dispatching and running only effects, store writes and effectful maps; a frame's planned CTE in
   `FramePlanner.cte`. **S2d built 2026-10-31** (D97): an effect's statements planned in `planner/EffectPlanner` (two
-  phases: the String arguments' values, the driver's, then the texts); the heavy lanes by hand identical. Next: the
-  engine-text asserts (S2i), the generator's fold (S2j), the value statements (S2a), then S4.
+  phases: the String arguments' values, the driver's, then the texts); the heavy lanes by hand identical. **S2j's
+  first piece 2026-10-31** (D98): the generator's view SQL planned. What is left of S2a, S2i and S2j runs or judges
+  (the value statements' splice hook and batch, the SQL-text judge over the referee's types, the fold's run): S4's.
+  Next: the S4 brief.

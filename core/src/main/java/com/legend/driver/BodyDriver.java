@@ -1291,20 +1291,8 @@ public final class BodyDriver {
      *  driver hands it this. */
     static com.legend.testdatagen.TestDataGenerator.ViewSql viewSqlRenderer(
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
-        return (db, view, tableToTemp) -> {
-            com.legend.compiler.element.TypedFunction fn = env.ctx().findViewFunction(db, view)
-                    .orElseThrow(() -> new com.legend.error.NotImplementedException(
-                            "testDataGen: view '" + view + "' is not a view of '" + db + "'"));
-            BarePlan b = planBare(specs.viewRelation(fn), java.util.List.of(), specs, env,
-                    null, null);
-            if (b.answered() != null) {
-                throw new com.legend.error.NotImplementedException(
-                        "testDataGen: view '" + view + "' planned to a host answer, not a query");
-            }
-            com.legend.sql.SqlQuery plan = com.legend.lowering.SqlPostProcessors.apply(
-                    b.plan(), t -> tableToTemp.getOrDefault(t, t));
-            return env.dialect().render(plan);
-        };
+        return (db, view, tableToTemp) -> com.legend.planner.BodyPlanner.viewSql(db, view, tableToTemp, specs,
+                env.plan());
     }
 
     record BarePlan(@com.legend.base.Nullable TypedSide answered,
