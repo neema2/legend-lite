@@ -3,7 +3,6 @@
 
 package com.legend.driver;
 
-import com.legend.Compiler;
 import com.legend.ExecuteOptions;
 import com.legend.Execution;
 import com.legend.TypedQuery;
@@ -214,26 +213,6 @@ public final class BodyDriver {
         /** Where a statement of this environment runs: the body's target ({@link JudgePlans#target}). */
         com.legend.executionplan.ExecutionPlan.Target target() {
             return JudgePlans.target(this);
-        }
-
-        /** The same environment over the system database's {@code route}:
-         * its session, and the store's tables as that session names them,
-         * added to the table renames (a conflicting rename throws — never a
-         * silent pick). */
-        ExecEnv withSystemRoute(SystemDatabase.Route route) {
-            ExecEnv on = withSession(route.session());
-            if (route.renames().isEmpty()) {
-                return on;
-            }
-            java.util.Map<String, String> renames = new java.util.LinkedHashMap<>(plan.tableReplace());
-            route.renames().forEach((from, to) -> {
-                String had = renames.putIfAbsent(from, to);
-                if (had != null && !had.equals(to)) {
-                    throw new IllegalStateException("table '" + from + "' is renamed both '" + had + "' and '"
-                            + to + "'");
-                }
-            });
-            return on.withTableReplace(renames);
         }
 
         /** The query's PROTOCOL statements (the source-shaped lets a
@@ -914,27 +893,22 @@ public final class BodyDriver {
      * store pays one tree walk and nothing else. */
     private static ExecEnv routeSystemDatabase(java.util.List<TypedSpec> body,
             ExecEnv env) {
-        java.util.Set<String> stores = new java.util.TreeSet<>();
-        for (TypedSpec n : body) {
-            com.legend.planner.BodyPlanner.collectStores(n, stores);
-        }
-        String storeFqn = com.legend.builtin.SystemMetamodel.STORE_FQN;
-        if (!stores.contains(storeFqn)) {
+        // the route is the planner's (the seam program's S2h, 2026-10-31): the database and store it reads, and the
+        // tables' names its plan is written with; the session -- opened and seeded once per graph -- is the driver's,
+        // and names the tables as planned
+        com.legend.planner.SystemRoutes.Route route = com.legend.planner.SystemRoutes.of(body, env.plan());
+        if (route == null) {
             return env;
         }
-        if (stores.size() > 1) {
-            throw new com.legend.error.NotImplementedException("a query reading"
-                    + " the system metamodel store AND a user store " + stores
-                    + " has no single session — the system database is"
-                    + " separate from user connections");
-        }
-        var store = env.ctx().findDatabase(storeFqn).orElseThrow(() ->
-                new IllegalStateException("the system metamodel store is"
-                        + " not in the model — injection regressed"));
         ModelContext ctx = env.ctx();
-        return env.withSystemRoute(SystemDatabase.of(ctx)
-                .routeFor(Compiler.executesOn(ctx, env.runtimeFqn()).type(), env.dialect(), store,
-                        table -> MetamodelSeeds.rows(table, ctx), env.options().systemConnections()));
+        SystemDatabase.Route opened = SystemDatabase.of(ctx).routeFor(route.engine(), env.dialect(), route.store(),
+                table -> MetamodelSeeds.rows(table, ctx), env.options().systemConnections());
+        java.util.Map<String, String> planned = com.legend.planner.SystemRoutes.renames(route);
+        if (!opened.renames().equals(planned)) {
+            throw new IllegalStateException("the system database on " + route.engine() + " names the store's tables "
+                    + opened.renames() + ", its plan " + planned);
+        }
+        return env.withSession(opened.session()).withPlan(com.legend.planner.SystemRoutes.routed(env.plan(), planned));
     }
 
     /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the

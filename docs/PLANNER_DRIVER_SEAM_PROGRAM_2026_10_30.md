@@ -438,4 +438,6 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   2026-10-31** (D93): a frame's chain planned in `planner/FramePlanner`; the run at the let, its trace comment and the
   planned CTE stay in the driver, the CTE until the shared preparation's system route (S2h) and effect arms (S2d) move.
   **S2b built 2026-10-31** (D94): a let's kind planned in `planner/LetPlanner` (alias, staged rows, frame, staged grid,
-  value or handle let), the body compiler's loop dispatching on it. Next: the system route (S2h), then the other kinds.
+  value or handle let), the body compiler's loop dispatching on it. **S2h built 2026-10-31** (D95): the system route
+  planned in `planner/SystemRoutes` (its database and its tables' names); the driver opens and seeds the session and
+  checks it names the tables as planned. Next: the effects (S2d), then the frame CTE and the shared preparation.

@@ -16583,6 +16583,28 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S2h: the system route planned
+
+The decisions log D95; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2h). Zero movement.
+
+1. **Built:** `planner/SystemRoutes` plans a body's route to the graph's system metamodel store with no session: the
+   stores its resolved statements read (a body reading the system store AND a user store refused by name, as
+   before), the database its runtime executes on, and the names its plan gives the store's tables -- the store's own on
+   a database the platform runs in process (the dialect's `inProcess`, which
+   `ConnectorsTest.aDatabaseRunsInProcessOnBothSidesAlike` holds equal to the connector's), the system session's
+   temporary tables (`Ddl.systemTable`) on a server. The body driver opens and seeds the system session as before
+   (`SystemDatabase.routeFor`, once per graph and database), then checks the session names the tables as the plan
+   does (an `IllegalStateException` naming both if ever not), and plans with the planned names. The route is opened
+   before the planned names are asked, so a database with no dialect keeps its refusal of today (no system
+   connection), not a new one. `ExecEnv.withSystemRoute` deleted; the stale `com.legend.driver.EngineText` in
+   `Databases`' doc corrected.
+2. **What it unblocks:** the shared preparation's route is the planner's now, so a planner-side side plan can name the
+   system tables without opening a session -- the frame CTE's and `planBare`'s remaining tie to the driver is the
+   effect arms (S2d).
+3. **Guards, dated:** the planner register gains `SystemRoutes`; `JavaEvalLedgerTest` `BodyDriver` 1,369 -> 1,345,
+   `SystemRoutes` 55 pinned where the code went.
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, every corpus pass's statement-origins census (`system=121` DuckDB, `system=120` H2, unchanged) and pass/fail counts identical to e7b9d9a5's; channel B's grammar suite on Postgres (unprivileged), the local lane whose system route renames the store's tables, identical per test to the S3a baseline (132 of 132 lines; 132 pass, 5 errors, as before), and with the SQL dumped the route seen at work: the system session's temporary tables made (`metamodel_classes` and the rest) and read by the planned names (`FROM metamodel_classes`), the check passing; `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
 ## 2026-10-31 — The seam program's S2b: a let's kind planned in the planner
 
 The decisions log D94; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2b). Zero movement.
