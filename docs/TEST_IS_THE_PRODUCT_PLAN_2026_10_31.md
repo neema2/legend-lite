@@ -36,8 +36,9 @@ steps with checkpoints (§7).
 | R7 | "Agree with all recommendations": decisions 1 (the eager run at a let kept, a plan step), 2 (a verdict group closes before a database-changing step; refined in §9 N6), 5 (one `check` value), 6 (a literal root a constant, a product feature), 8 (the corpus row-order emulation a run option), 9 (the two "AssertVerdicts.side" texts corrected), 11 (step by step, outcomes frozen but for the approved movement register, §4), 12 (statement changes approved by class), 13 (the parity guard byte-identical, §5), 14 (consecutive effects one script, a product feature). |
 | R8 | Decision 4: "will keep as exception": the order key the planner adds to a grid under assertion that the test did not sort stays, a named test-only difference (it decides which rows a capped unsorted read returns, audit W7). |
 | R9 | Decision 7: "fine to keep ours but yes needs to be same code path": the graph's separate system database stays (the user's rulings of 2026-09-02 and 2026-10-11, `SystemDatabase.java:20-56`), and a product query and a test reach it by one code path (§6 B7). |
-| R10 | Decision 10: the canon computed over the product plan's columns, fully ("why would we not fix the cannon fully"); object ids: one counter per PROGRAM, for the product and tests alike (§6 B9) -- **proposed after the user's question on its meaning, awaiting the user's yes (§9).** |
+| R10 | Decision 10: the canon computed over the product plan's columns, fully ("why would we not fix the cannon fully"); object ids: one counter per PROGRAM, for the product and tests alike (§6 B9), agreed after the explanation of its meaning. |
 | R11 | "No need to push to CI until we have a good checkpoint": commits stay local between agreed checkpoints (with a backup, §9 N5). |
+| R13 | §9's N1, N2, N4, N5, N6 as recommended ("Agree to all except the assertError"): the product's query door refuses the test-only steps (B6); the test-only planning in its own library (B4); the eager run at a let on both passes (MV7); backups between checkpoints on the work branch `claude/wizardly-dirac-rw6tim-seam-wip` (no CI runs on it); a verdict group closes before every non-verdict step (2.D). N3 (`assertError`'s matcher) explained, awaiting the user's word. |
 | R12 | Unchanged from the predecessor program (§8.2): never push to main, never open or merge a PR without the user's word; no output spelling change without the user's word, case by case; an answer to a question is not a go to build something else; a guard pin or allowlist moves only with a dated justification; never read, print or copy credentials; records land with the code. |
 
 ## 2. The ledger
@@ -323,24 +324,17 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
 
 ## 9. Still open (for the user)
 
-- **R10's ids:** one counter per program (§6 B9) -- the user's yes after the explanation of its meaning.
-- **N1, the product's query door (B6):** effects, inline seeds, the eager run and verdicts allowed only through the
-  test door and refused by name on the product door. Recommended: yes.
-- **N2, the test-only planning's library (B4):** kept out of the product server and the WebAssembly/native planners.
-  Recommended: yes.
-- **N3, `assertError`'s matcher (T10):** Java compares a caught error's message and position: a named Java step like
-  the host judge's comparison (it computes no value). Recommended: yes.
-- **N4, decision 1 in one plan (MV7):** the eager run at a let runs on BOTH passes (+about 1,950 statements on each
-  database pass), or is a host-pass-only step (a mode-dependent step in one plan). Recommended: both passes (one plan,
-  no mode-dependent steps); measured at M0.
-- **N5, backups between checkpoints (R11, audit 5.2):** a container loss loses every local commit; push each step's
-  commits to a non-PR work branch (`claude/wizardly-dirac-rw6tim-seam-wip`, no CI runs on it), or keep a `git
-  bundle`. Recommended: the work branch (needs the user's permission: a different branch).
-- **N6, decision 2 refined (2.D, audit O1):** a group closes before EVERY non-verdict step (seeds and value statements
-  too), the simplest rule that keeps both modes' order. Recommended: yes.
+- **N3, `assertError`'s matcher (T10):** the body runs as an `ExpectFailure` sub-plan; an error -- raised by the
+  database, or by the compiler while planning the body (O8) -- is caught by the client (no SQL statement can catch its
+  own error and answer its message as a value: standard SQL has no try/catch in a query, DuckDB's `TRY` answers NULL,
+  most of the eleven databases have nothing), and Java compares its message (exact text) and position (two numbers)
+  with the test's, in the engine's own failure wording (`assertError.pure:24-26`). It computes no value. Recommended:
+  named as the one other Java comparison beside the host judge's (alternatives: a constant comparison sent back to
+  the database -- a round trip that gains nothing; catching in the database per dialect -- not portable).
 
 ## 10. Status
 
 - 2026-10-31: v1 drafted after the code inventory (A); the user's rulings R1-R12; the independent audit (B) found six
   blockers and many majors in v1 (incoherent rulings, a hidden oracle conflict, the step order, missing designs,
-  resumability; 4 weeks under-sized to 9-13); v2 written from it. Next: the user's word on v2 and §9, then M0.
+  resumability; 4 weeks under-sized to 9-13); v2 written from it. The user agreed v2's §9 but N3 (R13) and R10's ids;
+  N3 explained. Next: the user's word on N3, then M0.
