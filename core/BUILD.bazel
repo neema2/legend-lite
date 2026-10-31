@@ -480,6 +480,9 @@ legend_java_library(
             # the #TS{...}# island over the timeseries library is :ts_island_test's alone: it reads the timeseries
             # project's file too (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2)
             "src/test/java/com/legend/integration/TsIslandTest.java",
+            # the line-level spike is :ts_line_spike_test's alone (manual): it reads the timeseries project's file
+            # (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md)
+            "src/test/java/com/legend/integration/TsLineSpikeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
@@ -1903,3 +1906,24 @@ core_layer_queries(not_layers = {
 })
 
 guards_package()
+
+# SPIKE (2026-10-31, evidence for docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md): the language's functions as
+# line-level Pure against today's #TS. Manual: no gate runs it; `bazel test //core:ts_line_spike_test --test_output=all`.
+junit_test(
+    name = "ts_line_spike_test",
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsLineSpikeTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsLineSpikeTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)

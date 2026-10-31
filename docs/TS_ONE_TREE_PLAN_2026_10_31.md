@@ -1,7 +1,9 @@
 # Timeseries, one reader: gs-quant's words everywhere (2026-10-31)
 
 **Status: version 2, ratified in part (2026-10-31: D1, D3-D4's scope rule, D11-D13, the order; §9 says which rulings
-stay open -- each needed only by a later step). Step 1 is under way.**
+stay open -- each needed only by a later step). Step 1's frozen answers are built. Its catalog half (D6) is
+proposed to be replaced by `docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md`, the language's words as line-level
+Pure functions, from a spike (2026-10-31; rulings L1-L5 asked there).**
 Version 1 was reviewed the same day by an agent that wrote none of it, against the code and gs-quant's source; its
 findings were checked and §10 says what changed. The plan replaces the direction of
 `docs/TS_LANGUAGE_BUILD_2026_10_30.md` from its P6 on, and revises `docs/TIMESERIES_LANGUAGE_2026_10_29.md` (the
@@ -112,7 +114,9 @@ quotes as SQL's strings: anything that is not a word (`close['BRK.B']`), a reser
 otherwise read as a span) and an identifier made of digits whose leading zeros count (`close['037833100']`, a CUSIP:
 unquoted it is a number). A number is a number (`close[1234]`); an enumeration's value by its name (`close[TECH]`).
 
-**D6. One catalog, as data, in core**, beside the library (`projects/timeseries/`): each function's name, gs-quant's
+**D6. One catalog, as data, in core** (proposed replacement, 2026-10-31: the catalog is the library's own line-level
+functions, their signatures, `doc.doc` and a profile's tags -- `docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md`;
+the JSON form below is shelved, in `git stash`), beside the library (`projects/timeseries/`): each function's name, gs-quant's
 module, name and Python signature (lists where gs-quant takes lists: `weighted_sum([x, y], [wx, wy])`,
 `union([x, y])`), the text signature where it differs (series, then parameters, gs-quant's parameter names:
 `returns_type`, `type_`, `assume_zero_mean`, `annualization_factor`), kinds and defaults, units, whether its figures
@@ -305,7 +309,8 @@ notation of D11), the Python suites, and from step 2 the oracle's register.
 **Status.** Step 1's frozen answers are built (2026-10-31): `datacube/test/timeseries-frozen.ts`, held by
 `//datacube:timeseries_ts_parity_test` (the gallery's and the markets page's 210 series, 271,838 points:
 `test/fixtures/timeseries/gallery-answers.json`) and `//datacube:stress_markets_test` (the class page's 10, 17,749:
-`markets-classes-answers.json`); a series that draws nothing is never frozen as right. Proved: the library's
+`markets-classes-answers.json`); a series that draws nothing is never frozen as right. The catalog half of step 1 waits on the line-level proposal
+(`docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md`, its §4: C1, M1-M3). Proved: the library's
 volatility moved from ×100 to ×101 for one run, the parity test still read "210 the same" and the frozen answers
 failed 9 series by name.
 
