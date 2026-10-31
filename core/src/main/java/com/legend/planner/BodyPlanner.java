@@ -208,4 +208,210 @@ public final class BodyPlanner {
         CrossStoreGuard.check(resolved, env.ctx(), env.runtimeFqn());
         return resolved;
     }
+
+    /** A statement's body PREPARED over {@code env} (already routed: {@link SystemRoutes}): framed by the execute call
+     *  it runs under and ready to plan, or the kind of answer it is given with no plan ({@link Prepared}; the shared
+     *  preparation, 2026-10-31: the body driver's prelude decided both while it ran the answers). */
+    public static Prepared prepare(java.util.List<TypedSpec> body, PlanEnv env) {
+        ModelContext ctx = env.ctx();
+        // a late-bound grid is never pinned here: its columns are the ones its result reports, read when the plan
+        // runs (the seam program's S3c, 2026-10-30; until then RawGridSchema.stamp took GridProbe's LIMIT-0 roster)
+        // the from being executed IS the frame: its bound context carries the
+        // post-processors, the connection's time zone and the options this
+        // execution runs under (batch 120 — no static slot). The OUTERMOST
+        // from in tree order (an assert side re-plans a spliced chain under a
+        // property access; nested froms are the resolver's own wrappers).
+        java.util.List<com.legend.compiler.spec.typed.TypedFrom> froms =
+                com.legend.compiler.spec.typed.ExecutionContext.froms(
+                        body.get(body.size() - 1));
+        if (!froms.isEmpty()) {
+            env = env.withFrame(froms.get(0).context());
+            // the engine's addDriverTablePkForProject option (#45) is PER
+            // EXECUTE CALL — the from's own bound option (batch 121):
+            // projections gain the driver table's PK columns
+            if (froms.get(0).context().driverTablePk()) {
+                body = com.legend.resolver.DriverPkAppend.apply(body, ctx);
+            }
+            // the engine's importDataFlow option (batch 146): the union-row
+            // projection gains the union's key threads, derived at chain
+            // assembly and carried by the frame's bound context
+            if (!froms.get(0).context().importDataFlowColumns().isEmpty()) {
+                body = com.legend.resolver.ImportDataFlowAppend.apply(body,
+                        froms.get(0).context().importDataFlowColumns(), ctx);
+            }
+        }
+        TypedSpec root = body.get(body.size() - 1);
+        // from() is context-only, but its info is the PRE-RESOLUTION
+        // declared type — kept: a primitive-many declared root whose
+        // resolved source became relation-shaped (scalar ->map lowers to
+        // a one-column project) still executes as a VALUE COLLECTION, so
+        // the Executor's null-drop applies (pure collections hold no
+        // empties — the no-match parent contributes nothing, task #78).
+        com.legend.compiler.element.type.ExprType declaredInfo = null;
+        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            if (declaredInfo == null) {
+                declaredInfo = fr.info();
+            }
+            root = fr.source();
+        }
+        // CATALOG DISPATCH (EFFECT rows, ladder census §10m): the
+        // effectful K-natives run their registered arm when evaluation
+        // reaches the call — one lookup, no name literals.
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.builtin.NativeFn.Effect.of(nc.callee().id()).isPresent()) {
+            return new Prepared.Effect(body, nc, env);
+        }
+        // A WRITE INTO A STORE TABLE (docs/WRITES_DESIGN_2026_10_18.md §4, L1: write, delete, update, merge): the
+        // database runs the statement, and its update count is the write's value. It runs in the query's transaction
+        // (BodyDriver.execute: Executor.inTransaction), never through the effect arms (an effect reseeds).
+        if (com.legend.compiler.spec.StatementEffects.isStoreWrite(root)) {
+            return new Prepared.StoreWrite(body, root, env);
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall st
+                && com.legend.builtin.Pure.Lite.STAGE.equals(st.callee().qualifiedName())) {
+            throw new com.legend.error.NotImplementedException("stage(rows) holds rows for the statements after it:"
+                    + " it is a let's value (let s = rows->stage()), not a statement's");
+        }
+        // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
+        // the engine walks its Database metamodel, we render from the
+        // compiled store model (the lowerer has no model access)
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall ds
+                && com.legend.builtin.NativeFn.DdlStatement.of(ds.callee().id()).isPresent()) {
+            return new Prepared.DdlText(EnginePlans.ddlText(ds, env), ds.info().type());
+        }
+        com.legend.compiler.element.type.@com.legend.base.Nullable Type handle = handleType(root, env);
+        if (handle != null) {
+            return new Prepared.Handle(handle);
+        }
+        // a COLLECTION whose elements include DDL string generators (the
+        // aggregationAware setup shape: [dropSchemaStatement(..), ...]
+        // ->map(s|executeInDb(..))): every element evaluates here
+        if (root instanceof com.legend.compiler.spec.typed.TypedCollection ddlColl
+                && ddlColl.elements().stream().anyMatch(e ->
+                        e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
+                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().id()).isPresent())) {
+            java.util.List<Object> strs = new java.util.ArrayList<>();
+            for (TypedSpec e : ddlColl.elements()) {
+                if (e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
+                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().id()).isPresent()) {
+                    strs.add(EnginePlans.ddlText(enc, env));
+                } else if (e instanceof com.legend.compiler.spec.typed.TypedCString cs2) {
+                    strs.add(cs2.value());
+                } else {
+                    throw new IllegalStateException("DDL statement collection"
+                            + " carries a non-DDL, non-literal element: "
+                            + e.getClass().getSimpleName());
+                }
+            }
+            return new Prepared.DdlTexts(strs);
+        }
+        // map over an EFFECTFUL lambda ($sqls->map(sql|executeInDb(...))):
+        // the source collection evaluates through the pipeline; each
+        // element executes the lambda body with the parameter bound (the
+        // one statement-orchestration shape the corpus's setup bodies use).
+        if (root instanceof com.legend.compiler.spec.typed.TypedMap tm
+                && containsEffectfulNode(java.util.List.of(tm.mapper()))) {
+            return new Prepared.EffectfulMap(body, tm, env);
+        }
+        return new Prepared.Planned(body, root, declaredInfo, env);
+    }
+
+    /** The type of an ORCHESTRATION HANDLE (a connection, a runtime, a connection store): a value the program
+     *  passes around and never lowers; null when {@code root} is not one. */
+    private static com.legend.compiler.element.type.@com.legend.base.Nullable Type handleType(
+            TypedSpec root, PlanEnv env) {
+        if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
+                && castC.source()
+                        instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
+                && com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn()
+                        .equals(cbe2.callee().qualifiedName())) {
+            return castC.info().type();
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNewInstance rni
+                && ("meta::core::runtime::Runtime".equals(rni.classFqn())
+                        || "meta::core::runtime::ConnectionStore"
+                                .equals(rni.classFqn()))) {
+            if (containsEffectfulNode(new java.util.ArrayList<>(
+                    rni.properties().values()))) {
+                throw new IllegalStateException("^" + rni.classFqn()
+                        + "(...) constructor argument carries an"
+                        + " executeInDb-family effect; the orchestration-"
+                        + "handle arm never evaluates arguments");
+            }
+            return rni.info().type();
+        }
+        // TYPE-driven handle rule (XStore slice 2b): a CONNECTION/RUNTIME-
+        // typed VALUE is an orchestration handle regardless of expression
+        // shape — the corpus's connection-picking idiom
+        // (testRuntime().connectionStores->filter(c|...)->toOne()) must
+        // never lower to SQL (it list_filter'd a struct literal). Same
+        // effect guard as the ctor arm: nested effects never drop silently.
+        if (root.info().type()
+                instanceof com.legend.compiler.element.type.Type.ClassType hct
+                // Nil (the []-born BOTTOM type) subtypes EVERYTHING —
+                // including Connection — but a Nil-typed root is an empty
+                // VALUE ([]->tail() is an empty collection), never an
+                // orchestration handle: the handle arm returned Scalar(null)
+                // where the caller expects an empty Collection
+                && !com.legend.compiler.element.type.PlatformTypes.isNil(hct)
+                && ("meta::core::runtime::Runtime".equals(hct.fqn())
+                        || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
+                        || env.ctx().isSubtype(hct.fqn(),
+                                "meta::core::runtime::Connection"))) {
+            if (containsEffectfulNode(java.util.List.of(root))) {
+                throw new IllegalStateException("a connection-typed value"
+                        + " expression carries an executeInDb-family effect;"
+                        + " the orchestration-handle arm never evaluates it");
+            }
+            return root.info().type();
+        }
+        return null;
+    }
+
+    /** Does any node in these (post-inline) trees carry a REAL K effect?
+     * An executeInDb whose SQL is a literal SELECT is provably read-only
+     * (the corpus prints such probes) and does not count. */
+    public static boolean containsEffectfulNode(java.util.List<TypedSpec> nodes) {
+        for (TypedSpec n : nodes) {
+            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                    && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().id())
+                    && !isLiteralSelect(nc)) {
+                return true;
+            }
+            if (containsEffectfulNode(n.children())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isLiteralSelect(
+            com.legend.compiler.spec.typed.TypedNativeCall nc) {
+        String fqn = nc.callee().qualifiedName();
+        boolean sqlCarrier = com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB.fqn().equals(fqn);
+        return sqlCarrier && !nc.args().isEmpty()
+                && nc.args().get(0)
+                        instanceof com.legend.compiler.spec.typed.TypedCString cs
+                && cs.value().strip().toLowerCase(java.util.Locale.ROOT)
+                        .startsWith("select");
+    }
+
+    /** A value's plan with no canon wrap, planned with no session: the plan and its root. */
+    public record Bare(com.legend.sql.SqlQuery plan, TypedSpec root) {
+    }
+
+    /** {@code value}'s plan as a side reads it (the lets spliced, the user calls inlined, the natives staged, the stores
+     *  resolved, the system route's tables named, the body prepared and lowered on the identity lane), or null when
+     *  the value is answered with no plan ({@link Prepared}). The driver's {@code planBare} with no rider, no splice
+     *  hook and no session: nothing opened, nothing run (the frame's planned CTE reads it). */
+    public static @com.legend.base.Nullable Bare bare(TypedSpec value, java.util.List<TypedSpec> letPrefix,
+            SpecCompiler specs, PlanEnv env) {
+        java.util.List<TypedSpec> body = sideBody(value, letPrefix, specs, env, null);
+        SystemRoutes.Route route = SystemRoutes.of(body, env);
+        PlanEnv routed = route == null ? env : SystemRoutes.routed(env, SystemRoutes.renames(route));
+        if (!(prepare(body, routed) instanceof Prepared.Planned p)) {
+            return null;
+        }
+        return new Bare(lowerAndPrepare(p.body(), p.env(), p.env().ctx(), p.env().dialect(), true), p.root());
+    }
 }

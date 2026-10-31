@@ -155,4 +155,73 @@ public final class FramePlanner {
         }
         return null;
     }
+
+    /** A frame's planned CTE under the database judge (leg 3.4 step 2, rung 12): the plan its readers reference instead
+     *  of pasting the chain, the type a reader sees it at, and, for a plain class frame, its extent rows. NONE: pasted. */
+    public record Cte(com.legend.sql.@com.legend.base.Nullable SqlQuery plan,
+            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType plannedInfo,
+            com.legend.sql.@com.legend.base.Nullable SqlSelect extentRows) {
+        public static final Cte NONE = new Cte(null, null, null);
+    }
+
+    /** {@code fc}'s planned CTE, or {@link Cte#NONE} where it stays pasted (planned with no session: the shared
+     *  preparation's system route and answered kinds are the planner's since 2026-10-31; the body driver planned it
+     *  until then). */
+    public static Cte cte(FrameChain fc, java.util.List<TypedSpec> letPrefix, SpecCompiler specs) {
+        PlanEnv env = fc.env();
+        // leg 3.4 step 2: a relation-rooted frame of STATIC schema that ran
+        // (eager) is also PLANNED once — every assert side that reads it
+        // references the plan as a CTE instead of pasting the chain
+        if (fc.relationRooted()) {
+            var schema = com.legend.compiler.element.type.Type.schemaView(
+                    fc.chain().info().type());
+            if (schema != null && !schema.isLateBound() && schema.dynamicColumns().isEmpty()
+                    && !schema.columns().isEmpty()) {
+                BodyPlanner.Bare b = BodyPlanner.bare(fc.chain(), letPrefix, specs, env);
+                // the PLANNED root's type is the frame's schema as a side sees
+                // it (the resolver's view: a validation's key columns are
+                // typed here, not in the raw chain); a plan whose width is
+                // not that schema's stays pasted
+                var planned = b == null ? null
+                        : com.legend.compiler.element.type.Type.schemaView(b.root().info().type());
+                if (b != null && planned != null && !planned.isLateBound()
+                        && planned.columns().size() == b.plan().outputs().size()) {
+                    // the reference keeps the CHAIN's relation carrier (a
+                    // Relation<…> / TDS wrapper — the cast-to-TDS erasure and
+                    // the render recognizers read the wrapper), over the
+                    // PLANNED columns
+                    var chainType = fc.chain().info().type();
+                    return new Cte(b.plan(), chainType instanceof com.legend.compiler.element.type.Type.GenericType g
+                            && com.legend.compiler.element.type.PlatformTypes.RELATION_CARRIERS
+                                    .contains(g.rawFqn())
+                            ? new com.legend.compiler.element.type.ExprType(
+                                    new com.legend.compiler.element.type.Type.GenericType(g.rawFqn(),
+                                            java.util.List.of(planned), g.multArguments()),
+                                    fc.chain().info().multiplicity())
+                            : b.root().info(), null);
+                }
+            }
+            return Cte.NONE;
+        }
+        if (fc.chain() instanceof com.legend.compiler.spec.typed.TypedFrom fr
+                && com.legend.compiler.spec.ResultEnvelopeSplice.plainExtentRoot(fr.source())
+                        instanceof com.legend.compiler.spec.typed.TypedGetAll root
+                && BodyPlanner.resolver(specs, env).plainClassPipeline(fr, root)) {
+            // rung 12: a PLAIN class-rooted let (Class.all() under filters, the
+            // class bound by filters over ONE table) planned ONCE — the fold's
+            // root rows (its from / where over the root table's physical
+            // columns) as a CTE standing for the class's mapped extent; every
+            // reader ranges over that extent. The fold stays the frame's plan
+            // of record (activity, the SQL-text referee). Any other chain or
+            // pipeline shape stays pasted.
+            BodyPlanner.Bare b = BodyPlanner.bare(fc.chain(), letPrefix, specs, env);
+            if (b != null) {
+                com.legend.sql.SqlSelect rows = com.legend.lowering.VerdictSql.classExtentRows(b.plan());
+                if (rows != null) {
+                    return new Cte(b.plan(), fr.info(), rows);
+                }
+            }
+        }
+        return Cte.NONE;
+    }
 }

@@ -16583,6 +16583,48 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's shared preparation: a statement's body prepared in the planner; a frame's planned CTE with it
+
+The decisions log D96; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 (the kinds' common road). Zero
+movement.
+
+1. **Built:** `planner/BodyPlanner.prepare` does what the body driver's prelude decided with no session: the frame a
+   body runs under (its outermost `from`'s bound context; the driver table's keys and the import-data-flow threads
+   appended), its root under the execution contexts and the declared type of its outermost `from`, and the kind of
+   answer a body is given with no plan -- `planner/Prepared`: a body to plan, an effect native, a store write, a DDL
+   text generator's text (written at planning in the engine's spelling: `EnginePlans.ddlText`, D30), a collection of
+   them, an orchestration handle (a connection, a runtime: no rows, never lowered), an effectful map. The driver's
+   prelude opens the system route's session (S2h) and dispatches: it runs an effect's arm, a store write and an
+   effectful map's elements, and wraps the planned values; nothing else is its. `BodyPlanner.bare` plans a value as a
+   side with no session (the lets spliced, the stores resolved, the system tables named, the body prepared and
+   lowered); `FramePlanner.cte` plans a frame's CTE and a plain class frame's extent rows over it, which
+   `buildFrame` asked its own `planBare` for until now -- so a frame is the planner's but for its run at the let, its
+   activity's trace comment and the read census.
+2. **What is left of a frame in the driver:** the run at the let (the host judge's order; the user's question of
+   2026-10-31 on dropping it is open), the trace comment, the census, the `ExecFrame` record the splice hook reads.
+3. **Guards, dated:** the planner register gains `Prepared`; `JavaEvalLedgerTest` `BodyDriver` 1,345 -> 1,154,
+   `BodyPlanner` 127 -> 268, `FramePlanner` 96 -> 140, `EnginePlans` 663 -> 707 (the moved code, plus the result type
+   and the dispatch).
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's statement-origins census (the system route's `system=121`/`120` and the sessions' counts included) and pass/fail counts are identical to 28dc4899's; `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The lane sessions on S2g's first two steps: every server and cloud lane identical, statements included (round 4)
+
+The arrangement of D81, round 4: the five lane sessions MEASURE ONLY on b84b51df (S2g's first two steps, a pure move)
+against their 745b76de runs, asked for every statement as well as every test, since nothing observable may move.
+
+| session | lanes | round 4 (b84b51df vs 745b76de) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; both commits re-run with the SQL dumped: 22,680 statements per commit (session, system, fallback and plan statements), byte-identical in order (`cmp`, no normalization); whole logs 0 differing lines |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test; every engine-JSON marker's SQL byte-identical in order (these runs dump no SQL; a re-run with it offered); whole logs differ only in the echo's let order and one ClickHouse result's row order |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement, session statements included, byte-identical in order in all 10 suites |
+| sibling 3 | Databricks, channels A and B | identical per test; every statement, session statements included, byte-identical in order in all 10 targets |
+| sibling 4 | BigQuery, channels A and B | identical per test (the known `filter::testFilterInstance` UNION ALL order message, same verdict); every statement byte-identical in order in all 10 dumps |
+
+The only red is main's: SQLite channel B essential at 332 (and BigQuery channel A essential's failure block,
+`removeDuplicates...MixedTypes`, identical); the user's ruling on it is owed. CI on b84b51df (run 41171130793) green on
+every OS; on 3c18418e (S2g's third step) two reds not of the commit -- a runner's disk filled before any test ran, and
+one drag-timing check of DataCube's layout page on Linux (two 70 ms browser tasks) -- both green on e7b9d9a5's run.
+
 ## 2026-10-31 — The seam program's S2h: the system route planned
 
 The decisions log D95; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2h). Zero movement.

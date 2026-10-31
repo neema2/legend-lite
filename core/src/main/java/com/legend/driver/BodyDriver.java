@@ -546,65 +546,12 @@ public final class BodyDriver {
             // the string entry's value is one string: no planned CTE, no read kind
             return new ExecFrame(fc.chain(), false, run, env.tableReplace(), ec);
         }
-        // leg 3.4 step 2: a relation-rooted frame of STATIC schema that ran
-        // (eager) is also PLANNED once — every assert side that reads it
-        // references the plan as a CTE instead of pasting the chain
-        com.legend.sql.SqlQuery plan = null;
-        com.legend.compiler.element.type.ExprType plannedInfo = null;
-        if (eager && fc.relationRooted() && env.verdictBatch() != null) {
-            var schema = com.legend.compiler.element.type.Type.schemaView(
-                    fc.chain().info().type());
-            if (schema != null && !schema.isLateBound() && schema.dynamicColumns().isEmpty()
-                    && !schema.columns().isEmpty()) {
-                BarePlan b = planBare(fc.chain(), letPrefix, specs, env, null, null);
-                // the PLANNED root's type is the frame's schema as a side sees
-                // it (the resolver's view: a validation's key columns are
-                // typed here, not in the raw chain); a plan whose width is
-                // not that schema's stays pasted
-                var planned = b.answered() != null ? null
-                        : com.legend.compiler.element.type.Type.schemaView(b.root().info().type());
-                if (planned != null && !planned.isLateBound()
-                        && planned.columns().size() == b.plan().outputs().size()) {
-                    plan = b.plan();
-                    // the reference keeps the CHAIN's relation carrier (a
-                    // Relation<…> / TDS wrapper — the cast-to-TDS erasure and
-                    // the render recognizers read the wrapper), over the
-                    // PLANNED columns
-                    var chainType = fc.chain().info().type();
-                    plannedInfo = chainType instanceof com.legend.compiler.element.type.Type.GenericType g
-                            && com.legend.compiler.element.type.PlatformTypes.RELATION_CARRIERS
-                                    .contains(g.rawFqn())
-                            ? new com.legend.compiler.element.type.ExprType(
-                                    new com.legend.compiler.element.type.Type.GenericType(g.rawFqn(),
-                                            java.util.List.of(planned), g.multArguments()),
-                                    fc.chain().info().multiplicity())
-                            : b.root().info();
-                }
-            }
-        }
-        com.legend.sql.SqlSelect extentRows = null;
-        if (eager && !fc.relationRooted() && env.verdictBatch() != null
-                && fc.chain() instanceof com.legend.compiler.spec.typed.TypedFrom fr
-                && com.legend.compiler.spec.ResultEnvelopeSplice.plainExtentRoot(fr.source())
-                        instanceof com.legend.compiler.spec.typed.TypedGetAll root
-                && com.legend.planner.BodyPlanner.resolver(specs, env.plan()).plainClassPipeline(fr, root)) {
-            // rung 12: a PLAIN class-rooted let (Class.all() under filters, the
-            // class bound by filters over ONE table) planned ONCE — the fold's
-            // root rows (its from / where over the root table's physical
-            // columns) as a CTE standing for the class's mapped extent; every
-            // reader ranges over that extent. The fold stays the frame's plan
-            // of record (activity, the SQL-text referee). Any other chain or
-            // pipeline shape stays pasted.
-            BarePlan b = planBare(fc.chain(), letPrefix, specs, env, null, null);
-            if (b.answered() == null) {
-                com.legend.sql.SqlSelect rows = com.legend.lowering.VerdictSql.classExtentRows(b.plan());
-                if (rows != null) {
-                    plan = b.plan();
-                    plannedInfo = fr.info();
-                    extentRows = rows;
-                }
-            }
-        }
+        // under the database judge a frame's readers reference its planned CTE where it has one (the planner's)
+        com.legend.planner.FramePlanner.Cte cte = eager && env.verdictBatch() != null
+                ? com.legend.planner.FramePlanner.cte(fc, letPrefix, specs) : com.legend.planner.FramePlanner.Cte.NONE;
+        com.legend.sql.SqlQuery plan = cte.plan();
+        com.legend.compiler.element.type.ExprType plannedInfo = cte.plannedInfo();
+        com.legend.sql.SqlSelect extentRows = cte.extentRows();
         if (env.verdictBatch() != null) {
             com.legend.judge.VerdictBatch.frame(extentRows != null ? com.legend.judge.VerdictBatch.FrameRead.CLASS_CTE
                     : plan != null ? com.legend.judge.VerdictBatch.FrameRead.CTE
@@ -1124,146 +1071,68 @@ public final class BodyDriver {
             java.util.List<TypedSpec> body, ExecEnv env,
             com.legend.judge.@com.legend.base.Nullable CanonRider rider,
             boolean identityLane) {
-        ModelContext ctx = env.ctx();
-        String runtimeFqn = env.runtimeFqn();
+        // the system route's session first (opened as before, so a database it cannot open refuses as before); the
+        // body's preparation -- its framing, and the kind of answer it is given with no plan -- the planner's (the
+        // shared preparation, 2026-10-31); the answers that run, run here
         env = routeSystemDatabase(body, env);
-        // a late-bound grid is never pinned here: its columns are the ones its result reports, read when the plan
-        // runs (the seam program's S3c, 2026-10-30; until then RawGridSchema.stamp took GridProbe's LIMIT-0 roster)
-        // the from being executed IS the frame: its bound context carries the
-        // post-processors, the connection's time zone and the options this
-        // execution runs under (batch 120 — no static slot). The OUTERMOST
-        // from in tree order (an assert side re-plans a spliced chain under a
-        // property access; nested froms are the resolver's own wrappers).
-        java.util.List<com.legend.compiler.spec.typed.TypedFrom> froms =
-                com.legend.compiler.spec.typed.ExecutionContext.froms(
-                        body.get(body.size() - 1));
-        if (!froms.isEmpty()) {
-            env = env.withFrame(froms.get(0).context());
-            // the engine's addDriverTablePkForProject option (#45) is PER
-            // EXECUTE CALL — the from's own bound option (batch 121):
-            // projections gain the driver table's PK columns
-            if (froms.get(0).context().driverTablePk()) {
-                body = com.legend.resolver.DriverPkAppend.apply(body, ctx);
-            }
-            // the engine's importDataFlow option (batch 146): the union-row
-            // projection gains the union's key threads, derived at chain
-            // assembly and carried by the frame's bound context
-            if (!froms.get(0).context().importDataFlowColumns().isEmpty()) {
-                body = com.legend.resolver.ImportDataFlowAppend.apply(body,
-                        froms.get(0).context().importDataFlowColumns(), ctx);
-            }
-        }
-        TypedSpec root = body.get(body.size() - 1);
-        // from() is context-only, but its info is the PRE-RESOLUTION
-        // declared type — kept: a primitive-many declared root whose
-        // resolved source became relation-shaped (scalar ->map lowers to
-        // a one-column project) still executes as a VALUE COLLECTION, so
-        // the Executor's null-drop applies (pure collections hold no
-        // empties — the no-match parent contributes nothing, task #78).
-        com.legend.compiler.element.type.ExprType declaredInfo = null;
-        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
-            if (declaredInfo == null) {
-                declaredInfo = fr.info();
-            }
-            root = fr.source();
-        }
-        // CATALOG DISPATCH (EFFECT rows, ladder census §10m): the
-        // effectful K-natives run their registered arm when evaluation
-        // reaches the call — one lookup, no name literals.
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.builtin.NativeFn.Effect.of(nc.callee().id()).isPresent()) {
-            EffectRoutine arm = EFFECT_ARMS.get(nc.callee().qualifiedName());
-            if (arm == null) {
-                throw new com.legend.error.NotImplementedException(
-                        "catalog says '" + nc.callee().qualifiedName()
-                        + "' is EFFECT but no arm is registered");
-            }
-            return Prelude.answered(arm.run(body, nc, env));
-        }
-        // A WRITE INTO A STORE TABLE (docs/WRITES_DESIGN_2026_10_18.md §4, L1: write, delete, update, merge): the
-        // database runs the statement, and its update count is the write's value. It runs in the query's transaction
-        // (BodyDriver.execute: Executor.inTransaction), never through the effect arms (an effect reseeds).
-        if (com.legend.compiler.spec.StatementEffects.isStoreWrite(root)) {
-            return Prelude.answered(storeWrite(body, root, env, rider != null || identityLane));
-        }
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall st
-                && com.legend.builtin.Pure.Lite.STAGE.equals(st.callee().qualifiedName())) {
-            throw new com.legend.error.NotImplementedException("stage(rows) holds rows for the statements after it:"
-                    + " it is a let's value (let s = rows->stage()), not a statement's");
-        }
-        // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
-        // the engine walks its Database metamodel, we render from the
-        // compiled store model (the lowerer has no model access)
-        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall ds
-                && com.legend.builtin.NativeFn.DdlStatement.of(ds.callee().id()).isPresent()) {
-            return Prelude.answered(new TypedSide.Scalar(ddlStatementString(ds, env),
-                    ds.info().type()));
-        }
-        TypedSide handle = orchestrationHandleArm(root, env);
-        if (handle != null) {
-            return Prelude.answered(handle);
-        }
-        // a COLLECTION whose elements include DDL string generators (the
-        // aggregationAware setup shape: [dropSchemaStatement(..), ...]
-        // ->map(s|executeInDb(..))): every element evaluates here
-        if (root instanceof com.legend.compiler.spec.typed.TypedCollection ddlColl
-                && ddlColl.elements().stream().anyMatch(e ->
-                        e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
-                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().id()).isPresent())) {
-            java.util.List<Object> strs = new java.util.ArrayList<>();
-            for (TypedSpec e : ddlColl.elements()) {
-                if (e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
-                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().id()).isPresent()) {
-                    strs.add(ddlStatementString(enc, env));
-                } else if (e instanceof com.legend.compiler.spec.typed.TypedCString cs2) {
-                    strs.add(cs2.value());
-                } else {
-                    throw new IllegalStateException("DDL statement collection"
-                            + " carries a non-DDL, non-literal element: "
-                            + e.getClass().getSimpleName());
+        return switch (com.legend.planner.BodyPlanner.prepare(body, env.plan())) {
+            case com.legend.planner.Prepared.Planned p ->
+                    new Prelude(null, p.body(), p.root(), p.declaredInfo(), env.withPlan(p.env()));
+            case com.legend.planner.Prepared.Effect e -> {
+                EffectRoutine arm = EFFECT_ARMS.get(e.call().callee().qualifiedName());
+                if (arm == null) {
+                    throw new com.legend.error.NotImplementedException(
+                            "catalog says '" + e.call().callee().qualifiedName()
+                            + "' is EFFECT but no arm is registered");
                 }
+                yield Prelude.answered(arm.run(e.body(), e.call(), env.withPlan(e.env())));
             }
-            return Prelude.answered(new TypedSide.Collection(strs,
+            case com.legend.planner.Prepared.StoreWrite w ->
+                    Prelude.answered(storeWrite(w.body(), w.write(), env.withPlan(w.env()), rider != null || identityLane));
+            case com.legend.planner.Prepared.DdlText d -> Prelude.answered(new TypedSide.Scalar(d.text(), d.type()));
+            case com.legend.planner.Prepared.Handle h -> Prelude.answered(new TypedSide.Scalar(null, h.type()));
+            case com.legend.planner.Prepared.DdlTexts c -> Prelude.answered(new TypedSide.Collection(c.texts(),
                     com.legend.compiler.element.type.Type.Primitive.STRING));
-        }
-        // map over an EFFECTFUL lambda ($sqls->map(sql|executeInDb(...))):
-        // the source collection evaluates through the pipeline; each
-        // element executes the lambda body with the parameter bound (the
-        // one statement-orchestration shape the corpus's setup bodies use).
-        if (root instanceof com.legend.compiler.spec.typed.TypedMap tm
-                && containsEffectfulNode(java.util.List.of(tm.mapper()))) {
-            java.util.List<TypedSpec> src = new java.util.ArrayList<>(
-                    body.subList(0, body.size() - 1));
-            src.add(tm.source());
-            TypedSide seedForm = SeedSqlForms.mappedExecutionForm(body, tm, env);
-            TypedSide values = seedForm != null ? seedForm
-                    : executeTyped(src, env);
-            java.util.List<Object> vals = switch (values) {
-                case TypedSide.Collection c -> c.values();
-                case TypedSide.Scalar sc2 -> sc2.value() == null
-                        ? java.util.List.of() : java.util.List.of(sc2.value());
-                default -> throw new IllegalStateException(
-                        "effectful map over a non-collection source");
-            };
-            String param = tm.mapper().parameters().get(0);
-            TypedSide last = new TypedSide.Scalar(null,
-                    tm.info().type());
-            for (Object v : vals) {
-                if (!(v instanceof String sv)) {
-                    throw new IllegalStateException("effectful map element is"
-                            + " not a string: " + v);
-                }
-                java.util.List<TypedSpec> one = new java.util.ArrayList<>(
-                        body.subList(0, body.size() - 1));
-                for (TypedSpec stmt2 : tm.mapper().body()) {
-                    one.add(com.legend.compiler.spec.UserCallInliner
-                            .bindStringParam(stmt2, param, sv));
-                }
-                last = executeTyped(one, env);
+            case com.legend.planner.Prepared.EffectfulMap m ->
+                    Prelude.answered(effectfulMap(m.body(), m.map(), env.withPlan(m.env())));
+        };
+    }
+
+    /** A map over an EFFECTFUL lambda ({@code $sqls->map(sql|executeInDb(...))}): the source collection evaluates
+     *  through the pipeline; each element executes the lambda body with the parameter bound (the one
+     *  statement-orchestration shape the corpus's setup bodies use). */
+    private static TypedSide effectfulMap(java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.typed.TypedMap tm, ExecEnv env) {
+        java.util.List<TypedSpec> src = new java.util.ArrayList<>(
+                body.subList(0, body.size() - 1));
+        src.add(tm.source());
+        TypedSide seedForm = SeedSqlForms.mappedExecutionForm(body, tm, env);
+        TypedSide values = seedForm != null ? seedForm
+                : executeTyped(src, env);
+        java.util.List<Object> vals = switch (values) {
+            case TypedSide.Collection c -> c.values();
+            case TypedSide.Scalar sc2 -> sc2.value() == null
+                    ? java.util.List.of() : java.util.List.of(sc2.value());
+            default -> throw new IllegalStateException(
+                    "effectful map over a non-collection source");
+        };
+        String param = tm.mapper().parameters().get(0);
+        TypedSide last = new TypedSide.Scalar(null,
+                tm.info().type());
+        for (Object v : vals) {
+            if (!(v instanceof String sv)) {
+                throw new IllegalStateException("effectful map element is"
+                        + " not a string: " + v);
             }
-            return Prelude.answered(last);
+            java.util.List<TypedSpec> one = new java.util.ArrayList<>(
+                    body.subList(0, body.size() - 1));
+            for (TypedSpec stmt2 : tm.mapper().body()) {
+                one.add(com.legend.compiler.spec.UserCallInliner
+                        .bindStringParam(stmt2, param, sv));
+            }
+            last = executeTyped(one, env);
         }
-        return new Prelude(null, body, root, declaredInfo, env);
+        return last;
     }
 
     /** A value statement's result: answered by the prelude where it needs no plan, a literal folded, else its plan
@@ -1331,58 +1200,6 @@ public final class BodyDriver {
         return side;
     }
 
-    /** ORCHESTRATION-HANDLE arms of {@link #executeTyped} (extracted at
-     * the file guard, V11): connection/runtime values never lower.
-     * Null = not a handle (the caller continues). */
-    private static @com.legend.base.Nullable TypedSide orchestrationHandleArm(
-            TypedSpec root, ExecEnv env) {
-        if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
-                && castC.source()
-                        instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
-                && com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT.fqn()
-                        .equals(cbe2.callee().qualifiedName())) {
-            return new TypedSide.Scalar(null, castC.info().type());
-        }
-        if (root instanceof com.legend.compiler.spec.typed.TypedNewInstance rni
-                && ("meta::core::runtime::Runtime".equals(rni.classFqn())
-                        || "meta::core::runtime::ConnectionStore"
-                                .equals(rni.classFqn()))) {
-            if (containsEffectfulNode(new java.util.ArrayList<>(
-                    rni.properties().values()))) {
-                throw new IllegalStateException("^" + rni.classFqn()
-                        + "(...) constructor argument carries an"
-                        + " executeInDb-family effect; the orchestration-"
-                        + "handle arm never evaluates arguments");
-            }
-            return new TypedSide.Scalar(null, rni.info().type());
-        }
-        // TYPE-driven handle rule (XStore slice 2b): a CONNECTION/RUNTIME-
-        // typed VALUE is an orchestration handle regardless of expression
-        // shape — the corpus's connection-picking idiom
-        // (testRuntime().connectionStores->filter(c|...)->toOne()) must
-        // never lower to SQL (it list_filter'd a struct literal). Same
-        // effect guard as the ctor arm: nested effects never drop silently.
-        if (root.info().type()
-                instanceof com.legend.compiler.element.type.Type.ClassType hct
-                // Nil (the []-born BOTTOM type) subtypes EVERYTHING —
-                // including Connection — but a Nil-typed root is an empty
-                // VALUE ([]->tail() is an empty collection), never an
-                // orchestration handle: the handle arm returned Scalar(null)
-                // where the caller expects an empty Collection
-                && !com.legend.compiler.element.type.PlatformTypes.isNil(hct)
-                && ("meta::core::runtime::Runtime".equals(hct.fqn())
-                        || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
-                        || env.ctx().isSubtype(hct.fqn(),
-                                "meta::core::runtime::Connection"))) {
-            if (containsEffectfulNode(java.util.List.of(root))) {
-                throw new IllegalStateException("a connection-typed value"
-                        + " expression carries an executeInDb-family effect;"
-                        + " the orchestration-handle arm never evaluates it");
-            }
-            return new TypedSide.Scalar(null, root.info().type());
-        }
-        return null;
-    }
 
     /** The plan-execution tail of {@link #executeTyped}: V11 canon
      * wrap (when a rider asks) + the one Executor call. */
@@ -1898,56 +1715,6 @@ public final class BodyDriver {
     /** One toDDL string-generator call — engine golden spellings
      * (testDDL.pure:42-45); createTableStatement renders from the
      * compiled store model like dropAndCreateTableInDb. */
-    private static String ddlStatementString(
-            com.legend.compiler.spec.typed.TypedNativeCall ds, ExecEnv env) {
-        String fqn = ds.callee().qualifiedName();
-        if (com.legend.compiler.element.type.PlatformTypes
-                .DROP_SCHEMA_STATEMENT.equals(fqn)
-                || com.legend.compiler.element.type.PlatformTypes
-                        .CREATE_SCHEMA_STATEMENT.equals(fqn)) {
-            if (!(ds.args().get(0)
-                    instanceof com.legend.compiler.spec.typed.TypedCString sc)) {
-                throw new IllegalStateException(fqn + ": only literal schema"
-                        + " names are supported, got "
-                        + ds.args().get(0).getClass().getSimpleName());
-            }
-            // the engine text renders the IR's schema DDL, as the table statements below
-            // (the dialect program's Phase 3, 2026-10-16: until then the text was written here)
-            return ENGINE_TEXT.render(com.legend.compiler.element.type.PlatformTypes
-                    .DROP_SCHEMA_STATEMENT.equals(fqn)
-                    ? new com.legend.sql.SqlDdl.DropSchema(sc.value(), false)
-                    : new com.legend.sql.SqlDdl.CreateSchema(sc.value(), false));
-        }
-        // 2-arg forms default the schema (toDDL.pure:34-42)
-        boolean twoArg = ds.args().size() == 2;
-        if (!(ds.args().get(0)
-                instanceof com.legend.compiler.spec.typed.TypedPackageableRef db)
-                || !(ds.args().get(twoArg ? 1 : 1)
-                        instanceof com.legend.compiler.spec.typed.TypedCString a1)
-                || (!twoArg && !(ds.args().get(2)
-                        instanceof com.legend.compiler.spec.typed.TypedCString))) {
-            throw new IllegalStateException(fqn + ": literal"
-                    + " (database, ['schema',] 'table') arguments required");
-        }
-        String sch = twoArg ? "default" : a1.value();
-        String tbl = twoArg ? a1.value()
-                : ((com.legend.compiler.spec.typed.TypedCString)
-                        ds.args().get(2)).value();
-        if (com.legend.compiler.element.type.PlatformTypes
-                .DROP_TABLE_STATEMENT.equals(fqn)) {
-            return ENGINE_TEXT.render(Ddl.dropTable(sch, tbl));
-        }
-        String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
-        com.legend.model.DatabaseDefinition.TableDefinition def =
-                env.ctx().findTableDefinition(db.fullPath(), lookup)
-                        .orElseThrow(() -> new IllegalStateException(
-                                "createTableStatement: no table '" + lookup
-                                        + "' in store " + db.fullPath()));
-        // the ENGINE_TEXT flavor of the ONE generator (NOT NULL /
-        // PRIMARY KEY constraints) — the EXECUTION flavors stay
-        // constraint-free for DuckDB re-seeds
-        return ENGINE_TEXT.render(Ddl.createTable(def, sch));
-    }
 
     /**
      * Evaluate one String[1] argument of a K-native THROUGH the pipeline:
@@ -1986,34 +1753,6 @@ public final class BodyDriver {
                     + " must evaluate to one String, got " + evaluated);
         }
         return str;
-    }
-
-    /** Does any node in these (post-inline) trees carry a REAL K effect?
-     * An executeInDb whose SQL is a literal SELECT is provably read-only
-     * (the corpus prints such probes) and does not count. */
-    static boolean containsEffectfulNode(java.util.List<TypedSpec> nodes) {
-        for (TypedSpec n : nodes) {
-            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().id())
-                    && !isLiteralSelect(nc)) {
-                return true;
-            }
-            if (containsEffectfulNode(n.children())) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    static boolean isLiteralSelect(
-            com.legend.compiler.spec.typed.TypedNativeCall nc) {
-        String fqn = nc.callee().qualifiedName();
-        boolean sqlCarrier = com.legend.builtin.NativeFn.Effect.EXECUTE_IN_DB.fqn().equals(fqn);
-        return sqlCarrier && !nc.args().isEmpty()
-                && nc.args().get(0)
-                        instanceof com.legend.compiler.spec.typed.TypedCString cs
-                && cs.value().strip().toLowerCase(java.util.Locale.ROOT)
-                        .startsWith("select");
     }
 
     /** Conservative free-variable scan (shadowed names over-collect — over-KEEPING lets is safe). */

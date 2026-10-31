@@ -440,4 +440,7 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   **S2b built 2026-10-31** (D94): a let's kind planned in `planner/LetPlanner` (alias, staged rows, frame, staged grid,
   value or handle let), the body compiler's loop dispatching on it. **S2h built 2026-10-31** (D95): the system route
   planned in `planner/SystemRoutes` (its database and its tables' names); the driver opens and seeds the session and
-  checks it names the tables as planned. Next: the effects (S2d), then the frame CTE and the shared preparation.
+  checks it names the tables as planned. **The shared preparation built 2026-10-31** (D96): a statement's body prepared
+  in `BodyPlanner.prepare` (its frame, its root, the kind of answer it gets with no plan: `planner/Prepared`), the
+  driver's prelude dispatching and running only effects, store writes and effectful maps; a frame's planned CTE in
+  `FramePlanner.cte`. Next: the effects' statements (S2d).

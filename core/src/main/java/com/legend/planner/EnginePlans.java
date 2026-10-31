@@ -861,4 +861,58 @@ public final class EnginePlans {
         }
         return String.valueOf(v);
     }
+
+    /** A DDL text generator's text ({@code toDDL}'s deprecated forms, D30: a plan-time value): the engine walks its
+     *  Database metamodel, we render from the compiled store model in the engine's text (the shared preparation,
+     *  2026-10-31: the body driver's prelude wrote it until then). */
+    public static String ddlText(
+            com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {
+        String fqn = ds.callee().qualifiedName();
+        if (com.legend.compiler.element.type.PlatformTypes
+                .DROP_SCHEMA_STATEMENT.equals(fqn)
+                || com.legend.compiler.element.type.PlatformTypes
+                        .CREATE_SCHEMA_STATEMENT.equals(fqn)) {
+            if (!(ds.args().get(0)
+                    instanceof com.legend.compiler.spec.typed.TypedCString sc)) {
+                throw new IllegalStateException(fqn + ": only literal schema"
+                        + " names are supported, got "
+                        + ds.args().get(0).getClass().getSimpleName());
+            }
+            // the engine text renders the IR's schema DDL, as the table statements below
+            // (the dialect program's Phase 3, 2026-10-16: until then the text was written here)
+            return EngineText.ENGINE_TEXT.render(com.legend.compiler.element.type.PlatformTypes
+                    .DROP_SCHEMA_STATEMENT.equals(fqn)
+                    ? new com.legend.sql.SqlDdl.DropSchema(sc.value(), false)
+                    : new com.legend.sql.SqlDdl.CreateSchema(sc.value(), false));
+        }
+        // 2-arg forms default the schema (toDDL.pure:34-42)
+        boolean twoArg = ds.args().size() == 2;
+        if (!(ds.args().get(0)
+                instanceof com.legend.compiler.spec.typed.TypedPackageableRef db)
+                || !(ds.args().get(twoArg ? 1 : 1)
+                        instanceof com.legend.compiler.spec.typed.TypedCString a1)
+                || (!twoArg && !(ds.args().get(2)
+                        instanceof com.legend.compiler.spec.typed.TypedCString))) {
+            throw new IllegalStateException(fqn + ": literal"
+                    + " (database, ['schema',] 'table') arguments required");
+        }
+        String sch = twoArg ? "default" : a1.value();
+        String tbl = twoArg ? a1.value()
+                : ((com.legend.compiler.spec.typed.TypedCString)
+                        ds.args().get(2)).value();
+        if (com.legend.compiler.element.type.PlatformTypes
+                .DROP_TABLE_STATEMENT.equals(fqn)) {
+            return EngineText.ENGINE_TEXT.render(com.legend.setup.Ddl.dropTable(sch, tbl));
+        }
+        String lookup = "default".equals(sch) ? tbl : sch + "." + tbl;
+        com.legend.model.DatabaseDefinition.TableDefinition def =
+                env.ctx().findTableDefinition(db.fullPath(), lookup)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "createTableStatement: no table '" + lookup
+                                        + "' in store " + db.fullPath()));
+        // the ENGINE_TEXT flavor of the ONE generator (NOT NULL /
+        // PRIMARY KEY constraints) — the EXECUTION flavors stay
+        // constraint-free for DuckDB re-seeds
+        return EngineText.ENGINE_TEXT.render(com.legend.setup.Ddl.createTable(def, sch));
+    }
 }
