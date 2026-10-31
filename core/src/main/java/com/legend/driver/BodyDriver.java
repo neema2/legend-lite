@@ -830,16 +830,13 @@ public final class BodyDriver {
      * separate from every user connection, written once per graph, never
      * per execution ({@link SystemDatabase}); on a server
      * engine, the host's system connection, its tables read through the
-     * route's renames (2026-10-11). A body reading
-     * BOTH the store and a user store has no single session: LOUD (the
-     * corpus census — none fired at this landing); a body reading no
-     * store pays one tree walk and nothing else. */
-    private static ExecEnv routeSystemDatabase(java.util.List<TypedSpec> body,
+     * route's renames (2026-10-11). The route is the planner's, a fact of the body's plan (the seam program's S2h and
+     * S4a, 2026-10-31: the database and store it reads, the tables' names its plan is written with, a body mixing
+     * the store with a user store refused by name); the session -- opened and seeded once per graph -- is the
+     * driver's, opened here once the body is planned, and names the tables as planned. {@code env} as it is where
+     * the body reads no system store. */
+    private static ExecEnv openRoute(com.legend.planner.SystemRoutes.@com.legend.base.Nullable Route route,
             ExecEnv env) {
-        // the route is the planner's (the seam program's S2h, 2026-10-31): the database and store it reads, and the
-        // tables' names its plan is written with; the session -- opened and seeded once per graph -- is the driver's,
-        // and names the tables as planned
-        com.legend.planner.SystemRoutes.Route route = com.legend.planner.SystemRoutes.of(body, env.plan());
         if (route == null) {
             return env;
         }
@@ -851,7 +848,7 @@ public final class BodyDriver {
             throw new IllegalStateException("the system database on " + route.engine() + " names the store's tables "
                     + opened.renames() + ", its plan " + planned);
         }
-        return env.withSession(opened.session()).withPlan(com.legend.planner.SystemRoutes.routed(env.plan(), planned));
+        return env.withSession(opened.session());
     }
 
     /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
@@ -1065,15 +1062,27 @@ public final class BodyDriver {
 
     private static Prelude prelude(
             java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
+            com.legend.lowering.@com.legend.base.Nullable CanonRider rider,
             boolean identityLane) {
-        // the system route's session first (opened as before, so a database it cannot open refuses as before); the
-        // body's preparation -- its framing, and the kind of answer it is given with no plan -- the planner's (the
-        // shared preparation, 2026-10-31); the answers that run, run here
-        env = routeSystemDatabase(body, env);
-        return switch (com.legend.planner.BodyPlanner.prepare(body, env.plan())) {
+        // the body's preparation -- its system route, its framing, and the kind of answer it is given with no plan --
+        // the planner's (the shared preparation and S4a, 2026-10-31); the route's session opened, and the answers that
+        // run, run here
+        com.legend.planner.SidePlanner.Routed r = com.legend.planner.SidePlanner.prepare(body, env.plan());
+        env = openRoute(r.route(), env);
+        if (r.prepared() instanceof com.legend.planner.Prepared.Planned p) {
+            return new Prelude(null, p.body(), p.root(), p.declaredInfo(), env.withPlan(p.env()));
+        }
+        return Prelude.answered(answer(r.prepared(), env, rider, identityLane));
+    }
+
+    /** A prepared kind given its answer with no plan, answered on {@code env} (its route's session): an effect's
+     *  registered arm run, a store write sent, the plan-time texts written, a handle, an effectful map's elements
+     *  run. */
+    private static TypedSide answer(com.legend.planner.Prepared prepared, ExecEnv env,
+            com.legend.lowering.@com.legend.base.Nullable CanonRider rider, boolean identityLane) {
+        return switch (prepared) {
             case com.legend.planner.Prepared.Planned p ->
-                    new Prelude(null, p.body(), p.root(), p.declaredInfo(), env.withPlan(p.env()));
+                    throw new IllegalStateException("a planned body is run through its plan, never answered");
             case com.legend.planner.Prepared.Effect e -> {
                 EffectRoutine arm = EFFECT_ARMS.get(e.call().callee().qualifiedName());
                 if (arm == null) {
@@ -1081,16 +1090,15 @@ public final class BodyDriver {
                             "catalog says '" + e.call().callee().qualifiedName()
                             + "' is EFFECT but no arm is registered");
                 }
-                yield Prelude.answered(arm.run(e.body(), e.call(), env.withPlan(e.env())));
+                yield arm.run(e.body(), e.call(), env.withPlan(e.env()));
             }
             case com.legend.planner.Prepared.StoreWrite w ->
-                    Prelude.answered(storeWrite(w.body(), w.write(), env.withPlan(w.env()), rider != null || identityLane));
-            case com.legend.planner.Prepared.DdlText d -> Prelude.answered(new TypedSide.Scalar(d.text(), d.type()));
-            case com.legend.planner.Prepared.Handle h -> Prelude.answered(new TypedSide.Scalar(null, h.type()));
-            case com.legend.planner.Prepared.DdlTexts c -> Prelude.answered(new TypedSide.Collection(c.texts(),
-                    com.legend.compiler.element.type.Type.Primitive.STRING));
-            case com.legend.planner.Prepared.EffectfulMap m ->
-                    Prelude.answered(effectfulMap(m.body(), m.map(), env.withPlan(m.env())));
+                    storeWrite(w.body(), w.write(), env.withPlan(w.env()), rider != null || identityLane);
+            case com.legend.planner.Prepared.DdlText d -> new TypedSide.Scalar(d.text(), d.type());
+            case com.legend.planner.Prepared.Handle h -> new TypedSide.Scalar(null, h.type());
+            case com.legend.planner.Prepared.DdlTexts c -> new TypedSide.Collection(c.texts(),
+                    com.legend.compiler.element.type.Type.Primitive.STRING);
+            case com.legend.planner.Prepared.EffectfulMap m -> effectfulMap(m.body(), m.map(), env.withPlan(m.env()));
         };
     }
 
@@ -1168,17 +1176,13 @@ public final class BodyDriver {
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         com.legend.sql.SqlQuery plan = com.legend.planner.BodyPlanner.lowerAndPrepare(body, env.plan(), ctx,
                 dialect, identityLane);
-        boolean collectionDeclared = declaredInfo != null
-                && declaredInfo.type()
-                        instanceof com.legend.compiler.element.type.Type.Primitive
-                && declaredInfo.multiplicity()
-                        .requireBounded("result shape").isMany()
-                && com.legend.compiler.element.type.Type
-                        .isRelation(root.info().type());
+        boolean collectionDeclared = com.legend.planner.SidePlanner.collectionDeclared(declaredInfo, root);
         if (System.getenv("LL_TMP_SQL") != null) {
             System.err.println("[exec-sql] " + renderFor(env, plan));
         }
-        WrappedSide side = wrapSide(plan, root, collectionDeclared ? declaredInfo : null, null, env);
+        var sp = com.legend.planner.SidePlanner.wrap(plan, root, collectionDeclared ? declaredInfo : null, null,
+                env.plan());
+        WrappedSide side = new WrappedSide(sp.plan(), sp.shapeInfo(), sp.shape(), env.session(), false);
         if (answer != null) {
             JudgePlans.streamResult(side, toOneReader(root), env, answer);
             return null;
@@ -1229,7 +1233,7 @@ public final class BodyDriver {
     static PlannedValue planValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
+            com.legend.lowering.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         return planned(planBare(value, letPrefix, specs, env, rider, hook), rider);
@@ -1268,18 +1272,15 @@ public final class BodyDriver {
         return planned(b, null);
     }
 
-    private static PlannedValue planned(BarePlan b, com.legend.judge.@com.legend.base.Nullable CanonRider rider) {
+    private static PlannedValue planned(BarePlan b, com.legend.lowering.@com.legend.base.Nullable CanonRider rider) {
         if (b.answered() != null) {
             return new PlannedValue(null, b.answered(), null, false);
         }
-        WrappedSide ws = wrapSide(b.plan(), b.root(), b.declaredInfo(), rider, b.env());
-        return new PlannedValue(new WrappedSide(ws.plan(), ws.shapeInfo(), ws.shape(),
-                ws.session(), b.storeFree()), null, b.root(), false);
+        var sp = com.legend.planner.SidePlanner.wrap(b.plan(), b.root(), b.declaredInfo(), rider, b.env().plan());
+        return new PlannedValue(new WrappedSide(sp.plan(), sp.shapeInfo(), sp.shape(), b.env().session(),
+                b.storeFree()), null, b.root(), false);
     }
 
-    /** A value's plan before the canon wrap: the plan, its root, the
-     * collection declaration (when a primitive collection is declared over a
-     * relation root), the planned env, and whether it reads no store. */
     /** The test-data generator's VIEW fetch renderer (TestDataGenerator.ViewSql):
      *  the view's lifted function (E.5, reached through the include closure
      *  like a table) as the compiler's relation — the same node a user's
@@ -1295,6 +1296,10 @@ public final class BodyDriver {
                 env.plan());
     }
 
+    /** A value's plan before the canon wrap: the plan, its root, the
+     * collection declaration (when a primitive collection is declared over a
+     * relation root), the planned env (on its route's session), and whether it reads no store; or the side
+     * answered with no plan. */
     record BarePlan(@com.legend.base.Nullable TypedSide answered,
             com.legend.sql.SqlQuery plan, TypedSpec root,
             com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
@@ -1304,7 +1309,7 @@ public final class BodyDriver {
     private static BarePlan planBare(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
+            com.legend.lowering.@com.legend.base.Nullable CanonRider rider,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         return planStaged(com.legend.planner.BodyPlanner.sideBody(value, letPrefix, specs, env.plan(), hook), value, env, rider, false, false);
@@ -1315,87 +1320,19 @@ public final class BodyDriver {
      *  ({@link #executeTyped}'s: the identity lane's flag alone, no wire reconciliation) where the database judge's
      *  side takes the verdict lane's. */
     private static BarePlan planStaged(java.util.List<TypedSpec> body, TypedSpec value, ExecEnv env,
-            com.legend.judge.@com.legend.base.Nullable CanonRider rider, boolean identityLane, boolean hostSide) {
-        java.util.Set<String> stores = new java.util.TreeSet<>();
-        for (TypedSpec n : body) {
-            com.legend.planner.BodyPlanner.collectStores(n, stores);
-        }
-        Prelude p = prelude(body, env, rider, identityLane);
-        if (p.answered() != null) {
-            return new BarePlan(p.answered(), com.legend.sql.SqlSelect.starOf(
-                    new com.legend.sql.SqlSource.Dual()), value, null, env, true);
-        }
-        ExecEnv penv = p.plannedEnv();
-        TypedSpec root = p.plannedRoot();
-        com.legend.sql.SqlQuery plan = com.legend.planner.BodyPlanner.lowerAndPrepare(p.body(), penv.plan(), penv.ctx(),
-                penv.dialect(), hostSide ? identityLane : true);
-        if (rider != null && rider.canonicalJsonKeys()) {
-            // the verdict plan's JSON objects with keys SORTED — one IR
-            // pass over the plan, the builders untouched
-            plan = com.legend.sql.JsonKeyOrder.sort(plan);
-        }
-        boolean collectionDeclared = p.declaredInfo() != null
-                && p.declaredInfo().type()
-                        instanceof com.legend.compiler.element.type.Type.Primitive
-                && p.declaredInfo().multiplicity()
-                        .requireBounded("result shape").isMany()
-                && com.legend.compiler.element.type.Type
-                        .isRelation(root.info().type());
-        // a store-reading side's wire-decided kinds are the database's (a store declaration is not a cast): its
-        // canon asks the value in the statement (CanonicalRenderSql.textOrStamp, the seam program's S3b, 2026-10-30),
-        // never a prepare at planning
-        return new BarePlan(null, plan, root,
-                collectionDeclared ? p.declaredInfo() : null, penv, stores.isEmpty());
-    }
-
-    /** A value's plan as a side: its shape and shape type, and, where a canon rider asks (the database judge's
-     *  verdict planning), the plan wrapped with the canon columns the verdict statement composes. */
-    private static WrappedSide wrapSide(com.legend.sql.SqlQuery plan,
-            TypedSpec root,
-            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
-            com.legend.judge.@com.legend.base.Nullable CanonRider rider, ExecEnv env) {
-        com.legend.compiler.element.type.ExprType shapeInfo =
-                declaredInfo != null ? declaredInfo
-                        : com.legend.plan.ResultShape.valueInfo(root.info());
-        com.legend.plan.ResultShape shape = declaredInfo != null
-                ? com.legend.plan.ResultShape.COLLECTION
-                : com.legend.plan.ResultShape.of(root);
-        if (rider != null && shape == com.legend.plan.ResultShape.TABULAR) {
-            // V7 §8 leg 1 — a TABULAR side rides the GRID canon: one
-            // per-ROW canonical text as the appended last column (the
-            // fusion-spike F2 shape); the tabular decode strips it into
-            // the rider, row-aligned.
-            var schema = com.legend.compiler.element.type.Type.schemaView(shapeInfo.type());
-            // a raw grid with no typed outputs (executeInDbToTDS, an unstamped executeInDb) is not framed by a
-            // planning-time read of its columns (the seam program's S3c, 2026-10-30: WireProbe.staticized's call
-            // here deleted): the canon wrap declines a late-bound schema by name, and what only counts the grid's
-            // rows reads them unwrapped
-            var gw = com.legend.lowering.CanonicalRenderSql.wrapTdsCanon(plan, schema);
-            if (gw.declineReason() != null) {
-                rider.decline(gw.declineReason());
-            } else {
-                rider.tdsWrap(plan.outputs().size());
-                plan = gw.plan();
-            }
-        } else if (rider != null) {
-            var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(
-                    plan, shapeInfo, rider.canonicalOrder(),
-                    // substitution-aware (Pair-of-Pairs): the stamp's
-                    // instantiation decides key nesting
-                    com.legend.compiler.element.EqualityKeys
-                            .resolve(env.ctx(), shapeInfo.type()),
-                    true,
-                    com.legend.lowering.CanonicalRenderSql.nameValued(
-                            shapeInfo.type(), env.ctx()::tracksClassifier),
-                    rider.enumFrame());
-            if (w.declineReason() != null) {
-                rider.decline(w.declineReason());
-            } else {
-                rider.wrap(w.kinds(), w.many(), w.literalIndex());
-                plan = w.plan();
-            }
-        }
-        return new WrappedSide(plan, shapeInfo, shape, env.session(), false);
+            com.legend.lowering.@com.legend.base.Nullable CanonRider rider, boolean identityLane, boolean hostSide) {
+        // planned with no session (S4a, 2026-10-31): the route's session opened once planned, a kind with no plan
+        // answered on it
+        com.legend.planner.SidePlanner.Staged s = com.legend.planner.SidePlanner.staged(body, env.plan(), rider,
+                identityLane, hostSide);
+        ExecEnv routed = openRoute(s.route(), env);
+        return switch (s) {
+            case com.legend.planner.SidePlanner.Unplanned u -> new BarePlan(answer(u.prepared(), routed, rider,
+                    identityLane), com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Dual()), value, null,
+                    env, true);
+            case com.legend.planner.SidePlanner.Bare b -> new BarePlan(null, b.plan(), b.root(), b.declaredInfo(),
+                    routed.withPlan(b.env()), b.storeFree());
+        };
     }
 
     /** rows->toOne() READER enforcement (audit 22b F1): the lowering is

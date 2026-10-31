@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.judge;
+package com.legend.lowering;
 
 import com.legend.compiler.element.type.Type;
 
@@ -30,6 +30,9 @@ import java.util.List;
  * candidate render, and the verdict layer SELECTS by the runtime kind
  * it already derives from the fetched values for the equality gate —
  * selection, never evaluation.
+ *
+ * <p>The lowering's since the seam program's S4a (2026-10-31): the outcome of {@link CanonicalRenderSql}'s wrap,
+ * recorded where a side is planned; the judge layer's until then, which kept the side's planning in the driver.
  */
 public final class CanonRider {
 

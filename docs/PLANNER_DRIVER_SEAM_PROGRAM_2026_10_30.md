@@ -264,7 +264,10 @@ close) before it plans the next. S4 makes it plan, then run, keeping every state
    and 5); the corpus pins its engine order and its statement-origin census. S4 moves no statement: the body's
    steps run in today's walk order, and what sends at a step today sends at the same step. In particular the system
    route's session is opened at its step, not when the step is planned (today the prelude opens it while planning a
-   side), and a frame's run at its let stays where the host judge runs it (the user's question of 2026-10-31 on
+   side; corrected 2026-10-31, D99: this is the ONE statement move S4 expects -- on the database judge's pass a
+   segment's system seeds would come at its verdict run, after its value statements, where today they come at the
+   side's planning; S4b measures it and posts it before it lands), and a frame's run at its let stays where the host
+   judge runs it (the user's question of 2026-10-31 on
    dropping it stays open; S4 does not decide it).
 2. **The steps.** A statement plans to one or more steps of the body's plan: its execution contexts' seeds; a frame
    (its chain, its planned CTE, and the run at the let where the host judge runs it); a staged let (the create-as,
@@ -371,8 +374,11 @@ the user rules; S2 onward each need their own brief.
 ## 5. What stays, by name, and why
 
 - **The two judges and the verdict batch** (`com.legend.judge`, D7, D71): the database computes the verdict; the host
-  judge over typed rows is the kept exception; the program moves the judges' PLANS to the planner and leaves the
-  judging where the rows arrive.
+  judge over typed rows is the kept exception TO THE JAVA RULE ONLY (Java may compare rows), NEVER to the plan and
+  execute split (the user, 2026-10-31: "I said the host judge could be exception to java rule only not exception to
+  plan+exec split"): both of its sides are planned by the planner before anything runs, run by the plan runner, and
+  only the comparison is Java. The program moves the judges' PLANS to the planner and leaves the judging where the
+  rows arrive; the host arms that plan and run as they go today are a defect S4 removes, not an allowed shape.
 - **`Keyed`** (S106 to S110): the user's ruled form of a shape the planner cannot know; this program extends its
   pattern (rows fill the next statement's regions) to the body's other such shapes.
 - **Compile-time splicing and staged tables for lets** (the plan path program §5): a let is never a value Java holds.
@@ -488,4 +494,8 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   phases: the String arguments' values, the driver's, then the texts); the heavy lanes by hand identical. **S2j's
   first piece 2026-10-31** (D98): the generator's view SQL planned. What is left of S2a, S2i and S2j runs or judges
   (the value statements' splice hook and batch, the SQL-text judge over the referee's types, the fold's run): S4's.
-  Next: the S4 brief.
+  **S4's brief written 2026-10-31** (§3.4b). **S4a's first piece built 2026-10-31** (D99): a statement's or a verdict
+  side's plan made with no session (`planner/SidePlanner`: the body prepared under its system route, lowered,
+  wrapped), the driver opening the route's session once the body is planned; `CanonRider` in `lowering/`; the brief's
+  point 1 corrected (the system seeds' move expected at S4b). Next: the assert families' plans (each family's sides
+  and facts planned, the arms running and judging them), then the step records and the body planned whole (S4b).

@@ -204,10 +204,9 @@ class HarnessDisciplineTest {
             // HostJudge: the host arm's compare sorts both sides' element lists (two sites, twice) before an
             // order-insensitive equality -- comparison policy, two-sided, the same on each side
             Map.entry("HostJudge.java", 4),
-            // BodyDriver: the canon's JSON key order (JsonKeyOrder.sort, the plan's spelling, not a value's order);
-            // 2 -> 1 (2026-10-31, the seam program's S2g): its distinct() over a plan's chain mappings left for the
-            // planner with the engine's plan text (EnginePlans, below)
-            Map.entry("BodyDriver.java", 1),
+            // (BodyDriver: 2 -> 1 (2026-10-31, the seam program's S2g): its distinct() over a plan's chain mappings
+            // left for the planner with the engine's plan text (EnginePlans, below); 1 -> 0 (2026-10-31, S4a): the
+            // canon's JSON key order left for the planner with the side's plan (SidePlanner, below))
             // ---- src/main/com/legend/planner (2026-10-31, the seam program's S2g): the body driver's planning
             // helpers left for the planner, and the discipline follows the code; the planner's own sites, walked for
             // the first time, register with them. None reorders a result: each is a set of names or a record's
@@ -226,7 +225,10 @@ class HarnessDisciplineTest {
             // -- false positives of the regex
             Map.entry("MetamodelSeeds.java", 2),
             // PlanMaker: a select's distinct() accessor, read to decide whether a select can be extended
-            Map.entry("PlanMaker.java", 1));
+            Map.entry("PlanMaker.java", 1),
+            // SidePlanner (2026-10-31, the seam program's S4a): the canon's JSON key order (JsonKeyOrder.sort, the
+            // plan's spelling, not a value's order), the body driver's until then
+            Map.entry("SidePlanner.java", 1));
             // (JsonCompare.java's graph-root message sort left this list in
             // step 2: the JSON rules moved to Equality, counted there)
 

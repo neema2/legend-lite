@@ -564,7 +564,7 @@ final class HostJudge {
      * the row-major CELLS, NULL slots kept — engine TDSRow semantics,
      * column names OUT) and its canon is the rider's per-ROW texts. */
     record SideFetch(List<Object> values,
-            com.legend.judge.CanonRider rider,
+            com.legend.lowering.CanonRider rider,
             TypedSide.@com.legend.base.Nullable Tabular grid) {
     }
 
@@ -612,7 +612,7 @@ final class HostJudge {
         // the byte channel that rode the side query declines here by name -- the database judge is the referee
         // (the agreement gate, AgreementArm) -- and the rider's wrap machinery is dead by construction until the
         // deletions (step 11)
-        var rider = new com.legend.judge.CanonRider(canonicalOrder);
+        var rider = new com.legend.lowering.CanonRider(canonicalOrder);
         rider.decline("plan path: the database judge is the referee");
         if (r instanceof TypedSide.Tabular t) {
             List<Object> cells = AssertVerdicts.cells(t);

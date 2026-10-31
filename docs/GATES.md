@@ -16583,6 +16583,57 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S4a, first piece: a side's plan made with no session
+
+The decisions log D99; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.4b (S4's brief, step 6: S4a).
+Zero movement.
+
+1. **Built:** `planner/SidePlanner` makes a statement's or a verdict side's plan with no session: the body prepared
+   under the system route it reads (`prepare`: the route a fact of the plan, its tables' names on the planning half),
+   lowered as its judge asks (`staged`: the host judge's preparation or the verdict lane's; the canon's JSON key order
+   where a rider asks), and wrapped as a side (`wrap`: its shape, its shape's type, and the canon columns where the
+   database judge's rider asks). Until now the body driver's prelude opened the system session first and planned
+   under it, and `planStaged` and `wrapSide` stamped that session into the side as they planned. The driver now opens
+   the route's session once the body is planned (`openRoute`, which checks that the session names the tables as
+   planned, as S2h's did), answers a kind with no plan on it (`answer`: an effect's arm, a store write, an effectful
+   map's elements), and puts the session on the side it runs. `CanonRider` (the canon wrap's state: written while a
+   side is planned, read by the database judge and the grid compare) moved from `judge/` to `lowering/`, beside the
+   canon SQL it describes, so the planner can name it.
+2. **Why the order holds:** the planner sends nothing, so opening the system session after a body's planning instead
+   of before it sends the same statements in the same order; only a planning failure on a body reading the system
+   store would now come before the session's seeds instead of after them (the censuses below are identical).
+3. **The brief corrected:** its point 1 said S4 moves no statement. One move is expected at S4b, when the system
+   session opens at its step's run instead of at its planning: on the database judge's pass a segment's system seeds
+   would then come at the segment's verdict run, after the segment's value statements, where today they come at the
+   side's planning. It is measured and posted with S4b, before it lands.
+4. **Guards, dated:** the planner register gains `SidePlanner`; `JavaEvalLedgerTest` `BodyDriver` 1,062 -> 1,012 and
+   `SidePlanner` 87 pinned where the code went (the moved code, plus the two result types the driver dispatches on);
+   `TdsCompare` 343 -> 344 (`CanonRider`'s import from its new package); `HarnessDisciplineTest`'s canon JSON key
+   order site moves from `BodyDriver` to `SidePlanner`.
+5. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's
+   statement-origins census (the system route's `system=121`/`120`, the sessions' counts and `probe=0` included) and
+   pass/fail counts are identical to fe643205's (DuckDB host 2,471/108, database 2,473/108; H2 host 2,289/295,
+   database 2,233/353); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped,
+   and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The lane sessions on S2h and the shared preparation: every server and cloud lane identical, statements included (round 5)
+
+The arrangement of D81, round 5: the five lane sessions MEASURE ONLY on 90896121 (S2g's third step, S2b, S2h and the
+shared preparation: four moves of planning work) against their b84b51df runs, every statement compared, and asked in
+particular for any "names the store's tables" error (the check S2h added) and any change in the system statements.
+
+| session | lanes | round 5 (90896121 vs b84b51df) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; both commits with the SQL dumped: 22,680 statements per commit, byte-identical in order (`cmp`); the system statements (46, Postgres channel B grammar) identical; whole logs 0 differing lines |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test (0 of 20 rows); both commits re-run with the SQL dumped: 92,841 statement records per commit (session 52,208, other 29,689, fallback 10,610, system 262, statement 68, seed 4), 39 of 40 targets byte-identical in order, the 40th differing in one generated anonymous id inside a test's own literal (run-to-run, seen both ways in earlier rounds); the system statements (MariaDB 52, MySQL 51, ClickHouse 45, SQLite 114) identical in order |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement byte-identical in order; the system statements (46, channel B grammar) identical |
+| sibling 3 | Databricks, channels A and B | identical per test; every statement byte-identical in order in all 10 targets; the system statements (36, channel B grammar) identical |
+| sibling 4 | BigQuery, channels A and B | identical per test (the known `filter::testFilterInstance` order message, same verdict); every statement byte-identical in order; the system statements (45, channel B grammar: `CREATE TEMP TABLE` ...) identical |
+
+No "names the store's tables" error and no `IllegalStateException` anywhere; every keyword scan unchanged. The only
+red is main's: SQLite channel B essential at 332. CI on 4cb6358b (S2d) green on every OS (run 41185519882); on
+90896121 one red not of the commit (`linux / pct_h2`: the runner's disk filled before any test ran).
+
 ## 2026-10-31 — The seam program's S2j, first piece: the test-data generator's view SQL planned
 
 The decisions log D98; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 (S2j). Zero movement.

@@ -93,8 +93,8 @@ final class DatabaseJudge {
                 frameE = en.fqn();
             }
         }
-        var re = new com.legend.judge.CanonRider(false, false, frameE);
-        var ra = new com.legend.judge.CanonRider(false, false, frameA);
+        var re = new com.legend.lowering.CanonRider(false, false, frameE);
+        var ra = new com.legend.lowering.CanonRider(false, false, frameA);
         // the golden's ^TDSNull() cells spell the bare sentinel (direction-
         // aware: the EXPECTED side only, as TdsCompare.peerElementCanons) —
         // rewritten at plan time so the cell rides the literal channel as
@@ -142,7 +142,7 @@ final class DatabaseJudge {
                         env.withSession(we.storeFree() ? wa.session() : we.session()));
             } else {
                 BodyDriver.WrappedSide gw = gridE ? we : wa;
-                com.legend.judge.CanonRider pr = gridE ? ra : re;
+                com.legend.lowering.CanonRider pr = gridE ? ra : re;
                 BodyDriver.WrappedSide pw = gridE ? wa : we;
                 var schema = AssertVerdicts.effectiveSchema(java.util.Objects.requireNonNull(gw));
                 int width = schema == null ? 0 : schema.columns().size();
@@ -283,7 +283,7 @@ final class DatabaseJudge {
     static SideRows planSide(TypedSpec spec, boolean expected, boolean needCanon,
             boolean canonicalJson, @com.legend.base.Nullable String enumFrame, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        var rider = new com.legend.judge.CanonRider(false, canonicalJson, enumFrame);
+        var rider = new com.legend.lowering.CanonRider(false, canonicalJson, enumFrame);
         TypedSpec s = expected ? com.legend.compiler.spec.VerdictQueries.tdsNullSentinel(spec) : spec;
         BodyDriver.PlannedValue pv = BodyDriver.planValue(s, letPrefix, specs, env, rider, hook);
         BodyDriver.WrappedSide w = pv.side() != null ? pv.side()
@@ -464,7 +464,7 @@ final class DatabaseJudge {
      * kind (the caller reports it unjudged by kind). */
     static BodyDriver.@com.legend.base.Nullable WrappedSide constantSide(
             @com.legend.base.Nullable TypedSide answered, TypedSpec spec,
-            com.legend.judge.CanonRider rider, boolean canonicalOrder,
+            com.legend.lowering.CanonRider rider, boolean canonicalOrder,
             BodyDriver.ExecEnv env, BodyDriver.ExecEnv on) {
         if (answered == null) {
             return null;
@@ -501,7 +501,7 @@ final class DatabaseJudge {
 
     /** A planned side for the predicate forms, or a reason it could not be. */
     record SideRows(BodyDriver.@com.legend.base.Nullable WrappedSide side,
-            com.legend.judge.@com.legend.base.Nullable CanonRider rider,
+            com.legend.lowering.@com.legend.base.Nullable CanonRider rider,
             @com.legend.base.Nullable String why) {
         /** The side's canon rows; {@code literal} = the pair compares in the
          * literal channel (decided for BOTH sides — one channel per pair). */
