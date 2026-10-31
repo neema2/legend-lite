@@ -91,6 +91,8 @@ final class ArchitectureTest {
             java.util.Map.entry("result", "com.legend.result.Batch"),
             java.util.Map.entry("planner", "com.legend.Compiler"),
             java.util.Map.entry("pure_v1", "com.legend.server.PureV1Api"),
+            // the test-planning library (the test-is-the-product plan's M3c, R17 C7, 2026-10-31)
+            java.util.Map.entry("testplan", "com.legend.testplan.TestDoor"),
             java.util.Map.entry("driver", "com.legend.Execution"),
             java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
             java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
@@ -580,6 +582,44 @@ final class ArchitectureTest {
             .or().haveFullyQualifiedName("com.legend.HeldModels")
             .should().dependOnClassesThat().resideInAnyPackage("com.legend.driver", "com.legend.exec..", "com.legend.judge")
             .as("step C: planning never touches the driver, the runtime or the judge")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The test-planning library is the driver's alone (the test-is-the-product plan's B4, brought forward to
+     * M3 by R17 C7, 2026-10-31).</strong> The kinds only a test's program holds -- effects, seeds, the eager run,
+     * asserts -- are planned by {@code com.legend.testplan} through the planner's extension point
+     * ({@code planner.ProgramKinds}); the build keeps it off the plan side ({@code //core:plan_side} carries no
+     * {@code :testplan}), and this rule says it at the class level: no class outside the library and the driver
+     * depends on it -- not the planner, so the product's query door plans none of a test's kinds, and not the server.
+     * The server carries the driver (it runs a test body for its IDE), so its binary holds the library; no server
+     * class reaches it. The driver calls it from M5 (R16): until then its callers are its tests.
+     */
+    @Test
+    void theTestPlanningLibraryIsTheDriversAlone() {
+        noClasses()
+            .that().resideOutsideOfPackages("com.legend.testplan", "com.legend.driver")
+            .should().dependOnClassesThat().resideInAPackage("com.legend.testplan")
+            .as("B4, R17 C7: the test-planning library is the driver's alone")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>The program road's test entry has one caller (the test-is-the-product plan's M3c, 2026-10-31).</strong>
+     * {@code PlanMaker.testProgram} plans a body whatever it holds, a test's kinds by the hook it is handed; the
+     * product's query door ({@code PlanMaker.plan}) refuses those kinds first (QueryDoor). Only the test-planning
+     * library's door calls it.
+     */
+    @Test
+    void theProgramRoadsTestEntryIsTheTestDoors() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.testplan")
+            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                    com.tngtech.archunit.core.domain.AccessTarget.Predicates.declaredIn(
+                            com.legend.planner.PlanMaker.class))
+                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                            com.tngtech.archunit.core.domain.properties.HasName.Predicates.name("testProgram"))))
+            .as("B12 item 1: the program road's test entry is the test door's")
             .check(CORE_PROD_CLASSES);
     }
 

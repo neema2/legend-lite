@@ -270,6 +270,16 @@ legend_java_library(
         ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
 )
+# THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1
+# and 3): the test door (TestDoor) and the kinds only a test's program holds -- effects, seeds, the eager run, asserts
+# -- planned on the product's program road through the planner's extension point (planner.ProgramKinds). Not on the
+# plan side: the WebAssembly and native planners, and the product's query door, carry none of it
+# (ArchitectureTest.theTestPlanningLibraryIsTheDriversAlone).
+legend_java_library(
+    name = "testplan",
+    srcs = glob(["src/main/java/com/legend/testplan/*.java"]),
+    deps = ["//base", ":compiler", ":error", ":execution_plan", ":planner", ":platform"],
+)
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
 legend_java_library(
     name = "test",
@@ -313,7 +323,8 @@ _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":judge", ":probe", ":testdatagen",
-    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":driver", ":ide", ":test", ":server_lib",
+    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":driver", ":ide", ":test",
+    ":server_lib",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
@@ -623,6 +634,8 @@ _CORE_TEST_PACKAGES = [
     "test",
     "testdatagen",
     "testing",
+    # the test-planning library's door (the test-is-the-product plan's M3c, 2026-10-31)
+    "testplan",
     # ("values" left 2026-10-29 with its one test, LiteralTextTest, track L's L2: the package has no test)
 ]
 

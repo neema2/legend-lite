@@ -120,12 +120,25 @@ public final class StatementEffects {
      * merely did not throw. */
     public static boolean callsVerdict(TypedSpec n, SpecCompiler specs,
             java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
+        return reaches(n, StatementEffects::isVerdictCall, specs, memo);
+    }
+
+    /** Is {@code n} itself a call of a verdict function ({@code PlatformTypes.isVerdictFunction}: the asserts
+     *  package, {@code fail} among them)? */
+    public static boolean isVerdictCall(TypedSpec n) {
         String callee = n instanceof TypedNativeCall nc
                 ? nc.callee().qualifiedName()
                 : n instanceof TypedUserCall uc
                         ? uc.callee().qualifiedName() : null;
-        if (callee != null && com.legend.compiler.element.type.PlatformTypes
-                .isVerdictFunction(callee)) {
+        return callee != null && com.legend.compiler.element.type.PlatformTypes.isVerdictFunction(callee);
+    }
+
+    /** Does {@code n} REACH a node {@code p} accepts -- itself, a node under it, or a node of the compiled body of a
+     * user function it calls ({@link #callsVerdict}'s descent: memoized by signature in {@code memo}, which belongs
+     * to one {@code p}; cycles and un-typeable callees score false)? */
+    public static boolean reaches(TypedSpec n, java.util.function.Predicate<TypedSpec> p, SpecCompiler specs,
+            java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
+        if (p.test(n)) {
             return true;
         }
         if (n instanceof TypedUserCall uc) {
@@ -136,7 +149,7 @@ public final class StatementEffects {
                 boolean reaches = false;
                 try {
                     for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
-                        if (callsVerdict(stmt, specs, memo)) {
+                        if (reaches(stmt, p, specs, memo)) {
                             reaches = true;
                             break;
                         }
@@ -153,7 +166,7 @@ public final class StatementEffects {
             }
         }
         for (TypedSpec c : n.children()) {
-            if (callsVerdict(c, specs, memo)) {
+            if (reaches(c, p, specs, memo)) {
                 return true;
             }
         }

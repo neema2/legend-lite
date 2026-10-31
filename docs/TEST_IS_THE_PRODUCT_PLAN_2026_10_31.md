@@ -536,3 +536,13 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   24 and the TypeScript pin; `PlanRunner.program` brackets only for an `Update` (an `Effect` commits itself, its
   bracket sent only where the session owns its transaction; after it the session is marked written). Measured: every
   core package's statements against M2 -- the only new statements are the new runner tests' own. Next: M3c.
+- 2026-10-31: **M3c built**: the doors. The query door (`planner/QueryDoor`, called first in `PlanMaker.plan`) scans
+  the typed body once with the compiler's own reach scans (`StatementEffects.reaches`, `callsVerdict` now one of its
+  uses) and refuses by name at the first statement holding an effect, a `from()`'s inline test data, another runtime's
+  test data, a let-bound `execute(...)`, an `assertError` or an assert (`fail` excepted, by its declarations). The
+  test door (`testplan/TestDoor`, the test-planning library, its own target `//core:testplan`, B4 brought forward):
+  a body planned whole through `PlanMaker.testProgram`, its target carrying no setup (C6), a test's kinds handed to
+  the library through the planner's extension point (`planner/ProgramKinds`) and refused by name until the sub-step
+  that plans them. One program state (`planner/ProgramState`). ArchUnit: the library is the driver's alone; the
+  program road's test entry is the test door's. Measured: every core package's statements against M3b -- identical
+  (17,335), every package green, so the door refuses none of core's product queries. Next: M3d.

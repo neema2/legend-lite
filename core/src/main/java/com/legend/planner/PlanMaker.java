@@ -36,6 +36,10 @@ import java.util.Map;
  */
 public final class PlanMaker {
 
+    /** The query door's program: no statement is the test-planning library's (the door refused every test-only kind
+     *  first, {@link QueryDoor}). */
+    private static final ProgramKinds NO_TEST_KINDS = (program, index, statement, last) -> false;
+
     private PlanMaker() {
     }
 
@@ -49,17 +53,16 @@ public final class PlanMaker {
      *  declared target was refused by its runner on every case. */
     public static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime,
             java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
+        // THE QUERY DOOR (B6, B12 item 1): a test's kinds refused by name before anything is planned
+        QueryDoor.refuseTestOnly(query, runtime);
         List<QueryParameters.Declared> declared = query.parameters();
-        List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
-        for (QueryParameters.Declared p : declared) {
-            // one value, an optional one's absence, or a list as one array (Declared.slot)
-            slots.add(p.slot());
-        }
+        List<com.legend.sql.SqlExpr.PlanParam> slots = slots(declared);
         if (query.writes()) {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
             return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
-                    program(query, runtime, slots, features, serverVersion));
+                    program(query, runtime, slots, features, serverVersion, ProgramState.Door.QUERY,
+                            NO_TEST_KINDS));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
         ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, features);
@@ -90,6 +93,30 @@ public final class PlanMaker {
     }
 
     /**
+     * THE TEST DOOR's plan (the test-is-the-product plan's M3, B12 item 1): {@code query}'s body planned as a program
+     * whatever it holds, each statement holding a test's kind planned by {@code kinds} -- the test-planning
+     * library's, its one caller (ArchitectureTest pins it) -- on {@code runtime}, for a session whose server is
+     * {@code serverVersion}. Its target carries no setup (R17 C6): a test's seeds are steps of its own program.
+     */
+    public static ExecutionPlan testProgram(TypedQuery query, String runtime,
+            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion,
+            ProgramKinds kinds) {
+        List<QueryParameters.Declared> declared = query.parameters();
+        return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
+                program(query, runtime, slots(declared), features, serverVersion, ProgramState.Door.TEST, kinds));
+    }
+
+    /** Each declared parameter as the value its statement binds: one value, an optional one's absence, or a list as
+     *  one array ({@link QueryParameters.Declared#slot}). */
+    private static List<com.legend.sql.SqlExpr.PlanParam> slots(List<QueryParameters.Declared> declared) {
+        List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
+        for (QueryParameters.Declared p : declared) {
+            slots.add(p.slot());
+        }
+        return slots;
+    }
+
+    /**
      * A program that changes a store, planned as the steps of one {@link ExecutionPlan.Sequence}
      * (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): each statement at its turn with the lets before it, as the
      * execution's body compiler takes them, every one inlined, resolved and lowered as a query is
@@ -102,7 +129,8 @@ public final class PlanMaker {
      */
     private static ExecutionPlan.Node program(TypedQuery query, @com.legend.base.Nullable String runtime,
             List<com.legend.sql.SqlExpr.PlanParam> slots,
-            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
+            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion,
+            ProgramState.Door door, ProgramKinds kinds) {
         com.legend.compiler.element.ModelContext ctx = query.context();
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(ctx, runtime);
@@ -111,20 +139,29 @@ public final class PlanMaker {
         if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
             dialect = dialect.forServer(serverVersion);
         }
-        // a program reads no system metamodel table (Class.all() inside a write program is not designed)
-        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), ctx, dialect, servers,
-                Metamodel.NONE);
+        // a program reads no system metamodel table (Class.all() inside a write program is not designed); the test
+        // door's target carries no setup (R17 C6)
+        ExecutionPlan.Target target = door == ProgramState.Door.TEST
+                ? new ExecutionPlan.Target(database(decided), servers, dialect.sessionSetup(), List.of())
+                : target(decided, java.util.Objects.requireNonNull(runtime), ctx, dialect, servers, Metamodel.NONE);
         List<com.legend.compiler.spec.typed.TypedSpec> body = query.body();
         com.legend.resolver.StagedRows.refuseLetsTheWritesChange(body, query.specs());
-        List<com.legend.compiler.spec.typed.TypedSpec> lets = new ArrayList<>();
-        List<ExecutionPlan.Node> steps = new ArrayList<>();
-        List<String> staged = new ArrayList<>();
-        // one minter for the program's objects (B9, 2026-10-31): a let's construction read by two statements is one
-        // object in both, and every statement names its sites by the one counter
-        com.legend.lowering.ObjectSites sites = new com.legend.lowering.ObjectSites();
+        // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
+        // construction read by two statements is one object in both, and every statement names its sites by the one
+        // counter
+        ProgramState state = new ProgramState(query, java.util.Objects.requireNonNull(runtime), door, dialect, target,
+                slots, features);
+        List<com.legend.compiler.spec.typed.TypedSpec> lets = state.lets;
+        List<ExecutionPlan.Node> steps = state.steps;
+        List<String> staged = state.staged;
+        com.legend.lowering.ObjectSites sites = state.sites;
         for (int i = 0; i < body.size(); i++) {
             com.legend.compiler.spec.typed.TypedSpec stmt = body.get(i);
             boolean last = i == body.size() - 1;
+            if (kinds.plan(state, i, stmt, last)) {
+                // a test's kind, the test-planning library's (the test door only)
+                continue;
+            }
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
                 com.legend.compiler.spec.typed.TypedSpec rows = com.legend.resolver.StagedRows.rowsOf(let);
                 if (rows == null) {
@@ -474,16 +511,21 @@ public final class PlanMaker {
     private static ExecutionPlan.Target target(com.legend.database.Target decided, String runtime,
             com.legend.compiler.element.ModelContext ctx, SqlDialect dialect, ExecutionPlan.Servers servers,
             Metamodel metamodel) {
-        ExecutionPlan.Database database = switch (decided) {
-            case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
-            case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
-        };
+        ExecutionPlan.Database database = database(decided);
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
                 setup(CsvSeed.declaredSteps(runtime, ctx, dialect), dialect));
         steps.addAll(metamodel.setup());
         List<String> session = new ArrayList<>(dialect.sessionSetup());
         session.addAll(metamodel.session());
         return new ExecutionPlan.Target(database, servers, session, steps);
+    }
+
+    /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's. */
+    private static ExecutionPlan.Database database(com.legend.database.Target decided) {
+        return switch (decided) {
+            case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
+            case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
+        };
     }
 
     /**

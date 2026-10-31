@@ -1459,6 +1459,12 @@ class JavaEvalLedgerTest {
                     // one owner. Planning, no session; nothing evaluated: a constant is the literal's, the model's or
                     // the plan-time text's
                     "ProductStatements.java",
+                    // the query door and the program road's state (the test-is-the-product plan's M3c, B12 items 1-3,
+                    // 2026-10-31): the door scans a typed body once for the kinds only a test's program holds and
+                    // refuses them by name (the compiler's own reach scans; no value computed); the one planning
+                    // state of a program; the extension point the test-planning library plans those kinds through.
+                    // Planning, no session
+                    "QueryDoor.java", "ProgramState.java", "ProgramKinds.java",
                     "package-info.java");
 
     /** THE DRIVER, closed (step C, D73, 2026-10-30): the execution side's machinery behind the root's two execution
