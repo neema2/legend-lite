@@ -302,6 +302,13 @@ notation of D11), the Python suites, and from step 2 the oracle's register.
 | 7 | **Show Python** (D13) | medium | grids `source(...)` cannot say | the printed program run, its rows compared |
 | 8 | **The documents**: the spec (version 4) and the guide for quants, from the catalog | small | -- | -- |
 
+**Status.** Step 1's frozen answers are built (2026-10-31): `datacube/test/timeseries-frozen.ts`, held by
+`//datacube:timeseries_ts_parity_test` (the gallery's and the markets page's 210 series, 271,838 points:
+`test/fixtures/timeseries/gallery-answers.json`) and `//datacube:stress_markets_test` (the class page's 10, 17,749:
+`markets-classes-answers.json`); a series that draws nothing is never frozen as right. Proved: the library's
+volatility moved from ×100 to ×101 for one run, the parity test still read "210 the same" and the frozen answers
+failed 9 series by name.
+
 Out of the order, and said: **intraday** (`SAMPLE BY` takes `1d` and longer, `TsParser.java:65`; gs-quant's
 annualization refuses several points a day, `econometrics.py:497`; time zones) is a later program.
 

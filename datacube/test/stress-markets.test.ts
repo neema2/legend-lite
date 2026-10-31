@@ -6,7 +6,8 @@
 // is, every figure the database's. The model is the markets project as the site serves it (BUILD.bazel
 // :markets_project, config.json `projects[]`): the one trading model, the Deephaven line's text
 // (//scripts/corpus:trading_model), and the sample's days as its Data; the example page over it
-// (examples/markets-classes.ts) opened the page's way, every series of it run.
+// (examples/markets-classes.ts) opened the page's way, every series of it run, and each answer held to its frozen
+// answer (timeseries-frozen.ts; docs/TS_ONE_TREE_PLAN_2026_10_31.md §6, step 1).
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -29,6 +30,7 @@ import { marksQuery, seriesQuery, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsI
 import type { TimeseriesSpec, TsAnnotation } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { drawnColumns, frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
 
 /** The markets project as config.json lists it: its model files, each as the site serves it. */
 const CONFIGURED = (JSON.parse(readFileSync(runfileFromEnv('DEMO_CONFIG'), 'utf8')) as {
@@ -56,6 +58,8 @@ let rows: TsInputs;
 const measured: Record<string, number> = {};
 /** How many lines each split series of the example page drew, by its tile and its id. */
 const drawn = new Map<string, number>();
+/** Each series of the example page, its answer frozen, by its tile and its id. */
+const answers = new Map<string, Frozen>();
 
 /** `$x.a.b...`: a path of properties from the row. */
 const path = (...names: string[]): ValueSpecification => names.reduce<ValueSpecification>((v, n) => property(v, n), variable('x'));
@@ -302,9 +306,14 @@ describe('the example page over the classes, opened the page\'s way', () => {
         }
         assert.ok(values.filter((x) => x !== null).length >= 20 * lines, `${series.id} (${series.name}): ${values.length} rows, ${lines} lines`);
         drawn.set(`${v.id} ${series.id}`, lines);
+        answers.set(`${v.id} ${series.id}`, frozenOf(t, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, drawnColumns(q)));
       }
     });
   }
+
+  it('every series of the page answers as it was frozen', () => {
+    holdFrozen('TS_ANSWERS', answers, 'markets-classes-answers');
+  });
 
   it('the trades tile reads both grids, and its notional by sector a line per sector the bank trades in', async () => {
     const v = marketsClassesPage().views.find((x) => x.id === 'trades-vs-close')!;

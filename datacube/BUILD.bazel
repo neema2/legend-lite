@@ -208,6 +208,12 @@ _EXTRA_ENV = {
     "stress-markets": {
         "DEMO_CONFIG": "$(rlocationpath demo/config.json)",
         "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
+        # every series of the class page, its answer frozen (test/timeseries-frozen.ts; docs/TS_ONE_TREE_PLAN_2026_10_31.md)
+        "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/markets-classes-answers.json)",
+    },
+    # every gallery and markets series, its answer frozen (test/timeseries-frozen.ts)
+    "timeseries-ts-parity": {
+        "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
     },
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
@@ -292,6 +298,12 @@ _EXTRA_DATA = {
     "stress-markets": [
         "demo/config.json",
         ":markets_project",
+        "test/fixtures/timeseries/markets-classes-answers.json",
+        "test/timeseries-frozen.ts",
+    ],
+    "timeseries-ts-parity": [
+        "test/fixtures/timeseries/gallery-answers.json",
+        "test/timeseries-frozen.ts",
     ],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [

@@ -2,7 +2,9 @@
 // and the markets example, planned and answered two ways on DuckDB-WASM over the pages' own samples -- the tile's writer
 // (timeseries-query.ts seriesQuery) and the #TS{...}# query timeseries-ts.ts writes from the same spec -- each date's
 // (and each line's) values the same. A series that answers otherwise is listed with why (DIFFERS), and stays listed
-// only while it does: one that comes to agree fails here until its row goes.
+// only while it does: one that comes to agree fails here until its row goes. And every series' answer, as the tile
+// draws it, is held to its frozen answer (timeseries-frozen.ts; docs/TS_ONE_TREE_PLAN_2026_10_31.md §6, step 1):
+// comparing #TS with #TS cannot see a change of meaning, the frozen answers can.
 
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
@@ -19,6 +21,7 @@ import type { TimeseriesSpec, TsSeries, TsView } from '../src/timeseries-spec.ts
 import { readsBase, TS_ITEM, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import { inlined } from '../src/timeseries-expr.ts';
 import { catalogColumns, ingestFile } from '../src/upload.ts';
+import { frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
 import { plannerFor } from './catalog-builder.ts';
 
 const writer = plannerFor('', 'local::RT');
@@ -89,6 +92,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   const outcomes: string[] = [];
   const unexpected: string[] = [];
   const agreed: string[] = [];
+  const frozen = new Map<string, Frozen>();
   let ran = 0;
   try {
     for (const [what, build] of pages) {
@@ -127,6 +131,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
             const q = seriesQuery(inputsOf, ts, series, anchor === undefined ? {} : { from: anchor }, {}, null);
             const tile = await local.execute(await plannerOf.plan(q.query), 0);
             const pairs = fields(q.band, q.candles === true);
+            frozen.set(id, frozenOf(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)));
             const date = ts.sources.find((s) => s.alias === aliases[0])!.date;
             const mine = await local.execute(await plannerOf.plan(tsSeriesQuery(inputsOf, ts, series, anchor)), 0);
             const d = difference(keyed(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)),
@@ -147,6 +152,7 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   }
   console.log(outcomes.filter((o) => !o.includes(') same\n')).join('\n'));
   console.log(`${ran} series: ${outcomes.filter((o) => o.includes(') same\n')).length} the same`);
+  holdFrozen('TS_ANSWERS', frozen, 'gallery-answers');
   assert.deepEqual(unexpected, [], 'every series answers the same, or is listed in DIFFERS with why');
   assert.deepEqual(agreed, [], 'a series listed in DIFFERS that now answers the same: delete its row');
 });
