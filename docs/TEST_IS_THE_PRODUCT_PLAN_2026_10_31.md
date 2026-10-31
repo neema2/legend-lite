@@ -38,7 +38,7 @@ steps with checkpoints (§7).
 | R9 | Decision 7: "fine to keep ours but yes needs to be same code path": the graph's separate system database stays (the user's rulings of 2026-09-02 and 2026-10-11, `SystemDatabase.java:20-56`), and a product query and a test reach it by one code path (§6 B7). |
 | R10 | Decision 10: the canon computed over the product plan's columns, fully ("why would we not fix the cannon fully"); object ids: one counter per PROGRAM, for the product and tests alike (§6 B9), agreed after the explanation of its meaning. |
 | R11 | "No need to push to CI until we have a good checkpoint": commits stay local between agreed checkpoints (with a backup, §9 N5). |
-| R13 | §9's N1, N2, N4, N5, N6 as recommended ("Agree to all except the assertError"): the product's query door refuses the test-only steps (B6); the test-only planning in its own library (B4); the eager run at a let on both passes (MV7); backups between checkpoints on the work branch `claude/wizardly-dirac-rw6tim-seam-wip` (no CI runs on it); a verdict group closes before every non-verdict step (2.D). N3 (`assertError`'s matcher) explained, awaiting the user's word. |
+| R13 | §9's N1, N2, N4, N5, N6 as recommended ("Agree to all except the assertError"): the product's query door refuses the test-only steps (B6); the test-only planning in its own library (B4); the eager run at a let on both passes (MV7); backups between checkpoints on the work branch `claude/wizardly-dirac-rw6tim-seam-wip` (no CI runs on it); a verdict group closes before every non-verdict step (2.D). N3: option A, `assertError`'s comparison in Java ("Okay that's fine"). |
 | R12 | Unchanged from the predecessor program (§8.2): never push to main, never open or merge a PR without the user's word; no output spelling change without the user's word, case by case; an answer to a question is not a go to build something else; a guard pin or allowlist moves only with a dated justification; never read, print or copy credentials; records land with the code. |
 
 ## 2. The ledger
@@ -324,7 +324,7 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
 
 ## 9. Still open (for the user)
 
-- **N3, `assertError` (T10).** The shape: an `ExpectFailure` step runs the body's sub-plan and the runner captures
+- **N3, `assertError` (T10) -- RULED: A.** The shape: an `ExpectFailure` step runs the body's sub-plan and the runner captures
   what came back -- the error's message and position (raised by the database, or by the compiler while planning the
   body, O8), or "no error" -- and the outcome is reported through the same verdict path as every assert (today a
   special arm runs a nested body). Where the comparison happens, two options:
