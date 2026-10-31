@@ -3355,3 +3355,26 @@ Status lives in the plan's Progress table (rule 0b.16).
     model keeps, as it keeps Phase 5's and Phase 7's packs.
   - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
     refuses a relation-mapping construct when it builds the model; the options go to the user first.
+- **Phase 8 (started 2026-10-31): constraints and test shapes.** `stress_test/corpus` was already on `upstream/main`
+  (`efff04068`), so the rebase was a no-op; the tree built (`bazel build //...`) and its gate was the desk's known reds
+  alone. It lands in stages, each committed when green, constraints first. Inside the owned files: a hand-written
+  `checks::` pack (classes whose constraints combine dates, enumerations, string functions, `exists` and `forAll`
+  over to-many properties, `if` and navigated properties; its own store, seed rows that violate each constraint, kept
+  out of the expansion through `seed.PACK_TABLES`); a generator `scripts/corpus/checks.py` writing a new generated
+  file of graph fetch services that check them (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON,
+  `scripts/corpus/BUILD.bazel`'s module lists); `model.py` reading constraints and the oracle evaluating them over the
+  fetched graph (`graphFetchChecked`'s defects); mapping test suites mirroring existing services, with `run.py`,
+  `changed.py` and the engine runner taking a `stress::` mapping's test suites as testables; several tests per suite,
+  several assertions per test, and `EqualTo` (and `EqualToTDS` if the pin parses it) on existing services;
+  `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both
+  `MIN_PASS`.
+- **Cross-area, Phase 8 (announced 2026-10-31, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files.
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out the new generated
+    files.
+  - `tools/engine-runner/` (the Bazel program's): only if `TestableMain` needs a change to run a mapping's test suites
+    or to report a non-JSON assertion's failure.
+  - `docs/SURFACE_BLOCKED.tsv` (the scoreboard's ledger): TA-01 and TST-15 restated or removed if a stage writes
+    `EqualTo` or `EqualToTDS`.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a constraint or a mapping test suite when it builds the model; the options go to the user first.
