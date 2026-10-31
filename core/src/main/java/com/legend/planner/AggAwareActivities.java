@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.driver;
+package com.legend.planner;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.Type;

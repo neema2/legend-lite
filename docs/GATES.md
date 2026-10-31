@@ -16583,6 +16583,67 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S2g, first two steps: the environment's planning half and the driver's planning helpers in the planner
+
+The decisions log D92; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2g). Zero movement: no
+statement, roster or register changed.
+
+1. **A correction first, posted to the user before any code:** the S2g brief of 2026-10-31 said frames never run at
+   their let on any corpus pass, so S2g would change no statement. That holds on the database judge's passes only
+   (`let=0`); on the host judge's passes every frame let runs once at its let (`let=1974` DuckDB, `let=1950` H2), rows
+   nobody reads but an `execute` at value position, the engine's own order (it runs `execute` at the let). S2g keeps
+   that run; dropping it (the program's §3.3 "the eager run dropped where nothing reads its rows") changes the host
+   passes' statement counts and the let-time failure of a frame nothing reads, so it is a question for the user with
+   its counts, never folded into S2g.
+2. **The environment split in two:** `planner/PlanEnv`, the planning half (the model, the runtime, the dialect, the
+   query's lets, the handles' rows, the renames, the frame, the run's features, the site-id minter, and the
+   generator's plan text handed in, below); the driver's `ExecEnv` composes it with what the body runs on (the
+   session, the trace, the verdict batch, the effect sink, the listeners, the options) and delegates the rest. The
+   six legacy constructors are one factory. `InstanceIds` (the site-id minter) left the judge layer for the planner:
+   planning state.
+3. **The driver's planning helpers in the planner, moved with no rule changed:** `planner/BodyPlanner` (the statement
+   resolver every site constructs, the Lowerer and the plan-preparation ladder, the run's features, an execute call's
+   bound context, a value's road to its executable body: `sideBody`, `inlinedSide`, `stagedSide`,
+   `resolvedToExecute`), `planner/EnginePlans` (the engine's plan text: `engineSql`, `planToString`, `toSQLString`,
+   the cross-store and sequence plans, the plan model -- D30's plan-time values, now returned as text, not a judge's
+   side), and, whole, `PlanAllocations`, `PlanEnvelope`, `EngineText`, `SqlTextInputs`, `AggAwareActivities`. Every
+   one was found pure planning by a call-graph scan of the driver (no session, trace, batch, runner or send reached).
+   One named seam: a test-data generator's plan text (`planToString` over the generator's carrier) is the generator
+   library's, which the planner may not reach (it also runs the generator's statements), so the driver hands it in on
+   the planning half until S2j moves the generator's planning; `TestDataGenerationNatives.planTextResult` returns the
+   text (it returned a judge's side).
+4. **Guards, dated:** `ArchitectureTest`'s two engine-text quarantine rules name the planner's plan-text classes by
+   name (`EngineText` constructs the renderers; it, `EnginePlans`, `PlanEnvelope` and `PlanAllocations` hold the
+   interface; no other planner class may); `JavaEvalLedgerTest`: `BodyDriver` 2,310 -> 2,281 (the split) -> 1,498 (the
+   move), `EnginePlans` 658 and `BodyPlanner` 127 pinned where the code went, the plan model's eviction row and
+   `AggAwareActivities`' row follow their files, the planner register gains the eight files and the driver and judge
+   registers lose them; `HarnessDisciplineTest` walks the planner too (`BodyDriver` 2 -> 1, `EnginePlans` 1,
+   `PlanAllocations` 1 moved, and the planner's own sites registered on their first walk: `CrossStoreGuard` 5,
+   `MetamodelSeeds` 2, `PlanMaker` 1 -- name sets and record accessors, none reorders a result); `DatabaseOwners`
+   names `planner/EngineText.java`. `plannerIsExecutionFree` holds unchanged.
+5. **Measured locally:** `corpus_duckdb`, `corpus_h2`, `pct_channel_b` (uncached) pass, and each corpus pass's
+   statement-origins census and pass/fail counts are identical to 745b76de's (DuckDB host 2,471/108 `let=1974`, database
+   2,473/108 `body=6553`; H2 host 2,289/295 `let=1950`, database 2,233/353 `body=6430 fallback=18`); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 446 pass, 1 skipped (the arm64-only classpath test); the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (`verify_app_test`'s headless page crashed once with another heavy test running beside it and passed alone); `update_generated_4_test` caught `native-claims.tsv` naming the class a claim's lowering sits in (`BodyDriver` -> `EnginePlans` on the two `in` rows), regenerated, and it and `spec_tests` pass. The heavy lanes were not run for this step (a move; S2d's and S3's steps carry them by hand); the lane sessions measure this head next..
+
+## 2026-10-31 — The lane sessions on S3a's remainder: every server and cloud lane identical per test (round 3)
+
+The arrangement of D81, round 3: the five lane sessions MEASURE ONLY on 745b76de (S3a's remainder: the staticizer
+deleted, a dynamic pivot's key compared as the database's text) against their 29286366 runs. The pivots' statements
+were asked about by name, since they change by design.
+
+| session | lanes | round 3 (745b76de vs 29286366) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B | identical per test |
+| sibling 2 | Snowflake, channels A and B | identical per test; channel B relation 1,531 -> 1,503 statements (the staticizer's 14 key reads, each dumped twice, gone; the native `PIVOT` statements byte-identical); channel A relation: 5 dynamic pivot bodies changed only in the key comparison (`CAST("year" AS VARCHAR) = ?` for `"year" = CAST(? AS BIGINT)`); every other statement byte-identical |
+| sibling 3 | Databricks, channels A and B | identical per test on both channels (A: essential 345/0, grammar 137/0, relation 469/0, standard 205/0, unclassified 93/0; B: 0 differences per test in every suite); channel B relation 1,522 -> 1,494 (the same 28 key reads); channel A relation 5 of 474 statements changed (``CAST(`year` AS STRING) = ?``), all 5 still pass; the keyword scan (variant, JSON, reported, raw grid, grid report, DialectCapability, snapshot, pivot) 0 new, 0 gone |
+| sibling 4 | BigQuery, channels A and B | identical per test; the same statement picture (28 fewer on channel B relation, 5 channel A pivot bodies `CAST(year AS STRING) = ?`); one message differs with the same verdict, `filter::testFilterInstance` (the known UNION ALL with no ORDER BY) |
+
+No dynamic pivot test changed outcome on any lane; no REAL or float key appears among the lanes' pivots as a changed
+outcome. The two reds are main's, as every round: SQLite channel B essential at 332 and BigQuery channel A essential
+(`removeDuplicates...MixedTypes`); the user's ruling on both is owed. CI on 745b76de (run 41164742968): green on every
+OS ("gates green" 04:12Z).
+
 ## 2026-10-31 — The seam program's S3a, remainder: the staticizer deleted; a dynamic pivot's key compared as the database's text; no read at planning remains
 
 The decisions log D91; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3a).

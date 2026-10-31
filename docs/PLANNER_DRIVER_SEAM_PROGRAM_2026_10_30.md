@@ -430,3 +430,9 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   **S3a's remainder built 2026-10-31** (D91; GATES "The seam program's S3a, remainder"): the staticizer deleted -- no
   statement is read at planning by any path now -- and the keyed pivot's key compared as the database's text (a REAL
   key matched no row on DuckDB and H2). S3 is done. Next: the S2 kinds, then S4, S5 and Z.
+  **S2g's first two steps built 2026-10-31** (D92; GATES "The seam program's S2g, first two steps"): the body's
+  environment split in two (`planner/PlanEnv`, the planning half), and the driver's planning helpers moved to the
+  planner with no rule changed (`BodyPlanner`, `EnginePlans`, `PlanAllocations` and four more); zero movement. The S2g
+  brief's claim that frames never run at their let was corrected to the user first: the host passes run each frame
+  let at its let (1,974 DuckDB, 1,950 H2), kept; dropping it is the user's question. Next: S2g's third step, the frame's
+  chain planned.

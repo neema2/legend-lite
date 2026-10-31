@@ -177,7 +177,7 @@ public final class BodyCompiler {
                     continue;
                 }
                 // a HANDLE or a value binding: rows under its scope, the let rides the prefix
-                PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs, seg.env());
+                com.legend.planner.PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs, seg.env().plan());
                 letPrefix.add(let);
                 continue;
             }
@@ -345,7 +345,7 @@ public final class BodyCompiler {
                 List<TypedSpec> inlined = new com.legend.compiler.spec.UserCallInliner(
                         specs, BodyDriver.spliceHook(execFrames, letPrefix, specs, sinkEnv))
                         .inlineBody(single);
-                inlined = BodyDriver.resolver(specs, sinkEnv).resolve(inlined, sinkEnv.runtimeFqn());
+                inlined = com.legend.planner.BodyPlanner.resolver(specs, sinkEnv.plan()).resolve(inlined, sinkEnv.runtimeFqn());
                 last = BodyDriver.executeTyped(inlined, sinkEnv);
                 lastIsValue = true;
                 return;

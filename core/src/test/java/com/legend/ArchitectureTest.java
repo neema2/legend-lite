@@ -243,6 +243,10 @@ final class ArchitectureTest {
             // exemption, which the rule carried since audit 19, named nothing and left (the D73 audit)
             .that().resideOutsideOfPackage("com.legend.driver")
             .and().resideInAPackage("com.legend..")
+            // 2026-10-31 (the seam program's S2g): the engine-text registry is planning work and left the driver for
+            // the planner; it alone constructs the renderers, so it alone of the planner is exempt (a plan the runner
+            // executes is never written by it: PlanMaker and the body planner's lowering hold no engine-style class)
+            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class)
             // the engine-style FAMILY (H2 + DB2 golden-text renderers)
             // may compose internally; the quarantine is against the
             // execution path, not against sibling dialects
@@ -271,6 +275,11 @@ final class ArchitectureTest {
             // exemption left the same day (no door holds the interface; the D73 audit)
             .that().resideOutsideOfPackages("com.legend.driver", "com.legend.sql.dialect", "com.legend.testdatagen")
             .and().resideInAPackage("com.legend..")
+            // 2026-10-31 (the seam program's S2g): the engine's plan text is planning work (D30: plan-time values) and
+            // left the driver for the planner -- the registry, the plan printer, the envelope and the plan-node
+            // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface
+            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class, com.legend.planner.EnginePlans.class,
+                    com.legend.planner.PlanEnvelope.class, com.legend.planner.PlanAllocations.class)
             .should().dependOnClassesThat().belongToAnyOf(com.legend.sql.dialect.EngineTextDialect.class)
             .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
             .check(CORE_PROD_CLASSES);

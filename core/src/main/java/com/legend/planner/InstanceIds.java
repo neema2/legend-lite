@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.judge;
+package com.legend.planner;
 
 /**
  * F13 — SYNTHETIC INSTANCE IDENTITY as DATA: each keyless-class
@@ -12,9 +12,10 @@ package com.legend.judge;
  * to itself): the same let-bound constructor reaches both assert sides
  * as the same site, two textually distinct constructors are two.
  *
- * <p>Scoped to ONE {@code com.legend.driver.BodyDriver.ExecEnv} (both
- * sides of every verdict in a test share the env, so ids agree across
- * side lowerings by construction). Single-threaded like the env itself.
+ * <p>Scoped to ONE body's {@link PlanEnv} (both sides of every verdict in
+ * a test share it, so ids agree across side lowerings by construction).
+ * Single-threaded like the env itself. Planning state, so the planner's
+ * since the seam program's S2g (2026-10-31); the judge layer's until then.
  */
 public final class InstanceIds {
 

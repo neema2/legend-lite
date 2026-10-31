@@ -204,12 +204,29 @@ class HarnessDisciplineTest {
             // HostJudge: the host arm's compare sorts both sides' element lists (two sites, twice) before an
             // order-insensitive equality -- comparison policy, two-sided, the same on each side
             Map.entry("HostJudge.java", 4),
-            // BodyDriver: a distinct() over the stores a body names (a set of names, not a result), and the canon's
-            // JSON key order (JsonKeyOrder.sort, the plan's spelling, not a value's order)
-            Map.entry("BodyDriver.java", 2),
+            // BodyDriver: the canon's JSON key order (JsonKeyOrder.sort, the plan's spelling, not a value's order);
+            // 2 -> 1 (2026-10-31, the seam program's S2g): its distinct() over a plan's chain mappings left for the
+            // planner with the engine's plan text (EnginePlans, below)
+            Map.entry("BodyDriver.java", 1),
+            // ---- src/main/com/legend/planner (2026-10-31, the seam program's S2g): the body driver's planning
+            // helpers left for the planner, and the discipline follows the code; the planner's own sites, walked for
+            // the first time, register with them. None reorders a result: each is a set of names or a record's
+            // accessor. ----
             // PlanAllocations: sel.distinct() is the SqlSelect record's DISTINCT accessor, read to rebuild the
-            // select -- the regex's one false positive here, registered rather than special-cased
-            Map.entry("PlanAllocations.java", 1));
+            // select -- the regex's one false positive here, registered rather than special-cased (the driver's
+            // file until S2g)
+            Map.entry("PlanAllocations.java", 1),
+            // EnginePlans: a distinct() over the plan call's chain mappings (names, to find the one that binds the
+            // root class; the body driver's until S2g)
+            Map.entry("EnginePlans.java", 1),
+            // CrossStoreGuard: the stores and connections a query names, collected in sorted sets and maps so the
+            // refusal's message names them in one order (names, not a result)
+            Map.entry("CrossStoreGuard.java", 5),
+            // MetamodelSeeds: two record accessors, a relation's declared DISTINCT flag and a mapping's distinct()
+            // -- false positives of the regex
+            Map.entry("MetamodelSeeds.java", 2),
+            // PlanMaker: a select's distinct() accessor, read to decide whether a select can be extended
+            Map.entry("PlanMaker.java", 1));
             // (JsonCompare.java's graph-root message sort left this list in
             // step 2: the JSON rules moved to Equality, counted there)
 
@@ -254,7 +271,9 @@ class HarnessDisciplineTest {
                 "core/src/main/java/com/legend/judge",
                 // step C (D73, 2026-10-30): the judges' arms, the body driver and the
                 // plan allocations in the driver package -- the discipline follows the code
-                "core/src/main/java/com/legend/driver"}) {
+                "core/src/main/java/com/legend/driver",
+                // the seam program's S2g (2026-10-31): the driver's planning helpers in the planner package
+                "core/src/main/java/com/legend/planner"}) {
             try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
