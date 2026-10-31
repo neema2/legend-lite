@@ -61,6 +61,16 @@ class ElementsTest(unittest.TestCase):
         services, others = compare(elements(_BASE), elements(after))
         self.assertEqual((["stress::Gone"], ["a::Trade"]), (services, others))
 
+    def test_a_mapping_with_test_suites_is_a_testable(self):
+        mapping = ("###Mapping\nMapping stress::MT_A\n(\n  include a::M\n\n  testSuites:\n  [\n    s: { function: |a::T.all();"
+                   " tests: [ t: { asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ data: '[1]'; }#; }# ]; } ]; }"
+                   "\n  ]\n)\n")
+        before, after = _BASE + mapping, _BASE + mapping.replace("'[1]'", "'[1,2]'")
+        self.assertEqual((["stress::MT_A"], []), compare(elements(_BASE), elements(before)))
+        self.assertEqual((["stress::MT_A"], []), compare(elements(before), elements(after)))
+        moved = before.replace("include a::M", "include a::Other")
+        self.assertEqual((["stress::MT_A"], ["stress::MT_A"]), compare(elements(before), elements(moved)))
+
     def test_comments_line_endings_and_trailing_space_change_nothing(self):
         after = _BASE.replace("// a comment between two services", "// another comment").replace("\n", "  \r\n")
         self.assertEqual(([], []), compare(elements(_BASE), elements(after)))

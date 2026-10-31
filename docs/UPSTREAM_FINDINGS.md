@@ -2422,3 +2422,15 @@ group-by under that projection. With the runtime's connection declared H2 the sa
 the TDS projection passes. Pinned by `stress::RM_BookTotalsRelation` (quarantined), relmap::RmBookTotal's books
 projected through the relation API; `RM_BookTotals`, the same as a TDS, passes. Repro:
 `scripts/corpus/repro/relation-groupby-project/` (`Tds`, `Direct` and `Filtered` pass; `Relation` errors).
+
+## F89 — A lambda written with braces cannot appear in a mapping test's function
+
+**Not a wrong answer: valid Pure that does not parse in one place.** Found 2026-10-31 by the improvement plan's Phase
+8. A mapping test suite's `function:` is parsed by the mapping section's own grammar, and its lexer reads `{` as a
+brace only after `:` or `[` (`MappingLexerGrammar.g4`'s `BRACE_OPEN`); anywhere else `{` opens a class mapping's
+island (`MAPPING_ISLAND_MODE`). So `|demo::Acct.all()->filter({x|$x.id == 'A1'})->project(...)` in a suite fails to
+parse with "no viable alternative at input '->filter({x|$x.id == 'A1''", and, being a parse error, stops the whole
+model loading; the same query in a service, or written `filter(x|$x.id == 'A1')` in the suite, runs. The corpus
+writes a mapping test's lambdas without braces (`scripts/corpus/mapping_tests.py`), so nothing is quarantined. Repro:
+`scripts/corpus/repro/mapping-test-brace-lambda/` (`model.pure`: the suite without braces and the service with them
+pass; `braced.pure`, the same suite with braces, does not parse).

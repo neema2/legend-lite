@@ -1,0 +1,76 @@
+// F89 (docs/UPSTREAM_FINDINGS.md): a lambda written with braces cannot appear in a mapping test's function.
+// The mapping lexer reads `{` as a brace only after `:` or `[` (MappingLexerGrammar.g4's BRACE_OPEN); anywhere else
+// it opens a class mapping's island, so `->filter({x|...})` in a suite's function does not parse. The same lambda
+// parses in a service's query (Service demo::Braced). Run each file alone:
+//   bazel run //tools/engine-runner:testable -- <this file> --testable=demo::M --testable=demo::Braced
+// model.pure passes both (a suite without braces, a service with them); braced.pure is the same suite with braces,
+// and the whole file fails to parse: "no viable alternative at input '->filter({x|$x.id == 'A1''".
+Class demo::Acct
+{
+  id: String[1];
+}
+
+###Relational
+Database demo::DB ( Table ACCT (ID VARCHAR(20) PRIMARY KEY) )
+
+###Mapping
+Mapping demo::M
+(
+  demo::Acct: Relational
+  {
+    ~primaryKey ([demo::DB]ACCT.ID)
+    ~mainTable [demo::DB]ACCT
+    id: [demo::DB]ACCT.ID
+  }
+
+  testSuites:
+  [
+    filtered:
+    {
+      function: |demo::Acct.all()->filter({x|$x.id == 'A1'})->project(~[id:x|$x.id]);
+      tests:
+      [
+        t:
+        {
+          data: [ demo::DB: Reference #{ demo::Seed }# ];
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"A1"}]'; }#; }# ];
+        }
+      ];
+    }
+  ]
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ environment: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{ Relational #{ default.ACCT: 'ID\n' + 'A1\n' + 'A2\n'; }# }
+
+###Service
+Service demo::Braced
+{
+  pattern: '/braced';
+  documentation: 'The braced lambda the suite cannot hold, in a service query, where it parses.';
+  execution: Single
+  {
+    query: |demo::Acct.all()->filter({x|$x.id == 'A1'})->project(~[id:x|$x.id]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ environment: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"A1"}]'; }#; }# ] }
+      ]
+    }
+  ]
+}

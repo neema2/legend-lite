@@ -7,7 +7,8 @@ The testables a batch must run on legend-engine: the services whose text or expe
 
 Compares every stress file and every linked project file as committed at --base (default HEAD) with the working
 tree, element by element: regenerate first (`bazel run //core:update_stress_corpus`), then list. A `stress::` service
-with test suites that is new, or whose text differs (its query, its tests, its expected results), is listed. A changed
+with test suites that is new, or whose text differs (its query, its tests, its expected results), is listed, and so is
+a `stress::` mapping with test suites (the plan's Phase 8) that is new or whose suites differ. A changed
 or deleted element of any other kind (a class, a store, a mapping, a runtime, a `###Data` seed, a function) can change
 any service's answer, so then every testable is listed and the summary names the elements: after a seed change the
 whole corpus runs. An element that is only new changes no existing answer and adds nothing.
@@ -59,13 +60,32 @@ def is_tested_service(key: str, body: str) -> bool:
     return key.startswith("stress::") and body.startswith("Service ") and "testSuites" in body
 
 
+_SUITES = re.compile(r"^\s*testSuites\s*:", re.M)
+
+
+def is_tested_mapping(key: str, body: str) -> bool:
+    """A `stress::` mapping with test suites: a testable of run.py too (the plan's Phase 8)."""
+    return key.startswith("stress::") and body.startswith("Mapping ") and bool(_SUITES.search(body))
+
+
+def _mapping_part(body: str) -> str:
+    """A mapping without its test suites: what every service over it reads."""
+    return _SUITES.split(body, maxsplit=1)[0]
+
+
 def compare(before: dict[str, str], after: dict[str, str]) -> tuple[list[str], list[str]]:
-    """(tested services new or changed, other elements changed or deleted)."""
+    """(testables new or changed, other elements changed or deleted). A tested mapping whose suites alone changed is a
+    testable that changed; one whose class mappings or includes changed is a mapping that changed, too."""
     services, others = [], []
     for key, body in after.items():
         if is_tested_service(key, body):
             if before.get(key) != body:
                 services.append(key)
+        elif is_tested_mapping(key, body):
+            if before.get(key) != body:
+                services.append(key)
+            if key in before and _mapping_part(before[key]) != _mapping_part(body):
+                others.append(key)
         elif key in before and before[key] != body:
             others.append(key)
     for key, body in before.items():
@@ -112,7 +132,7 @@ def main() -> None:
             after.update(elements((repo / f).read_text(encoding="utf-8")))
     services, others = compare(before, after)
     if others:
-        names = sorted(k for k, b in after.items() if is_tested_service(k, b))
+        names = sorted(k for k, b in after.items() if is_tested_service(k, b) or is_tested_mapping(k, b))
         # the function testables run.py names by a mangled id; every one runs when anything but a service changed.
         # functest reads the corpus's layout when imported (model.py), from the checkout compared here.
         os.environ.setdefault("CORPUS_ROOT", str(repo))

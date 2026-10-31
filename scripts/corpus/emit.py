@@ -272,7 +272,11 @@ def _decimal_text(d: decimal.Decimal) -> str:
 
 
 def _payload(spec: Spec, rows: list[dict]) -> str:
-    payload = rows if spec.graph is None else {"builder": {"_type": "json"}, "values": rows}
+    return json_text(rows if spec.graph is None else {"builder": {"_type": "json"}, "values": rows})
+
+
+def json_text(payload) -> str:
+    """An expected answer as Pure string text: compact JSON, a Decimal digit for digit, a 4-byte column shortest."""
     text = json.dumps(_shorten(payload), separators=(",", ":"),
                       default=lambda o: _DECIMAL + _decimal_text(o)
                       if isinstance(o, decimal.Decimal) else _unserializable(o))

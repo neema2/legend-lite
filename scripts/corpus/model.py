@@ -1564,7 +1564,9 @@ def _split_mappings(body: str) -> list[str]:
         cur.append(line)
     if cur:
         out.append("".join(cur))
-    return out
+    # A mapping's test suites (the improvement plan's Phase 8) are queries and expected rows, not mapping: each chunk
+    # is read up to them
+    return [re.split(r"^\s*testSuites\s*:", chunk, maxsplit=1, flags=re.M)[0] for chunk in out]
 
 
 def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> None:

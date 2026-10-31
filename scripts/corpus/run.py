@@ -7,7 +7,8 @@ The stress corpus through legend-engine, judged (Bazel workplan P3-25; docs/STRE
 
 The engine is //tools/engine-runner:testable: legend-engine at the release release.MODULE.bazel pins, the one version
 every test uses (the plan's D3). The testables are the `stress::` services that have test suites, in every stress
-file, and the function testables (D4: lite's runner takes the same `stress::` set), less HANGS. `--only` takes a file of
+file, the `stress::` mappings that have test suites (mapping_tests.py's, the plan's Phase 8), and the function
+testables (D4: lite's runner takes the same `stress::` services), less HANGS. `--only` takes a file of
 testable names, one per line (`#` starts a comment): a batch's changed services (changed.py writes that list).
 
 Exit status is 0 only when every case lands where it is supposed to:
@@ -102,6 +103,14 @@ def testables() -> list[str]:
             body = text[m.end():]
             nxt = re.search(r"^(?:Service|ExecutionEnvironment|###)", body, re.M)
             if m.group(1).startswith("stress::") and "testSuites" in (body[:nxt.start()] if nxt else body):
+                out.append(m.group(1))
+        # A MAPPING's test suites are a testable too, addressed by the mapping's path (the improvement plan's Phase 8:
+        # mapping_tests.py's, the `stress::` ones, as D4 takes the services)
+        for m in re.finditer(r"^Mapping (\S+)", text, re.M):
+            body = text[m.end():]
+            nxt = re.search(r"^(?:Mapping|###)", body, re.M)
+            if m.group(1).startswith("stress::") and re.search(r"^\s*testSuites\s*:", body[:nxt.start()] if nxt
+                                                               else body, re.M):
                 out.append(m.group(1))
     return out + functest.testables()
 

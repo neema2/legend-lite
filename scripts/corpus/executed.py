@@ -355,7 +355,22 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     _m2m_features(specs, quarantined, add)
     _relmap_features(specs, quarantined, add)
     _checks_features(specs, quarantined, add)
+    _test_form_features(specs, quarantined, add)
     return out
+
+
+def _test_form_features(specs, quarantined: set[str], add) -> None:
+    """Test forms (the improvement plan's Phase 8): a mapping's test suites (mapping_tests.py), each executed when a
+    mirrored service is emitted and its test mapping is not quarantined -- the engine judges the mapping's suites as a
+    testable of their own."""
+    import mapping_tests
+
+    emitted = {s.name: s for s in specs}
+    add("T8  mapping test suite", sorted(
+        f"{mapping_tests.test_mapping(emitted[n].mapping or mapping_tests.DEFAULT_MAPPING).split('::')[-1]}/"
+        f"{emitted[n].short}" for n in mapping_tests.MIRRORED
+        if n in emitted and mapping_tests.test_mapping(emitted[n].mapping or mapping_tests.DEFAULT_MAPPING)
+        not in quarantined))
 
 
 def _checks_features(specs, quarantined: set[str], add) -> None:
@@ -786,6 +801,9 @@ BASELINE = {
     "C8  constraint string function", "C8  constraint exists/forAll", "C8  constraint if",
     "C8  constraint navigation", "C8  constraint Warn with a message", "C8  nested defect path",
     "C8  unchecked fetch of a constrained class",
+    # 2026-10-31, the improvement plan's Phase 8, stage 2 (mapping_tests.py): a mapping's test suites, each mirroring a
+    # service, passing on legend-engine 4.145.0.
+    "T8  mapping test suite",
 }
 
 
