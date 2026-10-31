@@ -36,6 +36,4 @@ P03	documentation slot declared on classDefinition and rejected in both string f
 TA-01	EqualTo asserts a primitive; a relational service returns a result envelope carrying a per-run UUID, so the two cannot meet
 P12	property documentation: same slot as P03, rejected (F33)
 PP-02	relationalMapper reference does not resolve in the full model (open, not isolated)
-REL-02	~src inline relation expr: reachable only through a Relation mapping whose ~func does not resolve
-REL-03	Relation ~primaryKey single: same
-REL-04	Relation ~primaryKey multi: same
+REL-02	~src inline relation expr: legend-engine 4.145.0's parser overflows on a raw relation under ~src (EMIT's relation-src model), so the corpus's ~src takes a typed relation function's call (8116-relmap.pure, 2026-10-30, the stress corpus plan's Phase 6, which also wrote REL-03 and REL-04)

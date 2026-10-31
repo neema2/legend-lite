@@ -1741,7 +1741,7 @@ stress_index(
     out = "src/test/resources/com/legend/integration/stress-index.txt",
 )
 
-# every stress file, the generated seventeen included: what the corpus ratchets measure (//scripts/corpus, P2-04)
+# every stress file, the generated eighteen included: what the corpus ratchets measure (//scripts/corpus, P2-04)
 filegroup(
     name = "stress_files",
     srcs = glob(["src/test/resources/stress/*.pure"]),

@@ -353,7 +353,36 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     _vocabulary_features(specs, quarantined, add)
     _unreached_features(c, specs, quarantined, add)
     _m2m_features(specs, quarantined, add)
+    _relmap_features(specs, quarantined, add)
     return out
+
+
+def _relmap_features(specs, quarantined: set[str], add) -> None:
+    """Relation (`~func`) class mappings (the improvement plan's Phase 6, relmap.py), each executed when a passing
+    relation-mapped service runs against the mapping that holds it -- held here so a change that stops executing one
+    fails the build (the plan's rule 6). The local property is read by the XStore and ModelJoin predicates, so every
+    service over those two mappings reaches it."""
+    import relmap
+
+    live = [s for s in specs if s.name not in quarantined and s.name in relmap.NAMES
+            and getattr(s, "mirrors", None) is not None]
+
+    def over(binding, *roots):
+        return [s.short for s in live if s.mapping == binding[0] and (not roots or s.root in roots)]
+
+    add("R6  relation ~src", over(relmap.SOURCED))
+    add("R6  relation filter", over(relmap.EXECUTED))
+    add("R6  relation group-by", over(relmap.SHAPED, "relmap::RmBookTotal"))
+    add("R6  relation window function", over(relmap.SHAPED, "relmap::RmRanked"))
+    add("R6  relation expression right-hand side", over(relmap.SHAPED, "relmap::RmPriced"))
+    add("R6  relation primary key", over(relmap.KEYED) + over(relmap.KEYED_PAIR))
+    add("R6  relation local property", over(relmap.CROSSED) + over(relmap.JOINED))
+    add("R6  relation embedded", over(relmap.SHAPED, relmap.FILL))
+    add("R6  relation inline embedded", over(relmap.INLINED))
+    add("R6  relation union", over(relmap.UNIONED) + over(relmap.MIXED))
+    add("R6  relation binding transformer", over(relmap.PROFILED))
+    add("R6  relation model join", over(relmap.JOINED))
+    add("R6  relation XStore association", over(relmap.CROSSED))
 
 
 def _m2m_features(specs, quarantined: set[str], add) -> None:
@@ -717,6 +746,12 @@ BASELINE = {
     "M5  M2M enumeration transform", "M5  M2M nested set", "M5  M2M complex property passthrough",
     "M5  M2M target instantiation", "M5  M2M ~filter", "M5  M2M union", "M5  M2M transform over a to-many",
     "M5  M2M local property",
+    # 2026-10-30, the improvement plan's Phase 6 (relmap.py): relation (~func) class mappings, each executed by passing
+    # services on legend-engine 4.145.0.
+    "R6  relation ~src", "R6  relation filter", "R6  relation group-by", "R6  relation window function",
+    "R6  relation expression right-hand side", "R6  relation primary key", "R6  relation local property",
+    "R6  relation embedded", "R6  relation inline embedded", "R6  relation union", "R6  relation binding transformer",
+    "R6  relation model join", "R6  relation XStore association",
 }
 
 

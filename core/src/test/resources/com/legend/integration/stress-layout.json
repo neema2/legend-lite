@@ -14,6 +14,7 @@
     "98-combination-execution.pure": "stress",
     "99-intraday-services.pure": "stress",
     "99-m2m-services.pure": "stress",
+    "99-relmap-services.pure": "stress",
     "99-typed-services.pure": "stress",
     "99-unreached-services.pure": "stress",
     "99-vocab-services.pure": "stress"

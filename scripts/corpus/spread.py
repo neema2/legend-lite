@@ -41,6 +41,7 @@ from dataclasses import replace
 
 import executed
 import model
+import relmap
 import stacking
 import stacks
 from query import Pred, Proj, Spec
@@ -422,6 +423,11 @@ def _build(c: model.Corpus, seeded: set[str], existing, tables=None) -> list[Spe
     byclass = executed.class_features()
     bymapping = executed.mapping_features()
     closure = executed.include_closure()
+    # Neither a template nor the baseline: the relmap:: pack's services (2026-10-30, the improvement plan's Phase 6).
+    # As a template, a relation mapping's variant would be judged through its twin's relational mapping, the claim
+    # the pack's own services test, and a graph fetch over one does not run at the pin; in the baseline, the
+    # combinations they close took SP_JoinTradeGroup, a passing service, out of the selection for none it builds.
+    existing = [s for s in existing if s.name not in relmap.NAMES]
 
     covered_p, covered_t = set(), set()
     for s in existing:

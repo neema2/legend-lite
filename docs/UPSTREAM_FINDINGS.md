@@ -2397,3 +2397,17 @@ transform into the source's SQL) answers the empty string. An unmapped code answ
 graph fetch raises ("Unmapped value: X"). Pinned by `stress::MX_PartyGrade` (quarantined), whose counterparty CP-0004
 has no rating; `MX_PartyGradeTree`, the same transform fetched, passes. Repro: `scripts/corpus/repro/m2m-absent-enum-tds/`
 (`RelationalTds` and `M2mGraph` pass; `M2mTds` answers '' for T3).
+
+## F88 — A relation-API projection over a class mapped from a grouped relation fails
+
+**Not a wrong answer: a construct that cannot execute.** Found 2026-10-30 by the improvement plan's Phase 6. A relation
+class mapping whose source relation groups (`~func f():Relation<Any>[1]`, `f` ending in
+`->groupBy(~[G], ~[S: x | $x.V : y | $y->sum()])`, EMIT's relation-group-by) runs when its class is projected as a TDS,
+`C.all()->project([x|$x.g, x|$x.s], ['g', 's'])`, and when the grouped relation is queried directly. Projected through
+the relation API, `C.all()->project(~[g:x|$x.g, s:x|$x.s])`, legend-engine 4.145.0 sends SQL DuckDB refuses: "Binder
+Error: GROUP BY term out of range - should be between 1 and 2", the bound being the grouped relation's column count
+(three with two aggregates). A class mapped from a filtered relation projects through the relation API, so it is the
+group-by under that projection. With the runtime's connection declared H2 the same DuckDB binder error comes back and
+the TDS projection passes. Pinned by `stress::RM_BookTotalsRelation` (quarantined), relmap::RmBookTotal's books
+projected through the relation API; `RM_BookTotals`, the same as a TDS, passes. Repro:
+`scripts/corpus/repro/relation-groupby-project/` (`Tds`, `Direct` and `Filtered` pass; `Relation` errors).

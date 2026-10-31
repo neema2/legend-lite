@@ -158,6 +158,13 @@ def main() -> None:
         # its provisioning spans two stores bound to two connections; legend-lite binds one session connection per
         # query (multi-connection execution is not modeled), so //core:stress_suites SKIPS it too (a registered skip)
         "X1_ExternalEntityProjection",
+        # 2026-10-30, the stress corpus plan's Phase 6 (relmap.py; the user's choice): the binding transformer's
+        # relational twins over hier::IssuerMapping. legend-lite stops before it runs on any Binding transformer
+        # ("expected hier::Profile, got String"), which the differential cannot hold as a known divergence (a crash is
+        # a new failure). //core:stress_suites counts them and their relation-mapped services as failing, and
+        # legend-engine passes all four.
+        "RMR_IssuerFlags",
+        "RMR_IssuersFlagged",
     }
     specs = [s for s in query.load() + list(battery.SPECS) + generated
              if s.graph is None and getattr(s, "mirrors", None) is None

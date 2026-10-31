@@ -21,8 +21,8 @@ Mapping surface::PureSurface
 )
 
 // The Relation (function-based) mapping is NOT here. `~func surface::relFunc():...[1]`
-// fails to resolve in the full model -- "Can't find the packageable element" -- and the
-// forms it would have covered (~src as an inline relation expression, ~primaryKey in its
-// single and bracketed spellings) are reachable only through it. Left open rather than
-// worked around: REL-01 is already covered by modeljoin::JoinMapping, so what is missing is
-// the three spellings, not the construct.
+// failed to resolve in the full model -- "Can't find the packageable element" -- because a
+// descriptor's types may not name a package. The relation-mapping pack (8116-relmap.pure,
+// the improvement plan's Phase 6) writes the short descriptor and covers ~primaryKey in its
+// single and bracketed spellings; ~src there takes a typed relation function's call, since
+// the pinned engine's parser overflows on a raw relation under ~src.

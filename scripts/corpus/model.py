@@ -1973,6 +1973,20 @@ SKIP_MAPPINGS = {
     # Relation class mappings bind to relation COLUMN names, not [db]Table.COLUMN, and
     # ModelJoin is a predicate rather than a join. Neither shape is modelled here.
     "modeljoin::JoinMapping",
+    # The improvement plan's Phase 6: the relmap:: pack's relation mappings (8116-relmap.pure), for the same reason;
+    # relmap::MixedUnion's relational set too, whose union would read as relmap::RmDeal's. Their expectations mirror
+    # relmap::Twins, the same classes mapped relationally over the same tables, which is read.
+    "relmap::Sourced",
+    "relmap::Executed",
+    "relmap::Keyed",
+    "relmap::KeyedPair",
+    "relmap::Unioned",
+    "relmap::MixedUnion",
+    "relmap::Crossed",
+    "relmap::Joined",
+    "relmap::Shaped",
+    "relmap::Inlined",
+    "relmap::Profiled",
 }
 
 # re.M is load-bearing: without it `search` over a multi-line chunk never matches, the

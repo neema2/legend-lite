@@ -330,6 +330,12 @@ ENGINE_QUARANTINE["stress::MX_PartyProfileTree"] = ("F86", "an M2M merge over a 
 # absent (MX_PartyGradeTree). Minimized in repro/m2m-absent-enum-tds/.
 ENGINE_QUARANTINE["stress::MX_PartyGrade"] = ("F87", "an M2M enumeration transform of an absent code projects as ''")
 
+# F88 -- the relation-mapping pack (the improvement plan's Phase 6, relmap.py): a relation-API projection over a class
+# mapped from a grouped relation sends SQL DuckDB refuses ("GROUP BY term out of range"); the same class projected as a
+# TDS passes (RM_BookTotals). Minimized in repro/relation-groupby-project/.
+ENGINE_QUARANTINE["stress::RM_BookTotalsRelation"] = ("F88", "a relation-API projection over a grouped relation "
+                                                             "mapping: GROUP BY term out of range")
+
 # F29 -- a graph fetch returning exactly ONE row serializes `values` as a bare OBJECT
 # rather than a one-element ARRAY. Two rows produce an array from the same query shape, the
 # same mapping and the same serialization format, so the JSON TYPE of `values` depends on

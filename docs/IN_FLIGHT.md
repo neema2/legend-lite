@@ -3342,7 +3342,12 @@ Status lives in the plan's Progress table (rule 0b.16).
   relation-mapped service with a relational twin in `battery.INVARIANCE_GROUPS` where the feature allows, and the
   oracle's `RELATION_IMPL` evaluating a `~func` body where it does not; `model.py` (the pack's relation mappings
   skipped, as `modeljoin::JoinMapping` is), `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`,
-  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. No seed change is planned.
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. No seed change is planned. As built (stage 1): `battery.py` (the
+  pack's groups), `build.py` (the new file; a mirror's columns follow its twin's relation operations), `spread.py`
+  (the pack's services neither its templates nor its baseline, so no existing service moves), `differential.py` (the
+  binding transformer's two relational twins in `lite_blind`, the user's choice, 2026-10-30: lite stops on any
+  Binding transformer, which the differential cannot hold as a known divergence), and, cross-area,
+  `docs/SURFACE_BLOCKED.tsv` (the scoreboard's ledger: REL-03 and REL-04 now written, out; REL-02's reason restated).
 - **Cross-area, Phase 6 (announced 2026-10-30, before it lands):**
   - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (seventeen to eighteen).
   - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out

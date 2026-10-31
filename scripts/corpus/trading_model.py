@@ -24,8 +24,8 @@ from pathlib import Path
 # hand-written files name live in 96-98, which stay.
 SERVICES_AND_DATA = {"92-services.pure", "93-testdata.pure", "94-canonical-services.pure", "94-fanout-services.pure",
                      "94-gap-services.pure", "95-function-tests.pure", "99-intraday-services.pure",
-                     "99-m2m-services.pure", "99-trader-services.pure", "99-typed-services.pure",
-                     "99-unreached-services.pure", "99-vocab-services.pure"}
+                     "99-m2m-services.pure", "99-relmap-services.pure", "99-trader-services.pure",
+                     "99-typed-services.pure", "99-unreached-services.pure", "99-vocab-services.pure"}
 SECTIONS = ("model.pure", "store.pure", "mapping.pure")
 
 
