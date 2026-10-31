@@ -16583,6 +16583,30 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S2d: an effect's statements planned
+
+The decisions log D97; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2d). Zero movement.
+
+1. **Built:** `planner/EffectPlanner` writes the statements `executeInDb`, `dropAndCreateSchemaInDb`,
+   `dropAndCreateTableInDb`, `createTempTable` and `dropTempTable` send -- in the session's dialect, with the text the
+   replay referee's ledger records (the referee's spelling of DDL, the authored text of raw SQL). Two phases, so the
+   planner computes no value: `stringArgs` names the String arguments a call needs (a `dropAndCreateTableInDb` whose
+   first argument is no store is refused there, before any is evaluated, as before), the driver gives their values
+   (a literal folded; a computed one run by the database -- the one place a value feeds a statement's text, as the
+   engine evaluates the string before it runs it), and `statements` writes the texts from them: a raw string split
+   per statement and translated from the language its connection declares (decision D2), the DDL natives' IR
+   rendered (the store model's tables, a temporary table's literal columns and their data types). Each arm in the
+   driver is now its values, the planner's statements and the sends (into an effect segment's script, as before);
+   `REFEREE_DDL` and the data types' readers left the driver with them. The planner dispatches on the catalog's
+   EFFECT row (`NativeFn.Effect`), not on a function's name: the identity-site guard (`NAME_COMPARE`) caught the first
+   cut's name comparisons, and the shape was changed rather than the pin.
+2. **Not moved:** `loadCsvToDbTable` (`CsvLoad`: a bulk load the connector performs), the seed-SQL forms
+   (`SeedSqlForms`), `print`/`println` (no statement), and the effect segments themselves (`BodyCompiler`'s sink:
+   collecting and sending a script is running) -- S4's.
+3. **Guards, dated:** the planner register gains `EffectPlanner`; `JavaEvalLedgerTest` `BodyDriver` 1,154 -> 1,074,
+   `EffectPlanner` 132 pinned where the code went.
+4. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's statement-origins census (`other`, where the effect scripts' statements are counted, included) and pass/fail counts are identical to 90896121's; the heavy lanes by hand (the plan's rule at S2d): channel B on SQLite (4 of 5, essential at 332 -- main's red) and Postgres (5 of 5, unprivileged), and H2's relation suite, every per-test line identical to the S3a baseline (345, 137, 469, 205 and 93 lines per suite; H2 relation 469, its only differences the random execution-trace ids inside four error messages); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped, and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time).
+
 ## 2026-10-31 — The seam program's shared preparation: a statement's body prepared in the planner; a frame's planned CTE with it
 
 The decisions log D96; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 (the kinds' common road). Zero

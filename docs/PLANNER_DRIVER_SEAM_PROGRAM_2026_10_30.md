@@ -443,4 +443,6 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   checks it names the tables as planned. **The shared preparation built 2026-10-31** (D96): a statement's body prepared
   in `BodyPlanner.prepare` (its frame, its root, the kind of answer it gets with no plan: `planner/Prepared`), the
   driver's prelude dispatching and running only effects, store writes and effectful maps; a frame's planned CTE in
-  `FramePlanner.cte`. Next: the effects' statements (S2d).
+  `FramePlanner.cte`. **S2d built 2026-10-31** (D97): an effect's statements planned in `planner/EffectPlanner` (two
+  phases: the String arguments' values, the driver's, then the texts); the heavy lanes by hand identical. Next: the
+  engine-text asserts (S2i), the generator's fold (S2j), the value statements (S2a), then S4.

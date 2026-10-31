@@ -12,7 +12,6 @@ import com.legend.planner.PlanMaker;
 import com.legend.planner.QueryParameters;
 
 import com.legend.compiler.element.ModelContext;
-import com.legend.setup.Ddl;
 import com.legend.judge.TypedSide;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -83,9 +82,6 @@ public final class BodyDriver {
 
     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
      * handed one through the options; the executor never keeps one. */
-    /** The replay ledger records DDL in its referee database's spelling on EVERY session. */
-    private static final com.legend.sql.dialect.SqlDialect REFEREE_DDL =
-            com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_REFEREE);
 
     /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d): the text of the database
      *  legend-engine's test connections declare. */
@@ -1520,20 +1516,9 @@ public final class BodyDriver {
     static TypedSide executeInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
-        String raw = evalStringArg(body, call.args().get(0), env);
-        // the database its connection declares (decision D2, lets bound): every corpus call's reads, measured
-        // 2026-10-13 (122,823 of 122,823, as H2); one that cannot be read is refused
-        String writtenFor = com.legend.compiler.spec.typed.ExecutionContext.rawLanguage(
-                com.legend.compiler.spec.typed.Lets.bound(call.args().get(1), body));
-        // split FIRST: translation is per-statement (its recognizers anchor
-        // at statement start). The engine's H2 text crosses THE boundary
-        // translator through the session's dialect, any other runs as
-        // written (decision D2).
-        for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
-            // recorded AFTER it executes, with its kind: the ledger
-            // mirrors executed reality by construction
-            sendEffect(env, env.dialect().raw(stmt, writtenFor), stmt, com.legend.exec.StatementOrigin.RAW, false);
-        }
+        // its statements the planner's (split, translated to the session's dialect from the language its connection
+        // declares), sent in order, each recorded as authored
+        sendPlanned(body, call, env);
         // an opaque ResultSet handle: setup statements ignore it; a test
         // that READS it will surface loudly here when that day comes
         return new TypedSide.Scalar(null, call.info().type());
@@ -1559,12 +1544,9 @@ public final class BodyDriver {
      * written here, so a database with no schemas, SQLite, refused it). */
     static TypedSide dropAndCreateSchemaInDb(
             java.util.List<TypedSpec> body,
-            com.legend.compiler.spec.typed.TypedNativeCall sc, ExecEnv env) {
-        com.legend.sql.SqlDdl schema = new com.legend.sql.SqlDdl.CreateSchema(
-                evalStringArg(body, sc.args().get(0), env), false);
-        sendEffect(env, env.dialect().render(schema), REFEREE_DDL.render(schema),
-                com.legend.exec.StatementOrigin.RAW, true);
-        return new TypedSide.Scalar(true, sc.info().type());
+            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
+        sendPlanned(body, call, env);
+        return new TypedSide.Scalar(true, call.info().type());
     }
 
     /**
@@ -1577,43 +1559,7 @@ public final class BodyDriver {
     static TypedSide dropAndCreateTableInDb(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
-        ModelContext ctx = env.ctx();
-        if (!(call.args().get(0)
-                instanceof com.legend.compiler.spec.typed.TypedPackageableRef db)) {
-            throw new IllegalStateException("dropAndCreateTableInDb: the database"
-                    + " argument must be a store reference, got "
-                    + call.args().get(0).getClass().getSimpleName());
-        }
-        boolean hasSchema = call.args().size() == 4;
-        String schema = hasSchema
-                ? evalStringArg(body, call.args().get(1), env)
-                : "default";
-        String table = evalStringArg(body, call.args().get(hasSchema ? 2 : 1), env);
-        String lookup = "default".equals(schema) ? table : schema + "." + table;
-        com.legend.model.DatabaseDefinition.TableDefinition def =
-                ctx.findTableDefinition(db.fullPath(), lookup)
-                        .orElseThrow(() -> new IllegalStateException(
-                                "dropAndCreateTableInDb: no table '" + lookup
-                                        + "' in store " + db.fullPath()));
-        // F7.4: model-derived DDL routes DIRECTLY — spelled for the
-        // target from the TYPE, never rendered-H2-then-regexed. The H2
-        // advisory mirror still needs its H2-flavored stream: the SAME
-        // model spells it a second time (recorded only after the session
-        // executed — the recording mirrors executed reality).
-        // the replay ledger carries the H2 spelling of the DDL on EVERY
-        // session (Phase 0.6): the H2 lane's fresh replays inserted into
-        // tables nobody created because this recording was gated on the
-        // DuckDB session (17 `ADDRESSTABLE not found` declines)
-        sendEffect(env, env.dialect().render(Ddl.dropDeclaredTable(def, schema)),
-                REFEREE_DDL.render(Ddl.dropDeclaredTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
-        // engine parity (batch 71 experiment): the native's DDL carries the
-        // declared key and nullability, exactly like the engine's
-        // dropAndCreateTableInDb (applyConstraints defaults true)
-        sendEffect(env, env.dialect().render(Ddl.createTable(def, schema)),
-                REFEREE_DDL.render(Ddl.createTable(def, schema)), com.legend.exec.StatementOrigin.RAW, true);
-        // (the ENGINE's dropAndCreateTableInDb applies PRIMARY KEY constraints;
-        // a record-only ALTER ledger carried them for a metadata replay that
-        // no longer exists — deleted with the meta ledger, batch 137)
+        sendPlanned(body, call, env);
         return new TypedSide.Scalar(true, call.info().type());
     }
 
@@ -1635,23 +1581,7 @@ public final class BodyDriver {
     static TypedSide createTempTable(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
-        String table = evalStringArg(body, call.args().get(0), env);
-        java.util.List<com.legend.sql.SqlDdl.Column> cols = new java.util.ArrayList<>();
-        TypedSpec colsArg = call.args().get(1);
-        java.util.List<TypedSpec> elements = colsArg instanceof com.legend.compiler.spec.typed.TypedCollection c
-                ? c.elements() : java.util.List.of(colsArg);
-        for (TypedSpec e : elements) {
-            if (!(e instanceof com.legend.compiler.spec.typed.TypedNewInstance col)
-                    || !(col.properties().get("name") instanceof com.legend.compiler.spec.typed.TypedCString name)
-                    || !(col.properties().get("type") instanceof com.legend.compiler.spec.typed.TypedNewInstance type)) {
-                throw new IllegalStateException("createTempTable: each column must be a literal"
-                        + " ^Column(name='…', type=^<datatype>()), got " + e.getClass().getSimpleName());
-            }
-            cols.add(new com.legend.sql.SqlDdl.Column(name.value(), false,
-                    com.legend.compiler.element.StoreCompiler.declaredType(datatypeLiteral(type)), false, false));
-        }
-        var ct = new com.legend.sql.SqlDdl.CreateTable(null, table, com.legend.sql.NameQuoting.BARE, cols, true);
-        sendEffect(env, env.dialect().render(ct), REFEREE_DDL.render(ct), com.legend.exec.StatementOrigin.RAW, true);
+        sendPlanned(body, call, env);
         return new TypedSide.Scalar(null, call.info().type());
     }
 
@@ -1659,62 +1589,29 @@ public final class BodyDriver {
     static TypedSide dropTempTable(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
-        String table = evalStringArg(body, call.args().get(0), env);
-        com.legend.sql.SqlDdl.DropTable dt = Ddl.dropTable(null, table);
-        sendEffect(env, env.dialect().render(dt), REFEREE_DDL.render(dt), com.legend.exec.StatementOrigin.RAW, true);
+        sendPlanned(body, call, env);
         return new TypedSide.Scalar(null, call.info().type());
     }
 
-    /** A {@code ^meta::relational::metamodel::datatype::<T>(…)} literal as the store
-     * model's data type, by the class's EXACT FQN ({@link com.legend.compiler.element.type.PlatformTypes});
-     * the sized / scaled kinds read their literal arguments. */
-    private static com.legend.model.RelationalDataType datatypeLiteral(
-            com.legend.compiler.spec.typed.TypedNewInstance type) {
-        java.util.function.Function<com.legend.compiler.spec.typed.TypedNewInstance,
-                com.legend.model.RelationalDataType> reader = DATATYPE_LITERALS.get(type.classFqn());
-        if (reader == null) {
-            throw new com.legend.error.NotImplementedException(
-                    "createTempTable: not a store data type: " + type.classFqn());
-        }
-        return reader.apply(type);
-    }
-
-    /** The data-type classes by exact FQN. */
-    private static final java.util.Map<String, java.util.function.Function<
-            com.legend.compiler.spec.typed.TypedNewInstance, com.legend.model.RelationalDataType>> DATATYPE_LITERALS =
-            java.util.Map.ofEntries(
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_BIGINT, t -> new com.legend.model.RelationalDataType.BigInt()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_SMALLINT, t -> new com.legend.model.RelationalDataType.SmallInt()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_TINYINT, t -> new com.legend.model.RelationalDataType.TinyInt()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_INTEGER, t -> new com.legend.model.RelationalDataType.Integer_()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_FLOAT, t -> new com.legend.model.RelationalDataType.Float_()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DOUBLE, t -> new com.legend.model.RelationalDataType.Double_()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_REAL, t -> new com.legend.model.RelationalDataType.Real()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_BIT, t -> new com.legend.model.RelationalDataType.Bit()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_TIMESTAMP, t -> new com.legend.model.RelationalDataType.Timestamp()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DATE, t -> new com.legend.model.RelationalDataType.Date_()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_TIME, t -> new com.legend.model.RelationalDataType.Time()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_TIMESTAMP_NS, t -> new com.legend.model.RelationalDataType.TimestampNs()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DISTINCT, t -> new com.legend.model.RelationalDataType.Distinct()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_OTHER, t -> new com.legend.model.RelationalDataType.Other()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_SEMI_STRUCTURED, t -> new com.legend.model.RelationalDataType.SemiStructured()),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_VARCHAR, t -> new com.legend.model.RelationalDataType.Varchar(literalInt(t, "size"))),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_CHAR, t -> new com.legend.model.RelationalDataType.Char_(literalInt(t, "size"))),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_BINARY, t -> new com.legend.model.RelationalDataType.Binary(literalInt(t, "size"))),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_VARBINARY, t -> new com.legend.model.RelationalDataType.Varbinary(literalInt(t, "size"))),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_DECIMAL, t -> new com.legend.model.RelationalDataType.Decimal(literalInt(t, "precision"), literalInt(t, "scale"))),
-                    java.util.Map.entry(com.legend.compiler.element.type.PlatformTypes.DATATYPE_NUMERIC, t -> new com.legend.model.RelationalDataType.Numeric(literalInt(t, "precision"), literalInt(t, "scale"))));
-
-    private static int literalInt(com.legend.compiler.spec.typed.TypedNewInstance type, String property) {
-        if (!(type.properties().get(property) instanceof com.legend.compiler.spec.typed.TypedCInteger n)) {
-            throw new IllegalStateException("createTempTable: " + type.classFqn() + " needs a literal " + property);
-        }
-        return n.value().intValue();
-    }
 
     /** One toDDL string-generator call — engine golden spellings
      * (testDDL.pure:42-45); createTableStatement renders from the
      * compiled store model like dropAndCreateTableInDb. */
+
+    /** {@code call}'s statements, the planner's ({@link com.legend.planner.EffectPlanner}, the seam program's S2d,
+     *  2026-10-31): its String arguments evaluated here (a literal folded; a computed one run, the one place a value
+     *  feeds a statement's text), the statements written from them, then sent in order as RAW (an effect segment
+     *  collects them for its script). */
+    private static void sendPlanned(java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
+        java.util.List<String> values = new java.util.ArrayList<>();
+        for (TypedSpec arg : com.legend.planner.EffectPlanner.stringArgs(call)) {
+            values.add(evalStringArg(body, arg, env));
+        }
+        for (var s : com.legend.planner.EffectPlanner.statements(call, values, body, env.plan())) {
+            sendEffect(env, s.executed(), s.recorded(), com.legend.exec.StatementOrigin.RAW, s.ddl());
+        }
+    }
 
     /**
      * Evaluate one String[1] argument of a K-native THROUGH the pipeline:
