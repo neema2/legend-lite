@@ -32,7 +32,7 @@ below is made on its merits, and the examples are regenerated, not migrated.
 
 ## 2. The decisions
 
-**D1. One reader** (revised after the review, §10; ruling R6). Pure travels between programs as the protocol's tree;
+**D1. One reader** (revised after the review, §10; **ruled by the user, 2026-10-31: "Let's do it"**, after it was shown that upstream carries its own `#SQL{...}#` island the same way -- `{"_type":"classInstance","type":"SQL","value":{"sql":"..."}}`, the text untrimmed, which lite's `IslandLanguage.SQL` matches byte for byte). Pure travels between programs as the protocol's tree;
 a `#TS` query inside it travels as its own text, and **core's parser is its only reader** -- never another grammar,
 never a second parser. A person's text is kept as written (its comments, its layout, `TsIslandRoundTripTest`'s "printed
 as written"); a program writes the canonical text the printer gives. Inside core the parser builds the tree
@@ -300,8 +300,8 @@ the user and written down, with gs-quant's answer beside lite's: the oracle's re
   §4.3's printed forms.
 - **R4.** The order and sizes of §6.
 - **R5.** The oracle lane: gs-quant and its dependencies pinned in one test lane; the frozen answers for the rest.
-- **R6.** D1 as revised: one reader, text inside the protocol's tree; or version 1's tree on the wire, with its schema
-  and three codecs (a large step of its own, before the reader).
+- **R6. Ruled 2026-10-31:** D1 as revised -- one reader, a `#TS` query as its text inside the protocol's tree, as
+  upstream carries `#SQL`. Version 1's tree on the wire is dropped.
 - **R7.** D2 as narrowed: gs-quant's meaning unless it looks ahead or clashes with SQL in the statement; the clashing
   words refused in text.
 - **R8.** The whole-line first and last: `first_of`/`last_of` (today's, no clash), or new names (`latest` is taken).
