@@ -88,7 +88,7 @@ steps with checkpoints (§7).
 | T6 | the corpus lanes' engine row-order emulation (`StableScanOrder`), a run option the lanes pass, not a JVM global (R7 decision 8) | D25 |
 | T8 | the test-data generator: a two-plan body (the generator's plan runs, its rows fold into the next plan) | D38 |
 | T9 | a computed effect string: a step whose one cell is the next step's statement text | D39 |
-| T10 | `assertError`: an `ExpectFailure` sub-plan (a planning failure included, O8) whose captured error (message, position) feeds an ordinary string-equality verdict step, judged by either judge (§9 N3) | R17 |
+| T10 | `assertError`: an `ExpectFailure` sub-plan (a planning failure included, O8); the captured error compared with the expected message and position (§9 N3: in Java, recommended) | R17 |
 | T11 | the engine-text asserts: the two SQL texts compared as a constant of the plan; where they differ, the rows leg one statement on the lane's database where the golden runs there | R10 |
 | T12 | staged raw grids (a raw grid read after an effect, held in a temporary table) | R6, D12 |
 | T13 | the H2 referee replay: the verdict source of an engine-text assert whose texts differ (about 1,258 replays per DuckDB corpus pass), outside the body's plan (R6) | R10 |
@@ -324,15 +324,21 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
 
 ## 9. Still open (for the user)
 
-- **N3, `assertError` (T10), proposed after the user's question** ("why can't you send the error message to the
-  database exactly like assertEqual on strings"): two ordinary pieces, no matcher of its own. (1) An `ExpectFailure`
-  step runs the body's sub-plan; the runner captures what came back -- the error's message as text and its line and
-  column where it carries them (raised by the database, or by the compiler while planning the body, O8), or "no
-  error" -- computing nothing. (2) A verdict step whose constant sides are the captured message (and position) and the
-  expected one: an `assertEquals` of strings, judged as every assert is -- in SQL by the database judge (inside the
-  fused statement, its polarity and failure message in the statement), in Java by the host judge. Today's failure
-  texts ("Execution error message mismatch. The actual message was ...", "No error was thrown", the line and column
-  forms) become that verdict's message template, unchanged. Recommended: yes; awaiting the user's word.
+- **N3, `assertError` (T10).** The shape: an `ExpectFailure` step runs the body's sub-plan and the runner captures
+  what came back -- the error's message and position (raised by the database, or by the compiler while planning the
+  body, O8), or "no error" -- and the outcome is reported through the same verdict path as every assert (today a
+  special arm runs a nested body). Where the comparison happens, two options:
+  - **A (recommended):** Java compares the captured message and position with the expected ones, in both judge modes:
+    the one other named Java comparison beside the host judge's. Honest because the "actual" side is an error the
+    client caught, never a value a query computed: there is no SQL of ours under test in that comparison.
+  - B (the user's question, "why can't you send the error message to the database exactly like assertEqual on
+    strings"): the captured message bound as a parameter into a string-equality verdict in the fused statement. It
+    works and costs no extra round trip where the assert shares a group, but it tests nothing new, adds a run-time
+    value bound into a later statement (the flow the program removes elsewhere), and string equality differs across
+    databases (MySQL's default collation is case-insensitive; some ignore trailing spaces), so it needs a binary
+    collation per dialect to be right.
+  Today's failure texts ("Execution error message mismatch. The actual message was ...", "No error was thrown", the
+  line and column forms) are kept either way.
 
 ## 10. Status
 
