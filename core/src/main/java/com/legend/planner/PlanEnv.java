@@ -20,7 +20,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * it names, never the maps it was handed.
  */
 public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
-        com.legend.sql.dialect.SqlDialect dialect,
+        com.legend.sql.dialect.@com.legend.base.Nullable SqlDialect dialect,
         java.util.Map<String, TypedSpec> queryLets,
         java.util.Map<String, String> tableReplace,
         com.legend.lowering.ObjectSites instanceIds,
@@ -36,7 +36,8 @@ public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtime
      *  generator's statements -- handed in by the driver until the generator's planning moves (the seam program's
      *  S2j: the generator's plan a plan of its own). */
     public static PlanEnv of(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.sql.dialect.SqlDialect dialect, java.util.Set<com.legend.platform.Feature> features,
+            com.legend.sql.dialect.@com.legend.base.Nullable SqlDialect dialect,
+            java.util.Set<com.legend.platform.Feature> features,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedTestDataGen, String> generatorPlanText) {
         return new PlanEnv(ctx, runtimeFqn, dialect, new java.util.LinkedHashMap<>(), java.util.Map.of(),
                 // the body is one program: one minter for its objects (B9); the test road's ids keep their own
@@ -50,6 +51,14 @@ public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtime
     public PlanEnv withFeatures(java.util.Set<com.legend.platform.Feature> f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
                 frame, f, generatorPlanText);
+    }
+
+    /** The dialect this environment's statements are written in: a test body's environment always names one; the
+     *  product's statement road ({@code ProductStatements}) names none, since its caller renders in the runtime's
+     *  dialect and nothing on that road writes a statement itself. */
+    public com.legend.sql.dialect.SqlDialect writtenIn() {
+        return java.util.Objects.requireNonNull(dialect, "a statement written on an environment that names no"
+                + " dialect: the product's statement road writes none");
     }
 
     /** The executing frame's bound context (post-processors, time zone, options) -- set where an execute frame is

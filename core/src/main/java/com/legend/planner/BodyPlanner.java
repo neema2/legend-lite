@@ -412,7 +412,7 @@ public final class BodyPlanner {
         if (!(prepare(body, routed) instanceof Prepared.Planned p)) {
             return null;
         }
-        return new Bare(lowerAndPrepare(p.body(), p.env(), p.env().ctx(), p.env().dialect(), true), p.root());
+        return new Bare(lowerAndPrepare(p.body(), p.env(), p.env().ctx(), p.env().writtenIn(), true), p.root());
     }
 
     /** The test-data generator's VIEW fetch SQL: the view's lifted function (E.5, reached through the include closure
@@ -433,6 +433,6 @@ public final class BodyPlanner {
         }
         com.legend.sql.SqlQuery plan = com.legend.lowering.SqlPostProcessors.apply(
                 b.plan(), t -> tableToTemp.getOrDefault(t, t));
-        return env.dialect().render(plan);
+        return env.writtenIn().render(plan);
     }
 }

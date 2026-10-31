@@ -267,7 +267,11 @@ posted the same way (R7 decision 12).
   of their own, the limit recorded in S111, which B1 removes at M5.
 - **B10, `execute(...)` frames in the program (M3).** The chain spliced into its readers by the compiler's rules
   (`ResultEnvelopeSplice`); the frame planned once and read as a CTE where it is read more than once (MV9); the eager
-  run at the let a `Check` step (decision 1); the activity's SQL and its reserved trace stamp as plan data.
+  run at the let a `Check` step (decision 1); the activity's SQL and its reserved trace stamp as plan data. Carried
+  from M2's audit (2026-10-31): a frame's TABLE RENAMES (its connection's `tableReplace` post-processor) become plan
+  data for both roads -- today the environment's renames are an `execute(...)` frame's and a `from()` frame's are
+  applied on neither road (only a `toSQLString` call applies its own runtime's, `EnginePlans`); the census's one
+  unattributed front-half difference (a graph fetch read through a frame, the STREAM factor) is re-measured here.
 - **B11, the product's statement road (M2; written 2026-10-31 under R15).** The product planner gains the test road's
   language features, so a product query and a test statement are planned by the same functions; the test road is not
   touched (its own walk stays until M5). One road, `planner/ProductStatements`, used by `PlanMaker.plan` (a query) and
@@ -280,7 +284,9 @@ posted the same way (R7 decision 12).
   4. prepared (`BodyPlanner.prepare`'s framing, D16): the OUTERMOST from()'s context is the frame -- its connection's
      time zone (D4), its features (D6, with the tree's and the caller's), its connection post-processors (D10) -- and
      its driver-PK and import-data-flow appends and the declared root kept; an answered kind (D17/R18: a DDL text, a
-     handle) a constant answer, never a statement;
+     handle) a constant answer, never a statement (as built: a DDL text is the plan's constant; a handle has no value
+     a plan can answer, so a query answering one is refused by name and a program's handle before its last statement
+     plans no step -- the test road's null is a stand-in its judges never compare);
   5. lowered with the PRODUCT's configuration (object layout, the program's minter, the exists-join form unless
      temporal, the streaming graph root on the answer, the slots) plus the frame's time zone and features and the
      seedable let prefix (D9); post-processed (`SqlPostProcessors.applyRecorded`, D10); `EnumValueTables`,
@@ -290,12 +296,17 @@ posted the same way (R7 decision 12).
      `PlanJson` 23, the TypeScript runner's pin); a program of constants only accepted by the runner (B2's
      constant-only programs, `PlanRunner.java:231-233`);
   7. a raw grid's or a dynamic pivot's rows keyed where the test road keys them (`rowsOrGridKeyed`, D29); a `toOne()`
-     reader's cardinality held where the product answers (D30), by the same rule the test road's sink applies.
+     reader's cardinality held where the product answers (D30), by the same rule the test road's sink applies. As
+     built: D29 in `PlanMaker.typed`, for a query and a program's last statement. D30 NOT built: the product answers a
+     `toOne()` over a relation of other than one row with its rows today, and holding the rule turns that answer into
+     an error -- an output change, put to the user first (§9).
   Not in M2: `execute(...)` read as a value (D15, the frames of B10, M3); effects (M3); the system database (M4).
   Movement: product SQL only, for queries that use these features; measured by every core test package's sent
   statements before and after (the M1 method) and by the M0 parity census re-run (its refusals for D9, D13, D14, D16
   and the generator carriers shrink, its TZ and POST differences go). The test road's statements: none expected.
-  Sub-steps, each its own commit with the chain: M2a (1-5), M2b (6), M2c (7); the audit at M2's end.
+  Sub-steps, each its own commit with the chain: M2a (1-5), M2b (6), M2c (7); the audit at M2's end. As built: the
+  three were built and measured in order (M2a's movement zero) and land as one commit with one chain, since none was
+  usable alone.
 
 ## 7. The steps (◆ = a checkpoint: the branch pushed, CI on every OS, the lane sessions, the movement register to the user)
 
@@ -383,6 +394,16 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   knowable at compile time, but the engine parses it when the assert runs. The user: "Planned raise is fine". It
   becomes a planned raise at the assert's position, as the engine raises it there. Every other planning failure M0 saw
   is classified in `docs/test-is-product-homework/C_M0_MEASUREMENTS.md` §4.
+- **D30, a `toOne()` over a relation in the product -- OPEN (posted at M2, 2026-10-31).** The expression:
+  `#TDS\nA\n1\n2\n#->filter(r|$r.A > 0)->toOne()`, run as a product query. Today the product answers its two rows
+  (A = 1, A = 2): the lowering makes `toOne()` over a relation the relation itself and nothing checks the rows. The
+  test road raises "toOne() over a relation returned 2 row(s) -- the exactly-one contract (engine reader semantics)"
+  (`JudgePlans`' `Cardinality` sink, `BodyDriver.enforceToOneReader`), and `docs/audit-22b-wire.md` F1 recorded the
+  engine throwing on it (probe W1). Holding the rule in the product changes an answer into an error, so it waits for
+  the user. If ruled in: the plan carries the answer's to-one fact and the runner holds it with the test road's
+  words (the scalar and the required-root bounds the same way); upstream's answer is read from the pinned engine
+  sources before it lands. If ruled out: a `docs/SEMANTICS_REGISTER.md` row for the product's answer. No corpus or
+  channel B case reaches it (M0).
 
 ## 10. Status
 

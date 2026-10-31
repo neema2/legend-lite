@@ -95,6 +95,9 @@ class ProductStatementsTest {
         ExecutionPlan values = plan("{|" + CONN
                 + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).rows->map(r|$r.values);}");
         assertInstanceOf(ExecutionPlan.Keyed.class, values.root());
+        // a value read off the grid answers as a value, not a relation (M2's audit: a writer chooses its layout by the
+        // answer's shape, and the server refuses a value's answer by name)
+        assertEquals(ExecutionPlan.TdsResult.Shape.VALUE, values.answerShape());
         // the test road's own answer to the same statement (its rows plan, JudgePlans.rowsPlan, keyed the same way)
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(com.legend.testing.Program.last(StorelessRuntime.with("", Databases.PLATFORM), "{|" + CONN
@@ -105,6 +108,7 @@ class ProductStatementsTest {
         ExecutionPlan names = plan("{|" + CONN
                 + "meta::relational::metamodel::execute::executeInDb('select 7 as A, 8 as B', $c).columnNames;}");
         assertInstanceOf(ExecutionPlan.Keyed.class, names.root());
+        assertEquals(ExecutionPlan.TdsResult.Shape.VALUE, names.answerShape());
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(com.legend.testing.Program.last(StorelessRuntime.with("", Databases.PLATFORM), "{|" + CONN
                     + "meta::relational::metamodel::execute::executeInDb('select 7 as A, 8 as B', $c).columnNames;}",
@@ -130,5 +134,88 @@ class ProductStatementsTest {
         ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root());
         assertTrue(seq.steps().stream().noneMatch(st -> st instanceof ExecutionPlan.Constant), seq.steps().toString());
         assertInstanceOf(ExecutionPlan.Update.class, seq.steps().get(0));
+    }
+
+    private static final String LEGACY = """
+            ###Relational
+            Database test::DB ( Table T (id INTEGER PRIMARY KEY, name VARCHAR(200)) )
+            ###Mapping
+            Mapping test::M ( )
+            """;
+
+    @Test
+    void aStagedToSqlStringIsThePlansConstantAndTheTestRoadsText() throws Exception {
+        // D14: toSQLString's engine text is a plan-time value (staged), so the product's plan answers it as its own
+        // constant; the text is the test road's for the same statement
+        String query = "|meta::relational::functions::sqlstring::toSQLString(|#>{test::DB.T}#->select(~[id, name]),"
+                + " test::M, meta::relational::runtime::DatabaseType.H2, [])";
+        String model = StorelessRuntime.with(LEGACY, Databases.PLATFORM);
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan(StorelessRuntime.RUNTIME);
+        ExecutionPlan.Constant c = assertInstanceOf(ExecutionPlan.Constant.class, plan.root());
+        try (Connection conn = TestBackends.platform().open()) {
+            assertEquals(String.valueOf(com.legend.testing.Program.last(model, query, StorelessRuntime.RUNTIME, conn)
+                    .one()), c.cells().get(0).get(0));
+        }
+        assertTrue(c.cells().get(0).get(0).startsWith("select "), c.cells().toString());
+    }
+
+    @Test
+    void aDdlTextIsThePlansConstantAndHasNoSqlText() {
+        // D17: a DDL text generator's text is the model's, answered with nothing sent; the query's SQL text (the
+        // lowering, TypedQuery.lower) has none, refused by name
+        String query = "|meta::relational::functions::toDDL::createTableStatement(test::DB, 'T')";
+        com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(StorelessRuntime.with(LEGACY,
+                Databases.PLATFORM)), query);
+        ExecutionPlan.Constant c = assertInstanceOf(ExecutionPlan.Constant.class,
+                typed.executionPlan(StorelessRuntime.RUNTIME).root());
+        assertTrue(c.cells().get(0).get(0).toUpperCase(java.util.Locale.ROOT).startsWith("CREATE TABLE"),
+                c.cells().toString());
+        com.legend.error.NotImplementedException none = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> typed.lower(StorelessRuntime.RUNTIME, false));
+        assertTrue(none.getMessage().contains("DDL text"), none.getMessage());
+    }
+
+    @Test
+    void aProgramOfConstantsAloneRunsWithNoSession() throws Exception {
+        // B2: a program that sends nothing answers its constant; no session is opened
+        ExecutionPlan plan = plan("|'alone'");
+        com.legend.result.Collector collector = new com.legend.result.Collector();
+        PlanSessions.Source none = target -> {
+            throw new AssertionError("a program that sends nothing opened a session");
+        };
+        PlanRunner.program(plan, Map.of(), none, PlanRunner.Judging.HOST, new PlanRunner.ProgramSink() {
+                    @Override
+                    public void columns(List<ExecutionPlan.Column> columns) throws java.io.IOException {
+                        collector.columns(columns);
+                    }
+
+                    @Override
+                    public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+                        collector.batch(batch);
+                    }
+
+                    @Override
+                    public void end() throws java.io.IOException {
+                        collector.end();
+                    }
+
+                    @Override
+                    public void verdict(ExecutionPlan.Verdict verdict,
+                            @com.legend.base.Nullable List<Object> row) {
+                        throw new AssertionError("no verdicts");
+                    }
+
+                    @Override
+                    public void fused(ExecutionPlan.Verdicts group,
+                            com.legend.error.@com.legend.base.Nullable DataError rejected) {
+                        throw new AssertionError("no verdicts");
+                    }
+
+                    @Override
+                    public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> sides) {
+                        throw new AssertionError("no verdicts");
+                    }
+                });
+        assertEquals(List.of(List.of("alone")), collector.collected().rows());
     }
 }

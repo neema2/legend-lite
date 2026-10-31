@@ -93,7 +93,7 @@ public final class PlanMaker {
      * A program that changes a store, planned as the steps of one {@link ExecutionPlan.Sequence}
      * (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): each statement at its turn with the lets before it, as the
      * execution's body compiler takes them, every one inlined, resolved and lowered as a query is
-     * ({@link TypedQuery#resolve}), each declared parameter a value its statement binds. A staged let
+     * (the product's statement road, {@link ProductStatements}), each declared parameter a value its statement binds. A staged let
      * ({@code let s = rows->stage()}) creates its temporary table, which the statements after read, and is dropped
      * after the result; another let rides the lets of the statements after; a write into a store table is an update;
      * any other statement before the last a check (its rows dropped: a Cypher write's guard raises). The last
@@ -366,7 +366,7 @@ public final class PlanMaker {
         }
         return new ExecutionPlan.Keyed(sql(keys, dialect, target), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
                 List.of("name"), outputs, outputs.size(), sql(statement, dialect, target),
-                snapshotOf(keysSnapshot), dialect.resultColumnLimit());
+                snapshotOf(keysSnapshot), dialect.resultColumnLimit(), shape);
     }
 
     /** The raw grid a report reads: its grid is a plain read of one authored text (the lowering's raw grid, or its

@@ -238,7 +238,27 @@ public final class PlanRunner {
                     + " one");
         }
         if (target == null) {
-            throw new IllegalStateException("a program of constant steps alone names no target: nothing to run");
+            // a program that sends nothing (the test-is-the-product plan's B2, M2): its constant answer, no session
+            // opened; a step with nothing to send that is not a constant (a verdict group of constant sides alone) is
+            // the verdict design's (M6), refused by name
+            Held held = new Held();
+            boolean answered = false;
+            for (ExecutionPlan.Node step : sequence.steps()) {
+                if (!(step instanceof ExecutionPlan.Constant c)) {
+                    throw new com.legend.error.NotImplementedException("a program that sends nothing but a "
+                            + step.getClass().getSimpleName() + " step: only a constant answer runs with no session");
+                }
+                constant(c, held);
+                answered = true;
+            }
+            if (answered) {
+                Streamed streamed = new Streamed(held.columns, sink, com.legend.result.Batcher.DEFAULT_CAPACITY);
+                for (List<Object> row : held.rows) {
+                    streamed.row(row);
+                }
+                streamed.end();
+            }
+            return;
         }
         ExecutionPlan.Target on = target;
         Held held = new Held();

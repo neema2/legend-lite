@@ -33,7 +33,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     public TdsResult.Shape answerShape() {
         return switch (answer(root)) {
             case TdsResult t -> t.shape();
-            case Keyed k -> TdsResult.Shape.RELATION;
+            case Keyed k -> k.shape();
             case Constant c -> TdsResult.Shape.VALUE;
             default -> throw new IllegalStateException("not reached: answer() keeps typed results only");
         };
@@ -358,11 +358,19 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * (2026-10-27, the result boundary program's phase 5: an extend after a pivot answered before the per-key
      * columns). {@code maxColumns}: the most columns the database
      * answers, a body asked for more refused by name before it is sent; null where the database has no limit said.
+     * {@code shape}: the answer's shape, as a typed result's ({@link TdsResult.Shape}): a pivot's is a relation; a raw
+     * grid's report read as a value (its column names, its rows' cells) is a value (the test-is-the-product plan's
+     * M2, its audit: a writer chooses its layout by it, and a value answered as a relation was written as one).
      */
     public record Keyed(Sql keys, KeysOf keysOf, List<String> admitted, List<String> keyFields, List<Output> outputs,
-            int perKeyAt, Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
+            int perKeyAt, Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns,
+            TdsResult.Shape shape) implements Node {
         public Keyed {
             Objects.requireNonNull(keys, "keys");
+            Objects.requireNonNull(shape, "shape");
+            if (shape == TdsResult.Shape.OBJECTS) {
+                throw new IllegalArgumentException("a keyed result answers a relation or a value, not objects");
+            }
             Objects.requireNonNull(keysOf, "keysOf");
             admitted = List.copyOf(admitted);
             if (keysOf == KeysOf.ROWS && !admitted.isEmpty()) {
@@ -411,7 +419,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         /** A keyed result whose keys are a statement's ROWS (a dynamic pivot's distinct values). */
         public Keyed(Sql keys, List<String> keyFields, List<Output> outputs, int perKeyAt, Sql body,
                 Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) {
-            this(keys, KeysOf.ROWS, List.of(), keyFields, outputs, perKeyAt, body, snapshot, maxColumns);
+            this(keys, KeysOf.ROWS, List.of(), keyFields, outputs, perKeyAt, body, snapshot, maxColumns,
+                    TdsResult.Shape.RELATION);
         }
 
         /**

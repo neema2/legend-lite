@@ -62,7 +62,7 @@ public final class SidePlanner {
             return new Unplanned(r.prepared(), r.route());
         }
         PlanEnv penv = p.env();
-        com.legend.sql.SqlQuery plan = BodyPlanner.lowerAndPrepare(p.body(), penv, penv.ctx(), penv.dialect(),
+        com.legend.sql.SqlQuery plan = BodyPlanner.lowerAndPrepare(p.body(), penv, penv.ctx(), penv.writtenIn(),
                 hostSide ? identityLane : true);
         if (rider != null && rider.canonicalJsonKeys()) {
             plan = com.legend.sql.JsonKeyOrder.sort(plan);

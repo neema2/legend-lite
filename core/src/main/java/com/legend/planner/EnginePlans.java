@@ -45,6 +45,11 @@ public final class EnginePlans {
         // runtime), through the lets and the inlined user calls
         TypedSpec dbArg = in.dialect();
         String db;
+        // the call's own runtime's table renames (its connection's post-processors): the engine's toSQLString plans
+        // against that runtime, so its text names the replaced tables wherever the call is planned (the
+        // test-is-the-product plan's M2: the product stages it with no frame of its own; the assertSameSQL arm, which
+        // put the same renames in the environment first, reads the same text)
+        java.util.Map<String, String> callRenames = java.util.Map.of();
         if (dbArg instanceof com.legend.compiler.spec.typed.TypedEnumValue) {
             db = typedEnumTail(dbArg);
         } else if (in.receiverForm()) {
@@ -52,9 +57,11 @@ public final class EnginePlans {
                     .inlineBody(java.util.List.of(
                             com.legend.compiler.spec.typed.Lets.bound(in.runtime(), letPrefix)))
                     .get(0);
-            String boundDb = com.legend.compiler.spec.typed.ExecutionContext.reader()
-                    .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
-                    .read(java.util.Optional.empty(), rt).databaseType();
+            com.legend.compiler.spec.typed.ExecutionContext rtCtx = com.legend.compiler.spec.typed.ExecutionContext
+                    .reader().bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
+                    .read(java.util.Optional.empty(), rt);
+            String boundDb = rtCtx.databaseType();
+            callRenames = rtCtx.postProcessors().tableReplace();
             if (boundDb == null) {
                 throw new com.legend.error.NotImplementedException(
                         "toSQLString over a toSQL handle whose runtime carries"
@@ -62,9 +69,11 @@ public final class EnginePlans {
             }
             db = boundDb;
         } else {
-            String dbBound = com.legend.compiler.spec.typed.ExecutionContext.reader()
-                    .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
-                    .read(java.util.Optional.empty(), dbArg).databaseType();
+            com.legend.compiler.spec.typed.ExecutionContext dbCtx = com.legend.compiler.spec.typed.ExecutionContext
+                    .reader().bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
+                    .read(java.util.Optional.empty(), dbArg);
+            String dbBound = dbCtx.databaseType();
+            callRenames = dbCtx.postProcessors().tableReplace();
             // C4 (handed off, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): an unread type is the
             // reader's gap, read as the engine test connection's database until the rebuild reads it
             db = dbBound == null ? EngineText.ENGINE_TEST_DATABASE.name() : dbBound;
@@ -81,8 +90,13 @@ public final class EnginePlans {
                     "toSQLString mapping argument must be a mapping reference");
         }
         EngineSql es = engineSql(lam, pr.fullPath(), specs, env, renderer);
+        java.util.Map<String, String> renames = env.tableReplace();
+        if (!callRenames.isEmpty()) {
+            renames = new java.util.LinkedHashMap<>(env.tableReplace());
+            renames.putAll(callRenames);
+        }
         com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors
-                .apply(es.plan(), env.tableReplace());
+                .apply(es.plan(), renames);
         // toNonExecutableSQLString: the engine's nonExecutable post-processor
         // (every SELECT takes `and 1 = 2`) — the IR pass, then the render
         if (com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn().equals(call.fqn())) {

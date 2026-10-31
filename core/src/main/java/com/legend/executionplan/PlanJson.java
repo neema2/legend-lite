@@ -68,7 +68,8 @@ public final class PlanJson {
      *  only"); 22 since 2026-10-31: a keyed result's {@code keysOf} and {@code admitted} (its keys a raw grid's
      *  reported columns, the kinds its cells may be in) and a verdict's keyed wrapper (the seam program's S3c); 23 since
      *  2026-10-31: the {@code constant} node (a value the program wrote, answered with nothing sent: the
-     *  test-is-the-product plan's M2, MV12). */
+     *  test-is-the-product plan's M2, MV12) and a keyed result's {@code shape} (a value read off a raw grid's report is
+     *  a value's answer, not a relation's: M2's audit). */
     public static final int VERSION = 23;
 
     private PlanJson() {
@@ -172,6 +173,7 @@ public final class PlanJson {
                 o.put("body", sql(k.body()));
                 o.put("snapshot", k.snapshot().name());
                 o.put("maxColumns", k.maxColumns());
+                o.put("shape", k.shape().name());
             }
             case ExecutionPlan.Update u -> {
                 o.put("_type", NodeTag.update.name());
@@ -464,7 +466,8 @@ public final class PlanJson {
                         outputs, o.getInt("perKeyAt"),
                         readSql(o.getObj("body")),
                         named(ExecutionPlan.Keyed.Snapshot.class, o.getString("snapshot"), "keyed snapshot"),
-                        o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"));
+                        o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"),
+                        named(TdsResult.Shape.class, o.getString("shape"), "keyed result shape"));
             }
             case update -> new ExecutionPlan.Update(readSql(o.getObj("sql")), o.has("count") ? o.getString("count")
                     : null);

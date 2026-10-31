@@ -129,7 +129,7 @@ public final class BodyDriver {
             return plan.runtimeFqn();
         }
         com.legend.sql.dialect.SqlDialect dialect() {
-            return plan.dialect();
+            return plan.writtenIn();
         }
         java.util.Map<String, TypedSpec> queryLets() {
             return plan.queryLets();

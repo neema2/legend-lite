@@ -69,7 +69,7 @@ public final class EffectPlanner {
                 // (decision D2); the ledger records each as authored
                 java.util.List<Statement> out = new java.util.ArrayList<>();
                 for (String stmt : com.legend.sql.RawSql.splitStatements(values.get(0))) {
-                    out.add(new Statement(env.dialect().raw(stmt, writtenFor), stmt, false));
+                    out.add(new Statement(env.writtenIn().raw(stmt, writtenFor), stmt, false));
                 }
                 yield out;
             }
@@ -119,7 +119,7 @@ public final class EffectPlanner {
 
     /** A DDL statement: the session's dialect's text sent, the referee's recorded. */
     private static Statement ddl(com.legend.sql.SqlDdl ddl, PlanEnv env) {
-        return new Statement(env.dialect().render(ddl), REFEREE_DDL.render(ddl), true);
+        return new Statement(env.writtenIn().render(ddl), REFEREE_DDL.render(ddl), true);
     }
 
     /** {@code dropAndCreateTableInDb}'s store: its first argument, a store reference, or refused by name. */

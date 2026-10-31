@@ -809,7 +809,7 @@ class JavaEvalLedgerTest {
             // values: planToString, toSQLString, the plan model) and the body planner (the resolver, the Lowerer, the
             // plan-preparation ladder, a value's road to its body); 2,281 = 1,498 + 658 + 127 - 2 (the generator's plan
             // text handed in by the driver, two lines more there)
-            Map.entry("core/src/main/java/com/legend/planner/EnginePlans.java", 707),   // 663 -> 707 (2026-10-31, the shared preparation): the DDL text generators' text (ddlText, D30's plan-time values) from the body driver's prelude   // 658 -> 663 (2026-10-31, S2g's third step): engineTestSql, the frame planner's road to an activity's engine SQL (only the plan-text classes hold the engine-text dialect)
+            Map.entry("core/src/main/java/com/legend/planner/EnginePlans.java", 717),   // 707 -> 717 (2026-10-31, the test-is-the-product plan's M2, its census re-run): toSQLString applies its own runtime argument's table renames (the connection's post-processors, read from the model) wherever it is planned -- the product stages it with no frame, and printed the text without them; nothing evaluated   // 663 -> 707 (2026-10-31, the shared preparation): the DDL text generators' text (ddlText, D30's plan-time values) from the body driver's prelude   // 658 -> 663 (2026-10-31, S2g's third step): engineTestSql, the frame planner's road to an activity's engine SQL (only the plan-text classes hold the engine-text dialect)
             // 127 -> 268 (2026-10-31, the shared preparation): the body driver's prelude's framing and its classification of a
             // statement's answer with no plan (prepare), the orchestration handle's type, the effect scan, and the bare plan with
             // no session (bare) -- from the body driver; the answers that run stay there
@@ -1454,8 +1454,10 @@ class JavaEvalLedgerTest {
                     // the product's statement road (the test-is-the-product plan's M2, B11, 2026-10-31): a query's and
                     // a program's statements planned by the test road's front half (inlined with the lets kept, natives
                     // staged, resolved with the lets' bindings, prepared, lowered with the product's configuration and
-                    // the frame's facts, post-processed); a String or Boolean literal and a DDL text the plan's own
-                    // constant. Planning, no session; nothing evaluated: a constant is the literal's or the model's text
+                    // the frame's facts, post-processed); a String or Boolean literal -- a staged planToString or
+                    // toSQLString text among them -- and a DDL text the plan's own constant; the admitted literal kinds'
+                    // one owner. Planning, no session; nothing evaluated: a constant is the literal's, the model's or
+                    // the plan-time text's
                     "ProductStatements.java",
                     "package-info.java");
 

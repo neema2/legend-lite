@@ -38,7 +38,7 @@ public final class TypedQuery {
     }
 
     /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). */
-    /** The spec compiler the query was typed by. This and the members below (resolved, lower, Resolved, resolve,
+    /** The spec compiler the query was typed by. This and the members below (resolved, lower,
      *  lowerer, writes) are the planner's and the driver's internals, public since step C (D73, 2026-10-30) because
      *  the machinery left this package; the product API of a typed query is plan, lower(runtime), resultType,
      *  expression, target and parameters. */
@@ -137,37 +137,6 @@ public final class TypedQuery {
         com.legend.sql.SqlQuery plan = com.legend.planner.ProductStatements.lower(this, p, s.temporal(), streaming,
                 slots, new com.legend.lowering.ObjectSites());
         return new Compiler.LoweredQuery(plan, p.body().get(p.body().size() - 1), ctx);
-    }
-
-    /** Statements inlined (G½) and resolved (H) for a runtime, every store they touch bound to it: what a lowering
-     *  reads. {@code temporal}: whether a temporal class is read (the exists-join form is the engine's otherwise). */
-    public record Resolved(List<TypedSpec> body, boolean temporal) {
-        public TypedSpec root() {
-            return body.get(body.size() - 1);
-        }
-    }
-
-    /** {@code statements} (a query's body, or one statement of a program with the lets before it: a write plan's step,
-     *  docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) inlined, resolved against {@code runtime}, every touched store
-     *  checked against its connections -- every planning step before the lowering, no database. */
-    public Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
-        return resolve(statements, runtime, null);
-    }
-
-    /** {@link #resolve(List, String)} for the statement at position {@code statement} of a program planned
-     *  statement by statement: its own constructions are evaluations of that statement
-     *  ({@link com.legend.compiler.spec.UserCallInliner#inlineBody(List, Integer)}, B9). */
-    public Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime,
-            @com.legend.base.Nullable Integer statement) {
-        List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
-                new java.util.ArrayList<>(statements), statement);   // Phase G½
-        boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
-        b = new com.legend.resolver.StoreResolver(ctx, specs).resolve(b, runtime);   // Phase H
-        // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by
-        // name), then every store the query touches must be bound to it (C3b)
-        Compiler.executesOn(ctx, runtime);
-        CrossStoreGuard.check(b, ctx, runtime);
-        return new Resolved(b, temporalRoot);
     }
 
     /** The Lowerer a planned statement lowers with (the wire path's): the model's object layouts (every object its

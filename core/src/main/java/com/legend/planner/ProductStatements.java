@@ -25,13 +25,22 @@ import java.util.List;
  * </ol>
  * and lowered with the PRODUCT's configuration ({@link TypedQuery#lowerer}: the object layout, the program's
  * minter, the exists-join form unless a temporal class is read, the streaming root where asked, the slots) plus the
- * frame's time zone and features and the seedable let prefix, then post-processed by the frame. The test road's own
- * factors (the identity layout, declared egress, the canon) are not here: they are the judges'.
+ * frame's time zone and features and the seedable let prefix, then post-processed by the frame's CTE extraction and
+ * nonExecutable pass. A {@code from()} frame's TABLE RENAMES are applied on neither road yet (the environment's
+ * renames are an {@code execute(...)} frame's, M3's B10; a {@code toSQLString} call applies its own runtime's,
+ * {@code EnginePlans}). The test road's own factors (the identity layout, declared egress, the canon) are not here:
+ * they are the judges'. No dialect: nothing on this road writes a statement, its caller renders in the runtime's.
  */
 public final class ProductStatements {
 
     private ProductStatements() {
     }
+
+    /** The literal kinds a plan answers as its own constant, the database never asked: the kinds whose database
+     *  spelling cannot differ from the literal's (D26). The one owner, read by the test road's fold too
+     *  ({@code driver.LiteralFold.ADMITTED}); a new kind needs its differential leg in {@code ConstantPlanParityTest}
+     *  first. */
+    public static final java.util.Set<String> ADMITTED = java.util.Set.of("String", "Boolean");
 
     /** A statement on the product's road, prepared: its kind ({@link Prepared}), and whether it reads a temporal
      *  class (decided on the inlined body, before the resolver, as the product always has). */
@@ -45,24 +54,15 @@ public final class ProductStatements {
             java.util.Set<com.legend.platform.Feature> features) {
         ModelContext ctx = query.context();
         com.legend.compiler.spec.SpecCompiler specs = query.specs();
-        com.legend.database.Target decided;
-        try {
-            decided = com.legend.Compiler.executesOn(ctx, runtime);
-        } catch (com.legend.error.MappingResolutionException undecided) {
-            // no runtime decides the database: the statement is refused as it always was -- by the resolver where
-            // it refuses first, else by the runtime's own refusal
-            query.resolve(statements, runtime, mark);
-            throw undecided;
-        }
-        PlanEnv env = PlanEnv.of(ctx, runtime, com.legend.database.Databases.dialect(decided.type()), features,
-                ProductStatements::noGenerator);
+        // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
+        // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
+        PlanEnv env = PlanEnv.of(ctx, runtime, null, features, ProductStatements::noGenerator);
         com.legend.compiler.spec.UserCallInliner inliner = new com.legend.compiler.spec.UserCallInliner(specs);
         List<TypedSpec> body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));   // Phase G½
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
-        java.util.Set<String> read = new java.util.HashSet<>();
-        reads(body, java.util.Set.of(), read);
+        java.util.Set<String> read = com.legend.compiler.spec.typed.FreeVars.ofBody(body);
         inliner.queryLets().forEach((name, value) -> {
             if (read.contains(name)) {
                 env.queryLets().put(name, value);
@@ -97,13 +97,16 @@ public final class ProductStatements {
                 yield constant("String", texts, false);
             }
             case Prepared.Planned p -> switch (p.root()) {
-                case com.legend.compiler.spec.typed.TypedCString str ->
+                case com.legend.compiler.spec.typed.TypedCString str when ADMITTED.contains("String") ->
                         constant("String", java.util.Collections.singletonList(str.value()), true);
-                case com.legend.compiler.spec.typed.TypedCBoolean b ->
+                case com.legend.compiler.spec.typed.TypedCBoolean b when ADMITTED.contains("Boolean") ->
                         constant("Boolean", java.util.Collections.singletonList(String.valueOf(b.value())), true);
                 default -> null;
             };
-            default -> null;
+            case Prepared.Effect e -> null;
+            case Prepared.EffectfulMap m -> null;
+            case Prepared.StoreWrite w -> null;
+            case Prepared.Handle h -> null;
         };
     }
 
@@ -134,10 +137,10 @@ public final class ProductStatements {
                     + " in a query: effects run in a test's program, and the product's query door plans no effect");
             case Prepared.StoreWrite w -> throw new IllegalStateException("a store write planned as a query: a"
                     + " program that writes is planned as a sequence (PlanMaker.program)");
-            case Prepared.DdlText d -> throw new IllegalStateException("a DDL text has no statement to lower: the"
-                    + " plan answers it as a constant (ProductStatements.constant, asked first)");
-            case Prepared.DdlTexts d -> throw new IllegalStateException("DDL texts have no statement to lower: the"
-                    + " plan answers them as a constant (ProductStatements.constant, asked first)");
+            case Prepared.DdlText d -> throw new com.legend.error.NotImplementedException("a DDL text has no"
+                    + " statement: the execution plan answers it as a constant; a query's SQL text has none to show");
+            case Prepared.DdlTexts d -> throw new com.legend.error.NotImplementedException("DDL texts have no"
+                    + " statement: the execution plan answers them as a constant; a query's SQL text has none to show");
             case Prepared.Handle h -> throw new com.legend.error.NotImplementedException("a " + h.type().typeName()
                     + " (an orchestration handle) answered by a query: it has no value a plan can answer");
         };
@@ -157,8 +160,7 @@ public final class ProductStatements {
      *  seeded: lowering it first would only spend the statement's alias numbers, and a lambda parameter of the same
      *  name would be renamed against it. */
     public static List<TypedSpec> seeded(List<TypedSpec> body, PlanEnv env, ModelContext ctx) {
-        java.util.Set<String> read = new java.util.HashSet<>();
-        reads(body, java.util.Set.of(), read);
+        java.util.Set<String> read = com.legend.compiler.spec.typed.FreeVars.ofBody(body);
         java.util.Map<String, TypedSpec> lets = new java.util.LinkedHashMap<>();
         env.queryLets().forEach((name, value) -> {
             if (read.contains(name)) {
@@ -166,38 +168,6 @@ public final class ProductStatements {
             }
         });
         return lets.isEmpty() ? body : com.legend.lowering.SeedableLets.withSeedableLetPrefix(body, lets, ctx);
-    }
-
-    /** The names {@code statements} read FREE: a let binds its name for the statements after it, a lambda its
-     *  parameters for its body. */
-    private static void reads(List<TypedSpec> statements, java.util.Set<String> bound, java.util.Set<String> out) {
-        java.util.Set<String> scope = new java.util.HashSet<>(bound);
-        for (TypedSpec s : statements) {
-            if (s instanceof com.legend.compiler.spec.typed.TypedLet let) {
-                reads(let.value(), scope, out);
-                scope.add(let.name());
-            } else {
-                reads(s, scope, out);
-            }
-        }
-    }
-
-    private static void reads(TypedSpec n, java.util.Set<String> bound, java.util.Set<String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v) {
-            if (!bound.contains(v.name())) {
-                out.add(v.name());
-            }
-            return;
-        }
-        if (n instanceof com.legend.compiler.spec.typed.TypedLambda l) {
-            java.util.Set<String> inner = new java.util.HashSet<>(bound);
-            inner.addAll(l.parameters());
-            reads(l.body(), inner, out);
-            return;
-        }
-        for (TypedSpec c : n.children()) {
-            reads(c, bound, out);
-        }
     }
 
     /** The Lowerer {@code p} lowers with on the product's road: the product's configuration, the frame's time zone,
