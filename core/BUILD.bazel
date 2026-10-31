@@ -267,7 +267,8 @@ legend_java_library(
         "//base", "//json", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
         ":execution_plan", ":judge", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
         ":platform",
-        ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
+        ":protocol", ":resolver", ":result", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":testplan", ":validation",
+        ":values",
     ],
 )
 # THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1
@@ -278,7 +279,11 @@ legend_java_library(
 legend_java_library(
     name = "testplan",
     srcs = glob(["src/main/java/com/legend/testplan/*.java"]),
-    deps = ["//base", ":compiler", ":error", ":execution_plan", ":planner", ":platform"],
+    # the effects' statements (EffectPlanner, M3d): the store model, the DDL and the dialects that write them
+    deps = [
+        "//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":model",
+        ":planner", ":platform", ":setup", ":sql", ":sql_dialect",
+    ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
 legend_java_library(

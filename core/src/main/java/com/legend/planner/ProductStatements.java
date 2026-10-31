@@ -103,10 +103,43 @@ public final class ProductStatements {
                         constant("Boolean", java.util.Collections.singletonList(String.valueOf(b.value())), true);
                 default -> null;
             };
+            // print and println: no statement, the argument never evaluated; their value, as the test road's
+            // (R18, the test-is-the-product plan's B12 item 4: both doors)
+            case Prepared.Effect e when com.legend.builtin.NativeFn.Effect.isInertDiagnostic(e.call().callee().id()) ->
+                    constant("String", java.util.Collections.singletonList(null), true);
             case Prepared.Effect e -> null;
             case Prepared.EffectfulMap m -> null;
             case Prepared.StoreWrite w -> null;
             case Prepared.Handle h -> null;
+        };
+    }
+
+    /** A one-value constant of {@code type} ({@code text} null: no value): a value a program's statement answers with
+     *  nothing sent. */
+    public static com.legend.executionplan.ExecutionPlan.Constant scalar(String type,
+            @com.legend.base.Nullable String text) {
+        return constant(type, java.util.Collections.singletonList(text), true);
+    }
+
+    /** Whether {@code s} is an orchestration handle -- a connection, a runtime, {@code connectionByElement}'s
+     *  connection -- a value a program passes around, which plans no step before its last statement and has no
+     *  value to answer as its last (B12 item 4). */
+    public static boolean handle(Statement s) {
+        if (s.prepared() instanceof Prepared.Effect e) {
+            com.legend.compiler.spec.typed.TypedNativeCall call = e.call();
+            return com.legend.builtin.NativeFn.Effect.of(call.callee().id()).orElse(null)
+                    == com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT;
+        }
+        return s.prepared() instanceof Prepared.Handle;
+    }
+
+    /** A handle's type ({@link #handle}). */
+    public static String handleType(Statement s) {
+        return switch (s.prepared()) {
+            case Prepared.Handle h -> h.type().typeName();
+            case Prepared.Effect e when handle(s) -> e.call().info().type().typeName();
+            default -> throw new IllegalStateException("not an orchestration handle: "
+                    + s.prepared().getClass().getSimpleName());
         };
     }
 
@@ -130,6 +163,9 @@ public final class ProductStatements {
     public static Prepared.Planned planned(Statement s) {
         return switch (s.prepared()) {
             case Prepared.Planned p -> p;
+            case Prepared.Effect e when handle(s) -> throw new com.legend.error.NotImplementedException("a "
+                    + e.call().info().type().typeName() + " (an orchestration handle) answered by a query: it has no"
+                    + " value a plan can answer");
             case Prepared.Effect e -> throw new com.legend.error.NotImplementedException("an effect ("
                     + e.call().callee().qualifiedName() + ") in a query: effects run in a test's program, and the"
                     + " product's query door plans no effect");

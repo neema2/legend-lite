@@ -1520,17 +1520,17 @@ public final class BodyDriver {
      * (testDDL.pure:42-45); createTableStatement renders from the
      * compiled store model like dropAndCreateTableInDb. */
 
-    /** {@code call}'s statements, the planner's ({@link com.legend.planner.EffectPlanner}, the seam program's S2d,
-     *  2026-10-31): its String arguments evaluated here (a literal folded; a computed one run, the one place a value
+    /** {@code call}'s statements, the test-planning library's ({@link com.legend.testplan.EffectPlanner}; the seam
+     *  program's S2d, 2026-10-31, moved there at the test-is-the-product plan's M3d): its String arguments evaluated here (a literal folded; a computed one run, the one place a value
      *  feeds a statement's text), the statements written from them, then sent in order as RAW (an effect segment
      *  collects them for its script). */
     private static void sendPlanned(java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env) {
         java.util.List<String> values = new java.util.ArrayList<>();
-        for (TypedSpec arg : com.legend.planner.EffectPlanner.stringArgs(call)) {
+        for (TypedSpec arg : com.legend.testplan.EffectPlanner.stringArgs(call)) {
             values.add(evalStringArg(body, arg, env));
         }
-        for (var s : com.legend.planner.EffectPlanner.statements(call, values, body, env.plan())) {
+        for (var s : com.legend.testplan.EffectPlanner.statements(call, values, body, env.plan())) {
             sendEffect(env, s.executed(), s.recorded(), com.legend.exec.StatementOrigin.RAW, s.ddl());
         }
     }

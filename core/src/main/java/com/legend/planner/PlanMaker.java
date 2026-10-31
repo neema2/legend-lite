@@ -196,7 +196,13 @@ public final class PlanMaker {
                 }
                 continue;
             }
-            if (!last && st.prepared() instanceof Prepared.Handle) {
+            if (last && door == ProgramState.Door.TEST && ProductStatements.handle(st)) {
+                // a test's program ending on a handle (a setup that returns its runtime): answered as the walk answers
+                // it, no value, which no judge compares; the query door refuses a handle as an answer (planned())
+                steps.add(ProductStatements.scalar(ProductStatements.handleType(st), null));
+                continue;
+            }
+            if (!last && ProductStatements.handle(st)) {
                 // an orchestration handle (a connection, a runtime) before the last statement: nothing to run
                 continue;
             }

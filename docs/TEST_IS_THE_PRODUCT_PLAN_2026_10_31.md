@@ -546,3 +546,13 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   that plans them. One program state (`planner/ProgramState`). ArchUnit: the library is the driver's alone; the
   program road's test entry is the test door's. Measured: every core package's statements against M3b -- identical
   (17,335), every package green, so the door refuses none of core's product queries. Next: M3d.
+- 2026-10-31: **M3d built**: a test's effects on the test door (`docs/test-is-product-homework/C_M3D_EFFECTS.md`).
+  `EffectPlanner` moved into the test-planning library (R17 C7); `TestKinds` plans an effect statement's statements
+  (each String argument a literal folded, a computed one refused by name: T9) into the open script, which any other
+  statement closes, as an `Effect` step (its statements, bracket, abort); an effect let keeps the walk's guard; an
+  effect as the last statement answers as the walk's arm (C11); `loadCsvToDbTable` (C10) and an effectful map (T9)
+  refused by name. Both doors: `print`/`println` no step, a no-value constant when last (R18); `connectionByElement`
+  a handle; the test door answers a program ending on a handle no value. The census: on both corpora, both passes,
+  597 effect bodies per pass planned whole and every script byte-identical to the walk's (3,603 scripts, 109,162
+  statements); 157 refused by name (116 asserts, M6; 19 handle-ended, folded after; 17 let-bound executes, M3f; 4
+  effectful maps; 1 `loadCsvToDbTable`). Core's statements unchanged. Next: M3e.

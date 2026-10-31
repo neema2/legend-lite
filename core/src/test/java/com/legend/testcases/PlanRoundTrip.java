@@ -129,7 +129,12 @@ public final class PlanRoundTrip {
                 }
             }
             case ExecutionPlan.Check c -> assertRenders(c.sql(), what);
-            case ExecutionPlan.Effect e -> assertRenders(e.sql(), what);
+            // an effect's raw statements (a script a program wrote, M3d) carry no typed tree; a planned query's do
+            case ExecutionPlan.Effect e -> {
+                if (e.sql().tree() != null) {
+                    assertRenders(e.sql(), what);
+                }
+            }
             case ExecutionPlan.Setup u -> {
                 // seed steps are their sources' texts, rendered nowhere
             }

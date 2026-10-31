@@ -822,8 +822,9 @@ class JavaEvalLedgerTest {
             // the system route planned (the seam program's S2h, 2026-10-31): the route and its tables' names, from the body driver
             Map.entry("core/src/main/java/com/legend/planner/SystemRoutes.java", 55),
             // an effect's statements planned (the seam program's S2d, 2026-10-31): the effect arms' texts and the store data
-            // types' readers, from the body driver
-            Map.entry("core/src/main/java/com/legend/planner/EffectPlanner.java", 132),
+            // types' readers, from the body driver; in the test-planning library since M3d (2026-10-31, R17 C7: a
+            // test's effects ship in no planner of the plan side), moved whole
+            Map.entry("core/src/main/java/com/legend/testplan/EffectPlanner.java", 133),   // 132 -> 133 (2026-10-31, the test-is-the-product plan's M3d): the one import line the move needs (planner.PlanEnv); nothing evaluated
             // a side's plan made with no session (the seam program's S4a, 2026-10-31): the body driver's prelude's route
             // and planStaged/wrapSide, pinned where they went
             Map.entry("core/src/main/java/com/legend/planner/SidePlanner.java", 87),
@@ -1444,9 +1445,7 @@ class JavaEvalLedgerTest {
                     // a statement's body prepared, or the kind of answer it is given with no plan (the shared
                     // preparation, 2026-10-31): a closed result type the driver dispatches on
                     "Prepared.java",
-                    // an effect's statements (S2d, 2026-10-31): the texts executeInDb and the DDL natives send, written from
-                    // their String arguments' values, which the driver evaluates
-                    "EffectPlanner.java",
+                    // (EffectPlanner.java, S2d's effect statements, left for the test-planning library at M3d, 2026-10-31)
                     // a side's plan (S4a, 2026-10-31): a statement's or a verdict side's body prepared under its system
                     // route, lowered and wrapped as its judge reads it, with no session; the driver opens the route
                     "SidePlanner.java",
@@ -1576,6 +1575,18 @@ class JavaEvalLedgerTest {
                             // the rules over a records interface, one implementation for the server, Python and the page;
                             // QueryService.java and OutputFormat.java DELETED 2026-10-30, D67: the HTTP door's runner is
                             // ConnectionResolver.RUNNER over Execution.run, and the text conveniences were tests' alone)
+                    // THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7,
+                    // 2026-10-31): the test door and a test's kinds on the program road; planning, no session
+                    "core/src/main/java/com/legend/testplan",
+                    java.util.Set.of(
+                            // the test door: a body planned whole through the program road (M3c)
+                            "TestDoor.java",
+                            // a test's kinds on the program road: effects as script steps (M3d), the others refused
+                            // by name until their sub-step
+                            "TestKinds.java",
+                            // an effect's statements: the texts executeInDb and the DDL natives send, written from their
+                            // String arguments' values (S2d; moved from the planner at M3d)
+                            "EffectPlanner.java"),
                     "core/src/main/java/com/legend/testdatagen",
                     // TestDataGenerationNatives (TDG lane S1): the ORCHESTRATION-time fold
                     // of the checker's census CARRIER — computes the census

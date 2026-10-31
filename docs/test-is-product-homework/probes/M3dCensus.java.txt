@@ -1,0 +1,212 @@
+// RESEARCH ONLY, NEVER COMMITTED as code (the test-is-the-product plan's M3d, 2026-10-31): the census collector,
+// its hooks in m3d-hooks.diff.txt; aggregated by M3Census.java.txt's appendix B, run by an M3a-style run.sh (corpora only).
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.driver;
+
+/**
+ * RESEARCH ONLY, NEVER COMMITTED (the test-is-the-product plan's M3d, 2026-10-31): every body the walk runs that holds
+ * an effect is planned whole through the test door, and the planned scripts are compared, byte for byte, with the
+ * scripts the walk sends. Counts and examples printed at JVM exit as {@code [m3] key = n} and
+ * {@code [m3-ex] key :: example} (M3a's format, so its aggregator reads them), into the dump directory and stderr.
+ */
+public final class M3dCensus {
+
+    private static final String DUMPS =
+            "/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/m3d/dumps";
+
+    private static final class Store {
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> counts =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.List<String>> examples =
+                new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
+    private static final Store S = new Store();
+
+    /** The test (or setup) whose body runs on this thread. */
+    public static final ThreadLocal<String> TEST = new ThreadLocal<>();
+
+    /** One body under census: the planned scripts (or the refusal), the walked scripts. */
+    public static final class Frame {
+        final String mode;
+        final java.util.@com.legend.base.Nullable List<java.util.List<String>> planned;
+        final @com.legend.base.Nullable String refused;
+        final java.util.List<java.util.List<String>> walked = new java.util.ArrayList<>();
+        boolean failed;
+        final String dialects;
+
+        Frame(String mode, java.util.@com.legend.base.Nullable List<java.util.List<String>> planned,
+                @com.legend.base.Nullable String refused, String dialects) {
+            this.mode = mode;
+            this.planned = planned;
+            this.refused = refused;
+            this.dialects = dialects;
+        }
+    }
+
+    private static final ThreadLocal<java.util.ArrayDeque<Frame>> FRAMES =
+            ThreadLocal.withInitial(java.util.ArrayDeque::new);
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(M3dCensus::dump));
+    }
+
+    private M3dCensus() {
+    }
+
+    private static String test() {
+        String t = TEST.get();
+        return t == null ? "?" : t;
+    }
+
+    static void count(String key) {
+        S.counts.computeIfAbsent(key, k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    static void example(String key, String text) {
+        java.util.List<String> l = S.examples.computeIfAbsent(key,
+                k -> java.util.Collections.synchronizedList(new java.util.ArrayList<>()));
+        if (l.size() < 4) {
+            l.add(text.length() > 1500 ? text.substring(0, 1500) + "..." : text);
+        }
+    }
+
+    static String cls(Throwable e) {
+        String m = e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
+        m = m.replaceAll("[0-9]+", "N").replace('\n', ' ');
+        return m.length() > 160 ? m.substring(0, 160) : m;
+    }
+
+    /** A body starts: planned through the test door where it holds an effect; null (no census) otherwise. */
+    static @com.legend.base.Nullable Frame begin(com.legend.TypedQuery typed, @com.legend.base.Nullable String runtime,
+            com.legend.sql.dialect.SqlDialect dialect, com.legend.exec.Sessions.Session session,
+            com.legend.ExecuteOptions options) {
+        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+        boolean effects = false;
+        for (var s : typed.body()) {
+            if (com.legend.compiler.spec.StatementEffects.containsEffect(s, typed.specs(), memo)) {
+                effects = true;
+                break;
+            }
+        }
+        if (!effects) {
+            FRAMES.get().push(new Frame("none", null, "no effect", ""));
+            return FRAMES.get().peek();
+        }
+        String mode = options.judgeMode().name();
+        java.util.List<java.util.List<String>> planned = null;
+        String refused = null;
+        String dialects = dialect.getClass().getSimpleName();
+        try {
+            com.legend.executionplan.ExecutionPlan plan = com.legend.testplan.TestDoor.plan(typed,
+                    java.util.Objects.requireNonNull(runtime, "no runtime"), options.features(), session.version());
+            planned = new java.util.ArrayList<>();
+            if (plan.root() instanceof com.legend.executionplan.ExecutionPlan.Sequence seq) {
+                for (var step : seq.steps()) {
+                    if (step instanceof com.legend.executionplan.ExecutionPlan.Effect e && e.script() != null) {
+                        planned.add(e.script().statements());
+                        String bracket = e.script().bracketed();
+                        if (!bracket.equals(dialect.script(e.script().statements()))) {
+                            count("M3d.bracket differs from the walk's dialect's [" + mode + "]");
+                        }
+                    }
+                }
+            }
+        } catch (RuntimeException | StackOverflowError e) {
+            refused = cls(e);
+        }
+        Frame f = new Frame(mode, planned, refused, dialects);
+        FRAMES.get().push(f);
+        return f;
+    }
+
+    /** The walk sends a script. */
+    static void walked(java.util.List<String> texts) {
+        Frame f = FRAMES.get().peek();
+        if (f != null) {
+            f.walked.add(texts);
+        }
+    }
+
+    static void failed(@com.legend.base.Nullable Frame f) {
+        if (f != null) {
+            f.failed = true;
+        }
+    }
+
+    /** A body ends: its planned scripts compared with the walked ones. */
+    static void end(@com.legend.base.Nullable Frame f) {
+        if (f == null) {
+            return;
+        }
+        FRAMES.get().pop();
+        if ("none".equals(f.mode)) {
+            if (!f.walked.isEmpty()) {
+                count("M3d.a body with no effect statement sent scripts");
+                example("M3d.a body with no effect statement sent scripts", test() + " :: " + f.walked);
+            }
+            return;
+        }
+        String m = " [" + f.mode + "]";
+        count("M3d.bodies with an effect" + m);
+        int stmts = f.walked.stream().mapToInt(java.util.List::size).sum();
+        if (f.planned == null) {
+            String key = "M3d.refused: " + f.refused + m;
+            count(key);
+            example(key, test());
+            count("M3d.refused (all)" + m);
+            return;
+        }
+        count("M3d.planned" + m);
+        if (f.failed) {
+            count("M3d.planned, the walk failed" + m);
+            boolean prefix = f.walked.size() <= f.planned.size()
+                    && f.planned.subList(0, f.walked.size()).equals(f.walked);
+            count("M3d.planned, the walk failed: walked scripts a prefix of the planned = " + prefix + m);
+            if (!prefix) {
+                example("M3d.planned, the walk failed: walked scripts a prefix of the planned = false" + m,
+                        test() + " :: planned " + f.planned + " walked " + f.walked);
+            }
+            return;
+        }
+        if (f.planned.equals(f.walked)) {
+            count("M3d.planned: scripts IDENTICAL" + m);
+            S.counts.computeIfAbsent("M3d.planned: scripts IDENTICAL, scripts" + m,
+                    k -> new java.util.concurrent.atomic.LongAdder()).add(f.walked.size());
+            S.counts.computeIfAbsent("M3d.planned: scripts IDENTICAL, statements" + m,
+                    k -> new java.util.concurrent.atomic.LongAdder()).add(stmts);
+        } else {
+            String why = f.planned.size() != f.walked.size() ? "script count " + f.planned.size() + " vs "
+                    + f.walked.size() : "texts";
+            count("M3d.planned: scripts DIFFER (" + why.replaceAll("[0-9]+", "N") + ")" + m);
+            example("M3d.planned: scripts DIFFER" + m, test() + " :: " + why + " :: planned " + f.planned
+                    + " walked " + f.walked);
+        }
+    }
+
+    private static void dump() {
+        StringBuilder sb = new StringBuilder();
+        new java.util.TreeMap<>(S.counts).forEach((k, v) -> sb.append("[m3] ").append(k).append(" = ")
+                .append(v.sum()).append('\n'));
+        new java.util.TreeMap<>(S.examples).forEach((k, l) -> {
+            synchronized (l) {
+                for (String e : l) {
+                    sb.append("[m3-ex] ").append(k).append(" :: ").append(e.replace('\n', ' ')).append('\n');
+                }
+            }
+        });
+        System.err.print(sb);
+        System.err.flush();
+        try {
+            java.nio.file.Path dir = java.nio.file.Path.of(DUMPS);
+            java.nio.file.Files.createDirectories(dir);
+            String label = System.getProperty("legend.judge.mode", "test") + "-"
+                    + ProcessHandle.current().pid() + "-" + System.currentTimeMillis();
+            java.nio.file.Files.writeString(dir.resolve(label + ".txt"), sb.toString());
+        } catch (java.io.IOException | RuntimeException e) {
+            System.err.println("[m3] dump file not written: " + e);
+        }
+    }
+}

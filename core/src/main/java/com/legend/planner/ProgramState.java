@@ -74,6 +74,16 @@ public final class ProgramState {
         return target;
     }
 
+    /** The lets the statements after read (the lets planned so far, in order). */
+    public List<TypedSpec> lets() {
+        return java.util.Collections.unmodifiableList(lets);
+    }
+
+    /** The program's feature flags. */
+    public java.util.Set<com.legend.platform.Feature> features() {
+        return features;
+    }
+
     /** Places {@code step} after the steps planned so far. */
     public void add(ExecutionPlan.Node step) {
         steps.add(step);

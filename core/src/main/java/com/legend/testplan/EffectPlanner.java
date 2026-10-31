@@ -1,10 +1,11 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.planner;
+package com.legend.testplan;
 
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.planner.PlanEnv;
 
 /**
  * An EFFECT's statements, planned (the planner-driver seam program's S2d, 2026-10-31; the body driver's effect arms
@@ -13,7 +14,10 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * with the text the replay referee's ledger records. Two phases, so no value is computed here: {@link #stringArgs}
  * names the String arguments a call needs, the driver gives their values (a literal folded, a computed one evaluated
  * by the database: the one place a value feeds a statement's text, as the engine evaluates the string before it runs
- * it), and {@link #statements} writes the statements from them. The driver sends them (an effect segment's script).
+ * it), and {@link #statements} writes the statements from them. The driver sends them (an effect segment's script);
+ * on the test door's program road ({@link TestKinds}) they are an {@code Effect} step's script. In the test-planning
+ * library since the test-is-the-product plan's M3d (R17 C7, 2026-10-31): a test's effects ship in no planner of the
+ * plan side.
  */
 public final class EffectPlanner {
 

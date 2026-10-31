@@ -47,6 +47,13 @@ public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtime
                 generatorPlanText);
     }
 
+    /** This environment writing its statements in {@code d}: a test's program on the product's road, its runtime
+     *  decided (the test door's effects, the test-is-the-product plan's M3d). */
+    public PlanEnv withDialect(com.legend.sql.dialect.SqlDialect d) {
+        return new PlanEnv(ctx, runtimeFqn, d, queryLets, tableReplace, instanceIds, planRows, protocolBody, frame,
+                features, generatorPlanText);
+    }
+
     /** The run's feature flags (the caller's execute options'). */
     public PlanEnv withFeatures(java.util.Set<com.legend.platform.Feature> f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
