@@ -414,7 +414,7 @@ an instrument with no value is not ranked.
 | `floor(x, 0)`, `ceil(x, 1)` (bounds) | `greatest(x, 0)`, `least(x, 1)` | SQL's `floor`/`ceil` round |
 | `first(x)`, `last(x)` (the whole line's) | `first_of(x)`, `last_of(x)` | SQL's `first`/`last` are aggregates, and its `last_value` is the current row |
 | `sum(x)` (running), `count(x)` (to date) | `sum(x, all)`, `count(x, all)` | a bare aggregate is the period's |
-| a default window (`mean(x)` is 22 observations) | the window is always written | a missing window is the period |
+| a default window (the tile's: a count per function, `mean(x)` 22 observations; gs-quant's own, read from its 2.2.3 source on 2026-10-31: `Window(None, 0)`, the whole series to date -- docs/TS_ONE_TREE_PLAN_2026_10_31.md §4.1) | the window is always written | a missing window is the period |
 | `w = 0` (from the start) | `all` | `0` reads as an empty window |
 | `drawdown(x)` (from the running peak) | `drawdown(x, all)` | the window is written |
 | `range`, `union`, `filter` | `range_of`, `union_of`, `filter_values` | SQL keywords |

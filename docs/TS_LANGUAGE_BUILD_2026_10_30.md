@@ -236,3 +236,8 @@ that moves moves with its reason in the commit (AGENTS.md).
   `#TS` query calling its function; and a daily projection of date-times fits on its days (ruling 9: a period of a
   day is dated at its day). `//datacube:timeseries_ts_parity_test` stays as the tile's view over `#TS` against `#TS`
   alone, every gallery series.
+- 2026-10-31: **the direction from here is `docs/TS_ONE_TREE_PLAN_2026_10_31.md`** (proposed, for the user to
+  ratify): one query tree that every surface builds (the formula box, `#TS` text, a Python DSL), gs-quant's meaning
+  for every word it defines (read from its 2.2.3 source, its released package the test oracle), one catalog as data,
+  one parser in core. The Python suites' 19 reds after P6 (the bundle printed a grid's series query, Python parsed
+  it back through the engine-exact grammar, which refuses `#TS{`) are fixed by handing Python the tree.
