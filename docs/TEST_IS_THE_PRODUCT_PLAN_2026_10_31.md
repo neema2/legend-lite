@@ -39,7 +39,7 @@ steps with checkpoints (§7).
 | R10 | Decision 10: the canon computed over the product plan's columns, fully ("why would we not fix the cannon fully"); object ids: one counter per PROGRAM, for the product and tests alike (§6 B9), agreed after the explanation of its meaning. |
 | R11 | "No need to push to CI until we have a good checkpoint": commits stay local between agreed checkpoints (with a backup, §9 N5). |
 | R13 | §9's N1, N2, N4, N5, N6 as recommended ("Agree to all except the assertError"): the product's query door refuses the test-only steps (B6); the test-only planning in its own library (B4); the eager run at a let on both passes (MV7); backups between checkpoints on the work branch `claude/wizardly-dirac-rw6tim-seam-wip` (no CI runs on it); a verdict group closes before every non-verdict step (2.D). N3: option A, `assertError`'s comparison in Java ("Okay that's fine"). |
-| R14 | A planning failure is a COMPILE ERROR: the whole test fails, nothing recovers ("like a compiler error in another language that should just fail the whole function"); the one exception is `assertError`'s body, whose planning error is the error under test (T10). And ONE plan per body: what must run before a later statement can be written is a Keyed step inside that plan -- the dynamic pivot's pattern, already built (S110; Keyed inside a Sequence since S1a) -- never a plan in parts ("single plan with multi step like dynamic pivot"). |
+| R14 | The body is COMPILED WHOLE, then run ("Sounds good, I like it"). Two kinds of planning error, kept apart: an INVALID or UNSUPPORTED program (a type or model error, a construct lite refuses by name) is a compile error and the whole test fails, nothing recovers ("like a compiler error in another language that should just fail the whole function"); a VALID program whose evaluation raises (an error Pure raises at run time that lite detects early because its input is constant, e.g. `timeBucket`'s unit check) is planned as a RAISE at its position (`PureSql.raise`, or a raising step), so an untaken branch never raises and `assertError` catches it like any run-time error. ONE plan per body: what must run before a later statement can be written is a Keyed step inside it (the dynamic pivot's pattern, S110, S1a), never a plan in parts. |
 | R12 | Unchanged from the predecessor program (§8.2): never push to main, never open or merge a PR without the user's word; no output spelling change without the user's word, case by case; an answer to a question is not a go to build something else; a guard pin or allowlist moves only with a dated justification; never read, print or copy credentials; records land with the code. |
 
 ## 2. The ledger
@@ -88,7 +88,7 @@ steps with checkpoints (§7).
 | T6 | the corpus lanes' engine row-order emulation (`StableScanOrder`), a run option the lanes pass, not a JVM global (R7 decision 8) | D25 |
 | T8 | the test-data generator: a Keyed step (its queries the keys step, its rows filling the value regions of the statements after it; R14); if M0 finds a statement whose compiled SHAPE depends on the generator's rows, that case is posted before any other form | D38 |
 | T9 | a computed effect string, and the map over `executeInDb` (R13): a Keyed step -- the string's query the keys step, the effect statement its region (one effect per row for the map; R14) | D39, R13 |
-| T10 | `assertError`: an `ExpectFailure` sub-plan (a planning failure included, O8); the captured error compared with the expected message and position (§9 N3: in Java, recommended) | R17 |
+| T10 | `assertError`: an `ExpectFailure` step around its body's sub-plan; the error the body raises at run time (an early-detected one is a planned raise, R14) compared in Java with the expected message and position (N3) | R17 |
 | T11 | the engine-text asserts: the two SQL texts compared as a constant of the plan; where they differ, the rows leg one statement on the lane's database where the golden runs there | R10 |
 | T12 | staged raw grids (a raw grid read after an effect, held in a temporary table) | R6, D12 |
 | T13 | the H2 referee replay: the verdict source of an engine-text assert whose texts differ (about 1,258 replays per DuckDB corpus pass), outside the body's plan (R6) | R10 |
@@ -182,7 +182,7 @@ posted the same way (R7 decision 12).
 | MV5 | R10/B9: one id counter per program | id literals in multi-statement product write programs (SQL text); tests: none expected, checked | M1 |
 | MV6 | 2.A's convergences | D5 milestoned reads, D7 streamed graph answers, D8 H2 type holes, D18 a new refusal, D27 value-shape facts, D36 target refusals | M5 |
 | MV7 | decision 1 in one plan for both modes | the eager run at a let on the DATABASE pass too (+about 1,950 statements per corpus pass), §9 N4 | M5 |
-| MV8 | R14: a planning failure fails the whole test | a test failing today at an earlier assert that also holds an unplannable later statement reports the compile error instead (still failing); an unplannable statement in a branch that never runs now fails the test; `assertError`'s body keeps its planning error as the error under test | M10 |
+| MV8 | R14: compile errors fail the whole test; early-detected run-time errors become planned raises | a test failing today at an earlier assert that also holds an invalid or unsupported later statement reports the compile error instead (still failing); such a statement in a branch that never runs now fails the test; each of today's lowering-time guard errors classified compile-time or run-time by Pure's meaning (an ambiguous one posted) | M10 |
 | MV9 | D31/O9: a let read twice one form in both modes | host-mode text; outcome risk measured (the H2 pass's history of frames not found) | M3 |
 | MV10 | B2: the transaction rule | effect bodies' transaction scope; the savepoint before a fused statement in a transaction (F11) | M3 |
 | MV11 | R9/B7: one code path to the system database | product metamodel queries move to the system database; statement order on the system session | M4 |
@@ -225,13 +225,14 @@ posted the same way (R7 decision 12).
   statement -> its steps), so the old walk can ask the product planner statement by statement while asserts still take
   the old road; after M10 it is the program road's own loop.
 - **B2, the runner (M3, M9).** One plan per body (R14). New: `ExpectFailure(sub-plan)` for `assertError` (the
-  failure, from running or from planning its body, handed to the comparison, N3); `Setup` per from() (D35; established
+  error its body raises at run time handed to the comparison, N3); a raising step where an early-detected run-time
+  error stands as a statement of its own (R14; inside an expression it is `PureSql.raise`); `Setup` per from() (D35; established
   once per session with the seeds' memo); constant-only programs accepted (`PlanRunner.java:231-233` refuses them
   today); the transaction rule: a program that changes the database runs in one transaction, effect scripts inside it
   with the dialect's bracket, and a fused verdict statement inside a transaction is preceded by a savepoint where the
   dialect aborts a transaction on error (F11), so the split rung can run. NOT new: what must run before a later
   statement can be written (T8, T9, the map over `executeInDb`) is the existing `Keyed` step inside the `Sequence`
-  (S110, S1a); a planning failure is a compile error (R14), so there is no "refused" step.
+  (S110, S1a); an invalid or unsupported program is a compile error (R14), so there is no "refused" step.
 - **B3, the verdict record (M6).** Label, `check`, base sides, the database form, and every fact a judge reads at
   judge time today (the sides' static types, the order view, the keyed-class restriction, the TDSNull direction, a
   quantified assert's literal message, tolerance arguments), so no judge reads the model.
@@ -263,7 +264,7 @@ posted the same way (R7 decision 12).
 
 | Step | What | Size |
 |---|---|---|
-| **M0** ◆ | Measure, no product change. The parity census BUILT (the parked probe in `docs/test-is-product-homework/probes/` re-lowers already-resolved bodies only, audit W4: the census plans each statement both ways through a statement entry, front half included); every MV class counted with an example; whether any statement's compiled shape depends on the test-data generator's rows (T8); the referee's MATCH/DIVERGED/DECLINED counts; capped host sides; seeds and errors inside groups; planning failures after a body's first failing statement; constant-only bodies; effectful maps and computed strings; frame CTE reads; D27, D30; the census baseline | 3-5 days |
+| **M0** ◆ | Measure, no product change. Today's lowering-time guard errors classified compile-time or run-time (R14). The parity census BUILT (the parked probe in `docs/test-is-product-homework/probes/` re-lowers already-resolved bodies only, audit W4: the census plans each statement both ways through a statement entry, front half included); every MV class counted with an example; whether any statement's compiled shape depends on the test-data generator's rows (T8); the referee's MATCH/DIVERGED/DECLINED counts; capped host sides; seeds and errors inside groups; planning failures after a body's first failing statement; constant-only bodies; effectful maps and computed strings; frame CTE reads; D27, D30; the census baseline | 3-5 days |
 | **M1** ◆ | One id counter per program (B9); every test's ids checked | 2-3 days |
 | **M2** | Product features, the safe set: D4, D6, D9, D10, D13, D14, D16, D17/R18, D26 + constant-only programs, D29, D30 | 1-1.5 weeks |
 | **M3** ◆ | Product features that need designs: effects + scripts + the transaction rule + F11 (B2), `Setup` seeds (B2), frames and the eager run (B10), the query door's refusals (B6) | 1.5-2 weeks |
@@ -348,4 +349,5 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   resumability; 4 weeks under-sized to 9-13); v2 written from it. The user agreed v2's §9 but N3 (R13) and R10's ids;
   N3 ruled A. The user's review questions led to R14 (a planning failure a compile error; one plan per body, Keyed
   steps for what must run first) and two corrections (the test-only kinds planned by the test library; M0 builds the
-  parity census). Next: the user's word on v2 as it stands, then M0.
+  parity census); then R14 refined: compile errors fail the test, early-detected run-time errors become planned
+  raises, the body compiled whole. Next: M0, on the user's word.
