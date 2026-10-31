@@ -78,6 +78,35 @@ never a runtime component (AGENTS.md's reference-checkout tenet, applied to gs-q
 page still asks DataCube what the tile draws (panes, axes, views, its tables); a series' meaning is the platform's
 tree, which DataCube, Python and `#TS` text all build the same way.
 
+**D11. Every way of naming a source keeps reading, at every step** (the user, 2026-10-31: "make sure the WITH and the
+inline model notation still work"): the `WITH` that flattens the model (R1.2, `WITH quotes AS (SELECT
+instrument.ticker AS ticker, ... FROM MarketQuote WHERE ...)`), the class read inline with its paths where they are
+used (R1.1, `FROM MarketQuote ON quoteTime BY instrument.ticker`), a table and a table's `WHERE` (R1.3), a relation of
+the enclosing Pure (R1.4, `FROM $px`) and a query of the language's own (R1.5, `AS TS`). Each is read into the same
+source node, and each is pinned by `TsIslandTest`'s source tests, which are in every step's gate (§6).
+
+**D12. Show #TS is one statement** (the user, 2026-10-31: "the Show #TS of the grid to actually show that single
+statement view"): the tile's Query window shows each series as one self-contained `#TS` statement, each grid it reads
+printed as a `WITH` over the model above the series -- the form a person would write (§3's example) -- not `let px =
+...; #TS{... FROM $px ...}`. A grid's own Show #TS shows its `WITH` body alone. This is the printer again, narrowed:
+it prints a grid's relation as `#TS`'s flat source (`SELECT paths and expressions FROM Class-or-table WHERE
+condition`), the one shape that form reads, for display only. Its subset, widened step by step: a class's to-one paths
+projected and renamed; a table's columns; the page's and the grid's filters as `WHERE` (comparisons, `IN`, ranges,
+`AND`/`OR`/`NOT`, `IS NULL`); row calculated columns whose Pure the flat form reads back (arithmetic, `if` as `CASE`,
+the string and date natives). Outside it -- a group-by, a join, a pivot, a calculated column with no reading -- the
+window shows the `let` form and says why, never an approximation. **Exact by construction:** every printed statement
+is parsed back and must give the same tree (the round trip), and the reasons a grid is not printed are counted, the
+count allowed only to shrink.
+
+**D13. Show Python is the gs-quant program** (the user, 2026-10-31: "Show Python should show our gs-quant
+equivalent"): the tile's Code window shows the Python DSL program (D8) that computes the same series --
+`px = source(MarketQuote, date='quoteTime', by='instrument.ticker', columns=..., where=...)`, then
+`volatility(px.close['AAPL'], 63)` -- printed from the tree, gs-quant's Python names and signatures. Today's Code
+(a program that rebuilds the tile on a page, `timeseries-code.ts tileCode`) stays beside it as "Build this tile".
+**Exact by construction:** the test runs the printed program and compares the tree it builds with the tile's.
+`source(...)`'s `columns` and `where` are the first piece of the Python platform DSL (§8): a class's paths, renames and
+a condition, written as the Python DSL will write them.
+
 ## 3. Why `#TS` needs no SQL to name a grid in a `WITH` (the user asked to be taught)
 
 **Where the idea came from.** `#TS` was a piece of text. Text can only reach a thing by naming it or by spelling it
@@ -192,7 +221,8 @@ ruling (§9, R1): the proposal is gs-quant's meaning under D2-D4.
 ## 6. The order, each step green
 
 Every step starts and ends green: the gallery's every series answers (`//datacube:timeseries_ts_parity_test`),
-`//core:ts_island_test`, the Python suites, and from step 2 the gs-quant oracle.
+`//core:ts_island_test` (its source tests among them: every notation of D11), the Python suites, and from step 2 the
+gs-quant oracle.
 
 0. **The Python fix** (2026-10-31): `gridTimeseries` hands Python the tree. Done with this plan.
 1. **The catalog** (D6): the data file; core's bindings read it; the tile's catalog generated from it; the generated
@@ -206,9 +236,13 @@ Every step starts and ends green: the gallery's every series answers (`//datacub
    parsed, the same tree).
 5. **One parser** (D7): the formula box parses through core; the tile stores the tree; `timeseries-expr.ts`'s grammar
    and `timeseries-ts.ts` deleted.
-6. **The Python DSL** (D8): `legend_lite.timeseries`, its stubs generated from the catalog; `page.timeseries(...)`
+6. **Show #TS, one statement** (D12): the flat-source printer in core, the Query window's `#TS` view; the round trip
+   over every gallery series and every grid of the example pages; the count of grids not printed, by reason.
+7. **The Python DSL** (D8): `legend_lite.timeseries`, its stubs generated from the catalog; `page.timeseries(...)`
    takes its series; gs-quant's own examples ported as tests.
-7. **The documents**: the spec (version 4) and the guide for quants regenerated from the catalog.
+8. **Show Python** (D13): the tree printed as the Python DSL program; the Code window's view; the printed program run
+   and its tree compared, over every gallery series.
+9. **The documents**: the spec (version 4) and the guide for quants regenerated from the catalog.
 
 ## 7. Spec by verification, applied to gs-quant
 
@@ -219,8 +253,9 @@ down here, with gs-quant's answer beside lite's.
 
 ## 8. Not in this plan
 
-- **The printer** (Pure to SQL over the model, the spike of 2026-10-31): parked. With §3 it serves only how a source
-  is shown, never how it travels.
+- **The general printer** (any Pure relation to Postgres SQL over the model, the spike of 2026-10-31): parked. D12's
+  narrow printer -- a grid as `#TS`'s flat source, for Show #TS -- is in the plan (step 6); the general one, for any
+  relation (group-bys, joins, pivots as SQL), is not.
 - **`grid.to_pandas()`** reads the grid's text back the same way the timeseries did (Change 2 of 2026-10-31): latent
   for a grid over `#SQL{...}#`. It goes with the Python platform DSL below.
 - **The Python platform DSL beyond timeseries** (the user, 2026-10-31: classes, mappings, stores, queries, the
