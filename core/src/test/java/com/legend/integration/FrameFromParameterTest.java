@@ -26,7 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 2026-10-31): a function's {@code rows($back, 0)} takes its call's argument -- a literal argument a literal frame, as
  * if written so; an expression the database's to compute, its direction its shape's ({@code -(e)} before the current
  * row, anything else after), checked by the database where upstream checks the numbers it computed; a query's
- * parameter bound like any other. Each answer is the literal frame's, on the lane's database.
+ * parameter bound like any other. Each answer is the literal frame's, on the lane's database; each refusal a refusal
+ * on every lane, where without the check one database answers empty windows.
  */
 class FrameFromParameterTest extends AbstractDatabaseTest {
 
@@ -126,14 +127,11 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
     @Test
     @DisplayName("a start after the end is refused, in upstream's words, where the database answers empty windows")
     void aStartAfterTheEndIsRefused() {
-        // -(0 - 1) is one row AFTER the current row: rows(1, 0), refused by upstream; a negative offset, which DuckDB
-        // answers with empty windows (the check's words) and the rest refuse themselves (their own)
-        Exception e = assertThrows(Exception.class, () -> sums("|test::frames::window(0)"));
-        if (answersNegativeOffsets()) {
-            assertTrue(chain(e).contains("Invalid window frame boundary - lower bound of window frame cannot be"
-                    + " greater than the upper bound!"), chain(e));
-        }
-        // rows(-1, -2): one row before to two rows before -- every database but ClickHouse answers empty windows
+        // -(0 - 1) is one row AFTER the current row: rows(1, 0), refused by upstream; a negative offset, which one
+        // database answers with empty windows (the check refuses it there, in upstream's words) and the others refuse
+        // themselves (dialect/ComputedFrameOffsetTest has the check's text): refused on every lane
+        assertThrows(Exception.class, () -> sums("|test::frames::window(0)"));
+        // rows(-1, -2): one row before to two rows before -- nearly every database answers empty windows
         Exception r = assertThrows(Exception.class, () -> sums("|test::frames::between(1, 2)"));
         assertTrue(chain(r).contains("lower bound of window frame cannot be greater"), chain(r));
         // rows(-2, -0): both literal by then, a literal frame, unchecked
@@ -150,22 +148,12 @@ class FrameFromParameterTest extends AbstractDatabaseTest {
     }
 
     @Test
-    @DisplayName("a negative computed offset is refused by the database's check, where DuckDB answers empty windows")
+    @DisplayName("a negative computed offset is refused, by the database's check or by the database")
     void aNegativeOffsetIsRefused() throws SQLException {
         // one row before to the partition's end
         assertEquals(List.of(60L, 60L, 50L, 300L, 300L), sums("|test::frames::toEnd(1)"));
         // -(-1): written before, its value negative -- no order to check against the unbounded end, the sign's check
-        Exception e = assertThrows(Exception.class, () -> sums("|test::frames::toEnd(0 - 1)"));
-        if (answersNegativeOffsets()) {
-            assertTrue(chain(e).contains("S129"), chain(e));
-        }
-    }
-
-    /** Whether the lane's database answers a negative frame offset with empty windows, where the others refuse it
-     *  themselves before the check is reached (measured 2026-10-31: DuckDB alone; H2 reaches the check first). */
-    private boolean answersNegativeOffsets() {
-        return backend().type() == com.legend.model.ConnectionDefinition.DatabaseType.DuckDB
-                || backend().type() == com.legend.model.ConnectionDefinition.DatabaseType.H2;
+        assertThrows(Exception.class, () -> sums("|test::frames::toEnd(0 - 1)"));
     }
 
     @Test

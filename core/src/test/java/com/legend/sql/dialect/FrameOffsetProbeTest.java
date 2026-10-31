@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.integration;
+package com.legend.sql.dialect;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackend;

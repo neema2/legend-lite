@@ -94,8 +94,11 @@ What the spike found core can't do yet:
   translation reads the window as a value it has already evaluated during planning, with the call's variables in scope
   (`pureToSQLQuery.pure`: the `_Window` from an `InstanceValue`, then `processWindowFrame` reading `offsetFrom` and
   `offsetTo` as numbers). So this is a gap between lite and upstream, not a design choice. It is the one change the move
-  depends on (§4, C1). **Fixed by C1 (2026-10-31):** the spike's functions are now written with their windows sized by their
-  parameter, `rows(-($w - 1), 0)` (the spike's rerun on them is recorded when it has run).
+  depends on (§4, C1). **Fixed by C1 (2026-10-31):** the spike's functions now size their windows by their parameter,
+  `rows(-($w - 1), 0)`, and give the same answers on all six queries. The SQL grows by the check the database works
+  out around each window call (§3a): against today's `#TS`, volatility 6,469 chars to 6,478, beta 3,243 to 2,537,
+  vwap 2,595 to 1,875 (three windowed sums, three checks); the run times the same within noise. A frame's check
+  written once rather than at each window call over it is an M1 item.
 - **G2. A window can't be passed in instead.** `_Window<T>` is invariant. A window over the line's three columns can't
   be applied to the wider relation inside the function: "type variable T bound to relation [date, key, value, ord, py,
   r] cannot also bind relation [date, key, value]". A generic `_Window<W>` is refused too ("unbound type variable W").

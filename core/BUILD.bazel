@@ -484,7 +484,7 @@ legend_java_library(
             # (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md)
             "src/test/java/com/legend/integration/TsLineSpikeTest.java",
             # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
-            "src/test/java/com/legend/integration/FrameOffsetProbeTest.java",
+            "src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
@@ -1940,7 +1940,7 @@ junit_test(
     tags = ["manual"],
     memory_mb = 1024,
     size = "medium",
-    srcs = ["src/test/java/com/legend/integration/FrameOffsetProbeTest.java"],
+    srcs = ["src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java"],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",
         "@embedded_postgres//:postgres",
@@ -1949,7 +1949,7 @@ junit_test(
         "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
         "-Dprobe.servers=Postgres",
     ],
-    select = ["--select-class=com.legend.integration.FrameOffsetProbeTest"],
+    select = ["--select-class=com.legend.sql.dialect.FrameOffsetProbeTest"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
