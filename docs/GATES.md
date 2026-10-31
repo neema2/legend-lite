@@ -16583,6 +16583,62 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S3a, remainder: the staticizer deleted; a dynamic pivot's key compared as the database's text; no read at planning remains
+
+The decisions log D91; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §4 (S3a).
+
+1. **Measured first (a temporary switch, reverted):** `DynamicPivot.staticize` made a no-op on the three heavy channel B
+   lanes this container runs: it was reached by 28 dynamic pivots on each of H2, SQLite and Postgres (the relation
+   suites; 0 elsewhere), and every per-test outcome, message and diff count stayed identical to the baseline -- the
+   keyed form downstream (`JudgePlans`, `PlanMaker.keyed`: the keys read by the plan's first step when it runs)
+   already planned them.
+2. **Found on the way, a bug in the shipped keyed pivot:** its body compared a key as `on = CAST(? AS <slot>)`, the slot
+   the store's Pure type (Float, so DOUBLE), not the column's physical REAL; a REAL `3.14` widened to
+   `3.140000104904175` matched no key, and its pivot column came back null -- on DuckDB (the platform's own database)
+   and H2; SQLite, whose REAL is a double, matched. This is audit finding D of 2026-08-18, which the staticizer had
+   fixed for itself (its `DynamicPivotKeyLiteralH2Test`). Fixed in `KeyedPivot`: a non-text key is compared as
+   `CAST(on AS VARCHAR) = ?`, the database's own text against the text the keys step read from the same column
+   (`_pct_t`), so a key matches exactly the rows it was read from whatever the column's type; a text key keeps
+   `on = ?`. `KeyedPivotKeyRoundTripTest` (DuckDB, H2, SQLite: a REAL key; timestamps at whole seconds and below) fails
+   on DuckDB and H2 without the fix and passes with it. The SQL of every dynamic pivot whose key is not text changes
+   (its CASE's comparison); its answers change only where a key matched no row before.
+3. **Deleted:** `driver/DynamicPivot.java` (the staticizer, its key reader, its key-literal spelling) and its call in
+   `BodyDriver.lowerAndPrepare`; `DynamicPivotKeyLiteralH2Test` (its cases carried by the new test, on three
+   databases). No statement is read at planning by any path now: the column probe (S3a's first part), the wire
+   probe's describe (S3b), the grid probe (S3c) and the staticizer's key read are gone.
+4. **Guards, dated:** `JavaEvalLedgerTest` `DynamicPivot.java`'s row retired and `BodyDriver` 2,318 -> 2,310 (the
+   static pivot's call and key reader gone); the driver register loses `DynamicPivot.java`; `ArchitectureTest`'s two
+   comments, `SqlDialect.needsStaticPivot`'s doc (the flag stays: no native PIVOT, a named pivot written as the CASE
+   emulation), `SqlExpr.DeferredTdsString`'s doc and the driver's `package-info` updated.
+5. **Measured locally:** `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped,
+   and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged; `corpus_duckdb`, `corpus_h2`,
+   `pct_channel_b` 17 of 17, uncached; the heavy lanes by hand: channel B on H2 1 of 1, SQLite 4 of 5 (essential at
+   332, the pre-existing main red) and Postgres 5 of 5 (unprivileged), every per-test line identical to the baseline taken before
+   the change (none of their suites pivots on a REAL column). The server and cloud lanes: the five lane sessions
+   measure this head next, the pivots' body statements changing by design.
+
+## 2026-10-31 — The lane sessions on S3b and S3c's three parts: every server and cloud lane identical per test (two rounds)
+
+The arrangement of D81 (the user, 2026-10-30: "use the other warm sessions here to run all the tests on the other
+server and cloud backends so we gain comfort on those as well"), the plan's §4 (the heavy lanes at every S3 step):
+the five lane sessions MEASURE ONLY -- no edits, commits, pushes or credential reads -- on 77dfa672 (S3a's first part,
+S3b, S3c's first two parts) against their PR #82 runs (86d60625), then on 29286366 (S3c's third part and the audit's
+fold) against 77dfa672.
+
+| session | lanes | round 1 (77dfa672 vs 86d60625) | round 2 (29286366 vs 77dfa672) |
+|---|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; 0 whole-log difference | identical per test; 0 whole-log difference |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test; only the echo's let order and engine-JSON row order differ | identical per test; the same |
+| sibling 2 | Snowflake, channels A and B | identical per test; 12 channel B statements changed (6 pivot #TDS texts lose a re-projection layer: S3a's first part, by design) and 14 side statements run one place earlier (the sides planned before any is sent) | identical per test; every statement byte-identical |
+| sibling 3 | Databricks, channels A and B | identical per test; the same 12 changed and 14 moved statements; channel B relation timed out at 900 s in the batch (881 s at the base) and passed alone, identical | identical per test; every statement byte-identical; channel B relation alone 670 s |
+| sibling 4 | BigQuery, channels A and B | identical per test; one message (`filter::testFilterInstance`, a UNION ALL with no ORDER BY read in two orders) matches main's and one base run's, not the other's | identical per test |
+
+No body on these lanes reaches a raw grid's report (the refusal by name on a dialect not measured for it appears 0
+times) or moves under the dialect's declared snapshot. The two reds every round are main's: SQLite channel B
+essential at 332 (`removeDuplicates...MixedTypes`, `SQLITE_TOOBIG`: lite's SQLite spelling of a mixed list's dedup and
+sort, 1.8 MB, measured 2026-10-31) and BigQuery channel A essential (the same test refused at render: "a list of lists
+reached BigQuery, whose arrays hold no array"); the user's ruling on both is owed.
+
 ## 2026-10-31 — The seam program's S3c, third part: a raw grid's names, cells and rows are a keyed plan; the stamp, the grid probe and the wire probe deleted; `probe` 0
 
 The decisions log D90; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 and §4 (S3c). Reworked before its

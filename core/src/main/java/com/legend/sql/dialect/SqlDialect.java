@@ -161,9 +161,9 @@ public interface SqlDialect {
                 + ", which says no column limit for it");
     }
 
-    /** Whether dynamic PIVOT needs the two-phase staticization
-     * pre-pass ({@link com.legend.driver.DynamicPivot} — no native
-     * dynamic pivot on this backend). */
+    /** Whether this database has no native PIVOT: a pivot whose keys are named is written as the grouped CASE
+     *  emulation, and a dynamic one is keyed, as on every database (its keys read by its plan's first step; the
+     *  staticizer that read them at planning deleted 2026-10-31, the planner-driver seam program's S3a). */
     default boolean needsStaticPivot() {
         return false;
     }

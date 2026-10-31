@@ -221,7 +221,8 @@ class JavaEvalLedgerTest {
             // 111 -> 113 (2026-10-29, the doors): the key's type probe is a plan statement of the body's target the
             // plan runner runs (PlanRunner.columns: checked, the target's session statements run) -- two lines of
             // parameters (the plan sessions, the target), no evaluation
-            Map.entry("core/src/main/java/com/legend/driver/DynamicPivot.java", 118),   // 113 -> 118 (2026-10-30, D71): at the root, out of exec -- the five exec imports the move needs (the runner, the sessions, the origin, the statements, the wire table); no rule changed
+            // DynamicPivot.java's row RETIRED 2026-10-31 (the planner-driver seam program's S3a): the staticizer deleted,
+            // a dynamic pivot keyed where it is planned, its keys read when the plan runs (KeyedPivotKeyRoundTripTest)
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
@@ -802,7 +803,7 @@ class JavaEvalLedgerTest {
             // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
             // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
             // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
-            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2318),   // 2304 -> 2318 (2026-10-30, the seam program's S3c, third part): a raw grid let read after an effect is a STAGED TABLE (D75) -- its table named (stagedGridTable), dropped when the body ends (dropTables) and read back raw (stagedGridRead); plumbing to the one seam, nothing evaluated; the stamp and its referee deleted here, RawGridSchema (361 lines), GridProbe (87) and WireProbe (43) deleted outright   // 2309 -> 2304 (2026-10-30, the seam program's S3c): the database judge's late-bound grid side is not framed by a planning-time describe (WireProbe.staticized's call in wrapSide deleted)   // 2317 -> 2309 (2026-10-30, the seam program's S3b): the wire probe's reconcile call deleted (the canon asks the value in the statement)   // 2322 -> 2317 (2026-10-30, the seam program's S3a): the column probe's call deleted, a refusal by name in its place   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
+            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2310),   // 2318 -> 2310 (2026-10-31, the seam program's S3a, the staticizer deleted): the static pivot's call and its key reader gone (a dynamic pivot keyed where it is planned)   // 2304 -> 2318 (2026-10-30, the seam program's S3c, third part): a raw grid let read after an effect is a STAGED TABLE (D75) -- its table named (stagedGridTable), dropped when the body ends (dropTables) and read back raw (stagedGridRead); plumbing to the one seam, nothing evaluated; the stamp and its referee deleted here, RawGridSchema (361 lines), GridProbe (87) and WireProbe (43) deleted outright   // 2309 -> 2304 (2026-10-30, the seam program's S3c): the database judge's late-bound grid side is not framed by a planning-time describe (WireProbe.staticized's call in wrapSide deleted)   // 2317 -> 2309 (2026-10-30, the seam program's S3b): the wire probe's reconcile call deleted (the canon asks the value in the statement)   // 2322 -> 2317 (2026-10-30, the seam program's S3a): the column probe's call deleted, a refusal by name in its place   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1427,7 +1428,7 @@ class JavaEvalLedgerTest {
                     // 2026-10-30 (the seam program's S3a: a cast-named pivot's columns are the compiler's, F10);
                     // WireProbe and GridProbe the same day (S3b, S3c: the canon asks the value in the statement; a raw
                     // grid's columns are the ones its result reports)
-                    "DynamicPivot.java",
+                    // DynamicPivot.java deleted 2026-10-31 (the seam program's S3a: a dynamic pivot keyed where planned)
                     "SystemDatabase.java",
                     "package-info.java");
 

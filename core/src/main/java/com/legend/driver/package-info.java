@@ -8,9 +8,9 @@
  * {@code ArchitectureTest.theDriverHasOneCaller}), the body compiler, the judges' arms and their plans
  * ({@code HostJudge}, {@code DatabaseJudge}, {@code AgreementArm}, {@code AssertVerdicts}, {@code JudgePlans},
  * {@code SqlTextVerdicts}), the seeds and loads ({@code CsvLoad}, {@code SeedSqlForms}, {@code PlanEnvelope},
- * {@code PlanAllocations}), the one schema probe left ({@code DynamicPivot}: a probe asks the plan runner; the
- * planner-driver seam program deleted {@code ColumnProbe}, {@code WireProbe} and {@code GridProbe}, 2026-10-30) and the
- * graph's system database ({@code SystemDatabase}). This is
+ * {@code PlanAllocations}) and the graph's system database ({@code SystemDatabase}); no schema probe (the planner-driver
+ * seam program deleted {@code ColumnProbe}, {@code WireProbe} and {@code GridProbe} 2026-10-30 and {@code DynamicPivot}
+ * 2026-10-31). This is
  * the one layer that holds a compiled model and a session at once: it depends on the planner and on the runtime
  * ({@code exec}), and neither depends on it. Until D73 these files shared the root package with the doors and with the
  * planner's machinery; the package line makes the wall the language's. A closed register

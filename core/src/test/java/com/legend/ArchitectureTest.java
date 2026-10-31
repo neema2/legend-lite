@@ -1192,8 +1192,8 @@ final class ArchitectureTest {
     void theBodyDriverAndTheJudgesHoldNoJdbc() {
         noClasses()
             // the whole judge package since 2026-10-30 (D71: the judges out of exec into com.legend.judge), and
-            // the probes with them at the root (DynamicPivot, the one left: a probe asks the plan runner, never a
-            // connection; ColumnProbe, WireProbe and GridProbe deleted 2026-10-30, the seam program's S3)
+            // the probes with them at the root (ColumnProbe, WireProbe and GridProbe deleted 2026-10-30 and
+            // DynamicPivot 2026-10-31, the seam program's S3: no probe is left)
             // the whole driver package since 2026-10-30 (D73, step C: the execution side's machinery -- the body driver
             // and compiler, the judges' arms, the seeds, the probes, the system database -- is com.legend.driver)
             .that().haveNameMatching("com\\.legend\\.(driver\\.[A-Za-z0-9_]+"
@@ -1211,8 +1211,8 @@ final class ArchitectureTest {
      * "the doors").</strong> {@code Statements} is the session seam (text in; rows, a count, reported columns or text
      * out), and {@code PlanRunner} is the one place a statement meets it: every statement sent is a plan's, checked
      * against its target (the database, the server versions it is written for), given the target's session
-     * statements and counted. The one schema probe left ({@code DynamicPivot}) asks the runner ({@code columns},
-     * {@code describe}); the seeds, a program's session
+     * statements and counted. No schema probe is left (the seam program's S3, 2026-10-31: a dynamic pivot's keys and a
+     * raw grid's columns are read by a plan's own first step); the seeds, a program's session
      * statements and the system store's rows are setup steps it runs ({@code setUp}); the transaction bracket is the
      * session's own ({@code Sessions.Session.inTransaction}). The session owners ({@code PlanSessions},
      * {@code Sessions}) and the implementations ({@code JdbcStatements}, MongoDB's) are the seam itself. No other

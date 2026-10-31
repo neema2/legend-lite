@@ -2086,13 +2086,12 @@ public final class BodyDriver {
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));
-        // post-process, then two-phase dynamic pivot (DynamicPivot doc)
-        plan = DynamicPivot.staticize(
-                com.legend.lowering.SqlPostProcessors.applyRecorded(plan,
-                        env.tableReplace(),
-                        env.postProcessors().extractCtes(),
-                        env.postProcessors().nonExecutable()),
-                dialect, env.planSessions(), env.target(), keyReader(env));
+        // post-process; a dynamic pivot stays dynamic: its plan is keyed where it is planned (JudgePlans, PlanMaker.keyed:
+        // its keys read when the plan runs), never staticized by a read at planning (the seam program's S3a, 2026-10-31)
+        plan = com.legend.lowering.SqlPostProcessors.applyRecorded(plan,
+                env.tableReplace(),
+                env.postProcessors().extractCtes(),
+                env.postProcessors().nonExecutable());
         // A DYNAMIC PIVOT's TEXT whose columns nothing names (its templates unresolved): its columns exist only once the
         // database is asked, and planning asks the database nothing (the seam program's S3a, 2026-10-30: the LIMIT-0
         // column probe deleted; the six channel B bodies that reached it named their columns by a cast, F10). Refused
@@ -2104,16 +2103,6 @@ public final class BodyDriver {
                     + " nothing, and the pivot's keyed form writes no text");
         }
         return named ? lowerer.namedColumns(plan) : plan;
-    }
-
-    /** A static pivot's key reader ({@link DynamicPivot.KeyReader}): the keys' query run as TYPED
-     *  rows on the body's session, as every statement the body sends is (phase 5; track B's B1a, 2026-10-29: the
-     *  pivot reads no JDBC itself). */
-    private static DynamicPivot.KeyReader keyReader(ExecEnv env) {
-        return (query, columns) -> JudgePlans.run(new com.legend.executionplan.ExecutionPlan.TdsResult(
-                com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE, columns,
-                PlanMaker.sql(query, env.dialect(), JudgePlans.target(env))),
-                com.legend.exec.PlanSessions.of(env.session(), env.trace())).rows();
     }
 
     /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
