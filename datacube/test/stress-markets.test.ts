@@ -292,6 +292,14 @@ describe('the example page over the classes, opened the page\'s way', () => {
         const t = await projectEngine.execute(plan, 0);
         const values = t.columns.find((c) => c.name === TS_VALUE)!.values as unknown[];
         const lines = series.split !== undefined ? new Set(t.columns.find((c) => c.name === TS_SPLIT)!.values as unknown[]).size : 1;
+        // a column's own aggregate (`volume.sum`: a sector's day of volume) is one value a date and line, a frequency
+        // or none (docs/TS_LANGUAGE_BUILD_2026_10_30.md P6: its writer had read each row as a point there)
+        const dates = t.columns.find((c) => c.name === TS_DATE)!.values as unknown[];
+        const split = t.columns.find((c) => c.name === TS_SPLIT)?.values as unknown[] | undefined;
+        const at = dates.map((d, i) => `${String(d).slice(0, 10)}|${split ? String(split[i]) : ''}`);
+        if (JSON.stringify(series.expr).includes('"fn":"') || v.spec.grain !== undefined) {
+          assert.equal(new Set(at).size, at.length, `${series.id} (${series.name}): one value a date and line`);
+        }
         assert.ok(values.filter((x) => x !== null).length >= 20 * lines, `${series.id} (${series.name}): ${values.length} rows, ${lines} lines`);
         drawn.set(`${v.id} ${series.id}`, lines);
       }

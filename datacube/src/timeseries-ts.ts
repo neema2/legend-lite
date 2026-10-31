@@ -137,7 +137,7 @@ interface Written {
  *  query of their own, each period then taken by its role (the tile's rolled: the review's N4). */
 export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: string, present = false): string {
   const expr = inlined(series.expr, ts.series);
-  const grain = ts.grain;
+  const grain = seriesGrain(ts, expr);
   const split = series.split;
   const fill = FILL[ts.align ?? 'intersect'];
   const filled = fill === undefined ? '' : ` FILL(${fill})`;
@@ -168,6 +168,18 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: strin
   }
   const w = writer(ts, expr, split, grain, anchor);
   return `SELECT ${w.text(expr)} AS ${TS_ITEM}${also} FROM ${w.from}${grain === undefined ? '' : ` SAMPLE BY ${SAMPLE[grain]}`}${filled}`;
+}
+
+/**
+ * THE PERIODS A SERIES IS READ BY: the tile's frequency; else, where a column says how a date takes its rows
+ * (`volume.sum`, a sector's day of volume: the tile's own `.sum`, `.first`, `.max`), a day -- one value a date, as the
+ * aggregate asks (ruling 8: without it a line is its column's rows, several rows on a date several points); else none.
+ */
+export function seriesGrain(ts: TimeseriesSpec, expr: TsExpr): TimeGrain | undefined {
+  if (ts.grain !== undefined) return ts.grain;
+  const takes = (e: TsExpr): boolean => e.kind === 'column' ? e.fn !== undefined
+    : e.kind === 'call' ? e.args.some(takes) : e.kind === 'binary' ? takes(e.left) || takes(e.right) : false;
+  return takes(expr) ? 'day' : undefined;
 }
 
 /** The name of a series' own query, its columns computed on their sources' dates. */

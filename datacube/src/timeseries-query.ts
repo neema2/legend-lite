@@ -20,7 +20,7 @@ import {
   agg, and, asc, collection, colSpec, derive, desc, enumValue, fn, from, lambda, lit, or, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
-import { TS_ITEM, tsIsland, tsLets, tsQueryText } from './timeseries-ts.ts';
+import { seriesGrain, TS_ITEM, tsIsland, tsLets, tsQueryText } from './timeseries-ts.ts';
 import { LIBRARY_ENUMS, type LibraryEnum } from './generated/library-enums.ts';
 import { LIBRARY_PACKAGE } from './pure-library.ts';
 import { filterNode, literalNode, sourceWithDerived } from './query.ts';
@@ -488,11 +488,11 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   const read = sourcesOf(ts, expr);
   if (read.length === 0) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
   // `names`: a query of two series' relations names their columns apart (a scatter's)
-  const sh: Shared = { ts, grain: ts.grain, series, inputs, split: series.split, first: read[0]!, anchor, periodType: undefined, names };
+  const sh: Shared = { ts, grain: seriesGrain(ts, expr), series, inputs, split: series.split, first: read[0]!, anchor, periodType: undefined, names };
   // every source's dates of one type (a combination of a date's and a date-time's needs a frequency)
   for (const alias of read) {
     const { src, input } = sourceNamed(ts, inputs, alias);
-    periodTyped(sh, periodOf(ts.grain, src.date, typeIn(input.snapshot, src.date)).type, alias);
+    periodTyped(sh, periodOf(sh.grain, src.date, typeIn(input.snapshot, src.date)).type, alias);
   }
   const first = sourceNamed(ts, inputs, read[0]!).src;
   const split = series.split;
@@ -1454,7 +1454,7 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   // a level's volatility and Sharpe ratio, a difference's or a deviation's none (the review's Q2); annualized by the
   // periods a year of every date the series has (a tile of no frequency: inferred, before the window shown is cut)
   const level = b.level;
-  const inferred = level && ts.grain === undefined;
+  const inferred = level && w.shared.grain === undefined;
   if (level) w.perYear();
   onlyShown(b, view);
   // a level's figures of its returns, its drawdown and its growth: of the level itself, compared or not -- the library's
