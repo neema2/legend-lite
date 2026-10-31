@@ -109,8 +109,30 @@ Nothing is named and nothing is spelled: the grid's tree sits inside the query's
 itself plans. Printing is only for people, and the printer chooses how to show a source: `WITH px AS (SELECT ...)`
 where the grid reads clearly as SQL, `let px = ...` Pure where it does not. Either way it is presentation.
 
-**SQL in a `WITH` stays one way a person writes a source by hand** in `#TS` text (R1.2, R1.3): typing
-`WITH quotes AS (SELECT ... FROM MarketQuote)` in a notebook is still read, into the same node.
+**Two directions, only one of them gone** (the user asked, 2026-10-31, "how will that work without SQL?"). A
+*person* writing SQL to flatten the model stays, and works today. A *program* printing SQL to hand a grid over is
+what is not needed (the printer, parked).
+
+A person flattens a class in a `WITH` (spec R1.2; built and pinned by `TsIslandTest.aWithSourceIsAClasssPathsNamedOnce`):
+
+```sql
+WITH quotes AS (
+  SELECT instrument.ticker AS ticker, quoteTime AS day, closePrice AS close
+  FROM   MarketQuote
+  WHERE  instrument.sector = 'TECH'
+)
+SELECT volatility(close[AAPL], 63)  AS aapl_vol,
+       close[AAPL] / close[MSFT]     AS ratio
+FROM   quotes ON day BY ticker
+```
+
+The `WITH` body is SQL-shaped text over the model -- a class, its dotted paths, a condition -- and core's parser reads
+it into the same source node a grid is: `MarketQuote.all()->project(~[ticker: x|$x.instrument.ticker, day:
+x|$x.quoteTime, close: x|$x.closePrice, ...])->filter(...)`, the library's calls over it. The text is read, never run;
+the database gets the SQL the compiler writes through the mapping. Two other spellings give the same tree: the class
+read directly, its paths where they are used (`FROM MarketQuote ON quoteTime BY instrument.ticker`, R1.1), and from
+DataCube or Python the grid itself, whose query already is the flattening (`source(MarketQuote, date='quoteTime',
+by='instrument.ticker')` in the Python DSL, D8).
 
 ## 4. The words: gs-quant's meaning, read from its source
 
