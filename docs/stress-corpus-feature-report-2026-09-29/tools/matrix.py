@@ -45,7 +45,7 @@ DECL = {
     'scaffolding:m2m-mapping': '23 class mappings', 'scaffolding:runtime': '26',
     'scaffolding:model-connection': '3 (2 JSON, 1 XML)', 'scaffolding:model-chain-connection': '3',
     'grammar:association': '250', 'grammar:class-inheritance': '1,849 subclasses (depth <= 2)',
-    'grammar:constraint': '8 on 3 classes', 'grammar:derived-property': '206', 'grammar:enumeration': '21',
+    'grammar:constraint': '28 on 7 classes', 'grammar:derived-property': '206', 'grammar:enumeration': '21',
     'grammar:function': '21', 'grammar:measure': '3', 'grammar:nested-association': 'yes',
     'grammar:profile': '2', 'grammar:qualified-property': '89',
     'mapping:aggregation-aware-mapping': '1', 'mapping:cross-store': '1 XStore association',
