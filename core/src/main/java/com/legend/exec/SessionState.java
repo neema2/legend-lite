@@ -3,10 +3,8 @@
 
 package com.legend.exec;
 
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -21,9 +19,6 @@ import java.util.Set;
 public final class SessionState {
 
     private final Set<Record> seeded = new HashSet<>();
-
-    /** the database's reported column types per prepared statement text */
-    private final Map<String, List<WireTypes.ReportedColumn>> wireTypes = new HashMap<>();
 
     /** The targets' session statement lists that have run on this session, each once: the dialect's session setup is
      *  idempotent by contract ({@code SqlDialect.sessionSetup}), so a list runs before the connection's first
@@ -53,11 +48,6 @@ public final class SessionState {
     /** A statement that WRITES is about to run on the session: the next establishment re-seeds. */
     public synchronized void markWriting() {
         dirty = true;
-    }
-
-    /** The session's memo of the database's reported column types per prepared statement text. */
-    public Map<String, List<WireTypes.ReportedColumn>> wireTypes() {
-        return wireTypes;
     }
 
     /** Whether {@code statements}, a target's session statements, have still to run on this session: not run since

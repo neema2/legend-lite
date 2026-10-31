@@ -61,7 +61,12 @@ public final class VerdictBatch {
      *  index column first), rendered for the body's session. The batch runs the plans itself, as a verdict group
      *  through the plan runner ({@link PlanRunner#program}); a wrapper the dialect cannot spell raises here. */
     public interface Runner {
-        ExecutionPlan.TdsResult plan(SqlQuery statement, boolean fused);
+        /** A typed result, or a keyed one where the statement reads a raw grid's column names or cells (S3c). */
+        ExecutionPlan.Node plan(SqlQuery statement, boolean fused);
+
+        /** Whether {@code statement} reads a raw grid's report, so its wrapper is keyed and never fused (the keys are
+         *  one grid's columns; the planner-driver seam program's S3c, 2026-10-30). */
+        boolean keyed(SqlQuery statement);
 
         /** The statement's rendered length (the prepare trace's census). */
         int chars(SqlQuery statement);
@@ -306,21 +311,30 @@ public final class VerdictBatch {
             // the group as a plan value (S2e): the fused statement its wrapper over wrappers, each verdict a step with
             // no wrapper of its own here -- a single wrapper is planned and run lazily in the root loop below, at the
             // place the split rung reaches it, so nothing is sent past the first failure
-            List<Pending> ps = all;
+            // a member whose statement reads a raw grid's report is keyed: its wrapper's keys are its grid's columns,
+            // which no fused statement shares, so the keyed members are a group of their own, each its wrapper
+            // (a member is keyed by its statement with the batch's frames, as it is planned: a frame may read a report)
+            keyedGroup(all.stream().filter(this::keyed).toList(), g.getKey(), rows);
+            List<Pending> ps = all.stream().filter(p -> !keyed(p)).toList();
+            if (ps.isEmpty()) {
+                continue;
+            }
             ExecutionPlan.TdsResult fusedPlan;
             try {
-                fusedPlan = runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true);
+                fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true));
             } catch (com.legend.sql.dialect.DialectCapability e) {
                 // the split rung at planning, member by member (the planner-driver seam program's S3b, 2026-10-30): a
                 // verdict whose canon the dialect cannot spell leaves the group and is refused at its own place in the
                 // root loop (executeOne: UNJUDGED, its own words, nothing sent); the members the dialect spells stay
                 // fused. Until S3b the wire probe's prepare rendered a wire-decided side at its planning, which refused
                 // such a side before it joined the group -- by accident, and only for those sides
-                ps = spelled(all);
+                List<Pending> unfused = ps;
+                ps = spelled(unfused);
                 fusedPlan = null;
-                if (!ps.isEmpty() && ps.size() < all.size()) {
+                if (!ps.isEmpty() && ps.size() < unfused.size()) {
                     try {
-                        fusedPlan = runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames), true);
+                        fusedPlan = typed(runner.plan(fusion.fuse(ps.stream().map(Pending::query).toList(), frames),
+                                true));
                     } catch (com.legend.sql.dialect.DialectCapability again) {
                         fusedPlan = null;
                     }
@@ -414,6 +428,67 @@ public final class VerdictBatch {
         }
     }
 
+    /** Whether {@code p}'s statement, with the batch's frames as it is planned, reads a raw grid's report. */
+    private boolean keyed(Pending p) {
+        return runner.keyed(com.legend.sql.FrameCtes.attach(p.query(), frames));
+    }
+
+    /** The keyed members of a session's group run as a verdict group of their own, each verdict its keyed wrapper (the
+     *  planner-driver seam program's S3c, 2026-10-31): the body's statements, sent with the fused group's, their rows
+     *  into {@code rows}. A wrapper the dialect cannot spell, or a group the database rejects, leaves its members'
+     *  rows absent: the root loop reaches each at its place (executeOne), where its refusal is its own. */
+    private void keyedGroup(List<Pending> keyed, Sessions.Session on, Map<Integer, List<Object>> rows) {
+        List<Pending> members = new ArrayList<>(keyed.size());
+        List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(keyed.size());
+        for (Pending p : keyed) {
+            try {
+                verdicts.add(new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(), List.of(),
+                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false)));
+                members.add(p);
+            } catch (com.legend.sql.dialect.DialectCapability e) {
+                // refused at its own place in the root loop
+            }
+        }
+        if (members.isEmpty()) {
+            return;
+        }
+        Map<Integer, List<Object>> got = new HashMap<>();
+        int[] next = {0};
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
+            PlanRunner.program(new ExecutionPlan(List.of(), new ExecutionPlan.Verdicts(verdicts, null)), Map.of(),
+                    PlanSessions.of(on, trace), PlanRunner.Judging.DATABASE, new VerdictSink() {
+                        @Override
+                        public void fused(ExecutionPlan.Verdicts g,
+                                com.legend.error.@com.legend.base.Nullable DataError rejected) {
+                            throw new IllegalStateException("a group of keyed wrappers has no fused statement");
+                        }
+
+                        @Override
+                        public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
+                            int local = next[0]++;
+                            if (row != null) {
+                                got.put(members.get(local).ix(), row);
+                            }
+                        }
+                    });
+        } catch (com.legend.error.DataError e) {
+            // the database rejected a keyed statement: the rows read before it stand; the rest are reached at their
+            // place (the root loop's executeOne), the error at its owner
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        rows.putAll(got);
+    }
+
+    /** A fused statement's plan: one typed result (a member that reads a raw grid's report never joins one). */
+    private static ExecutionPlan.TdsResult typed(ExecutionPlan.Node plan) {
+        if (plan instanceof ExecutionPlan.TdsResult t) {
+            return t;
+        }
+        throw new IllegalStateException("a fused verdict statement planned as " + plan.getClass().getSimpleName()
+                + ": a keyed member is judged at its place");
+    }
+
     /** The members of a group whose own canon the dialect spells, each fused alone over the batch's frames (planning
      *  only: a render, nothing sent). */
     private List<Pending> spelled(List<Pending> group) {
@@ -444,7 +519,7 @@ public final class VerdictBatch {
      * re-run, never a host rescue. */
     public static List<Object> executeOne(String name, boolean wantEqual, SqlQuery vq, Sessions.Session on,
             Runner runner) {
-        ExecutionPlan.TdsResult wrapper;
+        ExecutionPlan.Node wrapper;
         try {
             wrapper = runner.plan(vq, false);
         } catch (com.legend.sql.dialect.DialectCapability e) {
@@ -455,7 +530,7 @@ public final class VerdictBatch {
         ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(
                 new ExecutionPlan.Verdict(name, armOf(name), wantEqual, List.of(), wrapper)), null);
         List<List<Object>> rows = new ArrayList<>(1);
-        try {
+        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
             PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(on, null),
                     PlanRunner.Judging.DATABASE, new VerdictSink() {
                         @Override

@@ -1363,13 +1363,6 @@ public final class BodyDriver {
      * EXPLICIT mapping argument as the chain's execution context, and — for
      * a let binding — run it eagerly through the pipeline.
      */
-    /** The executor's SchemaReferee: the LIMIT-0 probe with its checked
-     * failure wrapped — F1.3 keeps the JDBC surface (its exception type
-     * included) out of the resolver. */
-    static com.legend.resolver.RawGridSchema.SchemaReferee gridReferee(ExecEnv env) {
-        return (sql, writtenFor) -> GridProbe.probeTypedColumns(
-                sql, writtenFor, env.planSessions(), env.target(), env.dialect());
-    }
 
     static ExecFrame buildFrame(
             com.legend.compiler.spec.typed.TypedNativeCall ec,
@@ -2100,15 +2093,15 @@ public final class BodyDriver {
                         env.postProcessors().extractCtes(),
                         env.postProcessors().nonExecutable()),
                 dialect, env.planSessions(), env.target(), keyReader(env));
-        // A relation's TEXT whose columns nothing names (a dynamic pivot's templates unresolved, a raw grid's late-bound
-        // schema): its columns exist only once the database is asked, and planning asks the database nothing (the seam
-        // program's S3a, 2026-10-30: the LIMIT-0 column probe deleted; the six channel B bodies that reached it named
-        // their columns by a cast, F10). Refused by name until the keyed form gives it a first step whose rows name the
-        // columns (S3c); no body in the corpus or channel B reaches it (step H's H1).
+        // A DYNAMIC PIVOT's TEXT whose columns nothing names (its templates unresolved): its columns exist only once the
+        // database is asked, and planning asks the database nothing (the seam program's S3a, 2026-10-30: the LIMIT-0
+        // column probe deleted; the six channel B bodies that reached it named their columns by a cast, F10). Refused
+        // by name: the pivot's keyed form writes no text yet; no body in the corpus or channel B reaches it (step H's
+        // H1). A raw grid's text never comes here: toCSV is its report's texts, toString refused (Render, S3c).
         if (!lowerer.deferredTds().isEmpty()) {
-            throw new com.legend.error.NotImplementedException("a relation's text (toString/toCSV) over columns"
-                    + " nothing names -- a dynamic pivot's or a raw grid's: its columns exist only once the database is"
-                    + " asked, and planning asks the database nothing (the keyed form is pending)");
+            throw new com.legend.error.NotImplementedException("a dynamic pivot's text (toString/toCSV) over columns"
+                    + " nothing names: its columns exist only once the database is asked, planning asks the database"
+                    + " nothing, and the pivot's keyed form writes no text");
         }
         return named ? lowerer.namedColumns(plan) : plan;
     }
@@ -2160,14 +2153,49 @@ public final class BodyDriver {
                     + " not query");
         }
         ExecEnv planned = p.plannedEnv();
+        com.legend.compiler.element.type.Type.RelationType late = com.legend.compiler.element.type.Type.schemaView(
+                p.plannedRoot().info().type());
+        boolean grid = late != null && late.isLateBound();
+        // a raw grid's rows (the seam program's S3c, 2026-10-30): no column is named, the table takes the ones its
+        // query answers; any other relation's columns named as the staged relation names them, which the
+        // statements after read by name
         com.legend.sql.SqlQuery plan = lowerAndPrepare(p.body(), planned, planned.ctx(), planned.dialect(),
-                false, true);
-        // (each column named as the staged relation names it: the statements after read it by those names)
-        String sql = planned.dialect().render(com.legend.sql.SqlDml.CreateTempTableAs.staged(table, plan,
+                false, !grid);
+        // (a grid's table a plain temporary one: it outlives the commits of the statements after it, which a
+        // body's effects and verdicts make one by one, and is dropped when the body ends, dropTables)
+        String sql = planned.dialect().render(grid ? new com.legend.sql.SqlDml.CreateTempTableAs(table, plan)
+                : com.legend.sql.SqlDml.CreateTempTableAs.staged(table, plan,
                 com.legend.resolver.StagedRows.columns(p.plannedRoot().info())));
         record(planned, sql, false);
         sendUpdate(planned, sql);
         return new TypedSide.Scalar(null, p.plannedRoot().info().type());
+    }
+
+    private static final java.util.concurrent.atomic.AtomicLong STAGED_GRIDS = new java.util.concurrent.atomic.AtomicLong();
+
+    /** The temporary table a staged raw grid's rows are held in: the let's name under the platform's prefix and a
+     *  number of its own, so a table whose drop failed (BodyCompiler drops it however the body ends; a drop can fail
+     *  on a session the failure left unusable) is never the next body's. */
+    static String stagedGridTable(String let) {
+        return stagedTable(let) + "_" + STAGED_GRIDS.incrementAndGet();
+    }
+
+    /** {@code tables} dropped on the body's session, whatever the database does with staged tables as a transaction
+     *  ends (a staged raw grid's table is a plain temporary one). */
+    static void dropTables(ExecEnv env, java.util.List<String> tables) {
+        for (String t : tables) {
+            String sql = env.dialect().render(new com.legend.sql.SqlDdl.DropTable(null, t,
+                    com.legend.sql.NameQuoting.BARE));
+            record(env, sql, false);
+            sendUpdate(env, sql);
+        }
+    }
+
+    /** The raw read of a staged raw grid's temporary table, in the session's dialect (a plain {@code SELECT *} of
+     *  it; StagedRows.gridBoundTo binds the let to it). */
+    static String stagedGridRead(String table, ExecEnv env) {
+        return env.dialect().render(com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Table(table, table,
+                java.util.List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE)));
     }
 
     /** The store a staged let's table is read under (StagedRows.storeOf, which a write plan's staging reads too). */
@@ -2382,10 +2410,8 @@ public final class BodyDriver {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
         env = routeSystemDatabase(body, env);
-        // late-bound grids: FIRST-query schema pin — staged compilation:
-        // the resolver pass takes the probed roster through the referee
-        body = com.legend.resolver.RawGridSchema.stamp(body,
-                gridReferee(env));
+        // a late-bound grid is never pinned here: its columns are the ones its result reports, read when the plan
+        // runs (the seam program's S3c, 2026-10-30; until then RawGridSchema.stamp took GridProbe's LIMIT-0 roster)
         // the from being executed IS the frame: its bound context carries the
         // post-processors, the connection's time zone and the options this
         // execution runs under (batch 120 — no static slot). The OUTERMOST

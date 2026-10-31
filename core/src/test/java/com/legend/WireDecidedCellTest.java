@@ -28,7 +28,7 @@ import org.junit.jupiter.params.provider.MethodSource;
  * holds when the database stores text, and as the integer otherwise. (The raw grid's frame by a describe, the
  * staticizer, was deleted by S3c: a raw grid is a relation of the columns its result reports.)
  */
-class WireProbeTest {
+class WireDecidedCellTest {
 
     /** {@code SELECT table.id AS id FROM table} with the column STAMPED {@code stamp}. */
     private static SqlSelect plan(SqlType stamp, String table) {

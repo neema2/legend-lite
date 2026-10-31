@@ -244,8 +244,20 @@ final class JdbcStatements implements Statements {
                             .toList() + ": a typed-rows statement answers the plan's columns in their order"
                             + (declared == columns.size() ? "" : " (a tagged column's slots beside it)"));
                 }
+                // a column whose kind is the wire's (a raw grid's, read by name) is read as its result reports it
+                List<ExecutionPlan.Column> read = columns;
+                if (columns.stream().anyMatch(c -> c.slot() == null
+                        && com.legend.result.RowDecode.ANY.equals(c.type()))) {
+                    List<Reported> reported = reported(rs.getMetaData());
+                    read = new java.util.ArrayList<>(columns.size());
+                    int at = 0;   // the physical column (a tagged column answers its slots beside it)
+                    for (ExecutionPlan.Column c : columns) {
+                        read.add(WireTypes.decodedAs(c, reported.get(at)));
+                        at += com.legend.result.RowDecode.physicalColumns(List.of(c));
+                    }
+                }
                 while (rs.next()) {
-                    cells.row(JdbcDecode.row(rs, columns, driver));
+                    cells.row(JdbcDecode.row(rs, read, driver));
                 }
             }
         } catch (SQLException e) {

@@ -146,7 +146,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * null).
      */
     public record Verdict(String name, String arm, boolean wantEqual, List<Side> base,
-            @com.legend.base.Nullable TdsResult wrapper) {
+            @com.legend.base.Nullable Node wrapper) {
         public Verdict {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(arm, "arm");
@@ -154,7 +154,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                 throw new IllegalArgumentException("a verdict names its arm");
             }
             base = List.copyOf(base);
-            if (wrapper != null && wrapper.shape() != TdsResult.Shape.RELATION) {
+            // a wrapper answers the verdict's one row: a typed relation, or a keyed one where it reads a raw grid's
+            // column names or cells (the planner-driver seam program's S3c, 2026-10-30)
+            if (wrapper != null && !(wrapper instanceof TdsResult t && t.shape() == TdsResult.Shape.RELATION)
+                    && !(wrapper instanceof Keyed)) {
                 throw new IllegalArgumentException("a verdict's wrapper answers a relation: the verdict's one row");
             }
         }
@@ -280,6 +283,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             Objects.requireNonNull(shape, "shape");
             columns = List.copyOf(columns);
             Objects.requireNonNull(sql, "sql");
+            if (!sql.regions().isEmpty()) {
+                throw new IllegalArgumentException("a typed result's statement is written once: per-key regions are a"
+                        + " keyed result's body");
+            }
             if (shape != Shape.RELATION && columns.size() != 1) {
                 throw new IllegalArgumentException("a " + shape + " answer is one column, given "
                         + columns.stream().map(Column::name).toList());
@@ -312,10 +319,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * columns). {@code maxColumns}: the most columns the database
      * answers, a body asked for more refused by name before it is sent; null where the database has no limit said.
      */
-    public record Keyed(Sql keys, List<String> keyFields, List<Output> outputs, int perKeyAt, Sql body,
-            Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
+    public record Keyed(Sql keys, KeysOf keysOf, List<String> admitted, List<String> keyFields, List<Output> outputs,
+            int perKeyAt, Sql body, Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) implements Node {
         public Keyed {
             Objects.requireNonNull(keys, "keys");
+            Objects.requireNonNull(keysOf, "keysOf");
+            admitted = List.copyOf(admitted);
+            if (keysOf == KeysOf.ROWS && !admitted.isEmpty()) {
+                throw new IllegalArgumentException("a keyed result whose keys are rows admits no reported kinds");
+            }
             keyFields = List.copyOf(keyFields);
             outputs = List.copyOf(outputs);
             Objects.requireNonNull(body, "body");
@@ -338,8 +350,11 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                             + " fixed columns first");
                 }
             }
-            if (!perKey) {
+            if (!perKey && keysOf == KeysOf.ROWS) {
                 throw new IllegalArgumentException("a keyed result with no per-key output");
+            }
+            if (keysOf == KeysOf.COLUMNS && !keys.slots().isEmpty()) {
+                throw new IllegalArgumentException("a statement read for its reported columns binds nothing");
             }
             long fixedOutputs = outputs.stream().filter(o -> o instanceof Fixed).count();
             if (perKeyAt < 0 || perKeyAt > fixedOutputs) {
@@ -352,6 +367,25 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
                         + " " + keyFields.size() + " fields for " + perKeyOutputs + " per-key outputs");
             }
         }
+
+        /** A keyed result whose keys are a statement's ROWS (a dynamic pivot's distinct values). */
+        public Keyed(Sql keys, List<String> keyFields, List<Output> outputs, int perKeyAt, Sql body,
+                Snapshot snapshot, @com.legend.base.Nullable Integer maxColumns) {
+            this(keys, KeysOf.ROWS, List.of(), keyFields, outputs, perKeyAt, body, snapshot, maxColumns);
+        }
+
+        /**
+         * What a key IS: a row the keys statement answers ({@code ROWS}: a dynamic pivot's, its cells the key and each
+         * per-key output's name), or a column its result REPORTS ({@code COLUMNS}: a raw grid's, the planner-driver
+         * seam program's S3c, 2026-10-30), read as the session reads a result's columns ({@code Statements.columns},
+         * the keys statement a {@code LIMIT 0} the planner wrote), each key one cell, the column's label, in the
+         * result's order. A body keyed by columns answers fixed columns alone where its regions spell rows (a grid's
+         * names, its cells). {@code admitted}: the slots a reported column may be in for the body to spell its cells
+         * exactly (the cell's JSON keeps an integer's, a text's, a boolean's, a double's kind; the database's text is
+         * the engine's for an integer and a text alone), every other column refused by name before the body is sent
+         * -- never spelled approximately (AGENTS.md invariant 4); empty: any column (the names alone are read).
+         */
+        public enum KeysOf { ROWS, COLUMNS }
 
         /** One output column of the body; {@code field}, the name the body's statement writes its cells under (a
          *  session reading a cell by name reads it so; JDBC reads by place). */

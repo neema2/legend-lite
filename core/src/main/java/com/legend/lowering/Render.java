@@ -79,10 +79,15 @@ public final class Render {
                     "toCSV: unexpected arity " + tc.args().size());
         };
         SqlSelect inner = relation.apply(tc.args().get(0));
-        // a LATE-BOUND inner (a raw grid: executeInDbToTDS — batch 82) or
-        // a pivot inner: the column list exists only at the execution
-        // boundary — DEFER the CSV composition exactly like the '#TDS'
-        // toString (resolveDeferredTds composes by form)
+        if (Type.relationSchema(tc.args().get(0).info().type()) instanceof Type.RelationType grt
+                && grt.isLateBound() && inner.outputs().isEmpty()) {
+            // a RAW GRID (executeInDbToTDS): its header and cells from the grid's report, a region per column its
+            // result reports (the planner-driver seam program's S3c, 2026-10-30); nothing read at planning
+            return new SqlExpr.ScalarSubquery(gridCsv(inner, renderTdsNull, alias));
+        }
+        // a PIVOT inner whose columns nothing names (or an inner of no columns): its column list exists only once the
+        // database is asked -- DEFERRED, and refused by name where it reaches a statement (BodyDriver) until the
+        // pivot's keyed form writes it (the seam program's S3a)
         if (Type.relationSchema(tc.args().get(0).info().type()) instanceof Type.RelationType drt
                 && (inner.outputs().isEmpty() || (hasDynamicPivot(inner) && !drt.dynamicColumns().isEmpty()))) {
             int id = deferredTds.size();
@@ -125,6 +130,52 @@ public final class Render {
                         : f.callee().qualifiedName().equals(
                                 "meta::pure::functions::date::ISO8601DateFormat")
                                 && pattern.equals("%t{yyyy-MM-dd}"));
+    }
+
+    /**
+     * A raw grid's toCSV text ({@code helperFunctions.pure}'s rule, as {@link #csv} spells it): the header its column
+     * names (the grid's report, {@code COLUMNS}) joined ',', each through the one escape; each row its cells (the
+     * report's {@code TEXTS}, the database's text of each, read as a String cell: the keyed plan admits an integer's
+     * and a text's columns alone, for which that text IS the value's toString) joined ',', in the grid's order; the
+     * rows joined '\n', '\n' after the header and after the last row. The planner-driver seam program's S3c,
+     * 2026-10-30.
+     */
+    static SqlSelect gridCsv(SqlSelect grid, boolean renderTdsNull, String alias) {
+        String n = alias + "_n";
+        String c = alias + "_c";
+        String l = alias + "_l";
+        SqlSource.GridReport names = new SqlSource.GridReport(grid, SqlSource.GridReport.Part.COLUMNS, n);
+        SqlSource.GridReport texts = new SqlSource.GridReport(grid, SqlSource.GridReport.Part.TEXTS, c);
+        SqlExpr name = SqlExpr.Column.of(n, names.outputs(), SqlSource.GridReport.VALUE);
+        SqlExpr header = new SqlExpr.ScalarSubquery(SqlSelect.starOf(names).withProjections(List.of(
+                new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.COALESCE, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(escapeCsv(name), new SqlExpr.StringLit(",")), false, List.of(new SqlSelect.SortKey(
+                                SqlExpr.Column.of(n, names.outputs(), SqlSource.GridReport.ORD), true, null, null))),
+                        new SqlExpr.StringLit("")), "header",
+                        new OutputCol("header", SqlType.Scalar.VARCHAR, false)))));
+        SqlExpr text = cell(SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.VALUE),
+                new Type.Column(SqlSource.GridReport.VALUE, Type.Primitive.STRING,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_ONE),
+                SqlType.Scalar.VARCHAR, renderTdsNull);
+        SqlExpr row = SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.ROW);
+        OutputCol lineOut = new OutputCol("_csv_line", SqlType.Scalar.VARCHAR, false);
+        OutputCol rowOut = new OutputCol(SqlSource.GridReport.ROW, SqlType.Scalar.BIGINT, false);
+        SqlSelect lines = SqlSelect.starOf(texts).withProjections(List.of(
+                new SqlSelect.Projection(row, SqlSource.GridReport.ROW, rowOut),
+                new SqlSelect.Projection(new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                        List.of(text, new SqlExpr.StringLit(",")), false, List.of(new SqlSelect.SortKey(
+                                SqlExpr.Column.of(c, texts.outputs(), SqlSource.GridReport.ORD), true, null, null))),
+                        "_csv_line", lineOut)))
+                .withGroupBy(List.of(row));
+        SqlExpr nl = new SqlExpr.StringLit("\n");
+        SqlExpr rowsJoined = SqlExpr.Call.of(SqlFn.COALESCE, new SqlAgg.Reducer(SqlAgg.Fn.STRING_AGG,
+                List.of(SqlExpr.Column.of(l, List.of(rowOut, lineOut), "_csv_line"), nl), false,
+                List.of(new SqlSelect.SortKey(SqlExpr.Column.of(l, List.of(rowOut, lineOut),
+                        SqlSource.GridReport.ROW), true, null, null))),
+                new SqlExpr.StringLit(""));
+        return SqlSelect.starOf(new SqlSource.Subselect(lines, l, null)).withProjections(List.of(
+                new SqlSelect.Projection(cat(header, nl, rowsJoined, nl), "csv",
+                        new OutputCol("csv", SqlType.Scalar.VARCHAR, false))));
     }
 
     /** The whole toCSV text as a one-column scalar select over the
@@ -324,6 +375,14 @@ public final class Render {
                     "relation toString(typesAndMuls) is lowered only for"
                     + " the literal-false form");
         }
+        // A RAW GRID's text: its columns exist only when the plan runs, and the '#TDS' composition writes its header
+        // from the compiler's columns -- refused by name (the seam program's S3c audit, 2026-10-31: it fell through to
+        // an internal "zero-column relation" error; toCSV over a raw grid is its report's texts, Render.gridCsv)
+        if (Type.relationSchema(tc.args().get(0).info().type()) instanceof Type.RelationType late
+                && late.isLateBound()) {
+            throw new com.legend.error.NotImplementedException("toString over a raw grid (executeInDb): its columns"
+                    + " exist only when the plan runs, and the text's header is written from the compiler's columns");
+        }
         SqlSelect inner = relation.apply(tc.args().get(0));
         // A PIVOT inner whose columns NOTHING names (its typed schema still carries the pivot's templates): the
         // column list exists only once the database is asked -- DEFER the '#TDS' composition (the keyed form, the
@@ -380,100 +439,6 @@ public final class Render {
                     || sourceHasDynamicPivot(j.right());
             default -> false;
         };
-    }
-
-    /** (No caller since the seam program's S3a, 2026-10-30, deleted the LIMIT-0 column probe that fed it: the keyed form
-     *  of S3c feeds it a first step's rows instead.) The WHOLE-PLAN deferred-TDS pass (called by the K-orchestrator
-     * after staticize — the dynamic-pivot two-phase discipline's second
-     * consumer): every {@link SqlExpr.DeferredTdsString} resolves via
-     * the supplied LIMIT-0 probe (a SCHEMA read the exec layer
-     * performs; THIS layer owns the composition — invariant 6d: exec
-     * never calls the middle-end, so the middle-end hosts the pass and
-     * takes the probe as a function). */
-    public static SqlQuery resolveAllDeferredTds(SqlQuery plan,
-            java.util.Map<Integer, Type.RelationType> registry,
-            java.util.function.Function<SqlSelect,
-                    com.legend.sql.PlanProbe> probe,
-            java.util.function.Function<String, Type> sqlTypeToPure) {
-        return new com.legend.sql.SqlRewriter() {
-            @Override
-            protected SqlExpr expr(SqlExpr e) {
-                if (!(e instanceof SqlExpr.DeferredTdsString d)) {
-                    return e;
-                }
-                com.legend.sql.PlanProbe p = probe.apply(d.inner());
-                Type.RelationType schema = java.util.Objects.requireNonNull(
-                        registry.get(d.id()), "deferred-TDS id " + d.id()
-                                + " has no registered schema");
-                return resolveDeferredTds(d, p.outs(), name -> {
-                    Type t = schema.pivotColumnType(name);
-                    // downstream-rebuilt schemas drop the pivot
-                    // templates (filter/select over the pivot) — the
-                    // probe's SQL type decodes
-                    return t != null ? t
-                            : sqlTypeToPure.apply(p.typeName(name));
-                });
-            }
-        }.rewrite(plan);
-    }
-
-    /** THE BOUNDARY RESOLUTION of a deferred relation-toString: the
-     * probe's concrete outputs (pivot names included) become the column
-     * list; per-column pure types come from the typed schema via
-     * {@code colType} (static name match, else the pivot TEMPLATE —
-     * {@code Executor.pivotColumnType}'s rule). The inner is wrapped
-     * with the concrete projections so {@link #tdsString}'s own
-     * outputs-driven composition sees a fully-stamped relation. */
-    public static SqlExpr resolveDeferredTds(SqlExpr.DeferredTdsString d,
-            List<OutputCol> probed,
-            java.util.function.Function<String, Type> colType) {
-        String wrapAlias = d.alias() + "_c";
-        List<SqlSelect.Projection> projs = new ArrayList<>();
-        List<Type.Column> relCols = new ArrayList<>();
-        for (OutputCol oc : probed) {
-            // ENGINE presentation: quote-wrap separator-bearing pivot
-            // names (the REFERENCE stays physical — the projection
-            // reads the bare SQL column, labeled with the presented name)
-            String presented = Type.RelationType.presentPivotName(oc.name());
-            projs.add(new SqlSelect.Projection(
-                    SqlExpr.Column.of(wrapAlias, oc), presented,
-                    new OutputCol(presented, oc.type(), oc.nullable())));
-            Type t = colType.apply(presented);
-            relCols.add(new Type.Column(presented, t,
-                    com.legend.compiler.element.type.Multiplicity
-                            .Bounded.ZERO_ONE));
-
-        }
-        SqlSelect concrete = SqlSelect.starOf(
-                        new SqlSource.Subselect(d.inner(), wrapAlias, null))
-                .withProjections(projs);
-        // ROW ORDER: an ordered inner keeps plain-column keys on the
-        // wrapper so tdsString's hoist sees them; anything else stays
-        // loud in the hoist itself.
-        if (!d.inner().orderBy().isEmpty()) {
-            List<SqlSelect.SortKey> keys = new ArrayList<>();
-            for (SqlSelect.SortKey k : d.inner().orderBy()) {
-                String out = k.outputName() != null ? k.outputName()
-                        : k.expr() instanceof SqlExpr.Column c
-                                ? c.name() : null;
-                if (out != null) {
-                    // stamp when the key names a probed output; an
-                    // unmatched name keeps the exact prior shape
-                    OutputCol src = probed.stream()
-                            .filter(oc -> oc.name().equals(out))
-                            .findFirst().orElse(null);
-                    keys.add(new SqlSelect.SortKey(
-                            src != null ? SqlExpr.Column.of(wrapAlias, src)
-                                    : SqlExpr.Column.derived(wrapAlias, out),
-                            k.ascending(), k.nullOrder(), out));
-                }
-            }
-            concrete = concrete.withOrderBy(keys);
-        }
-        return new SqlExpr.ScalarSubquery(
-                d.form() == SqlExpr.DeferredTdsString.Form.CSV
-                        ? csv(concrete, relCols, d.renderTdsNull(), d.alias() + "_r")
-                        : tdsString(concrete, relCols, d.alias() + "_r"));
     }
 
     /** The '#TDS' text (engine toString.pure:24-35): {@code #TDS\n} +

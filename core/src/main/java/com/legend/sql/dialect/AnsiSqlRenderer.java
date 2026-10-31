@@ -485,6 +485,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.RawSql r -> writer.append("(").append(raw(r.sql(), r.writtenFor()))
                     .append(") AS ").append(aliasIdent(r.alias()));
             // a catalog grid of the session's database: where it keeps its catalog is the dialect's
+            case SqlSource.GridReport g -> gridReport(writer.append("("), g).append(") AS ").append(aliasIdent(g.alias()));
             case SqlSource.Catalog c -> catalog(writer.append("("), c).append(") AS ").append(aliasIdent(c.alias()));
             case SqlSource.SourceUrl u -> {
                 writer.append("(");
@@ -1306,6 +1307,85 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     @Override
     public final String raw(String statement, @com.legend.base.Nullable String writtenFor) {
         return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) ? fromEngineText(statement) : statement;
+    }
+
+    /**
+     * A raw grid's report ({@link SqlSource.GridReport}, the planner-driver seam program's S3c, 2026-10-30), written
+     * with a REGION per column the grid's result reports (its keyed plan reads them first): {@code COLUMNS} one row per
+     * column, its label bound from the key and its position; {@code CELLS} and {@code TEXTS} one row per cell, the
+     * grid numbered once ({@code ROW_NUMBER() OVER ()}, the result's order), its columns renamed by position in a
+     * derived column list ({@code lc_<k>}), crossed with the positions, each row's cell picked by position and carried
+     * as this database's JSON ({@link #variantOf}) or as its text; {@code ROWS} one row per grid row, its cells one list
+     * ({@link #arrayOfCells}). Measured on H2 2.1.214 and DuckDB 1.5.6.0
+     * (2026-10-30): a CTE's column list is not applied inside a derived table on H2, a derived table's is.
+     */
+    protected SqlWriter gridReport(SqlWriter writer, SqlSource.GridReport g) {
+        if (!writesGridReports()) {
+            throw new DialectCapability("a raw grid's report (its column names, cells, texts or rows) reached a dialect"
+                    + " it is not measured on (a column list on a derived table, a JSON value per cell)");
+        }
+        // the report's columns spelled as any projected alias is (H2 quotes those always), so the statement around
+        // it reads them by the same spelling
+        String value = aliasIdent(SqlSource.GridReport.VALUE);
+        String ord = aliasIdent(SqlSource.GridReport.ORD);
+        String row = aliasIdent(SqlSource.GridReport.ROW);
+        String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
+        return switch (g.part()) {
+            case COLUMNS -> writer.region("", " UNION ALL ",
+                    "SELECT CAST(NULL AS " + text + ") AS " + value + ", 0 AS " + ord + " WHERE 1 = 0",
+                    w -> w.append("SELECT CAST(").bindKey(0).append(" AS " + text + ") AS " + value + ", ")
+                            .counter().append(" AS " + ord));
+            case CELLS, TEXTS -> {
+                writer.append("SELECT g." + row + " AS " + row + ", o." + ord + " AS " + ord + ", CASE o." + ord);
+                writer.region(" ", " ", " WHEN 0 THEN NULL", w -> {
+                    w.append("WHEN ").counter().append(" THEN ");
+                    SqlWriter.Piece cell = c -> c.append("g.lc_").counter();
+                    if (g.part() == SqlSource.GridReport.Part.CELLS) {
+                        variantOf(w, cell);
+                    } else {
+                        w.append("CAST(").piece(cell).append(" AS " + text + ")");
+                    }
+                });
+                writer.append(" END AS " + value + " FROM (SELECT ROW_NUMBER() OVER () AS " + row + ", g0.* FROM (");
+                query(writer, g.grid(), 0);
+                writer.append(") AS g0) AS g(" + row);
+                writer.region(", ", ", ", "", w -> w.append("lc_").counter());
+                writer.append(") CROSS JOIN (");
+                writer.region("", " UNION ALL ", "SELECT 0 AS " + ord + " WHERE 1 = 0",
+                        w -> w.append("SELECT ").counter().append(" AS " + ord));
+                yield writer.append(") AS o");
+            }
+            case ROWS -> {
+                // one row per grid row, in the grid's own order (nothing renumbers it), its cells one list
+                writer.append("SELECT ");
+                arrayOfCells(writer, w -> variantOf(w, c -> c.append("g.lc_").counter()));
+                writer.append(" AS " + aliasIdent(SqlSource.GridReport.ROW_CELLS) + " FROM (");
+                query(writer, g.grid(), 0);
+                writer.append(") AS g(");
+                writer.region("", ", ", null, w -> w.append("lc_").counter());
+                yield writer.append(")");
+            }
+        };
+    }
+
+    /** A list of {@code cell}, one copy per column of the grid's report (a per-key region), in this database's list
+     *  spelling ({@link SqlSource.GridReport.Part#ROWS}): a dialect proven to write one writes it; any other refuses by
+     *  name. */
+    protected SqlWriter arrayOfCells(SqlWriter writer, SqlWriter.Piece cell) {
+        throw new DialectCapability("a raw grid's rows as lists of their cells reached a dialect without a list of"
+                + " JSON values");
+    }
+
+    /** Whether this dialect writes a raw grid's report ({@link #gridReport}): one whose database is measured to answer
+     *  it (a derived table's column list, the JSON hooks below); every other refuses it by name. */
+    protected boolean writesGridReports() {
+        return false;
+    }
+
+    /** {@code value} carried as this database's JSON, its kind the JSON's (a raw grid's cell, {@link #gridReport}): a
+     *  dialect proven to write one writes it; any other refuses by name. */
+    protected SqlWriter variantOf(SqlWriter writer, SqlWriter.Piece value) {
+        throw new DialectCapability("a raw grid's cells as values reached a dialect without a JSON carrier for them");
     }
 
     /** A catalog grid's query ({@link SqlSource.Catalog}): where this database keeps its catalog and how it is read,

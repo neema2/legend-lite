@@ -63,6 +63,39 @@ public final class BodyCompiler {
      *  rows at the end. Every other statement runs as before. */
     static @com.legend.base.Nullable TypedSide execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env0, Execution.@com.legend.base.Nullable Answer answer) {
+        // the staged raw grids' temporary tables (a raw-grid let read after an effect): plain temporary tables, which
+        // outlive the body's commits, so they are dropped however the body ends -- by the body when it runs through
+        // (executeBody), here when it fails, quietly: the body's failure is the error reported
+        List<String> stagedGrids = new java.util.ArrayList<>();
+        boolean ran = false;
+        try {
+            TypedSide last = executeBody(stmts, letPrefix, specs, env0, answer, stagedGrids);
+            ran = true;
+            return last;
+        } finally {
+            if (!ran) {
+                dropQuietly(env0, stagedGrids);
+            }
+        }
+    }
+
+    /** A failing body's staged grid tables dropped, each a statement of its own; a drop that fails as a send fails --
+     *  the database refusing it ({@code DataError}) or the session's transport ({@code UncheckedIOException}, the
+     *  send's own wrapping), the failure may have left the session unable to -- is not reported over the body's
+     *  failure, and its table's name is no later body's ({@link BodyDriver#stagedGridTable}). */
+    private static void dropQuietly(BodyDriver.ExecEnv env, List<String> tables) {
+        for (String t : tables) {
+            try {
+                BodyDriver.dropTables(env, List.of(t));
+            } catch (com.legend.error.DataError | java.io.UncheckedIOException ignore) {
+                // the session refused the drop: the body's own failure is the one reported
+            }
+        }
+    }
+
+    private static @com.legend.base.Nullable TypedSide executeBody(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env0, Execution.@com.legend.base.Nullable Answer answer,
+            List<String> stagedGrids) {
         Segments seg = new Segments(env0, specs, answer);
         Map<String, BodyDriver.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
@@ -126,20 +159,22 @@ public final class BodyCompiler {
                     seg.fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
                     continue;
                 }
-                // a RAW READ bound by a let (let r = executeInDb('select …', $c)): the engine
-                // runs it AT the let; here its schema is pinned at the let when a later
-                // statement demands it (columnNames / values) — before any later effect
-                // changes the state it read (the temp-table port, 2026-09-22: the probe
-                // used to run at the verdict flush, after the drop). The data read stays
-                // late-bound; the single-query rule of RawGridSchema.stamp decides.
-                if (containsRawGrid(let.value())) {
-                    TypedSpec stampedLet = com.legend.resolver.RawGridSchema.stamp(
-                            stmts.subList(i, stmts.size()),
-                            BodyDriver.gridReferee(seg.env())).get(0);
-                    if (stampedLet instanceof TypedLet sl) {
-                        let = sl;
-                        rhs = let.value();
-                    }
+                // a RAW READ bound by a let (let r = executeInDb('select …', $c)) that a statement reads
+                // after a later effect: the engine runs it AT the let, so it is a STAGED let (D75: a let
+                // is a staged table or a compile-time splice) -- its rows held in a temporary table of
+                // the session at this statement's turn, read by name after, dropped once the body has run
+                // (the planner-driver seam program's S3c, 2026-10-30; until then the grid probe pinned its
+                // columns here at planning, the temp-table port of 2026-09-22). Read before any effect, it
+                // stays a splice: the state it read is the state the readers see.
+                if (rhs instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation grid
+                        && readAfterEffect(stmts, i, let.name(), specs, effectMemo)) {
+                    String table = BodyDriver.stagedGridTable(let.name());
+                    seg.value(BodyDriver.prepareValue(rhs, rhs, letPrefix, execFrames, specs, seg.env())
+                            .stagedInto(table), false);
+                    stagedGrids.add(table);
+                    letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
+                            BodyDriver.stagedGridRead(table, seg.env()), grid, let.info()));
+                    continue;
                 }
                 // a HANDLE or a value binding: rows under its scope, the let rides the prefix
                 PlanAllocations.registerHandlesIn(let.name(), rhs, letPrefix, specs, seg.env());
@@ -177,6 +212,8 @@ public final class BodyCompiler {
         seg.closeEffects();
         seg.closeVerdicts();
         BodyDriver.dropStaged(env0, staged);
+        BodyDriver.dropTables(env0, stagedGrids);
+        stagedGrids.clear();
         if (answer != null) {
             // a body whose last statement was a verdict (or answered nothing that streamed): its side as host rows
             if (seg.last != null) {
@@ -187,14 +224,33 @@ public final class BodyCompiler {
         return seg.last;
     }
 
-    /** Whether the tree reads a raw grid or a catalog grid anywhere. */
-    private static boolean containsRawGrid(TypedSpec n) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation
-                || n instanceof com.legend.compiler.spec.typed.TypedCatalogGrid) {
+    /** Whether a statement after {@code at} reads the let {@code name} -- itself or through a let that reads it --
+     *  once an effect has run after it (an effect's own statement included: it may read the let, its change after). */
+    private static boolean readAfterEffect(List<TypedSpec> stmts, int at, String name, SpecCompiler specs,
+            Map<com.legend.model.FunctionId, Boolean> effectMemo) {
+        java.util.Set<String> names = new java.util.HashSet<>(List.of(name));
+        boolean effectSeen = false;
+        for (int j = at + 1; j < stmts.size(); j++) {
+            TypedSpec s = stmts.get(j);
+            boolean reads = reads(s, names);
+            if (effectSeen && reads) {
+                return true;
+            }
+            if (s instanceof TypedLet l && reads) {
+                names.add(l.name());
+            }
+            effectSeen |= com.legend.compiler.spec.StatementEffects.containsEffect(s, specs, effectMemo);
+        }
+        return false;
+    }
+
+    /** Whether {@code n} reads a variable named in {@code names}. */
+    private static boolean reads(TypedSpec n, java.util.Set<String> names) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v && names.contains(v.name())) {
             return true;
         }
         for (TypedSpec c : n.children()) {
-            if (containsRawGrid(c)) {
+            if (reads(c, names)) {
                 return true;
             }
         }

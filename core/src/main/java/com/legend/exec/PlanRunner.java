@@ -186,8 +186,16 @@ public final class PlanRunner {
                         sqls.add(v.fused().sql());
                     }
                     for (ExecutionPlan.Verdict each : v.verdicts()) {
-                        if (each.wrapper() != null) {
-                            sqls.add(each.wrapper().sql());
+                        switch (each.wrapper()) {
+                            case null -> { }
+                            case ExecutionPlan.TdsResult t -> sqls.add(t.sql());
+                            case ExecutionPlan.Keyed k -> {
+                                snapshot = stricter(snapshot, k.snapshot());
+                                sqls.add(k.keys());
+                                sqls.add(k.body());
+                            }
+                            default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
+                                    + " result");
                         }
                         for (ExecutionPlan.Side side : each.base()) {
                             switch (side) {
@@ -315,6 +323,7 @@ public final class PlanRunner {
         }
         if (judging == Judging.DATABASE || judging == Judging.BOTH) {
             Map<Integer, List<Object>> rows = new java.util.HashMap<>();
+            boolean rejected = false;
             if (group.fused() != null) {
                 Held h = new Held();
                 try {
@@ -336,6 +345,7 @@ public final class PlanRunner {
                     // below and the error lands on the verdict that owns it; the sink's accounting, never a verdict
                     // change
                     rows.clear();
+                    rejected = true;
                     sink.fused(group, e);
                 }
             }
@@ -344,8 +354,18 @@ public final class PlanRunner {
                 List<Object> row = rows.get(i);
                 if (row == null && each.wrapper() != null) {
                     Held h = new Held();
-                    try (var origin = StatementOrigin.enter(StatementOrigin.FALLBACK)) {
-                        result(each.wrapper(), values, st, h);
+                    // the split rung's wrapper (the database rejected the fused statement) is a fallback; a group
+                    // planned with no fused statement runs its wrappers as its caller sends them (the batch's keyed
+                    // verdicts as the body's, its one-verdict retry as a fallback: VerdictBatch.executeOne; the
+                    // planner-driver seam program's S3c, 2026-10-31)
+                    try (var origin = StatementOrigin.enter(rejected ? StatementOrigin.FALLBACK
+                            : StatementOrigin.current())) {
+                        switch (each.wrapper()) {
+                            case ExecutionPlan.TdsResult t -> result(t, values, st, h);
+                            case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(h));
+                            default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
+                                    + " result");
+                        }
                     }
                     Rows single = collected(h);
                     if (single.rows().size() != 1) {
@@ -778,16 +798,33 @@ public final class PlanRunner {
         }
         List<List<Object>> keys = new java.util.ArrayList<>();
         ExecutionPlan.Sql probe = keyed.keys();
-        List<PlanParameters.Checked> probeValues = new java.util.ArrayList<>(probe.slots().size());
-        for (int i = 0; i < probe.slots().size(); i++) {
-            probeValues.add(value(checked, probe.slots().get(i), i + 1));
+        if (keyed.keysOf() == ExecutionPlan.Keyed.KeysOf.COLUMNS) {
+            // a raw grid's: each column its result reports a key, its label the key's one cell (the seam program's
+            // S3c, 2026-10-30) -- read when the plan runs, never at planning
+            for (Statements.Reported r : st.columns(statement(probe, checked))) {
+                if (!keyed.admitted().isEmpty()) {
+                    String slot = r.type() == null ? null : com.legend.executionplan.ColumnFacts.slot(r.type());
+                    if (slot == null || !keyed.admitted().contains(slot)) {
+                        throw new com.legend.error.NotImplementedException("a raw grid's column '" + r.name()
+                                + "' is reported as " + r.driverType() + ": its cells are spelled here exactly only"
+                                + " in " + keyed.admitted() + " (never approximately)");
+                    }
+                }
+                keys.add(List.of(r.name()));
+            }
+        } else {
+            List<PlanParameters.Checked> probeValues = new java.util.ArrayList<>(probe.slots().size());
+            for (int i = 0; i < probe.slots().size(); i++) {
+                probeValues.add(value(checked, probe.slots().get(i), i + 1));
+            }
+            st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
         }
-        st.rows(statement(probe, checked), probe.slots(), probeValues, keyColumns, keys::add);
         int fixed = keyed.outputs().size() - perKey;
         int columns = fixed + keys.size() * perKey;
         if (keyed.maxColumns() != null && columns > keyed.maxColumns()) {
-            throw new com.legend.error.NotImplementedException("a dynamic pivot of " + keys.size() + " keys answers "
-                    + columns + " columns, more than the database's " + keyed.maxColumns());
+            throw new com.legend.error.NotImplementedException((keyed.keysOf() == ExecutionPlan.Keyed.KeysOf.COLUMNS
+                    ? "a raw grid of " + keys.size() + " columns answers " : "a dynamic pivot of " + keys.size()
+                    + " keys answers ") + columns + " columns, more than the database's " + keyed.maxColumns());
         }
         List<ExecutionPlan.Column> answered = new java.util.ArrayList<>(columns);
         List<ExecutionPlan.Column> read = new java.util.ArrayList<>(columns);

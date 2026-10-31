@@ -16583,6 +16583,106 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S3c, third part: a raw grid's names, cells and rows are a keyed plan; the stamp, the grid probe and the wire probe deleted; `probe` 0
+
+The decisions log D90; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.5 and §4 (S3c). Reworked before its
+commit after the user's question of 2026-10-30 ("Did we hack things?"): the first cut's four workarounds are named in
+item 3 with what replaced each.
+
+1. **Built:** a raw grid's report is MIR (`SqlSource.GridReport`, four parts: `COLUMNS` its column names, `CELLS` and
+   `TEXTS` its cells one row each as the database's JSON or text, `ROWS` its rows each the list of its cells), written
+   by the dialect with a per-key region per column (`AnsiSqlRenderer.gridReport`; `variantOf` and `arrayOfCells` the
+   dialect's JSON value and list; written by DuckDB and H2, the two measured, and refused by name by every other). A statement
+   that reads one is a keyed plan whose keys are the columns the grid's result reports (`ExecutionPlan.Keyed.KeysOf
+   .COLUMNS`; `PlanMaker.rowsOrGridKeyed`), read by the plan's first step when the plan runs: one `LIMIT 0` of the
+   grid, a run-time step, never planning. `columnNames` and relation-level `values` lower to the report
+   (`Lowerer.gridReport`), `toCSV` over a raw grid to its texts (`Render.gridCsv`); a row read as its cells
+   (`$r.values`, in any operation over the rows) makes the grid's rows the lists of their cells, the row's one
+   column `values` (`ROWS`), and a statement that reads a raw grid's row both as its cells and by a column's name is
+   refused by name. A raw-grid let read after an effect is a STAGED TABLE (D75): a plain temporary table made at the
+   let's turn, read back raw by name after, dropped when the body ends however it ends. The database judge's keyed
+   verdicts are a verdict group of their own, each its keyed wrapper, run with the fused group under the body's origin;
+   `FALLBACK` is entered by the fallback path itself (`VerdictBatch.executeOne`, and the runner's split rung when the
+   database rejects a fused statement). A raw grid's rendered text in an assert is the database judge's, the two
+   texts compared as the strings they are (legend-pure's `assertEquals` over two strings).
+2. **Deleted:** `resolver/RawGridSchema.java` (the stamp and its referee, 361 lines), `driver/GridProbe.java` (the LIMIT-0
+   probe at planning, 87), `driver/WireProbe.java` (43), `RawGridSchemaDuckDbTest`; `WireProbeTest` renamed
+   `WireDecidedCellTest`. PlanJson format 22 (the keyed result's `keysOf`, a verdict's keyed wrapper), the TypeScript
+   runner's pin with it.
+3. **The first cut's workarounds, and what replaced each:** (a) a `Lowerer` arm for one shape (a projection whose lambdas
+   read only `$r.values`) -> the general `ROWS` form above, any operation, and the mixed read refused by name; (b) an H2
+   pass inlining every common table expression that read a grid report -> narrowed to the column-names report alone,
+   the one that binds a value (each column's name), deterministic so inlining it reads the same rows; the H2 defect it
+   exists for pinned by `H2LostCteParameterTest` (H2 2.1.214 and 2.2.224 lose a bound parameter inside a WITH clause
+   another reads, in every shape tried; the day H2 answers 1 the test fails and the pass goes); (c) a staged grid
+   table dropped only when the body succeeded, a counter hiding the leak -> dropped however the body ends (a success
+   flag; a failing body's drops quiet, catching `DataError` only, the codebase's `SystemDatabase` pattern), the
+   counter kept for a drop the failure left impossible; (d) keyed verdicts run through the fallback path and counted
+   `FALLBACK` -> a verdict group of their own under the body's origin. Kept as the canon's own convention, named:
+   the grid's rows numbered `ROW_NUMBER() OVER ()` in the result's order (the canon's `__ord` is numbered so; SQL
+   does not promise a derived table's order, and every database measured keeps it).
+4. **The independent audit of S3a-S3c (read-only, 2026-10-31), folded:** (1, in pushed code) a raw grid's column read
+   by name was decoded by guessing from its value -- a text starting with `[` or `{` parsed as JSON (`'[draft]'` an
+   error, `'[1]'` a list): such a column (no slot, `Any`) is now read by the type its result reports for it
+   (`WireTypes.decodedAs`, `JdbcStatements.rows`), `ExecuteInDbProbeCountTest.namedReadOfTextIsTheText` pins it;
+   (11, in pushed code) a reported type the wire table names no Pure type for was `Any` with no slot, a default --
+   now refused by name (`WireTypes.column`); (2) the grid report writes a derived table's column list, which SQLite's
+   grammar has not, while SQLite and Postgres claimed the hooks unmeasured -- a report is now written only by a
+   dialect measured to answer it (`writesGridReports`: DuckDB, H2), every other refuses it by name, the SQLite and
+   Postgres hooks removed; (3) two reports were judged one grid's by comparing their rendered SQL, which carries a
+   fresh alias each -- now by the grid's authored text and language (`PlanMaker.rawGridOf`; a report over a relation
+   derived from a grid refused by name); (4) the grid's keyed plan ignored the database's declared snapshot and
+   column limit -- now the dialect's (`snapshotOf`, `resultColumnLimit`), as the pivot's; (5) `toString` over a raw
+   grid fell to an internal "zero-column relation" error -- refused by name (`Render`); (6) the failing body's quiet
+   drop caught `DataError` alone -- now the send's two declared failures; (7) the keyed group dropped the rows it had
+   read when a later keyed statement failed -- kept; a member is judged keyed with the batch's frames, as planned;
+   (8) the H2 pass inlined only a top-level WITH -- now every WITH at any depth (`SqlRewriter.with`, a post-order
+   hook); (9) the rewriter treated a report's grid as text it never entered, so no dialect pass (H2's rewrites, alias
+   prefixing) saw inside it -- it is rewritten as any subselect is; (10) the cells decision was statement-wide and
+   computed after the lets were lowered -- now per grid (by its text: a lambda's row ranges over its operation's first
+   child, a picked row over its own expression, a let followed to its value), over the whole body first; the report
+   arm tests a relation-valued source, not "not a variable"; (12) dead code deleted (`Render.resolveAllDeferredTds`,
+   `resolveDeferredTds`, `sql/PlanProbe` and its self-test, the session's wire-type memo and `WireTypes.ReportedColumn`),
+   `HUGEINT` (never produced) out of the admitted kinds, stale comments and the refusal texts corrected (the pivot's
+   kept as spelled). Kept and named: S3b's member-by-member trial render (`VerdictBatch.spelled`, a render per member
+   at planning to find the ones the dialect spells) and the canon's row order (`ROW_NUMBER() OVER ()`); the runner's
+   pivot-worded empty-region refusal is unreachable for a raw grid (a result reports at least one column).
+5. **Guards, dated:** `JavaEvalLedgerTest` `BodyDriver` 2,304 -> 2,318 (the staged grid's table: its name, its drop, its
+   read; plumbing, nothing evaluated) and `AssertVerdicts` 1,221 -> 1,226 (the raw grid's text to the database judge;
+   routing); `CodeShapeGuardrailTest`'s mutable-field allowlist gains `Lowerer.reportInputs` (a depth raised and
+   lowered around a report's input, `correlatedReads`' lifecycle) and `Lowerer.cellGrids` (computed once over the whole
+   body before any of it is lowered, the builder flags' lifecycle); `RawSqlLedgerTest`, `ArchitectureTest`, `DialectOwnerExclusivityTest` and
+   the registers' comments lose the deleted classes.
+6. **Registers, dated:** both database passes' outside-body registers lose the four tests that sent only the probe
+   (`testExecuteInDbToTDS`, `in::H2Test`, `dates::datetime::retrieveDateWithTimeZone`, `dates::strictdate::testGet`:
+   they now send nothing outside their plan); `dropAndCreateTempTable`'s row says `other=2` (the staged grid's
+   `CREATE TEMPORARY TABLE ... AS` and its drop, which the driver sends until S4), not `probe=1`.
+   `h2-database-differential-register.txt` gains `in::H2Test`: it FAILS in both modes on H2 -- the grid's own SQL is
+   invalid there (H2 2.1.214: BOOLEAN and VARCHAR not comparable), which the host meets at #0; the database pass stops
+   at planning #0, before sending it: with no probe the cells are JSON and H2's dialect writes no JSON navigation for
+   `rows.values->at(0)` (the `lost` register's `testExecuteInDbToTDS` and `dropAndCreateTable` have had the same
+   refusal since 740e37c1).
+7. **Measured locally (uncached), after the fold:** `corpus_duckdb`, `corpus_h2`, `pct_channel_b` 17 of 17 after the register row (16 of
+   17 before it); every pass's pass/fail count unchanged (DuckDB host 2,471/108, database 2,473/108; H2 host 2,289/295,
+   database 2,233/353); `probe` 5 -> 0 on all four passes; the DuckDB database pass `body` 6,551 -> 6,553, `fallback`
+   0; the H2 database pass `fallback` 18 (unchanged), fused statements 2,450 -> 2,448 and batch fallbacks 127 -> 128,
+   accounted test by test against 77dfa672 (`testExecuteInDbToTDS` 1 -> 0 and 0 -> 1, `dropAndCreateTable` 1 -> 0,
+   `dropAndCreateTempTable` 1 -> 0; every test's outcome unchanged); every engine-order, unordered and ord register
+   unchanged. `core_tests_{exec,judge,driver,root,planner,lowering,sql,integration,architecture}`, `census`,
+   `guardrails`, `core_layering_test`, `//engine-client:plan_runner_test` green. `bazel test --lockfile_mode=error
+   //gates:local` (`--local_test_jobs=2`: four parallel tests OOM-killed the Bazel server once): 447 pass, 1 skipped
+   (the arm64-only classpath test), and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged.
+   Generated files regenerated: `native-claims.tsv` (`RawGridSchema` gone from three rows) and the parser-equivalence
+   ratchet (`own_corpus.matched` 3,010 -> 3,008: `RawGridSchemaDuckDbTest`'s two models deleted with it). The heavy
+   lanes this container runs, by hand: channel B on H2 (1 of 1), on Postgres unprivileged (5 of 5) and on SQLite (4 of
+   5: essential at 332 against its floor 333, the pre-existing main red the PR #82 heavy-lane entry names --
+   `removeDuplicates...MixedTypes`, `SQLITE_TOOBIG` -- the same 13 errors and the same diff, AGREE-PASS 320,
+   AGREE-FAIL 11, WIRE-BUG 2, B-FIXES-A 12, before and after the fold).
+8. **Not measured here:** the server and cloud lanes (MariaDB, MySQL, Trino, ClickHouse, Snowflake, Databricks,
+   BigQuery). The five lane sessions of D81 were asked on 2026-10-31 to measure 77dfa672 (S3a's first part, S3b, S3c's
+   first two parts) against their PR #82 runs, measure only, and will be asked again on this head; their reports land
+   in their own entry.
+
 ## 2026-10-30 — CI red on S3b's head (7ce577db): the DuckDB database pass's engine-order register measured the deleted describe; re-pinned
 
 1. **Found by CI, not by the local chain:** run 2291 on 7ce577db failed `//spec:update_rcorpus_duckdb_4_test` on Linux

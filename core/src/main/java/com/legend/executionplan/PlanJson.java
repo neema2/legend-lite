@@ -65,8 +65,9 @@ public final class PlanJson {
      *  result, or a constant of text cells -- and database wrapper; the group's fused statement), the planner-driver
      *  seam program's S1b; 21 since 2026-10-30: a constant side's {@code folded} (its cells the compiler's join of the
      *  program's constant tokens, not the tokens verbatim: S2f, the user's ruling "it's okay to join CONSTANT strings
-     *  only"). */
-    public static final int VERSION = 21;
+     *  only"); 22 since 2026-10-31: a keyed result's {@code keysOf} and {@code admitted} (its keys a raw grid's
+     *  reported columns, the kinds its cells may be in) and a verdict's keyed wrapper (the seam program's S3c). */
+    public static final int VERSION = 22;
 
     private PlanJson() {
     }
@@ -145,6 +146,8 @@ public final class PlanJson {
             case ExecutionPlan.Keyed k -> {
                 o.put("_type", NodeTag.keyed.name());
                 o.put("keys", sql(k.keys()));
+                o.put("keysOf", k.keysOf().name());
+                o.put("admitted", new ArrayList<Object>(k.admitted()));
                 o.put("keyFields", new ArrayList<Object>(k.keyFields()));
                 List<Object> outputs = new ArrayList<>();
                 for (ExecutionPlan.Keyed.Output out : k.outputs()) {
@@ -444,7 +447,14 @@ public final class PlanJson {
                 for (Json.Node n : o.getArr("keyFields").items()) {
                     keyFields.add(((Json.Str) n).value());
                 }
-                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")), keyFields, outputs, o.getInt("perKeyAt"),
+                List<String> admitted = new ArrayList<>();
+                for (Json.Node n : o.getArr("admitted").items()) {
+                    admitted.add(((Json.Str) n).value());
+                }
+                yield new ExecutionPlan.Keyed(readSql(o.getObj("keys")),
+                        named(ExecutionPlan.Keyed.KeysOf.class, o.getString("keysOf"), "keyed keys"),
+                        admitted, keyFields,
+                        outputs, o.getInt("perKeyAt"),
                         readSql(o.getObj("body")),
                         named(ExecutionPlan.Keyed.Snapshot.class, o.getString("snapshot"), "keyed snapshot"),
                         o.getOr("maxColumns", null) == null ? null : o.getInt("maxColumns"));
@@ -495,7 +505,7 @@ public final class PlanJson {
                     }
                     Json.Obj w = vo.getObjOr("wrapper", null);
                     verdicts.add(new ExecutionPlan.Verdict(vo.getString("name"), vo.getString("arm"),
-                            vo.getBool("wantEqual"), base, w == null ? null : typedResult(w, "a verdict's wrapper")));
+                            vo.getBool("wantEqual"), base, w == null ? null : readNode(w)));
                 }
                 Json.Obj f = o.getObjOr("fused", null);
                 yield new ExecutionPlan.Verdicts(verdicts, f == null ? null : typedResult(f, "a fused verdict statement"));

@@ -111,6 +111,8 @@ public final class KeyedPivot {
             }
             case SqlSource.RawSql r -> {
             }
+            case SqlSource.GridReport g -> {
+            }
             case SqlSource.Catalog c -> {
             }
         }

@@ -317,6 +317,26 @@ class TaggedListTest {
             assertEquals(List.of(true, false), Program.last(StorelessRuntime.with(MODEL, Databases.PLATFORM),
                     CONN_LET + "$rs.rows->map(r | [1, 'x'] == $r.values);}", StorelessRuntime.RUNTIME, c)
                     .rows().stream().map(r -> r.get(0)).toList());
+            // and under any operation over the rows, as any column is read (the planner-driver seam program's S3c,
+            // 2026-10-31: the rows are the lists of their cells, the grid's report): a filter keeps the one row
+            assertEquals(1L, program(c, "$rs.rows->filter(r | [2, 'y'] == $r.values)->size();"));
+            // a row read both as its cells and by a column's name: refused by name, never a guess
+            Exception mixed = assertThrows(Exception.class, () -> program(c,
+                    "$rs.rows->map(r | ([1, 'x'] == $r.values) && ($r.A == 1));"));
+            assertTrue(String.valueOf(mixed.getMessage()).contains("both as its cells"), mixed.toString());
+            // the S3c audit (2026-10-31): one grid's names and cells in one statement are one grid's reports (until
+            // then two reports' grids were compared by their rendered text, each with an alias of its own, and refused
+            // as two grids)
+            assertEquals(6L, program(c, "$rs.columnNames->size() + $rs.rows.values->size();"));
+            // a second grid read by a column's name keeps its columns beside one read as cells (until then the
+            // statement-wide decision made every raw grid of the statement its rows' cells)
+            assertEquals(10L, program(c, "let rs2 = meta::relational::metamodel::execute::executeInDb("
+                    + "'select 9 as Z', $c);\n"
+                    + "$rs.rows->filter(r | [1, 'x'] == $r.values)->size()"
+                    + " + $rs2.rows->map(x | $x.Z)->toOne()->cast(@Integer);"));
+            // a raw grid's text is refused by name: its header is written from columns that exist only when it runs
+            Exception text = assertThrows(Exception.class, () -> program(c, "$rs->toString();"));
+            assertTrue(String.valueOf(text.getMessage()).contains("toString over a raw grid"), text.toString());
         }
     }
 }

@@ -283,14 +283,103 @@ public final class PlanMaker {
             });
         }
         List<String> keyFields = parts.keys().outputs().stream().map(com.legend.sql.OutputCol::name).toList();
-        ExecutionPlan.Keyed.Snapshot snapshot = switch (keysSnapshot) {
+        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
+                sql(parts.body(), dialect, target), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
+    }
+
+    /** The plan's snapshot for a keyed result's two reads, as its database declares it ({@link
+     *  SqlDialect#keysSnapshot}). */
+    private static ExecutionPlan.Keyed.Snapshot snapshotOf(SqlDialect.KeysSnapshot keysSnapshot) {
+        return switch (keysSnapshot) {
             case TRANSACTION -> ExecutionPlan.Keyed.Snapshot.TRANSACTION;
             case REPEATABLE_READ -> ExecutionPlan.Keyed.Snapshot.REPEATABLE_READ;
             case SERIALIZABLE -> ExecutionPlan.Keyed.Snapshot.SERIALIZABLE;
             case NONE -> ExecutionPlan.Keyed.Snapshot.NONE;
         };
-        return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
-                sql(parts.body(), dialect, target), snapshot, dialect.resultColumnLimit());
+    }
+
+    /**
+     * A typed result of {@code columns} over {@code statement} -- or, where the statement holds a RAW GRID's report
+     * ({@link com.legend.sql.SqlSource.GridReport}: its column names or its cells, the planner-driver seam program's
+     * S3c, 2026-10-30), the KEYED result whose keys are the grid's reported columns ({@code KeysOf.COLUMNS}), read when
+     * the plan runs by a {@code LIMIT 0} of the grid, its body the statement written with a region per column. The
+     * kinds its cells may be in: the cells' JSON keeps an integer's, a text's, a boolean's and a double's; the
+     * database's text is the engine's for an integer and a text; any other column is refused when the plan runs, by
+     * name. One grid per statement (two are refused by name: one keys step).
+     */
+    public static ExecutionPlan.Node rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape shape,
+            List<ExecutionPlan.Column> columns, SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
+        List<com.legend.sql.SqlSource.GridReport> reports = gridReports(statement);
+        if (reports.isEmpty()) {
+            return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target));
+        }
+        // the database's snapshot first, as the pivot's keyed result takes it: a database with no keyed result
+        // refuses by its own name before any statement is written
+        SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
+        com.legend.sql.SqlSource.RawSql grid = rawGridOf(reports.get(0));
+        boolean texts = false;
+        boolean cells = false;
+        for (com.legend.sql.SqlSource.GridReport r : reports) {
+            com.legend.sql.SqlSource.RawSql each = rawGridOf(r);
+            if (!each.sql().equals(grid.sql()) || !each.writtenFor().equals(grid.writtenFor())) {
+                throw new com.legend.error.NotImplementedException("one statement reads two raw grids' reports: a"
+                        + " keyed result reads one grid's columns");
+            }
+            texts |= r.part() == com.legend.sql.SqlSource.GridReport.Part.TEXTS;
+            cells |= r.part() == com.legend.sql.SqlSource.GridReport.Part.CELLS
+                    || r.part() == com.legend.sql.SqlSource.GridReport.Part.ROWS;
+        }
+        List<String> admitted = texts ? List.of("INTEGER", "BIGINT", "VARCHAR")
+                : cells ? List.of("INTEGER", "BIGINT", "VARCHAR", "BOOLEAN", "DOUBLE") : List.of();
+        com.legend.sql.SqlQuery keys = com.legend.sql.SqlSelect.starOf(
+                new com.legend.sql.SqlSource.Subselect(reports.get(0).grid(), "grid", null)).withLimit(0L);
+        List<ExecutionPlan.Keyed.Output> outputs = new ArrayList<>(columns.size());
+        for (ExecutionPlan.Column c : columns) {
+            outputs.add(new ExecutionPlan.Keyed.Fixed(c, c.name()));
+        }
+        return new ExecutionPlan.Keyed(sql(keys, dialect, target), ExecutionPlan.Keyed.KeysOf.COLUMNS, admitted,
+                List.of("name"), outputs, outputs.size(), sql(statement, dialect, target),
+                snapshotOf(keysSnapshot), dialect.resultColumnLimit());
+    }
+
+    /** The raw grid a report reads: its grid is a plain read of one authored text (the lowering's raw grid, or its
+     *  rows as their cells over it); a report over anything else is refused by name, its grid's identity being that
+     *  text and the language it is written in. */
+    private static com.legend.sql.SqlSource.RawSql rawGridOf(com.legend.sql.SqlSource.GridReport report) {
+        com.legend.sql.SqlQuery q = report.grid();
+        while (q instanceof com.legend.sql.SqlSelect s && s.projections().isEmpty() && s.where() == null
+                && s.groupBy().isEmpty() && s.having() == null && s.qualify() == null && s.orderBy().isEmpty()
+                && s.limit() == null && s.offset() == null && !s.distinct()) {
+            switch (s.from()) {
+                case com.legend.sql.SqlSource.RawSql raw -> {
+                    return raw;
+                }
+                case com.legend.sql.SqlSource.GridReport rows when rows.part()
+                        == com.legend.sql.SqlSource.GridReport.Part.ROWS -> q = rows.grid();
+                default -> q = null;
+            }
+        }
+        throw new com.legend.error.NotImplementedException("a raw grid's report over a relation derived from it (a"
+                + " filter, a projection, a sort): a keyed result reads the columns of the grid as it is written");
+    }
+
+    /** Whether {@code statement} reads a raw grid's report (its plan is keyed, {@link #rowsOrGridKeyed}). */
+    public static boolean readsGridReport(SqlQuery statement) {
+        return !gridReports(statement).isEmpty();
+    }
+
+    private static List<com.legend.sql.SqlSource.GridReport> gridReports(SqlQuery statement) {
+        List<com.legend.sql.SqlSource.GridReport> reports = new ArrayList<>();
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected com.legend.sql.SqlSource source(com.legend.sql.SqlSource s) {
+                if (s instanceof com.legend.sql.SqlSource.GridReport g) {
+                    reports.add(g);
+                }
+                return s;
+            }
+        }.rewrite(statement);
+        return reports;
     }
 
     /** {@code statement} final for {@code target}: rendered in {@code dialect}, each placeholder's binding as the

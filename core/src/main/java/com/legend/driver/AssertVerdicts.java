@@ -1201,6 +1201,14 @@ final class AssertVerdicts {
         if (r == null) {
             return DatabaseJudge.unjudged(name, "rendered-text: no side is a render the grammar names");
         }
+        if (r.grid() && com.legend.compiler.element.type.Type.schemaView(r.value().info().type())
+                instanceof com.legend.compiler.element.type.Type.RelationType late && late.isLateBound()) {
+            // a RAW GRID's text: its columns exist only when the plan runs (the planner-driver seam program's S3c,
+            // 2026-10-30), so the golden is not brought to rows; the two texts are compared as the strings they are,
+            // as legend-pure's assertEquals compares them (the render a keyed statement, Render.gridCsv)
+            return DatabaseJudge.databaseVerdict(name, wantEqual, args.get(0), args.get(1), letPrefix, specs, env,
+                    hook, false, false);
+        }
         String text = com.legend.compiler.spec.VerdictQueries.goldenText(
                 goldenIsExpected ? args.get(0) : args.get(1), chase);
         if (text == null) {

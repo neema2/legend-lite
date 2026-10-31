@@ -70,6 +70,14 @@ class CodeShapeGuardrailTest {
             // reads in flight on an enclosing row's behalf (2026-10-15): the depth the resolvers consult so a
             // correlated read spends no pass's fold budget; raised and lowered around the read
             "Lowerer.correlatedReads",
+            // a raw grid report's input in flight (2026-10-31, the planner-driver seam program's S3c): the depth
+            // rawGrid consults so a report reads its grid as the grid itself, never as its rows' cells; raised and
+            // lowered around the input's lowering, correlatedReads' lifecycle
+            "Lowerer.reportInputs",
+            // the raw grids whose rows the statement reads as their cells (2026-10-31, the planner-driver seam
+            // program's S3c and its audit): computed once over the whole body before any of it is lowered, read by
+            // rawGrid; the builder flags' lifecycle (set once, then read during the lowering)
+            "Lowerer.cellGrids",
             // a writer's depth inside a set function's arguments the database evaluates when it plans (2026-10-17,
             // the Cypher island's range of a bound that may be null, docs/CYPHER_STUDY_2026_10_15.md §12.73):
             // raised and lowered around the write (SqlWriter.planned), one writer per statement; Postgres's raise

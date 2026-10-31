@@ -79,14 +79,23 @@ final class JudgePlans {
      *  that is checked here where the statement's outputs are known: a column out of its output's place is a
      *  planner defect, refused by name. A sort key that is no output is carried as a hidden column
      *  ({@link TypedRows#statement}: H2's FULL OUTER JOIN emulation addresses its sort key among the outputs). */
-    static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
+    static ExecutionPlan.Node rowsPlan(SqlQuery statement, Type.RelationType schema,
             BodyDriver.ExecEnv env) {
         return rowsPlan(statement, schema, env, ExecutionPlan.TdsResult.Shape.RELATION);
     }
 
+    /** A side of {@code plan}: its typed rows, or its keyed result's. */
+    static ExecutionPlan.Side sideOf(ExecutionPlan.Node plan) {
+        return switch (plan) {
+            case ExecutionPlan.TdsResult t -> new ExecutionPlan.Side.Rows(t);
+            case ExecutionPlan.Keyed k -> new ExecutionPlan.Side.KeyedRows(k);
+            default -> throw new IllegalStateException("a side is a typed result or a keyed one, not " + plan);
+        };
+    }
+
     /** {@link #rowsPlan(SqlQuery, Type.RelationType, BodyDriver.ExecEnv)} in a result of {@code shape} (a value root's
      *  streamed answer is a VALUE, as the product's plan says it; the doors, 2026-10-29). */
-    static ExecutionPlan.TdsResult rowsPlan(SqlQuery statement, Type.RelationType schema,
+    static ExecutionPlan.Node rowsPlan(SqlQuery statement, Type.RelationType schema,
             BodyDriver.ExecEnv env, ExecutionPlan.TdsResult.Shape shape) {
         List<ExecutionPlan.Column> columns = PlanColumns.of(schema, statement, shape);
         List<OutputCol> outs = statement.outputs();
@@ -100,8 +109,7 @@ final class JudgePlans {
                 }
             }
         }
-        return new ExecutionPlan.TdsResult(shape, columns,
-                PlanMaker.sql(TypedRows.statement(statement), env.dialect(), target(env)));
+        return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(statement), env.dialect(), target(env));
     }
 
     /**
@@ -323,9 +331,14 @@ final class JudgePlans {
     static com.legend.judge.VerdictBatch.Runner runner(BodyDriver.ExecEnv env) {
         return new com.legend.judge.VerdictBatch.Runner() {
             @Override
-            public ExecutionPlan.TdsResult plan(SqlQuery statement, boolean fused) {
+            public ExecutionPlan.Node plan(SqlQuery statement, boolean fused) {
                 Type.RelationType schema = fused ? VerdictSql.batchSchema() : VerdictSql.schema();
                 return rowsPlan(statement, schema, env);
+            }
+
+            @Override
+            public boolean keyed(SqlQuery statement) {
+                return PlanMaker.readsGridReport(statement);
             }
 
             @Override
@@ -458,7 +471,7 @@ final class JudgePlans {
             case GRAPH -> new PlannedSide(new ExecutionPlan.Side.Rows(objectsPlan(w, env)), Kind.GRAPH, w, null,
                     root, null);
             case TABULAR -> tabularPlanned(w, env, assertBoundary, root);
-            case SCALAR, COLLECTION -> new PlannedSide(new ExecutionPlan.Side.Rows(
+            case SCALAR, COLLECTION -> new PlannedSide(sideOf(
                     rowsPlan(withFrames(w.plan(), env), TypedRows.schema(info), env)), Kind.VALUES, w, null, root, null);
         };
     }
@@ -571,7 +584,7 @@ final class JudgePlans {
         }
         plan = withFrames(plan, env);
         // a grid's cells typed from the driver: a temporal cell by the database's own kind (a DATE a day)
-        return new PlannedSide(new ExecutionPlan.Side.Rows(rowsPlan(plan, schema, env)), Kind.TABULAR, w, null,
+        return new PlannedSide(sideOf(rowsPlan(plan, schema, env)), Kind.TABULAR, w, null,
                 root, schema);
     }
 

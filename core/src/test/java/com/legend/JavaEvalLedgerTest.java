@@ -250,7 +250,7 @@ class JavaEvalLedgerTest {
             // Statements.columns; its own JDBC statement and metadata read are gone)
             // 46 -> 48 (2026-10-29, the doors): the LIMIT-0 probe is a plan statement of the body's target the plan
             // runner runs (PlanRunner.columns) -- two lines of parameters, no evaluation
-            Map.entry("core/src/main/java/com/legend/driver/GridProbe.java", 52),   // 48 -> 53 (2026-10-30, D71): at the root, out of exec -- the same five exec imports; 53 -> 52 (D72, the same day): the wire table import gone, the type rebuilt by the root's WireProbe; no rule changed
+            // GridProbe.java 52 -> gone (2026-10-30, the planner-driver seam program's S3c): the LIMIT-0 probe deleted with the stamp it fed; a raw grid's columns are the ones its result reports, read when the plan runs
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -578,7 +578,7 @@ class JavaEvalLedgerTest {
             Map.entry("core/src/main/java/com/legend/driver/DatabaseJudge.java", 596),   // 595 -> 596 (2026-10-30, the step after S2f): the vector arm's signature carries the source, the lambda and the element assert (one line); no evaluation added   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
             // 1249 -> 1258 (2026-10-27, the result boundary program's phase 5: Executor.structured moved here, its
             // one caller, when the old executor was deleted; a JSON text read to its structure, nothing evaluated)
-            Map.entry("core/src/main/java/com/legend/driver/AssertVerdicts.java", 1221),   // 1242 -> 1221 (2026-10-30, the step after S2f): the dead two-branch-if site deleted (0 on every lane, measured), the unroll's fetch hook gone   // 1259 -> 1242 (2026-10-30, S2f): the one-side fetch helpers deleted (side, jsonSideText, tabular); the grid pair through HostSides   // 1258 -> 1259 (2026-10-30, D73, step C): in com.legend.driver -- the one import line the move needs; no rule changed   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
+            Map.entry("core/src/main/java/com/legend/driver/AssertVerdicts.java", 1226),   // 1221 -> 1226 (2026-10-30, the seam program's S3c, third part): a raw grid's rendered text goes to the database judge (its columns exist only when the plan runs: the render a keyed statement, Render.gridCsv) -- routing, no evaluation   // 1242 -> 1221 (2026-10-30, the step after S2f): the dead two-branch-if site deleted (0 on every lane, measured), the unroll's fetch hook gone   // 1259 -> 1242 (2026-10-30, S2f): the one-side fetch helpers deleted (side, jsonSideText, tabular); the grid pair through HostSides   // 1258 -> 1259 (2026-10-30, D73, step C): in com.legend.driver -- the one import line the move needs; no rule changed   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -802,7 +802,7 @@ class JavaEvalLedgerTest {
             // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
             // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
             // (JudgePlans.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
-            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2304),   // 2309 -> 2304 (2026-10-30, the seam program's S3c): the database judge's late-bound grid side is not framed by a planning-time describe (WireProbe.staticized's call in wrapSide deleted)   // 2317 -> 2309 (2026-10-30, the seam program's S3b): the wire probe's reconcile call deleted (the canon asks the value in the statement)   // 2322 -> 2317 (2026-10-30, the seam program's S3a): the column probe's call deleted, a refusal by name in its place   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
+            Map.entry("core/src/main/java/com/legend/driver/BodyDriver.java", 2318),   // 2304 -> 2318 (2026-10-30, the seam program's S3c, third part): a raw grid let read after an effect is a STAGED TABLE (D75) -- its table named (stagedGridTable), dropped when the body ends (dropTables) and read back raw (stagedGridRead); plumbing to the one seam, nothing evaluated; the stamp and its referee deleted here, RawGridSchema (361 lines), GridProbe (87) and WireProbe (43) deleted outright   // 2309 -> 2304 (2026-10-30, the seam program's S3c): the database judge's late-bound grid side is not framed by a planning-time describe (WireProbe.staticized's call in wrapSide deleted)   // 2317 -> 2309 (2026-10-30, the seam program's S3b): the wire probe's reconcile call deleted (the canon asks the value in the statement)   // 2322 -> 2317 (2026-10-30, the seam program's S3a): the column probe's call deleted, a refusal by name in its place   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -1424,8 +1424,10 @@ class JavaEvalLedgerTest {
                     "EngineText.java",
                     "CsvLoad.java",
                     // the schema probes (D71) and the graph's system database (D72), out of exec; ColumnProbe deleted
-                    // 2026-10-30 (the seam program's S3a: a cast-named pivot's columns are the compiler's, F10)
-                    "GridProbe.java", "DynamicPivot.java", "WireProbe.java",
+                    // 2026-10-30 (the seam program's S3a: a cast-named pivot's columns are the compiler's, F10);
+                    // WireProbe and GridProbe the same day (S3b, S3c: the canon asks the value in the statement; a raw
+                    // grid's columns are the ones its result reports)
+                    "DynamicPivot.java",
                     "SystemDatabase.java",
                     "package-info.java");
 

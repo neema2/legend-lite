@@ -71,6 +71,9 @@ public class H2 extends AnsiSqlRenderer {
         ps.add(new ConstantLateralsAsRows());
         ps.add(new LateralExplodeToUnion());
         ps.add(new AggregatesDeliverDouble(java.util.Set.of(com.legend.sql.SqlAgg.Fn.AVG)));
+        // a raw grid's column-names report written in place where a WITH holds it (H2 loses its bound names there:
+        // GridReportCtesInline, H2LostCteParameterTest)
+        ps.add(new GridReportCtesInline());
         // LAST: every source the passes above introduced is in scope when
         // references take their source's spelling (Phase 1, batch 135)
         ps.add(new SourceSpelling());
@@ -1254,5 +1257,24 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     protected SqlWriter merge(com.legend.sql.SqlDml.Merge m) {
         return standardMerge(m);
+    }
+
+    /** {@inheritDoc} {@code CAST(value AS JSON)} (the seam program's S3c, 2026-10-30). */
+    @Override
+    protected SqlWriter variantOf(SqlWriter writer, SqlWriter.Piece value) {
+        return writer.append("CAST(").piece(value).append(" AS JSON)");
+    }
+
+    /** {@inheritDoc} {@code JSON_ARRAY(c1, c2, ... NULL ON NULL)}, as {@link #arrayLit} writes a list (the seam
+     *  program's S3c, 2026-10-30; measured on 2.1.214: {@code [1,"a"]}, {@code [2,null]}). */
+    @Override
+    protected SqlWriter arrayOfCells(SqlWriter writer, SqlWriter.Piece cell) {
+        return writer.append("JSON_ARRAY(").region("", ", ", null, cell).append(" NULL ON NULL)");
+    }
+
+    /** {@inheritDoc} Measured on H2 2.1.214 (the seam program's S3c, 2026-10-30). */
+    @Override
+    protected boolean writesGridReports() {
+        return true;
     }
 }
