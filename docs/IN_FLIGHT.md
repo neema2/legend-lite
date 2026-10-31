@@ -3383,3 +3383,22 @@ Status lives in the plan's Progress table (rule 0b.16).
     `EqualTo` or `EqualToTDS`.
   - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
     refuses a constraint or a mapping test suite when it builds the model; the options go to the user first.
+- **Phase 9 (started 2026-10-31): store breadth.** `stress_test/corpus` was already on `upstream/main` (`efff04068`),
+  so the rebase was a no-op; the tree built (`bazel build //...`) and its gate was the desk's known reds alone (61 diff
+  tests). It lands in stages, each committed when green, semi-structured data first. Inside the owned files: seed rows
+  for `66-store-surface.pure`'s `SURFACE_TYPES`, its `C_SEMI SEMISTRUCTURED` and `C_JSON JSON` columns holding JSON
+  documents, kept out of the expansion through `seed.PACK_TABLES` and from the walking generators
+  (`literals.FIXTURE_TABLES`); a hand-written pack mapping classes over them (navigation, array index, flatten, and
+  explode and the wildcard path if the pin runs them), and outer-join hops in property-mapping join chains with seed
+  rows on one side only; a generator writing a new generated file of services over them (`core/stress.bzl`'s
+  `STRESS_GENERATED`, the layout JSON, `scripts/corpus/BUILD.bazel`'s module lists); `model.py` and the oracle
+  evaluating each navigation over the seeded JSON; `executed.py`, `quarantine.py`, repros under
+  `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 9 (announced 2026-10-31, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files.
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out the new generated
+    file.
+  - `docs/SURFACE_BLOCKED.tsv` and `docs/ENGINE_SURFACE.tsv` (the scoreboard's ledgers): a semi-structured or join row a
+    stage makes stale.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a semi-structured or outer-join construct when it builds the model; the options go to the user first.
