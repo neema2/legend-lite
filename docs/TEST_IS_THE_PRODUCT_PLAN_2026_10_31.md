@@ -322,7 +322,35 @@ every server and cloud backend.
 About four weeks of sessions. P1 and P2 are the largest and the safest (product features with product tests); P3 and
 P4 carry the order and text changes the user rules on.
 
-## 7. Questions for the user
+## 7. Decisions
+
+**RULED 2026-10-31** (the user: "Agree with all recommendations", the two exceptions below): 1 keep the eager run
+at a let as a plan step; 2 a verdict group closes before any step that changes the database; 4 order-insensitivity
+moves into the host's Java comparison; 5 one `check` value in the verdict record; 6 a literal root a constant, as a
+product feature; 8 the corpus row-order emulation a run option; 9 the two "AssertVerdicts.side" texts corrected;
+11 step by step, every outcome frozen; 12 statement changes approved by class (an example before and after, and a
+count); 13 the parity guard byte-identical; 14 consecutive effects one script, as a product feature.
+
+**Revised after the user's questions, awaiting the user's yes:**
+
+- **10, the canon over the product plan, FULLY** (the user: "why would we not fix the cannon fully?"). The product's
+  object layout already carries every declared property and `__id`, `__type` (`ClassLayouts.objectLayoutOf` is the
+  identity layout minus `__canon`), so the wrapper computes `__canon` over the product plan's columns and a database
+  side is the product plan byte for byte. The one design point is object ids: today both sides of a verdict share one
+  body-wide counter, so a construction site gets the same id on both; separately planned sides each get a fresh
+  counter. The fix is ids derived from the construction site, deterministic in every plan (a product change: id
+  literals in product SQL text change, posted). The risk is caught by the host judge, which decides every assert
+  independently (BOTH mode shows any moved verdict). About a week more, in `CanonicalRenderSql` and the dialects;
+  delivered in measured slices; nothing named at the end.
+- **7, the system tables** (the user: "we can't seed once for whole suite?"). Each plan carries the system tables
+  the product's way (`Metamodel`, setup steps), and the runner establishes them on the test's own session once per
+  graph and connection, with the same memo the seeds use: once per suite in practice. A statement can then read
+  the system tables and a user table together (1.F's one impossible case goes), and the separate system session and
+  its routing (`SystemDatabase`, `openRoute`, `SystemRoutes`' renames) are deleted. The system seeds move from the
+  system session into the test session's setup: an order change, posted.
+
+### The questions as they were asked
+
 
 1. **The eager query run at a let (host pass, D32):** keep it as a `Check` step (the engine's order; a broken query
    fails at its let; 1,974 statements on DuckDB, 1,950 on H2), or drop it (a broken query then fails at its first
