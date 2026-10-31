@@ -5,7 +5,7 @@ that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done o
 Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28, and Phase 4 started that day
 and was done on 2026-10-29, in six stages (see its record). Phase 7 started on 2026-10-29 and was done on
 2026-10-30, in three stages (see its record). Phase 5 started and was done on 2026-10-30, in one stage (see its
-record).
+record). Phase 6 started on 2026-10-30 and was done on 2026-10-31, in one stage (see its record).
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -1295,6 +1295,100 @@ Report §3 and §7. One of the 13 relation-mapping features is covered.
   same table. Otherwise the oracle evaluates the `~func` body through `RELATION_IMPL`.
 - **Done when:** at least 10 of the 13 features are covered by services that pass on the engine.
 
+Phase 6 landed in one stage, committed on `stress_test/corpus` when green. `stress_test/corpus` had been rebased onto
+`upstream/main` (`efff04068`) first, with no conflicts; the rebased tree built (`bazel build //...`) and its gate was
+the desk's known reds alone.
+
+**Stage 1: relation (`~func`) mappings over the seeded tables (2026-10-30, `686196343`).**
+
+- **Known history, checked first.** `71-mapping-surface2.pure`'s `~func surface::relFunc():...[1]` had failed to
+  resolve because a `~func` descriptor may not name a package in its types (IN_FLIGHT, 2026-10-11): the pack writes
+  the short descriptor, `relmap::deals():Relation<Any>[1]`, under the mapping section's imports, as
+  `modeljoin::JoinMapping` does. The surface file's note is updated.
+- **Probed first.** Every shape ran on 4.145.0 in a model of its own before its services were written, as a
+  projection and as a graph fetch. Every one runs projected. None runs as a graph fetch ("Cast exception:
+  RelationFunctionInstanceSetImplementation", "Relation function for set ... in mapping"), which D3 leaves for the
+  bump, so no service fetches a graph. A relation property mapping's multiplicity must hold its column's (a nullable
+  column maps to an optional property), and a raw relation under `~src` overflows the engine's parser (EMIT's
+  relation-src model), so `~src` takes a typed relation function's call. A relation-API projection over the group-by
+  fails (F88); a TDS projection of it runs.
+- **The pack.** A hand-written `8116-relmap.pure`: relation class mappings over TRADE and BOOK (`stress::TestData`) and
+  HIER_ISSUER (`hier::IssuerData`), one or more per feature: `~src`; a filter, a group-by and a window (`rank` over each
+  book's notionals, three of them tied) in the source relation; expression right-hand sides (arithmetic,
+  concatenation, a conditional, a function); `~primaryKey` single and composite; a local property (`+bookRef`), which
+  an XStore association and a ModelJoin read; embedded and inline embedded; a union of two relation sets and one of a
+  relation and a relational set; and a binding transformer, `hier::Issuer`'s profile out of its JSON column. No seed
+  changed, and no existing generated service moved.
+- **Expected results by invariance.** `relmap::Twins` maps the same classes relationally over the same tables, and
+  `hier::IssuerMapping` twins the binding. Each relation-mapped service (`RM_`) mirrors a twin (`RMR_`) that reads the
+  same rows in SQL, with the source relation's filter, group-by or expression written in the query; `relmap.py` builds
+  the pairs, each a group in `battery.INVARIANCE_GROUPS`, so `build.py` fails if a pair ever disagrees. The window's
+  twin is a relation-API `rank` over the relational class, which the oracle evaluates through `RELATION_IMPL`. The
+  oracle needed no extension.
+- **The services.** 64 in `99-relmap-services.pure`: 41 relation-mapped and 23 twins.
+- **Readers and writers.** `model.py` skips the pack's relation mappings, as it skips `modeljoin::JoinMapping`;
+  `build.py` reads a mirror's columns after its twin's relation operations (the window's column); `spread.py` takes the
+  pack's services neither as templates nor into its baseline (in its baseline, the combinations they close took
+  `SP_JoinTradeGroup` out of the selection). `executed.py` ratchets the thirteen R6 features.
+- **F88, new, with a repro** (`scripts/corpus/repro/relation-groupby-project/`): a relation-API projection over a
+  class mapped from a grouped relation sends SQL DuckDB refuses ("GROUP BY term out of range"); the same projected as a
+  TDS runs. Pinned by `RM_BookTotalsRelation`; the group-by's other services are TDS ones.
+- **The engine verdict.** A hand-written pack is a model change, so the whole corpus ran (92 minutes, beside the stress
+  suites and the gate): 5,850 pass, 106 known-fail, 1 not run (F15), 0 unexpected, of 5,957 testables. 63 of the 64
+  new services pass; the 64th is F88's.
+- **Lite.** DuckDB 5,519 to 5,579 and H2 5,443 to 5,503, each a rise of exactly 60 of the 64, every feature among them
+  but the binding, and `RM_BookTotalsRelation`, which lite runs and the engine cannot. The 4 others are lite's binding
+  transformer, a JSON column read as its String rather than as the bound class ("expected hier::Profile, got String"),
+  which the relational twins over `hier::IssuerMapping` meet as well. At the user's choice (2026-10-30) those two twins
+  are in `differential.py`'s `lite_blind`, since the differential cannot hold a crash as a known divergence. Both
+  `MIN_PASS` rose, each with a dated note.
+- **The scoreboard.** REL-03 and REL-04, the relation `~primaryKey` spellings, are now written (257 of 263 engine
+  surface constructs, 256 before); `docs/SURFACE_BLOCKED.tsv` loses them and restates REL-02, `~src`'s raw relation.
+- **The gate:** 404 pass and 2 are skipped. 63 fail on this desk alone: 59 diff tests (the stress corpus's 19 equal to
+  Bazel's output ignoring CR, the rest the desk's `fc.exe` path-case and CR false reds, the same set as the gate run
+  before the change), 3 datacube browser timeouts, and `//core:corpus_differential_test`, which passed after the
+  `lite_blind` entry (239 agree, 1 known divergence). The corpus gates pass (scoreboard, executed, stacking, density,
+  functions); `//datacube:stress_markets_test` and `//python:markets_test` pass on the trading model with the pack in
+  it.
+
+**Phase 6 done (2026-10-31).** All 13 relation-mapping features are covered by services that pass on the engine
+(target 10; 1 before the phase). The measures come from the report's `tools/run.sh` at the pin, given the whole run's
+pass list:
+
+- **The features, as services that pass on the engine with rows (in lite):**
+  - relation-src: 4 (4)
+  - relation-filter: 7 (7)
+  - relation-group-by: 2 (3)
+  - relation-window-function: 2 (2)
+  - relation-expression-rhs: 4 (4)
+  - relation-primary-key: 3 (3)
+  - relation-local-property: 9 (9)
+  - relation-embedded: 3 (3)
+  - relation-inline-embedded: 2 (2)
+  - relation-union: 4 (4)
+  - relation-binding-transformer: 2 (0)
+  - relation-model-join: 5 (5)
+  - relation-xstore-association: 4 (4)
+
+  Before, the report branch's `profile.py` marked a relation set as scaffolding alone, and its walk could not find a
+  ModelJoin, which has no property mappings. It now reads a relation set's `~src`, primary key and source relation
+  (the `~func`'s body, or the `~src` expression and the functions it calls: `filter`, `groupBy`, `over`), a relation
+  property mapping's `$src` right-hand side, binding transformer and embedded or inline form, a union with a relation
+  set (EMIT's relation-union, not store-union), an XStore between relation sets (relation-xstore-association, not
+  cross-store), and a local property an XStore's or a ModelJoin's predicate reads; it indexes a ModelJoin under its
+  association's ends, so `J0_TradeBookModelJoin` and its SP sibling now count for the model join and the local
+  property. `matrix.py`'s declared column is re-counted for the relation rows: 20 class mappings over 11 functions.
+- **Features in the model that no service reaches (○): 1** (unchanged), `store:relational-semistructured`.
+- **EMIT 66 of 109 on the engine and 55 in lite** (53 and 43 before): the 13 relation features on the engine, all but
+  the binding transformer in lite.
+- PCT 162 of 321 (unchanged).
+- **The engine's standing verdict**: 5,850 pass, 106 known-fail, 1 not run (F15), 0 unexpected, of 5,957 testables.
+  Phase 6 added 64 services (41 relation-mapped and 23 twins).
+- **Lite**: 5,579 tests pass on DuckDB and 5,503 on H2 (5,519 and 5,443 before the phase).
+- **Left open:** lite's binding transformer, which every Binding-backed service meets (the relational `hier::` ones
+  too); a relation-API projection over a group-by on the engine (F88); and a graph fetch over a relation mapping, which
+  waits for the bump (D3).
+
 ### Phase 7: declared but unreached (about 3 days, about 120 services)
 
 Report §3 (the ○ rows), §8 (unused joins) and §10 item 9.
@@ -1542,7 +1636,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 3 | 2026-10-28 | — | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
 | 4 | 2026-10-28 | 2026-10-29, six stages | stage 1 (`0bb5fca71`) 0; stage 2 (`b9f0d212c`) 258; stage 3 (`94c3f5a0c`) 77; stage 4 (`939d4c40b`) 40; stage 5 (`0496e6966`) 64; D8 reversed (`5cabca0a4`) 0; stage 6 (`880243bbb`) 49 | 25 vocabulary services under F35, F38, F68, F71-F74 (stage 2); 30 under F75 and F76, 24 of them deep-stack totals whose expectation moved to Pure's 0 (stage 3); 2 under F37 and F77 (stage 4); 5 under F78 and F79 (stage 5); F75 withdrawn with D8's reversal, its 28 services out (2026-10-29); 8 under F68, F80, F81 and F82 (stage 6); F37's property-mapping half withdrawn, `F37_SubstringSql` out (`12795b348`); F68-F82 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's), an aggregate over nothing as SQL's NULL (F76's; F75's withdrawn), `last` and `wavgRowMapper` in a groupBy, `substring(start)` one-based in an `extend`, `olapGroupBy`'s ranking `func`, `parseDecimal` as DECIMAL(5,2), `sum` over no trades as NULL (F82's); on H2 alone, functions the dialect lacks (`MAKE_DATE`, `greatest`/`least` over a list), a non-ISO `weekOfYear`, a Sunday-first `firstDayOfWeek`, `AVG` of integers to eleven digits, and `regexpReplace` refusing `replaceAll` or replacing every match for the first | platform functions in service queries 183 (178 on the engine, 165 in lite); PCT 161 of 321; EMIT 45 of 109 on the engine, 39 in lite |
 | 5 | 2026-10-30 | 2026-10-30, one stage | stage 1 (`fd92254d6`) 90: 49 M2M services and 41 relational twins; M1 and M2 moved where lite loads them | F84-F87 found, each with a repro (4 services: `MX_TradeRefTree`, `MX_TradeStampJoined`, `MX_PartyProfileTree`, `MX_PartyGrade`) | the test runtime losing the `ModelChainConnection`'s mapping (every M2M service lite loads, 36); refused at model build, so excluded with their file (the user's choice): an M2M enumeration transform and a complex property passthrough (`8115-m2m-gaps.pure`, 13 services) | M2M services lite runs 36, 32 of them passing on the engine; passing on the engine m2m-transform 47, m2m-chained-relational 47, m2m-derived-source-property 4, m2m-complex-property-passthrough 3, m2m-target-instantiation 1, m2m-local-property 2; features no service reaches 1 (relational-semistructured); EMIT 53 of 109 on the engine, 43 in lite; PCT 162 of 321 |
-| 6 | — | — | — | — | — | — |
+| 6 | 2026-10-30 | 2026-10-31, one stage | stage 1 (`686196343`) 64: 41 relation-mapped services and 23 relational twins | F88 found, with a repro (1 service: `RM_BookTotalsRelation`) | lite's binding transformer, a JSON column read as its String (4 services: 2 relation-mapped and their 2 relational twins, the twins out of the differential at the user's choice) | relation-mapping features covered 13 of 13 on the engine, 12 in lite (1 before); EMIT 66 of 109 on the engine, 55 in lite; features no service reaches 1; PCT 162 of 321 |
 | 7 | 2026-10-29 | 2026-10-29, three stages | stage 1 (`3ab506f9a`) 120; stage 2 (`bdd36b575`) 12; stage 3 (`a9e19fe1f`) 31 | F83 found, with a repro: a literal list in a relational property mapping or a join fails at test setup (3 services: `UO_LiteralListCoalesce`, `UO_LiteralListIn`, `UJ_JoinArrayArg`) | a literal list over an optional column; the merge, a class mapped by several sets, read as an implicit union; a runtime holding two mappings that bind one class; a join's `!=` or `<>` over a NULL read as Pure's `not(equal(...))` | features no service reaches 2 (m2m-local-property, relational-semistructured); unused joins 0 of 386; EMIT 51 of 109 on the engine, 43 in lite; PCT 161 of 321 |
 | 8 | — | — | — | — | — | — |
 | 9 | — | — | — | — | — | — |
