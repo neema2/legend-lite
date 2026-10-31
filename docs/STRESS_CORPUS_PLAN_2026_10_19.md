@@ -5,7 +5,8 @@ that day (`docs/IN_FLIGHT.md`, the twelfth line). Phase 1 started and was done o
 Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026-10-28, and Phase 4 started that day
 and was done on 2026-10-29, in six stages (see its record). Phase 7 started on 2026-10-29 and was done on
 2026-10-30, in three stages (see its record). Phase 5 started and was done on 2026-10-30, in one stage (see its
-record). Phase 6 started on 2026-10-30 and was done on 2026-10-31, in one stage (see its record).
+record). Phase 6 started on 2026-10-30 and was done on 2026-10-31, in one stage (see its record). Phase 8 started and
+was done on 2026-10-31, in three stages (see its record).
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -1559,6 +1560,185 @@ Report §5, §6 and §10 items 5, 7 and 11.
   assertions, on a few dozen existing services. Lite skips `EqualTo` today.
 - **Done when:** the constraint and mapping-suite rows reach their targets.
 
+Phase 8 landed in three stages, each committed on `stress_test/corpus` when green: the constraints, then the mapping
+test suites, then the test shapes. `stress_test/corpus` was already on `upstream/main` (`efff04068`), so the rebase
+was a no-op; the tree built (`bazel build //...`) and its gate was the desk's known reds alone.
+
+**Known history, checked first.**
+
+- F16 holds at the pin. A probe model's violating rows came back unchanged from a projection, and an unchecked graph
+  fetch over them raised ("Constraint :[settleAfterTrade] violated in the Class Deal").
+- The eight constraints (`06-trading.pure`'s two, `65-model-surface.pure`'s three, `8110-largeexp.pure`'s three) each
+  compare one or two properties of one type, as §5 says.
+- `docs/SURFACE_BLOCKED.tsv`'s TA-01 and TST-15, probed on 4.145.0. TA-01 is right for the default serialization
+  alone: there an EqualTo meets the result envelope, whose `executionTraceID` is a fresh UUID per run. Under
+  `PURE_TDSOBJECT` the answer is the rows, and a graph fetch's `serialize` its `{builder, values}`, and an EqualTo of
+  that exact text passes. TST-15 holds: the pin refuses EqualToTDS at parse ("Unknown test assertion type:
+  EqualToTDS"), so one would stop the whole corpus loading on the engine, and none is written.
+- Lite, probed the same way: its model build reads class constraints of every form below and a mapping's test suites;
+  its runner judges each test of a suite and each EqualToJson of a test, and skips a whole test that holds an EqualTo
+  ("EqualTo (a spec value) is not judged by this runner"). It runs services alone, no mapping test.
+
+**Stage 1: constraints that combine (2026-10-31, `9582d30d2`).**
+
+- **Probed first.** On 4.145.0, in a model of its own: `graphFetchChecked` serializes each object as `{defects, value}`,
+  with no `source` over a relational store, and a defect is `{id, externalId, message, enforcementLevel, ruleType,
+  ruleDefinerPath, path}`. Every planned form evaluates: a date against a date, an enumeration against a date's
+  presence, `startsWith`, `length`, `exists` and `forAll` over a to-many property (reading the owner's `$this` inside),
+  an `if` over a to-many's `size`, a navigated to-one, and a Warn with an external id and a message.
+- **What the engine checks** (read in its Pure: `graphExtension.pure`'s `ensureConstraintsRequirements`, the Java
+  binding's `createConstraintCheckingForTree`, and confirmed by the probe):
+  - The fetch reads every property a constraint reads, at the root and at each subtree whose class is not already on
+    the path from it.
+  - It checks each object of that tree against each constraint whose properties its subtree holds. A basket so carries
+    its line's defect with the path `[{lines, 0}]`, a line its basket's (`[{basket, null}]`) and its basket's desk's.
+  - An unchecked fetch raises on any defect, a Warn's too (the generated `withConstraintsApplied`). This is recorded as
+    a non-finding in `docs/UPSTREAM_FINDINGS.md`.
+- **The pack.** A hand-written `8117-checks.pure`, the `checks::` package: `CkDesk`, `CkDeal`, `CkBasket` and `CkLine`
+  on a store of their own, `checks::CheckDB`, with twenty constraints:
+  - dates against dates, and against a date literal;
+  - an enumeration value against a date's presence;
+  - `startsWith`, `length`, `toUpper` and `in` over strings;
+  - `exists`, `forAll` and `size` over a basket's lines;
+  - `if` on an enumeration value, and a `dateDiff` in days;
+  - `toOne` over an optional value;
+  - navigated properties: a basket's desk, a line's basket;
+  - one Warn with an external id and a message naming the deal.
+
+  Its seed, `CK_*` in `seed.py`, violates each one with a row of its own, and some rows violate none. A violating child
+  is the only member of its parent's collection, since a defect under a to-many carries the member's index, and a
+  relational fetch defines no order. The tables are kept out of the expansion (`seed.PACK_TABLES`) and from the walking
+  generators (`literals.FIXTURE_TABLES`), so no expectation moved but `93-testdata`'s header count.
+- **The oracle.** It evaluates each constraint over the fetched graph by the engine's rule above (`oracle._enrich`,
+  `_defects`):
+  - The defect fields are as above; the message is the evaluated `~message` or "Constraint :[id] violated in the Class
+    <name>".
+  - A strict parser reads a constraint's body: one kind of operator per unparenthesised chain, so Pure's precedence is
+    never guessed. It evaluates under D7's two-valued comparisons, with the functions above.
+  - It refuses a defect under a to-many of several members, and an unchecked fetch of an object with a defect.
+  - `model.py` reads each class's constraint block. Every existing graph service over a class with constraints
+    (`trading::Trade`'s, `largeexp::ExposureLine`'s) passes the unchecked check unchanged.
+  - A graph spec's query filter is now written and evaluated. Before, no graph spec had one.
+- **The services.** 35 in `99-checks-services.pure` (`checks.py`):
+  - `CK_<Class>Checked`, a checked fetch of every object of each class, two with a nested tree;
+  - `CK_<Constraint>`, one per constraint, its violating rows and a row that holds;
+  - three of the nested defects;
+  - `CKU_`, four unchecked fetches of objects with no defect;
+  - `CKP_`, two projections that return the violators.
+
+  `checks.check` fails the build if a constraint loses its violating row, if a holding row gains a defect, or if a
+  fetch answers one object (which serializes as an object, not an array). `executed.py` ratchets ten C8 features.
+- **The engine verdict.** A hand-written pack and a seed are a model change, so the whole corpus ran (92 minutes,
+  beside the gate): 5,885 pass, 106 known-fail, 1 not run (F15), 0 unexpected, of 5,992 testables. All 35 new services
+  pass; they had passed in a run of their own before it.
+- **Lite.** DuckDB 5,579 to 5,600 and H2 5,503 to 5,509, each a rise of exactly the new services that pass. On DuckDB
+  21 of the 35 pass: the desk, deal and line constraints' own services, the unchecked fetches and the projections. The
+  14 others are three lite buckets:
+  - a constraint reading a to-many property, every basket fetch, 10 ("derived graph leaf 'constraint$hasLiveLine'
+    reads 'lines' ... only same-class stored reads inline yet");
+  - a Warn's `~externalId` answered null, 2;
+  - the defects of an object the fetch reaches through a constraint, not checked (a line's basket's), 2.
+
+  On H2 every checked fetch fails: 19 on a bucket of H2's own ("LIST_FILTER reached a dialect without a list
+  encoding") and the 10 basket fetches on the first. Lite's unchecked fetch checks no constraint at all: it answers
+  the violators where the engine raises. No service shows that, since the corpus fetches unchecked only clean objects.
+  Both `MIN_PASS` rose, each with a dated note.
+- **The gate:** 405 pass and 2 are skipped. 63 fail on this desk alone: 60 diff tests (the stress corpus's equal to
+  Bazel's output ignoring CR, one more than before for the new file) and 3 datacube browser timeouts. The corpus gates,
+  the differential (239 agree, 1 known divergence) and both markets tests pass.
+
+**Stage 2: mapping test suites (2026-10-31, `346fd9bcf`).**
+
+- **Probed first.** On 4.145.0:
+  - A mapping test may hold one assertion ("Mapping Tests can only have one assertion", at compile).
+  - It serializes RAW: the rows a service's `PURE_TDSOBJECT` gives, timestamps included, and a graph fetch's objects
+    bare, with no `{builder, values}` and one object as an object.
+  - A mapping that includes another runs its suites over both.
+- **The suites.** `99-mapping-tests.pure` (`mapping_tests.py`): 60 suites in nine `stress::MT_` mappings, each
+  including the mapping its services run against: `stress::AllMapping`, `stress::DenseMapping`, `relmap::Twins`,
+  `relmap::Shaped`, `checks::CheckMapping`, `combo::ComboMapping`, and the flat, ModelJoin and executed mappings. Each
+  suite mirrors a service: its query as the function, its `###Data` bound to the store its runtime connects, and its
+  expected rows as the one assertion, so the oracle computes nothing new. The mirrored services span the hand-written
+  battery, graph fetches (nested, a union, milestoned), deep stacks, typed literals and enumerations, the function
+  vocabulary and relation operations, milestoning at a time of day, DenseMapping, relation mappings, checked fetches
+  with their defects and the combination matrix.
+- **The engine takes them.** `run.py` lists a `stress::` mapping with test suites as a testable, beside the services and
+  the function testables (D4). `changed.py` lists one that is new or whose suites changed, and every testable when its
+  class mappings or includes change. `TestableMain` runs a mapping by its path, unchanged. `model.py` reads a mapping
+  up to its suites. `executed.py` ratchets T8 (a mapping test suite).
+- **F89, new, with a repro** (`scripts/corpus/repro/mapping-test-brace-lambda/`): a lambda written with braces cannot
+  appear in a mapping test's function. The mapping lexer reads `{` as a brace only after `:` or `[`, and anywhere else
+  it opens a class mapping's island. So `filter({x|...})` does not parse there, and the whole model stops loading,
+  while the same query runs in a service. `mapping_tests.py` writes each one-parameter lambda without its braces, the
+  same Pure. It refuses a lambda that needs them: `VR_JoinLeft`'s two-parameter join condition, so `VR_Concatenate` is
+  mirrored in its place. Nothing is quarantined.
+- **The engine verdict** (`changed` and `--only`, since only testables were added): the 9 test mappings pass, all 60
+  suites, 0 unexpected.
+- **Lite** runs none (no mapping test runner, `docs/DEFERRED_TEST_EXECUTION.md`). Its model build reads the nine
+  mappings with their suites, strictly, and its counts did not move.
+- **The gate** met the desk's known reds alone: 61 diff tests and 3 datacube browser timeouts.
+
+**Stage 3: test shapes (2026-10-31, `9823f0701`).**
+
+- **The shapes.** 36 existing services (`shapes.py`), each sorted on a key no two of its rows share, gain a second test,
+  `in_order`, serialized `PURE_TDSOBJECT`, with two assertions:
+  - `sameRows`, the EqualToJson of the rows the first test asserts;
+  - `inOrder`, an EqualTo of the serialized answer exactly. EqualToJson compares rows unordered, so this is the
+    corpus's first assertion of a row order.
+
+  So 36 suites hold two tests, and 36 tests two assertions. `emit.exact_text` writes the oracle's rows as the pinned
+  serializer does: compact JSON, columns in order, a double as Java's `Double.toString` writes it.
+- **A DECIMAL column's spelling.** The first choice of 36 held fifteen services whose `in_order` failed on the engine
+  for one reason, with the rows and their order the oracle's. A value read from a `DECIMAL(p,s)` column is written at
+  the column's scale (`8.0000`), and one computed from it at the database's scale (`-666400.000`). They were replaced,
+  and `shapes.check` now refuses a double not read from a `DOUBLE` column, and a Decimal. This is recorded as a
+  non-finding beside the timestamp spelling.
+  - With `--dump`, `TestableMain` now writes a non-JSON assertion's whole failure message too, which is how the fifteen
+    were read.
+- **The ledger.** `docs/SURFACE_BLOCKED.tsv` loses TA-01 (EqualTo is written now) and restates TST-15 with the probe.
+  `executed.py` ratchets three T8 features: several tests in a suite, several assertions in a test, and EqualTo.
+- **The engine verdict** (`changed` and `--only`, since only services' tests changed): 36 pass, both tests each, 0
+  unexpected.
+- **Lite** skips each `in_order`, and every first test passes as before. DuckDB 5,600 and H2 5,509 are unchanged;
+  skipped tests went from 13 to 49 on each.
+- **The gate** met the desk's known reds alone: 61 diff tests and 3 datacube browser timeouts. The engine runner's smoke
+  test passes.
+
+**Phase 8 done (2026-10-31).** The constraint row and the mapping test suite row reach their targets, counted only for
+tests that pass on the engine. The measures come from the report's `tools/run.sh` at the pin, given the whole run's pass
+list merged with stages 2 and 3's `--only` runs. The report branch's new `checks_tests.py` measures what pass lists
+reach; before it, `analyze.py` counted constraints declared and suites written.
+
+- **Constraints: 28 declared, 18 combining types or functions** (target at least 20 and 10; 8 and 0 before). A
+  constraint combines if it calls a function besides the comparison, boolean and arithmetic operators, reads properties
+  of two kinds of type, or reads a navigated property.
+  - On the engine, 25 are graph-fetched by a passing service (18 of them combining). 20 have a violation that a passing
+    service asserts, all of the pack's, 18 of them combining.
+  - The two not combining are `settleNotBeforeTrade`, a date against a date, and `notionalCap`, the Warn, whose message
+    calls functions but whose test does not.
+  - `surface::Limit`'s three are still fetched by no `stress::` service.
+  - In lite, 25 are fetched by a passing service. That count includes unchecked fetches lite passes without checking a
+    constraint. 14 have a violation a passing service asserts (13 combining).
+- **Mapping test suites: 60**, 60 tests in 9 mappings (target at least 50; 0 before). All pass on the engine; none runs
+  in lite.
+- **Test shapes:**
+  - tests per suite: 5,935 suites with one test, 58 with two (36 of them `in_order`);
+  - assertions per test: 6,015 tests with one, 36 with two;
+  - assertion kinds: EqualToJson, and EqualTo with EqualToJson (36, all passing on the engine, none judged in lite).
+- **EMIT 66 of 109 on the engine and 55 in lite**, unchanged: `grammar:constraint` was covered before, and the
+  taxonomy has no mapping-test feature but the legacy one.
+- **Features in the model that no service reaches (○): 1**, `store:relational-semistructured` (unchanged).
+- PCT 164 of 321 (162 before).
+- **The engine's standing verdict**: 5,894 pass, 106 known-fail, 1 not run (F15), 0 unexpected, of 6,001 testables.
+  Phase 8 added 35 services and 9 test mappings, and gave 36 services a second test.
+- **Lite**: 5,600 tests pass on DuckDB and 5,509 on H2 (5,579 and 5,503 before the phase), with 49 skipped.
+- **Left open:**
+  - lite's buckets above: a constraint reading another class's property, a Warn's external id, nested defects, H2's
+    list encoding, and an unchecked fetch that checks nothing;
+  - a mapping test runner in lite;
+  - EqualToTDS, which waits for an engine that parses it;
+  - F89.
+
 ### Phase 9: store breadth (about 3 days)
 
 Report §3 (Store) and §10 item 10.
@@ -1638,5 +1818,5 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 5 | 2026-10-30 | 2026-10-30, one stage | stage 1 (`fd92254d6`) 90: 49 M2M services and 41 relational twins; M1 and M2 moved where lite loads them | F84-F87 found, each with a repro (4 services: `MX_TradeRefTree`, `MX_TradeStampJoined`, `MX_PartyProfileTree`, `MX_PartyGrade`) | the test runtime losing the `ModelChainConnection`'s mapping (every M2M service lite loads, 36); refused at model build, so excluded with their file (the user's choice): an M2M enumeration transform and a complex property passthrough (`8115-m2m-gaps.pure`, 13 services) | M2M services lite runs 36, 32 of them passing on the engine; passing on the engine m2m-transform 47, m2m-chained-relational 47, m2m-derived-source-property 4, m2m-complex-property-passthrough 3, m2m-target-instantiation 1, m2m-local-property 2; features no service reaches 1 (relational-semistructured); EMIT 53 of 109 on the engine, 43 in lite; PCT 162 of 321 |
 | 6 | 2026-10-30 | 2026-10-31, one stage | stage 1 (`686196343`) 64: 41 relation-mapped services and 23 relational twins | F88 found, with a repro (1 service: `RM_BookTotalsRelation`) | lite's binding transformer, a JSON column read as its String (4 services: 2 relation-mapped and their 2 relational twins, the twins out of the differential at the user's choice) | relation-mapping features covered 13 of 13 on the engine, 12 in lite (1 before); EMIT 66 of 109 on the engine, 55 in lite; features no service reaches 1; PCT 162 of 321 |
 | 7 | 2026-10-29 | 2026-10-29, three stages | stage 1 (`3ab506f9a`) 120; stage 2 (`bdd36b575`) 12; stage 3 (`a9e19fe1f`) 31 | F83 found, with a repro: a literal list in a relational property mapping or a join fails at test setup (3 services: `UO_LiteralListCoalesce`, `UO_LiteralListIn`, `UJ_JoinArrayArg`) | a literal list over an optional column; the merge, a class mapped by several sets, read as an implicit union; a runtime holding two mappings that bind one class; a join's `!=` or `<>` over a NULL read as Pure's `not(equal(...))` | features no service reaches 2 (m2m-local-property, relational-semistructured); unused joins 0 of 386; EMIT 51 of 109 on the engine, 43 in lite; PCT 161 of 321 |
-| 8 | — | — | — | — | — | — |
+| 8 | 2026-10-31 | 2026-10-31, three stages | stage 1 (`9582d30d2`) 35 constraint services; stage 2 (`346fd9bcf`) 60 mapping test suites in 9 test mappings; stage 3 (`9823f0701`) 0, 36 services given a second test | none; F89 found, with a repro (a braced lambda in a mapping test's function), worked around, nothing quarantined | a constraint reading another class's property (10), a Warn's external id (2), nested defects (2), H2's list encoding for a checked fetch (19 on H2), an unchecked fetch that checks no constraint; no mapping test runner (60 suites not run); EqualTo skipped (36) | constraints 28, 18 combining; on the engine 25 fetched (18 combining), 20 violations asserted; mapping test suites 60, all passing on the engine; EMIT 66 of 109 on the engine, 55 in lite; features no service reaches 1; PCT 164 of 321 |
 | 9 | — | — | — | — | — | — |

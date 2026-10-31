@@ -72,6 +72,7 @@ cd "$HERE"
 "$PY" deep_populated.py "$STRESS" "$WORK/stress-suites-pass.txt" ${ENGINE_PASS[@]+"${ENGINE_PASS[@]}"}
 export PMCD_JSON="$WORK/stress-pmcd.json"
 "$PY" analyze.py "$WORK/expectations.tsv" "$WORK/stress-suites-pass.txt" "$WORK/analysis.json"
+"$PY" checks_tests.py "$WORK/stress-suites-pass.txt" "$WORK/checks_tests.json" ${ENGINE_PASS[@]+"${ENGINE_PASS[@]}"}
 "$PY" profile.py "$WORK/expectations.tsv" "$WORK/stress-suites-pass.txt" "$WORK/profile.json" ${ENGINE_PASS[@]+"${ENGINE_PASS[@]}"}
 "$PY" coverage.py "$WORK/pct_functions.tsv" "$WORK/coverage.json"
 "$PY" complexity.py "$WORK/analysis.json" "$WORK/profile.json" "$WORK/complexity.json"
