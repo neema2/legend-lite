@@ -12,6 +12,7 @@
     "96-external-data.pure": "stress",
     "97-hier-execution.pure": "stress",
     "98-combination-execution.pure": "stress",
+    "99-checks-services.pure": "stress",
     "99-intraday-services.pure": "stress",
     "99-m2m-services.pure": "stress",
     "99-relmap-services.pure": "stress",

@@ -717,6 +717,17 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   comparison of the dumped payloads. A corpus using this harness therefore **cannot**
   assert ordering, only which rows survive `->sort()->limit()`. `oracle.evaluate` refuses
   any case where a tie straddles the limit boundary, for exactly this reason.
+- **A graph fetch checks the constraints of every object it reaches, and an unchecked one raises on any
+  defect, a `Warn`'s too** (4.145.0, probed 2026-10-31, the stress corpus plan's Phase 8). The fetch reads every
+  property a constraint reads, at the root and at each subtree whose class is not already on the path from the root
+  (`ensureConstraintsRequirements`), and checks each object of that tree against each constraint whose properties its
+  subtree holds (the Java binding's `createConstraintCheckingForTree`): a basket's fetch carries its line's defect
+  with the path `[{lines, 0}]`, a line's its basket's (`[{basket, null}]`) and its basket's desk's. Under
+  `graphFetchChecked` each object is `{defects, value}`, a relational fetch with no `source`; under `graphFetch` the
+  generated `withConstraintsApplied` throws an `IllegalStateException` of the defects' messages when there is any,
+  whatever its enforcement level. Recorded as the engine's behaviour, not a defect: nothing in the pinned sources
+  says a `Warn` should not stop an unchecked fetch. `oracle._defects` evaluates the same rule, and the corpus fetches
+  unchecked only objects with no defect (`scripts/corpus/checks.py`).
 - **Timestamps render as `2024-06-03T19:00:00.000000000+0000`**, dates as `2024-06-03`.
   Not a defect — but undocumented anywhere we could find, and the difference between the
   two is the whole reason 8 of 12 services failed on the first calibrated run.

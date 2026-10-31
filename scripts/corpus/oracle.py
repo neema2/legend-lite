@@ -2886,10 +2886,533 @@ def _graph(c: Corpus, data, row, cls: str, tree: dict, dated: _Dated | None = No
 
 def evaluate_graph(c: Corpus, spec: Spec, data: dict[str, list[dict]],
                    params: dict | None = None) -> list[dict]:
+    """The graph fetch's objects. A query filter before the fetch keeps the rows it holds for, as a projection's does.
+
+    A class with constraints is checked as legend-engine checks it (the improvement plan's Phase 8, _defects): a
+    CHECKED fetch (`graphFetchChecked`) answers each object as {defects, value}; an unchecked one raises on any defect,
+    so a spec that would fetch an object with one is refused here, as the engine would refuse it at run time."""
     base = _mapping_filtered(c, spec.root, _rows_for(c, spec.root, data), data)
     base = _milestoned(c, spec, base, params)
     dated = _dated_for(c, spec, params)
-    return [_graph(c, data, r, spec.root, spec.graph, dated, dated.root_dates) for r in base]
+    base = [r for r in base if all(_pred(c, data, r, spec.root, f, params, dated) for f in spec.filters)]
+    checked = getattr(spec, "checked", False)
+    out = []
+    for r in base:
+        value = _graph(c, data, r, spec.root, spec.graph, dated, dated.root_dates)
+        if not _constrained(c, spec.root, spec.graph):
+            if checked:
+                out.append({"defects": [], "value": value})
+            else:
+                out.append(value)
+            continue
+        defects = _defects(c, data, r, spec.root, _enrich(c, spec.graph, spec.root, ()), [])
+        if checked:
+            out.append({"defects": defects, "value": value})
+        elif defects:
+            raise Unsupported(f"{spec.short}: an unchecked graph fetch of an object with defects raises on the engine "
+                              f"(the generated withConstraintsApplied throws on any, a Warn's too): "
+                              f"{[d['id'] for d in defects]}")
+        else:
+            out.append(value)
+    return out
+
+
+# ------------------------------------------------------------------ constraints over a fetched graph
+#
+# The improvement plan's Phase 8. legend-engine 4.145.0 checks a class's constraints whenever it graph-fetches the
+# class, and the rule is the engine's, read in its Pure (graphExtension.pure's ensureConstraintsRequirements and the
+# Java binding's createConstraintCheckingForTree, legend-engine-xt-javaPlatformBinding-pure) and confirmed by a probe:
+#
+#   - the fetch reads every property a constraint reads (its ~function's and its ~message's paths), added to the tree
+#     at the root and again at every subtree whose class is not already on the path from the root (_enrich);
+#   - each object of the enriched tree is checked against each constraint of its class whose paths the subtree there
+#     holds, and a nested object's defect carries its path from the root, `[{propertyName, index}]`, the index of a
+#     to-many member its position in the collection (_defects);
+#   - a defect is {id, externalId, message, enforcementLevel, ruleType, ruleDefinerPath, path}, the message the
+#     ~message evaluated or "Constraint :[id] violated in the Class <name>".
+#
+# A collection's order is not defined by a relational fetch, so a defect under a to-many of more than one member is
+# refused rather than given an index the engine might not give it. The seed (CK_* in seed.py) puts each violating
+# child alone in its parent.
+
+class _Lam:
+    """A lambda argument, `l|<body>`: its parameter (None for a bare `|<body>`) and body."""
+
+    def __init__(self, param, body):
+        self.param, self.body = param, body
+
+
+_CK_TOKEN = re.compile(
+    r"\s*('(?:[^'\\]|\\.)*'"                       # a string literal
+    r"|%\d{4}-\d{2}-\d{2}"                         # a StrictDate literal
+    r"|\d+\.\d+|\d+"                               # a number
+    r"|\$\w+"                                      # a variable
+    r"|[A-Za-z_]\w*(?:::\w+)*"                     # a name, package-qualified or not
+    r"|->|&&|\|\||==|!=|<=|>=|[<>!+\-*/.,()\[\]{}|:])")
+
+_BOOL_OPS, _CMP_OPS, _ARITH_OPS = ("&&", "||"), ("==", "!=", "<", "<=", ">", ">="), ("+", "-", "*", "/")
+
+
+def _ck_tokens(text: str) -> list[str]:
+    out, i = [], 0
+    while i < len(text):
+        if text[i].isspace():
+            i += 1
+            continue
+        m = _CK_TOKEN.match(text, i)
+        if not m:
+            raise Unsupported(f"cannot tokenise constraint at {text[i:][:40]!r}")
+        out.append(m.group(1))
+        i = m.end()
+    return out
+
+
+class _CkParser:
+    """A constraint body as a tree of tuples. Narrow on purpose: a chain of binary operators must be of ONE kind
+    (all `&&`, all `||`, one comparison, or arithmetic), since Pure binds `&&` tighter than an ordered comparison
+    (06-trading.pure's note) and a mixed chain would make this parser guess at Pure's precedence; `!` takes one
+    operand and must not be followed by a comparison, for the same reason."""
+
+    def __init__(self, text: str):
+        self.t, self.i, self.text = _ck_tokens(text), 0, text
+
+    def peek(self, k=0):
+        return self.t[self.i + k] if self.i + k < len(self.t) else None
+
+    def take(self, want=None):
+        tok = self.peek()
+        if want is not None and tok != want:
+            raise Unsupported(f"expected {want!r} at {tok!r} in constraint {self.text!r}")
+        self.i += 1
+        return tok
+
+    def parse(self):
+        node = self.chain()
+        if self.peek() is not None:
+            raise Unsupported(f"trailing tokens at {self.peek()!r} in constraint {self.text!r}")
+        return node
+
+    def chain(self):
+        items, ops = [self.operand()], []
+        while self.peek() in _BOOL_OPS + _CMP_OPS + _ARITH_OPS:
+            ops.append(self.take())
+            items.append(self.operand())
+        if not ops:
+            return items[0]
+        if all(o in _ARITH_OPS for o in ops):
+            # * and / before + and -, left to right within each
+            terms, signs, cur = [], [], items[0]
+            for o, x in zip(ops, items[1:]):
+                if o in ("*", "/"):
+                    cur = ("bin", o, cur, x)
+                else:
+                    terms.append(cur)
+                    signs.append(o)
+                    cur = x
+            terms.append(cur)
+            node = terms[0]
+            for o, x in zip(signs, terms[1:]):
+                node = ("bin", o, node, x)
+            return node
+        if len(set(ops)) == 1 and ops[0] in _BOOL_OPS:
+            node = items[0]
+            for x in items[1:]:
+                node = ("bin", ops[0], node, x)
+            return node
+        if len(ops) == 1 and ops[0] in _CMP_OPS:
+            return ("bin", ops[0], items[0], items[1])
+        raise Unsupported(f"operators {ops} mixed without parentheses in constraint {self.text!r}: Pure's "
+                          f"precedence would have to be guessed")
+
+    def operand(self):
+        tok = self.peek()
+        if tok == "!":
+            self.take()
+            node = ("not", self.operand())
+            if self.peek() in _CMP_OPS:
+                raise Unsupported(f"`!` before a comparison in constraint {self.text!r}: parenthesise its operand")
+            return node
+        if tok == "-":
+            self.take()
+            return ("neg", self.operand())
+        node = self.primary()
+        while self.peek() in (".", "->"):
+            if self.take() == ".":
+                node = ("prop", node, self.take())
+            else:
+                fn = self.take()
+                node = ("call", fn, [node] + self.args())
+        return node
+
+    def args(self):
+        self.take("(")
+        out = []
+        if self.peek() != ")":
+            out.append(self.arg())
+            while self.peek() == ",":
+                self.take()
+                out.append(self.arg())
+        self.take(")")
+        return out
+
+    def arg(self):
+        if self.peek() == "|":
+            self.take()
+            return _Lam(None, self.chain())
+        if self.peek() == "{":
+            self.take()
+            lam = self.lam_after_brace()
+            self.take("}")
+            return lam
+        if re.fullmatch(r"[A-Za-z_]\w*", self.peek() or "") and self.peek(1) == "|":
+            name = self.take()
+            self.take("|")
+            return _Lam(name, self.chain())
+        return self.chain()
+
+    def lam_after_brace(self):
+        name = self.take()
+        self.take("|")
+        return _Lam(name, self.chain())
+
+    def primary(self):
+        tok = self.take()
+        if tok is None:
+            raise Unsupported(f"constraint {self.text!r} ends early")
+        if tok == "(":
+            node = self.chain()
+            self.take(")")
+            return node
+        if tok == "[":
+            items = []
+            if self.peek() != "]":
+                items.append(self.chain())
+                while self.peek() == ",":
+                    self.take()
+                    items.append(self.chain())
+            self.take("]")
+            return ("list", items)
+        if tok.startswith("'"):
+            return ("lit", re.sub(r"\\(.)", r"\1", tok[1:-1]))
+        if tok.startswith("%"):
+            return ("lit", tok[1:])
+        if re.fullmatch(r"\d+\.\d+", tok):
+            return ("lit", float(tok))
+        if tok.isdigit():
+            return ("lit", int(tok))
+        if tok.startswith("$"):
+            return ("var", tok[1:])
+        if tok in ("true", "false"):
+            return ("lit", tok == "true")
+        if self.peek() == "(":
+            return ("call", tok, self.args())
+        if "::" in tok and self.peek() == ".":
+            self.take()
+            return ("enum", tok, self.take())
+        raise Unsupported(f"unexpected {tok!r} in constraint {self.text!r}")
+
+
+class _Obj:
+    """An object of a fetched graph: its class and its row."""
+
+    def __init__(self, cls: str, row: dict):
+        self.cls, self.row = cls, row
+
+
+def _ck_many(v) -> list:
+    """A value as the collection Pure sees: absent is empty, one value a collection of one."""
+    return [] if v is None else v if isinstance(v, list) else [v]
+
+
+def _ck_one(v):
+    many = _ck_many(v)
+    if len(many) > 1:
+        raise Unsupported(f"a collection of {len(many)} where one value was expected")
+    return many[0] if many else None
+
+
+class _CkEval:
+    def __init__(self, c: Corpus, data):
+        self.c, self.data = c, data
+
+    def prop(self, owner, name):
+        """A property of each object of `owner` (Pure maps a property over a collection)."""
+        objs = _ck_many(owner)
+        if len(objs) != 1 or not isinstance(owner, _Obj):
+            return [v for o in objs for v in _ck_many(self.prop(o, name))]
+        cls, row = owner.cls, owner.row
+        end = self.c.ends.get((cls, name))
+        if end is not None:
+            hops, target = self.c.resolve_assoc(cls, [name])
+            if end.to_many:
+                return [_Obj(target, r) for r in walk_many(self.c, self.data, row, hops)]
+            landed = walk(self.c, self.data, row, hops)
+            return None if landed is None else _Obj(target, landed)
+        col = self.c.columns.get(cls, {}).get(name)
+        if col is None:
+            raise Unsupported(f"{cls}.{name}, read by a constraint, is not a mapped column or an association")
+        raw = row.get(col)
+        mapping = self.c.enum_props.get((cls, name))
+        if mapping and raw is not None:
+            return self.c.enum_maps[mapping].get(raw)
+        if raw is not None and self.c.tables[self.c.main_table[cls]].columns[col].kind == "bool":
+            return bool(raw)
+        return raw
+
+    def ev(self, node, env):
+        kind = node[0]
+        if kind == "lit":
+            return node[1]
+        if kind == "list":
+            return [v for x in node[1] for v in _ck_many(self.ev(x, env))]
+        if kind == "enum":
+            return node[2]
+        if kind == "var":
+            if node[1] not in env:
+                raise Unsupported(f"unbound ${node[1]} in a constraint")
+            return env[node[1]]
+        if kind == "prop":
+            return self.prop(self.ev(node[1], env), node[2])
+        if kind == "not":
+            v = self.ev(node[1], env)
+            if not isinstance(v, bool):
+                raise Unsupported(f"`!` over {v!r}, not a Boolean")
+            return not v
+        if kind == "neg":
+            v = _ck_one(self.ev(node[1], env))
+            return None if v is None else -v
+        if kind == "bin":
+            return self.binary(node[1], node[2], node[3], env)
+        if kind == "call":
+            return self.call(node[1], node[2], env)
+        raise Unsupported(f"constraint node {kind}")
+
+    def binary(self, op, left, right, env):
+        if op in _BOOL_OPS:
+            a = self.ev(left, env)
+            if not isinstance(a, bool):
+                raise Unsupported(f"{op} over {a!r}, not a Boolean")
+            if (op == "&&" and not a) or (op == "||" and a):
+                return a
+            b = self.ev(right, env)
+            if not isinstance(b, bool):
+                raise Unsupported(f"{op} over {b!r}, not a Boolean")
+            return b
+        a, b = self.ev(left, env), self.ev(right, env)
+        if op in ("==", "!="):
+            # collection equality (`equal(Any[*], Any[*])`): an absent value equals only an absent one
+            same = _ck_many(a) == _ck_many(b)
+            return same if op == "==" else not same
+        if op in _CMP_OPS:
+            return _cmp(op, _ck_one(a), _ck_one(b))
+        if op == "+" and (isinstance(_ck_one(a), str) or isinstance(_ck_one(b), str)):
+            return str(_ck_one(a)) + str(_ck_one(b))
+        x, y = _ck_one(a), _ck_one(b)
+        if x is None or y is None:
+            raise Unsupported(f"{op} over an absent value in a constraint, which Pure does not type")
+        if op == "/":
+            return _Dbl(x / y)
+        return _exact_addsub(op, x, y)
+
+    def lam(self, lam, value, env):
+        if not isinstance(lam, _Lam):
+            raise Unsupported("a lambda was expected")
+        return self.ev(lam.body, {**env, lam.param: value} if lam.param else env)
+
+    def call(self, fn, args, env):
+        fn = fn.rsplit("::", 1)[-1]
+        if fn == "if":
+            cond = self.ev(args[0], env)
+            if not isinstance(cond, bool):
+                raise Unsupported(f"if over {cond!r}, not a Boolean")
+            return self.lam(args[1] if cond else args[2], None, env)
+        if fn in ("exists", "forAll"):
+            members = _ck_many(self.ev(args[0], env))
+            hits = [self.lam(args[1], m, env) for m in members]
+            if not all(isinstance(h, bool) for h in hits):
+                raise Unsupported(f"{fn} over a lambda that is not a predicate")
+            return any(hits) if fn == "exists" else all(hits)
+        vals = [self.ev(a, env) for a in args]
+        if fn == "isEmpty":
+            return not _ck_many(vals[0])
+        if fn == "isNotEmpty":
+            return bool(_ck_many(vals[0]))
+        if fn == "size":
+            return len(_ck_many(vals[0]))
+        if fn == "toOne":
+            many = _ck_many(vals[0])
+            if len(many) != 1:
+                raise Unsupported(f"toOne over {len(many)} values raises; a constraint the seed makes raise is not "
+                                  f"asserted")
+            return many[0]
+        if fn == "in":
+            v = _ck_one(vals[0])
+            return v is not None and any(_cmp("==", v, m) for m in _ck_many(vals[1]))
+        if fn == "toString":
+            v = _ck_one(vals[0])
+            if not isinstance(v, str):
+                raise Unsupported(f"toString of {type(v).__name__}: Java's spelling of it is not modelled")
+            return v
+        impl = IMPL.get(fn)
+        if impl is None:
+            raise Unsupported(f"{fn} in a constraint")
+        return impl([_ck_one(v) for v in vals])
+
+
+def _ck_parsed(text: str):
+    hit = _CK_PARSED.get(text)
+    if hit is None:
+        hit = _CK_PARSED[text] = _CkParser(text).parse()
+    return hit
+
+
+_CK_PARSED: dict[str, object] = {}
+
+
+def _ck_paths(c: Corpus, node, cls: str, env: dict[str, tuple[str, tuple]]) -> set[tuple]:
+    """The property paths a constraint body reads from `$this`, each a tuple of property names: what
+    scanProperties finds, a lambda's parameter standing for the collection it iterates."""
+    out: set[tuple] = set()
+
+    def path_of(n):
+        """(the root variable's path, the path) of a property chain, or None."""
+        if n[0] == "var":
+            return env.get(n[1])
+        if n[0] == "prop":
+            base = path_of(n[1])
+            return None if base is None else (base[0], base[1] + (n[2],))
+        return None
+
+    def visit(n, scope):
+        nonlocal env
+        if isinstance(n, _Lam):
+            return
+        if n[0] == "prop":
+            p = path_of(n)
+            if p is not None:
+                out.add(p[1])
+                return
+        if n[0] == "call":
+            receiver = path_of(n[2][0]) if n[2] and isinstance(n[2][0], tuple) else None
+            for a in n[2]:
+                if isinstance(a, _Lam):
+                    saved = dict(env)
+                    if a.param and receiver is not None:
+                        env[a.param] = receiver
+                    visit(a.body, scope)
+                    env = saved
+                else:
+                    visit(a, scope)
+            return
+        for x in n[1:]:
+            if isinstance(x, tuple):
+                visit(x, scope)
+            elif isinstance(x, list):
+                for y in x:
+                    visit(y, scope) if isinstance(y, (tuple, _Lam)) else None
+
+    visit(node, None)
+    return out
+
+
+def _ck_required(c: Corpus, k) -> dict:
+    """A constraint's paths, function and message, as a graph-fetch tree."""
+    paths = _ck_paths(c, _ck_parsed(k.function), k.owner, {"this": ("this", ())})
+    if k.message:
+        paths |= _ck_paths(c, _ck_parsed(k.message), k.owner, {"this": ("this", ())})
+    tree: dict = {}
+    for p in paths:
+        cur = tree
+        for step in p:
+            cur = cur.setdefault(step, {})
+    return tree
+
+
+def _class_constraints(c: Corpus, cls: str) -> list:
+    """The constraints `cls` must hold: its own, then each supertype's (the binding's typeInfo order)."""
+    out, cur = [], cls
+    while cur in c.classes:
+        out += c.classes[cur].constraints
+        cur = c.classes[cur].supertype
+    return out
+
+
+def _ck_target(c: Corpus, cls: str, prop: str) -> str | None:
+    end = c.ends.get((cls, prop))
+    return end.target if end is not None else None
+
+
+def _merge_tree(a: dict | None, b: dict) -> dict:
+    out = {k: (dict(v) if v else None) for k, v in (a or {}).items()}
+    for k, v in b.items():
+        if v:
+            out[k] = _merge_tree(out.get(k) or {}, v)
+        elif k not in out:
+            out[k] = None
+    return out
+
+
+def _enrich(c: Corpus, tree: dict | None, cls: str, processed: tuple) -> dict:
+    """The tree a checked fetch reads: `tree` with every path the class's constraints read, then each class-typed
+    subtree enriched for its own class unless that class is already on the path (ensureFunctionRequirements)."""
+    out = dict(tree or {})
+    for k in _class_constraints(c, cls):
+        out = _merge_tree(out, _ck_required(c, k))
+    seen = processed + (cls,)
+    for prop, sub in list(out.items()):
+        target = _ck_target(c, cls, prop)
+        if target is not None and target not in seen:
+            out[prop] = _enrich(c, sub, target, seen)
+    return out
+
+
+def _contains(tree: dict | None, need: dict) -> bool:
+    return all(k in (tree or {}) and (not v or _contains((tree or {})[k], v)) for k, v in need.items())
+
+
+def _constrained(c: Corpus, cls: str, tree: dict | None, seen: tuple = ()) -> bool:
+    """Whether a fetch of `tree` from `cls` checks any constraint at all."""
+    if _class_constraints(c, cls):
+        return True
+    return any(_ck_target(c, cls, p) is not None and _ck_target(c, cls, p) not in seen + (cls,)
+               and _constrained(c, _ck_target(c, cls, p), sub, seen + (cls,))
+               for p, sub in (tree or {}).items())
+
+
+def _defects(c: Corpus, data, row: dict, cls: str, tree: dict, path: list) -> list[dict]:
+    """The defects of one object and the objects its enriched tree reaches (createConstraintCheckingForTree)."""
+    ev = _CkEval(c, data)
+    this = _Obj(cls, row)
+    out = []
+    for k in _class_constraints(c, cls):
+        if not _contains(tree, _ck_required(c, k)):
+            continue
+        held = ev.ev(_ck_parsed(k.function), {"this": this})
+        if not isinstance(held, bool):
+            raise Unsupported(f"{k.owner}.{k.name} evaluated to {held!r}, not a Boolean")
+        if held:
+            continue
+        message = (ev.ev(_ck_parsed(k.message), {"this": this}) if k.message
+                   else f"Constraint :[{k.name}] violated in the Class {k.owner.rsplit('::', 1)[-1]}")
+        out.append({"id": k.name, "externalId": k.external_id, "message": message, "enforcementLevel": k.level,
+                    "ruleType": "ClassConstraint", "ruleDefinerPath": k.owner, "path": list(path)})
+    for prop in sorted(p for p in tree if _ck_target(c, cls, p) is not None):
+        target = _ck_target(c, cls, prop)
+        if not _constrained(c, target, tree[prop]):
+            continue    # nothing below to check: a reach the oracle need not follow (an XStore's, say)
+        reached = ev.prop(this, prop)
+        if isinstance(reached, list):
+            found = [d for i, m in enumerate(reached)
+                     for d in _defects(c, data, m.row, target, tree[prop] or {},
+                                       path + [{"propertyName": prop, "index": i}])]
+            if found and len(reached) > 1:
+                raise Unsupported(f"{cls}.{prop}: a defect under a collection of {len(reached)} would carry its "
+                                  f"member's index, and a relational fetch defines no order for it")
+            out += found
+        elif reached is not None:
+            out += _defects(c, data, reached.row, target, tree[prop] or {},
+                            path + [{"propertyName": prop, "index": None}])
+    return out
 
 
 def _group(spec: Spec, rows: list[dict]) -> list[dict]:

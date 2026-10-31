@@ -21229,10 +21229,85 @@ J1 = [dict(K="J-0001", N=170, NEXT_K=None, LEG_ID="L-0001"),
       dict(K="J-0009", N=160, NEXT_K=None, LEG_ID=None),
       dict(K="J-0010", N=None, NEXT_K=None, LEG_ID=None)]
 
+# ---- checks::CheckDB (8117-checks.pure; Phase 8) ----
+#
+# The constraints pack's rows: each constraint is violated by a row of its own (the comment beside it names the
+# constraint), and some rows violate none. A child that violates a constraint is the only member of its parent's
+# collection, since a defect under a to-many carries the member's index and a relational fetch defines no order
+# (oracle._defects). scripts/corpus/checks.py's check holds that every constraint keeps a violating row.
+CK_DESK = [
+    dict(DESK_ID="DSK1", CODE="DSK-001", REGION="EU", ACTIVE=True, OPENED="2024-01-15"),
+    dict(DESK_ID="DSK2", CODE="DSK-002", REGION="US", ACTIVE=False, OPENED="2024-09-01"),   # inactive, opened late
+    dict(DESK_ID="DSK3", CODE="DSX-003", REGION="US", ACTIVE=True, OPENED="2024-02-01"),    # deskCodeShape: prefix
+    dict(DESK_ID="DSK4", CODE="DSK-0004", REGION="APAC", ACTIVE=True, OPENED="2024-03-01"),  # deskCodeShape: length
+    dict(DESK_ID="DSK5", CODE="DSK-005", REGION="LATAM", ACTIVE=True, OPENED="2024-04-01"),  # regionKnown
+    dict(DESK_ID="DSK6", CODE="DSK-006", REGION="EU", ACTIVE=True, OPENED="2024-07-01"),    # activeDeskOpened
+]
+
+
+def _ck_deal(deal_id, ref="", trade="2024-06-03", settle="2024-06-05", cancel=None, maturity=None, state="O",
+             kind="C", ccy="USD", notional=250000.0, fee=12.5):
+    return dict(DEAL_ID=deal_id, REF=ref or "CK-" + deal_id[1:].rjust(4, "0"), TRADE_DATE=trade, SETTLE_DATE=settle,
+                CANCEL_DATE=cancel, MATURITY=maturity, STATE=state, KIND=kind, CCY=ccy, NOTIONAL=notional, FEE=fee)
+
+
+CK_DEAL = [
+    _ck_deal("D01"),
+    _ck_deal("D02", trade="2024-06-05", settle="2024-06-03"),                 # settleNotBeforeTrade
+    _ck_deal("D03", state="X"),                                               # cancelledHasDate
+    _ck_deal("D04", state="X", cancel="2024-06-01"),                          # cancelAfterTrade
+    _ck_deal("D05", kind="FW"),                                               # forwardMatures: a forward, no maturity
+    _ck_deal("D06", maturity="2024-12-01"),                                   # forwardMatures: cash with a maturity
+    _ck_deal("D07", kind="FW", maturity="2024-06-04"),                        # maturityAfterSettle
+    _ck_deal("D08", ref="XK-0008"),                                           # refShape: prefix
+    _ck_deal("D09", ref="CK-00009"),                                          # refShape: length
+    _ck_deal("D10", ccy="usd"),                                               # ccyUpper
+    _ck_deal("D11", fee=5000.0),                                              # feeWithinNotional
+    _ck_deal("D12", settle="2024-06-12", state="S"),                          # settledWithinWeek: nine days
+    _ck_deal("D13", notional=1500000.0, fee=10.0),                            # notionalCap, a Warn
+    _ck_deal("D14", settle="2024-06-07", maturity="2025-06-03", state="S", kind="FW", fee=None),
+    _ck_deal("D15", ref="ck-0015", state="X", ccy="Eur"),                     # cancelledHasDate, refShape, ccyUpper
+]
+CK_BASKET = [
+    dict(BASKET_ID="B01", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),
+    dict(BASKET_ID="B02", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),   # hasLiveLine
+    dict(BASKET_ID="B03", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),   # linesInCcy
+    dict(BASKET_ID="B04", KIND="SW", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),  # swapHasTwoLines
+    dict(BASKET_ID="B05", KIND="C", CCY="USD", CLOSE_DATE="2024-06-15", DESK_ID=None),     # linesBeforeClose
+    dict(BASKET_ID="B06", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK1"),   # euDeskInEur
+    dict(BASKET_ID="B07", KIND="SW", CCY="EUR", CLOSE_DATE="2024-06-30", DESK_ID="DSK1"),
+    dict(BASKET_ID="B08", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID=None),     # hasLiveLine: no lines
+    dict(BASKET_ID="B09", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),   # its line's sideSign
+    dict(BASKET_ID="B10", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK2"),   # its line's lineOfBasket
+    dict(BASKET_ID="B11", KIND="C", CCY="USD", CLOSE_DATE="2024-06-30", DESK_ID="DSK5"),   # its desk's regionKnown
+]
+
+
+def _ck_line(line_id, basket, qty, side="R", ccy="USD", pay="2024-06-10"):
+    return dict(LINE_ID=line_id, BASKET_ID=basket, QTY=qty, CCY=ccy, PAY_DATE=pay, SIDE=side)
+
+
+CK_LINE = [
+    _ck_line("B01-1", "B01", 100.0), _ck_line("B01-2", "B01", -50.0, side="P", pay="2024-06-20"),
+    _ck_line("B02-1", "B02", -10.0, side="P"), _ck_line("B02-2", "B02", -5.0, side="P", pay="2024-06-11"),
+    _ck_line("B03-1", "B03", 100.0), _ck_line("B03-2", "B03", 20.0, ccy="GBP"),
+    _ck_line("B04-1", "B04", 100.0),
+    _ck_line("B05-1", "B05", 100.0, pay="2024-06-20"),
+    _ck_line("B06-1", "B06", 100.0),
+    _ck_line("B07-1", "B07", 100.0, ccy="EUR"), _ck_line("B07-2", "B07", -100.0, side="P", ccy="EUR",
+                                                          pay="2024-06-11"),
+    _ck_line("B09-1", "B09", 30.0, side="P"),                                 # sideSign: a payment of a positive qty
+    _ck_line("Z10-1", "B10", 10.0),                                           # lineOfBasket
+    _ck_line("B11-1", "B11", 10.0),
+]
+
 # The tables a Phase 7 pack writes by hand, apart from the expansion (expand.candidates, expand._reserved) and joined to
 # the seed after it (flat.all_tables). A hand-written table joins the expansion's base, so J1's joins made it reach J2
 # and LEG from J1 in its first ring, rings earlier than before, which moved every later table's generated values.
-PACK_TABLES: dict[str, list[dict]] = {"OP_CAR": OP_CAR, "OP_TRUCK": OP_TRUCK, "J1": J1}
+# Phase 8's CK_ tables are apart for the same reason.
+PACK_TABLES: dict[str, list[dict]] = {"OP_CAR": OP_CAR, "OP_TRUCK": OP_TRUCK, "J1": J1,
+                                      "CK_DESK": CK_DESK, "CK_DEAL": CK_DEAL, "CK_BASKET": CK_BASKET,
+                                      "CK_LINE": CK_LINE}
 
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,

@@ -383,6 +383,13 @@ class Spec:
     # A top-level `let` per (name, literal), before the query (Phase 4, stage 5): `{|let t = 42; <query>;}`. A
     # predicate reads one as a Param of that name.
     lets: list = field(default_factory=list)
+    # A graph fetch CHECKED (Phase 8): `graphFetchChecked`, each object answered as {defects, value} with the
+    # constraints the oracle evaluates over the fetched graph (oracle._defects).
+    checked: bool = False
+    # Further tests in the service's suite (Phase 8's test shapes): (test id, [(assertion id, kind)]) per test, kind
+    # 'json' (EqualToJson, unordered) or 'text' (EqualTo, the serialized answer exactly), each judging the same
+    # expected rows the first test does.
+    more_tests: list = field(default_factory=list)
 
     @property
     def short(self) -> str:

@@ -59,7 +59,9 @@ MAPPING = "stress::AllMapping"
 # the form.
 FIXTURE_TABLES = frozenset({"TYPED_VALUE", "BOOK_LIMIT_PT", "BOOK_STATUS_PT", "MARK_REVISION_BI",
                             "LIMIT_CHECK", "VALUATION_RUN", "OP_A", "OP_B", "OP_C", "OP_CAR", "OP_TRUCK",
-                            "MG_A", "MG_B", "J1", "J2", "J3", "LEG"})
+                            "MG_A", "MG_B", "J1", "J2", "J3", "LEG",
+                            # the constraints pack's rows (Phase 8), which violate its constraints by design
+                            "CK_DESK", "CK_DEAL", "CK_BASKET", "CK_LINE"})
 
 
 def walked(tables: dict[str, list[dict]]) -> set[str]:

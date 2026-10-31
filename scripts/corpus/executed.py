@@ -354,7 +354,33 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     _unreached_features(c, specs, quarantined, add)
     _m2m_features(specs, quarantined, add)
     _relmap_features(specs, quarantined, add)
+    _checks_features(specs, quarantined, add)
     return out
+
+
+def _checks_features(specs, quarantined: set[str], add) -> None:
+    """Constraints that combine (the improvement plan's Phase 8, checks.py), each executed when a passing service
+    asserts a violation of a constraint that uses it -- a constraint's own service (CK_<Constraint>) -- or, for the
+    fetch forms, a passing service of that form."""
+    live = {s.short for s in specs if s.name not in quarantined and s.name.startswith(("stress::CK", "stress::CKU"))}
+
+    def of(*constraints):
+        return sorted(n for n in ("CK_" + k[0].upper() + k[1:] for k in constraints) if n in live)
+
+    add("C8  graphFetchChecked", sorted(n for n in live if n.startswith("CK_")))
+    add("C8  constraint over dates", of("settleNotBeforeTrade", "cancelAfterTrade", "maturityAfterSettle",
+                                        "activeDeskOpened", "linesBeforeClose", "settledWithinWeek"))
+    add("C8  constraint over an enumeration", of("cancelledHasDate", "forwardMatures", "settledWithinWeek",
+                                                 "swapHasTwoLines", "sideSign"))
+    add("C8  constraint string function", of("deskCodeShape", "regionKnown", "refShape", "ccyUpper",
+                                             "lineOfBasket"))
+    add("C8  constraint exists/forAll", of("hasLiveLine", "linesInCcy", "linesBeforeClose"))
+    add("C8  constraint if", of("forwardMatures", "swapHasTwoLines", "sideSign"))
+    add("C8  constraint navigation", of("euDeskInEur", "lineOfBasket"))
+    add("C8  constraint Warn with a message", of("notionalCap"))
+    add("C8  nested defect path", sorted(n for n in live if n in ("CK_BasketLineDefects", "CK_BasketDeskDefect",
+                                                                  "CK_LineBasketDefects")))
+    add("C8  unchecked fetch of a constrained class", sorted(n for n in live if n.startswith("CKU_")))
 
 
 def _relmap_features(specs, quarantined: set[str], add) -> None:
@@ -685,8 +711,10 @@ def all_specs(c: model.Corpus):
     seeded = literals.walked(tables)
     # The typed and intraday services after spread's, which must not see them: spread measures what
     # the walking generators leave uncovered (literals.FIXTURE_TABLES says why the packs are apart).
+    import checks
+
     return (base + spread.build(c, seeded, base) + literals.build() + intraday.build()
-            + vocab.build(c, tables) + unreached.build(c, tables))
+            + vocab.build(c, tables) + unreached.build(c, tables) + checks.specs(c))
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.
@@ -752,6 +780,12 @@ BASELINE = {
     "R6  relation expression right-hand side", "R6  relation primary key", "R6  relation local property",
     "R6  relation embedded", "R6  relation inline embedded", "R6  relation union", "R6  relation binding transformer",
     "R6  relation model join", "R6  relation XStore association",
+    # 2026-10-31, the improvement plan's Phase 8, stage 1 (checks.py): constraints that combine, checked by graph
+    # fetches, each executed by passing services on legend-engine 4.145.0.
+    "C8  graphFetchChecked", "C8  constraint over dates", "C8  constraint over an enumeration",
+    "C8  constraint string function", "C8  constraint exists/forAll", "C8  constraint if",
+    "C8  constraint navigation", "C8  constraint Warn with a message", "C8  nested defect path",
+    "C8  unchecked fetch of a constrained class",
 }
 
 

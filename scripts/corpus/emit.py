@@ -517,9 +517,14 @@ def graph_text(spec: Spec) -> str:
     tree = ("#{\n  " + spec.root + "\n  {\n" + _tree(spec.graph, "    ")
             + "\n  }\n}#")
     params = ", ".join(f"{n}: {t}[{m}]" for n, t, m in spec.params)
+    # a query filter before the fetch, and a CHECKED fetch (the improvement plan's Phase 8): written only where a
+    # spec asks, so every graph service before it is unchanged
+    filtered = (f"        ->filter({{{VAR}|{' && '.join(_condition(f) for f in spec.filters)}}})\n"
+                if spec.filters else "")
+    fetch = "graphFetchChecked" if getattr(spec, "checked", False) else "graphFetch"
     return (f"    query: {{{params}|{_root(spec)}\n" if spec.params
-            else f"    query: |{_root(spec)}\n") + (
-            f"        ->graphFetch({tree})\n"
+            else f"    query: |{_root(spec)}\n") + filtered + (
+            f"        ->{fetch}({tree})\n"
             f"        ->serialize({tree})" + ("};" if spec.params else ";"))
 
 

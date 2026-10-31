@@ -374,12 +374,27 @@ class Func:
 
 
 @dataclass
+class Constraint:
+    """A class constraint, `name: <expr>` or `name ( ~function: <expr> ~enforcementLevel: Warn ... )`.
+
+    Stored as source text, as a derived property is: oracle.py evaluates `function` and `message` over a fetched
+    object (the improvement plan's Phase 8), and its grammar is enforced there, at evaluation."""
+    name: str
+    function: str
+    level: str = "Error"
+    external_id: str | None = None
+    message: str | None = None
+    owner: str | None = None
+
+
+@dataclass
 class Klass:
     fqn: str
     props: dict[str, Prop] = field(default_factory=dict)
     derived: dict[str, Derived] = field(default_factory=dict)
     stereotypes: list[str] = field(default_factory=list)
     supertype: str | None = None
+    constraints: list[Constraint] = field(default_factory=list)
 
     @property
     def temporal(self) -> str | None:
@@ -1451,6 +1466,93 @@ def _parse_domain(text: str, c: Corpus) -> None:
                 f"nothing reports why.")
 
 
+def _top_level(text: str, sep: str) -> list[str]:
+    """`text` split at each `sep` outside brackets and quoted strings."""
+    out, depth, quote, cur = [], 0, False, []
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if quote:
+            cur.append(ch)
+            if ch == "\\" and i + 1 < len(text):
+                cur.append(text[i + 1])
+                i += 1
+            elif ch == "'":
+                quote = False
+        elif ch == "'":
+            quote = True
+            cur.append(ch)
+        elif ch in "([{":
+            depth += 1
+            cur.append(ch)
+        elif ch in ")]}":
+            depth -= 1
+            cur.append(ch)
+        elif ch == sep and depth == 0:
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+        i += 1
+    out.append("".join(cur))
+    return [s.strip() for s in out if s.strip()]
+
+
+_CONSTRAINT_KEY = re.compile(r"~(\w+)\s*:")
+
+
+def _parse_constraints(text: str, c: Corpus) -> None:
+    """Each class's constraint block, `Class x::Y [ ... ] { ... }`, into Klass.constraints (the improvement plan's
+    Phase 8: the oracle evaluates them over a fetched graph). The domain reader above steps over the block; this
+    reads it whole, since an entry spans lines and holds commas of its own."""
+    text = _fold_class_headers(text)
+    lines = [_strip(l) for l in text.splitlines()]
+    for i, line in enumerate(lines):
+        m = _CLASS.match(line)
+        if not m:
+            continue
+        rest = "\n".join(lines[i + 1:]).lstrip()
+        if not rest.startswith("["):
+            continue
+        depth, quote, end = 0, False, None
+        for k, ch in enumerate(rest):
+            if quote:
+                quote = ch != "'"
+            elif ch == "'":
+                quote = True
+            elif ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth -= 1
+                if depth == 0:
+                    end = k
+                    break
+        if end is None:
+            raise ValueError(f"{m.group(2)}: unterminated constraint block")
+        cls = m.group(2)
+        k = c.classes.setdefault(cls, Klass(cls))
+        for entry in _top_level(rest[1:end], ","):
+            simple = re.match(r"^(\w+)\s*:\s*(.*)$", entry, re.S)
+            if simple:
+                k.constraints.append(Constraint(simple.group(1), " ".join(simple.group(2).split()), owner=cls))
+                continue
+            complex_ = re.match(r"^(\w+)\s*\((.*)\)$", entry, re.S)
+            if not complex_:
+                raise ValueError(f"{cls}: constraint form not modelled by this reader -- {entry!r}")
+            body, keys = complex_.group(2), list(_CONSTRAINT_KEY.finditer(complex_.group(2)))
+            fields = {}
+            for n, key in enumerate(keys):
+                stop = keys[n + 1].start() if n + 1 < len(keys) else len(body)
+                fields[key.group(1)] = " ".join(body[key.end():stop].split())
+            unknown = set(fields) - {"function", "enforcementLevel", "externalId", "message", "owner"}
+            if unknown or "function" not in fields:
+                raise ValueError(f"{cls}.{complex_.group(1)}: constraint keys not modelled -- {sorted(fields)}")
+            ext = fields.get("externalId")
+            k.constraints.append(Constraint(
+                complex_.group(1), fields["function"], fields.get("enforcementLevel", "Error"),
+                ext[1:-1] if ext and ext.startswith("'") else ext, fields.get("message"), cls))
+
+
 def _split_mappings(body: str) -> list[str]:
     """A ###Mapping section may hold several Mapping elements; skipping one means
     splitting them apart first."""
@@ -2030,6 +2132,7 @@ def load() -> Corpus:
         for kind, body in secs:
             if kind == "Pure":
                 _parse_domain(body, c)
+                _parse_constraints(body, c)
     for _, secs in parsed:
         for kind, body in secs:
             if kind == "Mapping":
