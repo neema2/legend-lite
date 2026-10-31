@@ -129,7 +129,7 @@ read from the catalog. A saved page stores each series as its `#TS` item text.
 **D8. The Python DSL is gs-quant's signatures over lazy series**, in the platform package (`pip install legend-lite`,
 no V8): gs-quant's Python names (`sum_`, `range_`, `filter_`, `abs_`), its parameters and enums (`Window(w, r)`,
 `Returns.LOGARITHMIC` -- gs-quant refuses a string, `econometrics.py:341-346`), its tenor strings (`'3m'` is three
-months, gs-quant's letters h, d, w, m, y: `helper.py:101-122`; the text prints `3mo`). A source is a class, a table, a
+months, gs-quant's letters h, d, w, m, y: `helper.py:101-122`; the text the same, `3m`, by R14). A source is a class, a table, a
 grid or a DataFrame (loaded into the database first). A series is one instrument's, as gs-quant's is; `px.close`
 without a subscript is every instrument's line, a frame with a column each. Nothing is computed in Python: `frame(...)`
 prints the `#TS` and runs it where the rows are.
@@ -235,7 +235,7 @@ a ruling (§9, R1).
 | No window | `Window(None, 0)`: the series' length, no ramp (`helper.normalize_window`) -- each date from the series' start for most functions; `zscores` and `winsorize` over the whole series, the future included; `percentile` a single number | the tile's counts: `volatility` 22, `median` 22, `sharpe_ratio` 252, the pair functions 63; `zscores`, `drawdown`, `percentiles` from the start (`TsFunctions.java:190-222`); the period words refused | ruled (D3): gs-quant's default, from the start, for a function that is no aggregate; an aggregate word the period's under `SAMPLE BY`, else refused with `all` the fix |
 | An integer `w` | `Window(w, w)`: a ramp of `w`, the first `w` points dropped by position (`apply_ramp`, `x[window.r:]`) | the library's ramp is a minimum count (`model.pure:62-65`): the first value one point earlier (spec §12 item 11) | gs-quant's: a change to the library's ramp, not a new parameter |
 | `Window(w, r)` | size and ramp apart | `w` only | gs-quant's: `Window(63, 10)` in Python, `w => 63, r => 10` in text |
-| A calendar window | `'1m'`: `m` is months (letters h, d, w, m, y) | `3mo`; `m` refused (in QuestDB `1m` is a minute) | text keeps `3mo` and refuses `m`; Python's tenor strings are gs-quant's (`'3m'`), printed `3mo` |
+| A calendar window | `'1m'`: `m` is months (letters h, d, w, m, y) | `3mo`; `m` refused (in QuestDB `1m` is a minute) | ruled (R14): `m` is months in text too, as gs-quant's tenors and its RDates have it; `mo` an alias, `3m` printed; minutes, when intraday comes, `min` |
 | From the start | `w=None` | `all` | `all` |
 | The whole line, the future included | `last(x)`, `first(x)`; `zscores(x)`'s default | none | `whole`, the one way to ask for it (D3) |
 
@@ -347,6 +347,10 @@ acknowledgement. Step 1 needs none of them.
   names; the spec's R12 (ratios) is withdrawn -- never built, the code already gives gs-quant's percent; build ruling 2
   (a `WITH` body is SQL with Postgres's meaning) stands and is why D2 refuses the clashing words.
 
+- **R11-R16. Ruled 2026-10-31** from the guide's first reader (PR #84; §11): `FILTER` kept (R11); the fills (R12);
+  periods `ENDING` a day or a month (R13); `m` is months (R14); the mean family and `wavg` (R15); token kinds shown
+  (R16). Addressable definitions (URNs) a later item.
+
 ## 10. What the review of version 1 changed (2026-10-31)
 
 Every finding below was checked against the code or gs-quant's source before it was taken.
@@ -372,3 +376,41 @@ Every finding below was checked against the code or gs-quant's source before it 
   step 1, because `#TS` compared with `#TS` cannot see a change of meaning; the tree-on-the-wire step is gone if R6 is
   ruled as proposed.
 - **Rulings reversed unsaid** in version 1: listed (R10).
+
+## 11. The guide's first reader (PR #84, tas00, 2026-10-30), as ruled (2026-10-31)
+
+tas00's notes on `docs/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md`, each answered against the code and gs-quant's
+source, and ruled by the user ("Keep FILTER, everything else I like"):
+
+- **R11. `FILTER` stays the clause's name.** The guide explains it as SQL's `QUALIFY` (rows kept after every item is
+  computed; Snowflake's, BigQuery's, DuckDB's) or `HAVING` after a `GROUP BY`. SQL's own aggregate modifier,
+  `count(*) FILTER (WHERE x > 0)` inside a `WITH` body, is told apart by its form -- `FILTER (WHERE` after an
+  aggregate's call, never a clause at the query's end -- which `TsParser` already does (`reads`); the guide says so.
+- **R12. The fills.** `PREV` keeps the previous value, and before a line's first value gives none: nothing is ever
+  backfilled, which the guide says. `STEP` is an alias of `PREV` (gs-quant's step, which fills a line's start with its
+  first value, read the future: a named departure). `INTERP` an alias of `LINEAR`. `NONE`, the default written out:
+  the dates both lines have. New: `FOLLOWING` (the next value) and `MODIFIED FOLLOWING` (the next unless that crosses
+  into another month, then the previous) -- the roll conventions gs-quant's date rules use (`rules.py`, its `b` rule's
+  "forward" and "preceding") -- which read the future, and say so in their own names, as the scope rule allows.
+- **R13. Where a period starts.** `SAMPLE BY 1w ENDING FRIDAY` (pandas' `W-FRI`), `SAMPLE BY 1y ENDING JUNE` (a fiscal
+  year), `SAMPLE BY 1q ENDING ...` likewise; a period's date (`AT LAST`, `START`, `END`) as before. A general origin
+  (`FROM '2024-01-05'`, TimescaleDB's) and RDate's anchors (`J` a month's first day, `e` its end, `F` its nth Friday:
+  `rules.py`) are later items.
+- **R14. RDate's tenors.** `m` is months (`3m`), as gs-quant's tenor strings and its RDates (`mRule`) have it; `mo` an
+  alias; minutes, when intraday comes, `min`. `b`, business days, needs holiday calendars lite does not have yet: a
+  later item, with RDate's roll conventions.
+- **R15. The mean family.** `mean` is the canonical name (gs-quant's); `avg`, SQL's spelling of the same thing, is an
+  alias, printed `mean`. `median`, and gs-quant's quadratic mean (`mean_type => quadratic`). kdb+'s `mavg` is
+  `mean(x, n)` under the scope rule, so kdb+'s m-prefixed names are not added. New: `wavg(x, weights)` and
+  `wsum(x, weights)`, kdb+'s names (gs-quant has no weighted mean) -- `wavg(price, volume)` under `SAMPLE BY` is each
+  period's VWAP, `wavg(price, volume, 20)` a rolling one. The catalog (step 1) holds the family.
+- **R16. A constant is told from a name, and shown so.** A span starts with a digit (`3m`, `1w`) and a name never does;
+  an option's word is read against its function's closed set (`type => logarithmic`); the clauses are keywords. The
+  spec says it in one sentence; core's parser gives every token its kind (span, option word, function, line, source,
+  item, keyword) for the formula box and the language server to colour (step 3); the catalog gives every parameter its
+  kind, so the docs and completions show `w: span` and offer only the valid words (step 1).
+- **Later: addressable definitions** (tas00's URNs for every plot expression, every tile, every dashboard). Every
+  series has a canonical `#TS` text (D1), so a hash of it is a stable address, the same from the tile, Python or a
+  Pure file; a tile names its series' addresses, a page its tiles'. A series names its sources by the model's paths,
+  not their rows, so a receiver resolves them in its own reading context -- tas00's "the appropriate local read
+  context". Its own note, after this plan.
