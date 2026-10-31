@@ -19,7 +19,8 @@ import java.util.List;
  * A TEST'S KINDS ON THE PROGRAM ROAD (the test-is-the-product plan's M3, brief B12): the statements of a test's program
  * that hold a kind the query door refuses ({@link QueryDoor.TestOnly}, found by the door's own scan), planned by this
  * library. Each kind is planned from the sub-step its brief names; until then it is refused by name, the step that
- * plans it said: seeds at M3e, the eager run at M3f, asserts at M6 (the verdict record), assertError at M9 (T10).
+ * plans it said: the eager run at M3f, asserts at M6 (the verdict record), assertError at M9 (T10). Seeds (M3e) are
+ * planned before every statement whose sources name test data ({@link #seed}).
  *
  * <p><b>Effects (M3d; R11, D34, R7 decision 14).</b> A database effect's statements are written by
  * {@link EffectPlanner} from its String arguments, each a literal folded ({@code Literals.fold}, the walk's own fold; a
@@ -35,6 +36,11 @@ final class TestKinds implements ProgramKinds {
     private final QueryDoor.Scan scan;
     /** The open script: the effect statements since the last statement of another kind. */
     private final List<String> script = new ArrayList<>();
+    /** The seed sources placed since the program's last write. */
+    private final java.util.Set<Seeds.Sources> established = new java.util.HashSet<>();
+    /** The seeds' steps, generated once per sources value. */
+    private final java.util.Map<Seeds.Sources, List<com.legend.setup.CsvSeed.Planned>> generated =
+            new java.util.HashMap<>();
 
     TestKinds(TypedQuery body, String runtime) {
         this.scan = new QueryDoor.Scan(body, runtime);
@@ -42,27 +48,58 @@ final class TestKinds implements ProgramKinds {
 
     @Override
     public boolean plan(ProgramState program, int index, TypedSpec statement, boolean last) {
-        QueryDoor.TestOnly kind = scan.of(statement);
-        if (kind != QueryDoor.TestOnly.EFFECT) {
+        // the statement's seeds first, as the walk establishes its contexts before every statement (M3e)
+        seed(program, statement);
+        java.util.EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
+        kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS);
+        kinds.remove(QueryDoor.TestOnly.RUNTIME_SEEDS);
+        if (!kinds.contains(QueryDoor.TestOnly.EFFECT)) {
             // any other statement closes the open script (the walk's segment rule)
             close(program);
         }
-        if (kind == null) {
+        if (kinds.isEmpty()) {
             return false;
         }
-        if (kind == QueryDoor.TestOnly.EFFECT) {
+        if (kinds.equals(java.util.EnumSet.of(QueryDoor.TestOnly.EFFECT))) {
             effect(program, index, statement, last);
+            // the effect writes: the next statement's seeds are established again (the walk's markWriting)
+            established.clear();
             return true;
         }
+        kinds.remove(QueryDoor.TestOnly.EFFECT);
+        QueryDoor.TestOnly kind = kinds.iterator().next();
         String step = switch (kind) {
-            case EFFECT -> throw new IllegalStateException("planned above");
-            case INLINE_SEEDS, RUNTIME_SEEDS -> "M3e";
+            case EFFECT, INLINE_SEEDS, RUNTIME_SEEDS -> throw new IllegalStateException("planned above");
             case LET_EXECUTE -> "M3f";
             case ASSERT -> "M6, the verdict record";
             case ASSERT_ERROR -> "M9, T10";
         };
         throw new com.legend.error.NotImplementedException(kind.what() + " on the test door's program road: not"
                 + " planned yet (the test-is-the-product plan's " + step + ")");
+    }
+
+    /**
+     * {@code statement}'s seeds (D35, M3e): its sources -- each {@code from()}'s inline test data and named runtime,
+     * the program's runtime -- planned as a {@link ExecutionPlan.Setup} step before it, unless the program placed
+     * the same sources since its last write (the walk's established state, within the program; across programs the
+     * runner skips a key the session holds clean). The steps are generated once per sources value, never per
+     * statement (their key is their content). A step placed while a script is open closes it first: the program's
+     * order is the effects before the statement, then its seeds.
+     */
+    private void seed(ProgramState program, TypedSpec statement) {
+        com.legend.compiler.element.ModelContext ctx = program.query().context();
+        Seeds.Sources sources = Seeds.sources(statement, program.runtime(), ctx);
+        if (sources.namesNothing() || !established.add(sources)) {
+            return;
+        }
+        List<com.legend.setup.CsvSeed.Planned> planned = generated.computeIfAbsent(sources,
+                s -> Seeds.planned(statement, program.runtime(), ctx, program.dialect()));
+        if (planned.isEmpty()) {
+            return;
+        }
+        close(program);
+        program.add(new ExecutionPlan.Setup(Seeds.key(planned),
+                planned.stream().map(com.legend.setup.CsvSeed.Planned::step).toList()));
     }
 
     /** The effect {@code statement}'s statements added to the open script; the script closed and the effect's answer

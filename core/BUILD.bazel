@@ -279,10 +279,11 @@ legend_java_library(
 legend_java_library(
     name = "testplan",
     srcs = glob(["src/main/java/com/legend/testplan/*.java"]),
-    # the effects' statements (EffectPlanner, M3d): the store model, the DDL and the dialects that write them
+    # the effects' statements (EffectPlanner, M3d): the store model, the DDL and the dialects that write them; the
+    # seeds' content key (Seeds, M3e): :cache's Hash
     deps = [
-        "//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":model",
-        ":planner", ":platform", ":setup", ":sql", ":sql_dialect",
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan",
+        ":model", ":planner", ":platform", ":setup", ":sql", ":sql_dialect",
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])

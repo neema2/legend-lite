@@ -115,7 +115,9 @@ driver	base builtin cache compiler compiler_element_type database diagnostics er
 # 2026-10-31, M3d: the effects' statements move in (EffectPlanner, from the planner: R17 C7, a test's effects ship in no
 # planner of the plan side) -- the store model, the DDL and the dialects that write them; the driver reaches the
 # library for them.
-testplan	base builtin compiler compiler_element_type database error execution_plan model planner platform setup sql sql_dialect
+# 2026-10-31, M3e: the seeds' owner moves in (Seeds, from the body driver), named in a plan by their content: `cache`
+# (Hash).
+testplan	base builtin cache compiler compiler_element_type database error execution_plan model planner platform setup sql sql_dialect
 ide	base door lexer model parser
 test	base compiler driver error exec execution_plan json judge model planner protocol result sql values
 saved_queries	base json

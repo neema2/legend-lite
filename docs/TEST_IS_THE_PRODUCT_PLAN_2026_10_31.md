@@ -556,3 +556,13 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   597 effect bodies per pass planned whole and every script byte-identical to the walk's (3,603 scripts, 109,162
   statements); 157 refused by name (116 asserts, M6; 19 handle-ended, folded after; 17 let-bound executes, M3f; 4
   effectful maps; 1 `loadCsvToDbTable`). Core's statements unchanged. Next: M3e.
+- 2026-10-31: **M3e built**: a test's seeds on the test door (`docs/test-is-product-homework/C_M3E_SEEDS.md`).
+  `testplan/Seeds` is the one owner of a statement's seeds for the walk and the test door (moved from the body
+  driver): their sources (the session state's key), their steps (`CsvSeed.planned`) and their name in a plan (a hash
+  of the steps' texts). `TestKinds` places a `Setup` step before each statement whose sources name test data, unless
+  placed since the program's last write (an effect); the door's scan reports every kind, so a seeded statement holding
+  an assert is still refused. The census: core's 9 seed-naming bodies the test door plans match the walk's
+  establishments exactly, every sent seed a planned step; the corpus has none in the class planned at M3e (its 12
+  seed-naming bodies hold asserts, M6); M3d's scripts re-run with the handle fold: 616 effect bodies per pass, all
+  identical. Core's statements unchanged but the test door's own tests (now run through the program runner). Next:
+  M3f.

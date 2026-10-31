@@ -66,19 +66,26 @@ public final class QueryDoor {
 
         /** The first kind {@code statement} holds, or null: a statement the query door plans. */
         public @com.legend.base.Nullable TestOnly of(TypedSpec statement) {
+            java.util.EnumSet<TestOnly> kinds = kinds(statement);
+            return kinds.isEmpty() ? null : kinds.iterator().next();
+        }
+
+        /** Every kind {@code statement} holds, in the scan's order. */
+        public java.util.EnumSet<TestOnly> kinds(TypedSpec statement) {
+            java.util.EnumSet<TestOnly> kinds = java.util.EnumSet.noneOf(TestOnly.class);
             com.legend.compiler.spec.SpecCompiler specs = query.specs();
             if (StatementEffects.containsEffect(statement, specs, effects)) {
-                return TestOnly.EFFECT;
+                kinds.add(TestOnly.EFFECT);
             }
             for (com.legend.compiler.spec.typed.TypedFrom fr
                     : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
                 if (!fr.sqlSetups().isEmpty() || !fr.csvSetups().isEmpty()) {
-                    return TestOnly.INLINE_SEEDS;
+                    kinds.add(TestOnly.INLINE_SEEDS);
                 }
                 var named = fr.context().runtime();
                 if (named.isPresent() && !named.get().fullPath().equals(runtime)
                         && declaresTestData(named.get().fullPath(), query.context())) {
-                    return TestOnly.RUNTIME_SEEDS;
+                    kinds.add(TestOnly.RUNTIME_SEEDS);
                 }
             }
             if (statement instanceof com.legend.compiler.spec.typed.TypedLet let
@@ -86,16 +93,16 @@ public final class QueryDoor {
                     && (com.legend.builtin.NativeFn.Handle.isExecute(call.callee().id())
                         || com.legend.builtin.NativeFn.Handle.of(call.callee().id()).orElse(null)
                                 == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
-                return TestOnly.LET_EXECUTE;
+                kinds.add(TestOnly.LET_EXECUTE);
             }
             if (StatementEffects.reaches(statement, n -> n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                     && com.legend.builtin.NativeFn.ContextOwner.of(nc.callee().id()).isPresent(), specs, catches)) {
-                return TestOnly.ASSERT_ERROR;
+                kinds.add(TestOnly.ASSERT_ERROR);
             }
             if (StatementEffects.reaches(statement, QueryDoor::isAssert, specs, verdicts)) {
-                return TestOnly.ASSERT;
+                kinds.add(TestOnly.ASSERT);
             }
-            return null;
+            return kinds;
         }
     }
 

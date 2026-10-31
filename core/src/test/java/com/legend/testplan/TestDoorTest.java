@@ -58,13 +58,39 @@ class TestDoorTest {
         ExecutionPlan test = TestDoor.plan(body, "x::RT", Set.of(), null);
         PlanRoundTrip.assertRoundTrips(test, "a body through the test door");
         ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, test.root());
-        assertEquals(1, seq.steps().size());
-        ExecutionPlan.TdsResult answer = assertInstanceOf(ExecutionPlan.TdsResult.class, seq.steps().get(0));
+        assertEquals(2, seq.steps().size(), seq.steps().toString());
+        ExecutionPlan.TdsResult answer = assertInstanceOf(ExecutionPlan.TdsResult.class, seq.steps().get(1));
         assertEquals(List.of(), answer.sql().target().setup(), "R17 C6: the test door's target carries no setup");
         // the statement is the query door's: one road
         ExecutionPlan query = body.executionPlan("x::RT");
         assertEquals(query.answerSql().statement(), answer.sql().statement());
         assertFalse(query.answerSql().target().setup().isEmpty(), "the query door's target: the declared rows");
+        // M3e: the runtime's seeds are a step of the program, the same steps the query door's target carries
+        ExecutionPlan.Setup seeds = assertInstanceOf(ExecutionPlan.Setup.class, seq.steps().get(0));
+        assertEquals(query.answerSql().target().setup(), seeds.steps());
+    }
+
+    /** M3e: a statement's seeds are placed once until a write; after an effect the next statement's are placed
+     *  again (the walk's established state), and the runner skips a key the session holds clean. */
+    @Test
+    void seedsArePlacedOnceUntilAnEffectWrites() throws Exception {
+        String model = SEEDED.replace("type: H2;", "type: DuckDB;").replace("LocalH2 { testDataSetupCSV",
+                "LocalH2 { testDataSetupCSV");
+        String read = "x::Firm.all()->project([f|$f.name], ['name'])";
+        TypedQuery body = Compiler.query(Compiler.compileModel(model), "{|let a = " + read + "->size();\n"
+                + "meta::relational::metamodel::execute::executeInDb('Create Table m3e_w(i INT);',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB), 0, 1000);\n"
+                + read + ";}");
+        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of(), null);
+        PlanRoundTrip.assertRoundTrips(plan, "seeds, an effect, seeds again");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
+        assertEquals(List.of("Setup", "Effect", "Setup", "TdsResult"),
+                steps.stream().map(n -> n.getClass().getSimpleName()).toList());
+        assertEquals(steps.get(0), steps.get(2), "the same sources, the same seeds");
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("Acme")), run(plan, c));
+        }
     }
 
     @Test
@@ -87,8 +113,43 @@ class TestDoorTest {
         return plan;
     }
 
+    /** {@code plan} run as the test door's plans run, through the program runner (its seed steps are the program
+     *  runner's alone), the answer's rows collected; these programs hold no verdict. */
     private static List<List<Object>> run(ExecutionPlan plan, Connection c) throws Exception {
-        return PlanRunner.rows(plan, Map.of(), PlanSessions.of(TestSessions.over(c))).rows();
+        List<List<Object>> rows = new java.util.ArrayList<>();
+        PlanRunner.program(plan, Map.of(), PlanSessions.of(TestSessions.over(c)), PlanRunner.Judging.HOST,
+                new PlanRunner.ProgramSink() {
+                    @Override
+                    public void verdict(ExecutionPlan.Verdict verdict, List<Object> row) {
+                        throw new AssertionError("no verdict in a test door program before M6");
+                    }
+
+                    @Override
+                    public void fused(ExecutionPlan.Verdicts group, com.legend.error.DataError rejected) {
+                        throw new AssertionError("no verdict in a test door program before M6");
+                    }
+
+                    @Override
+                    public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> sides) {
+                        throw new AssertionError("no verdict in a test door program before M6");
+                    }
+
+                    @Override
+                    public void columns(List<ExecutionPlan.Column> columns) {
+                    }
+
+                    @Override
+                    public void batch(com.legend.result.Batch batch) {
+                        for (int i = 0; i < batch.size(); i++) {
+                            rows.add(batch.row(i));
+                        }
+                    }
+
+                    @Override
+                    public void end() {
+                    }
+                });
+        return rows;
     }
 
     private static long count(Connection c, String table) throws Exception {
