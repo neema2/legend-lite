@@ -16611,10 +16611,14 @@ SQL only, as designed (below); the test road's statements unchanged.
    - `TypedQuery.resolve` deleted (no caller left).
    - D30 (a `toOne()` over a relation held to one row) NOT built: it turns a product answer into an error, posted to
      the user (the plan's §9).
-2. **The audit** (independent, R15): one blocker and seven should-fix, all folded -- the keyed shape (the blocker: a
+2. **The audit** (independent, R15): one blocker and seven should-fix. Folded -- the keyed shape (the blocker: a
    `String[*]` read off a grid was written as a relation by the server's writer); `ConstantPlanParityTest`'s database
    leg restored (it had folded into a constant too) and each leg's route asserted; product tests for a staged
-   `toSQLString`, a DDL text constant, a keyed shape and a constant-only program; the constant-only program in
+   `toSQLString`, a DDL text constant, a keyed shape, a constant-only program, a dynamic pivot as a program's last
+   statement and a `from()` over an inline runtime taking its connection's time zone (D4). PARTLY folded, its finding 3:
+   the let bindings, the features, the post-processors and the driver-PK and import-data-flow appends (D6, D9, D10, D13,
+   D16) have no product test of their own; their evidence is the census (thousands of corpus statements planned both
+   ways, no front-half difference), which is not a standing guard -- the parity guard of M10 is; the constant-only program in
    `PlanRunner.program`; a DDL text refused by name on the lowering; the error order of every runtime refusal (no
    dialect looked up early, so a runtime of a database with no dialect lowers again); `FreeVars.ofBody`; explicit arms;
    the frame's table renames documented and carried to M3's B10. Its judgments: refusing a handle is right; dropping
@@ -16630,9 +16634,15 @@ SQL only, as designed (below); the test road's statements unchanged.
      (DuckDB host pass 4,720 -> 4,415; the execute call's mapping, `getAll`, `$plan` handles, staged natives); the rest
      is D15 (`execute(...)` read as a value, M3).
 4. **Guards, dated:** `JavaEvalLedgerTest`'s planner register gains `ProductStatements.java`; `EnginePlans` 707 -> 717
-   (the call's renames, read from the model); the parser-equivalence ratchet `own_corpus.matched` 3,013 -> 3,018 (the
-   new tests' models joined the own corpus, their five elements matching the reference parser).
-5. **The chain:** running (its result follows in the next commit).
+   (the call's renames, read from the model); the parser-equivalence ratchet `own_corpus.matched` 3,013 -> 3,021 (the
+   new tests' models joined the own corpus, their eight elements matching the reference parser).
+5. **The chain** (on 4d7d7e19's code): `corpus_duckdb` and `corpus_h2` uncached pass, each pass's statement-origins
+   census and pass/fail counts identical to M1's (DuckDB host 2,471/108, database 2,473/108; H2 host 2,289/295,
+   database 2,233/353; `probe=0`); `pct_channel_b` 5 of 5; `//gates:local` 446 pass and 1 skipped, the 9 that start a
+   Postgres refusing root here and passing 9 of 9 unprivileged, and ONE real failure, `//datacube:guardrails_test`: the
+   TypeScript runner's constant decoder chose a cell's kind by comparing the type's name, which only the one type
+   reader may do (`engine-client/src/types.ts`); fixed (925af7e2: by the type's family), and the guardrail, the
+   TypeScript runner's test and `verify_app_test` (unprivileged) re-run green on the fix.
 
 ## 2026-10-31 — The lane sessions on M1: every server and cloud lane identical, ids included (round 8)
 

@@ -218,4 +218,51 @@ class ProductStatementsTest {
                 });
         assertEquals(List.of(List.of("alone")), collector.collected().rows());
     }
+
+    @Test
+    void aDynamicPivotAsAProgramsLastStatementIsKeyed() {
+        // D29's other half: a pivot no cast names, answered by a program that writes, is the keyed result the query
+        // door plans (until M2 a program's last statement was a plain typed result, its per-key columns unread)
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(WRITES), "{|#>{s::DB.T}#->delete(r|$r.ID == 9);"
+                + " #>{s::DB.T}#->pivot(~[NAME], ~['n' : x | $x.ID : y | $y->plus()]);}").executionPlan("s::RT");
+        PlanRoundTrip.assertRoundTrips(plan, "a program ending in a dynamic pivot");
+        ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root());
+        ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, seq.steps().get(seq.steps().size() - 1));
+        assertEquals(ExecutionPlan.TdsResult.Shape.RELATION, keyed.shape());
+    }
+
+    @Test
+    void aFromOverAnInlineRuntimeTakesItsConnectionsTimeZone() {
+        // D4: the outermost from()'s context is the frame; its connection's time zone is the lowering's (the test
+        // road's rule, BodyPlanner.prepare): a DateTime literal compared under it is written in that zone
+        String model = """
+                ###Relational
+                Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, TS TIMESTAMP ) )
+                ###Connection
+                RelationalDatabaseConnection s::Conn
+                {
+                    store: s::DB;
+                    type: DuckDB;
+                    specification: LocalH2 { };
+                    auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime s::RT { mappings: [ ]; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                """;
+        String filter = "#>{s::DB.T}#->filter(r|$r.TS > %2020-01-01T10:00:00)->select(~[ID])";
+        String zoned = "|" + filter + "->from(^meta::core::runtime::Runtime(connectionStores="
+                + "^meta::core::runtime::ConnectionStore(element=s::DB, connection="
+                + "^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB, timeZone='US/Arizona'))))";
+        String plain = "|" + filter + "->from(^meta::core::runtime::Runtime(connectionStores="
+                + "^meta::core::runtime::ConnectionStore(element=s::DB, connection="
+                + "^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB))))";
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(model);
+        String zonedSql = Compiler.query(ctx, zoned).executionPlan("s::RT").answerSql().statement();
+        String plainSql = Compiler.query(ctx, plain).executionPlan("s::RT").answerSql().statement();
+        // 10:00 UTC is 03:00 in Arizona (UTC-7, no daylight saving): the literal is written in the frame's zone
+        assertTrue(zonedSql.contains("TIMESTAMP '2020-01-01T03:00:00'"), zonedSql);
+        assertTrue(plainSql.contains("TIMESTAMP '2020-01-01T10:00:00'"), plainSql);
+    }
 }
