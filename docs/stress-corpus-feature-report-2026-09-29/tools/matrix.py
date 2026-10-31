@@ -36,11 +36,12 @@ for r in prof:
             ok_engine[f] += 1
 
 # corpus declarations (anything in the model, whether or not a service reaches it) -- from analysis
-# (the M2M rows, the enumeration mappings and the merges re-counted 2026-10-30, the improvement plan's Phase 5)
+# (the M2M rows, the enumeration mappings and the merges re-counted 2026-10-30, the improvement plan's Phase 5; the
+# relation rows 2026-10-30, its Phase 6)
 DECL = {
     'scaffolding:class': '2,330 classes', 'scaffolding:relational-store': '30 databases',
     'scaffolding:relational-connection': '16', 'scaffolding:relational-mapping': '2,358 class mappings',
-    'scaffolding:relation-function': '2 functions', 'scaffolding:relation-mapping': '2 class mappings',
+    'scaffolding:relation-function': '11 functions', 'scaffolding:relation-mapping': '20 class mappings',
     'scaffolding:m2m-mapping': '23 class mappings', 'scaffolding:runtime': '26',
     'scaffolding:model-connection': '3 (2 JSON, 1 XML)', 'scaffolding:model-chain-connection': '3',
     'grammar:association': '250', 'grammar:class-inheritance': '1,849 subclasses (depth <= 2)',
@@ -61,7 +62,12 @@ DECL = {
     'mapping:relational-polymorphic-query': 'inheritance op, no subType()', 'mapping:relational-primary-key': '276',
     'mapping:relational-single-table-inheritance': '1,848', 'mapping:relational-table-alias-column': '-',
     'mapping:router-union': '1', 'mapping:store-union': '1',
-    'mapping:relation-model-join': '1', 'mapping:relation-local-property': '-',
+    'mapping:relation-model-join': '2', 'mapping:relation-local-property': '3',
+    'mapping:relation-src': '1', 'mapping:relation-filter': '3 functions', 'mapping:relation-group-by': '1',
+    'mapping:relation-window-function': '1', 'mapping:relation-expression-rhs': '4 property mappings',
+    'mapping:relation-primary-key': '2 (single, composite)', 'mapping:relation-embedded': '1',
+    'mapping:relation-inline-embedded': '1', 'mapping:relation-union': '2 operations',
+    'mapping:relation-binding-transformer': '1', 'mapping:relation-xstore-association': '1',
     'store:relational-cross-schema': '5 named schemas', 'store:relational-cross-table-filter': '6',
     'store:relational-dyna-function': 'joins 17, views, 440 property mappings', 'store:relational-filter': '1,856 (+2 multigrain)',
     'store:relational-inline-view': '7 views', 'store:relational-inner-join': '390 joins',

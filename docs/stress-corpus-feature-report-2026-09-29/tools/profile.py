@@ -13,7 +13,7 @@ import collections
 import json
 import sys
 
-from lib import (E, classes, enums, measures, assocs, services, mappings, dbs, props, supers, lookup,
+from lib import (E, classes, enums, measures, assocs, functions, services, mappings, dbs, props, supers, lookup,
                  Walk, tname, mult, kind_of, fp, lambda_env)
 
 EXP, PASS, OUT = sys.argv[1:4]
@@ -190,6 +190,15 @@ def index(m):
         for am in mp.get('associationMappings') or []:
             for pm in am.get('propertyMappings') or []:
                 assoc_pm[(pm.get('property') or {}).get('property')].append((am, pm))
+            # A ModelJoin holds a join condition and no property mappings: registered under both ends of its
+            # association, or no navigation finds it (added 2026-10-30, the improvement plan's Phase 6)
+            if am.get('_type') == 'modelJoin':
+                path = am.get('association')
+                path = path.get('path') if isinstance(path, dict) else path
+                for a in assocs:
+                    if fp(a) == path:
+                        for ap in a.get('properties') or []:
+                            assoc_pm[ap.get('name')].append((am, {'property': {'property': ap.get('name')}}))
     index_cache[m] = (by_class, by_id, assoc_pm, subst)
     return index_cache[m]
 
@@ -291,9 +300,14 @@ def set_feats(s, m, feats, tables):
                 tables.add((b.get('database'), b.get('schema'), b.get('table')))
     elif t == 'operation':
         op = s.get('operation')
-        feats.add({'STORE_UNION': 'mapping:store-union', 'ROUTER_UNION': 'mapping:router-union',
-                   'INHERITANCE': 'mapping:operation-mapping'}.get(op, 'mapping:operation-mapping'))
         by_class, by_id, _, _ = index(m)
+        # A union of relation sets, or of a relation set and a relational one, is EMIT's relation-union, which its
+        # models tag instead of store-union (added 2026-10-30, the improvement plan's Phase 6)
+        if op == 'STORE_UNION' and any((by_id.get(p) or {}).get('_type') == 'relation' for p in s.get('parameters') or []):
+            feats.add('mapping:relation-union')
+        else:
+            feats.add({'STORE_UNION': 'mapping:store-union', 'ROUTER_UNION': 'mapping:router-union',
+                       'INHERITANCE': 'mapping:operation-mapping'}.get(op, 'mapping:operation-mapping'))
         for p in s.get('parameters') or []:
             sub = by_id.get(p)
             if sub is not None and sub is not s:
@@ -318,6 +332,56 @@ def set_feats(s, m, feats, tables):
     elif t == 'relation':
         feats.add('scaffolding:relation-mapping')
         feats.add('scaffolding:relation-function')
+        # EMIT's relation-mapping features of the set itself (added 2026-10-30, the improvement plan's Phase 6): the
+        # `~src` form, an explicit primary key, and what the source relation does -- its function's body, or the
+        # `~src` expression and the functions it calls
+        if s.get('sourceLambda'):
+            feats.add('mapping:relation-src')
+        if s.get('primaryKey'):
+            feats.add('mapping:relation-primary-key')
+        feats.update(relation_source_feats(s))
+
+
+def relation_function(name):
+    """The function a `~func` descriptor or a call names: `pkg::f():Relation<Any>[1]` or `pkg::f`, whose protocol name
+    carries its signature after the name (`f__Relation_1_`)."""
+    name = name.split('(')[0]
+    return [f for f in functions if fp(f) == name or fp(f).startswith(name + '_')]
+
+
+def relation_source_feats(s):
+    """mapping:relation-filter, -group-by and -window-function, from what the source relation applies: `->filter`,
+    `->groupBy`, and `->extend(over(...), ...)`."""
+    found = set()
+    seen = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            if o.get('_type') == 'func':
+                fn = o.get('function')
+                if fn == 'filter':
+                    found.add('mapping:relation-filter')
+                elif fn == 'groupBy':
+                    found.add('mapping:relation-group-by')
+                elif fn == 'over':
+                    found.add('mapping:relation-window-function')
+                elif fn and '::' in fn and fn not in seen:
+                    seen.add(fn)
+                    for f in relation_function(fn):
+                        walk(f.get('body'))
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+
+    rf = s.get('relationFunction')
+    rf = rf.get('path') if isinstance(rf, dict) else rf
+    if rf:
+        for f in relation_function(rf):
+            walk(f.get('body'))
+    walk(s.get('sourceLambda'))
+    return found
 
 
 def reads_derived(transform, src_cls):
@@ -352,7 +416,10 @@ def prop_feats(pm, feats, tables, m, db_hint, src_cls=None):
         feats.add('mapping:enumeration-mapping')
     if pm.get('bindingTransformer'):
         feats.add('execution:binding')
-        feats.add('store:relational-semistructured-binding')
+        # a relation mapping's binding transformer is EMIT's relation-binding-transformer (added 2026-10-30, the
+        # improvement plan's Phase 6)
+        feats.add('mapping:relation-binding-transformer' if t == 'relationFunctionPropertyMapping'
+                  else 'store:relational-semistructured-binding')
     if pm.get('target'):
         feats.add('x-mapping:explicit-target-set')
     if t == 'relationalPropertyMapping':
@@ -390,7 +457,14 @@ def prop_feats(pm, feats, tables, m, db_hint, src_cls=None):
         if info and info[0] in classes and not pm.get('target') and root_set(m, info[0]) is None:
             feats.add('mapping:m2m-complex-property-passthrough')
     elif t == 'relationFunctionPropertyMapping':
-        pass
+        # a `$src` expression on the right-hand side rather than a bare column (added 2026-10-30, the improvement plan's
+        # Phase 6)
+        if pm.get('valueFn'):
+            feats.add('mapping:relation-expression-rhs')
+    elif t == 'relationFunctionEmbeddedPropertyMapping':
+        # `prop ( ... )`, or `prop () Inline [id]`: the inline form names a set and maps nothing of its own
+        feats.add('mapping:relation-inline-embedded' if pm.get('id') and not pm.get('propertyMappings')
+                  else 'mapping:relation-embedded')
 
 
 
@@ -416,6 +490,41 @@ def owning_assoc(cls, pname, seen=None):
         if r:
             return r
     return None
+
+
+def assoc_relation_feats(am, apm, m, feats):
+    """An XStore or a ModelJoin navigated (added 2026-10-30, the improvement plan's Phase 6). A ModelJoin is EMIT's
+    relation-model-join; an XStore between relation sets is its relation-xstore-association, and any other XStore its
+    cross-store. Either reaches the relation-local-property its predicate reads: a `+prop` of an end's set."""
+    by_class, by_id, _, _ = index(m)
+    if am.get('_type') == 'modelJoin':
+        feats.add('mapping:relation-model-join')
+        ends = [s for c in (am.get('stores') or []) for s in [by_id.get(c)] if s] or [
+            s for ss in by_class.values() for s in ss if s.get('_type') == 'relation']
+        pred = am.get('joinCondition')
+    else:
+        ends = [by_id.get(apm.get('source')), by_id.get(apm.get('target'))]
+        relation = [e for e in ends if e is not None and e.get('_type') == 'relation']
+        feats.add('mapping:relation-xstore-association' if relation and len(relation) == len(ends)
+                  else 'mapping:cross-store')
+        pred = apm.get('crossExpression')
+    read = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            if o.get('_type') == 'property':
+                read.add(o.get('property'))
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(pred)
+    for e in ends:
+        for pm in (e or {}).get('propertyMappings') or []:
+            if pm.get('localMappingProperty') and (pm.get('property') or {}).get('property') in read:
+                feats.add({'relationFunctionPropertyMapping': 'mapping:relation-local-property'}.get(
+                    pm.get('_type'), 'x-mapping:local-property'))
 
 
 def assoc_candidates(assoc_pm, cls, pname, cur_set):
@@ -537,6 +646,13 @@ for s in services:
                     elif pm.get('_type') == 'inlineEmbeddedPropertyMapping':
                         by_class, by_id, _, _ = index(mp)
                         nxt_set = by_id.get(pm.get('setImplementationId'))
+                    elif pm.get('_type') == 'relationFunctionEmbeddedPropertyMapping':
+                        # a relation mapping's embedded property maps its leaves in place; the inline form names a set
+                        by_class, by_id, _, _ = index(mp)
+                        if pm.get('id') and not pm.get('propertyMappings'):
+                            nxt_set = by_id.get(pm['id'])
+                        else:
+                            nxt_set = {'_type': 'relation-embedded', 'propertyMappings': pm.get('propertyMappings')}
                     elif pm.get('target'):
                         by_class, by_id, _, _ = index(mp)
                         nxt_set = by_id.get(pm['target'])
@@ -547,10 +663,8 @@ for s in services:
                         if am.get('_type') == 'relational':
                             feats.add('mapping:relational-association-implementation')
                             op_feats(apm.get('relationalOperation'), feats, tables, db_hint)
-                        elif am.get('_type') == 'xStore':
-                            feats.add('mapping:cross-store')
-                        elif am.get('_type') == 'modelJoin':
-                            feats.add('mapping:relation-model-join')
+                        elif am.get('_type') in ('xStore', 'modelJoin'):
+                            assoc_relation_feats(am, apm, mp, feats)
                         if apm.get('target'):
                             nxt_set = by_id.get(apm['target'])
                         break
@@ -596,8 +710,8 @@ for s in services:
                             if am.get('_type') == 'relational':
                                 feats.add('mapping:relational-association-implementation')
                                 op_feats(apm.get('relationalOperation'), feats, tables, db_hint)
-                            elif am.get('_type') == 'xStore':
-                                feats.add('mapping:cross-store')
+                            elif am.get('_type') in ('xStore', 'modelJoin'):
+                                assoc_relation_feats(am, apm, mp, feats)
                             break
                 if ptype in classes:
                     touched_classes.add(ptype)
