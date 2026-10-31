@@ -245,6 +245,7 @@ public final class TsToPure {
                 if (struct == null) {
                     TsLines.Valued item = new TsLines.Valued(v.line().with(call("rename", v.line().rel(),
                             new ColSpec(v.value()), new ColSpec(name))), name);
+                    lines.extended.put(item.line(), v.line());
                     lines.items.put(name, item);
                     answered.add(item);
                     columns.add(name);
@@ -274,6 +275,15 @@ public final class TsToPure {
                 lines.items.put(name, new TsLines.Valued(line, java.util.Objects.requireNonNull(fields.get(
                         struct.keySet().iterator().next()))));
                 fields.values().forEach(c -> answered.add(new TsLines.Valued(line, c)));
+            }
+            // an item read from a later item's line made of its own by added columns: one line, its rows once
+            for (int i = 0; i < answered.size(); i++) {
+                for (int j = answered.size() - 1; j > i; j--) {
+                    if (lines.descends(answered.get(j).line(), answered.get(i).line())) {
+                        answered.set(i, new TsLines.Valued(answered.get(j).line(), answered.get(i).value()));
+                        break;
+                    }
+                }
             }
             TsLines.Line all = TsLines.answer(lines, answered, aliases.get(0).pos());
             String instrument = all.byInstrument() ? all.part() : null;
@@ -511,6 +521,12 @@ public final class TsToPure {
                     yield new Rows(filter(r.relation(), perPoint(f.where()), "WHERE"), r.what());
                 }
                 case TsAst.Flat flat -> new Rows(flat(flat), "the subquery");
+                case TsAst.Nested n -> {
+                    // a query of the language's own: its answer, read on as a relation (its WITH sources this one's)
+                    Builder inner = new Builder(model, dialect, n.query());
+                    inner.withs.putAll(withs);
+                    yield new Rows(inner.query(), "the query in parentheses");
+                }
             };
         }
 
@@ -781,6 +797,10 @@ public final class TsToPure {
             private final Map<String, Map<String, String>> structs = new LinkedHashMap<>();
             /** Each item that is a struct: its fields' answer columns ({@code bb_lower}), by field. */
             final Map<String, Map<String, String>> fields = new LinkedHashMap<>();
+            /** Each line made of another by adding a column (its rows and its columns, and one more), by the very line:
+             *  an item read from a later item's line where that line is made so of its own (R6: one line's rows,
+             *  never joined to themselves -- a line of several rows on a date would multiply them). */
+            final Map<TsLines.Line, TsLines.Line> extended = new java.util.IdentityHashMap<>();
             private int fresh;
 
             Lines(Map<String, TsLines.Source> opened) {
@@ -811,6 +831,16 @@ public final class TsToPure {
             /** The fields of {@code v}, a function's answer, where it is a struct (R10); else null. */
             @com.legend.base.Nullable Map<String, String> structOf(TsLines.Valued v) {
                 return structs.get(v.value());
+            }
+
+            /** Whether {@code line} is made of {@code of} by added columns, step by step ({@link #extended}). */
+            boolean descends(TsLines.Line line, TsLines.Line of) {
+                for (TsLines.Line l = line; l != null; l = extended.get(l)) {
+                    if (l == of) {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             /** An item's node: a struct allowed where the item is a function's whole answer (R10). */
@@ -976,8 +1006,12 @@ public final class TsToPure {
                     }
                 });
                 String value = fresh("pt");
-                return new TsLines.Valued(met.with(call("extend", met.rel(), new ColSpec(value, rowLambda(
-                        intervals(over), met.rel(), false, "SELECT")))), value);
+                TsLines.Line out = met.with(call("extend", met.rel(), new ColSpec(value, rowLambda(intervals(over),
+                        met.rel(), false, "SELECT"))));
+                if (parts.size() == 1) {
+                    extended.put(out, met);
+                }
+                return new TsLines.Valued(out, value);
             }
 
             /** {@code e} with each line in it read as its column, its lines added to {@code parts} (each once). */

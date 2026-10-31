@@ -1,30 +1,26 @@
-// A TIMESERIES' QUERIES (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5): each series of a timeseries tile
-// (timeseries-spec.ts) as ONE query (D2) -- of its grid, or, a series combining grids, of their tables over one model --
-// which the planner plans and the DATABASE computes: every return, volatility, z-score and drawdown a window over the
-// dates or an expression over the row, as every calculated column of DataCube's is (calc-presets.ts). Nothing here
-// computes a value; it writes what to compute, in Pure (D5).
+// A TIMESERIES' QUERIES (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5; docs/TS_LANGUAGE_BUILD_2026_10_30.md P6):
+// each series of a timeseries tile (timeseries-spec.ts) as ONE query (D2) -- of its grid, or, a series combining grids,
+// of their tables over one model -- which the planner plans and the DATABASE computes. Nothing here computes a value.
 //
-//   1. each source the series reads: its grid's rows -- their source, row-level calculated columns and filter (as the
-//      tile reads it) -- and what the series matches of them (close[AAPL])
-//   2. each grouped by its period (its date at the tile's frequency: a day, a week, a month...) -- the first by the
-//      split too, one line per value -- each column the series reads taken by its period's aggregate: the latest row's
-//      value by default (maxBy over the day's number, `dateDiff` from 1970: maxBy orders by a number); the groups of
-//      several sources joined on the period
-//   3. the dates every column the series reads has (gs-quant's `intersect`), the split's first MAX_SPLIT_LINES values
-//   4. each function of the expression, innermost first: its columns over the dates, every window partitioned by the
-//      split and ordered by the period; a rolling figure drawn once its window is full (gs-quant's ramp)
-//   5. an index or a change from the start reads the value AS OF THE FIRST DATE SHOWN -- the anchor the viewer passes
-//      (where its zoom starts), found by the database: the latest period at or before it that has a value, else the
-//      first after it
-//   6. the period, the split and the value(s), latest first, at most TS_POINT_LIMIT
+//   1. the series is its #TS{...}# query (timeseries-ts.ts writes it from the spec, gs-quant's vocabulary the tile's
+//      surface): each source bound by `let` to its grid's rows (their source, row-level calculated columns and filter
+//      as the tile reads it), the tile's frequency its SAMPLE BY, its alignment its FILL -- every function, window,
+//      period and line meeting the platform's #TS builder's, each figure a call of the timeseries library
+//   2. over its answer, the tile's own columns (tsWriter): its line (the split's first MAX_SPLIT_LINES values, else
+//      one), its period at the tile's frequency, its number in time, the rows each date has (several rows on a date are
+//      several points: the language's ruling 8, which the drawing says), the periods a year a figure was annualized by
+//   3. the view's: a compare (rebased, a % change) from the first date shown, a condition's runs, the statistics, the
+//      scatter, seasonality, histogram, curve and calendar of a series, each the library's over its answer
+//   4. the period, the split and the value(s), latest first, at most TS_POINT_LIMIT
 //
-// Every series reads ALL its history (step 5's anchor aside): the window shown is the viewer's, zoomed and panned over
+// Every series reads ALL its history (an index's from-date aside): the window shown is the viewer's, zoomed and panned over
 // what came back, so a rolling figure at the window's left edge has its history, as a person expects it to.
 
 import {
-  agg, and, asc, collection, colSpec, derive, desc, enumValue, fn, lambda, lit, or, property, variable,
+  agg, and, asc, collection, colSpec, derive, desc, enumValue, fn, from, lambda, lit, or, property, variable,
   type AppliedFunction, type ColSpec, type Lambda, type Relation, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { TS_ITEM, tsIsland, tsLets, tsQueryText } from './timeseries-ts.ts';
 import { LIBRARY_ENUMS, type LibraryEnum } from './generated/library-enums.ts';
 import { LIBRARY_PACKAGE } from './pure-library.ts';
 import { filterNode, literalNode, sourceWithDerived } from './query.ts';
@@ -36,11 +32,11 @@ import { isDay, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts
 import {
   filterRead,
   MAX_SPLIT_LINES, PERIODS_PER_YEAR, RANGE_STEP, tenorOf, TS_MARK_LIMIT, TS_POINT_LIMIT, TS_PROJECTION_AHEAD, TS_PROJECTION_WINDOW, TS_RANGES,
-  type TimeseriesSpec, type TsAggregate, type TsMarks, type TsProjection,
-  type TsAlign, type TsExpr, type TsMatch, type TsOperator, type TsRange, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
-  isConditionOp, TS_CURVE_DATES, TS_HIST_BINS, TS_SEASON_YEARS, TS_SIGNATURES, type TsFunctionName,
+  type TimeseriesSpec, type TsMarks, type TsProjection,
+  type TsExpr, type TsMatch, type TsRange, type TsRangeWord, type TsSeries, type TsSource, type TsTenor,
+  TS_CURVE_DATES, TS_HIST_BINS, TS_SEASON_YEARS,
 } from './timeseries-spec.ts';
-import { inlined, isBand, isCandles, isCondition, levelOf, TsInlineError, paramOf, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
+import { inlined, isBand, isCandles, isCondition, levelOf, TsInlineError, seriesName, sourceAlias, sourcesOf, splitName, unitOf, type TsUnit } from './timeseries-expr.ts';
 import type { TimeGrain } from './chart-spec.ts';
 
 /** The columns a series' query answers with. */
@@ -102,9 +98,6 @@ const float = (n: number): ValueSpecification => lit.float(n);
 const none = (): ValueSpecification => collection([]);
 const when = (c: ValueSpecification, then: ValueSpecification, otherwise: ValueSpecification): ValueSpecification =>
   fn('if', c, lambda([], then), lambda([], otherwise));
-const notEmpty = (n: string): ValueSpecification => fn('isNotEmpty', col(n));
-const op = (name: string, a: ValueSpecification, b: ValueSpecification): ValueSpecification =>
-  name === 'divide' ? fn('divide', a, b) : fn(name, collection([a, b]));
 
 /** What a series' query is: the query, the unit its values are in, whether it draws a band, its split. */
 export interface TsQuery {
@@ -165,6 +158,8 @@ interface Built {
   readonly shadeTo?: string;
   /** What wrote it: a query over it (its statistics) goes on writing, so a column it adds is named after the series' own. */
   readonly writer: Writer;
+  /** Its sources bound by `let`, which its query's body starts with (queryOf). */
+  readonly lets: readonly ValueSpecification[];
 }
 
 /** The type the compiler gave a column of a grid (its source's or a row-level calculated column's). */
@@ -212,23 +207,10 @@ function matched(s: CubeSnapshot, key: string | undefined, where: readonly TsMat
   return and(...terms);
 }
 
-/** Each column the series reads, once: its source, the column, how a period takes it, and what it matches. */
-interface Base {
-  readonly key: string;
-  readonly alias: string;
-  readonly column: string;
-  readonly fn: TsAggregate;
-  readonly where: readonly TsMatch[];
-}
 
-const baseKey = (ts: TimeseriesSpec, n: Extract<TsExpr, { kind: 'column' }>): string =>
-  JSON.stringify([sourceAlias(ts, n) ?? '', n.column, n.fn ?? 'last', n.where ?? []]);
-
-
-/** The column of a part's period (every window's order, the key parts are joined on), its number in time, and its date. */
+/** The column of a series' period (every window's order, the key two series are joined on), and its number in time. */
 const PERIOD = '__ts_p0';
 const ORD = '__ts_ord';
-const AT = '__ts_at';
 
 /**
  * AN OPTION OF THE LIBRARY'S, AS ITS ENUMERATION'S VALUE (`timeseries::Returns.log`; the user, 2026-10-28: a parameter
@@ -242,16 +224,6 @@ function libraryOption(enumeration: LibraryEnum, value: string): ValueSpecificat
   if (!values.includes(value)) throw new Error(`${value} is no ${LIBRARY_PACKAGE}::${enumeration} (${values.join(', ')})`);
   return enumValue(`${LIBRARY_PACKAGE}::${enumeration}`, value);
 }
-
-/** Each pairwise statistic's function of the library (pure-library.ts): a hedge ratio a beta of levels. */
-const PAIRWISE: Readonly<Record<string, string>> = {
-  correlation: 'correlation', r_squared: 'rSquared', cov: 'covariance', beta: 'beta', hedge_ratio: 'beta', alpha: 'alpha', residual: 'residual',
-};
-
-/** Each benchmark-relative statistic's function of the library (pure-library.ts). */
-const BENCHMARKED: Readonly<Record<string, string>> = {
-  tracking_error: 'trackingError', information_ratio: 'informationRatio', up_capture: 'upCapture', down_capture: 'downCapture',
-};
 
 /**
  * What every part of one series' query shares: the tile, the frequency its periods are of (the tile's; none inside a
@@ -378,49 +350,6 @@ class Writer {
   }
 
   /**
-   * THE MEMBERS AS ROWS (the library's long table, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.7: a row a member and
-   * date): of each of `columns` (a member's values, on this writer's rows), its line, its date, its time (ORD), its
-   * number, its value and its weight -- the members' rows concatenated.
-   */
-  members(columns: readonly string[], weights: readonly number[]): { readonly rel: Relation; readonly member: string; readonly value: string; readonly weight: string } {
-    const member = this.fresh('mb_m');
-    const value = this.fresh('mb_v');
-    const weight = this.fresh('mb_w');
-    const rel = columns.map((c, i) => this.rel.select([this.part, this.at, ORD, c]).rename(c, value)
-      .extend([derive(member, row(lit.integer(i))), derive(weight, row(float(weights[i]!)))]))
-      .reduce((all, one_) => all.concatenate(one_));
-    return { rel, member, value, weight };
-  }
-
-  /** A relation of a row a line and date (a figure of the members', the library's), joined to this writer's by them. */
-  joinByDate(other: Relation): void {
-    const gp = this.fresh('jd_part');
-    const ga = this.fresh('jd_at');
-    this.rel = this.rel.join(other.rename(this.part, gp).rename(this.at, ga), 'LEFT', lambda(['l', 'r'], and(
-      fn('equal', property(variable('l'), this.part), property(variable('r'), gp)),
-      fn('equal', property(variable('l'), this.at), property(variable('r'), ga)))));
-  }
-
-  /** The window the library's functions take: the line, its periods in order, a frame (#over's). */
-  windowOf(frame: 'running' | 'all' | number | null): AppliedFunction {
-    return this.#over(frame);
-  }
-
-  /**
-   * A STATISTIC OF A CALENDAR PERIOD, the library's (`timeseries::overPeriod`): `stat` of `value` over (date - n unit,
-   * date] of each date of its line, none before the line's first value's date that period on (gs-quant's
-   * rolling_offset and apply_ramp).
-   */
-  libraryPeriod(stat: string, what: string, value: string, t: TsTenor): string {
-    return this.libraryOfPeriod('overPeriod', what, value, t, [libraryOption('Statistic', stat)]);
-  }
-
-  /** A column `n` periods back, or a calendar period back as of that date (gs-quant's lag): the library's. */
-  libraryLag(value: string, n: Span): string {
-    return typeof n === 'number' ? this.library('lag', 'lag', value, null, [lit.integer(n)]) : this.libraryOfPeriod('lagPeriod', 'lag', value, n);
-  }
-
-  /**
    * A BASE OVER THE WHOLE LINE, the library's -- `index`, `change` or `percentChange` of the line's first value, or,
    * with the first date the view shows (the tile's anchor), its `...From` of the value as of it (`valueAt`) -- `args`
    * after the date.
@@ -429,13 +358,6 @@ class Writer {
     const anchor = this.shared.anchor;
     if (anchor === undefined) return this.libraryOfLine(name, what, value, args);
     return this.libraryOfLine(`${name}From`, what, value, [dateLiteral(anchor, this.shared.periodType!), ...args]);
-  }
-
-  /** A rolled statistic of `value` over `w` periods (0: from the start) or a calendar period, the library's: drawn once
-   *  its window holds `ramp` values (a calendar period's, from its line's first value's date that period on). */
-  libraryRolled(stat: string, value: string, w: Span, ramp: number): string {
-    return typeof w === 'number' ? this.library(stat, stat, value, Writer.frame(w) as 'running' | number, [lit.integer(ramp)])
-      : this.libraryPeriod(stat, stat, value, w);
   }
 
   /** `->extend(~[name: x|body])`. */
@@ -459,75 +381,9 @@ class Writer {
     return fn('over', ...args);
   }
 
-  /** An aggregate over a frame of the periods: `extend(over(...), ~[name:{p,w,r|<read>}:y|$y-><reduce>()])`. A calendar
-   *  period's window is the library's (`windowPeriod`, `overPeriod`): a frame counts rows, never dates. */
-  window(what: string, reduce: string, read: ValueSpecification, frame: 'running' | 'all' | 'rest' | number, by?: string): string {
-    const name = this.fresh(what);
-    this.rel = this.rel.extend([agg(name, lambda(['p', 'w', 'r'], read), lambda(['y'], fn(reduce, variable('y'))))], this.#over(frame, by));
-    return name;
-  }
-
-  /** A column `n` periods back: `$p->lag($r, n).<column>`; `by`: among the line's rows of the same value of that column.
-   *  A calendar period back is the library's (`lagPeriod`: libraryLag). */
-  lag(column: string, n: number, by?: string): string {
-    const name = this.fresh('lag');
-    const call = fn('lag', variable('p'), variable('r'), ...(n !== 1 ? [lit.integer(n)] : []));
-    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(call, column)))], this.#over(null, by));
-    return name;
-  }
-
-  /** A column the next period on: `$p->lead($r).<column>` (none at the line's last). */
-  lead(column: string, n = 1): string {
-    const name = this.fresh('lead');
-    const call = fn('lead', variable('p'), variable('r'), ...(n !== 1 ? [lit.integer(n)] : []));
-    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], property(call, column)))], this.#over(null));
-    return name;
-  }
-
-  /** Each row's place in its line, 1 its first: `$p->rowNumber($r)`. */
-  rowNumber(): string {
-    const name = this.fresh('rn');
-    this.rel = this.rel.extend([derive(name, lambda(['p', 'w', 'r'], fn('rowNumber', variable('p'), variable('r'))))], this.#over(null));
-    return name;
-  }
-
-  /**
-   * AN EXPONENTIALLY WEIGHTED AVERAGE, pandas' `ewm(alpha = 1 - decay, adjust=False).mean()` (gs-quant's
-   * exponential_moving_average): the library's (pure-library.ts ewma, its closed form the database's). `seed`: from the
-   * value of `seed.value` at the `seed.at`-th value (a Wilder average's first, a mean of w), the series' own from there
-   * (ewmaFrom); rows of none have none.
-   */
-  ewm(x: string, decay: ValueSpecification, seed?: { readonly at: number; readonly value: string }): string {
-    return seed === undefined ? this.libraryOfLine('ewma', 'ewm', x, [decay])
-      : this.libraryOfLine('ewmaFrom', 'ewm', x, [decay, lit.integer(seed.at), colSpec(seed.value)]);
-  }
-
-  /** AN EXPONENTIALLY WEIGHTED STANDARD DEVIATION, pandas' `ewm(alpha = 1 - decay, adjust=False).std()` (gs-quant's
-   *  exponential_std): the library's (pure-library.ts ewmStd). */
-  ewmStd(x: string, decay: ValueSpecification): string {
-    return this.libraryOfLine('ewmStd', 'ewm_std', x, [decay]);
-  }
-
-  /** WILDER'S SMOOTHED AVERAGE over w (gs-quant's technicals.smoothed_moving_average): the library's (pure-library.ts
-   *  smoothedMean). */
-  smoothed(x: string, w_: number): string {
-    // a w of 1 or under each value from the line's second, as gs-quant's ramp of 1 has it (the E9 review's nit)
-    return this.libraryOfLine('smoothedMean', 'smma', x, [lit.integer(Math.max(w_, 1))]);
-  }
-
   /** A column's value on a frame's rows, as a window reads it. */
   static read(column: string): ValueSpecification {
     return property(variable('r'), column);
-  }
-
-  /** `w` periods of `column` (0: from the start), or a calendar period: its frame. */
-  static frame(w: Span): 'running' | number | TsTenor {
-    return w === 0 ? 'running' : w;
-  }
-
-  /** `a / b`, empty where b is zero. */
-  ratio(what: string, a: ValueSpecification, b: string): string {
-    return this.row(what, when(fn('equal', one(b), lit.integer(0)), none(), fn('divide', a, one(b))));
   }
 
   /** Returns over `obs` periods, or a calendar period back as of its date, of a type (gs-quant's econometrics.returns):
@@ -580,71 +436,6 @@ type Value = { readonly column: string }
   | { readonly lower: string; readonly upper: string; readonly width: string }
   | { readonly open: string; readonly high: string; readonly low: string; readonly close: string };
 
-/** A node of the expression, written: a part and the value it computes over it -- or a constant, numbers alone, the
- *  database's arithmetic wherever it is read. */
-type Node = { readonly w: Writer; readonly v: Value } | { readonly constant: ValueSpecification };
-
-/** What only a drawing reads, refused where an expression reads it. */
-function unread(v: Value): never {
-  throw new CubeRefusal('lower' in v ? 'a band is drawn, never read' : 'candles are drawn, never read');
-}
-
-const columnOfValue = (v: Value): string => ('column' in v ? v.column : unread(v));
-
-/** A node as an operand of the row's arithmetic. */
-function asOperand(n: Node): ValueSpecification {
-  return 'constant' in n ? n.constant : one(columnOfValue(n.v));
-}
-
-/** The columns a value is, every one carried through a join. */
-const valueColumns = (v: Value): string[] =>
-  'column' in v ? [v.column] : 'lower' in v ? [v.lower, v.upper, v.width] : [v.open, v.high, v.low, v.close];
-
-/** How a candle's four series take each period's rows: its first open, its highest high, its lowest low, its last close. */
-const CANDLE: readonly TsAggregate[] = ['first', 'max', 'min', 'last'];
-
-/** How a series of each role a function reads (its signature's `reads`) is taken of a period's rows: a high its most, a
- *  low its least, a close or a price its last, a volume or a dividend their total -- a candle's way (CANDLE). */
-const ROLE_TAKEN: Readonly<Record<string, TsAggregate>> = { high: 'max', low: 'min', close: 'last', price: 'last', volume: 'sum', dividends: 'sum' };
-
-/** How each series a function reads is taken of a period's rows, by its role; undefined where its series have none (a
- *  series and its benchmark: each its last, as any column). */
-function roleTaken(name: TsFunctionName): readonly TsAggregate[] | undefined {
-  const reads = TS_SIGNATURES[name].reads;
-  if (reads === undefined || !reads.some((r) => r in ROLE_TAKEN)) return undefined;
-  return reads.map((r) => {
-    const t = ROLE_TAKEN[r];
-    if (t === undefined) throw new Error(`${name} reads a ${r}, which no period's rows are taken by`);
-    return t;
-  });
-}
-
-/** An expression with each candle's (ohlc's) plain columns taken by their date as a candle's are (CANDLE) -- unless one
- *  says how itself (`open[AAPL].first`) -- so a day of several rows is its first open, highest high, lowest low and
- *  last close; a period of the tile's frequency then takes its dates' the same way (`candle`). */
-function candled(e: TsExpr): TsExpr {
-  switch (e.kind) {
-    case 'call': {
-      const args = e.args.map(candled);
-      const taken = e.fn === 'ohlc' ? CANDLE : roleTaken(e.fn);
-      if (taken === undefined) return { ...e, args };
-      return { ...e, args: args.map((a, i) => (a.kind === 'column' && a.fn === undefined && taken[i] !== undefined ? { ...a, fn: taken[i] } : a)) };
-    }
-    case 'binary':
-      return { ...e, left: candled(e.left), right: candled(e.right) };
-    default:
-      return e;
-  }
-}
-
-/** Whether a column's matches pick one value of the split's column (`close[SPY]`, the split by symbol): one line, joined
- *  by every line of the split, not a line of its own (the review's Q5: matched inside each line, every other line went). */
-function matchesSplit(b: Base, src: TsSource, split: string): boolean {
-  // or its instrument: `close / close[SPY]` split by sector -- SPY's one line divides every sector's (the second audit's
-  // S2: split by SPY's own sector, every other sector's line went)
-  return b.where.some((m) => { const c = m.column ?? src.key; return c === split || (src.key !== undefined && c === src.key); });
-}
-
 /** A part's periods' type, the series' (the first part's): another's of another type is refused -- under a frequency
  *  the tile has, a candle's series read on their own dates (`candle`). */
 function periodTyped(sh: Shared, type: string, alias: string): void {
@@ -653,994 +444,6 @@ function periodTyped(sh: Shared, type: string, alias: string): void {
     throw new CubeRefusal(sh.grain === undefined && sh.ts.grain !== undefined
       ? `series ${sh.series.id}'s candle reads ${sh.first}'s dates and ${alias}'s, of another type, on their own dates: read its series from grids of one date type`
       : `series ${sh.series.id} combines ${sh.first}'s dates with ${alias}'s, of another type: give the tile a frequency (Daily) to read both by day`);
-  }
-}
-
-/**
- * A COLUMN'S OWN PART (steps 1 and 2): its source's rows -- the grid's filter as the tile reads it, the column's matches,
- * a date and a value on every row -- each row's period at the tile's frequency, grouped by it (and by the split, a column of the
- * source the series reads first, unless it matches one value of it), the column taken by its period's aggregate, the
- * periods it has a value in alone (the review's Q1). A `last` or `first` counts the rows tied at the latest (earliest)
- * time, so the drawing says when one was taken of several (the review's Q7).
- */
-function columnPart(sh: Shared, n: Extract<TsExpr, { kind: 'column' }>): Node {
-  const alias = sourceAlias(sh.ts, n);
-  if (alias === undefined) throw new CubeRefusal(`${n.column} names no source of the tile`);
-  const b: Base = { key: baseKey(sh.ts, n), alias, column: n.column, fn: n.fn ?? 'last', where: n.where ?? [] };
-  const { src, input } = sourceNamed(sh.ts, sh.inputs, alias);
-  const s = input.snapshot;
-  const typeOf = (c: string): string | undefined => typeIn(s, c);
-  const dateType = typeOf(src.date);
-  // its rows with a date and a value: a period dated at its last row with one, the date its value is of (the review's
-  // N7: a month whose last row had none was dated at it, its value an earlier day's)
-  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date)), fn('isNotEmpty', col(b.column))];
-  const filter = filterRead(src, input.filter);
-  if (filter) conditions.push(filterNode(filter, 'x', typeOf));
-  const match = matched(s, src.key, b.where);
-  if (match) conditions.push(match);
-  let rel = sourceWithDerived(s).filter(row(and(...conditions)));
-  const { body, type, at } = periodOf(sh.grain, src.date, dateType);
-  periodTyped(sh, type, alias);
-  const seconds = !isDay(dateType);
-  const ordRow = `__ts_or`;
-  const atRow = `__ts_ar`;
-  rel = rel.extend([
-    derive(PERIOD, row(body)),
-    derive(ordRow, row(fn('dateDiff', literalNode('1970-01-01', 'StrictDate'), one(src.date), enumValue(DURATION, seconds ? 'SECONDS' : 'DAYS')))),
-    derive(atRow, row(at)),
-  ]);
-  const split = sh.split !== undefined && alias === sh.first && !matchesSplit(b, src, sh.split);
-  const keys = split ? [sh.split!, PERIOD] : [PERIOD];
-  const names = { fresh: (what: string): string => freshName(sh, what) };
-  const value = names.fresh('base');
-  const aggs: ColSpec[] = [
-    baseAggregate(value, b, ordRow),
-    agg(ORD, row(col(ordRow)), lambda(['y'], fn('max', variable('y')))),
-    agg(AT, row(col(atRow)), lambda(['y'], fn('max', variable('y')))),
-  ];
-  const rows: string[] = [];
-  if (b.fn === 'last' || b.fn === 'first') {
-    // the rows at the time a `last` takes (a `first`'s earliest): more than one, and which was taken is the database's
-    const tie = names.fresh('tie');
-    rel = rel.extend([agg(tie, lambda(['p', 'w', 'r'], Writer.read(ordRow)), lambda(['y'], fn(b.fn === 'last' ? 'max' : 'min', variable('y'))))],
-      fn('over', { _type: 'classInstance', type: 'colSpecArray', value: { colSpecs: keys.map((k) => ({ name: k })) } },
-        collection([asc(ordRow)]), fn('rows', fn('unbounded'), fn('unbounded'))));
-    const count = names.fresh('rows');
-    aggs.push(agg(count, row(when(fn('equal', col(ordRow), col(tie)), lit.integer(1), none())), lambda(['y'], fn('count', variable('y')))));
-    rows.push(count);
-  }
-  rel = rel.groupBy(keys, aggs);
-  const part = split ? sh.split! : `${WINDOW_ALL_PREFIX}ts`;
-  if (!split) rel = rel.extend([derive(part, row(lit.string('all')))]);
-  rel = rel.filter(row(notEmpty(value)));
-  return { w: new Writer(rel, { part, split, at: AT, seconds, rows, years: [] }, sh), v: { column: value } };
-}
-
-/**
- * PARTS JOINED on the period -- and on their line, both a line per value of the split -- each part's value computed
- * over its own dates first, at the operator or the function that reads them together (the review's Q1). `how` (the
- * tile's `align`, gs-quant's Interpolate): `intersect`, the dates every one has (gs-quant's intersect); else every date
- * any has, each part put onto them (#aligned). A line of the split joined with one line (`close[SPY]`) is that line's
- * per value; each period dated at its latest part's last observation.
- */
-function joined(sh: Shared, nodes: readonly { readonly w: Writer; readonly v: Value }[], how: TsAlign = 'intersect'): Writer {
-  // the parts of a line per value first: theirs is the line the join is partitioned by
-  // every date any has: merged in turn, each read once (#aligned)
-  if (how !== 'intersect') return aligned(sh, nodes.map((n) => ({ w: n.w, values: valueColumns(n.v) })), how).w;
-  const order = [...nodes].sort((a, b) => Number(b.w.split) - Number(a.w.split));
-  let left = order[0]!.w;
-  let carried = valueColumns(order[0]!.v);
-  for (const right of order.slice(1)) {
-    const r = right.w;
-    const fresh = (what: string): string => freshName(sh, what);
-    const p = fresh('jp');
-    const a = fresh('ja');
-    const line = left.split && r.split ? fresh('jl') : undefined;
-    let rel = r.rel.rename(PERIOD, p).rename(r.at, a);
-    if (line !== undefined) rel = rel.rename(r.part, line);
-    rel = rel.select([p, a, ...(line !== undefined ? [line] : []), ...valueColumns(right.v), ...r.rows, ...r.years]);
-    const on = [fn('equal', property(variable('l'), PERIOD), property(variable('r'), p)),
-      ...(line !== undefined ? [fn('equal', property(variable('l'), left.part), property(variable('r'), line))] : [])];
-    let both = left.rel.join(rel, 'INNER', lambda(['l', 'r'], and(...on)));
-    const at = fresh('at');
-    both = both.extend([derive(at, row(when(fn('greaterThanEqual', one(left.at), one(a)), col(left.at), col(a))))]);
-    left = new Writer(both, {
-      part: left.part, split: left.split, at, seconds: left.seconds,
-      rows: [...left.rows, ...r.rows], years: [...left.years, ...r.years],
-    }, sh);
-    carried = [...carried, ...valueColumns(right.v)];
-  }
-  return left;
-}
-
-/** A part as an alignment puts it onto dates: its writer, the value columns it fills, and those it carries as they are
- *  (a part's has-a-row marks, through the merges after). */
-interface Aligned {
-  readonly w: Writer;
-  readonly values: readonly string[];
-  readonly kept?: readonly string[];
-}
-
-/** Two parts merged (merged): their writer -- every date either has, by line -- and, for each as it was given, the
- *  column that is 1 where it had a row and its own ORD there. */
-interface Merged {
-  readonly w: Writer;
-  readonly has: readonly [string, string];
-  readonly ords: readonly [string, string];
-}
-
-/**
- * THE LINES OF THE SPLIT, read off the first source -- its rows as the tile reads them (a date on each, the grid's
- * filter) -- the line names a part of one line is put under (`close[SPY]` beside `close`): a leaf of the query, however
- * deep the parts merged, so a merge of it reads each part once (the Phase 1 review's 1).
- */
-function splitLines(sh: Shared): Relation {
-  const split = sh.split;
-  if (split === undefined) throw new Error('a part of one line is put under the lines of a split: the series has none');
-  const { src, input } = sourceNamed(sh.ts, sh.inputs, sh.first);
-  const s = input.snapshot;
-  const conditions: ValueSpecification[] = [fn('isNotEmpty', col(src.date))];
-  const filter = filterRead(src, input.filter);
-  if (filter) conditions.push(filterNode(filter, 'x', (c) => typeIn(s, c)));
-  return sourceWithDerived(s).filter(row(and(...conditions))).select([split]).distinct([split]);
-}
-
-/**
- * TWO PARTS MERGED, every date either has (the next phases' 1; rewritten for the Phase 1 review's 1, 2026-10-26): a
- * FULL join on their line and their period -- each part read ONCE, so a nesting of them grows linearly (an as-of join
- * of each and a spine of both read each three times: a basket of six instruments under step was 2 MB of SQL) -- each
- * period dated at its latest part's last observation. A part of one line beside a split's goes under every line of it
- * (splitLines), the lines the split has not dropped. Each part's values, carried columns and kept columns keep their
- * names; none where it has no row.
- */
-function merged(sh: Shared, a: Aligned, b: Aligned): Merged {
-  // the split's part first: its lines are the merge's
-  const swap = b.w.split && !a.w.split;
-  const [L, R] = swap ? [b, a] : [a, b];
-  const fresh = (what: string): string => freshName(sh, what);
-  const part = L.w.part;
-  const side = (s: Aligned, under: boolean): { rel: Relation; p: string; per: string; at: string; ord: string; has: string } => {
-    const w = s.w;
-    const own = [...s.values, ...(s.kept ?? []), ...w.rows, ...w.years];
-    let rel = w.rel;
-    let p = w.part;
-    if (under) {
-      // a part of one line under every line of the split, by a key both carry
-      const k = fresh('al_k');
-      const k2 = fresh('al_k');
-      rel = splitLines(sh).extend([derive(k, row(lit.integer(1)))])
-        .join(rel.select([PERIOD, w.at, ORD, ...own]).extend([derive(k2, row(lit.integer(1)))]), 'INNER',
-          lambda(['l', 'r'], fn('equal', property(variable('l'), k), property(variable('r'), k2))));
-      p = part;
-    }
-    const names = { p: fresh('al_p'), per: fresh('al_per'), at: fresh('al_at'), ord: fresh('al_ord'), has: fresh('al_has') };
-    rel = rel.select([p, PERIOD, w.at, ORD, ...own]).rename(p, names.p).rename(PERIOD, names.per).rename(w.at, names.at).rename(ORD, names.ord)
-      .extend([derive(names.has, row(lit.integer(1)))]);
-    return { rel, ...names };
-  };
-  const l = side(L, false);
-  const r = side(R, L.w.split !== R.w.split);
-  const on = lambda(['l', 'r'], and(fn('equal', property(variable('l'), l.p), property(variable('r'), r.p)),
-    fn('equal', property(variable('l'), l.per), property(variable('r'), r.per))));
-  const either = (x: string, y: string): ValueSpecification => when(fn('isEmpty', col(x)), col(y), col(x));
-  const latest = (x: string, y: string): ValueSpecification =>
-    when(fn('isEmpty', col(x)), col(y), when(fn('isEmpty', col(y)), col(x), when(fn('greaterThanEqual', one(x), one(y)), col(x), col(y))));
-  const at = fresh('al_at');
-  const keep = (s: Aligned): string[] => [...s.values, ...(s.kept ?? []), ...s.w.rows, ...s.w.years];
-  const rel = l.rel.join(r.rel, 'FULL', on)
-    .extend([derive(part, row(either(l.p, r.p))), derive(PERIOD, row(either(l.per, r.per))), derive(at, row(latest(l.at, r.at))),
-      derive(ORD, row(latest(l.ord, r.ord)))])
-    .select([part, PERIOD, at, ORD, l.ord, r.ord, l.has, r.has, ...keep(L), ...keep(R)]);
-  const w = new Writer(rel, {
-    part, split: L.w.split, at, seconds: L.w.seconds, rows: [...L.w.rows, ...R.w.rows], years: [...L.w.years, ...R.w.years],
-  }, sh);
-  if (L.w.split !== R.w.split) {
-    // the lines the split has (a line of the source it never reads dropped): the database's QUALIFY, a window's
-    const line = w.window('al_line', 'max', Writer.read(l.has), 'all');
-    w.rel = w.rel.filter(row(fn('isNotEmpty', col(line))));
-  }
-  return swap ? { w, has: [r.has, l.has], ords: [r.ord, l.ord] } : { w, has: [l.has, r.has], ords: [l.ord, r.ord] };
-}
-
-/**
- * A PART'S VALUES PUT ONTO THE MERGED DATES, each keeping its name (#merged's columns: `ord`, its own ORD where it has a
- * row): `nan`, none where it has none (as merged); `zero`, 0 there; `step`, each date its last value at or before it --
- * before its first, its first (gs-quant's ffill then bfill); `time`, linear in time between its values before and after
- * (none outside them: pandas' limit_area='inside'). Its last and next valued periods its own windows (a running maximum
- * of the periods it has a value in, and the value there) -- over the one relation, nothing read again.
- */
-function fill(w: Writer, values: readonly string[], ord: string, how: Exclude<TsAlign, 'intersect'>): void {
-  if (how === 'nan' || values.length === 0) return;
-  // each column replaced under its own name by the library's (its alignment functions, the platform step, 2026-10-28):
-  // the merged one kept under another
-  const replaced = (made: readonly (readonly [string, string])[]): void => {
-    for (const [v, filled] of made) w.rel = w.rel.rename(v, w.fresh('al_raw')).rename(filled, v);
-  };
-  if (how === 'zero') {
-    replaced(values.map((v) => [v, w.libraryOfRow('fillZero', 'al_zero', [colSpec(v)])] as const));
-    return;
-  }
-  // its last and next valued periods, each once for all its columns (each window a level more the database plans
-  // through), its first column saying where it has a row: a part's columns are one row's
-  const line = colSpec(w.part);
-  const order = colSpec(PERIOD);
-  const marker = colSpec(values[0]!);
-  const lastP = w.libraryOfRow('lastValued', 'al_lastp', [line, order, marker]);
-  const at = (p: string, c: string): string => w.libraryOfRow('valueAt', 'al_v', [line, order, colSpec(p), colSpec(c)]);
-  // its carried columns (the rows a value was one of, its periods a year) where it has a row alone: a date filled took
-  // none of its rows -- each merge filling every one before it grew the query faster than its parts
-  if (how === 'step') {
-    const firstP = w.libraryOfRow('firstValued', 'al_firstp', [line, order, marker]);
-    const made = values.map((v) => [v, at(lastP, v), at(firstP, v)] as const);
-    replaced(made.map(([v, last, first]) => [v, w.libraryOfRow('orElse', 'al_step', [colSpec(last), colSpec(first)])] as const));
-  } else {
-    const nextP = w.libraryOfRow('nextValued', 'al_nextp', [line, order, marker]);
-    const t0 = at(lastP, ord);
-    const t1 = at(nextP, ord);
-    const made = values.map((v) => [v, at(lastP, v), at(nextP, v)] as const);
-    // inside its values alone, at one of its own dates its own value: the library's (linearAt)
-    replaced(made.map(([v, a, b]) => [v, w.libraryOfRow('linearAt', 'al_lin', [colSpec(t0), colSpec(a), colSpec(t1), colSpec(b), colSpec(ORD)])] as const));
-  }
-}
-
-/**
- * EVERY DATE ANY PART HAS (gs-quant's `align` but intersect): the parts merged in turn (#merged: each read once), each
- * part's values put onto the dates by `how` (#fill) -- and, for each part, the column that is 1 where it had a row (an
- * if's flags, an append's x: what keeps a date).
- */
-function aligned(sh: Shared, parts: readonly Aligned[], how: Exclude<TsAlign, 'intersect'>):
-  { readonly w: Writer; readonly has: readonly string[]; readonly ords: readonly string[] } {
-  if (parts.length < 2) throw new Error('an alignment is of two parts or more');
-  let acc: Aligned = parts[0]!;
-  const has: string[] = [];
-  const ords: string[] = [];
-  for (const next of parts.slice(1)) {
-    const m = merged(sh, acc, next);
-    fill(m.w, acc.values, m.ords[0], how);
-    fill(m.w, next.values, m.ords[1], how);
-    if (has.length === 0) {
-      has.push(m.has[0]);
-      ords.push(m.ords[0]);
-    }
-    has.push(m.has[1]);
-    ords.push(m.ords[1]);
-    // the parts merged before: their has-a-row marks and their own ORDs carried, as they are
-    acc = { w: m.w, values: [...acc.values, ...next.values], kept: [...has, ...ords] };
-  }
-  return { w: acc.w, has, ords };
-}
-
-const OPS: Readonly<Record<'+' | '-' | '*' | '/', string>> = { '+': 'plus', '-': 'minus', '*': 'times', '/': 'divide' };
-
-/** A condition's test as the database's: a comparison of the two sides, or two conditions joined (each true unless 0). */
-function conditionTest(o: TsOperator, l: ValueSpecification, r: ValueSpecification): ValueSpecification {
-  const holds = (x: ValueSpecification): ValueSpecification => fn('not', fn('equal', x, lit.integer(0)));
-  switch (o) {
-    case '<': return fn('lessThan', l, r);
-    case '<=': return fn('lessThanEqual', l, r);
-    case '>': return fn('greaterThan', l, r);
-    case '>=': return fn('greaterThanEqual', l, r);
-    case '==': return fn('equal', l, r);
-    case '!=': return fn('not', fn('equal', l, r));
-    case 'and': return and(holds(l), holds(r));
-    case 'or': return or(holds(l), holds(r));
-    case '+': case '-': case '*': case '/':
-      throw new Error(`${o} is no condition`);
-  }
-}
-
-/** A node of the expression, written: its own columns after those of what it reads. */
-function write(sh: Shared, e: TsExpr): Node {
-  switch (e.kind) {
-    case 'number':
-      return { constant: Number.isInteger(e.value) ? lit.integer(e.value) : float(e.value) };
-    case 'ref':
-      throw new Error('a series is read inlined (timeseries-spec.ts inlined)');
-    case 'column':
-      return columnPart(sh, e);
-    case 'binary': {
-      const l = write(sh, e.left);
-      const r = write(sh, e.right);
-      // a condition: 1 where it holds, 0 where not, none where a side has none (the expert functions, 2026-10-26)
-      if (isConditionOp(e.op)) {
-        if ('constant' in l && 'constant' in r) return { constant: when(conditionTest(e.op, l.constant, r.constant), lit.integer(1), lit.integer(0)) };
-        const wc = 'constant' in l ? (r as Exclude<Node, { constant: unknown }>).w
-          : 'constant' in r ? l.w : joined(sh, [l, r as Exclude<Node, { constant: unknown }>], sh.ts.align);
-        const missing = [l, r].flatMap((x) => ('constant' in x ? [] : [fn('isEmpty', col(columnOfValue(x.v)))]));
-        return { w: wc, v: { column: wc.row('cond', when(missing.length === 1 ? missing[0]! : or(...missing), none(),
-          when(conditionTest(e.op, asOperand(l), asOperand(r)), lit.integer(1), lit.integer(0)))) } };
-      }
-      if ('constant' in l && 'constant' in r) return { constant: op(OPS[e.op as '+' | '-' | '*' | '/'], l.constant, r.constant) };
-      const w = 'constant' in l ? (r as Exclude<Node, { constant: unknown }>).w
-        : 'constant' in r ? l.w : joined(sh, [l, r as Exclude<Node, { constant: unknown }>], sh.ts.align);
-      if (e.op === '/') {
-        const denominator = 'constant' in r ? w.row('num', r.constant) : columnOfValue(r.v);
-        return { w, v: { column: w.ratio('div', asOperand(l), denominator) } };
-      }
-      return { w, v: { column: w.row('op', op(OPS[e.op as '+' | '-' | '*' | '/'], asOperand(l), asOperand(r))) } };
-    }
-    case 'call':
-      return call(sh, e);
-  }
-}
-
-/** A function's series argument, written: a part (a function reads a series, never a number alone). */
-function seriesArg(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>, i: number): { readonly w: Writer; readonly v: Value } {
-  const n = write(sh, e.args[i]!);
-  if ('constant' in n) throw new CubeRefusal(`${e.fn} reads a series: its ${ordinal(i + 1)} argument is a number`);
-  return n;
-}
-
-/** A place in words: first, second ... tenth, then 11th, 21st. */
-function ordinal(n: number): string {
-  const words = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
-  if (n >= 1 && n <= words.length) return words[n - 1]!;
-  const tens = n % 100;
-  const suffix = tens >= 11 && tens <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
-  return `${n}${suffix}`;
-}
-
-/**
- * A CANDLE (ohlc): its four series joined on their dates. At a frequency, each is computed on its sources' own dates
- * first -- its functions over them, its arithmetic on each one -- and each period then takes the first open, the
- * highest high, the lowest low and the last close of them, the database's (the review's N4: each column was taken by
- * the period first, so a candle of `close / 2` weekly was the week's last, four times over, flat).
- */
-function candle(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
-  const r = rolled(sh, e, CANDLE);
-  const [open, high, low, close] = r.columns as [string, string, string, string];
-  return { w: r.w, v: { open, high, low, close } };
-}
-
-/**
- * A FUNCTION'S SERIES AT THE TILE'S FREQUENCY, EACH BY ITS ROLE (a candle's; the Phase 4 review's 1: a weekly ATR read
- * each week's last high and low, an OBV its last day's volume): under a frequency, its first series -- one a role in
- * `taken` -- each read on its own dates, joined, then each period of the frequency taken by its role (an open its
- * first, a high its most, a low its least, a close its last, a volume its total), and each of `sums` (a column of the
- * series on their own dates, the writer's call that writes it: a price times its volume, the library's tradedValue) its
- * total over the period. Of no frequency, the series as they are, `sums` each a column of them.
- */
-function rolled(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>, taken: readonly TsAggregate[],
-  sums: readonly ((w: Writer, columns: readonly string[]) => string)[] = []): { readonly w: Writer; readonly columns: readonly string[]; readonly sums: readonly string[] } {
-  const own: Shared = sh.grain === undefined ? sh : { ...sh, grain: undefined, periodType: undefined };
-  const parts = taken.map((_, i) => seriesArg(own, e, i));
-  const inner = joined(own, parts);
-  const columns = parts.map((p) => columnOfValue(p.v));
-  const made = sums.map((f) => f(inner, columns));
-  if (sh.grain === undefined) return { w: inner, columns, sums: made };
-  // each period of the tile's frequency, of the dates all have
-  const fine = own.periodType!;
-  const coarse = periodOf(sh.grain, PERIOD, fine);
-  periodTyped(sh, coarse.type, sh.first);
-  const p = freshName(sh, 'cp');
-  const a = freshName(sh, 'ca');
-  const rel = inner.rel
-    .filter(row(and(...columns.map((c) => fn('isNotEmpty', col(c))))))
-    .extend([derive(p, row(coarse.body)), derive(a, row(periodOf(sh.grain, inner.at, fine).at))]);
-  const y = (f: string): Lambda => lambda(['y'], fn(f, variable('y')));
-  const by = (t: TsAggregate, c: string, name: string): ColSpec => (t === 'last' || t === 'first'
-    ? agg(name, row(fn('rowMapper', col(c), col(ORD))), y(t === 'last' ? 'maxBy' : 'minBy'))
-    : agg(name, row(col(c)), y(t)));
-  const out = columns.map(() => freshName(sh, 'rv'));
-  const totals = made.map(() => freshName(sh, 'rsum'));
-  // the most rows a date's value took one of, and the periods a year a function inside annualized by, carried
-  const rows = inner.rows.map((c) => [c, freshName(sh, 'rows')] as const);
-  const years = inner.years.map((c) => [c, freshName(sh, 'py')] as const);
-  const grouped = rel.groupBy([inner.part, p], [
-    ...columns.map((c, i) => by(taken[i]!, c, out[i]!)),
-    ...made.map((c, i) => by('sum', c, totals[i]!)),
-    agg(AT, row(col(a)), y('max')),
-    ...[...rows, ...years].map(([from, to]) => agg(to, row(col(from)), y('max'))),
-    agg(ORD, row(col(ORD)), y('max')),
-  ]).rename(p, PERIOD);
-  const w = new Writer(grouped, {
-    part: inner.part, split: inner.split, at: AT, seconds: inner.seconds, rows: rows.map(([, c]) => c), years: years.map(([, c]) => c),
-  }, sh);
-  return { w, columns: out, sums: totals };
-}
-
-/** A part, a written argument that is no number. */
-type Part = Exclude<Node, { constant: unknown }>;
-
-/** Of written arguments, the parts (no number), each a series. */
-const partsOf = (nodes: readonly Node[]): Part[] => nodes.filter((n): n is Part => !('constant' in n));
-
-/**
- * GS-QUANT'S REMAINING FUNCTIONS of several series, or of a series and a number (the next phases' 1, 2026-10-26):
- * if, compare, union, append, prepend, excess_returns, weighted_sum -- or undefined, the function another's.
- */
-function otherCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | undefined {
-  const written = (): Node[] => e.args.map((a) => write(sh, a));
-  switch (e.fn) {
-    case 'if': {
-      // x where the flags hold (not 0), y where not, each a series or a number -- on the flags' dates, the branch taken
-      // none where it has none, whatever the tile's align (gs-quant's if_: no method; the Phase 1 review's 3)
-      const [flags, x, y] = written() as [Node, Node, Node];
-      if ('constant' in flags) throw new CubeRefusal('if reads a series of flags first: its first argument is a number');
-      const parts = partsOf([flags, x, y]);
-      let w = flags.w;
-      if (parts.length > 1) {
-        const al = aligned(sh, parts.map((n) => ({ w: n.w, values: valueColumns(n.v) })), 'nan');
-        w = al.w;
-        // the flags are the first part: their dates alone
-        w.rel = w.rel.filter(row(fn('isNotEmpty', col(al.has[0]!))));
-      }
-      // the library's (pure-library.ts ifThen), a number a column of it
-      const f = columnOfValue(flags.v);
-      const branch = (n: Node): string => ('constant' in n ? w.row('if_k', n.constant) : columnOfValue(n.v));
-      return { w, v: { column: w.libraryOfRow('ifThen', 'if', [colSpec(f), colSpec(branch(x)), colSpec(branch(y))]) } };
-    }
-    case 'compare': {
-      const [x, y] = written() as [Node, Node];
-      if ('constant' in x && 'constant' in y) {
-        return { constant: when(fn('greaterThan', x.constant, y.constant), lit.integer(1), when(fn('lessThan', x.constant, y.constant), lit.integer(-1), lit.integer(0))) };
-      }
-      const parts = partsOf([x, y]);
-      const w = parts.length === 1 ? parts[0]!.w : joined(sh, parts, sh.ts.align);
-      // gs-quant's (x > y) * 1 + (x < y) * -1: beside none, neither holds -- 0 (the Phase 1 review's 6); the library's
-      // (pure-library.ts compare), a number a column of it
-      const side = (n: Node): string => ('constant' in n ? w.row('cmp_k', n.constant) : columnOfValue(n.v));
-      return { w, v: { column: w.libraryOfRow('compare', 'cmp', [colSpec(side(x)), colSpec(side(y))]) } };
-    }
-    case 'union':
-    case 'append':
-    case 'prepend': {
-      // every date either has (union: x where it has a value, else y); gs-quant's dates for a splice -- x's every row to
-      // its last, then y's after it (append); x's before y's first row, then y's every row (prepend) -- the other's in
-      // between none of them (the Phase 1 review's 2: kept as empty rows, they broke every function after it)
-      const x = seriesArg(sh, e, 0);
-      const y = seriesArg(sh, e, 1);
-      const a = columnOfValue(x.v);
-      const b = columnOfValue(y.v);
-      const al = aligned(sh, [{ w: x.w, values: [a] }, { w: y.w, values: [b] }], 'nan');
-      const w = al.w;
-      const [hx, hy] = al.has as [string, string];
-      if (e.fn === 'union') return { w, v: { column: w.libraryOfRow('union', 'union', [colSpec(a), colSpec(b)]) } };
-      // a splice of the align's rows (which side has one on each date), the library's (pure-library.ts append, prepend)
-      return { w, v: { column: w.libraryOfRow(e.fn, e.fn, [...w.lineAndDate(), colSpec(a), colSpec(b), colSpec(hx), colSpec(hy)]) } };
-    }
-    case 'excess_returns': {
-      const x = seriesArg(sh, e, 0);
-      const rate = e.args[1]!;
-      if (rate.kind === 'number') {
-        // over a rate: x less the rate accrued on it day by day, actual/360 -- gs-quant's er_j = er_j-1 + x_j - x_j-1 (1 +
-        // rate f_j), summed: x_j - rate * the sum of x_k-1 f_k to date
-        // the library's (pure-library.ts excessReturns): a period's days its last observation's time's difference (ORD),
-        // in seconds over 86400 of a date-time's -- never its date's (the library review, 2026-10-27)
-        const w = x.w;
-        return { w, v: { column: w.libraryOfLine('excessReturns', 'er', columnOfValue(x.v),
-          [colSpec(ORD), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'), float(rate.value)]) } };
-      }
-      // over a cash index: on the dates both have, x's first value times the product of (1 + x's return - y's) -- the
-      // library's (excessReturnsOver)
-      const b = seriesArg(sh, e, 1);
-      const w = joined(sh, [x, b]);
-      return { w, v: { column: w.libraryOfLine('excessReturnsOver', 'er', columnOfValue(x.v), [colSpec(columnOfValue(b.v))]) } };
-    }
-    case 'weighted_sum': {
-      // each series and its weight, on the dates all have: their weighted sum over the weights' (gs-quant's intersect) --
-      // the library's (pure-library.ts weightedSum), over the members as rows (the design note's §5.7)
-      const series = e.args.filter((_, i) => i % 2 === 0).map((_, i) => seriesArg(sh, e, i * 2));
-      const weights = e.args.filter((_, i) => i % 2 === 1).map((x) => (x as Extract<TsExpr, { kind: 'number' }>).value);
-      const w = joined(sh, series);
-      const long = w.members(series.map((p) => columnOfValue(p.v)), weights);
-      const out = w.fresh('wsum');
-      w.joinByDate(long.rel.call(`${LIBRARY_PACKAGE}::weightedSum`, colSpecs([w.part, w.at]), colSpec(long.value), colSpec(long.weight),
-        lit.integer(series.length), colSpec(out)));
-      return { w, v: { column: out } };
-    }
-    default:
-      return undefined;
-  }
-}
-
-/** A window or a lag a function is told: a whole number of observations, or a calendar period (the spec's reader holds
- *  it to one). */
-function spanOf(e: Extract<TsExpr, { kind: 'call' }>, name: string): Span {
-  const v = paramOf(e, name);
-  if (typeof v === 'number') return v;
-  const t = tenorOf(v);
-  if (t === undefined) throw new CubeRefusal(`${e.fn}'s ${name} ${JSON.stringify(v)} is neither a whole number nor a calendar period (3m, 1y)`);
-  return t;
-}
-
-/**
- * THE ANALYSTS' PACKS (the next phases' 4, 2026-10-26) of several series: a candle's columns' technicals (Wilder's true
- * range, Lane's stochastic, Keltner's and Donchian's channels, Granville's on-balance volume, a volume-weighted price),
- * a series against a benchmark, a total return, a basket, a pair's lead -- or undefined, the function another's. Each
- * series on its own dates first (a benchmark's returns each on its own, as a correlation's), then joined on the dates
- * all have; every figure the database's.
- */
-function analystCalls(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node | undefined {
-  const n = (name: string): number => paramOf(e, name) as number;
-  /** Two series' simple returns, each on its own dates, on the dates both have one (a pair's, a benchmark's). */
-  const returnsOf = (k = 0): { readonly w: Writer; readonly a: string; readonly b: string } => {
-    const x = seriesArg(sh, e, 0);
-    const y = seriesArg(sh, e, 1);
-    const ra = x.w.simple(columnOfValue(x.v));
-    const r0 = y.w.simple(columnOfValue(y.v));
-    // the second's k observations before (a lag), or after (a lead), on its own dates
-    const rb = k === 0 ? r0 : k > 0 ? y.w.lag(r0, k) : y.w.lead(r0, -k);
-    const w = joined(sh, [{ w: x.w, v: { column: ra } }, { w: y.w, v: { column: rb } }]);
-    // each where both have a value (the library's pairs)
-    const [a, b] = w.libraryOfMany('pairs', ['pa', 'pb'], [colSpec(ra), colSpec(rb)]);
-    return { w, a: a!, b: b! };
-  };
-  switch (e.fn) {
-    // the technicals, the library's (pure-library.ts): each over a row's high, low and close -- or its close and volume,
-    // its price and volume -- each period's at the tile's frequency (rolled)
-    case 'atr':
-    case 'stochastic':
-    case 'keltner_channels': {
-      const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
-      const [hi, lo, cl] = columns as [string, string, string];
-      const roles = [colSpec(w.part), colSpec(w.at), colSpec(hi), colSpec(lo), colSpec(cl)];
-      // a w of 1 or under each value as it is from the line's second (smoothed's)
-      if (e.fn === 'atr') return { w, v: { column: w.libraryOfRow('atr', 'atr', [...roles, lit.integer(Math.max(n('w'), 1))]) } };
-      if (e.fn === 'stochastic') return { w, v: { column: w.libraryOfRow('stochastic', 'stoch', [...roles, lit.integer(n('w'))]) } };
-      // the close's exponential average of span w, k average true ranges over a either side; drawn once the average holds
-      // w closes (the Phase 4 review's 7: an EMA 20 of 11 drawn)
-      const [lower, upper, width] = w.libraryOfMany('keltnerChannels', ['lower', 'upper', 'width'],
-        [...roles, lit.integer(Math.max(n('w'), 1)), lit.integer(Math.max(n('a'), 1)), float(n('k'))]);
-      return { w, v: { lower: lower!, upper: upper!, width: width! } };
-    }
-    case 'donchian_channels': {
-      const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
-      const [hi, lo] = columns as [string, string];
-      const size = spanOf(e, 'w');
-      const [lower, upper, width] = typeof size === 'number'
-        ? w.libraryOfMany('donchianChannels', ['lower', 'upper', 'width'], [w.windowOf(Writer.frame(size) as 'running' | number), colSpec(hi), colSpec(lo), lit.integer(size)])
-        : w.libraryOfMany('donchianChannelsPeriod', ['lower', 'upper', 'width'],
-          [colSpec(w.part), colSpec(w.at), colSpec(hi), colSpec(lo), lit.integer(size.n), enumValue(DURATION, size.unit)]);
-      return { w, v: { lower: lower!, upper: upper!, width: width! } };
-    }
-    case 'obv': {
-      // each period's last close and its whole volume
-      const { w, columns } = rolled(sh, e, roleTaken(e.fn)!);
-      const [cl, vol] = columns as [string, string];
-      return { w, v: { column: w.libraryOfRow('obv', 'obv', [colSpec(w.part), colSpec(w.at), colSpec(cl), colSpec(vol)]) } };
-    }
-    case 'vwap': {
-      // each price times its volume on its own dates, the library's (tradedValue), totalled a period (at a frequency, a
-      // week's every day's)
-      const { w, columns, sums } = rolled(sh, e, roleTaken(e.fn)!, [(iw, [p, v]) => iw.libraryOfRow('tradedValue', 'rs', [colSpec(p!), colSpec(v!)])]);
-      const [px, vol] = columns as [string, string];
-      const size = spanOf(e, 'w');
-      const frame = Writer.frame(size);
-      if (typeof size === 'number') {
-        return { w, v: { column: w.libraryOfRow('vwap', 'vwap', [w.windowOf(frame as 'running' | number), colSpec(px), colSpec(sums[0]!), colSpec(vol), lit.integer(size)]) } };
-      }
-      // over a calendar period: its ramp from the first price's date
-      return { w, v: { column: w.libraryOfLine('vwapPeriod', 'vwap', px, [colSpec(sums[0]!), colSpec(vol), lit.integer(size.n), enumValue(DURATION, size.unit)]) } };
-    }
-    case 'tracking_error':
-    case 'information_ratio':
-    case 'up_capture':
-    case 'down_capture': {
-      const { w, a, b } = returnsOf();
-      const size = spanOf(e, 'w');
-      const frame = Writer.frame(size);
-      // the library's (pure-library.ts): of a count of periods, a deviation's ramp two at least, a capture's the window's;
-      // of a calendar period, from the first return's date that period on
-      const capture = e.fn === 'up_capture' || e.fn === 'down_capture';
-      const perYear = capture ? [] : [colSpec(w.perYearColumn())];
-      if (typeof frame !== 'object') {
-        return { w, v: { column: w.libraryOfRow(BENCHMARKED[e.fn]!, e.fn, [w.windowOf(frame), colSpec(a), colSpec(b),
-          lit.integer(capture ? (size as number) : Math.max(size as number, 2)), ...perYear]) } };
-      }
-      return { w, v: { column: w.libraryOfRow(`${BENCHMARKED[e.fn]!}Period`, e.fn, [...w.lineAndDate(), colSpec(a), colSpec(b), ...Writer.period(frame), ...perYear]) } };
-    }
-    case 'lead_lag': {
-      const { w, a, b } = returnsOf(n('lag'));
-      const size = spanOf(e, 'w');
-      const frame = Writer.frame(size);
-      if (typeof frame !== 'object') {
-        return { w, v: { column: w.libraryOfRow('leadLag', 'corr', [w.windowOf(frame), colSpec(a), colSpec(b), lit.integer(Math.max(size as number, 2))]) } };
-      }
-      return { w, v: { column: w.libraryOfRow('leadLagPeriod', 'corr', [...w.lineAndDate(), colSpec(a), colSpec(b), ...Writer.period(frame)]) } };
-    }
-    case 'total_return': {
-      const x = seriesArg(sh, e, 0);
-      const px = columnOfValue(x.v);
-      const told = e.args[1]!;
-      if (told.kind === 'number') {
-        // a yield a year, accrued day by day: each period's price over the one before, and the yield over the days since
-        // -- the library's (pure-library.ts totalReturn), a period's days its last observation's time's difference (ORD)
-        const w = x.w;
-        return { w, v: { column: w.libraryOfLine('totalReturn', 'tr', px,
-          [colSpec(ORD), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'), float(told.value)]) } };
-      }
-      // dividends on their dates: (price + the dividends since the price before) / the price before, on the price's
-      // dates -- a dividend of a date the price has none of paid at its next: every date either has (the align's), then
-      // the library's (totalReturnOf), which keeps the price's
-      const d = seriesArg(sh, e, 1);
-      const dv = columnOfValue(d.v);
-      const al = aligned(sh, [{ w: x.w, values: [px] }, { w: d.w, values: [dv] }], 'nan');
-      const w = al.w;
-      return { w, v: { column: w.libraryOfLine('totalReturnOf', 'tr', px, [colSpec(dv)]) } };
-    }
-    case 'basket':
-      return basket(sh, e);
-    default:
-      return undefined;
-  }
-}
-
-/**
- * A BASKET (gs-quant's backtesting.basket_series, its costs none): its series held in weights from 100, on the dates
- * all have -- units fixed between rebalances, set at each to the basket's then in its weights. Each date's rebalance
- * period: its own (daily); the weeks, or the months, from the first date (a rebalance the first date on or after each,
- * gs-quant's `min(cal[cal >= date])`; a month's day kept, or its last where it has none, as relativedelta's). Within a
- * period, 1 + Σ w (price / its price at the period's first date - 1); into it, the period before's growth to its first
- * date; the basket 100 times those growths compounded, times its growth within -- every figure the database's, the
- * library's (pure-library.ts basket) over the members as rows.
- */
-function basket(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
-  const series = e.args.filter((_, i) => i % 2 === 0).map((_, i) => seriesArg(sh, e, i * 2));
-  const weights = e.args.filter((_, i) => i % 2 === 1).map((x) => (x as Extract<TsExpr, { kind: 'number' }>).value);
-  const rebalance = paramOf(e, 'rebalance') as string;
-  if (rebalance !== 'daily' && rebalance !== 'weekly' && rebalance !== 'monthly') {
-    throw new CubeRefusal(`a basket rebalances daily, weekly or monthly, not ${JSON.stringify(rebalance)}`);
-  }
-  // the library's (pure-library.ts basket), over the members as rows: a week's days counted by its last observation's
-  // time (ORD), in seconds over 86400 of a date-time's
-  const w = joined(sh, series);
-  const long = w.members(series.map((p) => columnOfValue(p.v)), weights);
-  const out = w.fresh('basket');
-  w.joinByDate(long.rel.call(`${LIBRARY_PACKAGE}::basket`, colSpec(w.part), colSpec(w.at), colSpec(ORD), colSpec(long.member),
-    colSpec(long.value), colSpec(long.weight), lit.integer(series.length), libraryOption('Rebalance', rebalance), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'),
-    colSpec(out)));
-  return { w, v: { column: out } };
-}
-
-/** A cycle in the observations of a tile's frequency (a classical decomposition's period): undefined, none whole. */
-const CYCLES: Readonly<Partial<Record<TimeGrain, Readonly<Partial<Record<string, number>>>>>> = {
-  day: { week: 5, month: 21, quarter: 63, year: 252 },
-  week: { month: 4, quarter: 13, year: 52 },
-  month: { quarter: 3, year: 12 },
-  quarter: { year: 4 },
-};
-
-function call(sh: Shared, e: Extract<TsExpr, { kind: 'call' }>): Node {
-  const n = (name: string): number => paramOf(e, name) as number;
-  // a window or a lag: a whole number of observations, or a calendar period (the spec's reader holds it to one)
-  const span = (name: string): Span => spanOf(e, name);
-  const word = (name: string): string => paramOf(e, name) as string;
-  // the pairs and the candle: each series on its own dates, then joined
-  if (e.fn === 'correlation' || e.fn === 'beta' || e.fn === 'cov' || e.fn === 'alpha' || e.fn === 'r_squared'
-    || e.fn === 'hedge_ratio' || e.fn === 'residual') {
-    const a = seriesArg(sh, e, 0);
-    const b = seriesArg(sh, e, 1);
-    // gs-quant's correlation and beta read each series' returns, taken on its own dates, then aligned (an alpha and an
-    // R² too); cov, a hedge ratio and a residual the series as they are (a regression of the levels)
-    const levels = e.fn === 'cov' || e.fn === 'hedge_ratio' || e.fn === 'residual';
-    const ra = levels ? columnOfValue(a.v) : a.w.simple(columnOfValue(a.v));
-    const rb = levels ? columnOfValue(b.v) : b.w.simple(columnOfValue(b.v));
-    const w = joined(sh, [{ w: a.w, v: { column: ra } }, { w: b.w, v: { column: rb } }]);
-    const size = span('w');
-    const frame = Writer.frame(size);
-    const of = PAIRWISE[e.fn]!;
-    const perYear = e.fn === 'alpha' ? [colSpec(w.perYearColumn())] : [];
-    // the library's (pure-library.ts), each over the window's pairs: of a count of periods, its ramp two at least; of a
-    // calendar period, from the first pair's date that period on
-    if (typeof frame !== 'object') {
-      return { w, v: { column: w.libraryOfRow(of, e.fn, [w.windowOf(frame), colSpec(ra), colSpec(rb), lit.integer(Math.max(size as number, 2)), ...perYear]) } };
-    }
-    return { w, v: { column: w.libraryOfRow(`${of}Period`, e.fn, [...w.lineAndDate(), colSpec(ra), colSpec(rb), ...Writer.period(frame), ...perYear]) } };
-  }
-  if (e.fn === 'ohlc') return candle(sh, e);
-  const special = otherCalls(sh, e) ?? analystCalls(sh, e);
-  if (special !== undefined) return special;
-  if (e.fn === 'interpolate') {
-    // x onto y's dates (gs-quant's datetime.interpolate; the Phase 1 review's 5): every date either has merged, then
-    // y's alone kept -- the dates both have (intersect), none where x has none (nan), 0 there (zero); step, as gs-quant's
-    // walks the dates asked: the first x's value as of it (its first, before it starts), each after its own value, else
-    // the one before among them -- an x date between two asked never read
-    const x = seriesArg(sh, e, 0);
-    const y = seriesArg(sh, e, 1);
-    const xs = valueColumns(x.v);
-    const al = aligned(sh, [{ w: x.w, values: xs }, { w: y.w, values: [] }], 'nan');
-    const [hx, hy] = al.has as [string, string];
-    const method = word('method') as 'intersect' | 'nan' | 'zero' | 'step';
-    const m = al.w;
-    const w = new Writer(m.rel, { part: m.part, split: m.split, at: m.at, seconds: x.w.seconds, rows: x.w.rows, years: x.w.years }, sh);
-    // x's value as of each date of either, before y's alone are kept: a step's first
-    const asOf = method === 'step' ? xs.map((c) => w.row('ip_asof', col(c))) : [];
-    if (method === 'step') fill(w, asOf, al.ords[0]!, 'step');
-    const firstY = method === 'step' ? w.window('ip_first', 'min', Writer.read(w.row('ip_yp', when(fn('isNotEmpty', col(hy)), col(PERIOD), none()))), 'all') : undefined;
-    // y's dates kept after the windows above read every date: a filter of a plain column folds under its select's windows
-    // (the engine's relational rule, Fold.filterSlot), one reading a window is the database's QUALIFY, after them --
-    // y's first date, which every line of y has
-    const asked = firstY ?? w.window('ip_first', 'min', Writer.read(w.row('ip_yp', when(fn('isNotEmpty', col(hy)), col(PERIOD), none()))), 'all');
-    w.rel = w.rel.filter(row(and(fn('isNotEmpty', col(asked)), fn('isNotEmpty', col(hy)), ...(method === 'intersect' ? [fn('isNotEmpty', col(hx))] : []))));
-    if (method === 'zero') fill(w, xs, al.ords[0]!, 'zero');
-    if (method === 'step') {
-      // its own value where it has one; at the first date asked, its value as of it; then each carried to the next
-      xs.forEach((c, i) => {
-        const raw = w.fresh('ip_raw');
-        w.rel = w.rel.rename(c, raw);
-        w.rel = w.rel.extend([derive(c, row(when(fn('isNotEmpty', col(raw)), col(raw),
-          when(fn('equal', col(PERIOD), col(firstY!)), col(asOf[i]!), none()))))]);
-      });
-      fill(w, xs, al.ords[0]!, 'step');
-    }
-    return { w, v: x.v };
-  }
-  const x = seriesArg(sh, e, 0);
-  const w = x.w;
-  const a = columnOfValue(x.v);
-  const done = (column: string): Node => ({ w, v: { column } });
-  switch (e.fn) {
-    case 'returns':
-      return done(w.returns(a, span('obs'), word('type')));
-    case 'prices':
-      // initial at the first date, and every other from there: gs-quant's product (and sum) over the returns to date
-      // skips an empty one, as pandas' prod does -- a return of none (the first, which has no date before it) leaves the
-      // level where it was (the second audit's S5); the library's (pure-library.ts prices)
-      return done(w.libraryOfLine('prices', 'px', a, [float(n('initial')), libraryOption('Returns', word('type'))]));
-    // the levels and lags, the library's (pure-library.ts): a lag or a change over a count of periods or a calendar
-    // period back, a base over the whole line (its first value, or the value as of the first date shown)
-    case 'diff': {
-      const obs = span('obs');
-      return done(typeof obs === 'number' ? w.library('diff', 'diff', a, null, [lit.integer(obs)]) : w.libraryOfPeriod('diffPeriod', 'diff', a, obs));
-    }
-    case 'lag':
-      return done(w.libraryLag(a, span('obs')));
-    case 'annualize':
-      return done(w.libraryOfRow('annualize', 'ann', [colSpec(a), colSpec(w.perYearColumn())]));
-    case 'index':
-    case 'rebase':
-      return done(w.libraryBased('index', 'idx', a, [float(n(e.fn === 'index' ? 'initial' : 'base'))]));
-    case 'change':
-      return done(w.libraryBased('change', 'chg', a));
-    case 'percent_change':
-      return done(w.libraryBased('percentChange', 'pchg', a));
-    // the rolled statistics, the library's (pure-library.ts): over a count of periods (0 from the start) with a ramp
-    // of that count, or over a calendar period
-    case 'mean':
-    case 'sum':
-    case 'min':
-    case 'max':
-    case 'range': {
-      const size = span('w');
-      return done(w.libraryRolled(e.fn, a, size, typeof size === 'number' ? size : 0));
-    }
-    case 'std':
-    case 'var': {
-      const size = span('w');
-      return done(w.libraryRolled(e.fn, a, size, typeof size === 'number' ? Math.max(size, 2) : 0));
-    }
-    // the multi-step windows, the library's (pure-library.ts): over a count of periods (0: every observation, or from
-    // the start) with its ramp, or over a calendar period where the library has the function
-    case 'zscores': {
-      const size = span('w');
-      if (typeof size !== 'number') return done(w.libraryOfPeriod('zscoresPeriod', 'z', a, size));
-      return done(w.library('zscores', 'z', a, size === 0 ? 'all' : size, [lit.integer(size)]));
-    }
-    case 'winsorize':
-      return done(w.library('winsorize', 'wins', a, 'all', [float(n('limit'))]));
-    case 'volatility': {
-      const r = w.returns(a, 1, word('type'));
-      const size = span('w');
-      // over a count of periods (0: from the start): the library's (pure-library.ts volatility), of the returns above
-      if (typeof size === 'number') {
-        return done(w.library('volatility', 'vol', r, Writer.frame(size) as 'running' | number, [lit.integer(Math.max(size, 2)), colSpec(w.perYearColumn())]));
-      }
-      // over a calendar period, from the first price's date that period on: gs-quant's returns keep the first price's
-      // date (its return none), which its ramp counts from (the E9 review's nit: from the first return's, a date late)
-      return done(w.libraryOfLine('volatilityPeriod', 'vol', a, [colSpec(r), lit.integer(size.n), enumValue(DURATION, size.unit), colSpec(w.perYearColumn())]));
-    }
-    case 'drawdown': {
-      const size = span('w');
-      if (typeof size !== 'number') return done(w.libraryOfPeriod('drawdownPeriod', 'dd', a, size));
-      return done(w.library('drawdown', 'dd', a, Writer.frame(size) as 'running' | number, [lit.integer(size)]));
-    }
-    case 'max_drawdown': {
-      const size = span('w');
-      if (typeof size === 'number') return done(w.library('maxDrawdown', 'mdd', a, Writer.frame(size) as 'running' | number, [lit.integer(size)]));
-      // over a calendar period: its ramp from the first date the series has, not its drawdowns' (a period later)
-      return done(w.libraryOfPeriod('maxDrawdownPeriod', 'mdd', a, size));
-    }
-    case 'sharpe_ratio': {
-      const size = span('w');
-      const r = w.simple(a);
-      // over a count of periods: the library's, its ramp the deviation's (two at least) and the window's
-      if (typeof size === 'number') {
-        return done(w.library('sharpeRatio', 'sharpe', r, Writer.frame(size) as 'running' | number,
-          [lit.integer(Math.max(size, 2)), colSpec(w.perYearColumn())]));
-      }
-      // over a calendar period: its ramp from the first price's date, not its returns'
-      return done(w.libraryOfLine('sharpeRatioPeriod', 'sharpe', a, [colSpec(r), lit.integer(size.n), enumValue(DURATION, size.unit), colSpec(w.perYearColumn())]));
-    }
-    case 'bollinger_bands': {
-      // the library's: over a count of periods (its ramp the window's and two), or a calendar period
-      const size = span('w');
-      const k = float(n('k'));
-      const [lower, upper, width] = typeof size === 'number'
-        ? w.libraryOfMany('bollingerBands', ['lower', 'upper', 'width'], [w.windowOf(Writer.frame(size) as 'running' | number), colSpec(a), lit.integer(size), k])
-        : w.libraryOfMany('bollingerBandsPeriod', ['lower', 'upper', 'width'],
-          [colSpec(w.part), colSpec(w.at), colSpec(a), lit.integer(size.n), enumValue(DURATION, size.unit), k]);
-      return { w, v: { lower: lower!, upper: upper!, width: width! } };
-    }
-    case 'rsi':
-      // gs-quant's (technicals.relative_strength_index): each change's gain and loss, each Wilder's smoothed average over
-      // w of them (its first the mean of the w changes after the first, as gs-quant's ramp has it) -- the library's
-      return done(w.libraryOfLine('rsi', 'rsi', a, [lit.integer(n('w'))]));
-    case 'smoothed_moving_average':
-      return done(w.smoothed(a, n('w')));
-    case 'dickey_fuller':
-    case 'half_life': {
-      // Δx = a + b·x[-1] over the window, least squares (the next phases' 4): b their covariance over x[-1]'s variance --
-      // its t-statistic Dickey and Fuller's (statsmodels' adfuller of no lags, a constant), its half-life −ln 2 / ln(1 + b)
-      const size = span('w');
-      // w differences (w + 1 values): a fit of a constant and a slope over under 3 has no deviation left to judge it by
-      if (typeof size === 'number' && size > 0 && size < 3) throw new CubeRefusal(`${e.fn} over ${size} differences has no deviation left: w is 0 (every one to date) or at least 3`);
-      const frame = Writer.frame(size);
-      // the library's (pure-library.ts dickeyFuller, halfLife): of a count of periods, its ramp three at least; of a calendar
-      // period, from the first pair's date that period on
-      const of = e.fn === 'half_life' ? 'halfLife' : 'dickeyFuller';
-      if (typeof frame !== 'object') return done(w.library(of, e.fn, a, frame, [lit.integer(Math.max(size as number, 3))]));
-      return done(w.libraryOfPeriod(`${of}Period`, e.fn, a, frame));
-    }
-    // the self-joins, the library's (pure-library.ts): each row's window its line joined to itself on the rows (or the
-    // dates of a calendar period) back
-    case 'percentiles': {
-      // scipy's percentileofscore(window, value, kind='mean'), gs-quant's: the share of the window below the value, those
-      // equal to it counted half, in percent
-      const size = span('w');
-      return done(typeof size === 'number' ? w.libraryOfLine('percentiles', 'pr', a, [lit.integer(size)])
-        : w.libraryOfPeriod('percentilesPeriod', 'pr', a, size));
-    }
-    case 'median':
-    case 'percentile': {
-      // pandas' quantile (the database's continuous percentile, between the two nearest): a median its 50th
-      const size = span('w');
-      // the planner takes the fraction as a literal alone (an aggregate's argument): gs-quant's n of 100 spelled as one
-      const q = float(e.fn === 'median' ? 0.5 : n('n') / 100);
-      // of every value (percentile's w 0): one aggregate a line, never each row joined to every other (the E9 review's 5:
-      // 4,000 rows took 4.5 s)
-      if (e.fn === 'percentile' && size === 0) return done(w.libraryOfRow('quantileOfLine', 'pct', [colSpec(w.part), colSpec(a), q]));
-      return done(typeof size === 'number' ? w.libraryOfLine('quantile', 'pct', a, [lit.integer(size), q])
-        : w.libraryOfPeriod('quantilePeriod', 'pct', a, size, [q]));
-    }
-    case 'exponential_moving_average':
-      return done(n('beta') === 0 ? a : w.ewm(a, float(n('beta'))));
-    case 'exponential_std':
-      return done(w.ewmStd(a, float(n('beta'))));
-    // the exponentials, the library's (pure-library.ts): gs-quant's exponential_volatility (annualize(exponential_std(
-    // returns(x), beta)) * 100), exponential_spread_volatility (of diff(x, 1), in its own units) and macd (ewm(span=m) -
-    // ewm(span=n), itself ewm(span=s); a span of 1 each value as it is)
-    case 'exponential_volatility':
-      return done(w.libraryOfLine('exponentialVolatility', 'evol', a, [float(n('beta')), colSpec(w.perYearColumn())]));
-    case 'exponential_spread_volatility':
-      return done(w.libraryOfLine('exponentialSpreadVolatility', 'esvol', a, [float(n('beta')), colSpec(w.perYearColumn())]));
-    case 'macd':
-      return done(w.libraryOfLine('macd', 'macd', a, [lit.integer(n('m')), lit.integer(n('n')), lit.integer(n('s'))]));
-    // the row maths and the functions along the line, the library's (pure-library.ts)
-    case 'log':
-    case 'exp':
-    case 'sqrt':
-    case 'abs':
-    case 'not':
-      return done(w.libraryOfRow(e.fn, e.fn, [colSpec(a)]));
-    case 'power':
-      return done(w.libraryOfRow('power', 'pow', [colSpec(a), float(n('y'))]));
-    case 'floor':
-    case 'ceil':
-      return done(w.libraryOfRow(e.fn, e.fn, [colSpec(a), float(n('value'))]));
-    case 'filter': {
-      // gs-quant's filter_: the values the operator matches removed (empty: the dates of none) -- the rows dropped,
-      // after every figure before it is computed over them all (a filter of a window's figure is the database's
-      // QUALIFY), so a figure after it reads the dates left
-      const how = word('operator');
-      const operators: readonly string[] = LIBRARY_ENUMS.FilterOperator;
-      if (!operators.includes(how)) throw new CubeRefusal(`there is no ${JSON.stringify(how)} filter (${operators.join(', ')})`);
-      w.rel = w.rel.call(`${LIBRARY_PACKAGE}::filterValues`, colSpec(a), libraryOption('FilterOperator', how), float(n('value')));
-      return done(a);
-    }
-    case 'product': {
-      const size = span('w');
-      const frame = Writer.frame(size);
-      // the library's (pure-library.ts product, productPeriod)
-      if (typeof frame !== 'object') return done(w.library('product', 'prod_v', a, frame, [lit.integer(size as number)]));
-      return done(w.libraryOfPeriod('productPeriod', 'prod_v', a, frame));
-    }
-    case 'geometrically_aggregate':
-      return done(w.libraryOfLine('geometricallyAggregate', 'geo', a, []));
-    case 'smooth_spikes':
-      // gs-quant's: a value beyond both neighbours (by 1 + threshold times, or threshold beyond) their mean -- beside none
-      // no spike (a comparison with NaN never holds: kept, the Phase 1 review's 6); its first and last rows dropped (none)
-      return done(w.libraryOfLine('smoothSpikes', 'smooth', a, [float(n('threshold')), libraryOption('ThresholdType', word('type'))]));
-    case 'vol_swap_volatility': {
-      // gs-quant's: the root mean square of log returns (a mean of zero) over the window, times the root of 252, in percent
-      const size = span('w');
-      const frame = Writer.frame(size);
-      // the library's (pure-library.ts volSwapVolatility, volSwapVolatilityPeriod)
-      if (typeof frame !== 'object') return done(w.library('volSwapVolatility', 'vs', a, frame, [lit.integer(size as number)]));
-      return done(w.libraryOfPeriod('volSwapVolatilityPeriod', 'vs', a, frame));
-    }
-    case 'consecutive':
-      // a run of values above 0 (below), counted to each date; 0 where it breaks -- each break begins a group
-      return done(w.libraryOfLine('consecutive', 'cs', a, [libraryOption('Direction', word('direction'))]));
-    case 'trend':
-    case 'seasonally_adjusted':
-      return done(decomposed(sh, w, a, e.fn, word('method'), word('freq')));
-    case 'first':
-    case 'last':
-      // on every date it has, those of none too (gs-quant's fills its index: the Phase 1 review's 6): the library's
-      return done(w.libraryOfLine(e.fn, e.fn, a, []));
-    case 'count':
-      return done(w.libraryOfLine('count', 'count', a, []));
-    case 'day':
-    case 'month':
-    case 'year':
-    case 'quarter':
-    case 'weekday':
-      // of every date it has, those of none too (gs-quant's: of its index); pandas' 0 for a Monday
-      return done(w.libraryOfRow(e.fn, e.fn, [colSpec(w.at)]));
-    case 'if':
-    case 'compare':
-    case 'union':
-    case 'append':
-    case 'prepend':
-    case 'excess_returns':
-    case 'weighted_sum':
-      throw new Error(`${e.fn} is written by otherCalls`);
-    case 'atr':
-    case 'stochastic':
-    case 'keltner_channels':
-    case 'donchian_channels':
-    case 'obv':
-    case 'vwap':
-    case 'tracking_error':
-    case 'information_ratio':
-    case 'up_capture':
-    case 'down_capture':
-    case 'total_return':
-    case 'basket':
-    case 'lead_lag':
-      throw new Error(`${e.fn} is written by analystCalls`);
-  }
-}
-
-/**
- * A CLASSICAL DECOMPOSITION (gs-quant's technicals.trend and seasonally_adjusted, statsmodels' seasonal_decompose):
- * over a cycle of p observations of the tile's frequency, its trend a moving average centred over p (of p + 1, the ends
- * halved, for an even p), none where the window is not whole; each place in the cycle's (its row's number, mod p) mean of
- * the detrended values (x less the trend, or over it), centred (less their mean, or over it): the season. Adjusted, x
- * less its season (over it), where the trend is -- every step the database's.
- */
-function decomposed(sh: Shared, w: Writer, a: string, what: 'trend' | 'seasonally_adjusted', method: string, freq: string): string {
-  const grain = sh.grain;
-  const p = grain === undefined ? undefined : CYCLES[grain]?.[freq];
-  if (grain === undefined) throw new CubeRefusal(`${what} counts its cycle in the tile's periods: give the tile a frequency (Monthly)`);
-  if (p === undefined) throw new CubeRefusal(`${what}: a ${freq} is no cycle of ${grain === 'day' ? 'days' : `${grain}s`} -- choose a longer one, or another frequency`);
-  // the library's (pure-library.ts trend, seasonallyAdjusted): a cycle of p periods, k its reach either side (a
-  // window's frame, a literal)
-  const k = Math.floor(p / 2);
-  if (what === 'trend') return w.libraryOfLine('trend', 'dc_trend', a, [lit.integer(p), lit.integer(k)]);
-  // its place in the cycle: the calendar's at a frequency of months, quarters or weeks, the library's (periodIndex) -- a
-  // missing one never moving the places after it, as gs-quant's calendar filled first keeps them (the Phase 1 review's
-  // 4) -- its row's number at days, a cycle of business days (a place is read modulo the cycle: where it starts counting
-  // moves no value to another place)
-  const place = grain === 'month' || grain === 'quarter' || grain === 'week'
-    ? w.libraryOfRow('periodIndex', 'dc_i', [colSpec(PERIOD), libraryOption('Grain', grain)]) : w.rowNumber();
-  return w.libraryOfLine('seasonallyAdjusted', 'dc_sa', a,
-    [colSpec(place), lit.integer(p), lit.integer(k), libraryOption('SeasonalModel', method)]);
-}
-
-/** A base's aggregate over a period's rows (`ord`: the row's number in time, which `last` and `first` order by). */
-function baseAggregate(name: string, b: Base, ord: string): ColSpec {
-  const y = variable('y');
-  switch (b.fn) {
-    case 'last':
-    case 'first':
-      return agg(name, row(fn('rowMapper', col(b.column), col(ord))), lambda(['y'], fn(b.fn === 'last' ? 'maxBy' : 'minBy', y)));
-    case 'average':
-    case 'sum':
-    case 'min':
-    case 'max':
-      return agg(name, row(col(b.column)), lambda(['y'], fn(b.fn, y)));
   }
 }
 
@@ -1681,18 +484,23 @@ export function periodType(ts: TimeseriesSpec, input: TsInput, src: TsSource): s
  * index starts.
  */
 function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, anchor: string | undefined, names: { n: number } = { n: 0 }): Built {
-  const expr = candled(inlined(series.expr, ts.series));
+  const expr = inlined(series.expr, ts.series);
   const read = sourcesOf(ts, expr);
   if (read.length === 0) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
   // `names`: a query of two series' relations names their columns apart (a scatter's)
   const sh: Shared = { ts, grain: ts.grain, series, inputs, split: series.split, first: read[0]!, anchor, periodType: undefined, names };
-  const top = write(sh, expr);
-  if ('constant' in top) throw new CubeRefusal(`series ${series.id} reads no column of a grid`);
-  const w = top.w;
+  // every source's dates of one type (a combination of a date's and a date-time's needs a frequency)
+  for (const alias of read) {
+    const { src, input } = sourceNamed(ts, inputs, alias);
+    periodTyped(sh, periodOf(ts.grain, src.date, typeIn(input.snapshot, src.date)).type, alias);
+  }
+  const first = sourceNamed(ts, inputs, read[0]!).src;
   const split = series.split;
-  if (split !== undefined && !w.split) {
+  if (split !== undefined && !readsEvery(ts, expr, first, split)) {
     throw new CubeRefusal(`series ${series.id} is split by ${split}, but reads one ${split}'s rows alone: a line per ${split} needs a column of every one`);
   }
+  const w = tsWriter(sh, expr, first, read);
+  const top = { v: w.answered };
   if (split !== undefined) {
     const rank = `${WINDOW_ALL_PREFIX}ts_line`;
     w.rel = w.rel.extend([derive(rank, lambda(['p', 'w', 'r'], fn('denseRank', variable('p'), variable('w'), variable('r'))))],
@@ -1743,7 +551,84 @@ function seriesRelation(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeries, 
   return {
     rel: w.rel, period: PERIOD, ord: ORD, at: w.at, periodType: sh.periodType!, ...built, ...(shade ?? {}), ...(split !== undefined ? { split } : {}),
     unit, level, ...(rows !== undefined ? { rows } : {}), ...(perYear !== undefined ? { perYear } : {}), sources: read, writer: w,
+    lets: w.lets,
   };
+}
+
+/**
+ * A SERIES AS THE TIMESERIES LANGUAGE ANSWERS IT (docs/TS_LANGUAGE_BUILD_2026_10_30.md P6): its #TS{...}# query
+ * (timeseries-ts.ts, every figure the platform's #TS builder's and the library's), each source bound by `let` -- and
+ * over its answer the tile's own columns: its line (the split, else one), its period at the tile's frequency, its
+ * number in time, the rows a date has (ruling 8: several rows on a date are several points, which the drawing says),
+ * and the periods a year a figure was annualized by. The answer keeps every date the series' line has, a value or none
+ * (the item `present`, never none: R6 keeps a row where an item has a value).
+ */
+function tsWriter(sh: Shared, expr: TsExpr, first: TsSource, read: readonly string[]): Writer & { readonly answered: Value; readonly lets: readonly ValueSpecification[] } {
+  const island = tsIsland(tsQueryText(sh.ts, sh.series, sh.anchor, true));
+  const lets = tsLets(sh.inputs, sh.ts, read);
+  const at = freshName(sh, 'at');
+  const fieldsOf = isBand(expr) ? ['lower', 'upper', 'width'] : isCandles(expr) ? ['open', 'high', 'low', 'close'] : [];
+  const items = fieldsOf.length === 0 ? [TS_ITEM] : fieldsOf.map((f) => `${TS_ITEM}_${f}`);
+  const own = items.map(() => freshName(sh, 'v'));
+  let rel = from(island).rename(first.date, at);
+  items.forEach((c, i) => { rel = rel.rename(c, own[i]!); });
+  const split = sh.split;
+  const part = split ?? freshName(sh, 'line');
+  if (split === undefined) rel = rel.extend([derive(part, row(lit.string('all')))]);
+  // its period at the tile's frequency, its number in time (a day's, or a date-time's second of no frequency)
+  const grain = sh.grain;
+  const seconds = grain === undefined && !isDay(sh.periodType!);
+  rel = rel.extend([
+    derive(PERIOD, row(grain === undefined || grain === 'day' ? col(at) : fn(GRAIN_FUNCTION[grain], one(at)))),
+    derive(ORD, row(fn('dateDiff', literalNode('1970-01-01', 'StrictDate'), one(at), enumValue(DURATION, seconds ? 'SECONDS' : 'DAYS')))),
+  ]);
+  const rows: string[] = [];
+  if (grain === undefined) {
+    // the rows the line has on the date (ruling 8): more than one, and the drawing says so
+    const n = freshName(sh, 'rows');
+    rel = rel.extend([agg(n, lambda(['p', 'w', 'r'], Writer.read(at)), lambda(['y'], fn('count', variable('y'))))], fn('over', colSpecs([part, at])));
+    rows.push(n);
+  }
+  const w = new Writer(rel, { part, split: split !== undefined, at, seconds, rows, years: [] }, sh);
+  // the periods a year a figure was annualized by: the tile's frequency's, else those its dates infer
+  if (annualizes(expr)) w.perYear();
+  const answered: Value = fieldsOf.length === 0 ? { column: own[0]! } : fieldsOf.length === 3
+    ? { lower: own[0]!, upper: own[1]!, width: own[2]! } : { open: own[0]!, high: own[1]!, low: own[2]!, close: own[3]! };
+  return Object.assign(w, { answered, lets });
+}
+
+/** The functions whose figures are annualized by a line's periods a year (the library's perYear argument). */
+const ANNUALIZED: ReadonlySet<string> = new Set(['annualize', 'volatility', 'sharpe_ratio', 'alpha', 'tracking_error',
+  'information_ratio', 'exponential_volatility', 'exponential_spread_volatility']);
+
+function annualizes(e: TsExpr): boolean {
+  switch (e.kind) {
+    case 'call': return ANNUALIZED.has(e.fn) || e.args.some(annualizes);
+    case 'binary': return annualizes(e.left) || annualizes(e.right);
+    default: return false;
+  }
+}
+
+/** Whether `e` reads a column of `src` of every value of `split` -- one its matches pick no one value of (matchesSplit). */
+function readsEvery(ts: TimeseriesSpec, e: TsExpr, src: TsSource, split: string): boolean {
+  switch (e.kind) {
+    case 'column':
+      return sourceAlias(ts, e) === src.alias && !(e.where ?? []).some((m) => {
+        const c = m.column ?? src.key;
+        return c === split || (src.key !== undefined && c === src.key);
+      });
+    case 'call': return e.args.some((a) => readsEvery(ts, a, src, split));
+    case 'binary': return readsEvery(ts, e.left, src, split) || readsEvery(ts, e.right, src, split);
+    default: return false;
+  }
+}
+
+/** The query of `rel`, a relation over the series' answers: each source's `let` (once, a combination's two series
+ *  sharing their sources), then `rel`. */
+function queryOf(rel: Relation, ...of: readonly Built[]): Lambda {
+  const lets = new Map<string, ValueSpecification>();
+  for (const b of of) for (const l of b.lets) lets.set(JSON.stringify((l as AppliedFunction).parameters[0]), l);
+  return lambda([], ...lets.values(), rel.node);
 }
 
 /** The sources a series reads, by alias, in the order it reads them: one, run where its grid runs; more, a combination. */
@@ -1793,7 +678,7 @@ export function seriesQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSeri
   rel = rel.sort([desc(TS_DATE)]);
   return {
     series: series.id,
-    query: rel.lambda(),
+    query: queryOf(rel, b),
     unit: b.unit,
     band: b.lower !== undefined,
     ...(b.open !== undefined ? { candles: true } : {}),
@@ -1963,7 +848,7 @@ export function drawdownsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsS
   if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
   rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), ...out]).sort([...(b.split !== undefined ? [asc(TS_SPLIT)] : []), asc(TS_DD_RANK)]);
   return {
-    series: series.id, query: rel.lambda(), unit: b.unit, band: false, ...(b.split !== undefined ? { split: b.split } : {}),
+    series: series.id, query: queryOf(rel, b), unit: b.unit, band: false, ...(b.split !== undefined ? { split: b.split } : {}),
     level: true, counted: false, sources: b.sources,
   };
 }
@@ -1985,26 +870,20 @@ export const TS_CORR_N = '__ts_corr_n';
 export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSeries, b: TsSeries, view: TsWindow = {}): TsQuery {
   const names = { n: 0 };
   let periodType: string | undefined;
-  const side = (s: TsSeries): { readonly w: Writer; readonly v: string; readonly sources: readonly string[] } => {
-    const expr = candled(inlined(s.expr, ts.series));
+  const side = (s: TsSeries): { readonly w: Writer; readonly v: string; readonly sources: readonly string[]; readonly b: Built } => {
+    const expr = inlined(s.expr, ts.series);
     if (isBand(expr) || isCandles(expr) || isCondition(expr)) throw new CubeRefusal(`series ${s.id} is drawn, never correlated: a band, candles or a condition`);
-    const read = sourcesOf(ts, expr);
-    if (read.length === 0) throw new CubeRefusal(`series ${s.id} reads no column of a grid`);
-    const sh: Shared = { ts, grain: ts.grain, series: s, inputs, split: s.split, first: read[0]!, anchor: view.from, periodType: undefined, names };
-    const node = write(sh, expr);
-    if ('constant' in node) throw new CubeRefusal(`series ${s.id} reads no column of a grid`);
-    if (s.split !== undefined && !node.w.split) {
-      throw new CubeRefusal(`series ${s.id} is split by ${s.split}, but reads one ${s.split}'s rows alone: a line per ${s.split} needs a column of every one`);
-    }
-    if (periodType === undefined) periodType = sh.periodType;
-    else if (sh.periodType !== periodType) throw new CubeRefusal(`series ${a.id} and ${b.id} are of dates of two types: give the tile a frequency (Daily) to read both by day`);
-    const w = node.w;
-    const own = columnOfValue(node.v);
+    const built = seriesRelation(inputs, ts, s, view.from, names);
+    if (periodType === undefined) periodType = built.periodType;
+    else if (built.periodType !== periodType) throw new CubeRefusal(`series ${a.id} and ${b.id} are of dates of two types: give the tile a frequency (Daily) to read both by day`);
+    const w = built.writer;
+    // the series as it is, before a compare took it from its start
+    const own = built.levelValue ?? built.value;
     const shown: ValueSpecification[] = [fn('isNotEmpty', col(own))];
-    if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(w.at), dateLiteral(view.from, sh.periodType!)));
-    if (view.to !== undefined) shown.push(fn('lessThanEqual', one(w.at), dateLiteral(`${view.to}${isDay(sh.periodType!) ? '' : 'T23:59:59'}`, sh.periodType!)));
+    if (view.from !== undefined) shown.push(fn('greaterThanEqual', one(w.at), dateLiteral(view.from, built.periodType)));
+    if (view.to !== undefined) shown.push(fn('lessThanEqual', one(w.at), dateLiteral(`${view.to}${isDay(built.periodType) ? '' : 'T23:59:59'}`, built.periodType)));
     w.rel = w.rel.filter(row(and(...shown)));
-    return { w, v: levelOf(expr) ? w.simple(own) : own, sources: read };
+    return { w, v: levelOf(expr) ? w.simple(own) : own, sources: built.sources, b: built };
   };
   const A = side(a);
   const la = names.n++;
@@ -2013,6 +892,7 @@ export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSer
   const left = A.w.rel.select([A.w.part, PERIOD, A.v]).rename(A.w.part, pa).rename(A.v, va);
   let pairs: Relation;
   let sources = A.sources;
+  let builts: Built[] = [A.b];
   const bp = `__ts_corr_pb_${names.n}`;
   const bper = `__ts_corr_per_${names.n}`;
   const vb = `__ts_corr_vb_${names.n++}`;
@@ -2026,6 +906,7 @@ export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSer
   } else {
     const B = side(b);
     sources = [...new Set([...A.sources, ...B.sources])];
+    builts = [A.b, B.b];
     const right = B.w.rel.select([B.w.part, PERIOD, B.v]).rename(B.w.part, bp).rename(PERIOD, bper).rename(B.v, vb);
     pairs = left.join(right, 'INNER', on([]));
   }
@@ -2037,7 +918,7 @@ export function correlationsQuery(inputs: TsInputs, ts: TimeseriesSpec, a: TsSer
   const lines = [...(a.split !== undefined ? [derive(TS_CORR_A, row(col(pa)))] : []), ...(b.split !== undefined ? [derive(TS_CORR_B, row(col(bp)))] : [])];
   if (lines.length > 0) rel = rel.extend(lines);
   rel = rel.select([...(a.split !== undefined ? [TS_CORR_A] : []), ...(b.split !== undefined ? [TS_CORR_B] : []), TS_CORR, TS_CORR_N]);
-  return { series: a.id, query: rel.lambda(), unit: 'number', band: false, level: false, counted: false, sources };
+  return { series: a.id, query: queryOf(rel, ...builts), unit: 'number', band: false, level: false, counted: false, sources };
 }
 
 // -- the views of a tile (the next phases' 3, 2026-10-26: a scatter, seasonality, a histogram, a curve, the calendar):
@@ -2116,7 +997,7 @@ export function scatterQuery(inputs: TsInputs, ts: TimeseriesSpec, x: TsSeries, 
     .call(L('fitAt'), colSpec(TS_SC_INTERCEPT), colSpec(TS_SC_SLOPE), colSpec(TS_SC_X_HIGH), colSpec(TS_SC_FIT_HIGH));
   rel = rel.select([TS_DATE, TS_SC_X, TS_SC_Y, TS_SC_N, TS_SC_SLOPE, TS_SC_INTERCEPT, TS_SC_CORR, TS_SC_R2, TS_SC_X_LOW, TS_SC_X_HIGH, TS_SC_FIT_LOW, TS_SC_FIT_HIGH])
     .sort([asc(TS_DATE)]);
-  return { series: y.id, query: rel.lambda(), unit: Y.unit, band: false, level: false, counted: false, sources: [...new Set([...X.sources, ...Y.sources])] };
+  return { series: y.id, query: queryOf(rel, X, Y), unit: Y.unit, band: false, level: false, counted: false, sources: [...new Set([...X.sources, ...Y.sources])] };
 }
 
 /** The columns a projection answers with, one row: the fit at the first of the observations it is fit over and at the
@@ -2156,7 +1037,7 @@ export function projectionQuery(inputs: TsInputs, ts: TimeseriesSpec, p: TsProje
   const rel = w.rel.call(`${LIBRARY_PACKAGE}::projection`, colSpec(w.part), colSpec(b.at), colSpec(b.ord), colSpec(b.value),
     lit.integer(p.window ?? TS_PROJECTION_WINDOW), lit.integer(ahead.n), enumValue(DURATION, ahead.unit), enumValue(DURATION, w.seconds ? 'SECONDS' : 'DAYS'),
     ...out.map((c) => colSpec(c))).select(out);
-  return { series: s.id, query: rel.lambda(), unit: b.unit, band: false, level: b.level, counted: false, sources: b.sources };
+  return { series: s.id, query: queryOf(rel, b), unit: b.unit, band: false, level: b.level, counted: false, sources: b.sources };
 }
 
 /** The columns a seasonality answers with, a row per date of its last years: the date's year, its place in the year (a
@@ -2198,7 +1079,7 @@ export function seasonalityQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeri
     .select([TS_DATE, TS_SEA_YEAR, TS_SEA_PLACE, TS_VALUE, TS_SEA_LOW, TS_SEA_HIGH, TS_SEA_SPAN, TS_SEA_MEAN, TS_SEA_LATEST])
     .sort([asc(TS_SEA_YEAR), asc(TS_DATE)]);
   const unit = compare === 'rebase' && b.level ? 'index' : compare === 'percent' && b.level ? 'ratio' : b.unit;
-  return { series: s.id, query: rel.lambda(), unit, band: false, level: b.level, counted: false, sources: b.sources };
+  return { series: s.id, query: queryOf(rel, b), unit, band: false, level: b.level, counted: false, sources: b.sources };
 }
 
 /** The columns a histogram answers with, a row per bin a value fell in: its edges, how many fell in it, how many a
@@ -2230,7 +1111,7 @@ export function histogramQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries
   const out = [TS_HIST_LOW, TS_HIST_MID, TS_HIST_HIGH, TS_HIST_COUNT, TS_HIST_NORMAL, TS_HIST_P5, TS_HIST_MEAN, TS_HIST_SD, TS_HIST_N];
   const rel = w.rel.call(`${LIBRARY_PACKAGE}::histogramOfLine`, colSpec(w.part), colSpec(b.value), lit.integer(bins), float(VAR_LEVEL), ...out.map((c) => colSpec(c)))
     .select(out).sort([asc(TS_HIST_LOW)]);
-  return { series: s.id, query: rel.lambda(), unit: b.unit, band: false, level: b.level, counted: false, sources: b.sources };
+  return { series: s.id, query: queryOf(rel, b), unit: b.unit, band: false, level: b.level, counted: false, sources: b.sources };
 }
 
 /** The columns a curve answers with, a row per line (its split value, TS_SPLIT) and for each date asked (its place
@@ -2276,7 +1157,7 @@ export function curveQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries, da
   const rel = w.rel.groupBy([split], aggs).extend([derive(TS_SPLIT, row(col(split)))])
     .select([TS_SPLIT, ...dates.flatMap((_, i) => { const c = curveColumns(i); return [c.asked, c.value, c.date]; })])
     .sort([asc(TS_SPLIT)]);
-  return { series: s.id, query: rel.lambda(), unit: b.unit, band: false, level: b.level, split, counted: false, sources: b.sources };
+  return { series: s.id, query: queryOf(rel, b), unit: b.unit, band: false, level: b.level, split, counted: false, sources: b.sources };
 }
 
 /** A tenor as a curve's key spells it (`3M`, `10Y`, `1W`): its span in days, to order by (never drawn). */
@@ -2337,7 +1218,7 @@ export function calendarQuery(inputs: TsInputs, ts: TimeseriesSpec, s: TsSeries)
   if (b.split !== undefined) rel = rel.extend([derive(TS_SPLIT, row(col(b.split)))]);
   rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), TS_CAL_YEAR, TS_CAL_MONTH, TS_CAL_RETURN, TS_CAL_YEAR_RETURN, TS_CAL_LOW])
     .sort([...(b.split !== undefined ? [asc(TS_SPLIT)] : []), asc(TS_CAL_YEAR), asc(TS_CAL_MONTH)]);
-  return { series: s.id, query: rel.lambda(), unit: 'ratio', band: false, level: false, counted: false, sources: b.sources, ...(b.split !== undefined ? { split: b.split } : {}) };
+  return { series: s.id, query: queryOf(rel, b), unit: 'ratio', band: false, level: false, counted: false, sources: b.sources, ...(b.split !== undefined ? { split: b.split } : {}) };
 }
 
 /** The series a tile's views can draw: of one line drawn on an axis (a scatter's, a seasonality's, a histogram's), and
@@ -2618,7 +1499,7 @@ export function statsQuery(inputs: TsInputs, ts: TimeseriesSpec, series: TsSerie
   rel = rel.select([...(b.split !== undefined ? [TS_SPLIT] : []), ...kept]);
   return {
     series: series.id,
-    query: rel.lambda(),
+    query: queryOf(rel, b),
     unit: b.unit,
     band: false,
     ...(b.split !== undefined ? { split: b.split } : {}),

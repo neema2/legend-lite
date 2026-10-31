@@ -27,7 +27,7 @@ import {
 import { TAB_TABLES, openSources, type JoinOpening } from '../src/join-open.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
-import { asc, col as column, collection, colSpec, fn as call, from, functionsCalled, lambda, lit, minus, Relation, toJson } from '../../pure-protocol/src/index.ts';
+import { asc, col as column, collection, colSpec, fn as call, from, lambda, lit, minus, Relation, toJson, walk, type Lambda } from '../../pure-protocol/src/index.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
@@ -183,6 +183,22 @@ function spec(exprs: Record<string, string>, more: Partial<TimeseriesSpec> = {},
 async function run(query: { query: unknown }): Promise<ResultTable> {
   return engine.execute(await planner.plan(query.query as Parameters<LitePlanner['plan']>[0]), 0);
 }
+
+/** The #TS text a tile's query sends (P6: its every figure the platform's #TS builder's). */
+function islandText(q: Lambda): string {
+  let text = '';
+  walk(q, (n) => {
+    if (n._type === 'classInstance' && n.type === 'TS') text = (n.value as { ts: string }).ts;
+  });
+  return text;
+}
+
+/** The language's name of a tile function where they differ (timeseries-ts.ts RENAMED). */
+const TS_NAMES: Readonly<Record<string, string>> = {
+  range: 'range_of(', first: 'first_of(', last: 'last_of(', filter: 'filter_values(', union: 'union_of(',
+  day: 'day_of(', month: 'month_of(', year: 'year_of(', quarter: 'quarter_of(', weekday: 'weekday_of(', log: 'ln(',
+  floor: 'CASE WHEN', ceil: 'CASE WHEN', not: 'CASE WHEN',
+};
 
 function values(t: ResultTable, name: string): unknown[] {
   const c = t.columns.find((x) => x.name === name);
@@ -423,26 +439,29 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   // the user, 2026-10-26 (pure-library.ts): the tile's mean, returns and volatility are calls of DataCube's Pure library,
   // planned over the model with the library after it -- and a query that calls none over the model as it is
-  it('mean, returns and volatility call DataCube\'s Pure library by name, which a plan request carries beside its model; a query calling none carries none', async () => {
+  // P6 (docs/TS_LANGUAGE_BUILD_2026_10_30.md): a series is its #TS query, every figure of it the platform's builder's
+  // library call (core's TsIslandTest holds which); what the tile sends is the island, and the library beside its model
+  it('a series is its #TS query, which a plan request carries with the library beside its model', async () => {
     const ts = spec({ A: 'volatility(close[AAA], 10) + mean(close[AAA], 5)' });
     const of = seriesQuery(inputs, ts, ts.series[0]!, {}, {});
-    const called = functionsCalled(of.query);
-    for (const f of ['timeseries::returns', 'timeseries::volatility', 'timeseries::mean']) assert.ok(called.has(f), `the query calls ${f}`);
+    for (const f of ['volatility(', 'mean(']) assert.ok(islandText(of.query).includes(f), `the query calls ${f}`);
     // what a host that plans and runs is sent (Python's engine): the model as it is, and the library beside it
     const model = planner.source().model;
     const asked = await planner.planRequest(of.query);
     assert.equal(asked.model, model);
     assert.equal(asked.library, DATACUBE_LIBRARY);
+    // a level too: every series is a #TS query, its lines the language's
     const plain = seriesQuery(inputs, spec({ A: 'close[AAA]' }), spec({ A: 'close[AAA]' }).series[0]!, {}, {});
-    assert.ok(![...functionsCalled(plain.query)].some((f) => f.startsWith('datacube::')), 'a level calls no library function');
     assert.equal((await planner.planRequest(plain.query)).model, model);
-    assert.equal((await planner.planRequest(plain.query)).library, undefined);
+    assert.equal((await planner.planRequest(plain.query)).library, DATACUBE_LIBRARY);
   });
 
-  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths, the functions along the line, the pairs and the combinations call the library by name: a count or a calendar period, a base the line\'s first or as of the first date shown', () => {
-    const calls = (expr: string, anchor?: string): ReadonlySet<string> => {
+  it('the levels and lags, the multi-step windows, the self-joins, the exponentials, the technicals, the row maths, the functions along the line, the pairs and the combinations are each a #TS query that plans: a count or a calendar period, a base the line\'s first or as of the first date shown', async () => {
+    const calls = async (expr: string, anchor?: string): Promise<string> => {
       const ts = spec({ A: expr });
-      return functionsCalled(seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query);
+      const q = seriesQuery(inputs, ts, ts.series[0]!, anchor === undefined ? {} : { from: anchor }, {}).query;
+      await planner.plan(q);
+      return islandText(q);
     };
     const want: readonly [string, string, string?][] = [
       ['diff(close[AAA], 2)', 'diff'], ['diff(close[AAA], 1m)', 'diffPeriod'], ['lag(close[AAA], 3)', 'lag'],
@@ -484,7 +503,13 @@ describe('gs-quant\'s functions, as the database computes them', () => {
       ['vol_swap_volatility(close[AAA], 1m)', 'volSwapVolatilityPeriod'], ['append(close[CCC], close[AAA])', 'append'],
       ['prepend(close[CCC], close[AAA])', 'prepend'],
     ];
-    for (const [expr, f, anchor] of want) assert.ok(calls(expr, anchor).has(`timeseries::${f}`), `${expr}${anchor ? ` from ${anchor}` : ''} calls ${f}`);
+    // the library function each is (the second column) is the platform's builder's to call: core's TsIslandTest
+    for (const [expr, , anchor] of want) {
+      const text = await calls(expr, anchor);
+      const fn = /^([a-z_]+)\(/.exec(expr)![1]!;
+      assert.ok(text.includes(TS_NAMES[fn] ?? `${fn}(`), `${expr}${anchor ? ` from ${anchor}` : ''} as #TS: ${text}`);
+      if (anchor !== undefined) assert.ok(text.includes(`from => '${anchor}'`), `${expr} from ${anchor}: ${text}`);
+    }
   });
 
   it('a person\'s own query calls the library over the table: its mean as the tile\'s', async () => {
@@ -1284,10 +1309,11 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     }
     await assert.rejects(line(spec({ A: 'trend(close[AAA])' })), /give the tile a frequency/);
     await assert.rejects(line(spec({ A: 'trend(close[AAA], additive, week)' }, { grain: 'week' })), /a week is no cycle of weeks/);
-    // the library's (2026-10-27): trend and seasonallyAdjusted, by name
-    for (const [text, f] of [['trend(close[AAA], additive, month)', 'trend'], ['seasonally_adjusted(close[AAA], additive, month)', 'seasonallyAdjusted']] as const) {
+    // each the language's of the same name, its cycle counted in SAMPLE BY's weeks
+    for (const text of ['trend(close[AAA], additive, month)', 'seasonally_adjusted(close[AAA], additive, month)']) {
       const ts = spec({ A: text }, { grain: 'week' });
-      assert.ok(functionsCalled(seriesQuery(inputs, ts, ts.series[0]!).query).has(`timeseries::${f}`), `${text} calls ${f}`);
+      const island = islandText(seriesQuery(inputs, ts, ts.series[0]!).query);
+      assert.ok(island.includes(`${text.slice(0, text.indexOf('('))}(`) && island.includes('SAMPLE BY 1w'), island);
     }
   });
 });
@@ -1402,9 +1428,7 @@ describe('a window by its rows: percentile ranks, medians and percentiles', () =
     close((await line(spec({ A: 'percentile(close[AAA], 25)' }))).values, AAA.map(() => quantile(AAA, 0.25)), 'the 25th of every one', 1e-12);
     // of every value: one aggregate a line joined back (the library's quantileOfLine), never each row joined to every
     // other (the E9 review's 5)
-    const calls = (text: string): ReadonlySet<string> => functionsCalled(seriesQuery(inputs, spec({ A: text }), spec({ A: text }).series[0]!).query);
-    assert.ok(calls('percentile(close[AAA], 25)').has('timeseries::quantileOfLine'), 'one aggregate a line');
-    assert.ok(!calls('percentile(close[AAA], 25)').has('timeseries::quantile'), 'no self-join');
+    // (the builder's call of it is the platform's: core's TsFunctions writes quantileOfLine for a whole line)
     const body = DATACUBE_LIBRARY.slice(DATACUBE_LIBRARY.indexOf('function timeseries::quantileOfLine'));
     assert.equal((body.slice(0, body.indexOf('\n}\n')).match(/->join\(/g) ?? []).length, 1, 'one join: the line\'s figure');
     // over a calendar period: the values after two weeks back, to this one, from the first date two weeks on
@@ -1975,8 +1999,12 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     close(l.upper!, atr.map((a, i) => (a === null || i < 19 ? null : mid[i]! + 2 * a)), 'upper', 1e-9);
   });
 
-  it('the technicals of a high, a low and a close, and the statistics against a benchmark, call the library by name', () => {
-    const calls = (text: string): ReadonlySet<string> => functionsCalled(seriesQuery(pack, spec({ A: text }), spec({ A: text }).series[0]!).query);
+  it('the technicals of a high, a low and a close, and the statistics against a benchmark, are each a #TS query that plans', async () => {
+    const calls = async (text: string): Promise<string> => {
+      const q = seriesQuery(pack, spec({ A: text }), spec({ A: text }).series[0]!).query;
+      await packs.plan(q);
+      return islandText(q);
+    };
     const want: readonly [string, string][] = [
       ['atr(high[P], low[P], close[P], 14)', 'atr'], ['stochastic(high[P], low[P], close[P], 14)', 'stochastic'],
       ['keltner_channels(high[P], low[P], close[P], 20, 10, 2)', 'keltnerChannels'], ['donchian_channels(high[P], low[P], 20)', 'donchianChannels'],
@@ -1992,7 +2020,10 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
       ['lead_lag(close[P], close[Q], 1, 1m)', 'leadLagPeriod'], ['dickey_fuller(close[P], 2m)', 'dickeyFullerPeriod'],
       ['half_life(close[P], 2m)', 'halfLifePeriod'],
     ];
-    for (const [expr, f] of want) assert.ok(calls(expr).has(`timeseries::${f}`), `${expr} calls ${f}`);
+    for (const [expr] of want) {
+      const fn = /^([a-z_]+)\(/.exec(expr)![1]!;
+      assert.ok((await calls(expr)).includes(`${fn}(`), `${expr} as #TS`);
+    }
   });
 
   it('donchian_channels: the lowest low and the highest high of the last w', async () => {
@@ -2365,12 +2396,13 @@ describe('a date-time source at a daily frequency: a period\'s days its last obs
     close(await tickLine('basket(close[S], 0.6, close[B], 0.4, rebalance=weekly)'), out, 'weekly basket', 1e-9);
   });
 
-  // the conversion's second review (2026-10-28): a projection of date-times counts its time in seconds -- its line by
-  // least squares on each day's last tick's time, ahead a week's seconds, its slope a day's
-  it('a projection of date-times: its time in seconds, its end a week of them past the last tick, its slope a day\'s', async () => {
+  // the conversion's second review (2026-10-28) fit a daily projection of date-times on each day's last tick's time;
+  // since the timeseries language's ruling 9 (2026-10-30) a period of a day is dated at its day, and the line drawn is
+  // of days: its least squares on them, ahead a week of them, its slope a day's
+  it('a projection of date-times at a daily frequency: its line on its days, its end a week past the last, its slope a day\'s', async () => {
     const ts = spec({ A: 'close[S]' }, { grain: 'day' });
     const t = await engine.execute(await tickPlanner.plan(projectionQuery(ticks, ts, { kind: 'projection', series: 'A', window: 5, ahead: '1w' }).query), 0);
-    const xs = T.slice(-5);
+    const xs = DAYS_T.slice(-5).map((d) => Date.parse(`${d}T00:00:00Z`) / 1000);
     const ys = SC.slice(-5);
     const mx = avg(xs);
     const my = avg(ys);

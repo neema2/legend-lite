@@ -212,3 +212,27 @@ that moves moves with its reason in the commit (AGENTS.md).
   `from => '2024-01-01'` (R9): the value as of that date, the first a chart shows (the library's `indexFrom`,
   `changeFrom`, `percentChangeFrom`, the tile's anchor). The writer passes the tile's anchor so, and the parity test
   runs each series that reads a base from a date too: **210 of 210** the same.
+- 2026-10-31: P6, the switch. **The tile and the Python DSL send `#TS`**: `seriesRelation`, which every query of a
+  tile is built on (the series, its statistics, drawdowns, correlations, the scatter, seasonality, histogram, curve,
+  calendar and projection), is the series' `#TS` query -- each source bound by `let` under the grid's filter as the
+  tile reads it -- and over its answer the tile's own columns (`tsWriter`): its line (the split, else one), its
+  period at the tile's frequency, its number in time, the rows a date has (ruling 8), the periods a year an
+  annualized figure read. **`timeseries-query.ts`'s Pure writer is deleted** (2,761 lines to 1,583): every part, join,
+  alignment, function and roll-up it wrote is the platform's builder's. What the switch needed of the language:
+  - **A query as a source** (the spec's R1.5): a `#TS` query in parentheses or named by `WITH`, its answer read on.
+    The writer uses it where the tile computes a series on its own dates and a period takes it by role -- a candle or
+    a technical of computed series under a frequency (the review's N4: `ohlc(close / 2, ...)` weekly), and a weekly
+    VWAP (each row's traded value totalled a period).
+  - **An item read from a later item's line made of its own** (one line, its rows once): the tile's answer keeps
+    every date of the series' line, a value or none, through an item never none (`ts_present`) -- and a line of
+    several rows on a date would otherwise be joined to itself.
+  - The tile's refusals in its own words before a query is written (a number where a series is read, a band or
+    candles read inside an expression, a basket's rebalance, a decomposition's frequency and cycle, a Dickey-Fuller
+    window too short); the language's own are said at planning.
+  - A match on a split source's instrument where the split is another column (split by group, `close[CCC]`) reads
+    that source a second time, of no `BY`: one line every line reads (the tile's matchesSplit).
+  The tile's suite, `//datacube:timeseries_queries_test` (163), passes on `#TS`, rewritten where it read the Pure the
+  writer sent: its library calls are the builder's (core's `TsIslandTest`), so each expression is held to plan as a
+  `#TS` query calling its function; and a daily projection of date-times fits on its days (ruling 9: a period of a
+  day is dated at its day). `//datacube:timeseries_ts_parity_test` stays as the tile's view over `#TS` against `#TS`
+  alone, every gallery series.

@@ -81,6 +81,17 @@ A source is any of four things (the user, 2026-10-30, for Class models):
    `(MarketQuote WHERE instrument.sector.name = 'Energy')` likewise over a class.
 4. **A relation of the enclosing Pure**, `FROM $quotes`: a saved query's, a grid's (how the tile hands its sources
    over), any relation a person's Pure computes.
+5. **A query of the language's own** (2026-10-30), in parentheses or named by `WITH`: its answer's rows -- its date,
+   its instrument, its items -- read on as any relation's. A line computed day by day, then each week's candle of it:
+
+   ```sql
+   WITH daily AS (SELECT close['SPX'] / close['QQQ'] AS r FROM prices ON date BY symbol)
+   SELECT ohlc(first(daily.r), max(daily.r), min(daily.r), last(daily.r)) AS ratio
+   FROM   daily ON date
+   SAMPLE BY 1w
+   ```
+
+   A subquery that names a date (`ON`) is the language's; one that does not is SQL's (3).
 
 - `ON` names the date column; `BY` the column naming each row's instrument (a symbol, a tenor, a series). `BY` is left
   out where the source has one instrument: its columns are then lines with no subscript (`total_volume`), a

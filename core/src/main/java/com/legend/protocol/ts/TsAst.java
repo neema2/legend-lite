@@ -64,7 +64,7 @@ public final class TsAst {
     }
 
     /** What a source reads. */
-    public sealed interface Source permits Named, Variable, Filtered, Flat {
+    public sealed interface Source permits Named, Variable, Filtered, Flat, Nested {
         SqlAst.Pos pos();
     }
 
@@ -79,6 +79,12 @@ public final class TsAst {
 
     /** {@code (source WHERE condition)}: a source's rows that meet the condition. */
     public record Filtered(Source of, SqlAst.Expr where, SqlAst.Pos pos) implements Source {
+    }
+
+    /** {@code (SELECT items FROM source ON date ...)}: a query of the language's own as a source -- its answer's rows
+     *  (its date, its instrument, its items), read on as any relation's: a line computed day by day, then a week's
+     *  candle of it. */
+    public record Nested(Query query, SqlAst.Pos pos) implements Source {
     }
 
     /** {@code (SELECT items FROM source [WHERE condition])}: a flat source, a class's paths named once. */

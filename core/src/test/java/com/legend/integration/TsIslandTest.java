@@ -459,6 +459,27 @@ class TsIslandTest {
     }
 
     @Test
+    void aQueryOfTheLanguageIsASourceItsAnswerReadOn() throws Exception {
+        // a line computed day by day, then each week's candle of it (the tile's candles of a computed series, its N4)
+        String ts = "|#TS{WITH d AS (SELECT CLOSE['AAA'] / CLOSE['BBB'] AS r FROM PRICES ON DAY BY SYMBOL)"
+                + " SELECT ohlc(first(d.r), max(d.r), min(d.r), last(d.r)) AS c FROM d ON DAY SAMPLE BY 1w}#";
+        for (TestBackend backend : deep()) {
+            List<Map<String, String>> got = rows(backend, ts);
+            List<List<Integer>> weeks = weeks();
+            java.util.function.Function<List<Integer>, double[]> ratios = w -> w.stream()
+                    .mapToDouble(i -> AAA[i] / BBB[i]).toArray();
+            assertClose(weeks.stream().map(w -> ratios.apply(w)[0]).toArray(Double[]::new), column(got, null, null,
+                    "c_open"), backend + ": each week's first ratio");
+            assertClose(weeks.stream().map(w -> java.util.Arrays.stream(ratios.apply(w)).max().orElseThrow())
+                    .toArray(Double[]::new), column(got, null, null, "c_high"), backend + ": its highest");
+            assertClose(weeks.stream().map(w -> java.util.Arrays.stream(ratios.apply(w)).min().orElseThrow())
+                    .toArray(Double[]::new), column(got, null, null, "c_low"), backend + ": its lowest");
+            assertClose(weeks.stream().map(w -> ratios.apply(w)[w.size() - 1]).toArray(Double[]::new),
+                    column(got, null, null, "c_close"), backend + ": its last");
+        }
+    }
+
+    @Test
     void sampleByAWeekTakesEachWeeksRowsByItsAggregate() throws Exception {
         // R5: a row a week, each line taken by its aggregate, a window then counting weeks
         List<List<Integer>> weeks = weeks();

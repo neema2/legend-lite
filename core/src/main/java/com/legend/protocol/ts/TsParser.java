@@ -460,6 +460,15 @@ public final class TsParser {
         if (from >= to) {
             throw invalid("a source in parentheses is (prices WHERE ...) or (SELECT ... FROM prices)", pos);
         }
+        if (tokens.get(from).is("select") && depthZero(from + 1, to, t -> t.is("on")) >= 0) {
+            // a query of the language's own (it names a date ON): parsed as one, its marks the whole text's
+            List<Token> own = new ArrayList<>(tokens.subList(from, to));
+            own.add(new Token(Kind.EOF, "", tokens.get(to).pos()));
+            TsParser inner = new TsParser(own, variables, alls, spans);
+            TsAst.Query q = inner.query();
+            read.addAll(inner.read);
+            return new TsAst.Nested(q, pos);
+        }
         if (tokens.get(from).is("select")) {
             int fromAt = depthZero(from + 1, to, t -> t.is("from"));
             if (fromAt < 0) {
