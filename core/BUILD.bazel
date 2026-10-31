@@ -483,6 +483,8 @@ legend_java_library(
             # the line-level spike is :ts_line_spike_test's alone (manual): it reads the timeseries project's file
             # (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md)
             "src/test/java/com/legend/integration/TsLineSpikeTest.java",
+            # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
+            "src/test/java/com/legend/integration/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
@@ -1923,6 +1925,36 @@ junit_test(
         ":core",
         ":test_backends",
         ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# PROBE (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, C1): each database's window frame offsets -- a
+# constant expression, a bound parameter, a negative offset, a reversed window: the in-process three and the embedded
+# Postgres (MariaDB's, MySQL's and ClickHouse's drivers are //pct's alone, tools/deps/jars_table.bzl). Manual: no gate runs it;
+# `bazel test //core:frame_offset_probe_test --test_output=all`, as root under a copy of
+# tools/postgres/as_unprivileged.sh outside the workspace (docs/CLOUD_SESSIONS.md).
+junit_test(
+    name = "frame_offset_probe_test",
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/FrameOffsetProbeTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        "-Dprobe.servers=Postgres",
+    ],
+    select = ["--select-class=com.legend.integration.FrameOffsetProbeTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],

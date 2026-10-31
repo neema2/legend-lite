@@ -1,6 +1,6 @@
 # The library defines the language (2026-10-31)
 
-**Status: a proposal, from a spike. Nothing in the product has changed. §7 lists the rulings it asks for.** It
+**Status: a proposal, from a spike. L2 is ruled and C1 is being built; §7 lists the rulings still open.** It
 replaces decision D6 of `docs/TS_ONE_TREE_PLAN_2026_10_31.md` (the catalog as a JSON data file) and that plan's step
 1b, if ruled. The conversation: the user asked why the catalog was a new JSON format ("We literally have a full
 language to define things (pure) and you invented a json format instead?"), saw a mismatch between the language and
@@ -106,11 +106,44 @@ What the spike found core can't do yet:
   `timeseries::line::mean<D>`). A word whose plumbing does date arithmetic, such as the periods per year, needs that
   arithmetic made generic too. That is checked word by word as each family moves.
 
+## 3a. What each database does with a frame offset that is not a literal (C1's probe, 2026-10-31)
+
+`//core:frame_offset_probe_test` (manual) runs each frame over the same five rows on DuckDB, H2, SQLite and the
+embedded Postgres. MariaDB, MySQL, ClickHouse and Trino were run from the same probe as a temporary `//pct` target,
+not committed: their drivers are `//pct`'s alone (`tools/deps/jars_table.bzl`). Snowflake, BigQuery and Databricks
+can't be reached from here.
+
+| Database | `(3 - 1) PRECEDING` | `? PRECEDING` | A negative offset | `1 PRECEDING AND 2 PRECEDING` (start after end) |
+|---|---|---|---|---|
+| DuckDB | yes | yes | **quietly empty windows** (every sum null) | quietly empty |
+| H2 | yes | yes | refused | quietly empty |
+| SQLite | yes | yes | refused | quietly empty |
+| Postgres | yes | yes | refused | quietly empty |
+| Trino | yes | yes | refused | quietly empty |
+| ClickHouse | yes | yes | refused | refused |
+| MariaDB, MySQL | **no** (syntax error) | yes | refused | quietly empty |
+
+Every one of them reads `RANGE (3 - 1) PRECEDING` and `RANGE ? PRECEDING` as it reads `ROWS`, except MariaDB and
+MySQL, which take only the parameter. And every one refuses `CURRENT ROW AND 1 PRECEDING` as written.
+
+What this means for C1:
+
+- **The database can compute an offset** on six of the eight. MariaDB and MySQL take only a literal or a bare `?`. So
+  on those two a computed offset is refused, by their dialects, by name. A literal frame is unchanged everywhere.
+- **The two quiet cases need a guard.** Upstream refuses both: a start after the end with "Invalid window frame
+  boundary - lower bound of window frame cannot be greater than the upper bound!", and a negative bound has no meaning
+  in a frame. So where a bound is not a literal, the lowering wraps each windowed value in a check the database works
+  out, with the raise every dialect already renders (`SqlFn.ERROR`). It checks that each offset is not negative and
+  that the start does not come after the end. The guard needs no expression inside the frame itself, so it works for
+  MariaDB's and MySQL's bare `?` too.
+- **Calendar frames** (`_range(n, DurationUnit, ...)`) stay literal-only in C1. The library's calendar windows are
+  self-joins, not frames.
+
 ## 4. The work, in order (each step green on the frozen answers)
 
 | # | Step | Size | Riskiest unknown |
 |---|---|---|---|
-| C1 | **Window frames from parameters** (G1): the typed `over` keeps its bounds as typed expressions until β-inlining has substituted the call's arguments, and the frame is classified then. A literal becomes a frame as today; anything else is refused as today. The arithmetic case waits on ruling L2 | medium (core) | each dialect's frame offsets, if L2 is answered "the database" |
+| C1 | **Window frames from parameters** (G1; L2 ruled): the typed `over` keeps a bound that is not a literal as a typed expression, so β-inlining substitutes the call's arguments into it. At the lowering, a bound that is a literal by then is classified by its sign, as today. Any other bound takes its direction from its shape: `-(e)` is `e PRECEDING`, anything else `e FOLLOWING`. Its value goes into the SQL for the database to compute, guarded as §3a says | medium (core) | the guard in every dialect; MariaDB and MySQL refusing a computed offset |
 | M1 | **The line type and the generic rule, one family**: the rolling statistics (mean, std, volatility, zscores, ...) as `timeseries::line::` functions; their Java cases deleted; the generic rule finds functions through the model | medium | compile time when many line functions are typed in one query (measured here) |
 | M2 | **Family by family**: returns and levels; pairs and regressions (two lines); several columns of one instrument (ATR, OHLC, stochastic: N lines joined on date and key); calendar forms; first and last | large | joining N lines, measured against today's builder |
 | M3 | **The catalog from the functions**: completions, help, Python stubs and the guide generated from the signatures, `doc.doc` and the profile's tags; the JSON catalog (`git stash@{0}`) dropped | medium | the generator reads `model.pure` through core, inside the tile's bundle budget |
@@ -148,7 +181,9 @@ alignment); the island's wire form (D1, R6); the frozen answers; and the scope r
   the same, the SQL is mostly smaller, the joins and run times are the same, and the words then live in one place. The
   alternative is to declare the words in Pure (signatures and docs only) and keep the Java cases. That still leaves
   each word's plumbing in two places.
-- **L2. A frame bound computed from a parameter, such as `rows(1 - $w, 0)`:**
+- **L2. A frame bound computed from a parameter, such as `rows(1 - $w, 0)`.** Ruled 2026-10-31 (the user: "Okay", to
+  the database computing the value, whatever it may be, its direction read from its shape). §3a has what each database
+  does; on MariaDB and MySQL a computed offset is refused. The options as they were put:
   - **(a) The database computes it (recommended).** A bound written as a minus around an expression is read as
     PRECEDING, and the expression goes into the SQL for the database to work out (`ROWS BETWEEN (63 - 1) PRECEDING`).
     The library would write `rows(-($w - 1), 0)`. This is valid upstream too, where upstream computes it. A bound whose
