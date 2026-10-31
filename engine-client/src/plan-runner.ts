@@ -15,6 +15,7 @@
 // PURE: no DOM, no planner; a host gives its session.
 
 import type { HostOperationsSource } from './host-operations.ts';
+import { familyOf, isBoolean } from './types.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -173,8 +174,9 @@ function constantRows(c: Extract<Step, { _type: 'constant' }>): string {
   if (c.columns.length !== 1 || column === undefined) throw new PlanRefusal(`a constant answer is one column, not ${c.columns.length}`);
   const typed = c.cells.map((row) => row.map((text) => {
     if (text === null) return null;
-    if (column.type === 'String') return text;
-    if (column.type === 'Boolean' && (text === 'true' || text === 'false')) return text === 'true';
+    // the cell's kind by the column type's family (the one reader, types.ts), never by its name
+    if (familyOf(column.type) === 'text') return text;
+    if (isBoolean(column.type) && (text === 'true' || text === 'false')) return text === 'true';
     throw new PlanRefusal(`a constant answer of ${column.type} ('${text}'): the planner writes a String or a Boolean`);
   }));
   return rowsOf(c.columns, typed);
