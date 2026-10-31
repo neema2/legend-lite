@@ -434,5 +434,7 @@ posted, then a row of `docs/SEMANTICS_REGISTER.md`.
   environment split in two (`planner/PlanEnv`, the planning half), and the driver's planning helpers moved to the
   planner with no rule changed (`BodyPlanner`, `EnginePlans`, `PlanAllocations` and four more); zero movement. The S2g
   brief's claim that frames never run at their let was corrected to the user first: the host passes run each frame
-  let at its let (1,974 DuckDB, 1,950 H2), kept; dropping it is the user's question. Next: S2g's third step, the frame's
-  chain planned.
+  let at its let (1,974 DuckDB, 1,950 H2), kept; dropping it is the user's question. **S2g's third step built
+  2026-10-31** (D93): a frame's chain planned in `planner/FramePlanner`; the run at the let, its trace comment and the
+  planned CTE stay in the driver, the CTE until the shared preparation's system route (S2h) and effect arms (S2d) move.
+  Next: the other S2 kinds.

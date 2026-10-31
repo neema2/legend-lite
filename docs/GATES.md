@@ -16583,6 +16583,27 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The seam program's S2g, third step: a frame's chain planned in the planner
+
+The decisions log D93; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2g). Zero movement.
+
+1. **Built:** `planner/FramePlanner` plans a frame's chain from its execute call, with no session: a plan-execute
+   peeled to its `executionPlan(...)` build (the two refusals by name unchanged), the string entry's chain, its
+   envelope and its activity's engine SQL (`executeLegendQuery`), the runtime argument's table renames on the
+   planning half, the chain's assembly (the query's lets folded, the explicit mapping attached). `BodyDriver.buildFrame`
+   asks for it and keeps what runs or reads the session's state: the run at the let (the host judge's order, the
+   engine's; under the database judge only a value-position frame runs), the activity rows' trace comment, the planned
+   CTE a database judge's readers reference and the census of how a frame is read. The CTE stays because it is planned
+   through the shared preparation (`planBare`), whose system-database route opens a session and whose answered arms
+   run effects: S2h moves the route (the planner needs the system store's table names on a server engine, a connector
+   fact today), S2d the effect arms; the CTE follows them. The string entry's activity SQL goes through
+   `EnginePlans.engineTestSql` (the engine's test database's text), so no class but the named plan-text ones holds an
+   engine-text dialect; the shared `EngineText.ENGINE_TEXT` instance replaces a fresh one per call (the renderer's two
+   nesting counters are restored in `finally`, so the two are the same).
+2. **Guards, dated:** the planner register gains `FramePlanner`; `JavaEvalLedgerTest` `BodyDriver` 1,498 -> 1,407,
+   `FramePlanner` 96 pinned where the code went, `EnginePlans` 658 -> 663 (`engineTestSql`).
+3. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's statement-origins census and pass/fail counts are identical to 745b76de's and b84b51df's (DuckDB host 2,471/108 `let=1974`, database 2,473/108 `body=6553`; H2 host 2,289/295 `let=1950`, database 2,233/353 `body=6430 fallback=18`); `bazel test --lockfile_mode=error //gates:local` (`--local_test_jobs=2`): 447 pass, 1 skipped (the arm64-only classpath test), and the 9 that start a Postgres refuse root here and pass 9 of 9 unprivileged (one at a time). The heavy lanes were not run for this step (a move); the lane sessions measure it with the round after b84b51df's.
+
 ## 2026-10-31 — The seam program's S2g, first two steps: the environment's planning half and the driver's planning helpers in the planner
 
 The decisions log D92; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.3 and §4 (S2g). Zero movement: no

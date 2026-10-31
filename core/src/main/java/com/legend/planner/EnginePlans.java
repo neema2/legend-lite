@@ -106,6 +106,14 @@ public final class EnginePlans {
                 java.util.function.UnaryOperator.identity());
     }
 
+    /** {@code raw}'s SQL in the engine's text for its test connection's database (H2): no plan parameters, no
+     *  renames -- an activity's SQL, as the engine records the SQL it generated (the frame planner's string entry). */
+    public static String engineTestSql(java.util.List<TypedSpec> raw, @com.legend.base.Nullable String mappingFqn,
+            SpecCompiler specs, PlanEnv env) {
+        return engineSql(raw, mappingFqn, specs, env, EngineText.ENGINE_TEXT, java.util.Map.of(),
+                java.util.function.UnaryOperator.identity()).sql();
+    }
+
     /** The body form, with plan-TEMPLATE parameters: each named free
      * variable lowers to the engine's {@code ${name}} placeholder
      * (value = string-typed, driving the freemarker quote template). */
