@@ -40,6 +40,7 @@ steps with checkpoints (§7).
 | R11 | "No need to push to CI until we have a good checkpoint": commits stay local between agreed checkpoints (with a backup, §9 N5). |
 | R13 | §9's N1, N2, N4, N5, N6 as recommended ("Agree to all except the assertError"): the product's query door refuses the test-only steps (B6); the test-only planning in its own library (B4); the eager run at a let on both passes (MV7); backups between checkpoints on the work branch `claude/wizardly-dirac-rw6tim-seam-wip` (no CI runs on it); a verdict group closes before every non-verdict step (2.D). N3: option A, `assertError`'s comparison in Java ("Okay that's fine"). |
 | R14 | The body is COMPILED WHOLE, then run ("Sounds good, I like it"). Two kinds of planning error, kept apart: an INVALID or UNSUPPORTED program (a type or model error, a construct lite refuses by name) is a compile error and the whole test fails, nothing recovers ("like a compiler error in another language that should just fail the whole function"); a VALID program whose evaluation raises (an error Pure raises at run time that lite detects early because its input is constant, e.g. `timeBucket`'s unit check) is planned as a RAISE at its position (`PureSql.raise`, or a raising step), so an untaken branch never raises and `assertError` catches it like any run-time error. ONE plan per body: what must run before a later statement can be written is a Keyed step inside it (the dynamic pivot's pattern, S110, S1a), never a plan in parts. |
+| R15 | 2026-10-31, the way of working: "Agree to go back to back but you need to add an audit at the end of each step before going to next step, that way we have confidence to not stop for me to look at brief or have to recheck your work manually". Each step's brief is written into this plan and the step proceeds without waiting; every step ends with an independent audit (a fresh reviewer given the code, the brief and the rulings, not the author's conclusions), its findings folded, before the next step starts. The stops that remain: an output spelling change (R12, case by case), a movement outside an approved class (§4), a brief that must depart from these rulings or a design choice no ruling covers, a red CI or lane result not attributable to infrastructure. |
 | R12 | Unchanged from the predecessor program (§8.2): never push to main, never open or merge a PR without the user's word; no output spelling change without the user's word, case by case; an answer to a question is not a go to build something else; a guard pin or allowlist moves only with a dated justification; never read, print or copy credentials; records land with the code. |
 
 ## 2. The ledger
@@ -48,7 +49,7 @@ steps with checkpoints (§7).
 
 | D | Today | After | Moves (§4) |
 |---|---|---|---|
-| D1, D20 (host), D2 | host identity asks, frame CTEs and value statements on the identity layout (`__canon`) and per-node ids | the product's object layout; ids by one counter per program (B9) | MV5 |
+| D1, D20 (host), D2 | host identity asks, frame CTEs and value statements on the identity layout (`__canon`) and per-node ids | the product's object layout; ids by one counter per program (B9) | MV5 (the counter's scope, M1: both roads one per program); the layout, the `i` spelling and the per-node ids converge with 2.A at M5 (MV6) |
 | D3 | the value lane strips synthetic fields in SQL (`withDeclaredEgress`) | the writer strips them, as the product does | text |
 | D5 | the exists-join form always on (no stated reason) | the product's rule: on unless a temporal class is read | MV6 (semantics of milestoned reads, measured) |
 | D7, D28 (values) | a graph value is one JSON-array cell, split in Java | the product's streaming root, one object per row | MV6 |
@@ -179,7 +180,7 @@ posted the same way (R7 decision 12).
 | MV2 | decision 9: the two "AssertVerdicts.side" texts | failure messages, census keys | M8 |
 | MV3 | 2.E: the database judge self-contained, arm by arm | grid-pair verdicts and messages; instance `assertEq` (a loud refusal becomes a verdict or `unjudged`); messages built in SQL per dialect | M8 |
 | MV4 | R10: the canon over the product columns | verdicts and messages carrying a canon; untracked evaluations | M8 |
-| MV5 | R10/B9: one id counter per program | id literals in multi-statement product write programs (SQL text); tests: none expected, checked | M1 |
+| MV5 | R10/B9: one id counter per program | id literals in multi-statement product write programs (SQL text); tests: none expected, checked. **Measured at M1 (2026-10-31): 0 test statements moved** (every core test package's 17,373 sent statements byte-identical before and after; the corpora's and channel B's censuses identical); product write programs now spell one counter across their statements (`ProgramObjectSitesTest`) | M1 |
 | MV6 | 2.A's convergences | D5 milestoned reads, D7 streamed graph answers, D8 H2 type holes, D18 a new refusal, D27 value-shape facts, D36 target refusals | M5 |
 | MV7 | decision 1 in one plan for both modes | the eager run at a let on the DATABASE pass too (+about 1,950 statements per corpus pass), §9 N4 | M5 |
 | MV8 | R14: compile errors fail the whole test; early-detected run-time errors become planned raises | a test failing today at an earlier assert that also holds an invalid or unsupported later statement reports the compile error instead (still failing); such a statement in a branch that never runs now fails the test; each of today's lowering-time guard errors classified compile-time or run-time by Pure's meaning (an ambiguous one posted) | M10 |
@@ -219,11 +220,13 @@ posted the same way (R7 decision 12).
 | `PlanJson.VERSION` (22) and the TypeScript runner's pin (`engine-client/src/plan-runner.ts`) | new step kinds and record fields | M2, M3, M6 |
 | `tools/deps/core-layers.txt` | the driver's line cut | M10 |
 
-## 6. Design briefs (each written in full and agreed before its step's code)
+## 6. Design briefs (each written in full before its step's code; since R15 the step proceeds and its audit checks it)
 
 - **B1, the statement entry (M5).** `PlanMaker` gains a public per-statement entry (the program so far, one
   statement -> its steps), so the old walk can ask the product planner statement by statement while asserts still take
-  the old road; after M10 it is the program road's own loop.
+  the old road; after M10 it is the program road's own loop. The entry inlines a statement under its position's mark
+  (B9) and a statement's verdict sides in one inliner run, so a call written in two sides or two statements is two
+  objects (S111's test-road limit removed); the test road's ids take the product's spelling there (MV6).
 - **B2, the runner (M3, M9).** One plan per body (R14). New: `ExpectFailure(sub-plan)` for `assertError` (the
   error its body raises at run time handed to the comparison, N3); a raising step where an early-detected run-time
   error stands as a statement of its own (R14; inside an expression it is `PureSql.raise`); `Setup` per from() (D35; established
@@ -255,7 +258,13 @@ posted the same way (R7 decision 12).
   (`TypedQuery.lowerer`, `ObjectSites.java:14-24`). An object's identity is its evaluation (its construction site and
   the positions of the maps it is built in, `compiler/spec/typed/Evaluation.java`; Pure: a new object per evaluation, a
   let names one); the counter only names sites, and one program is the scope in which objects meet. M1 checks every
-  test's ids against today's.
+  test's ids against today's. As built (M1, its audit folded): `PlanMaker.program` lowers every statement with the
+  program's one minter, and inlines each statement under a mark of its position
+  (`UserCallInliner.inlineBody(body, statement)`), because a site's instantiation numbers are counted per inliner run:
+  without the mark one function's construction called in two statements had one site. The lets are reduced before the
+  mark in every run, so a let's construction keeps one site. The test road's minter is the same class (the planner's
+  `InstanceIds` deleted), one per body, its ids still spelled `i`; its statements and verdict sides are inlined in runs
+  of their own, the limit recorded in S111, which B1 removes at M5.
 - **B10, `execute(...)` frames in the program (M3).** The chain spliced into its readers by the compiler's rules
   (`ResultEnvelopeSplice`); the frame planned once and read as a CTE where it is read more than once (MV9); the eager
   run at the let a `Check` step (decision 1); the activity's SQL and its reserved trace stamp as plan data.
@@ -367,3 +376,9 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   - T8, R13, D18, F11, D30 and MV2 have no corpus or channel B case.
 
   Checkpoint: the branch pushed, CI, the lane sessions asked. Next: M1, on the user's word.
+- 2026-10-31: the user's go for the whole program, back to back, each step ending with an independent audit (R15).
+  The lanes' round 7 on S4a's code: all five identical.
+- 2026-10-31: **M1 built** (D100). One object-id minter per program: the product's `PlanMaker.program` lowers every
+  statement with one `ObjectSites` and marks each statement's own evaluations; the test road's copy (`InstanceIds`)
+  deleted. MV5 measured: 0 test statements moved. The audit folded (the statement mark; S111's test-road limit,
+  removed at M5). Checkpoint: the branch pushed, CI, the lanes asked. Next: M2.

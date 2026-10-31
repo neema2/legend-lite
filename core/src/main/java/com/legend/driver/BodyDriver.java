@@ -137,9 +137,6 @@ public final class BodyDriver {
         java.util.Map<String, String> tableReplace() {
             return plan.tableReplace();
         }
-        com.legend.planner.InstanceIds instanceIds() {
-            return plan.instanceIds();
-        }
         java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>> planRows() {
             return plan.planRows();
         }

@@ -352,7 +352,7 @@ public final class Lowerer {
     }
 
     /** Every object carries its identity: its id, minted by {@code ids} from its site (docs/OBJECT_IDENTITY_2026_10_20.md
-     *  §3.2): one query's {@link ObjectSites}, or the statement executor's ids shared by every statement of a body. */
+     *  §3.2): the program's {@link ObjectSites}, one per program and shared by every statement of it (B9). */
     public Lowerer withObjectIdentity(Function<Object, String> ids) {
         this.instanceIdOf = ids;
         this.objectIdentity = true;

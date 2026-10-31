@@ -16583,6 +16583,70 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The test-is-the-product plan's M1: one object-id minter per program
+
+The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §6 B9 and §7 (M1); the decisions log D100. Zero test movement.
+
+1. **Built:**
+   - The lowering's `ObjectSites` is the one minter, with its spelling (`o`, or the test road's `i`); the planner's
+     `InstanceIds`, its copy, is deleted.
+   - `PlanMaker.program` lowers every statement of a program with one minter (until now one per statement's lowering,
+     each from `o1`).
+   - `PlanMaker.program` inlines each statement under a mark of its position (`UserCallInliner.inlineBody(body,
+     statement)`, `TypedQuery.resolve(..., statement)`): a site's instantiation numbers are counted per inliner run,
+     so one function's construction called in two statements had one site.
+   - The lets are reduced before the mark, so a let's construction keeps one site across statements.
+   - The test road keeps one minter per body, as before.
+2. **The audit** (independent, R15): no blocker. Folded:
+   - the statement mark (its should-fix 1, a narrow product regression the counter's scope made visible);
+   - the `count` step on the program's minter;
+   - the driver's dead accessor deleted;
+   - two stale javadocs and `docs/OBJECT_IDENTITY_2026_10_20.md` §3.2;
+   - a stronger `ProgramObjectSitesTest`: two statements' objects, a function called twice, a let read around another
+     construction, planning twice. Each fails on the old code.
+   - The plan's MV5 row and §2.A row reconciled.
+   - The test road's own limit (each statement and each verdict side inlined in its own run) recorded in S111 and in
+     B1, which removes it at M5.
+3. **Every test's ids checked:** every core test package was run before and after with every sent statement dumped:
+   17,373 statements, byte-identical (27 targets passing both times; in the `exec` package two adjacent type-probe
+   statements change order from run to run, the same multiset).
+4. **Guards, dated:**
+   - `JavaEvalLedgerTest`'s planner register drops `InstanceIds.java`.
+   - `BodyDriver` 1,012 -> 1,009 (the dead accessor).
+   - The parser-equivalence ratchet `own_corpus.matched` 3,008 -> 3,013: the new test's model joined the own corpus,
+     and its five elements match the reference parser.
+5. **Measured locally:** `corpus_duckdb`, `corpus_h2` and `pct_channel_b` uncached pass, and each corpus pass's
+   statement-origins census and pass/fail counts are identical to the M0 baseline (DuckDB host 2,471/108, database
+   2,473/108; H2 host 2,289/295, database 2,233/353; `probe=0`). `bazel test --lockfile_mode=error //gates:local`
+   (`--local_test_jobs=2`): 445 pass and 1 skipped. Two more passed on a re-run after the dated moves above:
+   `//core:census` and `//parser-equivalence:update_ratchets_test`. The 9 that start a Postgres refuse root here and
+   pass 9 of 9 unprivileged (one at a time).
+
+## 2026-10-31 — The lane sessions on S4a: every server and cloud lane identical, statements included (round 7)
+
+The arrangement of D81, round 7: the five lane sessions MEASURE ONLY on 3de15e7d (S4a's code, 8a842acb, plus docs)
+against their fe643205 runs. Every statement was compared, the system statements in particular, since S4a opens the
+system route's session after planning instead of before.
+
+| session | lanes | round 7 (3de15e7d vs fe643205) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; every statement byte-identical in order (Trino A 1688/1108/948/1410/244, Trino B 2747/1237/1967/2303/433, Postgres B 2727/1169/1967/2303/429); the 46 system statements (Postgres channel B grammar) byte-identical in the same positions; whole logs 0 differing lines |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test (0 of 20 rows); 92,841 statement records (session 52,208, other 29,689, fallback 10,610, system 262, statement 68, seed 4), 40 of 40 targets byte-identical in order; system statements (MariaDB 52, MySQL 51, ClickHouse 45, SQLite 114) and effect statements identical |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement byte-identical in order in all 10 suites; the 46 system statements (channel B grammar) identical |
+| sibling 3 | Databricks, channels A and B | identical per test; every statement byte-identical in order in all 10 targets, session, system (36) and effect statements included |
+| sibling 4 | BigQuery, channels A and B | identical per test (no flake this round); all 10 dumps byte-identical in order; the system and session temporary-table statements (channel A grammar 2, channel B grammar 45) identical |
+
+No "names the store's tables" error, no `NotImplementedException` or `IllegalStateException` anywhere; every keyword
+scan unchanged. The only red is main's: SQLite channel B essential at 332.
+
+CI on the M0 checkpoint had two infrastructure failures. On 3de15e7d:
+- `windows / pct_duckdb` failed while loading, on Maven Central 403s;
+- every macOS job was cancelled with no runner.
+
+On 96affb24, every Linux, linux-arm and Windows job passed, `windows / pct_duckdb` included. The macOS jobs were again
+cancelled with no runner assigned (`runner_id` 0, about 8 minutes queued), which alone left `gates green` red. This
+session cannot re-run jobs (403); PR comment 6546129674 records both.
+
 ## 2026-10-31 — The test-is-the-product plan's M0: the measurements (no product change)
 
 The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §7 (M0). The results are in

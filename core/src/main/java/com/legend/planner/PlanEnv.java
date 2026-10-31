@@ -10,9 +10,9 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * The PLANNING half of a body's environment (the planner-driver seam program's S2g, 2026-10-31,
  * docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md §3.3): what a statement is planned against and nothing it runs on --
  * the compiled model, the driver runtime, the dialect the plan is written in, the query's lets and the handles' rows
- * the resolver reads, the frame's table renames and bound context, the run's feature flags, the site-id minter both
- * sides of every verdict share. No session, no trace, no verdict batch: those are the driver's half
- * ({@code com.legend.driver.BodyDriver.ExecEnv}), which composes this one. Until S2g both halves were one record of
+ * the resolver reads, the frame's table renames and bound context, the run's feature flags, the body's one site-id
+ * minter (the program's, B9: every statement and both sides of every verdict share it). No session, no trace, no
+ * verdict batch: those are the driver's half ({@code com.legend.driver.BodyDriver.ExecEnv}), which composes this one. Until S2g both halves were one record of
  * the driver's, so no planning helper could leave the driver.
  *
  * <p>{@code queryLets} and {@code planRows} are the body's run-scoped accumulators (the inliner's consumed lets, the
@@ -23,7 +23,7 @@ public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtime
         com.legend.sql.dialect.SqlDialect dialect,
         java.util.Map<String, TypedSpec> queryLets,
         java.util.Map<String, String> tableReplace,
-        InstanceIds instanceIds,
+        com.legend.lowering.ObjectSites instanceIds,
         java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>> planRows,
         java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
         com.legend.compiler.spec.typed.@com.legend.base.Nullable ExecutionContext frame,
@@ -39,7 +39,10 @@ public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtime
             com.legend.sql.dialect.SqlDialect dialect, java.util.Set<com.legend.platform.Feature> features,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedTestDataGen, String> generatorPlanText) {
         return new PlanEnv(ctx, runtimeFqn, dialect, new java.util.LinkedHashMap<>(), java.util.Map.of(),
-                new InstanceIds(), new java.util.LinkedHashMap<>(), java.util.List.of(), null, features,
+                // the body is one program: one minter for its objects (B9); the test road's ids keep their own
+                // spelling until its layouts converge on the product's (the plan's M5)
+                new com.legend.lowering.ObjectSites("i"), new java.util.LinkedHashMap<>(), java.util.List.of(), null,
+                features,
                 generatorPlanText);
     }
 

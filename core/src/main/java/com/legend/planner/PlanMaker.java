@@ -120,6 +120,9 @@ public final class PlanMaker {
         List<com.legend.compiler.spec.typed.TypedSpec> lets = new ArrayList<>();
         List<ExecutionPlan.Node> steps = new ArrayList<>();
         List<String> staged = new ArrayList<>();
+        // one minter for the program's objects (B9, 2026-10-31): a let's construction read by two statements is one
+        // object in both, and every statement names its sites by the one counter
+        com.legend.lowering.ObjectSites sites = new com.legend.lowering.ObjectSites();
         for (int i = 0; i < body.size(); i++) {
             com.legend.compiler.spec.typed.TypedSpec stmt = body.get(i);
             boolean last = i == body.size() - 1;
@@ -132,8 +135,8 @@ public final class PlanMaker {
                 // STAGED ROWS: computed at this statement's turn into a temporary table of the session, which the
                 // statements after read by name (the writes between read the rows as they were)
                 String table = com.legend.resolver.StagedRows.table(let.name());
-                TypedQuery.Resolved r = query.resolve(with(lets, rows), runtime);
-                com.legend.lowering.Lowerer lowerer = query.lowerer(r.temporal(), false, slots, features);
+                TypedQuery.Resolved r = query.resolve(with(lets, rows), runtime, i);
+                com.legend.lowering.Lowerer lowerer = query.lowerer(r.temporal(), false, slots, features, sites);
                 SqlQuery q = com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(lowerer.lower(r.body())));
                 steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(com.legend.sql.SqlDml.CreateTempTableAs
                         .staged(table, q, com.legend.resolver.StagedRows.columns(r.root().info()))), target, null),
@@ -143,7 +146,7 @@ public final class PlanMaker {
                         com.legend.resolver.StagedRows.storeOf(r.body(), ctx, runtime), let.info()));
                 continue;
             }
-            TypedQuery.Resolved r = query.resolve(with(lets, stmt), runtime);
+            TypedQuery.Resolved r = query.resolve(with(lets, stmt), runtime, i);
             com.legend.compiler.spec.typed.TypedSpec root = com.legend.compiler.spec.typed.Lets.bare(r.root());
             while (root instanceof com.legend.compiler.spec.typed.TypedFrom f) {
                 root = f.source();
@@ -152,15 +155,16 @@ public final class PlanMaker {
                 List<com.legend.compiler.spec.typed.TypedSpec> write = new ArrayList<>(r.body().subList(0,
                         r.body().size() - 1));
                 write.add(root);
-                com.legend.sql.SqlDml dml = query.lowerer(r.temporal(), false, slots, features).lowerStoreWrite(write);
+                com.legend.sql.SqlDml dml = query.lowerer(r.temporal(), false, slots, features, sites)
+                        .lowerStoreWrite(write);
                 steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
                         last ? ExecutionPlan.COUNT : null));
                 if (last) {
-                    steps.add(count(query, root, dialect, target, features));
+                    steps.add(count(query, root, dialect, target, features, sites));
                 }
                 continue;
             }
-            SqlQuery q = com.legend.sql.EnumValueTables.apply(query.lowerer(r.temporal(), last, slots, features)
+            SqlQuery q = com.legend.sql.EnumValueTables.apply(query.lowerer(r.temporal(), last, slots, features, sites)
                     .lower(r.body()));
             steps.add(last ? typed(r.root(), q, dialect, target)
                     : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)));
@@ -184,11 +188,13 @@ public final class PlanMaker {
     /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
      *  binds ({@link ExecutionPlan#COUNT}), as an {@code Integer[1]} value: one row, one column {@code value}. */
     private static ExecutionPlan.Node count(TypedQuery query, com.legend.compiler.spec.typed.TypedSpec write,
-            SqlDialect dialect, ExecutionPlan.Target target, java.util.Set<com.legend.platform.Feature> features) {
+            SqlDialect dialect, ExecutionPlan.Target target, java.util.Set<com.legend.platform.Feature> features,
+            com.legend.lowering.ObjectSites sites) {
         ExprType type = new ExprType(write.info().type(), com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
                 type.multiplicity());
-        SqlQuery q = query.lowerer(false, false, List.of(count.slot()), features).lowerPlanParam(ExecutionPlan.COUNT, type);
+        SqlQuery q = query.lowerer(false, false, List.of(count.slot()), features, sites)
+                .lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 com.legend.plan.PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
                 sql(q, dialect, target));

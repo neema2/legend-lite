@@ -2942,7 +2942,12 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
 2026-10-31 (R1-R14). M0 measured 2026-10-31 (no product change)**:
 `docs/test-is-product-homework/C_M0_MEASUREMENTS.md`, the probe as text in `docs/test-is-product-homework/probes/`
 (`M0Census.java.txt`, `m0-hooks.diff.txt`, `m0-agg.py.txt`). Checkpoint: the PR branch pushed, CI, the lane sessions
-asked. Next: M1, on the user's word.
+asked. **The user's go for the whole program 2026-10-31, back to back, each step ending with an independent audit
+(R15). M1 built 2026-10-31 (D100)**: `lowering/ObjectSites.java` (one minter, its spelling),
+`compiler/spec/UserCallInliner.java` and `TypedQuery.java` (a program's statement inlined under its mark),
+`planner/PlanMaker.java` (one minter per program), `planner/PlanEnv.java`, `driver/BodyDriver.java`,
+`lowering/Lowerer.java` (a doc); `planner/InstanceIds.java` DELETED; `planner/ProgramObjectSitesTest.java` (new);
+`JavaEvalLedgerTest`. Next: M2.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,
