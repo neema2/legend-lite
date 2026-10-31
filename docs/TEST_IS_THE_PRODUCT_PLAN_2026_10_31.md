@@ -322,9 +322,12 @@ posted the same way (R7 decision 12).
   1. **The doors (B6, N1).** `PlanMaker.plan` stays the QUERY door for every product caller; a new TEST-door entry plans
      any body through `program`, called only from `com.legend.driver` (an ArchUnit rule; no caller until M5). The query
      door scans the typed body once and refuses by name, at the first statement holding one: an effect, a `from()`'s
-     inline seeds or a named runtime's seeds, a let-bound `execute(...)` (its eager run, C12), a verdict, an
-     `assertError` (the owners reused: `StatementEffects.containsEffect`/`callsVerdict`, `ExecutionContext.reader()`,
-     `LetPlanner.kind`). An inline lazy `execute(...)` read stays the product's (D15).
+     inline seeds or the seeds of a named runtime OTHER than the plan's own (the plan's own runtime's seeds are its
+     target's setup already: M3a found 47 working server queries naming it), a let-bound `execute(...)` (its eager
+     run, C12), a verdict (an assert; `fail` is a product raise, not a verdict: M3a found 16 Cypher write guards
+     calling it), an `assertError` (the owners reused: `StatementEffects.containsEffect`/`callsVerdict`,
+     `ExecutionContext.reader()`, `LetPlanner.kind`). An inline lazy `execute(...)` read stays the product's (D15).
+     M3a measured the narrowed rule refusing none of core's 3,568 product-door queries.
   2. **One program state.** `PlanMaker.program` holds one planning state for the program -- the plan rows and lets a
      frame needs across statements, the frames, the minter (B9), the door, the last seed key emitted, the steps waiting
      to be placed before a statement -- where `ProductStatements.prepare` makes a fresh environment per statement today.
@@ -348,7 +351,11 @@ posted the same way (R7 decision 12).
      and writes its savepoint, rollback-to and release texts (or none); `ExecutionPlan.Verdicts` gains the optional
      savepoint; `PlanRunner.verdicts` sets it before the fused statement inside a transaction, rolls back to it before
      the wrappers when the database rejects the fused statement, releases it otherwise (C5: texts sent as statements,
-     the JDBC census unmoved); `VerdictBatch` fills it. M0: 0 fused groups inside a body transaction.
+     the JDBC census unmoved); `VerdictBatch` fills it. M3a: no group runs in a body transaction, but about 133 per
+     corpus pass are flushed inside the corpus harness's per-test transaction; H2 has savepoints and never aborts,
+     Postgres has both; DuckDB aborts a transaction on a run-time error and has NO savepoint, so on DuckDB a fused
+     statement rejected inside a transaction cannot fall back to the wrappers -- today's behaviour, kept (no movement;
+     M3a counted 0 such rejections on DuckDB) and recorded as a named limit.
   7. **Seed steps (D35).** A new node `ExecutionPlan.Setup(key, steps)`, emitted before a statement whose seed sources
      (the `from()`s under it, their named runtimes, the program's runtime: `establishContexts`' sources) name test
      data, when the key differs from the last emitted or an `Effect` came since; its steps `CsvSeed.planned`'s; the
@@ -362,15 +369,17 @@ posted the same way (R7 decision 12).
      into the lets); a value-position `execute(...)` a `Check` before the last statement and the result step over its
      run chain; the renames widening (`BodyDriver.frameReplaceEnv`) moves to the planner.
   9. **The frame's CTE (D31, MV9 counted).** Read as a CTE where a statement reads the frame more than once (B10's
-     words, per statement), lowered once at its let with the product's configuration and the program's minter, its
+     words, per statement; M3a: about 2,008 database-pass statement-frames read once would move from a CTE to the
+     pasted chain, at most 118 host-pass ones the other way -- MV9's text movement, landing with the body classes), lowered once at its let with the product's configuration and the program's minter, its
      definition attached by `FrameCtes.attach`; the movement against today's two modes counted, landing with the
      classes that read frames (R16).
   10. **The activity's SQL and stamp (D47, D49; R17 C4).** The activity SQL is plan data already; the comment the
       activity rows record is a slot the runner binds when the plan runs (as a write's count), its value the trace's
       stamp for the statement it precedes -- the plan deterministic, the stamp per execution, as upstream's.
   11. **The `from()` frame's table renames (R17 C9).** `BodyPlanner.prepare` reads the outermost `from()`'s context's
-      `tableReplace` and merges it with an execute frame's, loud on a conflict, on both roads -- its own sub-step,
-      measured, the count and an example posted before it lands.
+      `tableReplace` and merges it with an execute frame's, loud on a conflict, on both roads -- its own sub-step.
+      M3a: 11 statements per host pass and 7 per database pass carry such renames, and in every one the environment
+      already holds the same renames from its execute frame, so 0 statements move.
   Sub-steps, each its own commit with its measurement; the audit at M3's end:
   M3a measure (C_M3_MEASUREMENTS.md: transaction scopes, seed sends inside an effect run, frames read once and twice,
   activity comments read, inline eager executes, frames on the system store, staged grids, from()s carrying renames and

@@ -1,0 +1,433 @@
+diff --git a/core/src/main/java/com/legend/driver/AssertVerdicts.java b/core/src/main/java/com/legend/driver/AssertVerdicts.java
+index e905b663..e5bcffcf 100644
+--- a/core/src/main/java/com/legend/driver/AssertVerdicts.java
++++ b/core/src/main/java/com/legend/driver/AssertVerdicts.java
+@@ -136,7 +136,34 @@ final class AssertVerdicts {
+     }
+ 
+     static void flush(com.legend.judge.VerdictBatch batch, BodyDriver.ExecEnv env) {
+-        batch.flush(env.assertListener());
++        // M3a (research): F11, a verdict group flushed inside a transaction the session does not own (the corpus
++        // harness's attempt around an effect body), and the database's rejections of its fused statement there
++        int m3Rows = batch.pendingCount();
++        if (m3Rows == 0) {
++            batch.flush(env.assertListener());
++            return;
++        }
++        boolean m3Owns = env.session().ownsTransaction();
++        long m3Fused = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FUSED);
++        long m3Fallbacks = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FALLBACKS);
++        String m3Where = m3Owns ? "autocommit (the session owns its transaction)"
++                : "INSIDE a transaction the session does not own";
++        try {
++            batch.flush(env.assertListener());
++        } finally {
++            long fused = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FUSED) - m3Fused;
++            long fallbacks = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FALLBACKS) - m3Fallbacks;
++            com.legend.planner.M3Census.counted("F11.verdict groups flushed " + env.options().judgeMode() + " "
++                    + m3Where, m3Rows + " row(s), fused " + fused + ", fallbacks " + fallbacks);
++            for (long k = 0; k < fused; k++) {
++                com.legend.planner.M3Census.count("F11.fused statements " + env.options().judgeMode() + " "
++                        + m3Where);
++            }
++            if (fallbacks > 0) {
++                com.legend.planner.M3Census.counted("F11.groups with a fallback (the fused statement rejected) "
++                        + env.options().judgeMode() + " " + m3Where, m3Rows + " row(s), fallbacks " + fallbacks);
++            }
++        }
+     }
+ 
+     private static String listenerName(TypedSpec bare) {
+diff --git a/core/src/main/java/com/legend/driver/BodyCompiler.java b/core/src/main/java/com/legend/driver/BodyCompiler.java
+index 1779686a..51c91603 100644
+--- a/core/src/main/java/com/legend/driver/BodyCompiler.java
++++ b/core/src/main/java/com/legend/driver/BodyCompiler.java
+@@ -96,12 +96,34 @@ public final class BodyCompiler {
+     private static @com.legend.base.Nullable TypedSide executeBody(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
+             SpecCompiler specs, BodyDriver.ExecEnv env0, Execution.@com.legend.base.Nullable Answer answer,
+             List<String> stagedGrids) {
++        // M3a (research): the statement ids of this walk; the enclosing walk's restored after
++        long m3Outer = com.legend.planner.M3Census.STMT.get()[0];
++        boolean m3OuterReader = com.legend.planner.M3Census.COMMENT_READER.get();
++        try {
++            return m3ExecuteBody(stmts, letPrefix, specs, env0, answer, stagedGrids);
++        } finally {
++            com.legend.planner.M3Census.STMT.get()[0] = m3Outer;
++            com.legend.planner.M3Census.COMMENT_READER.set(m3OuterReader);
++        }
++    }
++
++    private static @com.legend.base.Nullable TypedSide m3ExecuteBody(List<TypedSpec> stmts,
++            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env0,
++            Execution.@com.legend.base.Nullable Answer answer, List<String> stagedGrids) {
+         Segments seg = new Segments(env0, specs, answer);
+         Map<String, BodyDriver.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
+         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
++        Map<com.legend.model.FunctionId, Boolean> m3CommentMemo = new java.util.HashMap<>();
+         // the staged lets' temporary tables (Pure.Lite.STAGE), dropped once the body has run
+         List<String> staged = new java.util.ArrayList<>();
+         for (int i = 0; i < stmts.size(); i++) {
++            com.legend.planner.M3Census.STMT.get()[0] = com.legend.planner.M3Census.newId();
++            boolean m3Reader = com.legend.planner.M3Census.readsActivityComment(stmts.get(i), specs, m3CommentMemo);
++            com.legend.planner.M3Census.COMMENT_READER.set(m3Reader);
++            if (m3Reader) {
++                com.legend.planner.M3Census.counted("D49.statements reading an activity's .comment "
++                        + env0.options().judgeMode(), "statement " + (i + 1));
++            }
+             boolean effect = com.legend.compiler.spec.StatementEffects.containsEffect(stmts.get(i), specs, effectMemo);
+             boolean generator = com.legend.compiler.spec.StatementEffects.containsTdgGenerator(stmts.get(i));
+             if (generator) {
+@@ -115,7 +137,15 @@ public final class BodyCompiler {
+                     letPrefix,
+                     BodyDriver.ENGINE_TEXT,
+                     BodyDriver.viewSqlRenderer(specs, seg.env()));
++            com.legend.planner.M3Census.EFFECT_PENDING.set(seg.sink.isEmpty() ? null
++                    : effect || com.legend.compiler.spec.StatementEffects.containsEffect(stmt, specs, effectMemo)
++                            ? "the statement is an effect: seeds between collected effects, before their script"
++                            : "the statement is no effect: seeds sent before the pending script closes");
++            try {
+             BodyDriver.establishContexts(stmt, seg.env());
++            } finally {
++                com.legend.planner.M3Census.EFFECT_PENDING.remove();
++            }
+             boolean last = i == stmts.size() - 1;
+             if (effect || com.legend.compiler.spec.StatementEffects.containsEffect(stmt, specs, effectMemo)) {
+                 seg.closeVerdicts();
+@@ -128,7 +158,11 @@ public final class BodyCompiler {
+                 java.util.function.Predicate<String> relationFrame =
+                         n -> execFrames.containsKey(n) && execFrames.get(n).relationRooted();
+                 TypedSpec rhs = com.legend.planner.LetPlanner.rhs(let);
+-                switch (com.legend.planner.LetPlanner.kind(let, stmts, i, specs, effectMemo, relationFrame)) {
++                com.legend.planner.LetPlanner.Kind m3Kind =
++                        com.legend.planner.LetPlanner.kind(let, stmts, i, specs, effectMemo, relationFrame);
++                com.legend.planner.M3Census.counted("LET.kind " + m3Kind + " " + env0.options().judgeMode(),
++                        "let " + let.name() + " (statement " + (i + 1) + ")");
++                switch (m3Kind) {
+                     case ALIAS -> execFrames.put(let.name(), execFrames.get(java.util.Objects.requireNonNull(
+                             com.legend.planner.LetPlanner.aliasOf(let.value(), relationFrame))));
+                     case STAGED -> {
+diff --git a/core/src/main/java/com/legend/driver/BodyDriver.java b/core/src/main/java/com/legend/driver/BodyDriver.java
+index 938c464b..3c709991 100644
+--- a/core/src/main/java/com/legend/driver/BodyDriver.java
++++ b/core/src/main/java/com/legend/driver/BodyDriver.java
+@@ -69,15 +69,35 @@ public final class BodyDriver {
+         // writes all land or none do; a caller's open transaction is joined, not committed. So does one that stages
+         // rows: its staged tables are the transaction's (SqlDml.CreateTempTableAs.staged)
+         java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
++        // M3a (research): the run's mode and the program's id on this thread
++        String m3Mode = com.legend.planner.M3Census.MODE.get();
++        long m3Body = com.legend.planner.M3Census.BODY.get()[0];
++        com.legend.planner.M3Census.MODE.set(options.judgeMode().name());
++        com.legend.planner.M3Census.BODY.get()[0] = com.legend.planner.M3Census.newId();
++        java.util.IdentityHashMap<Object, String> m3Spliced = com.legend.planner.M3Census.SPLICED.get();
++        com.legend.planner.M3Census.SPLICED.set(new java.util.IdentityHashMap<>());
++        try {
++        java.util.Map<com.legend.model.FunctionId, Boolean> m3Memo = new java.util.HashMap<>();
++        boolean m3Effects = typedBody.stream().anyMatch(s -> com.legend.compiler.spec.StatementEffects.containsEffect(
++                s, specs, m3Memo));
+         if (typedBody.stream().anyMatch(s -> com.legend.resolver.StagedRows.rowsOf(s) != null
+                 || com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo))) {
+             com.legend.resolver.StagedRows.refuseLetsTheWritesChange(typedBody, specs);
++            com.legend.planner.M3Census.counted("TX.bodies run in one transaction " + options.judgeMode()
++                    + (m3Effects ? " (holding an effect)" : ""), String.valueOf(typedBody.size()) + " statements");
+             ExecEnv tx = env;
+             tx.session().inTransaction(() -> BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs,
+                     tx, answer));
+             return;
+         }
++        com.legend.planner.M3Census.count("TX.bodies run with no body transaction " + options.judgeMode()
++                + (m3Effects ? " (holding an effect)" : ""));
+         BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs, env, answer);
++        } finally {
++            com.legend.planner.M3Census.MODE.set(m3Mode);
++            com.legend.planner.M3Census.BODY.get()[0] = m3Body;
++            com.legend.planner.M3Census.SPLICED.set(m3Spliced);
++        }
+     }
+ 
+     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
+@@ -533,8 +553,16 @@ public final class BodyDriver {
+             run = executeTyped(body, env);
+             }
+         }
++        m3SystemStore(fc, specs, env);
++        com.legend.planner.M3Census.COMMENT_KIND.set(run != null
++                ? (env.trace().lastComment() == null ? "a real run (no stamp)" : "a real run stamp")
++                : env.verdictBatch() != null ? "a reserved stamp" : "'' (none)");
++        try {
+         com.legend.planner.PlanAllocations.registerActivityRows(ec, fc.chain(), letPrefix, specs,
+                 activityComment(run, env), env.plan());
++        } finally {
++            com.legend.planner.M3Census.COMMENT_KIND.remove();
++        }
+         if (fc.legendQuery()) {
+             // the string entry's value is one string: no planned CTE, no read kind
+             return new ExecFrame(fc.chain(), false, run, env.tableReplace(), ec);
+@@ -556,6 +584,35 @@ public final class BodyDriver {
+                 extentRows);
+     }
+ 
++    /** M3a (research): item 7, whether the frame's chain reads the system metamodel store -- a dry resolution of its
++     *  run chain (its own resolver, the query lets read, no plan rows; nothing of it kept). */
++    private static void m3SystemStore(com.legend.planner.FramePlanner.FrameChain fc, SpecCompiler specs,
++            ExecEnv env) {
++        String mode = env.options().judgeMode().name();
++        if (fc.legendQuery()) {
++            com.legend.planner.M3Census.count("SYS.frames (string entry, not resolved) " + mode);
++            return;
++        }
++        try {
++            com.legend.resolver.StoreResolver r = new com.legend.resolver.StoreResolver(env.ctx(), specs)
++                    .withLetBindings(env.plan().queryLets());
++            java.util.List<TypedSpec> res = r.resolve(java.util.List.of(fc.runChain()), env.runtimeFqn());
++            java.util.Set<String> stores = new java.util.TreeSet<>();
++            for (TypedSpec n : res) {
++                com.legend.planner.BodyPlanner.collectStores(n, stores);
++            }
++            boolean sys = stores.contains(com.legend.builtin.SystemMetamodel.STORE_FQN);
++            com.legend.planner.M3Census.count("SYS.frames resolved " + mode);
++            if (sys) {
++                com.legend.planner.M3Census.counted("SYS.frames whose chain reads the system store " + mode
++                        + (stores.size() > 1 ? " (and a user store)" : ""), stores.toString());
++            }
++        } catch (RuntimeException e) {
++            com.legend.planner.M3Census.counted("SYS.frames whose dry resolution refused " + mode + " "
++                    + com.legend.planner.M3Census.cls(e), "");
++        }
++    }
++
+     /** A callee body with a NON-LET statement before its last (a
+      * statement sequence, not one expression). */
+ 
+@@ -588,7 +645,13 @@ public final class BodyDriver {
+     static java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> spliceHook(
+             java.util.Map<String, ExecFrame> allFrames,
+             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
+-        return com.legend.compiler.spec.ResultEnvelopeSplice.hook(
++        // M3a (research): the statement and program this hook plans for, the run's mode
++        final long m3Sid = com.legend.planner.M3Census.statement();
++        final long m3Bid = com.legend.planner.M3Census.body();
++        final String m3Mode = env.options().judgeMode().name();
++        final int m3Hook = (int) com.legend.planner.M3Census.newId();
++        java.util.function.BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> m3Inner =
++                com.legend.compiler.spec.ResultEnvelopeSplice.hook(
+                 new com.legend.compiler.spec.ResultEnvelopeSplice.Frames() {
+             @Override
+             public com.legend.compiler.spec.ResultEnvelopeSplice
+@@ -603,9 +666,13 @@ public final class BodyDriver {
+                 var batch = env.verdictBatch();
+                 if (f.plan() == null || batch == null
+                         || (!f.relationRooted() && f.extentRows() == null)) {
++                    com.legend.planner.M3Census.frameHit(name, batch == null ? "pasted(no batch)"
++                            : f.plan() == null ? "pasted" : "pasted(class, no extent rows)");
++                    com.legend.planner.M3Census.spliced(name, f.chain());
+                     return new com.legend.compiler.spec.ResultEnvelopeSplice
+                             .View(f.chain(), f.relationRooted(), f.sourceExec());
+                 }
++                com.legend.planner.M3Census.frameHit(name, f.extentRows() != null ? "cte(class extent)" : "cte");
+                 // a class frame's CTE is its EXTENT ROWS; a relation frame's, its plan
+                 batch.defineFrame("frame_" + name,
+                         f.extentRows() != null ? f.extentRows() : f.plan());
+@@ -618,6 +685,14 @@ public final class BodyDriver {
+             public com.legend.compiler.spec.ResultEnvelopeSplice.View
+                     inlineExecute(com.legend.compiler.spec.typed
+                             .TypedNativeCall ec, boolean eager) {
++                if (eager) {
++                    com.legend.planner.M3Census.counted("INLINE.inlineExecute eager=true " + m3Mode
++                            + (env.verdictBatch() == null ? " (runs now)" : " (under a verdict batch: not run)"),
++                            String.valueOf(ec).length() > 300 ? String.valueOf(ec).substring(0, 300)
++                                    : String.valueOf(ec));
++                } else {
++                    com.legend.planner.M3Census.count("INLINE.inlineExecute eager=false " + m3Mode);
++                }
+                 ExecFrame f = buildFrame(ec, letPrefix, eager, specs, env);
+                 return new com.legend.compiler.spec.ResultEnvelopeSplice
+                         .View(f.chain(), f.relationRooted(), f.sourceExec());
+@@ -646,6 +721,18 @@ public final class BodyDriver {
+             }
+ 
+         });
++        return (n, bound) -> {
++            java.util.Map<String, String> m3Hits = com.legend.planner.M3Census.pushHits();
++            try {
++                TypedSpec r = m3Inner.apply(n, bound);
++                if (r != n && !m3Hits.isEmpty()) {
++                    com.legend.planner.M3Census.frameReads(m3Sid, m3Bid, m3Mode, m3Hook, m3Hits, n);
++                }
++                return r;
++            } finally {
++                com.legend.planner.M3Census.popHits();
++            }
++        };
+     }
+ 
+     /** The EFFECT rows' registered arms — a REAL registry (LINQ's
+@@ -751,7 +838,10 @@ public final class BodyDriver {
+             return;   // nothing names test data
+         }
+         com.legend.exec.SessionState state = env.session().state();
++        String m3Pending = com.legend.planner.M3Census.EFFECT_PENDING.get();
+         if (state.established(key)) {
++            com.legend.planner.M3Census.count("SEED.establish skipped by the memo " + env.options().judgeMode()
++                    + (m3Pending != null ? " (effects pending)" : ""));
+             return;
+         }
+         java.util.List<com.legend.setup.CsvSeed.Step> setups = new java.util.ArrayList<>();
+@@ -778,6 +868,30 @@ public final class BodyDriver {
+         // statements)
+         java.util.List<com.legend.setup.CsvSeed.Planned> planned = com.legend.setup.CsvSeed.planned(setups,
+                 env.dialect());
++        // M3a (research): item 2, a seed establishment that sends statements, and one while an effect run is pending
++        if (planned.isEmpty()) {
++            com.legend.planner.M3Census.count("SEED.establishments that send nothing (no test data named) "
++                    + env.options().judgeMode() + (m3Pending != null ? " (effects pending)" : ""));
++        } else {
++            com.legend.planner.M3Census.count("SEED.seed establishments that send " + env.options().judgeMode());
++            com.legend.planner.M3Census.member("SEED.seed establishments that send " + env.options().judgeMode()
++                    + " [tests]", com.legend.planner.M3Census.test());
++            for (int m3i = 0; m3i < planned.size(); m3i++) {
++                com.legend.planner.M3Census.count("SEED.seed statements sent " + env.options().judgeMode());
++            }
++            if (m3Pending != null) {
++                String m3Src = String.valueOf(statement);
++                com.legend.planner.M3Census.counted("SEED.seed sends inside an effect run " + env.options().judgeMode()
++                        + " (" + m3Pending + ")", (m3Src.length() > 300 ? m3Src.substring(0, 300) : m3Src)
++                        + " || first seed: " + planned.get(0).text().replace('\n', ' '));
++                com.legend.planner.M3Census.counted("SEED.seed sends inside an effect run " + env.options().judgeMode(),
++                        m3Pending + " || " + planned.size() + " seed statement(s)");
++                for (int m3i = 0; m3i < planned.size(); m3i++) {
++                    com.legend.planner.M3Census.count("SEED.seed statements sent inside an effect run "
++                            + env.options().judgeMode());
++                }
++            }
++        }
+         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+             com.legend.exec.PlanRunner.setUp(planned.stream().map(com.legend.setup.CsvSeed.Planned::step).toList(),
+                     env.target(), env.planSessions(), (i, rows) -> record(env, planned.get(i).text(), rows));
+@@ -1405,6 +1519,10 @@ public final class BodyDriver {
+         // the dialect's bracket only when this send OWNS the transaction; inside a
+         // caller's (the harness's attempt) the statements run bare and the caller unwinds
+         boolean bracketed = env.session().ownsTransaction();
++        com.legend.planner.M3Census.counted("TX.effect scripts sent " + env.options().judgeMode()
++                + (bracketed ? " bracketed (the session owns its transaction)"
++                        : " bare (inside a transaction the session does not own)"), where + " " + texts.size()
++                + " statement(s)");
+         try {
+             try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
+                 sendRaw(env, bracketed ? env.dialect().script(texts) : String.join(";\n", texts) + ";");
+diff --git a/core/src/main/java/com/legend/planner/BodyPlanner.java b/core/src/main/java/com/legend/planner/BodyPlanner.java
+index ee6981de..91a57f82 100644
+--- a/core/src/main/java/com/legend/planner/BodyPlanner.java
++++ b/core/src/main/java/com/legend/planner/BodyPlanner.java
+@@ -202,6 +202,7 @@ public final class BodyPlanner {
+      *  not bind refused). Every execution path resolves through here (C3b: four of the five ran unchecked). */
+     public static java.util.List<TypedSpec> resolvedToExecute(com.legend.resolver.StoreResolver resolver,
+             java.util.List<TypedSpec> body, PlanEnv env) {
++        M3Census.treeReads(body);   // M3a (research): MV9, the frames this body reads
+         java.util.List<TypedSpec> resolved = resolver.resolve(body, env.runtimeFqn());
+         // C2.2: stores bound to DIFFERENT connections cannot share
+         // the one session connection — wall, never wrong-database rows
+@@ -225,6 +226,12 @@ public final class BodyPlanner {
+                 com.legend.compiler.spec.typed.ExecutionContext.froms(
+                         body.get(body.size() - 1));
+         if (!froms.isEmpty()) {
++            // M3a (research): item 1, the outermost from()'s renames (read nowhere today)
++            java.util.Map<String, String> m3Tr = froms.get(0).context().postProcessors().tableReplace();
++            M3Census.count("M3h.prepares with an outermost from() " + M3Census.MODE.get());
++            if (!m3Tr.isEmpty()) {
++                M3Census.fromRenames(m3Tr, env.tableReplace());
++            }
+             env = env.withFrame(froms.get(0).context());
+             // the engine's addDriverTablePkForProject option (#45) is PER
+             // EXECUTE CALL — the from's own bound option (batch 121):
+diff --git a/core/src/main/java/com/legend/planner/PlanAllocations.java b/core/src/main/java/com/legend/planner/PlanAllocations.java
+index a9c8bb94..0c87196b 100644
+--- a/core/src/main/java/com/legend/planner/PlanAllocations.java
++++ b/core/src/main/java/com/legend/planner/PlanAllocations.java
+@@ -285,13 +285,26 @@ public final class PlanAllocations {
+             PlanEnv env) {
+         String scope = com.legend.plan.PlanRows.scopeId(ec);
+         if (env.planRows().containsKey(scope)) {
++            M3Census.count("D49.activity rows already registered (skipped) " + M3Census.MODE.get());
+             return;
+         }
++        String m3Kind = String.valueOf(M3Census.COMMENT_KIND.get());
++        String m3Mode = M3Census.MODE.get();
++        M3Census.counted("D49.activity rows registered " + m3Mode + " comment=" + m3Kind,
++                comment == null ? "null" : comment);
+         // the SQL is a second render of the chain: computed only if a
+         // program reads the result's activities (no SQL = no rows, as ever)
+         env.planRows().put(scope, new com.legend.plan.LazyRows(
+-                () -> activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
+-                        AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment)));
++                () -> {
++                    M3Census.counted("D49.activity rows materialized (a statement read the activities) " + m3Mode
++                            + " comment=" + m3Kind, comment == null ? "null" : comment);
++                    if (M3Census.COMMENT_READER.get()) {
++                        M3Census.counted("D49.activity rows materialized for a statement reading .comment "
++                                + m3Mode + " comment=" + m3Kind, comment == null ? "null" : comment);
++                    }
++                    return activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
++                        AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment);
++                }));
+     }
+ 
+     private static java.util.@com.legend.base.Nullable Map<String, java.util.List<java.util.List<String>>>
+diff --git a/core/src/main/java/com/legend/planner/PlanMaker.java b/core/src/main/java/com/legend/planner/PlanMaker.java
+index 1c6d603e..391b2f89 100644
+--- a/core/src/main/java/com/legend/planner/PlanMaker.java
++++ b/core/src/main/java/com/legend/planner/PlanMaker.java
+@@ -49,6 +49,26 @@ public final class PlanMaker {
+      *  declared target was refused by its runner on every case. */
+     public static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime,
+             java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
++        // M3a (research): item 8, the query door's would-be refusals, and what the door answers them today
++        M3Census.DOOR_RUNTIME.set(String.valueOf(runtime));
++        String m3First = M3Census.productDoor(query);
++        try {
++            ExecutionPlan p = m3Plan(query, runtime, features, serverVersion);
++            M3Census.count("Q.door outcome today: planned" + (m3First == null ? "" : " (would be refused: " + m3First
++                    + ")"));
++            return p;
++        } catch (RuntimeException e) {
++            M3Census.count("Q.door outcome today: threw" + (m3First == null ? "" : " (would be refused: " + m3First
++                    + ")"));
++            if (m3First != null) {
++                M3Census.example("Q.door outcome today: threw (would be refused: " + m3First + ")", M3Census.cls(e));
++            }
++            throw e;
++        }
++    }
++
++    private static ExecutionPlan m3Plan(TypedQuery query, @com.legend.base.Nullable String runtime,
++            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
+         List<QueryParameters.Declared> declared = query.parameters();
+         List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
+         for (QueryParameters.Declared p : declared) {
+diff --git a/core/src/main/java/com/legend/test/PureTestRunner.java b/core/src/main/java/com/legend/test/PureTestRunner.java
+index 2f9ab4d4..9a6aa320 100644
+--- a/core/src/main/java/com/legend/test/PureTestRunner.java
++++ b/core/src/main/java/com/legend/test/PureTestRunner.java
+@@ -351,11 +351,14 @@ public final class PureTestRunner implements AutoCloseable {
+             // as it always did — the declared-footprint guard above still
+             // refuses the known clashes
+         }
++        String m3Test = com.legend.planner.M3Census.TEST.get();
++        com.legend.planner.M3Census.TEST.set("setup " + fqn);   // M3a (research)
+         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
+             // the one entry for a program (track C, 2026-10-29): the setup's body typed once, run on the session
+             Execution.runProgram(Compiler.queryResolved(ctx, call), runtimeFqn,
+                     com.legend.Execution.Source.given(target), null, null, options);
+         } finally {
++            com.legend.planner.M3Census.TEST.set(m3Test);
+             if (isolated) {
+                 observer.fixtureIsolated(conn);
+             }
+@@ -404,6 +407,7 @@ public final class PureTestRunner implements AutoCloseable {
+     /** Run one test: its package session (opened on demand), its setups once,
+      *  its body through the platform, one result. */
+     public Result run(PureTests.TestCase t) {
++        com.legend.planner.M3Census.TEST.set(t.fqn());   // M3a (research): the test on this thread
+         observer.testStarted(t);
+         if (!t.pkg().equals(sessionPkg)) {
+             beginSession(t.pkg());

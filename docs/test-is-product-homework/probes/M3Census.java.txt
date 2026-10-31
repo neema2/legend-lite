@@ -1,0 +1,808 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.planner;
+
+import com.legend.compiler.spec.typed.TypedSpec;
+
+/**
+ * RESEARCH ONLY, NEVER COMMITTED (the test-is-product plan's M3a, 2026-10-31): counts and examples printed at JVM exit
+ * as {@code [m3] key = n} and {@code [m3-ex] key :: example}, into the dump directory and onto stderr (M0's and M2's
+ * pattern, {@code probes/M2Census.java.txt}). Its state is one final object, never a static collection.
+ */
+public final class M3Census {
+
+    private static final String DUMPS =
+            "/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/m3a/dumps";
+
+    /** Everything the census holds. */
+    private static final class Store {
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> counts =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.List<String>> examples =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** key -> every distinct value (tests, test classes). */
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.Set<String>> sets =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** MV9: "mode|form|sid|frame" -> the read sites (identity hashes of the nodes the hook rewrote). */
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.Set<Integer>> stmtReads =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** MV9: "mode|sid|frame" -> the hook instances that read it. */
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.Set<Integer>> stmtHooks =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** MV9 per program: "mode|bid|frame" -> "sid:identity" read sites. */
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.Set<String>> bodyReads =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** MV9: "mode|sid|frame" -> the test (for an example per bucket). */
+        final java.util.concurrent.ConcurrentHashMap<String, String> readTest = new java.util.concurrent.ConcurrentHashMap<>();
+        final java.util.concurrent.atomic.AtomicLong ids = new java.util.concurrent.atomic.AtomicLong();
+        /** MV9 (tree): "mode|sid|frame" -> each resolved body's occurrence count of the frame (one per call). */
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.List<Integer>> treeReads =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** MV9 (tree): "mode|bid|frame" -> the total occurrences over the program's resolved bodies. */
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.LongAdder> treeBody =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** MV9 (tree): "mode|sid|frame" -> the callers of each resolution holding the frame. */
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.List<String>> treeCallers =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** MV9 (tree): "mode|sid|frame" -> the forms its occurrences took (pasted, cte, cte(class extent)). */
+        final java.util.concurrent.ConcurrentHashMap<String, java.util.Set<String>> treeForm =
+                new java.util.concurrent.ConcurrentHashMap<>();
+        /** MV9 (hook): "mode|bid|site" -> the statement that first rewrote the node. */
+        final java.util.concurrent.ConcurrentHashMap<String, Long> firstSid = new java.util.concurrent.ConcurrentHashMap<>();
+    }
+
+    private static final Store S = new Store();
+
+    /** The test (or setup) whose body runs on this thread (the corpus runner's; channel B's is StampCensus.CONTEXT). */
+    public static final ThreadLocal<String> TEST = new ThreadLocal<>();
+    /** The run's judge mode on this thread (HOST, DATABASE, BOTH). */
+    public static final ThreadLocal<String> MODE = ThreadLocal.withInitial(() -> "?");
+    /** The top-level body (program) on this thread. */
+    public static final ThreadLocal<long[]> BODY = ThreadLocal.withInitial(() -> new long[] {0});
+    /** The body statement being walked on this thread. */
+    public static final ThreadLocal<long[]> STMT = ThreadLocal.withInitial(() -> new long[] {0});
+    /** Item 2: while establishContexts runs, whether an effect segment is pending (and the statement's kind). */
+    public static final ThreadLocal<String> EFFECT_PENDING = new ThreadLocal<>();
+    /** Item 6: the comment kind of the frame whose activity rows are about to be registered. */
+    public static final ThreadLocal<String> COMMENT_KIND = new ThreadLocal<>();
+    /** Item 6: whether the statement being walked reads an activity's comment. */
+    public static final ThreadLocal<Boolean> COMMENT_READER = ThreadLocal.withInitial(() -> false);
+    /** MV9 (tree): the spliced chains' roots of this program's frames (identity) -> the frame's name. */
+    public static final ThreadLocal<java.util.IdentityHashMap<Object, String>> SPLICED =
+            ThreadLocal.withInitial(java.util.IdentityHashMap::new);
+    /** Items 3/4: the frame hits of the hook applications in progress on this thread, innermost last. */
+    private static final ThreadLocal<java.util.ArrayDeque<java.util.Map<String, String>>> HITS =
+            ThreadLocal.withInitial(java.util.ArrayDeque::new);
+
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(M3Census::dump));
+    }
+
+    private M3Census() {
+    }
+
+    public static String test() {
+        String t = TEST.get();
+        if (t == null) {
+            t = com.legend.lowering.StampCensus.CONTEXT.get();
+        }
+        return t == null ? "?" : t;
+    }
+
+    public static long newId() {
+        return S.ids.incrementAndGet();
+    }
+
+    public static long statement() {
+        return STMT.get()[0];
+    }
+
+    public static long body() {
+        return BODY.get()[0];
+    }
+
+    public static void count(String key) {
+        S.counts.computeIfAbsent(key, k -> new java.util.concurrent.atomic.LongAdder()).increment();
+    }
+
+    public static void example(String key, String text) {
+        java.util.List<String> l = S.examples.computeIfAbsent(key,
+                k -> java.util.Collections.synchronizedList(new java.util.ArrayList<>()));
+        if (l.size() < 3) {
+            l.add(text.length() > 900 ? text.substring(0, 900) + "..." : text);
+        }
+    }
+
+    /** {@code key} counted and its test recorded (distinct tests) with an example. */
+    public static void counted(String key, String example) {
+        count(key);
+        S.sets.computeIfAbsent(key + " [tests]", k -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(test());
+        example(key, test() + " :: " + example);
+    }
+
+    public static void member(String key, String value) {
+        S.sets.computeIfAbsent(key, k -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(value);
+    }
+
+    public static String cls(Throwable e) {
+        String m = e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage());
+        m = m.replaceAll("[0-9]+", "N").replace('\n', ' ');
+        return m.length() > 110 ? m.substring(0, 110) : m;
+    }
+
+    // ===== items 3 and 4: frame reads through the splice hook =====
+
+    /** A hook application starts: its own hit map. */
+    public static java.util.Map<String, String> pushHits() {
+        java.util.Map<String, String> m = new java.util.LinkedHashMap<>();
+        HITS.get().addLast(m);
+        return m;
+    }
+
+    public static void popHits() {
+        HITS.get().pollLast();
+    }
+
+    /** The frame {@code name} answered a read of the innermost hook application, in {@code form}. */
+    public static void frameHit(String name, String form) {
+        java.util.Map<String, String> m = HITS.get().peekLast();
+        if (m != null) {
+            m.putIfAbsent(name, form);
+        }
+    }
+
+    /** A hook application that rewrote {@code n} after the frames in {@code hits} answered: one read of each. */
+    public static void frameReads(long sid, long bid, String mode, int hook, java.util.Map<String, String> hits,
+            Object n) {
+        int site = System.identityHashCode(n);
+        Long first = S.firstSid.putIfAbsent(mode + "|" + bid + "|" + site, sid);
+        if (first != null && first != sid) {
+            count("MV9.hook rewrites of a node an EARLIER statement rewrote (a let-prefix re-splice) " + mode);
+        }
+        for (var e : hits.entrySet()) {
+            String k = mode + "|" + e.getValue() + "|" + sid + "|" + e.getKey();
+            S.stmtReads.computeIfAbsent(k, x -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(site);
+            S.stmtHooks.computeIfAbsent(mode + "|" + sid + "|" + e.getKey(),
+                    x -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(hook);
+            S.bodyReads.computeIfAbsent(mode + "|" + bid + "|" + e.getKey(),
+                    x -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(sid + ":" + site);
+            S.readTest.putIfAbsent(k, test());
+            count("MV9.raw frame reads (hook rewrites) " + mode);
+        }
+    }
+
+    /** MV9 (tree): a frame's chain was spliced; its root (the chain's source under its from) is remembered. */
+    public static void spliced(String name, TypedSpec chain) {
+        Object root = chain instanceof com.legend.compiler.spec.typed.TypedFrom fr ? fr.source() : chain;
+        SPLICED.get().put(root, name);
+    }
+
+    /** MV9 (tree): {@code body}, about to be resolved and executed, scanned for the frames it reads: a pasted chain
+     *  (its root's identity), a CTE reference ({@code TypedFrameRef}), a class extent over a CTE. */
+    public static void treeReads(java.util.List<TypedSpec> body) {
+        java.util.IdentityHashMap<Object, String> spliced = SPLICED.get();
+        java.util.Map<String, Integer> found = new java.util.TreeMap<>();
+        for (TypedSpec n : body) {
+            scan(n, spliced, found);
+        }
+        if (found.isEmpty()) {
+            return;
+        }
+        String mode = MODE.get();
+        long sid = statement();
+        long bid = body();
+        String caller = StackWalker.getInstance().walk(st -> st.map(f -> f.getClassName().substring(
+                f.getClassName().lastIndexOf('.') + 1) + "." + f.getMethodName())
+                .filter(f -> !f.startsWith("M3Census.") && !f.startsWith("BodyPlanner.")).limit(2)
+                .reduce((a, b) -> a + "<" + b).orElse("?"));
+        found.forEach((nameForm, c) -> {
+            String name = nameForm.substring(0, nameForm.indexOf('\u0001'));
+            String form = nameForm.substring(nameForm.indexOf('\u0001') + 1);
+            count("MV9T.per resolved body (one SQL) " + mode + " form=" + form + " occurrences="
+                    + (c == 1 ? "1" : c == 2 ? "2" : "3+"));
+            S.treeForm.computeIfAbsent(mode + "|" + sid + "|" + name,
+                    x -> java.util.concurrent.ConcurrentHashMap.newKeySet()).add(form);
+            S.treeCallers.computeIfAbsent(mode + "|" + sid + "|" + name,
+                    x -> java.util.Collections.synchronizedList(new java.util.ArrayList<>())).add(caller);
+            S.treeReads.computeIfAbsent(mode + "|" + sid + "|" + name,
+                    x -> java.util.Collections.synchronizedList(new java.util.ArrayList<>())).add(c);
+            S.treeBody.computeIfAbsent(mode + "|" + bid + "|" + name,
+                    x -> new java.util.concurrent.atomic.LongAdder()).add(c);
+            S.readTest.putIfAbsent("tree|" + mode + "|" + sid + "|" + name, test());
+            String b = c == 1 ? "1" : c == 2 ? "2" : "3+";
+            count("MV9T.per resolved body (one SQL) " + mode + " occurrences=" + b);
+            if (c >= 2) {
+                example("MV9T.per resolved body (one SQL) " + mode + " occurrences=" + b,
+                        test() + " :: frame " + name + " x" + c);
+            }
+        });
+    }
+
+    private static void scan(TypedSpec n, java.util.IdentityHashMap<Object, String> spliced,
+            java.util.Map<String, Integer> found) {
+        String name = spliced.get(n);
+        String form = "pasted";
+        if (name == null && n instanceof com.legend.compiler.spec.typed.TypedFrameRef ref) {
+            name = ref.name().startsWith("frame_") ? ref.name().substring("frame_".length()) : ref.name();
+            form = "cte";
+        }
+        if (name == null && n instanceof com.legend.compiler.spec.typed.TypedFrom fr && fr.extentFrame() != null) {
+            String ef = fr.extentFrame();
+            name = ef.startsWith("frame_") ? ef.substring("frame_".length()) : ef;
+            form = "cte(class extent)";
+        }
+        if (name != null) {
+            found.merge(name + "\u0001" + form, 1, Integer::sum);
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            scan(c, spliced, found);
+        }
+    }
+
+    // ===== item 6: an activity comment read =====
+
+    /** Whether {@code n} (through the bodies of the user functions it calls) reads {@code .comment} of an activity. */
+    public static boolean readsActivityComment(TypedSpec n, com.legend.compiler.spec.SpecCompiler specs,
+            java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa && pa.property().equals("comment")
+                && pa.source().info().type() instanceof com.legend.compiler.element.type.Type.ClassType ct
+                && ct.fqn().endsWith("Activity")) {
+            return true;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
+            com.legend.model.FunctionId key = uc.callee().id();
+            Boolean known = memo.get(key);
+            if (known == null) {
+                memo.put(key, false);
+                boolean r = false;
+                try {
+                    for (TypedSpec s : specs.compile(uc.callee()).body()) {
+                        if (readsActivityComment(s, specs, memo)) {
+                            r = true;
+                            break;
+                        }
+                    }
+                } catch (RuntimeException e) {
+                    // an un-typeable callee: not decided here
+                }
+                memo.put(key, r);
+                known = r;
+            }
+            if (known) {
+                return true;
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsActivityComment(c, specs, memo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ===== item 1: the outermost from()'s table renames =====
+
+    public static void fromRenames(java.util.Map<String, String> fromTr, java.util.Map<String, String> envTr) {
+        String cls;
+        if (envTr.isEmpty()) {
+            cls = "env carries none (the from()'s renames are not applied today)";
+        } else {
+            boolean all = true;
+            boolean conflict = false;
+            for (var e : fromTr.entrySet()) {
+                String had = envTr.get(e.getKey());
+                if (had == null) {
+                    all = false;
+                } else if (!had.equals(e.getValue())) {
+                    conflict = true;
+                }
+            }
+            cls = conflict ? "env carries a CONFLICTING rename"
+                    : all ? "env already carries them (an execute frame's renames)"
+                    : "env carries some other renames (part of the from()'s missing)";
+        }
+        String sid = Long.toString(statement());
+        counted("M3h.prepares whose outermost from() carries renames", "from " + fromTr + " env " + envTr);
+        counted("M3h.prepares: " + cls, "from " + fromTr + " env " + envTr);
+        member("M3h.statements whose outermost from() carries renames [statements]", test() + "#" + sid);
+        member("M3h.statements: " + cls + " [statements]", test() + "#" + sid);
+    }
+
+    // ===== item 8: the query door's would-be refusals =====
+
+    /** The test class on this thread's stack (core's JUnit tests), or "?". */
+    private static String testClass() {
+        return StackWalker.getInstance().walk(st -> st.map(StackWalker.StackFrame::getClassName)
+                .map(c -> c.indexOf('$') > 0 ? c.substring(0, c.indexOf('$')) : c)
+                .filter(c -> c.endsWith("Test") || c.endsWith("Tests") || c.endsWith("IT"))
+                .findFirst().orElse("?"));
+    }
+
+    private static boolean reaches(TypedSpec n, java.util.function.Predicate<TypedSpec> p,
+            com.legend.compiler.spec.SpecCompiler specs, java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
+        if (p.test(n)) {
+            return true;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
+            com.legend.model.FunctionId key = uc.callee().id();
+            Boolean known = memo.get(key);
+            if (known == null) {
+                memo.put(key, false);
+                boolean r = false;
+                try {
+                    for (TypedSpec s : specs.compile(uc.callee()).body()) {
+                        if (reaches(s, p, specs, memo)) {
+                            r = true;
+                            break;
+                        }
+                    }
+                } catch (RuntimeException e) {
+                    // un-typeable: not decided here
+                }
+                memo.put(key, r);
+                known = r;
+            }
+            if (known) {
+                return true;
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            if (reaches(c, p, specs, memo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean seededRuntime(String rtFqn, com.legend.compiler.element.ModelContext ctx) {
+        var rt = ctx.findRuntime(rtFqn);
+        if (rt.isEmpty()) {
+            return false;
+        }
+        for (var binding : rt.get().connectionBindings().entrySet()) {
+            for (String connFqn : binding.getValue()) {
+                var cd = ctx.findConnection(connFqn);
+                if (cd.isPresent() && cd.get().specification() != null) {
+                    var data = cd.get().specification().testData();
+                    if (data != null && ((data.sqls() != null && !data.sqls().isEmpty()) || data.csv() != null)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The verdict functions {@code n} calls, through the user functions it calls (the path named). */
+    private static void verdictCallees(TypedSpec n, com.legend.compiler.spec.SpecCompiler specs,
+            java.util.Set<com.legend.model.FunctionId> seen, java.util.Set<String> out, String via) {
+        String callee = n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc ? nc.callee().qualifiedName()
+                : n instanceof com.legend.compiler.spec.typed.TypedUserCall uc ? uc.callee().qualifiedName() : null;
+        if (callee != null && com.legend.compiler.element.type.PlatformTypes.isVerdictFunction(callee)) {
+            out.add(via + callee);
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc && seen.add(uc.callee().id())) {
+            try {
+                for (TypedSpec st : specs.compile(uc.callee()).body()) {
+                    verdictCallees(st, specs, seen, out, via + uc.callee().qualifiedName() + " > ");
+                }
+            } catch (RuntimeException e) {
+                // un-typeable
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            verdictCallees(c, specs, seen, out, via);
+        }
+    }
+
+    /** The kinds of {@code s} the query door would refuse (B12 item 1), in the order the brief names them. */
+    private static java.util.List<String> doorKinds(TypedSpec s, boolean last, com.legend.TypedQuery query,
+            java.util.Map<com.legend.model.FunctionId, Boolean> effMemo,
+            java.util.Map<com.legend.model.FunctionId, Boolean> verMemo,
+            java.util.Map<com.legend.model.FunctionId, Boolean> aeMemo) {
+        com.legend.compiler.spec.SpecCompiler specs = query.specs();
+        java.util.List<String> kinds = new java.util.ArrayList<>();
+        if (com.legend.compiler.spec.StatementEffects.containsEffect(s, specs, effMemo)) {
+            kinds.add("effect");
+        }
+        java.util.List<com.legend.compiler.spec.typed.TypedFrom> froms =
+                com.legend.compiler.spec.typed.ExecutionContext.froms(s);
+        boolean inline = false;
+        boolean named = false;
+        for (var fr : froms) {
+            if (!fr.sqlSetups().isEmpty() || !fr.csvSetups().isEmpty()) {
+                inline = true;
+            }
+            var rt = fr.context().runtime();
+            if (rt.isPresent() && seededRuntime(rt.get().fullPath(), query.context())) {
+                named = true;
+                member("Q.seeded named runtimes (the from()'s runtime vs the plan's)", rt.get().fullPath() + " vs "
+                        + DOOR_RUNTIME.get());
+            }
+        }
+        if (inline) {
+            kinds.add("from() inline seeds");
+        }
+        if (named) {
+            kinds.add("from()'s named runtime with seeds");
+        }
+        if (s instanceof com.legend.compiler.spec.typed.TypedLet let) {
+            TypedSpec rhs = LetPlanner.rhs(let);
+            if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
+                    && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
+                        || com.legend.builtin.NativeFn.Handle.of(ec.callee().id()).orElse(null)
+                                == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
+                kinds.add(last ? "let-bound execute (the LAST statement)" : "let-bound execute");
+            }
+        }
+        boolean ae = reaches(s, n -> n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.builtin.NativeFn.ContextOwner.of(nc.callee().id()).isPresent(), specs, aeMemo);
+        boolean verdict = com.legend.compiler.spec.StatementEffects.callsVerdict(s, specs, verMemo);
+        if (verdict) {
+            kinds.add("verdict (callsVerdict)");
+            java.util.Set<String> callees = new java.util.TreeSet<>();
+            verdictCallees(s, specs, new java.util.HashSet<>(), callees, "");
+            member("Q.verdict callees", callees.toString());
+        }
+        if (ae) {
+            kinds.add("assertError");
+        }
+        return kinds;
+    }
+
+    /** Item 8: the runtime the product door plans for (its caller's argument). */
+    public static final ThreadLocal<String> DOOR_RUNTIME = new ThreadLocal<>();
+
+    /** Item 8: the product query door's typed body scanned (counted by kind, the test classes named). */
+    public static @com.legend.base.Nullable String productDoor(com.legend.TypedQuery query) {
+        try {
+            java.util.List<TypedSpec> body = query.body();
+            java.util.Map<com.legend.model.FunctionId, Boolean> effMemo = new java.util.HashMap<>();
+            java.util.Map<com.legend.model.FunctionId, Boolean> verMemo = new java.util.HashMap<>();
+            java.util.Map<com.legend.model.FunctionId, Boolean> aeMemo = new java.util.HashMap<>();
+            String tc = testClass();
+            count("Q.door queries");
+            member("Q.door queries [classes]", tc);
+            String first = null;
+            java.util.Set<String> anyKinds = new java.util.LinkedHashSet<>();
+            for (int i = 0; i < body.size(); i++) {
+                TypedSpec s = body.get(i);
+                count("Q.door statements");
+                java.util.List<String> kinds = doorKinds(s, i == body.size() - 1, query, effMemo, verMemo, aeMemo);
+                for (String k : kinds) {
+                    count("Q.statements holding: " + k);
+                    member("Q.statements holding: " + k + " [classes]", tc);
+                    String src = String.valueOf(s);
+                    example("Q.statements holding: " + k, tc + " :: " + (src.length() > 300 ? src.substring(0, 300)
+                            : src));
+                    anyKinds.add(k);
+                }
+                if (first == null && !kinds.isEmpty()) {
+                    first = kinds.get(0);
+                }
+            }
+            for (String k : anyKinds) {
+                count("Q.queries holding: " + k);
+            }
+            if (first != null) {
+                count("Q.queries refused (by the first statement's first kind): " + first);
+                member("Q.queries refused (by the first statement's first kind): " + first + " [classes]", tc);
+                count("Q.queries refused");
+                member("Q.queries refused [classes]", tc);
+            }
+            return first;
+        } catch (RuntimeException e) {
+            count("Q.scan error " + cls(e));
+            return null;
+        }
+    }
+
+    // ===== the dump =====
+
+    private static void histogram() {
+        // per statement: each (mode, form, statement, frame) its number of read sites
+        S.stmtReads.forEach((k, sites) -> {
+            String[] p = k.split("\\|", 4);
+            int n = sites.size();
+            String b = n == 1 ? "1" : n == 2 ? "2" : "3+";
+            String key = "MV9.per statement " + p[0] + " form=" + p[1] + " reads=" + b;
+            count(key);
+            count("MV9.per statement " + p[0] + " reads=" + b);
+            if (n >= 2) {
+                example(key, S.readTest.getOrDefault(k, "?") + " :: frame " + p[3] + " read " + n + "x");
+            }
+        });
+        S.stmtHooks.forEach((k, hooks) -> {
+            String[] p = k.split("\\|", 3);
+            count("MV9.per statement " + p[0] + " hooks that read the frame=" + (hooks.size() >= 3 ? "3+"
+                    : Integer.toString(hooks.size())));
+        });
+        S.bodyReads.forEach((k, sites) -> {
+            String[] p = k.split("\\|", 3);
+            int n = sites.size();
+            count("MV9.per program " + p[0] + " reads=" + (n == 1 ? "1" : n == 2 ? "2" : "3+"));
+        });
+        S.treeReads.forEach((k, calls) -> {
+            String[] p = k.split("\\|", 3);
+            int total;
+            int n;
+            synchronized (calls) {
+                total = calls.stream().mapToInt(Integer::intValue).sum();
+                n = calls.size();
+            }
+            String b = total == 1 ? "1" : total == 2 ? "2" : "3+";
+            count("MV9T.per statement " + p[0] + " occurrences (summed over its resolved bodies)=" + b);
+            java.util.Set<String> forms = S.treeForm.getOrDefault(k, java.util.Set.of());
+            count("MV9T.per statement " + p[0] + " form=" + (forms.size() == 1 ? forms.iterator().next()
+                    : "mixed " + new java.util.TreeSet<>(forms)) + " occurrences=" + b);
+            count("MV9T.per statement " + p[0] + " resolved bodies holding the frame=" + (n >= 3 ? "3+"
+                    : Integer.toString(n)));
+            if (n >= 2) {
+                java.util.List<String> cs = S.treeCallers.getOrDefault(k, java.util.List.of());
+                String sig;
+                synchronized (cs) {
+                    sig = String.join(" + ", cs);
+                }
+                count("MV9T.multi-body statement " + p[0] + " callers: " + sig);
+                example("MV9T.multi-body statement " + p[0] + " callers: " + sig,
+                        S.readTest.getOrDefault("tree|" + k, "?") + " :: frame " + p[2] + " " + calls);
+            }
+            if (total >= 2) {
+                example("MV9T.per statement " + p[0] + " occurrences (summed over its resolved bodies)=" + b,
+                        S.readTest.getOrDefault("tree|" + k, "?") + " :: frame " + p[2] + " " + calls);
+            }
+        });
+        S.treeBody.forEach((k, v) -> {
+            String[] p = k.split("\\|", 3);
+            long t = v.sum();
+            count("MV9T.per program " + p[0] + " occurrences=" + (t == 1 ? "1" : t == 2 ? "2" : "3+"));
+        });
+        S.sets.forEach((k, v) -> {
+            S.counts.computeIfAbsent(k + " distinct", x -> new java.util.concurrent.atomic.LongAdder()).add(v.size());
+        });
+    }
+
+    private static void dump() {
+        histogram();
+        StringBuilder sb = new StringBuilder();
+        new java.util.TreeMap<>(S.counts).forEach((k, v) -> sb.append("[m3] ").append(k).append(" = ")
+                .append(v.sum()).append('\n'));
+        new java.util.TreeMap<>(S.examples).forEach((k, l) -> {
+            synchronized (l) {
+                for (String e : l) {
+                    sb.append("[m3-ex] ").append(k).append(" :: ").append(e.replace('\n', ' ')).append('\n');
+                }
+            }
+        });
+        new java.util.TreeMap<>(S.sets).forEach((k, v) -> {
+            if (k.endsWith("[classes]") || v.size() <= 60) {
+                sb.append("[m3-set] ").append(k).append(" :: ").append(new java.util.TreeSet<>(v)).append('\n');
+            }
+        });
+        System.err.print(sb);
+        System.err.flush();
+        try {
+            java.nio.file.Path dir = java.nio.file.Path.of(DUMPS);
+            java.nio.file.Files.createDirectories(dir);
+            String label = System.getProperty("legend.judge.mode", "test") + "-"
+                    + ProcessHandle.current().pid() + "-" + System.currentTimeMillis();
+            java.nio.file.Files.writeString(dir.resolve(label + ".txt"), sb.toString());
+        } catch (java.io.IOException | RuntimeException e) {
+            System.err.println("[m3] dump file not written: " + e);
+        }
+    }
+}
+
+// =====================================================================================================================
+// APPENDIX A (not part of the collector): the F11 JDBC probe, TxProbe3.java, run with the plain JDK 21 against the jars
+// Bazel already holds: java -cp <output_base>/external/+product_jars+duckdb_jdbc/jar/duckdb_jdbc-1.5.6.0.jar TxProbe3.java
+// 'jdbc:duckdb:' ; ... +product_jars+h2/jar/h2-2.1.214.jar ... 'jdbc:h2:mem:s@N<H2Connector.SETTINGS>' ; the same with
+// +product_jars+h2_modern/jar/h2-2.4.240.jar. (TxProbe2.java, scenarios A-E per fresh connection, is the same pattern.)
+// =====================================================================================================================
+// import java.sql.*;
+// 
+// /** M3a item 9 (F11), v3: which error KINDS abort a transaction (a later valid statement refused), each on a fresh
+//  *  connection; then DDL in a transaction and the JDBC savepoint API, guarded. */
+// public class TxProbe3 {
+//     static String run(Connection c, String sql) {
+//         try (Statement s = c.createStatement()) {
+//             boolean rs = s.execute(sql);
+//             if (rs) {
+//                 try (ResultSet r = s.getResultSet()) {
+//                     StringBuilder b = new StringBuilder();
+//                     while (r.next()) { b.append(r.getString(1)).append(','); }
+//                     return "OK rows=[" + b + "]";
+//                 }
+//             }
+//             return "OK";
+//         } catch (SQLException e) {
+//             String m = String.valueOf(e.getMessage()).replace('\n', ' ');
+//             int i = m.indexOf("Error: ", 60);
+//             return "ERR " + (m.length() > 140 ? m.substring(0, 140) : m);
+//         }
+//     }
+// 
+//     static int n = 0;
+// 
+//     static Connection open(String url) throws SQLException {
+//         Connection c = DriverManager.getConnection(url.replace("@N", Integer.toString(n++)), "sa", "");
+//         try (Statement s = c.createStatement()) {
+//             s.execute("CREATE TABLE t (x INTEGER PRIMARY KEY)");
+//             s.execute("INSERT INTO t VALUES (1)");
+//         }
+//         c.setAutoCommit(false);
+//         return c;
+//     }
+// 
+//     static void kind(String url, String label, String failing) throws SQLException {
+//         try (Connection c = open(url)) {
+//             run(c, "INSERT INTO t VALUES (2)");
+//             String f = run(c, failing);
+//             String after = run(c, "SELECT count(*) FROM t");
+//             String commit;
+//             try { c.commit(); commit = "OK"; } catch (SQLException e) { commit = "ERR " + e.getMessage(); }
+//             try { c.setAutoCommit(true); } catch (SQLException e) { }
+//             String kept = run(c, "SELECT count(*) FROM t");
+//             boolean aborted = after.startsWith("ERR");
+//             System.out.println("   " + (aborted ? "ABORTS  " : "no abort") + " | " + label + ": `" + failing + "` -> "
+//                     + (f.length() > 90 ? f.substring(0, 90) : f) + " | next SELECT: " + (after.length() > 70 ? after.substring(0, 70) : after)
+//                     + " | commit " + commit + " | rows kept after commit: " + kept);
+//         }
+//     }
+// 
+//     public static void main(String[] a) throws Exception {
+//         String url = a[0];
+//         boolean duck = url.startsWith("jdbc:duckdb");
+//         System.out.println("== " + url.replaceAll(";.*", ";..."));
+//         kind(url, "parser error", "SELEC 1");
+//         kind(url, "catalog (missing table)", "SELECT * FROM no_such_table");
+//         kind(url, "binder (missing column)", "SELECT nope FROM t");
+//         kind(url, "conversion at run time", "SELECT CAST('abc' AS INTEGER)");
+//         kind(url, "division by zero (integer)", "SELECT 1 / (SELECT count(*) - count(*) FROM t)");
+//         kind(url, "constraint (duplicate key)", "INSERT INTO t VALUES (1)");
+//         if (duck) {
+//             kind(url, "error() raise", "SELECT error('boom')");
+//         } else {
+//             kind(url, "a raise (CAST of a long string to a tiny type)", "SELECT CAST(99999999999 AS TINYINT)");
+//         }
+//         // D2: DDL inside a transaction
+//         try (Connection c = open(url)) {
+//             run(c, "INSERT INTO t VALUES (2)");
+//             System.out.println("   D2 DDL in a transaction: CREATE TABLE u => " + run(c, "CREATE TABLE u (y INTEGER)"));
+//             try { c.rollback(); System.out.println("      jdbc rollback OK"); } catch (SQLException e) { System.out.println("      rollback ERR " + e.getMessage()); }
+//             c.setAutoCommit(true);
+//             System.out.println("      after rollback: count(t) " + run(c, "SELECT count(*) FROM t") + " ; u exists? " + run(c, "SELECT count(*) FROM u"));
+//         }
+//         // E: JDBC savepoint API
+//         try (Connection c = open(url)) {
+//             try { Savepoint sp = c.setSavepoint(); System.out.println("   E JDBC setSavepoint OK"); }
+//             catch (SQLException | RuntimeException e) { System.out.println("   E JDBC setSavepoint => " + e.getClass().getSimpleName() + ": " + e.getMessage()); }
+//         }
+//         // F: the abort recovered by ROLLBACK text (DuckDB's scriptAbort)
+//         if (duck) {
+//             try (Connection c = open(url)) {
+//                 run(c, "INSERT INTO t VALUES (2)");
+//                 run(c, "SELECT CAST('abc' AS INTEGER)");
+//                 System.out.println("   F after an abort: ROLLBACK text => " + run(c, "ROLLBACK") + " ; then SELECT => " + run(c, "SELECT count(*) FROM t"));
+//                 try { c.commit(); System.out.println("      jdbc commit OK"); } catch (SQLException e) { System.out.println("      jdbc commit ERR " + e.getMessage()); }
+//             }
+//             // G: an autocommit session (the test road's ordinary state): a failing statement then a valid one
+//             try (Connection c = DriverManager.getConnection(url)) {
+//                 run(c, "CREATE TABLE t (x INTEGER)");
+//                 System.out.println("   G autocommit: CAST error => " + run(c, "SELECT CAST('abc' AS INTEGER)").substring(0, 30) + "... ; next SELECT => " + run(c, "SELECT count(*) FROM t"));
+//                 System.out.println("   G autocommit: BEGIN TRANSACTION; bad; => " + run(c, "BEGIN TRANSACTION") + " / " + run(c, "SELECT CAST('abc' AS INTEGER)").substring(0, 30) + " / next => " + run(c, "SELECT count(*) FROM t").substring(0, Math.min(60, run(c, "SELECT 1").length() + 60)));
+//             }
+//         }
+//     }
+// }
+
+// =====================================================================================================================
+// APPENDIX B: the aggregator (agg.py: sums the dumps of a run into the columns chB, duckdb/host, duckdb/database,
+// h2/host, h2/database; -x prints examples, -s the small test sets)
+// =====================================================================================================================
+// #!/usr/bin/env python3
+// """M3a aggregator: sums the [m3] counts of a run's dump files into the columns chB (five suites summed),
+// duckdb/host, duckdb/database, h2/host, h2/database; prints every key (filtered by an optional regex) and the examples."""
+// import os, re, sys, glob, collections
+// run = sys.argv[1]
+// pat = re.compile(sys.argv[2]) if len(sys.argv) > 2 else None
+// cols = ['chB', 'duckdb/host', 'duckdb/database', 'h2/host', 'h2/database']
+// counts = collections.defaultdict(lambda: collections.Counter())
+// examples = collections.defaultdict(list)
+// sets = collections.defaultdict(set)
+// for d in sorted(glob.glob(os.path.join(run, 'dumps-*'))):
+//     name = os.path.basename(d)[len('dumps-'):]
+//     for f in sorted(glob.glob(os.path.join(d, '*.txt'))):
+//         mode = os.path.basename(f).split('-')[0]
+//         col = 'chB' if name.startswith('chb_') else name.replace('corpus_', '') + '/' + mode
+//         for line in open(f, encoding='utf-8', errors='replace'):
+//             line = line.rstrip('\n')
+//             m = re.match(r'\[m3\] (.*) = (\d+)$', line)
+//             if m:
+//                 counts[m.group(1)][col] += int(m.group(2))
+//                 continue
+//             m = re.match(r'\[m3-ex\] (.*?) :: (.*)$', line)
+//             if m:
+//                 examples[(m.group(1), col)].append(m.group(2))
+//                 continue
+//             m = re.match(r'\[m3-set\] (.*?) :: \[(.*)\]$', line)
+//             if m:
+//                 for v in m.group(2).split(', '):
+//                     sets[(m.group(1), col)].add(v)
+// w = max([len(k) for k in counts if not pat or pat.search(k)] + [10])
+// print('key'.ljust(min(w, 150)) + ' | ' + ' | '.join(c.rjust(9) for c in cols))
+// for k in sorted(counts):
+//     if pat and not pat.search(k):
+//         continue
+//     print(k[:150].ljust(min(w, 150)) + ' | ' + ' | '.join(str(counts[k].get(c, '')).rjust(9) for c in cols))
+// if '-x' in sys.argv:
+//     for (k, c), l in sorted(examples.items()):
+//         if pat and not pat.search(k):
+//             continue
+//         for e in l[:2]:
+//             print('EX [' + c + '] ' + k + ' :: ' + e[:500])
+// if '-s' in sys.argv:
+//     for (k, c), v in sorted(sets.items()):
+//         if pat and not pat.search(k):
+//             continue
+//         print('SET [' + c + '] ' + k + ' :: ' + ', '.join(sorted(v)))
+
+// =====================================================================================================================
+// APPENDIX C: the run scripts (run.sh: both corpora and the five channel B suites; core.sh: every core test package,
+// its [m3] lines read from each target's test.log)
+// =====================================================================================================================
+// #!/bin/bash
+// # M3a instrumented run (adapted from M0's run.sh): $1 = label. Copies the corpus logs and chB test logs to runs/$1.
+// set -u
+// L=$1
+// SP=/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/m3a
+// OUT=$SP/runs/$L
+// mkdir -p $OUT $SP/dumps
+// B=/root/.local/bin/bazel
+// cd /home/user/legend-lite
+// OB=$($B info output_base 2>/dev/null </dev/null)
+// for lane in ${LANES:-duckdb h2}; do
+//   rm -rf $OB/execroot/_main/_tmp/* $OB/sandbox/* 2>/dev/null
+//   $B test --keep_going --disk_cache= --nocache_test_results --local_test_jobs=2 --strategy=CorpusHostPass=local --strategy=CorpusDatabasePass=local //spec:corpus_$lane > $OUT/corpus_$lane.bazel.log 2>&1 </dev/null
+//   for m in host database; do
+//     cp -f bazel-bin/spec/judge_${m}_$lane/$m.log $OUT/${m}_$lane.log 2>/dev/null
+//     cp -f bazel-bin/spec/judge_${m}_$lane/judge-$m.tsv $OUT/judge-${m}_$lane.tsv 2>/dev/null
+//   done
+//   mkdir -p $OUT/dumps-corpus_$lane; mv $SP/dumps/* $OUT/dumps-corpus_$lane/ 2>/dev/null
+//   echo "corpus_$lane done: $(grep -E 'Executed' $OUT/corpus_$lane.bazel.log | tail -1)"
+// done
+// for s in ${CHB:-essential grammar relation standard unclassified}; do
+//   rm -rf $OB/execroot/_main/_tmp/* $OB/sandbox/* 2>/dev/null
+//   $B test --keep_going --disk_cache= --nocache_test_results --local_test_jobs=2 --strategy=TestRunner=local //pct:pct_channel_b_$s > $OUT/chb_$s.bazel.log 2>&1 </dev/null
+//   cp -f bazel-testlogs/pct/pct_channel_b_$s/test.log $OUT/chb_$s.test.log 2>/dev/null
+//   mkdir -p $OUT/dumps-chb_$s; mv $SP/dumps/* $OUT/dumps-chb_$s/ 2>/dev/null
+//   echo "chb_$s done: $(grep -E 'PASSED|FAILED' $OUT/chb_$s.bazel.log | tail -1)"
+// done
+// rm -rf $OB/execroot/_main/_tmp/* $OB/sandbox/* 2>/dev/null
+// df -h / | tail -1
+// echo ALLDONE
+//
+// #!/bin/bash
+// # M3a item 8: every core test package run with the product door's census hook; the [m3] lines are read from each
+// # target's test.log (the sandbox keeps the dump directory out of reach). Adapted from m1/ids.sh.
+// set -u
+// SP=/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/m3a
+// OUT=$SP/runs/core-$1
+// mkdir -p $OUT
+// B=/root/.local/bin/bazel
+// cd /home/user/legend-lite
+// OB=$($B info output_base 2>/dev/null </dev/null)
+// rm -rf $OB/execroot/_main/_tmp/* $OB/sandbox/* 2>/dev/null
+// T=""
+// for p in architecture builtin cache compiler driver exec ide integration judge ladder lexer lineage lowering model normalizer parser planner platform protocol resolver server setup sql test testdatagen testing values; do T="$T //core:core_tests_$p"; done
+// T="$T //core:core_tests_root"
+// $B test --keep_going --disk_cache= --nocache_test_results --local_test_jobs=2 $T > $OUT/bazel.log 2>&1 </dev/null
+// for f in $(find -L bazel-testlogs/core -name test.log -newer $OUT/bazel.log -o -name test.log -path "*core_tests_*" 2>/dev/null | sort -u); do
+//   n=$(echo $f | sed 's|bazel-testlogs/core/||; s|/test.log||; s|/|_|g')
+//   grep -a "^\[m3" $f > $OUT/$n.m3 2>/dev/null
+// done
+// rm -rf $OB/execroot/_main/_tmp/* $OB/sandbox/* 2>/dev/null
+// grep -E "Executed|FAILED|NO STATUS" $OUT/bazel.log | tail -12
+// df -h / | tail -1
