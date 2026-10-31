@@ -662,6 +662,9 @@ _HEADLESS_LEFT_OUT = {
     # a timeseries tile's queries against gs-quant's figures, their rows read in as chart-queries' are (2026-10-25, the
     # timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md; dated by the review's A9)
     "timeseries-queries": "a picked File, read as the page's stream",
+    # every gallery series' tile query against its #TS answer, the samples read in as timeseries-queries' are
+    # (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P5)
+    "timeseries-ts-parity": "a picked File, read as the page's stream",
     # the Pure library spike's prices read in as timeseries-queries' are (2026-10-27)
     "pure-library-spike": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against

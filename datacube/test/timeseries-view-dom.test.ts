@@ -729,9 +729,11 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       assert.deepEqual(asks().map(status), ['ran', 'ran', 'ran', 'ran', 'ran', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet']);
       assert.deepEqual(asks().map((a) => a.hasAttribute('open')), [true, true, true, false, false, false, false, false, false, false], "the chart's open");
       await until(() => asks().every((a) => code(a)[0] !== 'Writing…'), 'every query written');
-      for (const a of asks()) assert.match(code(a)[0]!.trimStart(), /^\|/, `${said(a)}: a lambda, as the compiler prints one: ${code(a)[0]!.slice(0, 80)}`);
+      // a lambda as the compiler prints one -- a series' braced, its sources bound by let before its #TS query (P6)
+      for (const a of asks()) assert.match(code(a)[0]!.trimStart(), /^\{?\|/, `${said(a)}: a lambda, as the compiler prints one: ${code(a)[0]!.slice(0, 80)}`);
       const [pureA, sqlA] = code(asks()[1]!);
       assert.match(pureA!, /'SPX'/);
+      assert.match(pureA!, /let px = [\s\S]*#TS\{SELECT /, 'its source bound, its series the #TS query');
       assert.match(sqlA!, /select/i, 'the SQL its rows were read by');
       assert.match(code(asks()[5]!)[1]!, /^Not asked yet: the Drawdowns tab asks for it when shown\.$/);
       assert.match(code(asks()[5]!)[0]!, /'SPX'/, 'written as its tab would ask it');
