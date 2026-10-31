@@ -86,6 +86,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             case Update u -> throw new IllegalStateException("a plan that only changes its database answers no rows");
             case Effect e -> throw new IllegalStateException("a plan that only sends an effect answers no rows");
             case Check c -> throw new IllegalStateException("a plan that only checks answers no rows");
+            case Setup u -> throw new IllegalStateException("a plan that only seeds answers no rows");
             case Verdicts v -> throw new IllegalStateException("a plan that only judges answers no rows: its verdicts"
                     + " go to the program's sink");
         };
@@ -120,7 +121,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
     }
 
     /** A node of the plan. */
-    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Verdicts, Constant {
+    public sealed interface Node permits Sequence, TdsResult, Keyed, Update, Check, Effect, Setup, Verdicts, Constant {
     }
 
     /**
@@ -161,7 +162,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * nothing: the comparison rules, the messages and the agreement of the two judges are the judges' own, outside
      * the plan.
      */
-    public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) implements Node {
+    public record Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused,
+            @com.legend.base.Nullable Savepoint savepoint) implements Node {
         public Verdicts {
             verdicts = List.copyOf(verdicts);
             if (verdicts.isEmpty()) {
@@ -169,6 +171,30 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             }
             if (fused != null && fused.shape() != TdsResult.Shape.RELATION) {
                 throw new IllegalArgumentException("a fused verdict statement answers a relation, one row per verdict");
+            }
+            if (savepoint != null && fused == null) {
+                throw new IllegalArgumentException("a savepoint guards a fused verdict statement: this group has none");
+            }
+        }
+
+        /** A group with no savepoint: its database's transaction survives a failing statement, or the group runs
+         *  outside any transaction. */
+        public Verdicts(List<Verdict> verdicts, @com.legend.base.Nullable TdsResult fused) {
+            this(verdicts, fused, null);
+        }
+
+        /**
+         * F11 (the test-is-the-product plan's B12): on a database that ABORTS a transaction on a failing statement,
+         * the fused statement sent inside a transaction is guarded by a savepoint -- {@code set} before it,
+         * {@code rollbackTo} when the database rejects it (so the verdicts' own wrappers, the split rung, can run),
+         * {@code release} otherwise. The texts are the dialect's ({@code SqlDialect.verdictSavepoint}); the runner
+         * sends them only inside a transaction.
+         */
+        public record Savepoint(String set, String rollbackTo, String release) {
+            public Savepoint {
+                Objects.requireNonNull(set, "set");
+                Objects.requireNonNull(rollbackTo, "rollbackTo");
+                Objects.requireNonNull(release, "release");
             }
         }
     }
@@ -293,9 +319,56 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * body driver's effects (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, phase 5: every statement a body sends is a
      * plan's). The runner says whether it answered rows.
      */
-    public record Effect(Sql sql) implements Node {
+    public record Effect(Sql sql, @com.legend.base.Nullable Script script) implements Node {
         public Effect {
             Objects.requireNonNull(sql, "sql");
+            if (script != null && !sql.slots().isEmpty()) {
+                throw new IllegalArgumentException("an effect script binds no slot: its statements are its text");
+            }
+        }
+
+        /** One statement sent for what it does. */
+        public Effect(Sql sql) {
+            this(sql, null);
+        }
+
+        /**
+         * A SCRIPT of consecutive effect statements a program wrote (the test-is-the-product plan's B12, R7 decision
+         * 14): {@code statements} as written; {@code bracketed}, the script in its dialect's bracket (DuckDB's
+         * {@code BEGIN TRANSACTION ... COMMIT}, so a failure applies nothing; H2 sends it bare), sent where the session
+         * owns its transaction and the program opened none; {@code abort}, the statement that closes a bracket a
+         * failure left open, sent before the failure is raised (null where the dialect brackets nothing). Elsewhere
+         * the effect's own {@code sql} -- the statements joined, bare -- is sent. The texts are the dialect's
+         * ({@code SqlDialect.script}, {@code scriptAbort}); the runner writes none.
+         */
+        public record Script(List<String> statements, String bracketed, @com.legend.base.Nullable String abort) {
+            public Script {
+                statements = List.copyOf(statements);
+                if (statements.isEmpty()) {
+                    throw new IllegalArgumentException("an effect script holds at least one statement");
+                }
+                Objects.requireNonNull(bracketed, "bracketed");
+            }
+        }
+    }
+
+    /**
+     * The SEEDS a program's next statement reads (the test-is-the-product plan's B12, D35): a {@code from()}'s inline
+     * test data, its named runtime's, the program's runtime's -- each step as {@link Target#setup}'s, run on the
+     * program's session. {@code key} names the seeds' sources (the planner's spelling of their value): a session that
+     * holds those seeds and has run no write since skips the step (the seeds' memo, {@code SessionState}); otherwise
+     * the runner runs the steps and records the key. A test door's step (refused on the product's query door, B6).
+     */
+    public record Setup(String key, List<SetupStep> steps) implements Node {
+        public Setup {
+            Objects.requireNonNull(key, "key");
+            if (key.isEmpty()) {
+                throw new IllegalArgumentException("a seed step names its seeds' key");
+            }
+            steps = List.copyOf(steps);
+            if (steps.isEmpty()) {
+                throw new IllegalArgumentException("a seed step with no step: plan none");
+            }
         }
     }
 

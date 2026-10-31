@@ -46,7 +46,10 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 22 since 2026-10-31: a keyed result's key source and a verdict's keyed wrapper (the seam program's S3c)
 // 23 since 2026-10-31: the constant node (a value the program wrote, answered with nothing sent: the test-is-the-product
 // plan's M2) -- its one column's cells as text, a String's or a Boolean's, written as the typed result's would be
-const PLAN_VERSION = 23;
+// 24 since 2026-10-31: an effect's script, the setup node (a program's seed step) and a verdict group's savepoint (the
+// test-is-the-product plan's M3) -- an effect and a seed step are refused by name, as any step that is not an update, a
+// check, a typed result or a constant
+const PLAN_VERSION = 24;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

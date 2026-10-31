@@ -70,6 +70,11 @@ public final class VerdictBatch {
 
         /** The statement's rendered length (the prepare trace's census). */
         int chars(SqlQuery statement);
+
+        /** The savepoint that guards a fused statement inside a transaction where the body's database aborts one on a
+         *  failing statement (F11, the test-is-the-product plan's B12), or null where none is needed or none exists
+         *  ({@code SqlDialect.verdictSavepoint}). */
+        ExecutionPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint();
     }
 
     /** The arm a verdict's name spells: the assert function's simple name (the name is its callee's FQN, or the
@@ -350,7 +355,8 @@ public final class VerdictBatch {
             for (Pending p : members) {
                 verdicts.add(new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(), List.of(), null));
             }
-            ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(verdicts, fusedPlan);
+            ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(verdicts, fusedPlan,
+                    fusedPlan == null ? null : runner.savepoint());
             int[] next = {0};
             VerdictSink sink = new VerdictSink() {
                 @Override

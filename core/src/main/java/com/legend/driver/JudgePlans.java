@@ -342,6 +342,12 @@ final class JudgePlans {
             }
 
             @Override
+            public ExecutionPlan.Verdicts.@com.legend.base.Nullable Savepoint savepoint() {
+                com.legend.sql.dialect.SqlDialect.VerdictSavepoint s = env.dialect().verdictSavepoint();
+                return s == null ? null : new ExecutionPlan.Verdicts.Savepoint(s.set(), s.rollbackTo(), s.release());
+            }
+
+            @Override
             public int chars(SqlQuery statement) {
                 return env.dialect().render(statement).length();
             }

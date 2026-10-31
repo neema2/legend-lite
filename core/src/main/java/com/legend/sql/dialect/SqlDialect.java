@@ -211,6 +211,20 @@ public interface SqlDialect {
         return null;
     }
 
+    /** The texts that guard a fused verdict statement sent inside a transaction (F11, the test-is-the-product plan's
+     *  B12): where this database ABORTS a transaction on a failing statement, a savepoint set before the statement and
+     *  rolled back to when the database rejects it, so the verdicts' own wrappers can still run; released otherwise.
+     *  Null where none is needed -- the transaction survives a failing statement (H2, MySQL, MariaDB, SQLite) or the
+     *  database has no transaction across statements -- or where the database aborts and has no savepoint (DuckDB,
+     *  which says so itself). */
+    default @com.legend.base.Nullable VerdictSavepoint verdictSavepoint() {
+        return null;
+    }
+
+    /** {@link #verdictSavepoint}'s three texts. */
+    record VerdictSavepoint(String set, String rollbackTo, String release) {
+    }
+
     /** Which statement of a failed script the engine's message names (0-based), or
      *  empty when the engine does not say — H2 quotes the failing statement
      *  ({@code SQL statement: …}); DuckDB names values and columns only. */

@@ -224,6 +224,14 @@ public final class Postgres extends AnsiSqlRenderer {
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic
      * pivot needs a key-discovery round trip the browser planner cannot make. */
     // the probe plan's facts (2026-10-20): Postgres: "target lists can have at most 1664 entries" (MaxTupleAttributeNumber); REPEATABLE READ is its snapshot
+    /** Postgres aborts a transaction on a failing statement (every later statement is refused until a rollback), and
+     *  has savepoints: a fused verdict statement inside a transaction is guarded by one (F11). */
+    @Override
+    public VerdictSavepoint verdictSavepoint() {
+        return new VerdictSavepoint("SAVEPOINT legend_verdicts", "ROLLBACK TO SAVEPOINT legend_verdicts",
+                "RELEASE SAVEPOINT legend_verdicts");
+    }
+
     @Override
     public KeysSnapshot keysSnapshot() {
         return KeysSnapshot.REPEATABLE_READ;

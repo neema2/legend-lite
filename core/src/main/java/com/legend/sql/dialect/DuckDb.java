@@ -1168,6 +1168,15 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     // the probe plan's facts (2026-10-20): measured 2026-10-20: 70,000 columns answered, no limit met; setTransactionIsolation refused, every transaction a snapshot
+    /** None: DuckDB aborts a transaction on a run-time error and has NO savepoint (measured on 1.5.6, the
+     *  test-is-the-product plan's M3a: {@code SAVEPOINT} is a parser error, the JDBC call unsupported), so a fused
+     *  verdict statement it rejects inside a transaction cannot fall back to the verdicts' own wrappers -- a named
+     *  limit (M3a counted 0 such rejections in the corpora). */
+    @Override
+    public @com.legend.base.Nullable VerdictSavepoint verdictSavepoint() {
+        return null;
+    }
+
     @Override
     public KeysSnapshot keysSnapshot() {
         return KeysSnapshot.TRANSACTION;

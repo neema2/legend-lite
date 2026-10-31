@@ -109,6 +109,8 @@ public final class PlanRunner {
                     + " plan's answer is a result");
             case ExecutionPlan.Effect effect -> throw new IllegalStateException("a plan whose answer is an effect: a"
                     + " plan's answer is a result (an effect alone is sent by effect(...))");
+            case ExecutionPlan.Setup seeds -> throw new IllegalStateException("a plan whose root is a seed step: a"
+                    + " program's step, run by program(...)");
             case ExecutionPlan.Verdicts verdicts -> throw new IllegalStateException("a plan whose root is a verdict"
                     + " group: a program's step, run by program(...)");
         }
@@ -175,10 +177,12 @@ public final class PlanRunner {
                     sqls.add(u.sql());
                 }
                 case ExecutionPlan.Check k -> sqls.add(k.sql());
-                case ExecutionPlan.Effect e -> {
-                    changes = true;
-                    sqls.add(e.sql());
-                }
+                // the transaction rule (the test-is-the-product plan's R17): only a store write opens the program's
+                // transaction; an effect commits itself, its script bracketed by its dialect where the session owns
+                // its transaction (upstream's executeInDb runs with autocommit)
+                case ExecutionPlan.Effect e -> sqls.add(e.sql());
+                // a seed step's statements run on the program's session (its target the program's)
+                case ExecutionPlan.Setup u -> { }
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     sqls.add(t.sql());
@@ -265,13 +269,19 @@ public final class PlanRunner {
         boolean[] answered = {false};
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
             Statements st = opened(session, on);
+            // inside a transaction: the program's own (it writes a store), or a caller's the session joins
+            boolean inTransaction = changes || !st.ownsTransaction();
             Statements.Work work = () -> {
                 Map<String, PlanParameters.Checked> live = new java.util.HashMap<>(checked);
                 for (ExecutionPlan.Node step : sequence.steps()) {
                     switch (step) {
                         case ExecutionPlan.Update u -> update(u, live, st);
                         case ExecutionPlan.Check k -> check(k, live, st);
-                        case ExecutionPlan.Effect e -> effect(e, live, st);
+                        case ExecutionPlan.Effect e -> {
+                            script(e, live, st, inTransaction);
+                            session.state().markWriting();
+                        }
+                        case ExecutionPlan.Setup u -> seed(u, session, st);
                         case ExecutionPlan.TdsResult t -> {
                             answered[0] = true;
                             result(t, live, st, held);
@@ -284,7 +294,7 @@ public final class PlanRunner {
                             answered[0] = true;
                             keyedOn(k, live, st, heldSink(held));
                         }
-                        case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink);
+                        case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, inTransaction);
                         case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
                     }
                 }
@@ -326,7 +336,8 @@ public final class PlanRunner {
      *  own wrapper where the fused statement is none or the database rejects it: the split rung, counted) and the
      *  HOST judge's sides, each verdict's rows to {@code sink} in the group's order. */
     private static void verdicts(ExecutionPlan.Verdicts group, Judging judging,
-            Map<String, PlanParameters.Checked> values, Statements st, ProgramSink sink) throws IOException {
+            Map<String, PlanParameters.Checked> values, Statements st, ProgramSink sink, boolean inTransaction)
+            throws IOException {
         if (judging == Judging.HOST || judging == Judging.BOTH) {
             for (ExecutionPlan.Verdict each : group.verdicts()) {
                 List<Rows> sides = new java.util.ArrayList<>(each.base().size());
@@ -359,6 +370,12 @@ public final class PlanRunner {
             boolean rejected = false;
             if (group.fused() != null) {
                 Held h = new Held();
+                // F11: inside a transaction on a database that aborts it on a failing statement, the fused statement
+                // is guarded by the group's savepoint, so a rejection leaves the wrappers a live transaction
+                ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
+                if (guard != null) {
+                    sendStatement(guard.set(), st);
+                }
                 try {
                     result(group.fused(), values, st, h);
                     for (List<Object> row : collected(h).rows()) {
@@ -373,7 +390,13 @@ public final class PlanRunner {
                                 + " rows for " + group.verdicts().size() + " verdicts");
                     }
                     sink.fused(group, null);
+                    if (guard != null) {
+                        sendStatement(guard.release(), st);
+                    }
                 } catch (com.legend.error.DataError e) {
+                    if (guard != null) {
+                        sendStatement(guard.rollbackTo(), st);
+                    }
                     // the split rung: the database rejected the fused statement, so each verdict's own wrapper runs
                     // below and the error lands on the verdict that owns it; the sink's accounting, never a verdict
                     // change
@@ -643,6 +666,8 @@ public final class PlanRunner {
                     changes = true;
                     yield e.sql();
                 }
+                case ExecutionPlan.Setup u -> throw new com.legend.error.NotImplementedException("a seed step in a"
+                        + " plan the query door runs: seeds are the test door's (the program runner's, program(...))");
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     yield t.sql();
@@ -730,6 +755,8 @@ public final class PlanRunner {
                 case ExecutionPlan.Update u -> update(u, values, st);
                 case ExecutionPlan.Check k -> check(k, values, st);
                 case ExecutionPlan.Effect e -> effect(e, values, st);
+                case ExecutionPlan.Setup u -> throw new IllegalStateException("a seed step in a plan's steps: the"
+                        + " program runner's (program(...))");
                 case ExecutionPlan.TdsResult t -> result(t, values, st, held);
                 case ExecutionPlan.Constant c -> constant(c, held);
                 case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(held));
@@ -765,6 +792,60 @@ public final class PlanRunner {
         String statement = statement(e.sql(), values);
         StatementOrigin.sent(statement);
         st.execute(statement);
+    }
+
+    /** A program's effect step (the test-is-the-product plan's B12): a script in its dialect's bracket where the
+     *  session owns its transaction and none is open (the bracket's abort sent before a failure is raised), its
+     *  statements bare otherwise; a single statement as {@link #effect}. */
+    private static void script(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st,
+            boolean inTransaction) {
+        ExecutionPlan.Effect.Script script = e.script();
+        if (script == null || inTransaction) {
+            effect(e, values, st);
+            return;
+        }
+        try {
+            sendStatement(script.bracketed(), st);
+        } catch (com.legend.error.DataError failed) {
+            if (script.abort() != null) {
+                sendStatement(script.abort(), st);
+            }
+            throw failed;
+        }
+    }
+
+    /** A statement the plan wrote as text (a script, a savepoint's), sent for what it does. */
+    private static void sendStatement(String statement, Statements st) {
+        StatementOrigin.sent(statement);
+        st.execute(statement);
+    }
+
+    /** A program's seed step (B12): skipped where the session holds its key's seeds and has run no write since; run
+     *  otherwise, step by step as a target's setup is, and its key recorded. */
+    private static void seed(ExecutionPlan.Setup seeds, Sessions.Session session,
+            Statements st) {
+        SeedKey key = new SeedKey(seeds.key());
+        if (session.state().established(key)) {
+            return;
+        }
+        try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
+            for (ExecutionPlan.SetupStep step : seeds.steps()) {
+                switch (step) {
+                    case ExecutionPlan.SetupStep.Statement s -> sendStatement(s.sql(), st);
+                    case ExecutionPlan.SetupStep.Rows r -> {
+                        if (!st.load(r)) {
+                            throw new IllegalStateException("the seeds have rows for a bulk loader, and the session's"
+                                    + " database has none (" + r.stagingTable() + ")");
+                        }
+                    }
+                }
+            }
+        }
+        session.state().establish(key);
+    }
+
+    /** A seed step's key as the session's seeds' memo holds it. */
+    private record SeedKey(String key) {
     }
 
     /** A constant answer's rows into {@code held}. */

@@ -289,4 +289,100 @@ final class ProgramRunnerTest {
     private static List<Object> cells(List<Object> row) {
         return new ArrayList<>(row);
     }
+
+    // ---- M3b (the test-is-the-product plan's B12): an effect's script, a seed step, a verdict group's savepoint ----
+
+    private static void exec(String sql) throws SQLException {
+        try (java.sql.Statement st = conn.createStatement()) {
+            st.execute(sql);
+        }
+    }
+
+    private static long count(String table) throws SQLException {
+        try (java.sql.Statement st = conn.createStatement();
+                java.sql.ResultSet rs = st.executeQuery("SELECT count(*) FROM " + table)) {
+            rs.next();
+            return rs.getLong(1);
+        }
+    }
+
+    private static List<String> column(String sql) throws SQLException {
+        List<String> out = new ArrayList<>();
+        try (java.sql.Statement st = conn.createStatement(); java.sql.ResultSet rs = st.executeQuery(sql)) {
+            while (rs.next()) {
+                out.add(rs.getString(1));
+            }
+        }
+        return out;
+    }
+
+    /** {@code statements} as one effect step, scripted in the platform dialect's bracket. */
+    private static ExecutionPlan.Effect script(List<String> statements) {
+        com.legend.sql.dialect.SqlDialect dialect = Databases.dialect(Databases.PLATFORM);
+        return new ExecutionPlan.Effect(ExecutionPlan.Sql.of(String.join(";\n", statements) + ";", target),
+                new ExecutionPlan.Effect.Script(statements, dialect.script(statements), dialect.scriptAbort()));
+    }
+
+    private static Recording run(ExecutionPlan.Node root, PlanRunner.Judging judging) throws IOException {
+        ExecutionPlan plan = new ExecutionPlan(List.of(), root);
+        assertEquals(plan, PlanJson.read(PlanJson.write(plan)), "the plan reads back as written");
+        Recording sink = new Recording();
+        PlanRunner.program(plan, Map.of(), sessions(), judging, sink);
+        return sink;
+    }
+
+    @Test
+    @DisplayName("an effect script runs in its dialect's bracket; a failure aborts the bracket and applies nothing")
+    void anEffectScriptRunsBracketedAndAFailureAppliesNothing() throws Exception {
+        run(script(List.of("CREATE OR REPLACE TABLE m3b_s (a INTEGER)", "INSERT INTO m3b_s VALUES (1)")),
+                PlanRunner.Judging.HOST);
+        assertEquals(1, count("m3b_s"));
+        // the second statement fails at run time: DuckDB's bracket applies neither, and the abort closes it
+        assertThrows(com.legend.error.DataError.class, () -> run(script(List.of("INSERT INTO m3b_s VALUES (2)",
+                "INSERT INTO m3b_s VALUES ('not a number')")), PlanRunner.Judging.HOST));
+        assertEquals(1, count("m3b_s"), "the failed script applied nothing, and the session is usable");
+    }
+
+    @Test
+    @DisplayName("a seed step runs once on a session, is skipped while the session holds its seeds, re-runs after a write")
+    void aSeedStepRunsOnceUntilAWrite() throws Exception {
+        ExecutionPlan.Setup seeds = new ExecutionPlan.Setup("m3b-seeds", List.of(new ExecutionPlan.SetupStep.Statement(
+                "CREATE OR REPLACE TABLE m3b_seed AS SELECT 1 AS a")));
+        ExecutionPlan.TdsResult read = relation("SELECT count(*) AS n FROM m3b_seed",
+                List.of(col("n", "Integer", "BIGINT")));
+        run(new ExecutionPlan.Sequence(List.of(seeds, read)), PlanRunner.Judging.HOST);
+        assertEquals(1, count("m3b_seed"));
+        exec("INSERT INTO m3b_seed VALUES (2)");   // outside the runner: the session's memo does not see it
+        run(new ExecutionPlan.Sequence(List.of(seeds, read)), PlanRunner.Judging.HOST);
+        assertEquals(2, count("m3b_seed"), "skipped: the session holds the seeds and ran no write");
+        run(new ExecutionPlan.Sequence(List.of(new ExecutionPlan.Effect(ExecutionPlan.Sql.of(
+                "INSERT INTO m3b_seed VALUES (3)", target)), seeds, read)), PlanRunner.Judging.HOST);
+        assertEquals(1, count("m3b_seed"), "re-seeded after the program's write");
+    }
+
+    @Test
+    @DisplayName("F11: a fused statement inside a transaction is guarded by the group's savepoint, outside it is not")
+    void aFusedStatementInATransactionIsGuardedByItsSavepoint() throws Exception {
+        // the savepoint's three texts are stand-ins that log their step (DuckDB has no savepoint; a catalog error
+        // does not abort its transaction, so the rejected fused statement leaves the rung observable)
+        exec("CREATE OR REPLACE TABLE m3b_sp (step VARCHAR)");
+        exec("CREATE OR REPLACE TABLE m3b_w (a INTEGER)");
+        ExecutionPlan.Verdicts.Savepoint sp = new ExecutionPlan.Verdicts.Savepoint(
+                "INSERT INTO m3b_sp VALUES ('set')", "INSERT INTO m3b_sp VALUES ('rollbackTo')",
+                "INSERT INTO m3b_sp VALUES ('release')");
+        ExecutionPlan.Update write = new ExecutionPlan.Update(ExecutionPlan.Sql.of("INSERT INTO m3b_w VALUES (1)",
+                target), null);
+        ExecutionPlan.Verdicts held = group(fused(FUSED));
+        ExecutionPlan.Verdicts guarded = new ExecutionPlan.Verdicts(held.verdicts(), held.fused(), sp);
+        run(new ExecutionPlan.Sequence(List.of(write, guarded)), PlanRunner.Judging.DATABASE);
+        assertEquals(List.of("set", "release"), column("SELECT step FROM m3b_sp ORDER BY rowid"));
+        ExecutionPlan.Verdicts rejected = group(fused("SELECT * FROM no_such_table_m3b"));
+        Recording split = run(new ExecutionPlan.Sequence(List.of(write, new ExecutionPlan.Verdicts(
+                rejected.verdicts(), rejected.fused(), sp))), PlanRunner.Judging.DATABASE);
+        assertEquals(List.of("set", "release", "set", "rollbackTo"), column("SELECT step FROM m3b_sp ORDER BY rowid"));
+        assertEquals(2, split.verdictRows.size(), "the wrappers ran after the rollback to the savepoint");
+        // outside any transaction (no write, the session's own commits): no savepoint statement is sent
+        run(guarded, PlanRunner.Judging.DATABASE);
+        assertEquals(4, count("m3b_sp"));
+    }
 }

@@ -528,3 +528,11 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   tests; the audit's finding 3 recorded as partly folded). **The plan re-shaped (R16, D102)**: whole bodies move class
   by class, the per-statement bridge dropped, M5-M10 rewritten. **M3 ruled (R17)** and its brief written (B12). Next:
   M3a, the measurements.
+- 2026-10-31: **M3a measured** (`docs/test-is-product-homework/C_M3_MEASUREMENTS.md`); B12 narrowed by it (the door's
+  seeds rule for a runtime other than the plan's own; `fail` not a verdict; DuckDB's F11 limit kept; the renames move 0).
+- 2026-10-31: **M3b built**: the plan records and the runner -- `Effect`'s script (its statements, bracketed form and
+  abort), the `Setup` node (a key and its steps; the runner skips a key the session holds clean, else seeds under SEED
+  and records it), `Verdicts`' optional savepoint (Postgres writes one; DuckDB none, its limit documented), PlanJson
+  24 and the TypeScript pin; `PlanRunner.program` brackets only for an `Update` (an `Effect` commits itself, its
+  bracket sent only where the session owns its transaction; after it the session is marked written). Measured: every
+  core package's statements against M2 -- the only new statements are the new runner tests' own. Next: M3c.
