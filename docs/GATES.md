@@ -16583,6 +16583,40 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-10-31 — The test-is-the-product plan's M0: the measurements (no product change)
+
+The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §7 (M0). The results are in
+`docs/test-is-product-homework/C_M0_MEASUREMENTS.md`.
+
+1. **How:** a research patch, never committed (saved as text in `docs/test-is-product-homework/probes/`). It counts
+   at the test road's lowering, the segment walk, the judges' arms, `assertError` and `ScanOrder`. It also plans each
+   statement and side the product way and compares the SQL. The patch ran on S4a's code (8a842acb), with no
+   change to the code since.
+2. **Outcomes under the patch:** identical to the baseline (DuckDB host 2,471/108, database 2,473/108; H2 host
+   2,289/295, database 2,233/353; channel B 5 of 5), and the statement-origins census is identical. The DuckDB
+   engine-order registers moved only because the probe's own renders count as firings of the engine-compatibility
+   order key. The source tree was restored after the runs.
+3. **The MV1 experiment** (a verdict group closed before every non-verdict step): no outcome or message moved on
+   either corpus (only the random trace ids differ). Fused groups went 2,521 -> 2,545 (DuckDB) and 2,520 -> 2,529
+   (H2). The outside-body register moved by construction: 14 DuckDB and 7 H2 pure bodies became more than one send.
+4. **Not measured:** the lanes (no product change; they are asked on this checkpoint's head).
+
+## 2026-10-31 — The lane sessions on S2d and S2j: every server and cloud lane identical, effect statements included (round 6)
+
+The arrangement of D81, round 6: the five lane sessions MEASURE ONLY on fe643205 (S2d: an effect's statements
+planned; S2j's view SQL) against their 90896121 runs. Every statement was compared, effect statements in particular.
+
+| session | lanes | round 6 (fe643205 vs 90896121) |
+|---|---|---|
+| sibling 1 | Trino channels A and B; Postgres channel B (unprivileged) | identical per test; every statement byte-identical (Trino A 1688/1108/948/1410/244, Trino B 2747/1237/1967/2303/433, Postgres B 2727/1169/1967/2303/429); whole logs 0 differing lines; these channels send no effect natives (only the 45-46 system statements of Postgres channel B grammar, identical) |
+| sibling 1b | SQLite, MariaDB, MySQL, ClickHouse, channels A and B (40 targets) | identical per test (0 of 20 rows); 92,841 statement records, the same per target and kind as round 5; 38 of 40 byte-identical, 2 differing only in the generated anonymous id inside a test's literal (run-to-run); effect statements identical in text, order and count (SQLite CREATE 35 DROP 35 INSERT 12; MariaDB CREATE 35 INSERT 12 SET 27,447; MySQL CREATE 35 INSERT 12 SET 23,538; ClickHouse CREATE 35 INSERT 12) |
+| sibling 2 | Snowflake, channels A and B | identical per test; every statement byte-identical in all 10 suites; no effect DDL on this lane (45 system INSERTs identical) |
+| sibling 3 | Databricks, channels A and B | identical per test on both channels; every statement byte-identical in order in all 10 targets, session, system and effect statements included (channel B grammar 34, channel A grammar 1) |
+| sibling 4 | BigQuery, channels A and B | identical per test (the known `testFilterInstance` row-order message, same verdict); all 10 dumps byte-identical; the effect and DDL statements only the system and session temporary tables, identical |
+
+No `NotImplementedException`, `IllegalStateException` or "is EFFECT but no arm" anywhere; every keyword scan
+unchanged. The only red is main's: SQLite channel B essential at 332.
+
 ## 2026-10-31 — The seam program's S4a, first piece: a side's plan made with no session
 
 The decisions log D99; the plan `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` §3.4b (S4's brief, step 6: S4a).

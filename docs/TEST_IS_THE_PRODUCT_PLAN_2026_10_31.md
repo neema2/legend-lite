@@ -341,6 +341,10 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
     collation per dialect to be right.
   Today's failure texts ("Execution error message mismatch. The actual message was ...", "No error was thrown", the
   line and column forms) are kept either way.
+- **R14's one ambiguous case (posted by M0, 2026-10-31):** the host judge's "golden JSON does not parse" (`sql.Json`,
+  2 failing tests per corpus, host pass only). The golden is a literal, so the failure is knowable at compile time,
+  but the engine parses it when the assert runs. Compile error or planned raise? Every other planning failure M0 saw is
+  classified in `docs/test-is-product-homework/C_M0_MEASUREMENTS.md` §4.
 
 ## 10. Status
 
@@ -351,3 +355,14 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   steps for what must run first) and two corrections (the test-only kinds planned by the test library; M0 builds the
   parity census); then R14 refined: compile errors fail the test, early-detected run-time errors become planned
   raises, the body compiled whole. Next: M0, on the user's word.
+- 2026-10-31: **M0 measured** (the user's go: "Yes great let's do all the measurements"):
+  `docs/test-is-product-homework/C_M0_MEASUREMENTS.md`, the probe saved as text in `probes/`.
+  - Where both roads plan, the SQL is the same: 30,448 identical and 3,250 numbering only of 34,463. The 765
+    differences are the plan's five lowering factors, with no front-half difference.
+  - The product road's refusals are its missing features, chiefly D15 (92%).
+  - MV1 moves no test.
+  - MV8 is at most one H2 test.
+  - The four lowering-time guards are run-time errors, so planned raises. One case is posted (§9).
+  - T8, R13, D18, F11, D30 and MV2 have no corpus or channel B case.
+
+  Checkpoint: the branch pushed, CI, the lane sessions asked. Next: M1, on the user's word.
