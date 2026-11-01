@@ -37,7 +37,8 @@ for r in prof:
 
 # corpus declarations (anything in the model, whether or not a service reaches it) -- from analysis
 # (the M2M rows, the enumeration mappings and the merges re-counted 2026-10-30, the improvement plan's Phase 5; the
-# relation rows 2026-10-30, its Phase 6; the store rows 2026-10-31, its Phase 9)
+# relation rows 2026-10-30, its Phase 6; the store rows 2026-10-31, its Phase 9; the polymorphic query and the alias
+# columns 2026-11-01, its EMIT target)
 DECL = {
     'scaffolding:class': '2,330 classes', 'scaffolding:relational-store': '30 databases',
     'scaffolding:relational-connection': '16', 'scaffolding:relational-mapping': '2,358 class mappings',
@@ -59,8 +60,8 @@ DECL = {
     'mapping:relational-inline-embedded': '1', 'mapping:relational-joined-table-inheritance': '-',
     'mapping:relational-literal': '138', 'mapping:relational-literal-list': '2',
     'mapping:relational-main-table-alias': 'scope blocks: DenseMapping only', 'mapping:relational-otherwise-embedded': '4',
-    'mapping:relational-polymorphic-query': 'inheritance op, no subType()', 'mapping:relational-primary-key': '276',
-    'mapping:relational-single-table-inheritance': '1,848', 'mapping:relational-table-alias-column': '-',
+    'mapping:relational-polymorphic-query': 'inheritance op, 2 subType() services', 'mapping:relational-primary-key': '276',
+    'mapping:relational-single-table-inheritance': '1,848', 'mapping:relational-table-alias-column': 'scope blocks: DenseMapping only',
     'mapping:router-union': '1', 'mapping:store-union': '1',
     'mapping:relation-model-join': '2', 'mapping:relation-local-property': '3',
     'mapping:relation-src': '1', 'mapping:relation-filter': '3 functions', 'mapping:relation-group-by': '1',

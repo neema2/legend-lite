@@ -338,6 +338,11 @@ def op_feats(op, feats, tables_touched, db_hint):
 
 def set_feats(s, m, feats, tables):
     t = s.get('_type')
+    # A class mapping declared in a mapping the service's mapping includes, resolved through the include: EMIT's
+    # mapping-include (its relational-mapping-include model queries the included Person mapping through the including
+    # one; added 2026-11-01, the improvement plan's EMIT target). A set of the service's own mapping is not.
+    if s.get('__mapping') and s['__mapping'] != m:
+        feats.add('mapping:mapping-include')
     if t == 'relational':
         feats.add('scaffolding:relational-mapping')
         if s.get('distinct'):
@@ -419,6 +424,29 @@ def set_feats(s, m, feats, tables):
         feats.update(relation_source_feats(s))
 
 
+def joined_table(cur_set, pname, pm, m):
+    """EMIT's joined-table inheritance in the form its model writes it (relational-joined-table-inheritance): a
+    subclass's set over a table of its own, mapping a property its superclass declares through a join to the table the
+    superclass's set reads (Organisation's `name: @PartyOrganisation | PartyTable.name`). No `extends` is involved, so
+    set_feats' extends check never saw it (added 2026-11-01)."""
+    if (cur_set or {}).get('_type') != 'relational' or pm.get('_type') != 'relationalPropertyMapping':
+        return False
+    cls = cur_set.get('class')
+    if pname in props.get(cls, {}):
+        return False
+    op = pm.get('relationalOperation') or {}
+    if op.get('_type') != 'elemtWithJoins' or not op.get('joins'):
+        return False
+    mt = (cur_set.get('mainTable') or {}).get('table')
+    far = ((op.get('relationalElement') or {}).get('table') or {}).get('table')
+    for sup in supers.get(cls, []):
+        base = root_set(m, sup)
+        bt = ((base or {}).get('mainTable') or {}).get('table')
+        if base is not None and base.get('_type') == 'relational' and bt and bt != mt and far == bt:
+            return True
+    return False
+
+
 def relation_function(name):
     """The function a `~func` descriptor or a call names: `pkg::f():Relation<Any>[1]` or `pkg::f`, whose protocol name
     carries its signature after the name (`f__Relation_1_`)."""
@@ -493,6 +521,10 @@ def prop_feats(pm, feats, tables, m, db_hint, src_cls=None):
         feats.add('mapping:enumeration-mapping')
     if pm.get('bindingTransformer'):
         feats.add('execution:binding')
+        # an ExternalFormat Binding typing the property's document: EMIT tags every one of its semi-structured binding
+        # models (relational-semistructured-binding, -binding-source, -collection, -array-operations) with
+        # external-format-binding beside store:relational-semistructured-binding (added 2026-11-01)
+        feats.add('execution:external-format-binding')
         # a relation mapping's binding transformer is EMIT's relation-binding-transformer (added 2026-10-30, the
         # improvement plan's Phase 6)
         feats.add('mapping:relation-binding-transformer' if t == 'relationFunctionPropertyMapping'
@@ -509,6 +541,9 @@ def prop_feats(pm, feats, tables, m, db_hint, src_cls=None):
         tline = ((op.get('table') or {}).get('sourceInformation') or {}).get('startLine')
         if op.get('_type') == 'column' and line and tline and tline < line:
             feats.add('mapping:relational-main-table-alias')
+            # the bare column the block resolves against its table alias: EMIT tags the one model of this form,
+            # relational-main-table-alias, with both features (added 2026-11-01)
+            feats.add('mapping:relational-table-alias-column')
     elif t == 'embeddedPropertyMapping':
         feats.add('mapping:relational-embedded')
     elif t == 'otherwiseEmbeddedPropertyMapping':
@@ -651,6 +686,15 @@ for s in services:
                'isEmpty', 'isNotEmpty', 'map', 'if', 'in', 'or', 'not', 'subType', 'toOne'):
         if f.get(fn):
             feats.add('q:' + fn)
+    # The service executes through a Mapping: EMIT's mapping:mapping, "Generic mapping (legacy tag)", which its models
+    # carry for having one (emit.md's service-simple, with an empty mapping; the m2m models). And its tests run on a
+    # plan: legend-engine's testable ServiceTestRunner generates each test's execution plan (ServicePlanGenerator, a
+    # composite one for a multi-execution service) before running it, which EMIT tags execution:plan-generation on its
+    # service models (service-shared-test-data, -multi-execution). Both added 2026-11-01.
+    if mp:
+        feats.add('mapping:mapping')
+    if s.get('testSuites') and ex.get('_type') in ('pureSingleExecution', 'pureMultiExecution'):
+        feats.add('execution:plan-generation')
     # EMIT's execution:graph-fetch (added to emit.md after 2026-09-29): a graph fetch query executed in a test
     if f.get('graphFetch') and s.get('testSuites'):
         feats.add('execution:graph-fetch')
@@ -722,6 +766,8 @@ for s in services:
                 db_hint = ((cur_set.get('mainTable') or {}).get('database'))
                 if pm is not None:
                     prop_feats(pm, feats, tables, mp, db_hint, (owner or cur_set).get('srcClass'))
+                    if joined_table(cur_set, pname, pm, mp):
+                        feats.add('mapping:relational-joined-table-inheritance')
                     if pm.get('bindingTransformer') and semi_column(pm.get('relationalOperation'), db_hint):
                         bound = True
                     if pm.get('_type') in ('embeddedPropertyMapping', 'otherwiseEmbeddedPropertyMapping'):
@@ -783,12 +829,18 @@ for s in services:
                         feats.add('grammar:nested-association')
                 if ptype in enums:
                     feats.add('grammar:enumeration')
+                # a fetched unit- or measure-typed property, as a navigated one is above (a tree was never checked:
+                # MU0_MonetaryTrade fetches Money~USD; added 2026-11-01)
+                if ptype in measures or (ptype and '~' in ptype):
+                    feats.add('grammar:measure')
                 nxt = None
                 if cur_set is not None and pkind in ('prop', 'assoc'):
                     pm, owner = pm_in(cur_set, pname, mp)
                     db_hint = (cur_set.get('mainTable') or {}).get('database')
                     if pm is not None:
                         prop_feats(pm, feats, tables, mp, db_hint, (owner or cur_set).get('srcClass'))
+                        if joined_table(cur_set, pname, pm, mp):
+                            feats.add('mapping:relational-joined-table-inheritance')
                     else:
                         by_class, by_id, assoc_pm, _ = index(mp)
                         for am, apm in assoc_candidates(assoc_pm, cls, pname, cur_set):
@@ -860,6 +912,13 @@ for s in services:
         rs = root_set(mp, ga) if mp else None
         if rs is not None:
             set_feats(rs, mp, feats, tables)
+    # EMIT's relational-polymorphic-query: a query on a class whose set is the inheritance operation that downcasts with
+    # subType() (the model's downcastSuite, `$x->subType(@CardPayment).cardLast4`). Its plain root-class query is
+    # relational-operation-mapping's, which EMIT tags mapping:operation-mapping alone (added 2026-11-01).
+    if f.get('subType') and ga and mp:
+        rs = root_set(mp, ga)
+        if rs is not None and rs.get('_type') == 'operation' and rs.get('operation') == 'INHERITANCE':
+            feats.add('mapping:relational-polymorphic-query')
     for c in touched_classes:
         e = classes.get(c)
         if not e:
