@@ -3393,7 +3393,14 @@ Status lives in the plan's Progress table (rule 0b.16).
   rows on one side only; a generator writing a new generated file of services over them (`core/stress.bzl`'s
   `STRESS_GENERATED`, the layout JSON, `scripts/corpus/BUILD.bazel`'s module lists); `model.py` and the oracle
   evaluating each navigation over the seeded JSON; `executed.py`, `quarantine.py`, repros under
-  `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+  `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. As built (done 2026-10-31, two stages:
+  `411eece77`, `2a71bc502`): SURFACE_TYPES's `C_SEMI` is seeded for the H2 side and a pack table,
+  `SEMI_DOC`, for the DuckDB side (DuckDB cannot create SURFACE_TYPES; a Relation service runs its tests on DuckDB);
+  `C_JSON` stays NULL (F91); the pack is `8118-semi.pure` with `semi.py` writing `99-semi-services.pure`, and
+  `8119-outer.pure` with `outer.py` writing `99-outer-services.pure` (no full or right outer join has a form in a
+  mapping at the pin, `repro/mapping-join-types/`; the typed joins it has, in a property chain and a `~filter`);
+  `oracle.py`, `model.py`, `query.py`, `build.py`, `differential.py` (the documents' tables out of its seed),
+  `executed.py`, `quarantine.py` (F90); F90 to F93 and F53's note in `docs/UPSTREAM_FINDINGS.md`, each with a repro.
 - **Cross-area, Phase 9 (announced 2026-10-31, before it lands):**
   - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files.
   - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out the new generated
