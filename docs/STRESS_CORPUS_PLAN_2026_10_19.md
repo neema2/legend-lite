@@ -6,7 +6,8 @@ Phase 2 started and was done on 2026-10-27. Phase 3 started and was done on 2026
 and was done on 2026-10-29, in six stages (see its record). Phase 7 started on 2026-10-29 and was done on
 2026-10-30, in three stages (see its record). Phase 5 started and was done on 2026-10-30, in one stage (see its
 record). Phase 6 started on 2026-10-30 and was done on 2026-10-31, in one stage (see its record). Phase 8 started and
-was done on 2026-10-31, in three stages (see its record).
+was done on 2026-10-31, in three stages (see its record). Phase 9 started and was done on 2026-10-31, in two stages (see
+its record).
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -1749,6 +1750,162 @@ Report §3 (Store) and §10 item 10.
 - **Outer joins.** Full and right outer joins in property-mapping join chains.
 - **Done when:** every store feature the pinned engine runs is covered.
 
+Phase 9 landed in two stages, each committed on `stress_test/corpus` when green: semi-structured documents, then explicit
+join types. `stress_test/corpus` was already on `upstream/main` (`efff04068`), so the rebase was a no-op; the tree built
+(`bazel build //...`) and its gate was the desk's known reds alone (61 diff tests).
+
+**Known history, checked first.**
+
+- **How lite reads a SEMISTRUCTURED column.** Its model build reads every construct below; the failures are per service,
+  at query time. `extractFromSemiStructured(col, path, type)` becomes `to(get(col, path), @T)` and `get` reads one key:
+  a one-key path answers as the engine does, and a dotted, indexed or bracket-quoted path answers null. An extraction to
+  `SEMISTRUCTURED` or to an array type fails its whole class mapping to normalize, `explodeSemiStructured` is an unknown
+  function, and a Binding over the column reads it as a Variant where the bound class is expected (`expected
+  semi::SdBody, got ...Variant`; Phase 6 met the same transformer over a VARCHAR column as `expected hier::Profile, got
+  String`). On H2 a navigation "reached a dialect without JSON support", and lite cannot create SURFACE_TYPES at all (no
+  DDL spelling for its OTHER column).
+- **The ledgers.** No semi-structured or join row of `docs/SURFACE_BLOCKED.tsv` or `docs/ENGINE_SURFACE.tsv` went stale:
+  R42 (`SEMISTRUCTURED`), R43 (`JSON`), PM-09 (a typed join in a chain) and PM-10 (a typed leading join) were present
+  before, and the blocked ledger holds none. The scoreboard reads 258 of 263 present, as before.
+- **The report.** §3 and §8 counted two semi-structured columns, never navigated, and one `(OUTER)` hop with no service.
+  `matrix.py`'s hand-entered store declarations are re-counted (on this branch, `f322324b8`), and `profile.py` now
+  detects the semi-structured features and an explicit outer join (below); before, it tagged only the column's
+  presence and a binding transformer.
+- **The default navigation as the implicit left outer join.** It still counts, by EMIT's own model:
+  `relational-left-outer-join.emit.yaml` tags a default to-one navigation, whose mapping writes no keyword ("OUTER is the
+  only outer-join keyword in the classic relational store grammar (INNER/OUTER); RIGHT/FULL outer have no classic-store
+  form"). Since stage 2 the hand adjustment is no longer needed: eight services with an explicit `(OUTER)` hop pass on
+  the engine, and `matrix.py` counts the feature by itself.
+
+**Probed first** (4.145.0, models in the session's scratchpad; `scripts/corpus/semi.py`'s and `outer.py`'s headers keep
+the findings):
+
+- **Where a service's tests run.** On H2 when its query answers a TDS or a graph, on DuckDB when it answers a Relation:
+  `ServiceTestRunner` sets the relation hint by `TestReturnTypeHelper.isRelationReturnType`, and
+  `RelationalConnectionFactory` builds a DuckDB test connection for it. The premise that service tests always run on H2
+  holds for TDS and graph services only. So each construct here is written both ways where the pin runs it both ways.
+- **SURFACE_TYPES.** H2 loads it once the test data names only its key and semi-structured columns (an insert naming
+  every declared column, the BINARY, ARRAY and OTHER ones NULL, is a syntax error). DuckDB cannot create it: its REAL and
+  OTHER columns fail the connection's setup (F53, now with OTHER). So the TDS services read SURFACE_TYPES, and the
+  Relation services read a table of the pack's own holding the same documents.
+- **C_JSON.** A JSON-typed column takes no document in test data on either database: both loaders write the cell as SQL
+  (F91). It stays NULL, and nothing maps it.
+- **The test data's quotes.** H2's loader keeps a quoted field's doubled quotes and unwraps a field only when it holds a
+  comma; DuckDB's reads RFC 4180 and rejects an undoubled inner quote. So each database gets its own `###Data` (F92).
+- **The constructs**, each on both databases unless named: `extractFromSemiStructured` to every scalar type of the
+  whitelist along a dotted path, an index, consecutive indices and bracket-quoted keys, all agreeing but DECIMAL (F90);
+  a store Filter over a navigated value; a Binding's keys, a nested object, `at(0)` and its to-many flattened one row
+  per element; `explodeSemiStructured` in a join; on DuckDB alone, a wildcard path and the `array_*` functions (H2
+  cannot plan them, and `'grid[*][*]'` compiles on neither). H2's flatten and explode fail on a NULL document anywhere
+  in the table, a view excluding them included (F93). A graph fetch over an extracted property or a Binding fails at
+  planning, and `size()` of a Binding's to-many is invalid SQL on both; no service asks for either.
+- **The join types.** A chain's type is INNER or OUTER: `(RIGHT_OUTER)`, `(FULL_OUTER)` and `(LEFT_OUTER)` are parse
+  errors, the compiler reads every type but INNER as LEFT_OUTER, and a property mapping's first join takes no type
+  (`scripts/corpus/repro/mapping-join-types/`). A typed later hop of a property's chain answers as an untyped one, both
+  databases; in a `~filter`'s chain the type decides the rows (an untyped hop is an OUTER join).
+
+**Stage 1: semi-structured documents (2026-10-31, `411eece77`).**
+
+- **The seed.** Five booking payloads (`_SEMI_DOCS` in `seed.py`) in SURFACE_TYPES's `C_SEMI` and in the pack's
+  `SEMI_DOC.DOC`, which adds a NULL document; each awkward shape placed: a JSON null, a zero, an empty array, an absent
+  object, an index past the end, a leg whose hop no `SEMI_HOP` row has, a null venue, keys reachable only bracket-quoted,
+  an empty document. The three tables are kept out of the expansion (`seed.PACK_TABLES`) and the walking generators
+  (`literals.FIXTURE_TABLES`). SURFACE_TYPES's composite key kept it out of the expansion already, so seeding it moved
+  nothing by itself; it is listed so the rule names every hand-seeded table. No expectation moved but `93-testdata`'s
+  header count.
+- **The pack.** `8118-semi.pure`, `semi::`: a store `semi::SemiDB` including `surface::SurfaceDB`, two mappings (one per
+  side), and each construct on a class of its own, so a reader refusing one refuses only its services (lite compiles a
+  class mapping whole): navigation, the store filter, the Binding, explode, and the wildcard paths and array functions.
+- **The oracle evaluates** what the engine computes in SQL, from the pinned sources read as spec: the engine's path
+  grammar (`parseSemiStructuredPathNavigation`); each type of the extraction whitelist (a value not of the type is
+  refused, never coerced); an absent key, a JSON null and an index past the end as absent; the array functions by
+  `duckdbExtension.pure`'s renderings (`array_size` is `ifnull(..., 0)`, `array_contains` `ifnull(..., false)`) and
+  EMIT's flatten probe (`array_to_string` over nothing is null); explode per element inside a join, every part of the
+  condition for the same element; a Binding's nested keys; and a projection crossing one to-many as one row per element,
+  a NULL row for none (`Spec.fan_out`, asked only by these services). Why each: the corpus asserts no value the oracle
+  does not compute independently (rule 1). `model.py` reads a Filter over a dynafunction, a Database header with a
+  stereotype and a tagged value (SurfaceDB's, whose tables had belonged to no database), and a Binding's nested
+  classes.
+- **The services.** 36 in `99-semi-services.pure` (`semi.py`): 15 `SJ_` (TDS, on H2, over SURFACE_TYPES) and 21 `SD_`
+  (Relation, on DuckDB, over SEMI_DOC): text, numbers and dates navigated, the index and quoted-key paths, a query filter
+  and a store filter, the Binding's keys and nested object, flatten (two forms), explode (projected and as
+  `isNotEmpty`), DECIMAL, and on DuckDB six wildcard and array-function services. `semi.check` fails the build if a
+  document cannot travel to both databases or a shape stops being observable. `executed.py` ratchets ten S9 features.
+- **Findings.** F90, `extractFromSemiStructured` to DECIMAL answers the document's number on neither database (H2
+  rounds 12.5 to 13; DuckDB answers the text "12.5"): `SJ_Fee` and `SD_Fee` quarantined. F91 (a JSON column takes no
+  document), F92 (the loaders' quotes) and F93 (H2's flatten over a NULL document) are worked around, nothing
+  quarantined. Each has a repro under `scripts/corpus/repro/`.
+- **The engine verdict** (a seed and a model change, so the whole corpus, 87 minutes beside the gate): 5,928 pass, 108
+  known-fail, 1 not run (F15), 0 unexpected, of 6,037. 34 of the 36 pass, the two DECIMAL services the known-fails.
+- **Lite.** DuckDB 5,600 to 5,606, the one-key navigations, both filters and DECIMAL (`SD_Text`, `SD_Numbers`,
+  `SD_BigQty`, `SD_RefFilter`, `SD_StoreFilter`, `SD_Fee`); H2 5,509, unchanged. The rest are the buckets above. Both
+  `MIN_PASS` carry a dated note.
+- **The gate** met the desk's known reds alone (62 diff tests, one more for the new file).
+
+**Stage 2: explicit join types (2026-10-31, `2a71bc502`).**
+
+- **The pack.** `8119-outer.pure`, `outer::`: an order allocated, an allocation booked to an account
+  (`OJ_ORDER -> OJ_ALLOC -> OJ_ACCOUNT`), with rows on one side only at every hop (an allocation that does not exist and
+  one never given, an account that does not exist and one never given, an allocation and an account no row on the left
+  reaches, an account with no label). Its classes write each typing the pin has: a property chain whose second hop is
+  `(OUTER)` and one whose second hop is `(INNER)` (the same rows); a `~filter` through one hop typed OUTER, INNER and
+  untyped, over `account is null`; and through two hops, OUTER > OUTER, INNER > INNER, INNER > OUTER and untyped, over
+  `label is null`. A wrong join type changes each `~filter` class's rows; `outer.check` fails the build if two typings
+  that should differ agree.
+- **The oracle** reads a `~filter` chain hop by hop: an untyped or OUTER hop that lands on nothing leaves NULL columns
+  the filter is tested over, an INNER one drops the row. Before, every hop was read as INNER, which answers the same for
+  every filter a NULL fails, and every chain filter the corpus had was one: no expectation moved. `model.py` reads each
+  hop's type, and a typed hop in a property's chain.
+- **The services.** 18 in `99-outer-services.pure` (`outer.py`), each class as a TDS (`OJT_`, on H2) and a Relation
+  (`OJR_`, on DuckDB). `executed.py` ratchets four O9 features. No full or right outer join is written: the pin has no
+  form for one, and the repro records the probe.
+- **The engine verdict** (whole corpus, 91 minutes beside the gate): 5,946 pass, 108 known-fail, 1 not run (F15), 0
+  unexpected, of 6,055. All 18 pass.
+- **Lite.** DuckDB 5,606 to 5,614 and H2 5,509 to 5,517, the same 8 on each: both property chains and both untyped
+  `~filter`s. The 10 others are one bucket: lite reads a typed join in a `~filter` chain as INNER and refuses a
+  NULL-tolerant filter through it, `(OUTER)` included.
+- **The gate** met the desk's known reds alone (63 diff tests).
+
+**Phase 9 done (2026-10-31).** The pin runs every store feature this phase reaches, and each is covered by services
+that pass on the engine. The measures come from the report's `tools/run.sh` at the pin, given stage 2's whole run's
+pass list.
+
+- **Store features on the engine** (services passing with rows; in lite): `store:relational-semistructured` 34 (6),
+  `-navigation` 34 (6), `-binding` 12 (0), `-wildcard-path` 6 (0), `-array-functions` 6 (0), `-flatten` 4 (0),
+  `-explode` 4 (0), `-array-index` 2 (0); `store:relational-left-outer-join` 8 (2), counted without the hand adjustment.
+- **Store features the pin cannot run:** `store:relational-outer-join` (full) and `store:relational-right-outer-join`.
+  No mapping can write either at 4.145.0 (`scripts/corpus/repro/mapping-join-types/`: `right-outer.pure`,
+  `full-outer.pure`, and `left-outer.pure` refused at parse, `first-hop.pure` at compile). EMIT has no model of either
+  at the pin. The service and flat-data stores are outside the plan. C_JSON, a JSON column, takes no document in test
+  data (F91), but `store:relational-semistructured` is covered through `C_SEMI`.
+- **EMIT 74 of 109 on the engine and 58 in lite** (66 and 55 before the phase).
+- **Features in the model that no service reaches (○): 0** (1 before: `store:relational-semistructured`).
+- PCT 164 of 321, unchanged.
+- **The engine's standing verdict**: 5,946 pass, 108 known-fail, 1 not run (F15), 0 unexpected, of 6,055. Phase 9 added
+  54 services.
+- **Lite**: 5,614 tests pass on DuckDB and 5,517 on H2 (5,600 and 5,509 before the phase), with 49 skipped.
+- **The plan-wide EMIT target is not reached: 74 of at least 80.** 35 of the 109 are untested on the engine; 22 of
+  them are outside the plan (12 persistence, 8 absent execution features, the service and flat-data stores). Of the 13
+  in reach:
+  - 2 have no form at the pin: the full and right outer joins (above).
+  - 1 fails on the engine: `mapping:relational-literal-list` (F83, both services quarantined).
+  - 1 has no test: `execution:post-validation` (the one service holding a post-validation has no test suite).
+  - 7 the report's tools never tag, whatever the corpus does. Four the corpus plainly exercises: `mapping:mapping`,
+    `mapping:mapping-include` and `execution:plan-generation` (every service runs a mapping, most through includes, and
+    every engine run plans it), and `grammar:measure` (`MU0_MonetaryTrade` passes on the engine; the walk tags no
+    measure). Three need a look at the corpus and likely services of their own: `execution:external-format-binding`,
+    `mapping:relational-polymorphic-query` (no `subType()` query) and `mapping:relational-table-alias-column`.
+  - 2 are not in the corpus: `mapping:relational-group-by` (a class mapping's `~groupBy`; the corpus's are a View's and
+    an aggregation-aware mapping's) and `mapping:relational-joined-table-inheritance`.
+
+  So `profile.py` tagging the first four would make it 78, and 80 needs two more from the rest: a `subType()` query,
+  a class mapping with `~groupBy`, a joined-table subclass, or the binding and alias columns checked.
+- **Left open:**
+  - lite's buckets above: a dotted, indexed or quoted path; an extraction to SEMISTRUCTURED or an array type; explode;
+    a Binding over a SEMISTRUCTURED column; H2's JSON navigation; OTHER's DDL; a typed `~filter` join;
+  - F90 to F93, upstream;
+  - the EMIT gap above.
+
 ## Not in this plan
 
 - **Persistence** (12 EMIT features): lite has no persistence runtime.
@@ -1819,4 +1976,4 @@ to gate 10's time and about 10 minutes to a full engine run.
 | 6 | 2026-10-30 | 2026-10-31, one stage | stage 1 (`686196343`) 64: 41 relation-mapped services and 23 relational twins | F88 found, with a repro (1 service: `RM_BookTotalsRelation`) | lite's binding transformer, a JSON column read as its String (4 services: 2 relation-mapped and their 2 relational twins, the twins out of the differential at the user's choice) | relation-mapping features covered 13 of 13 on the engine, 12 in lite (1 before); EMIT 66 of 109 on the engine, 55 in lite; features no service reaches 1; PCT 162 of 321 |
 | 7 | 2026-10-29 | 2026-10-29, three stages | stage 1 (`3ab506f9a`) 120; stage 2 (`bdd36b575`) 12; stage 3 (`a9e19fe1f`) 31 | F83 found, with a repro: a literal list in a relational property mapping or a join fails at test setup (3 services: `UO_LiteralListCoalesce`, `UO_LiteralListIn`, `UJ_JoinArrayArg`) | a literal list over an optional column; the merge, a class mapped by several sets, read as an implicit union; a runtime holding two mappings that bind one class; a join's `!=` or `<>` over a NULL read as Pure's `not(equal(...))` | features no service reaches 2 (m2m-local-property, relational-semistructured); unused joins 0 of 386; EMIT 51 of 109 on the engine, 43 in lite; PCT 161 of 321 |
 | 8 | 2026-10-31 | 2026-10-31, three stages | stage 1 (`9582d30d2`) 35 constraint services; stage 2 (`346fd9bcf`) 60 mapping test suites in 9 test mappings; stage 3 (`9823f0701`) 0, 36 services given a second test | none; F89 found, with a repro (a braced lambda in a mapping test's function), worked around, nothing quarantined | a constraint reading another class's property (10), a Warn's external id (2), nested defects (2), H2's list encoding for a checked fetch (19 on H2), an unchecked fetch that checks no constraint; no mapping test runner (60 suites not run); EqualTo skipped (36) | constraints 28, 18 combining; on the engine 25 fetched (18 combining), 20 violations asserted; mapping test suites 60, all passing on the engine; EMIT 66 of 109 on the engine, 55 in lite; features no service reaches 1; PCT 164 of 321 |
-| 9 | — | — | — | — | — | — |
+| 9 | 2026-10-31 | 2026-10-31, two stages | stage 1 (`411eece77`) 36 semi-structured services; stage 2 (`2a71bc502`) 18 services over explicit join types | `SJ_Fee` and `SD_Fee` under F90 (added); F91-F93 found, each with a repro, worked around, nothing quarantined; F53 gains OTHER | a dotted, indexed or quoted path answered null; an extraction to SEMISTRUCTURED or an array type fails the class mapping; explodeSemiStructured unknown; a Binding over a SEMISTRUCTURED column read as a Variant; on H2, navigation without JSON support and OTHER without a DDL spelling (every SJ_ service); a typed join in a `~filter` chain read as INNER (10) | semi-structured features on the engine: semistructured 34, navigation 34, binding 12, wildcard path 6, array functions 6, flatten 4, explode 4, array index 2; left outer join 8 (explicit); full and right outer joins have no form at the pin; EMIT 74 of 109 on the engine, 58 in lite; features no service reaches 0; PCT 164 of 321 |
