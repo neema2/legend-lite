@@ -16,6 +16,7 @@ import com.legend.sql.AliasPrefix;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 
+import java.util.AbstractMap;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,9 +67,6 @@ public final class ProgramFrames {
      *  first-read order (the frames it reads more than once, M3g). A value: nothing reads "the last statement's"
      *  facts from the program. */
     public record Reads(@Nullable String ownStamp, Map<String, SqlQuery> definitions) {
-        /** A statement that read no frame. */
-        public static final Reads NONE = new Reads(null, Map.of());
-
         public Reads {
             definitions = Collections.unmodifiableMap(new LinkedHashMap<>(definitions));
         }
@@ -83,18 +81,15 @@ public final class ProgramFrames {
      *  spelling): a statement that reads one free -- a frame's eager run, its CTE, a reader -- binds it (the M3 audit's
      *  B6; the walk's environment shared them across the body). */
     private final Map<String, TypedSpec> consumed = new LinkedHashMap<>();
-    /** The call sites whose activity rows an INLINE run registered (never a frame let's): their rows are their most
-     *  recent run's, so a later statement that runs one again registers its own, with its own stamp (a helper called
-     *  twice; the M3 audit's B7d). A frame let's rows stay the let's -- its own CTE's planning asks for the same site
-     *  again -- so an inline run of a let's call site reads the let's stamp (no corpus body runs one site both ways). */
-    private final Set<String> inlineRunSites = new HashSet<>();
-
     ProgramFrames() {
     }
 
-    /** A new stamp parameter's name (a name no Pure parameter can spell, as {@code ExecutionPlan.COUNT}). */
+    /** The prefix of a stamp parameter's name (a name no Pure parameter can spell, as {@code ExecutionPlan.COUNT}). */
+    public static final String STAMP = "#stamp";
+
+    /** A new stamp parameter's name. */
     public String newStamp() {
-        String name = "#stamp" + stamps.size();
+        String name = STAMP + stamps.size();
         stamps.add(name);
         return name;
     }
@@ -149,9 +144,66 @@ public final class ProgramFrames {
         return out;
     }
 
-    /** The recorder of a statement after {@code letPrefix}, planned on {@code env}, for its first inlining. */
-    Recorder recorder(List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env) {
-        return new Recorder(letPrefix, specs, env, null, Set.of());
+    /** The plan rows a new statement sees: the program's, and its own inline runs' in front of them. */
+    StatementRows statementRows() {
+        return new StatementRows(planRows);
+    }
+
+    /** The recorder of a statement after {@code letPrefix}, planned on {@code env} whose plan rows are {@code rows},
+     *  for its first inlining. */
+    Recorder recorder(List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env, StatementRows rows) {
+        return new Recorder(letPrefix, specs, env, rows, null, Set.of());
+    }
+
+    /**
+     * The plan rows ONE statement sees: the program's, and in front of them the activity rows of the inline runs it
+     * makes -- its own, gone with it (an inline run records the stamp of the statement that runs it: a later statement
+     * that runs the same call site registers its own; the M3 audit's B7d, MR's audit S1). Every other registration (a
+     * handle's rows, met while resolving) is the program's. Owned by the statement's preparation.
+     */
+    static final class StatementRows extends AbstractMap<String, Map<String, List<List<String>>>> {
+        private final Map<String, Map<String, List<List<String>>>> program;
+        private final Map<String, Map<String, List<List<String>>>> ownRows = new LinkedHashMap<>();
+        private final Set<String> ownSites = new HashSet<>();
+
+        private StatementRows(Map<String, Map<String, List<List<String>>>> program) {
+            this.program = program;
+        }
+
+        /** The rows registered next for {@code site} are this statement's own. */
+        void markOwn(String site) {
+            ownSites.add(site);
+        }
+
+        /** This statement's own rows forgotten: a second inlining of it registers them again. */
+        void forgetOwn() {
+            ownRows.clear();
+            ownSites.clear();
+        }
+
+        @Override
+        public @Nullable Map<String, List<List<String>>> get(Object key) {
+            Map<String, List<List<String>>> own = ownRows.get(key);
+            return own != null ? own : program.get(key);
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return ownRows.containsKey(key) || program.containsKey(key);
+        }
+
+        @Override
+        public @Nullable Map<String, List<List<String>>> put(String key, Map<String, List<List<String>>> value) {
+            return ownSites.contains(key) ? ownRows.put(key, value) : program.put(key, value);
+        }
+
+        @Override
+        public Set<Map.Entry<String, Map<String, List<List<String>>>>> entrySet() {
+            // the program's rows, then this statement's own (the order a shared map held them in)
+            Map<String, Map<String, List<List<String>>>> all = new LinkedHashMap<>(program);
+            all.putAll(ownRows);
+            return Collections.unmodifiableMap(all).entrySet();
+        }
     }
 
     /** How many times {@code chain} (by identity: a pasted read places the frame's chain itself) stands in
@@ -181,6 +233,7 @@ public final class ProgramFrames {
         private final List<TypedSpec> letPrefix;
         private final SpecCompiler specs;
         private final PlanEnv env;
+        private final StatementRows rows;
         /** The frames this inlining reads by reference to their CTE (the statement reads each more than once). */
         private final Set<String> asCte;
         /** The stamp this statement binds itself (an inline lazy frame it runs), or null. */
@@ -189,14 +242,12 @@ public final class ProgramFrames {
         private final Set<String> asked = new LinkedHashSet<>();
         /** The CTE definitions this inlining references, by CTE name, in first-read order. */
         private final Map<String, SqlQuery> definitions = new LinkedHashMap<>();
-        /** The call sites this inlining ran inline (each registers its rows once). */
-        private final Set<String> ran = new HashSet<>();
-
-        private Recorder(List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env, @Nullable String ownStamp,
-                Set<String> asCte) {
+        private Recorder(List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env, StatementRows rows,
+                @Nullable String ownStamp, Set<String> asCte) {
             this.letPrefix = letPrefix;
             this.specs = specs;
             this.env = env;
+            this.rows = rows;
             this.ownStamp = ownStamp;
             this.asCte = Collections.unmodifiableSet(new LinkedHashSet<>(asCte));
         }
@@ -219,7 +270,11 @@ public final class ProgramFrames {
                     twice.add(name);
                 }
             }
-            return twice.isEmpty() ? null : new Recorder(letPrefix, specs, env, ownStamp, twice);
+            if (twice.isEmpty()) {
+                return null;
+            }
+            rows.forgetOwn();
+            return new Recorder(letPrefix, specs, env, rows, ownStamp, twice);
         }
 
         @Override
@@ -253,18 +308,12 @@ public final class ProgramFrames {
             if (ownStamp == null) {
                 ownStamp = newStamp();
             }
-            // this statement's run of the call: its activity rows record this statement's stamp -- a site an earlier
-            // statement ran inline holds that run's rows, replaced now by this one's (the M3 audit's B7d)
+            // this statement's run of the call: its activity rows, its own, record this statement's stamp (a site a
+            // frame let registered keeps the let's rows)
             String scope = PlanRows.scopeId(fc.source());
-            if (ran.add(scope)) {
-                if (inlineRunSites.contains(scope)) {
-                    planRows.remove(scope);
-                }
-                if (!planRows.containsKey(scope)) {
-                    inlineRunSites.add(scope);
-                    PlanAllocations.registerActivityRows(fc.source(), fc.chain(), letPrefix, specs, null, ownStamp,
-                            env);
-                }
+            if (!rows.containsKey(scope)) {
+                rows.markOwn(scope);
+                PlanAllocations.registerActivityRows(fc.source(), fc.chain(), letPrefix, specs, null, ownStamp, env);
             }
             return new ResultEnvelopeSplice.View(fc.chain(), !fc.legendQuery() && fc.relationRooted(),
                     fc.source());

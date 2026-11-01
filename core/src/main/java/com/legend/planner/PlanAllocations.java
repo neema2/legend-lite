@@ -20,6 +20,7 @@ import com.legend.compiler.spec.typed.TypedCFloat;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedFrom;
+import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
@@ -199,16 +200,13 @@ public final class PlanAllocations {
                                                 .read(Optional.empty(), pep.args().get(2))
                                                 .timeZone()
                                         : null));
-        if (pep.args().get(0) instanceof com.legend.compiler.spec
-                        .typed.TypedLambda plam
+        if (pep.args().get(0) instanceof TypedLambda plam
                 && pep.args().size() > 1
-                && pep.args().get(1) instanceof com.legend.compiler
-                        .spec.typed.TypedPackageableRef pmr) {
+                && pep.args().get(1) instanceof TypedPackageableRef pmr) {
             Set<String> seenFns =
                     new LinkedHashSet<>();
             for (QueryParameters.Declared prm : QueryParameters.of(plam)) {
-                if (!(prm.type() instanceof com.legend.compiler
-                        .element.type.Type.EnumType et)) {
+                if (!(prm.type() instanceof Type.EnumType et)) {
                     continue;
                 }
                 String fn = PlanText.enumMapFnOf(
@@ -216,8 +214,7 @@ public final class PlanAllocations {
                 var em = PlanText.enumMappingOf(
                         env.ctx(), pmr.fullPath(), et.fqn());
                 if (fn != null && em != null && seenFns.add(fn)) {
-                    supportFns.add(com.legend.plan
-                            .PlanSupportFunctions
+                    supportFns.add(PlanSupportFunctions
                             .enumMapTemplateFunction(fn, em));
                 }
             }
@@ -258,9 +255,6 @@ public final class PlanAllocations {
         }
     }
 
-    /** The engine-style SQL pipeline shared by toSQLString and the plan
-     * printer: G½ inline, H resolve against the MAPPING ARGUMENT, root
-     * form, I lower — IR plus rendered text. */
     /** The SQL an execute() call's RelationalActivity records: the
      * engine-style render of the frame's OWN assembled chain (the caller's
      * lets already folded, the mapping attached — the same chain the frame

@@ -685,3 +685,22 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   orphan javadoc (BodyPlanner, PlanRunner, ResultEnvelopeSplice) and the stale SessionState comment fixed. Measured:
   every core package's statements byte-identical (17,377 -- M3's own count, its B7d test's five included, which the
   M3i dump predated: the record's 17,372 was one test short).
+- 2026-11-01: **MR built** (R20, B14; D104). MRa imports, dead code, comments; MRb the runner's program loop split
+  (a pure shape, the steps, the bracket, the answer stream; the answered flag gone); MRc the program state a builder
+  with one owner (copies out, no aliased lists) and `PlanMaker.program` split (decide, planLet, stagedLet,
+  planStatement, finished); MRd a statement's frame reads a frozen value (`ProgramFrames.Reads`, from a per-inlining
+  `Recorder`), `prepare` split into inlining and resolving, `ProgramKinds` one instance per program; MRe the inventory's
+  four latent defects: (1) not a defect, pinned by a test; (2) sound; (3) a stamp no step binds refused by name where
+  a statement reads it; (4) REAL and fixed -- a write forgot one flag for all seed keys, establishing one key cleared
+  it for every other; a write now forgets every key (zero movement measured: core, both corpora's four passes, channel
+  B). The independent audit (no blockers; six should-fix) folded: S1 -- MRd had let an inline run's activity rows
+  outlive their statement, two paths core does not cover reading stale rows (one on the query door's write programs):
+  an inline run's rows are now the statement's own layer (`ProgramFrames.StatementRows`), gone with it, the old
+  semantics without a reset by convention; S2 the stamp check exact (only where read, over the finished plan); S3 a
+  frame let's eager run and CTE planned under its runtime's renames as the walk runs them (its own from() case tested);
+  S4 the seed memo tested; S5 the remaining item-4 duplicates partly made one (the declared parameters, the statement
+  environment), the constant guards, the stacked javadoc, the split names; the nits. Named, not done: the rename
+  merge's two copies (BodyPlanner, FramePlanner: their conflict messages differ), the two effect memos (two scans),
+  `ProgramFrames.planRows()` handed to the test library for a frame let's program-level rows, `ProgramState.frames()`
+  the test library's whole frames (the program's second planner), `TestKinds.effect` and `PlanMaker.plan` still long.
+  Measured: every core package's statements byte-identical through MRa-MRf (17,377); the chain (on the fold): both corpora uncached, each pass's statement-origins census and pass/fail counts identical to M2's and M3's; channel B 5 of 5; `//gates:local` 448 pass and 1 skipped (the 9 Postgres targets refusing root, 9 of 9 unprivileged).

@@ -115,34 +115,41 @@ final class TestKinds implements ProgramKinds {
      * binds when the plan runs (R17 C4); its readers after paste its chain ({@code ProgramFrames}).
      */
     private void frame(ProgramState program, int index, TypedLet let) {
-        TypedNativeCall ec =
-                (TypedNativeCall) LetPlanner.rhs(let);
+        TypedNativeCall ec = (TypedNativeCall) LetPlanner.rhs(let);
         ProgramFrames frames = program.frames();
         TypedQuery query = program.query();
-        PlanEnv env = PlanEnv.of(query.context(), program.runtime(), null,
-                program.features(), ProductStatements::noGenerator).withPlanRows(frames.planRows());
-        FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(),
-                query.specs(), env);
+        PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(), frames.planRows());
+        FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(), query.specs(), env);
         frames.consumed(fc.env().queryLets());
         String stamp = frames.newStamp();
-        PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(),
-                null, stamp, env);
-        // the eager run: the frame's query, run at the let, its rows dropped
-        ProductStatements.Statement run = ProductStatements.prepare(query, List.of(fc.runChain()), program.runtime(),
-                index, program.features(), frames);
-        program.add(new ExecutionPlan.Check(program.statement(program.lowered(run, false)).stamped(stamp)));
-        // its CTE, lowered once at the let with the product's configuration (M3g, B12 item 9): a statement that reads
-        // the frame more than once references it; one that reads it once pastes its chain
-        FramePlanner.Cte cte = fc.legendQuery() ? FramePlanner.Cte.NONE
-                : FramePlanner.cte(fc, query.specs(), chain -> {
-                    ProductStatements.Statement planned = ProductStatements.prepare(query, List.of(chain),
-                            program.runtime(), index, program.features(), frames);
-                    return planned.prepared() instanceof Prepared.Planned p
-                            ? new BodyPlanner.Bare(program.lowered(planned, false), p.root())
-                            : null;
-                });
+        PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(), null, stamp, env);
+        program.add(eagerRun(program, index, fc, stamp));
+        FramePlanner.Cte cte = fc.legendQuery() ? FramePlanner.Cte.NONE : cte(program, index, fc);
         frames.let(let.name(), new ProgramFrames.Frame(fc.chain(),
                 !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace(), cte));
+    }
+
+    /** The frame's EAGER RUN: its query, run at the let as a {@code Check} (its rows dropped) under the renames of the
+     *  runtime the frame runs on (the walk runs it in the frame's environment; MR's audit S3), stamped with the let's
+     *  stamp. */
+    private static ExecutionPlan.Check eagerRun(ProgramState program, int index, FramePlanner.FrameChain fc,
+            String stamp) {
+        ProductStatements.Statement run = ProductStatements.prepare(program.query(), List.of(fc.runChain()),
+                program.runtime(), index, program.features(), program.frames(), fc.env().tableReplace());
+        return new ExecutionPlan.Check(program.statement(program.lowered(run, false)).stamped(stamp));
+    }
+
+    /** The frame's CTE, lowered once at the let with the product's configuration under its runtime's renames (M3g,
+     *  B12 item 9): a statement that reads the frame more than once references it; one that reads it once pastes its
+     *  chain. */
+    private static FramePlanner.Cte cte(ProgramState program, int index, FramePlanner.FrameChain fc) {
+        return FramePlanner.cte(fc, program.query().specs(), chain -> {
+            ProductStatements.Statement planned = ProductStatements.prepare(program.query(), List.of(chain),
+                    program.runtime(), index, program.features(), program.frames(), fc.env().tableReplace());
+            return planned.prepared() instanceof Prepared.Planned p
+                    ? new BodyPlanner.Bare(program.lowered(planned, false), p.root())
+                    : null;
+        });
     }
 
     /**

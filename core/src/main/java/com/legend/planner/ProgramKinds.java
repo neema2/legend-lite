@@ -14,8 +14,8 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * asks none (its test-only kinds refused before, QueryDoor).
  *
  * <p>ONE INSTANCE PER PROGRAM: an implementation may hold what it plans across the program's statements (the test
- * library's open script and the seeds it placed), owned by that one program and never shared -- so it is not a
- * lambda, and the program's planning makes it for the program it plans ({@code TestDoor.plan}).
+ * library's open script and the seeds it placed), owned by that one program and never shared; the program's planning
+ * makes it for the program it plans ({@code TestDoor.plan}). A stateless one (the query door's: none) may be a lambda.
  */
 public interface ProgramKinds {
 

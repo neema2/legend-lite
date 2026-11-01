@@ -72,8 +72,7 @@ public final class FramePlanner {
                 .EXECUTION_PLAN_EXECUTE.equals(
                         ec.callee().qualifiedName())) {
             TypedSpec plan = Lets.bound(ec.args().get(0), letPrefix);
-            if (!(plan instanceof com.legend.compiler.spec.typed
-                            .TypedNativeCall pb
+            if (!(plan instanceof TypedNativeCall pb
                     && PlatformTypes
                             .EXECUTION_PLAN.equals(
                                     pb.callee().qualifiedName()))) {
@@ -110,8 +109,7 @@ public final class FramePlanner {
             // render of the same chain, absent when no render exists
             String activitySql = null;
             if (lqChain.relationRooted()
-                    || lqChain.chain().info().type() instanceof com.legend.compiler
-                            .element.type.Type.ClassType) {
+                    || lqChain.chain().info().type() instanceof Type.ClassType) {
                 String mappingFqn = firstMappingFqn(lqChain.chain());
                 // a RELATION-rooted chain (the relation accessor) carries no
                 // mapping and renders without one (the resolver and the root

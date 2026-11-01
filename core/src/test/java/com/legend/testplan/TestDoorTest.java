@@ -366,6 +366,59 @@ class TestDoorTest {
         }
     }
 
+    /** MRe (the MR inventory's latent defect 1, verified): a frame let's eager run and its readers run under the
+     *  table renames of the frame's own runtime (its connection's mapper post-processor). */
+    @Test
+    void aFrameLetsRunAndReadersApplyItsRuntimesRenames() {
+        String model = SEEDED + """
+                ###Pure
+                Class x::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}
+                """;
+        String runtime = "^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
+                + "element = x::DB, connection = ^meta::external::store::relational::runtime::RelationalDatabaseConnection("
+                + "type = meta::relational::runtime::DatabaseType.H2, datasourceSpecification ="
+                + " ^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(),"
+                + " authenticationStrategy = ^x::Auth(), postProcessors ="
+                + " [^meta::pure::alloy::connections::MapperPostProcessor(mappers ="
+                + " [^meta::pure::alloy::connections::TableNameMapper(from = 'FIRM', to = 'FIRM_R', schema ="
+                + " ^meta::pure::alloy::connections::SchemaNameMapper(from = 'default', to = 'default'))])])))";
+        TypedQuery body = Compiler.query(Compiler.compileModel(model), "{| let r = meta::pure::router::execute("
+                + "|x::Firm.all()->project([f|$f.name], ['name']), x::M, " + runtime + ", []);\n$r.values;}");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
+                TestDoor.plan(body, "x::RT", Set.of(), null).root()).steps();
+        String run = steps.stream().filter(ExecutionPlan.Check.class::isInstance)
+                .map(n -> ((ExecutionPlan.Check) n).sql().statement()).findFirst().orElseThrow();
+        assertTrue(run.contains("FIRM_R"), run);
+        String reader = assertInstanceOf(ExecutionPlan.TdsResult.class, steps.get(steps.size() - 1)).sql().statement();
+        assertTrue(reader.contains("FIRM_R"), reader);
+    }
+
+    /** MR's audit S3: a frame let whose query carries its own from() runs, at the let, under the renames of the
+     *  runtime its execute(...) names -- as the walk runs it, in the frame's environment. */
+    @Test
+    void aFrameLetsRunWithItsOwnFromAppliesTheExecutesRenames() {
+        String model = SEEDED + """
+                ###Pure
+                Class x::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}
+                """;
+        String runtime = "^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
+                + "element = x::DB, connection = ^meta::external::store::relational::runtime::RelationalDatabaseConnection("
+                + "type = meta::relational::runtime::DatabaseType.H2, datasourceSpecification ="
+                + " ^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(),"
+                + " authenticationStrategy = ^x::Auth(), postProcessors ="
+                + " [^meta::pure::alloy::connections::MapperPostProcessor(mappers ="
+                + " [^meta::pure::alloy::connections::TableNameMapper(from = 'FIRM', to = 'FIRM_R', schema ="
+                + " ^meta::pure::alloy::connections::SchemaNameMapper(from = 'default', to = 'default'))])])))";
+        TypedQuery body = Compiler.query(Compiler.compileModel(model), "{| let r = meta::pure::router::execute("
+                + "|x::Firm.all()->project([f|$f.name], ['name'])->from(x::M, x::RT), x::M, " + runtime + ", []);\n"
+                + "$r.values;}");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
+                TestDoor.plan(body, "x::RT", Set.of(), null).root()).steps();
+        String run = steps.stream().filter(ExecutionPlan.Check.class::isInstance)
+                .map(n -> ((ExecutionPlan.Check) n).sql().statement()).findFirst().orElseThrow();
+        assertTrue(run.contains("FIRM_R"), run);
+    }
+
     /** M3h (R17 C9): a {@code from()}'s own runtime's table renames (its connection's mapper post-processor) apply
      *  to the statement it frames, on both doors. */
     @Test

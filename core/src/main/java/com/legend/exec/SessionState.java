@@ -12,8 +12,8 @@ import java.util.Set;
  * D70, 2026-10-30, shared by its views; until then a process-wide weak map keyed by the driver's connection, because a
  * connection was wrapped as a session anew at every call): the seeds it ran, by their SOURCES (a value key the driver builds: the from()'s
  * inline setups and the runtimes it names, never the rendered text, 2026-09-16), or a seed step's key; the session
- * statements each target ran on it; and whether a writing statement ran since the last seed (then the next
- * establishment re-seeds). Until track B's B1b (2026-10-29) this was the driver's own {@code ESTABLISHED} map,
+ * statements each target ran on it. A writing statement, or a rollback, forgets every key's seeds: the next
+ * establishment of each re-seeds. Until track B's B1b (2026-10-29) this was the driver's own {@code ESTABLISHED} map,
  * keyed by the {@code java.sql.Connection} it held; the driver now holds a {@link Sessions.Session} and asks it.
  */
 public final class SessionState {
@@ -28,26 +28,25 @@ public final class SessionState {
      *  back is undone with it, and the next statement runs it again. */
     private final Set<List<String>> sessionStatementsRun = new HashSet<>();
 
-    private boolean dirty;
-
     /** A session no connection keys (a connector's own): its state is its own. */
     public SessionState() {
     }
 
     /** Whether the seeds {@code key} names are in place: run on this session, and no write run since. */
     public synchronized boolean established(Record key) {
-        return !dirty && seeded.contains(key);
+        return seeded.contains(key);
     }
 
     /** The seeds {@code key} names were just run on this session. */
     public synchronized void establish(Record key) {
         seeded.add(key);
-        dirty = false;
     }
 
-    /** A statement that WRITES is about to run on the session: the next establishment re-seeds. */
+    /** A statement that WRITES is about to run on the session: every key's seeds establish again (a write may change
+     *  any seeded table; until MRe one flag stood for them all, and establishing one key cleared it for every other --
+     *  the MR inventory's latent defect). */
     public synchronized void markWriting() {
-        dirty = true;
+        seeded.clear();
     }
 
     /** Whether {@code statements}, a target's session statements, have still to run on this session: not run since
@@ -67,6 +66,6 @@ public final class SessionState {
      *  establishment seeds again, as after a write. */
     public synchronized void rolledBack() {
         sessionStatementsRun.clear();
-        dirty = true;
+        seeded.clear();
     }
 }

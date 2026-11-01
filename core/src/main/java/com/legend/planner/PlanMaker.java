@@ -79,8 +79,11 @@ public final class PlanMaker {
     /** The query door's: no statement is a test's kind (its test-only kinds were refused before, QueryDoor). */
     private static final ProgramKinds NO_TEST_KINDS = (program, index, statement, last) -> false;
 
-    /** The query door's program: no statement is the test-planning library's (the door refused every test-only kind
-     *  first, {@link QueryDoor}). */
+    /** The plan's declared parameters, as the plan carries them. */
+    private static List<ExecutionPlan.Parameter> declarations(List<QueryParameters.Declared> declared,
+            ModelContext ctx) {
+        return declared.stream().map(p -> p.declaration(ctx)).toList();
+    }
 
     private PlanMaker() {
     }
@@ -102,7 +105,7 @@ public final class PlanMaker {
         if (query.writes()) {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
-            return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
+            return new ExecutionPlan(declarations(declared, query.context()),
                     program(query, runtime, slots, features, serverVersion, ProgramState.Door.QUERY,
                             NO_TEST_KINDS));
         }
@@ -112,7 +115,7 @@ public final class PlanMaker {
         ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, features, frames);
         ExecutionPlan.Constant constant = ProductStatements.constant(st);
         if (constant != null) {
-            return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(), constant);
+            return new ExecutionPlan(declarations(declared, query.context()), constant);
         }
         // a typed plan answers a graph fetch's objects one per row: the streaming graph root
         Prepared.Planned planned = ProductStatements.planned(st);
@@ -127,7 +130,7 @@ public final class PlanMaker {
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
-        return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
+        return new ExecutionPlan(declarations(declared, l.ctx()),
                 stampedIfRead(typed(l.root(), lowered, dialect, target), st.reads().ownStamp()));
     }
 
@@ -198,6 +201,32 @@ public final class PlanMaker {
         }
     }
 
+    /** Every execution-trace stamp a step's statement reads is bound by a step of the program (a frame's run, or the
+     *  statement itself): a stamp nothing binds -- the activity comment of an execute(...) run inside a frame let's
+     *  own query, which the let's run does not stamp -- is refused by name (the MR inventory's latent defect 3, where
+     *  it failed unbound when the plan ran; MR's audit S2: only where it is read). */
+    private static void everyReadStampBound(List<ExecutionPlan.Node> steps) {
+        Set<String> bound = new HashSet<>();
+        for (ExecutionPlan.Node step : steps) {
+            for (ExecutionPlan.Sql sql : sqls(step)) {
+                if (sql.stamp() != null) {
+                    bound.add(sql.stamp());
+                }
+            }
+        }
+        for (ExecutionPlan.Node step : steps) {
+            for (ExecutionPlan.Sql sql : sqls(step)) {
+                for (ExecutionPlan.Slot slot : sql.slots()) {
+                    if (slot.parameter().startsWith(ProgramFrames.STAMP) && !bound.contains(slot.parameter())) {
+                        throw new NotImplementedException("a statement reads the trace stamp '" + slot.parameter()
+                                + "' of an execute(...) run that no step of the program binds (a run inside a frame"
+                                + " let's own query): not designed");
+                    }
+                }
+            }
+        }
+    }
+
     /** The statements a program's step sends. */
     private static List<ExecutionPlan.Sql> sqls(ExecutionPlan.Node step) {
         return switch (step) {
@@ -229,7 +258,7 @@ public final class PlanMaker {
             Set<Feature> features, @Nullable String serverVersion,
             ProgramKinds kinds) {
         List<QueryParameters.Declared> declared = query.parameters();
-        return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
+        return new ExecutionPlan(declarations(declared, query.context()),
                 program(query, runtime, slots(declared), features, serverVersion, ProgramState.Door.TEST, kinds));
     }
 
@@ -409,6 +438,7 @@ public final class PlanMaker {
      *  its writes where the dialect drops them with it). */
     private static List<ExecutionPlan.Node> finished(ProgramState state) {
         List<ExecutionPlan.Node> steps = withoutUnreadStamps(state.steps());
+        everyReadStampBound(steps);
         SqlDialect dialect = state.dialect();
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : state.staged()) {
             steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(

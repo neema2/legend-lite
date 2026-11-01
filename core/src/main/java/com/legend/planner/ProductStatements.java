@@ -90,14 +90,23 @@ public final class ProductStatements {
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
             Set<Feature> features, ProgramFrames frames) {
+        return prepare(query, statements, runtime, mark, features, frames, Map.of());
+    }
+
+    /** {@link #prepare} for a frame's own query, run under {@code runtimeRenames}: the table renames of the runtime
+     *  the frame runs on (a frame let's eager run and its CTE, as the walk runs them in the frame's environment). */
+    public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
+            @Nullable String runtime, @Nullable Integer mark,
+            Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames) {
         ModelContext ctx = query.context();
         SpecCompiler specs = query.specs();
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
-        PlanEnv env = PlanEnv.of(ctx, runtime, null, features, ProductStatements::noGenerator)
-                .withPlanRows(frames.planRows());
+        ProgramFrames.StatementRows rows = frames.statementRows();
+        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows)
+                : env(ctx, runtime, features, rows).withTableReplace(runtimeRenames);
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
-        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env));
+        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows));
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
@@ -128,6 +137,13 @@ public final class ProductStatements {
                 frames.renames(), env.tableReplace(), lets, specs);
         PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
         return new Statement(BodyPlanner.prepare(body, widened), temporal, inlined.reads());
+    }
+
+    /** The planning environment of a statement on this road over {@code planRows}: the model, the runtime, the
+     *  features, no dialect (its caller renders), the product's generator refusal. */
+    public static PlanEnv env(ModelContext ctx, @Nullable String runtime, Set<Feature> features,
+            Map<String, Map<String, List<List<String>>>> planRows) {
+        return PlanEnv.of(ctx, runtime, null, features, ProductStatements::noGenerator).withPlanRows(planRows);
     }
 
     /** A statement inlined (Phase G½): its body, the lets the inliner consumed (in the order it met them), and what
@@ -169,9 +185,9 @@ public final class ProductStatements {
                 yield constant("String", texts, false);
             }
             case Prepared.Planned p -> switch (p.root()) {
-                case TypedCString str when ADMITTED.contains("String") ->
+                case TypedCString str ->
                         constant("String", Collections.singletonList(str.value()), true);
-                case TypedCBoolean b when ADMITTED.contains("Boolean") ->
+                case TypedCBoolean b ->
                         constant("Boolean", Collections.singletonList(String.valueOf(b.value())), true);
                 default -> null;
             };

@@ -2964,7 +2964,12 @@ built 2026-10-31 to 2026-11-01 (D103; sub-steps M3a-M3i)**: `planner/QueryDoor.j
 `compiler/spec/StatementEffects.java`, `compiler/spec/typed/TypedTds.java`; `plan/LazyRows.java`;
 `lowering/Lowerer.java`; `builtin/NativeFn.java`; the TypeScript runner and its test; the guards (`ArchitectureTest`,
 `JavaEvalLedgerTest`, the funnel registers, `TypedSpecChildrenTest`); `core/BUILD.bazel` (`//core:testplan`). Next:
-the M3 checkpoint, then M4 (brief B13).
+the M3 checkpoint, then M4 (brief B13). **MR built 2026-11-01 (D104; the user's R20, B14)**: `exec/PlanRunner.java`,
+`SessionState.java`; `planner/PlanMaker.java`, `ProgramState.java`, `ProgramFrames.java`, `ProgramKinds.java`,
+`ProductStatements.java`, `BodyPlanner.java`, `FramePlanner.java`, `PlanAllocations.java`, `QueryDoor.java`,
+`LetPlanner.java`, `SidePlanner.java`, `PlanEnv.java`; `testplan/TestKinds.java`, `TestDoor.java`, `Seeds.java`,
+`EffectPlanner.java`; `compiler/spec/ResultEnvelopeSplice.java`; `exec/SessionStateTest.java` (new),
+`testplan/TestDoorTest.java`; `JavaEvalLedgerTest`. Next (R19): M5, then M4.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

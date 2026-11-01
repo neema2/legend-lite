@@ -7,6 +7,7 @@ import com.legend.base.Nullable;
 import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.ClassLayouts;
+import com.legend.compiler.element.EqualityKeys;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.ExprType;
@@ -191,8 +192,7 @@ public final class BodyPlanner {
         // over keyed instances is the key relation on the execute path
         // too (the structural fallback erased class identity and read
         // non-key fields). Identity minting stays verdict-lane-only.
-        lowerer = lowerer.withInstanceKeys(t2 -> com.legend.compiler
-                .element.EqualityKeys.resolve(ctx, t2));
+        lowerer = lowerer.withInstanceKeys(t2 -> EqualityKeys.resolve(ctx, t2));
         lowerer = identity ? lowerer.withInstanceIds(env.instanceIds()::idOf)
                 : lowerer.withObjectIdentity(env.instanceIds()::idOf).withDeclaredEgress();
         // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)

@@ -16583,6 +16583,47 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's MR: mutable state out, split by concern (the user's ruling R20)
+
+The plan's §6 B14 (from an independent inventory, `docs/test-is-product-homework/E_MR_INVENTORY.md`); the decisions
+log D104. Zero movement, measured; one latent defect fixed with zero movement measured.
+
+1. **Built (MRa-MRe, each its own commit, each byte-identical on every core package's statements before it):**
+   - MRa: imports for the inline fully-qualified names (17 files), dead code, orphan and stale comments.
+   - MRb: `PlanRunner.program` a pure shape of the plan, its steps, its bracket and one answer stream.
+   - MRc: `ProgramState` a builder with one owner (copies out); `PlanMaker.program` split (decide, planLet, stagedLet,
+     planStatement, finished).
+   - MRd: a statement's frame reads a frozen value (`ProgramFrames.Reads`, recorded per inlining); `prepare` split
+     into inlining and resolving; `ProgramKinds` one instance per program.
+   - MRe: the inventory's four latent defects verified: 1 not a defect (tested), 2 sound, 3 refused by name where a
+     statement reads a stamp no step binds, 4 FIXED (`SessionState`: a write or a rollback forgets every seed key;
+     one flag had stood for all keys, and establishing one cleared it for every other).
+2. **The audit** (independent, R15): no blockers, six should-fix, all folded. S1: MRd had let an inline run's
+   activity rows outlive their statement, two paths core's tests do not cover reading stale rows, one on the query
+   door's write programs -- an inline run's rows are now the statement's own layer (`ProgramFrames.StatementRows`),
+   gone with it, the old semantics without a reset by convention. S2: the stamp check exact (over the finished plan,
+   only where read). S3: a frame let's eager run and CTE planned under its runtime's renames, as the walk runs them
+   (its own `from()` case tested). S4: the seed memo tested. S5 and the nits: the declared parameters and the statement
+   environment one helper each, the constant guards gone, the stacked javadoc, the split names. Named, not done: the
+   rename merge's two copies, the two effect memos, `ProgramFrames.planRows()` and `ProgramState.frames()` handed to the
+   test library (the program's second planner), `TestKinds.effect` and `PlanMaker.plan` still long.
+3. **Measured:** every core package's statements byte-identical through MRa-MRe and the fold (17,377).
+4. **Guards, dated:** `JavaEvalLedgerTest` -- BodyPlanner 294 -> 336, FramePlanner 176 -> 201 -> 199, LetPlanner
+   107 -> 123, EffectPlanner 133 -> 156, SidePlanner 87 -> 97 (imports and joined names; nothing evaluated).
+5. **The chain** (on the fold): `corpus_duckdb` and `corpus_h2` uncached 6 of 6 each, every pass's statement-origins
+   census and pass/fail counts identical to M2's and M3's (the seed fix moves no seed statement); `pct_channel_b` 5 of
+   5; `//gates:local` 448 pass and 1 skipped, the 9 Postgres targets refusing root here and passing 9 of 9 unprivileged.
+
+## 2026-11-01 — The test-is-the-product plan's M3 checkpoint: CI and the lane sessions' round 9
+
+CI on 90ea4e5c: 52 of 52 checks green on Linux, Windows, macOS and arm, `gates green` included. The lane sessions'
+round 9 (90ea4e5c against round 8's 5befecda): every outcome identical on every lane; channel B and the test road
+byte-identical everywhere ('__id' literals included); no savepoint statement on any lane (Postgres channel B's verdict
+groups run outside a transaction); channel A's one movement M2's literal answers (MV12): 207 expressions per lane (148
+on SQLite, MariaDB, MySQL and ClickHouse), their statements and, on MariaDB and MySQL, their session statements no
+longer sent -- the compile-time unroll (ratified 2026-09-03) folded them before M2, M2 only stopped sending the
+literal. Pure-side text moved too (an anonymous name's counter, the logged let order), no SQL with it.
+
 ## 2026-11-01 — The test-is-the-product plan's M3: the doors, a test's effects, seeds and frames on the program road
 
 The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §6 B12 and §7 (M3, ruled R17); the decisions log D103. Movement:
