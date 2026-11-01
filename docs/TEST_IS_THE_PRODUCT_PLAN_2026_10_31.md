@@ -233,6 +233,27 @@ posted the same way (R7 decision 12).
   failure. A moved body's statements and verdict sides are inlined the program road's way (B9's marks), so S111's
   test-road limit and the per-statement pairing go with the old walk; a moved body's ids take the product's spelling
   (MV6). M10 deletes the router with the walk.
+  **M5's detail (written 2026-11-01 from M5a, `docs/test-is-product-homework/C_M5A_MEASUREMENTS.md`):**
+  1. **The class, by a named rule** (`testplan/BodyClass`): ASSERT_FREE -- no statement holds an assert or an
+     `assertError` (the query door's scan) and none holds a shape a later step plans, each named and detected on the
+     typed body, never by trying the test door: an effectful map and a computed effect argument (T9, M9), an
+     `executeInDb` result read (T8), a raw grid read as its cells or its text, a staged let used as a statement, an
+     `execute(...)` read where it stands or `values->at(k>0)` (M9), a system-store read (M4). The classes moved are one
+     closed enum, pinned by a guard that lets it only grow; a body of a moved class the test door refuses FAILS (R14),
+     and a guard holds every ASSERT_FREE body core's tests run planned whole.
+  2. **The run.** `Execution.runProgram` routes an ASSERT_FREE body to `TestDoor.plan` and `PlanRunner.program` on the
+     body's own session (its trace, its options' features), its answer streamed to the caller's `Answer` sink by its
+     shape, no verdict event (an assert-free body has none, as on the walk).
+  3. **The raw-SQL ledger** (`ExecuteOptions.recorder`, which the referee mirrors to replay the golden SQL of later
+     bodies): every effect and seed statement the moved body executes is recorded after it ran, in order, with the
+     text the walk records (`EffectPlanner.Statement.recorded`, `CsvSeed.Planned.text`), a failed one never: the
+     texts ride beside the plan (the test door's own index of its steps, never the product plan's), and the runner's
+     program sink is told when a step has run.
+  4. **Movement (posted, measured):** MV6 (a moved body's ids the product's spelling), MV7 (a frame let's eager run on
+     every pass), MV9 (a frame read more than once by its CTE); every moved body's outcome and every core answer
+     identical; the census per pass; the lanes.
+  Sub-steps: M5a measured; M5b the class rule and its guard; M5c the ledger beside the plan and the sink's step
+  event; M5d the router and the move, measured; M5e the audit, the records, the checkpoint.
 - **B2, the runner (M3, M9).** One plan per body (R14). New: `ExpectFailure(sub-plan)` for `assertError` (the
   error its body raises at run time handed to the comparison, N3); a raising step where an early-detected run-time
   error stands as a statement of its own (R14; inside an expression it is `PureSql.raise`); `Setup` per from() (D35; established
@@ -703,4 +724,9 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   merge's two copies (BodyPlanner, FramePlanner: their conflict messages differ), the two effect memos (two scans),
   `ProgramFrames.planRows()` handed to the test library for a frame let's program-level rows, `ProgramState.frames()`
   the test library's whole frames (the program's second planner), `TestKinds.effect` and `PlanMaker.plan` still long.
+- 2026-11-01: MR's checkpoint pushed (9a0fe445), CI and the lane sessions' round 10 asked. **M5a measured**
+  (`docs/test-is-product-homework/C_M5A_MEASUREMENTS.md`): per corpus pass 623 assert-free bodies planned whole by
+  the test door (616 effect setup programs), 5 refused (3 effectful maps, 2 bodies that fail to compile on the walk
+  too); channel B none (every body asserts); core 162 assert-free bodies planned whole, 8 refused, each a kind a later
+  step plans. M5's detail written under B1 (the class by a named rule, the raw-SQL ledger the referee mirrors).
   Measured: every core package's statements byte-identical through MRa-MRf (17,377); the chain (on the fold): both corpora uncached, each pass's statement-origins census and pass/fail counts identical to M2's and M3's; channel B 5 of 5; `//gates:local` 448 pass and 1 skipped (the 9 Postgres targets refusing root, 9 of 9 unprivileged).
