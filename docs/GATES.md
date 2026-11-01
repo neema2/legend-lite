@@ -16827,3 +16827,22 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
       timestamps.
     - The raw-chunk route (the internal class's public methods; no reflection) was run twice. So two outside-caller
       telemetry records went to Snowflake.
+12. **Tier 1's independent audit** (an agent that wrote none of it, given the diff and the code, not these conclusions):
+    no defect. It could not break the claim that tier 1 is byte-identical to main.
+    - Writers: main's and this branch's compiled side by side, 40,000 cases through all five writers, well-formed
+      and adversarial cells (every carrier under every column kind, precision fact and slot; names needing escapes;
+      refused carriers). The output and every refusal's class and message were identical.
+    - Decoder: about 90,000 cases on a mock driver (unknown and lowercase slot words, `TIMESTAMP(6)`, `javaTime` off
+      a quarter of the time, a re-read answering nothing). Tier 1 is identical to its parent, and to main with a
+      driver that answers one class per column.
+    - Real drivers, for the direct timestamp read: SQLite run (it never answers a `Timestamp`); MariaDB, Trino,
+      ClickHouse and BigQuery read from their bytecode (a SQL NULL answers null and sets `wasNull`).
+    - Its three nits:
+      - N1, `CellTextDirectTest` coverage: folded. Six refused carriers at the top level, a to-many column with a
+        slot, and PureV1's shape (engine tokens inside an array).
+      - N2: a driver whose timestamp column answers a `Timestamp` on one row and another class on a later row would
+        differ from main (a `java.sql.Date` read as a date-time; a different refusal message). Verified on the mock;
+        no supported driver does it. Catching it would cost the read this change removes. Not built.
+      - N3, `TenetRatchetTest`: its ceiling stayed at 21 after the legacy executor's sites were deleted
+        (2026-10-27), so main's 8 sites sat under it and this PR's 9th went unseen. Pinned to 9 with the user's yes,
+        the 9th named: the direct read, `getObject(i, LocalDateTime.class)`.

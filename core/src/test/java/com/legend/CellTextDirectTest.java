@@ -39,6 +39,8 @@ class CellTextDirectTest {
             for (ExecutionPlan.Precision p : ExecutionPlan.Precision.values()) {
                 out.add(new ExecutionPlan.Column("c", type, new ExecutionPlan.Multiplicity(0, 1), null, null, p));
             }
+            // a slot (named in a refusal's words) and a to-many column (the tier-1 audit's nit N1, 2026-11-01)
+            out.add(new ExecutionPlan.Column("c", type, new ExecutionPlan.Multiplicity(0, null), "VARCHAR", null, null));
         }
         return out;
     }
@@ -61,7 +63,9 @@ class CellTextDirectTest {
                 PureDateLiteral.parse("2024-01"), PureDateLiteral.parse("2024"),
                 PureDateLiteral.fromDatabaseTimestamp(java.time.LocalDateTime.of(2024, 1, 2, 0, 0)),
                 PureTimeLiteral.parse("10:30:00"), PureTimeLiteral.parse("10:30:00.5"),
-                List.of(1L, "a", 2.5), List.of(), struct, Map.of());
+                List.of(1L, "a", 2.5), List.of(), struct, Map.of(),
+                // carriers no batch holds, each refused by the node and so directly (the audit's nit N1)
+                1, 1.5f, (short) 1, new byte[] {1}, java.time.LocalDate.of(2024, 1, 2), 'x');
     }
 
     @Test
@@ -89,6 +93,28 @@ class CellTextDirectTest {
                 if (ok(() -> CellText.pureJson(cell, c))) {
                     CellText.writePureJson(w, cell, c);
                     Json.write(n, CellText.pureJson(cell, c));
+                }
+            }
+            w.endArray();
+            n.endArray();
+            assertEquals(nodes.toString(), direct.toString(), c.toString());
+        }
+    }
+
+    /** PureV1's shape: a row's engine tokens back to back inside an array, as {@code PureV1Writer} writes them. */
+    @Test
+    void engineCellsInAnArrayAreTheNodesInAnArray() {
+        for (ExecutionPlan.Column c : columns()) {
+            StringBuilder direct = new StringBuilder();
+            StringBuilder nodes = new StringBuilder();
+            Json.Writer w = Json.compactWriter(direct);
+            Json.Writer n = Json.compactWriter(nodes);
+            w.beginArray();
+            n.beginArray();
+            for (Object cell : cells()) {
+                if (ok(() -> CellText.engine(cell, c))) {
+                    CellText.writeEngine(w, cell, c);
+                    Json.write(n, CellText.engine(cell, c));
                 }
             }
             w.endArray();
