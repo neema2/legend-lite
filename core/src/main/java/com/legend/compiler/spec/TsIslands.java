@@ -66,6 +66,19 @@ public final class TsIslands {
         }
     }
 
+    /** The enumerations directly in the package {@code pkg} ({@code timeseries}), by their simple names, each its
+     *  values in their declared order: an option's one source, exported for the clients (TsCatalogExport). */
+    public static Map<String, List<String>> enumerations(ModelContext model, String pkg) {
+        Map<String, List<String>> out = new java.util.LinkedHashMap<>();
+        String prefix = pkg + "::";
+        for (String fqn : model.elementFqns().stream().sorted().toList()) {
+            if (fqn.startsWith(prefix) && !fqn.substring(prefix.length()).contains("::")) {
+                model.findEnum(fqn).ifPresent(e -> out.put(fqn.substring(prefix.length()), e.values()));
+            }
+        }
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
     /** The model's classes by their simple names (R13), computed once per model. */
     record Classes(Map<String, List<String>> bySimpleName) {
 

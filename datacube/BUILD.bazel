@@ -977,6 +977,38 @@ java_run(
     deps = [":offer_facts_main"],
 )
 
+# THE CATALOG, EXPORTED (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S5): the library's enumerations, its words
+# and the guide's page of them, read from the library as core compiles it (TsCatalogExport) -- never parsed from its
+# text by a tool of their own; diff-tested below
+legend_java_library(
+    name = "ts_catalog_main",
+    srcs = ["tools/ts-catalog/TsCatalogExport.java"],
+    deps = [
+        "//core:compiler",
+        "//core:planner",
+        "//core:protocol",
+    ],
+)
+
+java_run(
+    name = "ts_catalog",
+    srcs = [":timeseries_model"],
+    outs = [
+        "generated/library-enums.gen.ts",
+        "generated/ts-words.gen.ts",
+        "generated/ts-words.gen.md",
+    ],
+    arguments = [
+        "$(execpath :timeseries_model)",
+        "$(execpath generated/library-enums.gen.ts)",
+        "$(execpath generated/ts-words.gen.ts)",
+        "$(execpath generated/ts-words.gen.md)",
+    ],
+    main_class = "tscatalog.TsCatalogExport",
+    visibility = ["//docs:__pkg__"],
+    deps = [":ts_catalog_main"],
+)
+
 # THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below
 js_binary(
     name = "test_imports_tool",
@@ -1025,27 +1057,6 @@ copy_file(
     out = "timeseries_model.pure",
 )
 
-# THE LIBRARY'S OPTIONS (the user, 2026-10-28: one source): each enumeration of timeseries::, read from the library's
-# text, written as src/generated/library-enums.ts for the catalog and the writer, diff-tested below
-js_binary(
-    name = "library_enums_tool",
-    entry_point = "tools/library-enums.mts",
-    node_options = [
-        "--experimental-strip-types",
-        "--disable-warning=ExperimentalWarning",
-    ],
-)
-
-js_run_binary(
-    name = "library_enums",
-    srcs = [":timeseries_model"],
-    outs = ["library_enums_generated.ts"],
-    args = [
-        "$(rootpath :timeseries_model)",
-        package_name() + "/library_enums_generated.ts",
-    ],
-    tool = ":library_enums_tool",
-)
 
 # THE LIBRARY, A PURE FILE (the platform step's B, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md): the timeseries
 # project's model (//projects:timeseries/model.pure, package timeseries::; the user, 2026-10-30: not DataCube's) the
@@ -1076,7 +1087,8 @@ write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
     files = {
-        "src/generated/library-enums.ts": ":library_enums",
+        "src/generated/library-enums.ts": "generated/library-enums.gen.ts",
+        "src/generated/ts-words.ts": "generated/ts-words.gen.ts",
         "src/pure-library-text.ts": ":library_text",
         "src/generated/offer-facts.ts": ":offer_facts",
         "test_imports.bzl": ":test_imports",

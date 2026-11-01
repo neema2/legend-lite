@@ -142,8 +142,8 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
               formula: exprText(inlined(series.expr, ts.series)), split: series.split ?? null, grain: ts.grain ?? null,
               align: ts.align ?? null, anchor: anchor ?? null,
               sources: ts.sources.map((x) => ({ alias: x.alias, cube: x.cube, date: x.date, key: x.key ?? null })),
-              columns: mine.columns.map((c) => ({ name: c.name, values: c.values.map((v) => (v instanceof Date
-                ? v.toISOString() : typeof v === 'bigint' ? Number(v) : v)) })),
+              columns: mine.columns.map((c) => ({ name: c.name, values: c.values.map((v) => ((v as unknown) instanceof Date
+                ? (v as unknown as Date).toISOString() : typeof v === 'bigint' ? Number(v) : v)) })),
             };
             const d = difference(keyed(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)),
               keyed(mine, date, q.split, pairs.map(([, b]) => b)));
