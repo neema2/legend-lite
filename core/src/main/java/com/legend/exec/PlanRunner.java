@@ -176,6 +176,38 @@ public final class PlanRunner {
         Map<String, PlanParameters.Checked> checked = PlanParameters.check(plan.parameters(), values);
         ExecutionPlan.Sequence sequence = plan.root() instanceof ExecutionPlan.Sequence s ? s
                 : new ExecutionPlan.Sequence(List.of(plan.root()));
+        ProgramShape shape = shapeOf(sequence, checked);
+        Held held = new Held();
+        ExecutionPlan.Target on = shape.target();
+        if (on == null) {
+            constantsAlone(sequence, held);
+        } else {
+            try (Sessions.Session session = shape.changes() ? sessions.openToChange(on) : sessions.open(on)) {
+                Statements st = opened(session, on);
+                bracketed(shape, st, () -> runSteps(sequence, checked, judging, session, st, held, sink));
+            }
+        }
+        if (shape.answers()) {
+            // every step ran, the result step among them: its rows, held, streamed now its changes have committed
+            streamHeld(held, sink);
+        }
+    }
+
+    /**
+     * A program plan's SHAPE, read from its steps before any of them runs: the one target its steps run on (null when
+     * it sends nothing), whether it changes the database (a store write: the program's transaction), and the
+     * strictest snapshot its keyed steps ask; a plan that names two targets, a write's count named as a declared
+     * parameter, or more than one result step is refused before anything runs. It reads a plan differently from
+     * {@link #sequence} ON PURPOSE: an effect commits itself, so it opens no transaction (the transaction rule, the
+     * test-is-the-product plan's R17), and a seed step takes part, its target the program's (a program of seeds and a
+     * constant opens its session: the M3 audit's B3).
+     */
+    private record ProgramShape(ExecutionPlan.@Nullable Target target, boolean changes,
+            ExecutionPlan.Keyed.@Nullable Snapshot snapshot, boolean answers) {
+    }
+
+    /** {@code sequence}'s {@link ProgramShape}: whether it answers (its one result step, a constant's too). */
+    private static ProgramShape shapeOf(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked) {
         ExecutionPlan.Target target = null;
         int results = 0;
         boolean changes = false;
@@ -186,26 +218,14 @@ public final class PlanRunner {
                 case ExecutionPlan.Update u -> {
                     changes = true;
                     if (u.count() != null && checked.containsKey(u.count())) {
-                        throw new IllegalStateException("a write's count is named '" + u.count() + "', as a declared"
-                                + " parameter is");
+                        throw new IllegalStateException("a write's count is named '" + u.count() + "', as a"
+                                + " declared parameter is");
                     }
                     sqls.add(u.sql());
                 }
                 case ExecutionPlan.Check k -> sqls.add(k.sql());
-                // the transaction rule (the test-is-the-product plan's R17): only a store write opens the program's
-                // transaction; an effect commits itself, its script bracketed by its dialect where the session owns
-                // its transaction (upstream's executeInDb runs with autocommit)
                 case ExecutionPlan.Effect e -> sqls.add(e.sql());
-                // a seed step's statements run on the program's session: its target the program's (the M3 audit's B3:
-                // a program of seeds and a constant opens it)
-                case ExecutionPlan.Setup u -> {
-                    if (target == null) {
-                        target = u.target();
-                    } else if (!target.equals(u.target())) {
-                        throw new NotImplementedException("a plan whose steps name different"
-                                + " targets: its steps run on one session, in one transaction");
-                    }
-                }
+                case ExecutionPlan.Setup u -> target = sameTarget(target, u.target());
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     sqls.add(t.sql());
@@ -217,145 +237,148 @@ public final class PlanRunner {
                     sqls.add(k.keys());
                     sqls.add(k.body());
                 }
-                case ExecutionPlan.Verdicts v -> {
-                    if (v.fused() != null) {
-                        sqls.add(v.fused().sql());
-                    }
-                    for (ExecutionPlan.Verdict each : v.verdicts()) {
-                        switch (each.wrapper()) {
-                            case null -> { }
-                            case ExecutionPlan.TdsResult t -> sqls.add(t.sql());
-                            case ExecutionPlan.Keyed k -> {
-                                snapshot = stricter(snapshot, k.snapshot());
-                                sqls.add(k.keys());
-                                sqls.add(k.body());
-                            }
-                            default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
-                                    + " result");
-                        }
-                        for (ExecutionPlan.Side side : each.base()) {
-                            switch (side) {
-                                case ExecutionPlan.Side.Rows r -> sqls.add(r.result().sql());
-                                case ExecutionPlan.Side.KeyedRows kr -> {
-                                    snapshot = stricter(snapshot, kr.keyed().snapshot());
-                                    sqls.add(kr.keyed().keys());
-                                    sqls.add(kr.keyed().body());
-                                }
-                                case ExecutionPlan.Side.Constant c -> {
-                                }
-                            }
-                        }
-                    }
-                }
+                case ExecutionPlan.Verdicts v -> snapshot = verdictStatements(v, sqls, snapshot);
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence: a"
                         + " plan's steps are one list");
             }
             for (ExecutionPlan.Sql sql : sqls) {
                 nullTypes(sql);
-                if (target == null) {
-                    target = sql.target();
-                } else if (!target.equals(sql.target())) {
-                    throw new NotImplementedException("a plan whose steps name different targets:"
-                            + " its steps run on one session, in one transaction");
-                }
+                target = sameTarget(target, sql.target());
             }
         }
         if (results > 1) {
-            throw new IllegalStateException("a program of " + results + " result steps: a program's answer is at most"
-                    + " one");
+            throw new IllegalStateException("a program of " + results + " result steps: a program's answer is at"
+                    + " most one");
         }
-        if (target == null) {
-            // a program that sends nothing (the test-is-the-product plan's B2, M2): its constant answer, no session
-            // opened; a step with nothing to send that is not a constant (a verdict group of constant sides alone) is
-            // the verdict design's (M6), refused by name
-            Held held = new Held();
-            boolean answered = false;
-            for (ExecutionPlan.Node step : sequence.steps()) {
-                if (!(step instanceof ExecutionPlan.Constant c)) {
-                    throw new NotImplementedException("a program that sends nothing but a "
-                            + step.getClass().getSimpleName() + " step: only a constant answer runs with no session");
-                }
-                constant(c, held);
-                answered = true;
-            }
-            if (answered) {
-                Streamed streamed = new Streamed(held.columns, sink, Batcher.DEFAULT_CAPACITY);
-                for (List<Object> row : held.rows) {
-                    streamed.row(row);
-                }
-                streamed.end();
-            }
-            return;
+        return new ProgramShape(target, changes, snapshot, results > 0);
+    }
+
+    /** {@code next}, the plan's one target so far being {@code sofar} (none yet when null). */
+    private static ExecutionPlan.Target sameTarget(ExecutionPlan.@Nullable Target sofar,
+            ExecutionPlan.Target next) {
+        if (sofar != null && !sofar.equals(next)) {
+            throw new NotImplementedException("a plan whose steps name different targets: its steps run on one"
+                    + " session, in one transaction");
         }
-        ExecutionPlan.Target on = target;
-        Held held = new Held();
-        boolean[] answered = {false};
-        try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
-            Statements st = opened(session, on);
-            // inside a transaction -- the program's own (it writes a store, or a keyed step's snapshot holds it) or a
-            // caller's the session joins -- is the session's own state, asked at each step (the M3 audit's B2: decided
-            // once, it missed the snapshot's transaction)
-            Statements.Work work = () -> {
-                Map<String, PlanParameters.Checked> live = new HashMap<>(checked);
-                for (ExecutionPlan.Node step : sequence.steps()) {
-                    switch (step) {
-                        case ExecutionPlan.Update u -> update(u, live, st);
-                        case ExecutionPlan.Check k -> check(k, live, st);
-                        case ExecutionPlan.Effect e -> {
-                            // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied
-                            // leaves the session's seeds to establish again (the M3 audit's B5)
-                            session.state().markWriting();
-                            script(e, live, st, !st.ownsTransaction());
-                        }
-                        case ExecutionPlan.Setup u -> seed(u, session, st);
-                        case ExecutionPlan.TdsResult t -> {
-                            answered[0] = true;
-                            result(t, live, st, held);
-                        }
-                        case ExecutionPlan.Constant c -> {
-                            answered[0] = true;
-                            constant(c, held);
-                        }
-                        case ExecutionPlan.Keyed k -> {
-                            answered[0] = true;
-                            keyedOn(k, live, st, heldSink(held));
-                        }
-                        case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, !st.ownsTransaction());
-                        case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
+        return next;
+    }
+
+    /** A verdict group's statements added to {@code sqls}: its fused statement, each verdict's wrapper and sides;
+     *  the strictest snapshot its keyed ones ask, from {@code snapshot}. */
+    private static ExecutionPlan.Keyed.@Nullable Snapshot verdictStatements(ExecutionPlan.Verdicts v,
+            List<ExecutionPlan.Sql> sqls, ExecutionPlan.Keyed.@Nullable Snapshot snapshot) {
+        ExecutionPlan.Keyed.Snapshot strictest = snapshot;
+        if (v.fused() != null) {
+            sqls.add(v.fused().sql());
+        }
+        for (ExecutionPlan.Verdict each : v.verdicts()) {
+            switch (each.wrapper()) {
+                case null -> { }
+                case ExecutionPlan.TdsResult t -> sqls.add(t.sql());
+                case ExecutionPlan.Keyed k -> {
+                    strictest = stricter(strictest, k.snapshot());
+                    sqls.add(k.keys());
+                    sqls.add(k.body());
+                }
+                default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed result");
+            }
+            for (ExecutionPlan.Side side : each.base()) {
+                switch (side) {
+                    case ExecutionPlan.Side.Rows r -> sqls.add(r.result().sql());
+                    case ExecutionPlan.Side.KeyedRows kr -> {
+                        strictest = stricter(strictest, kr.keyed().snapshot());
+                        sqls.add(kr.keyed().keys());
+                        sqls.add(kr.keyed().body());
+                    }
+                    case ExecutionPlan.Side.Constant c -> {
                     }
                 }
-            };
-            if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
-                st.inSnapshot(snapshot, work);
-            } else if (changes) {
-                try {
-                    st.inTransaction(() -> {
-                        try {
-                            work.run();
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                        return null;
-                    });
-                } catch (UncheckedIOException e) {
-                    throw e.getCause();
+            }
+        }
+        return strictest;
+    }
+
+    /** A program that sends nothing (the test-is-the-product plan's B2, M2): its constant answer, held, no session
+     *  opened. A step with nothing to send that is not a constant (a verdict group of constant sides alone) is the
+     *  verdict design's (M6), refused by name. */
+    private static void constantsAlone(ExecutionPlan.Sequence sequence, Held held) {
+        for (ExecutionPlan.Node step : sequence.steps()) {
+            if (!(step instanceof ExecutionPlan.Constant c)) {
+                throw new NotImplementedException("a program that sends nothing but a "
+                        + step.getClass().getSimpleName() + " step: only a constant answer runs with no session");
+            }
+            constant(c, held);
+        }
+    }
+
+    /** {@code work} run in the bracket {@code shape} asks: the strictest snapshot its keyed steps ask, where the
+     *  session owns its transaction; else one transaction where the program changes the database; else no bracket. */
+    private static void bracketed(ProgramShape shape, Statements st, Statements.Work work) throws IOException {
+        ExecutionPlan.Keyed.Snapshot snapshot = shape.snapshot();
+        if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
+            st.inSnapshot(snapshot, work);
+        } else if (shape.changes()) {
+            try {
+                st.inTransaction(() -> {
+                    try {
+                        work.run();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                    return null;
+                });
+            } catch (UncheckedIOException e) {
+                throw e.getCause();
+            }
+        } else {
+            // reads alone, no snapshot asked: each statement as the session sends it, no bracket -- a verdict
+            // group's statements ran so before they were a plan's steps (S2e, 2026-10-30), and a bracket would
+            // carry a rejected fused statement's abort into the wrappers that follow it on a database that aborts
+            // the transaction on any error (Postgres); a program that changes the database is S4's to settle
+            // (the plan's F11)
+            work.run();
+        }
+    }
+
+    /** The program's steps run in order on {@code st}, the values a step produces (a write's count, a run's stamp)
+     *  bound for the steps after it; its answer held in {@code held}, its verdicts to {@code sink}. */
+    private static void runSteps(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked,
+            Judging judging, Sessions.Session session, Statements st, Held held, ProgramSink sink) throws IOException {
+        Map<String, PlanParameters.Checked> live = new HashMap<>(checked);
+        for (ExecutionPlan.Node step : sequence.steps()) {
+            switch (step) {
+                case ExecutionPlan.Update u -> update(u, live, st);
+                case ExecutionPlan.Check k -> check(k, live, st);
+                case ExecutionPlan.Effect e -> {
+                    // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves
+                    // the session's seeds to establish again (the M3 audit's B5)
+                    session.state().markWriting();
+                    script(e, live, st, insideATransaction(st));
                 }
-            } else {
-                // reads alone, no snapshot asked: each statement as the session sends it, no bracket -- a verdict
-                // group's statements ran so before they were a plan's steps (S2e, 2026-10-30), and a bracket would
-                // carry a rejected fused statement's abort into the wrappers that follow it on a database that aborts
-                // the transaction on any error (Postgres); a program that changes the database is S4's to settle
-                // (the plan's F11)
-                work.run();
+                case ExecutionPlan.Setup u -> seed(u, session, st);
+                case ExecutionPlan.TdsResult t -> result(t, live, st, held);
+                case ExecutionPlan.Constant c -> constant(c, held);
+                case ExecutionPlan.Keyed k -> keyedOn(k, live, st, heldSink(held));
+                case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, insideATransaction(st));
+                case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
             }
         }
-        if (answered[0]) {
-            Streamed streamed = new Streamed(held.columns, sink, Batcher.DEFAULT_CAPACITY);
-            for (List<Object> row : held.rows) {
-                streamed.row(row);
-            }
-            streamed.end();
+    }
+
+    /** Whether {@code st} is inside a transaction now -- the program's own (it writes a store, or a keyed step's
+     *  snapshot holds it) or a caller's the session joins: the session's own state, asked at each step (the M3 audit's
+     *  B2: decided once, it missed the snapshot's transaction). A session that owns its transaction has none open. */
+    private static boolean insideATransaction(Statements st) {
+        return !st.ownsTransaction();
+    }
+
+    /** The program's held answer streamed to {@code sink}, once its steps have run (and its changes committed). */
+    private static void streamHeld(Held held, ProgramSink sink) throws IOException {
+        Streamed streamed = new Streamed(held.columns, sink, Batcher.DEFAULT_CAPACITY);
+        for (List<Object> row : held.rows) {
+            streamed.row(row);
         }
+        streamed.end();
     }
 
     /** A verdict group as {@code judging} asks: the DATABASE judge's rows from the fused statement (each verdict's
