@@ -3409,3 +3409,19 @@ Status lives in the plan's Progress table (rule 0b.16).
     stage makes stale.
   - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
     refuses a semi-structured or outer-join construct when it builds the model; the options go to the user first.
+- **Finishing the plan (started 2026-11-01): Phase 0's Linux run and the plan-wide EMIT target.** No Phase 9 PR has
+  merged (none is open upstream), so there was no rebase. Two items. First, the whole engine verdict on a GitHub-hosted
+  Linux runner, which Phase 0 left undone; its shape waits for the user's choice. Second, at least 80 of the 109 EMIT
+  features judged on the engine (Phase 9 ended at 74). The report's `profile.py`, on `stress_test/report`, tags the
+  features the corpus already exercises, and new packs and generators add the ones it lacks. Inside the owned files:
+  `run.py` and a merge of its shards' verdicts if the run is split across jobs; the packs, seed (kept out of
+  `seed.PACK_TABLES` and `literals.FIXTURE_TABLES`), oracle, generators, `executed.py`, `quarantine.py`, repros,
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, finishing the plan (announced 2026-11-01, before it lands):**
+  - `.github/workflows/` (the Bazel program's): a way to dispatch the whole engine verdict on GitHub-hosted Linux,
+    in the shape the user picks; `gates/BUILD.bazel` only if that shape needs a suite.
+  - `docs/build-inventory/program/PHASE_8.md`: a note against Test-11 saying what the run covers and what it doesn't.
+  - `core/BUILD.bazel` (the comment on `:stress_files`) and `scripts/corpus/trading_model.py`'s `SERVICES_AND_DATA`
+    (the timeseries line's), for each new generated file.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a new construct when it builds the model; the options go to the user first.
