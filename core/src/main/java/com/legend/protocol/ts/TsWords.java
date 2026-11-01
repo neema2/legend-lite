@@ -132,12 +132,6 @@ final class TsWords {
     /** The type of the parameter a word's FILL is: never given, the query's. */
     static final String FILL = TsToPure.LIBRARY + "Fill";
 
-    /** {@code word} of the one line {@code x}, each of {@code given} bound to the overload it fits ({@link #call}). */
-    static TsLines.Valued call(TsFunctions.Ctx c, String word, TsLines.Valued x, Map<String, Given> given,
-            SqlAst.Pos pos) {
-        return call(c, word, List.of(new LineArg(x)), given, pos);
-    }
-
     /**
      * {@code word} of {@code args} (its lines, in place), each of {@code given} (by parameter name; a window under
      * {@code w}) bound to the overload it fits: the word's line, its period and its number in time as the language's
@@ -200,14 +194,7 @@ final class TsWords {
         if (lines.isEmpty()) {
             throw SqlTranslationException.invalid(word + " reads a line: its arguments are numbers", pos);
         }
-        TsLines.Line key = lines.stream().filter(TsLines.Line::byInstrument).findFirst().orElse(lines.get(0));
-        for (TsLines.Line l : lines) {
-            if (l.byInstrument() && !l.part().equals(key.part())) {
-                throw SqlTranslationException.invalid("lines by " + key.part() + " and lines by " + l.part()
-                        + " meet on no instrument: pick one line of one with a subscript (R2)", pos);
-            }
-        }
-        return key;
+        return TsLines.keyOf(lines, pos);
     }
 
     /** {@code o}'s arguments from {@code args} (in its leading parameters' places) and {@code given}, or null where
@@ -242,8 +229,7 @@ final class TsWords {
                 v = TsLines.sample(java.util.Objects.requireNonNull(c.query().sample()).unit());
             } else if (FILL.equals(p.type()) && c.query().fill() != null) {
                 // the lines meet under FILL, filled
-                String how = java.util.Objects.requireNonNull(c.query().fill()).how().toLowerCase(java.util.Locale.ROOT);
-                v = new EnumValue(FILL, "null".equals(how) ? "none" : how);
+                v = TsLines.fill(java.util.Objects.requireNonNull(c.query().fill()).how());
             } else {
                 v = p.optional() ? new PureCollection(List.of()) : null;
             }
@@ -393,14 +379,5 @@ final class TsWords {
 
     private static ValueSpecification renamed(ValueSpecification rel, String from, String to) {
         return from.equals(to) ? rel : TsLines.call("rename", rel, new ColSpec(from), new ColSpec(to));
-    }
-
-    /** {@code given}, keyed as {@link #call} takes it, from a window argument as written. */
-    static Map<String, Given> window(@com.legend.base.Nullable Given w) {
-        Map<String, Given> out = new LinkedHashMap<>();
-        if (w != null) {
-            out.put("w", w);
-        }
-        return out;
     }
 }

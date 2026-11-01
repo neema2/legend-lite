@@ -150,6 +150,31 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
 - **Size.** Large.
 - **Riskiest unknown.** Whether overloads chosen by a line's type can express the broadcast case: a line with no
   instrument, met with a line per instrument.
+- **The census (2026-11-01).** An agent that wrote none of the code read `TsToPure`, `TsLines`, `TsFunctions`,
+  `TsWords`, `TsCatalog` and `TsIslands`. It sorted 22 rules and every distinct refusal into the three classes.
+  - **Two stay in Java.** Each is recorded with its reason in the one-tree plan's §6a.
+    - The R7 fold: an item read from a later item's line that was built from it is one line. It depends on which
+      relation expression is which, and the library sees only values. Without the fold, a line with several rows on a
+      date, met with itself, would multiply its rows.
+    - The R10 naming of a struct's fields, `<item>_<field>`. Pure cannot build a column name from strings. The field
+      names already come from the word's return type.
+  - **Moves, cheapest first:**
+    1. Dead code, and the span table that defaulted an unknown unit to seconds. **Done.**
+    2. One copy of the "meet on no instrument" refusal (there were three). **Done.**
+    3. FILL's spelling in one place, and the library's `fill` always called (its `none` leaves a line as it is).
+       **Done.**
+    4. The meeting variants (`meet` or `meetOne`, `periodsOf` or `periodsOfOne`, `onto` or `ontoOne`) as one function
+       each, taking `timeseries::Keyed`.
+    5. The 12-column cap (P7).
+    6. The period aggregates' vocabulary (`TAKEN`) read from `timeseries::Taken`.
+    7. A condition in a line's place, and a timed line's broadcast, written in the library.
+    8. A Float line, and one path with and without FILL. These are the riskiest: every word's signature changes.
+  - **Three decisions not yet ruled** (posted to the user, 2026-11-01):
+    - `latest` is computed over the answer's rows, but the spec's R9 says "the last date of any source, after its
+      WHERE";
+    - `close[symbol = 'SPX']` is one line, while `symbol IN ('SPX')` is a line per instrument, and the spec does not
+      say so;
+    - a window's count must be 1 to 100,000, a limit no register row names.
 
 ### A2. Checkpoint: an independent review and the full gate
 

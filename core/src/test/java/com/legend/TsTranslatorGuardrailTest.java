@@ -83,9 +83,11 @@ class TsTranslatorGuardrailTest {
                 + " library's to write (a timeseries::lines:: function or a word), never the translator's");
     }
 
-    /** A parameter compared with a name written here: {@code "unit".equals(p.name())}, {@code p.name().equals("n")}. */
+    /** A parameter compared with a name written here: {@code "unit".equals(p.name())}, {@code p.name().equals("n")};
+     *  or a word's arguments keyed by a name written here: {@code given.put("w", ...)} (2026-11-01, the census of
+     *  docs/TS_V1_PROGRAM_2026_11_01.md A1: a dead {@code TsWords.window} bound {@code w} so, unseen by the first two). */
     private static final Pattern BY_NAME = Pattern.compile("\"[A-Za-z_]+\"\\.equals\\([^;\"]*\\bname\\(\\)\\)"
-            + "|\\.name\\(\\)\\.equals\\(\"");
+            + "|\\.name\\(\\)\\.equals\\(\"|\\.(get|put|containsKey|remove)\\(\"[A-Za-z_]+\"");
 
     @Test
     void theTranslatorBindsNoParameterByItsName() throws IOException {

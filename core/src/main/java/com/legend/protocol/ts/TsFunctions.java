@@ -29,8 +29,6 @@ final class TsFunctions {
     private TsFunctions() {
     }
 
-    private static final String LIBRARY = TsToPure.LIBRARY;
-    private static final String DURATION = "meta::pure::functions::date::DurationUnit";
 
     /** A parameter's kind: a window or a lag ({@code SPAN}), a whole number, a number, a word of {@code words}, or a
      *  date ({@code '2024-01-01'}: given always), or a date a base is taken as of ({@code SINCE}: none, the line's

@@ -48,8 +48,6 @@ public final class TsToPure {
      *  {@code #TS} imports: a function a query names is the library's (ruling 4). */
     public static final String LIBRARY = "timeseries::";
 
-    private static final String DURATION = "meta::pure::functions::date::DurationUnit";
-
     /** What a query asks of the model beyond a relation's columns ({@link SqlToPure.Sources}): its classes by a name
      *  as a query writes it (R13), a class's properties, an enumeration's values. */
     public interface Model extends SqlToPure.Sources {
@@ -1110,15 +1108,17 @@ public final class TsToPure {
                 if (s == null) {
                     return x;
                 }
-                String text = switch (s.unit()) {
-                    case "d" -> s.n() + " day";
-                    case "w" -> s.n() + " week";
-                    case "mo" -> s.n() + " month";
-                    case "q" -> 3 * s.n() + " month";
-                    case "y" -> s.n() + " year";
-                    case "h" -> s.n() + " hour";
-                    case "min" -> s.n() + " minute";
-                    default -> s.n() + " second";
+                // the span's count of a DurationUnit (a quarter three months: TsFunctions.period, the one table)
+                TsFunctions.Period p = TsFunctions.period(s);
+                String text = p.n() + " " + switch (p.unit()) {
+                    case "DAYS" -> "day";
+                    case "WEEKS" -> "week";
+                    case "MONTHS" -> "month";
+                    case "YEARS" -> "year";
+                    case "HOURS" -> "hour";
+                    case "MINUTES" -> "minute";
+                    case "SECONDS" -> "second";
+                    default -> throw new IllegalStateException("a span of " + p.unit());
                 };
                 return new SqlAst.TypedLit(new SqlAst.TypeName("interval", List.of(), s.pos()), text, s.pos());
             });

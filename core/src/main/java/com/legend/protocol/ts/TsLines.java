@@ -163,14 +163,8 @@ final class TsLines {
      * one as a UNION, plans a nesting of them exponentially).
      */
     static Spread spread(Writer w, List<Valued> nodes, SqlAst.Pos pos) {
-        List<Valued> split = nodes.stream().filter(n -> n.line().byInstrument()).toList();
-        String part = split.isEmpty() ? ONE_LINE : split.get(0).line().part();
-        for (Valued n : split) {
-            if (!n.line().part().equals(part)) {
-                throw SqlTranslationException.invalid("lines by " + part + " and lines by " + n.line().part()
-                        + " meet on no instrument: pick one line of one with a subscript (R2)", pos);
-            }
-        }
+        Line key = keyOf(nodes.stream().map(Valued::line).toList(), pos);
+        String part = key.byInstrument() ? key.part() : ONE_LINE;
         // each line once, with the values the nodes read of it
         List<Line> distinct = new ArrayList<>();
         List<List<String>> values = distinct(nodes, distinct);
@@ -293,7 +287,7 @@ final class TsLines {
     /** {@code line}'s {@code values} put onto its merged dates by {@code how} (R6, the library's fill), each under its
      *  own name; {@code ord} the number in time of the periods they had a row in, the first value its rows' marker. */
     private static Line fill(Writer w, Line line, List<String> values, String ord, String how) {
-        if ("NULL".equals(how) || values.isEmpty()) {
+        if (values.isEmpty()) {
             return line;
         }
         Line l = line;
@@ -302,8 +296,7 @@ final class TsLines {
         for (String v : values) {
             String out = w.fresh("al_fill");
             l = l.with(call(LINES + "fill", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
-                    new ColSpec(values.get(0)), new ColSpec(ord), new ColSpec(ORD), new ColSpec(v),
-                    new EnumValue(TsToPure.LIBRARY + "Fill", how.toLowerCase(java.util.Locale.ROOT)),
+                    new ColSpec(values.get(0)), new ColSpec(ord), new ColSpec(ORD), new ColSpec(v), fill(how),
                     new ColSpec(out)));
             outs.add(out);
         }
@@ -311,6 +304,26 @@ final class TsLines {
             l = replaced(w, l, values.get(i), outs.get(i));
         }
         return l;
+    }
+
+    /** FILL's way as the library's {@code timeseries::Fill}: the language's spelling, SQL's {@code NULL} the library's
+     *  {@code none} (a Pure enumeration has no value {@code null}). */
+    static EnumValue fill(String how) {
+        String value = how.toLowerCase(java.util.Locale.ROOT);
+        return new EnumValue(TsToPure.LIBRARY + "Fill", "null".equals(value) ? "none" : value);
+    }
+
+    /** The line whose key lines meet by: the first line per instrument, else the first. Refused (R2): lines per
+     *  instrument by two instrument columns. */
+    static Line keyOf(List<Line> lines, SqlAst.Pos pos) {
+        Line key = lines.stream().filter(Line::byInstrument).findFirst().orElse(lines.get(0));
+        for (Line l : lines) {
+            if (l.byInstrument() && !l.part().equals(key.part())) {
+                throw SqlTranslationException.invalid("lines by " + key.part() + " and lines by " + l.part()
+                        + " meet on no instrument: pick one line of one with a subscript (R2)", pos);
+            }
+        }
+        return key;
     }
 
     /** {@code l} with {@code filled} under {@code value}'s name, the column it filled kept under another. */
@@ -328,6 +341,7 @@ final class TsLines {
         if (fill != null) {
             return aligned(w, nodes, fill, pos);
         }
+        keyOf(nodes.stream().map(Valued::line).toList(), pos);
         List<Valued> order = new ArrayList<>(nodes.stream().filter(n -> n.line().byInstrument()).toList());
         order.addAll(nodes.stream().filter(n -> !n.line().byInstrument()).toList());
         // each line once (a struct's fields read one line), with the values the nodes read of it
@@ -337,10 +351,6 @@ final class TsLines {
         for (int d = 1; d < distinct.size(); d++) {
             Line r = distinct.get(d);
             boolean both = left.byInstrument() && r.byInstrument();
-            if (both && !left.part().equals(r.part())) {
-                throw SqlTranslationException.invalid("lines by " + left.part() + " and lines by " + r.part()
-                        + " meet on no instrument: pick one line of one with a subscript (R2)", pos);
-            }
             String p = w.fresh("jp");
             String a = w.fresh("ja");
             String l = both ? w.fresh("jl") : null;
