@@ -74,7 +74,7 @@ public final class ProductStatements {
         com.legend.compiler.spec.UserCallInliner inliner = new com.legend.compiler.spec.UserCallInliner(specs,
                 com.legend.compiler.spec.ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
         List<TypedSpec> body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));   // Phase G½
-        if (frames.readAgainWithCtes()) {
+        if (frames.readAgainWithCtes(body)) {
             // a frame the statement reads more than once: read by reference to its CTE (M3g, B10), so inlined again
             inliner = new com.legend.compiler.spec.UserCallInliner(specs,
                     com.legend.compiler.spec.ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
@@ -87,6 +87,12 @@ public final class ProductStatements {
         inliner.queryLets().forEach((name, value) -> {
             if (read.contains(name)) {
                 env.queryLets().put(name, value);
+            }
+        });
+        // the lets the program's frames' chains consumed, read free here (a frame's run or CTE, a reader's paste)
+        frames.consumedLets().forEach((name, value) -> {
+            if (read.contains(name)) {
+                env.queryLets().putIfAbsent(name, value);
             }
         });
         boolean temporal = com.legend.compiler.element.Temporal.anyTemporalGetAll(body, ctx);

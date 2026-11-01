@@ -347,7 +347,7 @@ final class ProgramRunnerTest {
     @DisplayName("a seed step runs once on a session, is skipped while the session holds its seeds, re-runs after a write")
     void aSeedStepRunsOnceUntilAWrite() throws Exception {
         ExecutionPlan.Setup seeds = new ExecutionPlan.Setup("m3b-seeds", List.of(new ExecutionPlan.SetupStep.Statement(
-                "CREATE OR REPLACE TABLE m3b_seed AS SELECT 1 AS a")));
+                "CREATE OR REPLACE TABLE m3b_seed AS SELECT 1 AS a")), target);
         ExecutionPlan.TdsResult read = relation("SELECT count(*) AS n FROM m3b_seed",
                 List.of(col("n", "Integer", "BIGINT")));
         run(new ExecutionPlan.Sequence(List.of(seeds, read)), PlanRunner.Judging.HOST);
@@ -384,5 +384,56 @@ final class ProgramRunnerTest {
         // outside any transaction (no write, the session's own commits): no savepoint statement is sent
         run(guarded, PlanRunner.Judging.DATABASE);
         assertEquals(4, count("m3b_sp"));
+    }
+
+    // ---- the M3 audit's findings (2026-11-01) ----
+
+    /** B2: a keyed step's snapshot holds the program in a transaction, so an effect's script is sent bare inside it
+     *  (asked at each step), never its BEGIN ... COMMIT bracket within the open transaction. */
+    @Test
+    @DisplayName("an effect before a keyed step runs bare inside the keyed step's snapshot transaction")
+    void anEffectBeforeAKeyedStepRunsInsideItsSnapshot() throws Exception {
+        ExecutionPlan.Sql keys = ExecutionPlan.Sql.of("SELECT 'k' AS k, 'k__|__v' AS n", target);
+        String bodyText = "SELECT 1 AS a, ? AS _pk0_v";
+        ExecutionPlan.Sql keyedBody = new ExecutionPlan.Sql(bodyText,
+                List.of(new ExecutionPlan.Slot("", new ExecutionPlan.Binding.Key(0))), target, null,
+                List.of(new ExecutionPlan.Region(13, bodyText.length(), "", ", ", "", 0, 1, List.of())));
+        ExecutionPlan.Keyed keyed = new ExecutionPlan.Keyed(keys, List.of("k", "n"),
+                List.of(new ExecutionPlan.Keyed.Fixed(col("a", "Integer", "INTEGER"), "a"),
+                        new ExecutionPlan.Keyed.PerKey(col("v", "String", "VARCHAR"), 1, "v")),
+                1, keyedBody, ExecutionPlan.Keyed.Snapshot.TRANSACTION, null);
+        run(new ExecutionPlan.Sequence(List.of(script(List.of("CREATE OR REPLACE TABLE m3x_k (a INTEGER)",
+                "INSERT INTO m3x_k VALUES (1)")), keyed)), PlanRunner.Judging.HOST);
+        assertEquals(1, count("m3x_k"));
+    }
+
+    /** B3: a seed step carries the program's target, so seeds before a constant answer open the session. */
+    @Test
+    @DisplayName("seeds before a constant answer: the seed step opens the program's session")
+    void seedsBeforeAConstantOpenTheSession() throws Exception {
+        ExecutionPlan.Setup seeds = new ExecutionPlan.Setup("m3x-seeds", List.of(new ExecutionPlan.SetupStep.Statement(
+                "CREATE OR REPLACE TABLE m3x_c AS SELECT 1 AS a")), target);
+        ExecutionPlan.Constant answer = new ExecutionPlan.Constant(List.of(new ExecutionPlan.Column("value", "String",
+                new ExecutionPlan.Multiplicity(1, 1), null, null, null)), List.of(List.of("x")));
+        Recording sink = run(new ExecutionPlan.Sequence(List.of(seeds, answer)), PlanRunner.Judging.HOST);
+        assertEquals(List.of(List.of("x")), sink.answerRows);
+        assertEquals(1, count("m3x_c"));
+    }
+
+    /** B1: a rollback may undo seeds run inside the transaction, so the next program's seed step runs again. */
+    @Test
+    @DisplayName("a seed step undone by a rollback runs again in the next program")
+    void aSeedUndoneByARollbackRunsAgain() throws Exception {
+        exec("DROP TABLE IF EXISTS m3x_r");
+        ExecutionPlan.Setup seeds = new ExecutionPlan.Setup("m3x-rollback", List.of(new ExecutionPlan.SetupStep.Statement(
+                "CREATE TABLE m3x_r AS SELECT 1 AS a")), target);
+        ExecutionPlan.Update failing = new ExecutionPlan.Update(ExecutionPlan.Sql.of(
+                "INSERT INTO no_such_table_m3x VALUES (1)", target), null);
+        assertThrows(RuntimeException.class, () -> run(new ExecutionPlan.Sequence(List.of(seeds, failing)),
+                PlanRunner.Judging.HOST));
+        ExecutionPlan.TdsResult read = relation("SELECT count(*) AS n FROM m3x_r", List.of(col("n", "Integer",
+                "BIGINT")));
+        Recording sink = run(new ExecutionPlan.Sequence(List.of(seeds, read)), PlanRunner.Judging.HOST);
+        assertEquals(1L, ((Number) sink.answerRows.get(0).get(0)).longValue());
     }
 }

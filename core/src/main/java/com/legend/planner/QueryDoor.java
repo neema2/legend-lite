@@ -89,10 +89,8 @@ public final class QueryDoor {
                 }
             }
             if (statement instanceof com.legend.compiler.spec.typed.TypedLet let
-                    && LetPlanner.rhs(let) instanceof com.legend.compiler.spec.typed.TypedNativeCall call
-                    && (com.legend.builtin.NativeFn.Handle.isExecute(call.callee().id())
-                        || com.legend.builtin.NativeFn.Handle.of(call.callee().id()).orElse(null)
-                                == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
+                    && LetPlanner.rhs(let) instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
+                    && com.legend.builtin.NativeFn.Handle.runsAFrame(ec.callee().id())) {
                 kinds.add(TestOnly.LET_EXECUTE);
             }
             if (StatementEffects.reaches(statement, n -> n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
@@ -130,15 +128,14 @@ public final class QueryDoor {
 
     /** Whether the runtime {@code fqn} binds a connection that declares test data. */
     private static boolean declaresTestData(String fqn, com.legend.compiler.element.ModelContext ctx) {
-        var rt = ctx.findRuntime(fqn);
-        if (rt.isEmpty()) {
-            return false;
-        }
-        for (var binding : rt.get().connectionBindings().entrySet()) {
+        var rt = ctx.findRuntime(fqn).orElseThrow(() -> new IllegalStateException("a from() names the runtime '"
+                + fqn + "', which the model does not hold"));
+        for (var binding : rt.connectionBindings().entrySet()) {
             for (String connFqn : binding.getValue()) {
-                var cd = ctx.findConnection(connFqn);
-                if (cd.isPresent() && cd.get().specification() != null) {
-                    var data = cd.get().specification().testData();
+                var cd = ctx.findConnection(connFqn).orElseThrow(() -> new IllegalStateException("the runtime '"
+                        + fqn + "' binds the connection '" + connFqn + "', which the model does not hold"));
+                if (cd.specification() != null) {
+                    var data = cd.specification().testData();
                     if (data != null && ((data.sqls() != null && !data.sqls().isEmpty()) || data.csv() != null)) {
                         return true;
                     }

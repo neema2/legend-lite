@@ -2952,8 +2952,19 @@ asked. **The user's go for the whole program 2026-10-31, back to back, each step
 `writtenIn`), `planner/BodyPlanner.java`, `SidePlanner.java`, `EffectPlanner.java`, `EnginePlans.java` (a call's own
 runtime renames), `executionplan/ExecutionPlan.java` (`Constant`, `Keyed.shape`), `PlanJson.java` (format 23),
 `exec/PlanRunner.java`, `Execution.java`, `driver/LiteralFold.java`, `driver/BodyDriver.java`, the TypeScript runner
-and its test, `planner/ProductStatementsTest.java` (new), `ConstantPlanParityTest`, the ledger and the ratchet. Next:
-M3.
+and its test, `planner/ProductStatementsTest.java` (new), `ConstantPlanParityTest`, the ledger and the ratchet. **M3
+built 2026-10-31 to 2026-11-01 (D103; sub-steps M3a-M3i)**: `planner/QueryDoor.java`, `ProgramState.java`,
+`ProgramKinds.java`, `ProgramFrames.java` (new), `planner/PlanMaker.java`, `ProductStatements.java`, `BodyPlanner.java`,
+`FramePlanner.java`, `LetPlanner.java`, `PlanAllocations.java`, `PlanEnv.java`; the test-planning library
+`testplan/TestDoor.java`, `TestKinds.java`, `Seeds.java` (new) and `EffectPlanner.java` (moved from `planner/`);
+`executionplan/ExecutionPlan.java`, `PlanJson.java` (format 24); `exec/PlanRunner.java`, `Statements.java`,
+`JdbcStatements.java`, `SessionState.java`, `ExecutionTrace.java`, mongodb's `MongoDbStatements.java`;
+`sql/dialect/SqlDialect.java`, `Postgres.java`, `DuckDb.java`; `judge/VerdictBatch.java`; `driver/BodyDriver.java`,
+`JudgePlans.java`; `resolver/ClassSources.java`, `ConstructedInstances.java`, `StoreResolver.java`;
+`compiler/spec/StatementEffects.java`, `compiler/spec/typed/TypedTds.java`; `plan/LazyRows.java`;
+`lowering/Lowerer.java`; `builtin/NativeFn.java`; the TypeScript runner and its test; the guards (`ArchitectureTest`,
+`JavaEvalLedgerTest`, the funnel registers, `TypedSpecChildrenTest`); `core/BUILD.bazel` (`//core:testplan`). Next:
+the M3 checkpoint, then M4 (brief B13).
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

@@ -894,6 +894,14 @@ public final class NativeFn {
             return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE;
         }
 
+        /** A call whose result is a frame bound by a let: the two execute spellings and
+         *  {@code executeLegendQuery} (the let kinds' test and the query door's, the
+         *  test-is-the-product plan's M3c). */
+        public static boolean runsAFrame(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Handle h = id == null ? null : BY_ID.get(id);
+            return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE || h == EXECUTE_LEGEND_QUERY;
+        }
+
         /** The ORCHESTRATION position of an execute call: its runtime
          * argument (the third), which the statement executor reads in its
          * SOURCE form — a let's name resolved through the query's lets,

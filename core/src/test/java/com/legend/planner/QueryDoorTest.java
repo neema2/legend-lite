@@ -124,4 +124,14 @@ class QueryDoorTest {
                 .executionPlan("x::Seeded");
         assertEquals("#stamp0", comment.answerSql().stamp(), "the reader runs the frame: its own stamp");
     }
+
+    /** The M3 audit's gap: an assert reached through a user function's body is refused at the query door too. */
+    @Test
+    void anAssertInsideAUserFunctionIsRefused() {
+        TypedQuery query = Compiler.query(Compiler.compileModel(StorelessRuntime.with(
+                "function x::check(i: Integer[1]): Boolean[1] { assert($i > 0) }", Databases.PLATFORM)),
+                "|x::check(1)");
+        assertEquals("an assert in a query: asserts are a test's, and the product's query door plans none",
+                refusal(query, StorelessRuntime.RUNTIME));
+    }
 }

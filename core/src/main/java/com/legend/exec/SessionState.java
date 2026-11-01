@@ -62,8 +62,11 @@ public final class SessionState {
     }
 
     /** The session's transaction was rolled back: what a session statement set inside it may be undone (Postgres), so
-     *  every target's session statements run again before its next statement. */
+     *  every target's session statements run again before its next statement; and seeds run inside it may be undone
+     *  (a program's seed step inside its transaction, the test-is-the-product plan's M3 audit, B1), so the next
+     *  establishment seeds again, as after a write. */
     public synchronized void rolledBack() {
         sessionStatementsRun.clear();
+        dirty = true;
     }
 }

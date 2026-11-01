@@ -48,15 +48,16 @@ final class TestKinds implements ProgramKinds {
 
     @Override
     public boolean plan(ProgramState program, int index, TypedSpec statement, boolean last) {
-        // the statement's seeds first, as the walk establishes its contexts before every statement (M3e)
-        seed(program, statement);
         java.util.EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
         kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS);
         kinds.remove(QueryDoor.TestOnly.RUNTIME_SEEDS);
         if (!kinds.contains(QueryDoor.TestOnly.EFFECT)) {
-            // any other statement closes the open script (the walk's segment rule)
+            // any other statement closes the open script (the walk's segment rule: the run's script is sent when its
+            // segment ends, before the next statement's contexts are established)
             close(program);
         }
+        // the statement's seeds, as the walk establishes its contexts before every statement (M3e)
+        seed(program, statement);
         if (kinds.isEmpty()) {
             return false;
         }
@@ -98,6 +99,7 @@ final class TestKinds implements ProgramKinds {
                 program.features(), ProductStatements::noGenerator).withPlanRows(frames.planRows());
         com.legend.planner.FramePlanner.FrameChain fc = com.legend.planner.FramePlanner.chain(ec, program.lets(),
                 query.specs(), env);
+        frames.consumed(fc.env().queryLets());
         String stamp = frames.newStamp();
         com.legend.planner.PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(),
                 null, stamp, env);
@@ -124,8 +126,9 @@ final class TestKinds implements ProgramKinds {
      * the program's runtime -- planned as a {@link ExecutionPlan.Setup} step before it, unless the program placed
      * the same sources since its last write (the walk's established state, within the program; across programs the
      * runner skips a key the session holds clean). The steps are generated once per sources value, never per
-     * statement (their key is their content). A step placed while a script is open closes it first: the program's
-     * order is the effects before the statement, then its seeds.
+     * statement (their key is their content). A statement that is not an effect has closed the open script first
+     * (the effects, then its seeds, then it); an effect that continues an open run and names test data is refused by
+     * name (below).
      */
     private void seed(ProgramState program, TypedSpec statement) {
         com.legend.compiler.element.ModelContext ctx = program.query().context();
@@ -138,9 +141,16 @@ final class TestKinds implements ProgramKinds {
         if (planned.isEmpty()) {
             return;
         }
-        close(program);
-        program.add(new ExecutionPlan.Setup(Seeds.key(planned),
-                planned.stream().map(com.legend.setup.CsvSeed.Planned::step).toList()));
+        if (!script.isEmpty()) {
+            // the walk sends a statement's seeds ahead of the open effect run's script, the program after it: the two
+            // orders differ, and no corpus body names test data inside an effect run (M3a) -- refused by name (the M3
+            // audit's B8)
+            throw new com.legend.error.NotImplementedException("seeds named inside an effect run (an effect statement"
+                    + " follows another, and its sources name test data): their order against the run's script is"
+                    + " not designed");
+        }
+        List<ExecutionPlan.SetupStep> steps = planned.stream().map(com.legend.setup.CsvSeed.Planned::step).toList();
+        program.add(new ExecutionPlan.Setup(Seeds.key(steps), steps, program.target()));
     }
 
     /** The effect {@code statement}'s statements added to the open script; the script closed and the effect's answer

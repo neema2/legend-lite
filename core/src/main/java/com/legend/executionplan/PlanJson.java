@@ -70,7 +70,7 @@ public final class PlanJson {
      *  2026-10-31: the {@code constant} node (a value the program wrote, answered with nothing sent: the
      *  test-is-the-product plan's M2, MV12) and a keyed result's {@code shape} (a value read off a raw grid's report is
      *  a value's answer, not a relation's: M2's audit); 24 since 2026-10-31: an effect's {@code script} (its
-     *  statements, bracketed form and abort), the {@code setup} node (a program's seed step: its key and steps) and a
+     *  statements, bracketed form and abort), the {@code setup} node (a program's seed step: its key, steps and target) and a
      *  verdict group's {@code savepoint} (F11) -- the test-is-the-product plan's M3, B12. */
     public static final int VERSION = 24;
 
@@ -207,6 +207,7 @@ public final class PlanJson {
                     steps.add(setupStep(step));
                 }
                 o.put("steps", steps);
+                o.put("target", target(u.target()));
             }
             case ExecutionPlan.Constant c -> {
                 o.put("_type", NodeTag.constant.name());
@@ -517,7 +518,7 @@ public final class PlanJson {
                 for (Json.Node n : o.getArr("steps").items()) {
                     steps.add(readSetupStep((Json.Obj) n));
                 }
-                yield new ExecutionPlan.Setup(o.getString("key"), steps);
+                yield new ExecutionPlan.Setup(o.getString("key"), steps, readTarget(o.getObj("target")));
             }
             case verdicts -> {
                 List<ExecutionPlan.Verdict> verdicts = new ArrayList<>();
@@ -649,11 +650,6 @@ public final class PlanJson {
             Json.Obj s = (Json.Obj) n;
             slots.add(new Slot(s.getString("parameter"), readBinding(s.getObj("binding"))));
         }
-        Json.Obj t = o.getObj("target");
-        List<SetupStep> setup = new ArrayList<>();
-        for (Json.Node n : t.getArr("setup").items()) {
-            setup.add(readSetupStep((Json.Obj) n));
-        }
         Json.Node tree = o.getOr("tree", null);
         List<ExecutionPlan.Region> regions = new ArrayList<>();
         Json.Node rs = o.getOr("regions", null);
@@ -669,9 +665,17 @@ public final class PlanJson {
                         r.getInt("slotCount"), counters));
             }
         }
-        return new Sql(o.getString("statement"), slots, new Target(readDatabase(t.getObj("database")),
-                readServers(t.getObj("servers")), t.getStringArray("session"), setup),
+        return new Sql(o.getString("statement"), slots, readTarget(o.getObj("target")),
                 tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null));
+    }
+
+    private static Target readTarget(Json.Obj t) {
+        List<SetupStep> setup = new ArrayList<>();
+        for (Json.Node n : t.getArr("setup").items()) {
+            setup.add(readSetupStep((Json.Obj) n));
+        }
+        return new Target(readDatabase(t.getObj("database")), readServers(t.getObj("servers")),
+                t.getStringArray("session"), setup);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {

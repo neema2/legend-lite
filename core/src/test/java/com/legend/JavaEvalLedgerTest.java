@@ -818,7 +818,7 @@ class JavaEvalLedgerTest {
             Map.entry("core/src/main/java/com/legend/planner/FramePlanner.java", 176),   // 172 -> 176 (2026-11-01, the test-is-the-product plan's M3g): the CTE planner takes its chain's lowering (the walk's identity lane or the product's), its old signature delegating; nothing evaluated   // 140 -> 172 (2026-10-31, the test-is-the-product plan's M3f): the frame renames' union (renames), from the body driver's frameReplaceEnv, which delegates; nothing evaluated   // 96 -> 140 (2026-10-31, the shared preparation): the frame's planned CTE and class extent rows (cte), from the body driver's buildFrame
             // a let's kind (the seam program's S2b, 2026-10-31): the frame alias analysis from the body driver, the
             // read-after-effect analysis from the body compiler, pinned where they went
-            Map.entry("core/src/main/java/com/legend/planner/LetPlanner.java", 110),
+            Map.entry("core/src/main/java/com/legend/planner/LetPlanner.java", 107),   // 110 -> 107 (2026-11-01, the test-is-the-product plan's M3 audit fold): the frame test (execute or executeLegendQuery) is NativeFn.Handle.runsAFrame, the let kinds' and the query door's one test; nothing evaluated
             // the system route planned (the seam program's S2h, 2026-10-31): the route and its tables' names, from the body driver
             Map.entry("core/src/main/java/com/legend/planner/SystemRoutes.java", 55),
             // an effect's statements planned (the seam program's S2d, 2026-10-31): the effect arms' texts and the store data

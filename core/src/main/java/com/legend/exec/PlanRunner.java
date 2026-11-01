@@ -181,8 +181,16 @@ public final class PlanRunner {
                 // transaction; an effect commits itself, its script bracketed by its dialect where the session owns
                 // its transaction (upstream's executeInDb runs with autocommit)
                 case ExecutionPlan.Effect e -> sqls.add(e.sql());
-                // a seed step's statements run on the program's session (its target the program's)
-                case ExecutionPlan.Setup u -> { }
+                // a seed step's statements run on the program's session: its target the program's (the M3 audit's B3:
+                // a program of seeds and a constant opens it)
+                case ExecutionPlan.Setup u -> {
+                    if (target == null) {
+                        target = u.target();
+                    } else if (!target.equals(u.target())) {
+                        throw new com.legend.error.NotImplementedException("a plan whose steps name different"
+                                + " targets: its steps run on one session, in one transaction");
+                    }
+                }
                 case ExecutionPlan.TdsResult t -> {
                     results++;
                     sqls.add(t.sql());
@@ -269,8 +277,9 @@ public final class PlanRunner {
         boolean[] answered = {false};
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
             Statements st = opened(session, on);
-            // inside a transaction: the program's own (it writes a store), or a caller's the session joins
-            boolean inTransaction = changes || !st.ownsTransaction();
+            // inside a transaction -- the program's own (it writes a store, or a keyed step's snapshot holds it) or a
+            // caller's the session joins -- is the session's own state, asked at each step (the M3 audit's B2: decided
+            // once, it missed the snapshot's transaction)
             Statements.Work work = () -> {
                 Map<String, PlanParameters.Checked> live = new java.util.HashMap<>(checked);
                 for (ExecutionPlan.Node step : sequence.steps()) {
@@ -278,8 +287,10 @@ public final class PlanRunner {
                         case ExecutionPlan.Update u -> update(u, live, st);
                         case ExecutionPlan.Check k -> check(k, live, st);
                         case ExecutionPlan.Effect e -> {
-                            script(e, live, st, inTransaction);
+                            // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied
+                            // leaves the session's seeds to establish again (the M3 audit's B5)
                             session.state().markWriting();
+                            script(e, live, st, !st.ownsTransaction());
                         }
                         case ExecutionPlan.Setup u -> seed(u, session, st);
                         case ExecutionPlan.TdsResult t -> {
@@ -294,7 +305,7 @@ public final class PlanRunner {
                             answered[0] = true;
                             keyedOn(k, live, st, heldSink(held));
                         }
-                        case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, inTransaction);
+                        case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, !st.ownsTransaction());
                         case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
                     }
                 }
@@ -770,7 +781,7 @@ public final class PlanRunner {
     /** A change's statement on {@code st}, its count bound under its name for the slots after it. */
     private static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
-        stamp(u.sql(), values, st);
+        unstamped(u.sql());   // a write is sent with no trace comment (JdbcStatements.update): it binds none
         String statement = statement(u.sql(), values);
         StatementOrigin.sent(statement);
         long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
@@ -912,12 +923,12 @@ public final class PlanRunner {
         }
     }
 
-    /** A statement whose own stamp the runner does not bind (a keyed plan's, an effect's): one that binds it is a
-     *  planner defect, refused by name. */
+    /** A statement whose own stamp the runner does not bind (a keyed plan's, a write's, an effect's: none is sent
+     *  under a comment the runner mints): one that binds it is a planner defect, refused by name. */
     private static void unstamped(ExecutionPlan.Sql sql) {
         if (sql.stamp() != null) {
-            throw new IllegalStateException("a keyed or effect statement binds its own execution-trace stamp ('"
-                    + sql.stamp() + "'): only a query, a check or a write binds one (the planner's)");
+            throw new IllegalStateException("a keyed, write or effect statement binds its own execution-trace stamp ('"
+                    + sql.stamp() + "'): only a query or a check binds one (the planner's)");
         }
     }
 

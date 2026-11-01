@@ -253,7 +253,8 @@ class TestDoorTest {
         List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
         assertEquals(List.of("Setup", "Check", "TdsResult"),
                 steps.stream().map(n -> n.getClass().getSimpleName()).toList());
-        assertEquals("#stamp0", ((ExecutionPlan.Check) steps.get(1)).sql().stamp(), "the frame's run binds its stamp");
+        assertNull(((ExecutionPlan.Check) steps.get(1)).sql().stamp(),
+                "no later statement reads the run's comment: it binds no stamp (the M3 audit's B7a)");
         try (Connection c = TestBackends.platform().open()) {
             assertEquals(List.of(List.of("Acme")), run(plan, c));
         }
@@ -301,5 +302,90 @@ class TestDoorTest {
                 + "$r.values->filter(x|$x.name == 'Acme');}");
         String pasted = TestDoor.plan(once, "x::RT", Set.of(), null).answerSql().statement();
         assertFalse(pasted.contains("frame_r"), pasted);
+    }
+
+    /** The M3 audit's B3, end to end: a program on a runtime that declares test data whose one statement sends
+     *  nothing still seeds (the walk establishes a statement's contexts before any statement). */
+    @Test
+    void aConstantOnASeededRuntimeSeedsAndAnswers() throws Exception {
+        ExecutionPlan plan = TestDoor.plan(Compiler.query(Compiler.compileModel(DUCK), "|'x'"), "x::RT", Set.of(),
+                null);
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
+        assertEquals(List.of("Setup", "Constant"), steps.stream().map(n -> n.getClass().getSimpleName()).toList());
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("x")), run(plan, c));
+        }
+    }
+
+    /** The M3 audit's B4: a statement that reads a frame's activities and pastes its values once is no second read
+     *  (the hook is asked for the frame twice; the chain is pasted once): no CTE. */
+    @Test
+    void aFramesActivitiesAndOneValuesReadPasteNoCte() {
+        TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.values->filter(x|$x.name == $r.activities->at(0)"
+                + "->cast(@meta::relational::mapping::RelationalActivity).sql);}");
+        String sql = TestDoor.plan(body, "x::RT", Set.of(), null).answerSql().statement();
+        assertFalse(sql.contains("frame_r"), sql);
+    }
+
+    /** The M3 audit's B7a: a frame's run binds its stamp where a later statement reads its comment. */
+    @Test
+    void aFramesRunBindsTheStampALaterStatementReads() {
+        TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity).comment;}");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
+                TestDoor.plan(body, "x::RT", Set.of(), null).root()).steps();
+        assertEquals("#stamp0", ((ExecutionPlan.Check) steps.get(1)).sql().stamp(), "the comment's reader reads it");
+    }
+
+    /** The M3 audit's B7d: one call site run inline by two statements (a helper called twice) -- each statement's
+     *  activity comment is its own run's stamp. */
+    @Test
+    void oneInlineCallSiteRunByTwoStatementsBindsEachItsOwnStamp() throws Exception {
+        String model = DUCK + """
+                ###Pure
+                function x::comment(): String[0..1]
+                {
+                    meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']), x::M,
+                        x::RT.runtimeValue, []).activities->at(0)
+                        ->cast(@meta::relational::mapping::RelationalActivity).comment
+                }
+                """;
+        ExecutionPlan plan = TestDoor.plan(Compiler.query(Compiler.compileModel(model),
+                "{| x::comment();\nx::comment();}"), "x::RT", Set.of(), null);
+        PlanRoundTrip.assertRoundTrips(plan, "a helper's inline run, twice");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
+        ExecutionPlan.Sql first = assertInstanceOf(ExecutionPlan.Check.class, steps.get(1)).sql();
+        ExecutionPlan.Sql second = assertInstanceOf(ExecutionPlan.TdsResult.class, steps.get(2)).sql();
+        assertEquals("#stamp0", first.stamp());
+        assertEquals("#stamp1", second.stamp());
+        assertEquals(Set.of("#stamp1"), second.slots().stream().map(ExecutionPlan.Slot::parameter)
+                .collect(java.util.stream.Collectors.toSet()), "the second statement reads its own run's comment");
+        try (Connection c = TestBackends.platform().open()) {
+            assertTrue(String.valueOf(run(plan, c).get(0).get(0)).startsWith("-- \"executionTraceID\""));
+        }
+    }
+
+    /** M3h (R17 C9): a {@code from()}'s own runtime's table renames (its connection's mapper post-processor) apply
+     *  to the statement it frames, on both doors. */
+    @Test
+    void aFromsOwnTableRenamesApply() {
+        String model = SEEDED + """
+                ###Pure
+                Class x::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}
+                """;
+        String renamed = "|x::Firm.all()->project([f|$f.name], ['name'])->from(x::M,"
+                + " ^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
+                + "element = x::DB, connection = ^meta::external::store::relational::runtime::RelationalDatabaseConnection("
+                + "type = meta::relational::runtime::DatabaseType.H2, datasourceSpecification ="
+                + " ^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(),"
+                + " authenticationStrategy = ^x::Auth(), postProcessors ="
+                + " [^meta::pure::alloy::connections::MapperPostProcessor(mappers ="
+                + " [^meta::pure::alloy::connections::TableNameMapper(from = 'FIRM', to = 'FIRM_R', schema ="
+                + " ^meta::pure::alloy::connections::SchemaNameMapper(from = 'default', to = 'default'))])]))))";
+        TypedQuery query = Compiler.query(Compiler.compileModel(model), renamed);
+        String test = TestDoor.plan(query, "x::RT", Set.of(), null).answerSql().statement();
+        assertTrue(test.contains("FIRM_R"), test);
+        assertEquals(test, query.executionPlan("x::RT").answerSql().statement(), "one road: the query door's own");
     }
 }

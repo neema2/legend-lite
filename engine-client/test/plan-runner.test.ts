@@ -133,5 +133,12 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     const reported = { ...plan, root: { ...root, steps: root.steps.map((step) => ((step as { _type?: string })._type === 'tdsResult'
       ? { ...step, shape: 'RELATION', columns: [] } : step)) } };
     await assert.rejects(() => runPlan(JSON.stringify(reported), here), /the columns its result reports/);
+    // a program's seed step and a statement binding its own execution-trace stamp: a test's program's alone (the
+    // test-is-the-product plan's M3), refused by name, never run
+    const steps = root.steps as unknown as { _type: string; sql: { target: unknown } }[];
+    const seeded = { ...plan, root: { ...root, steps: [{ _type: 'setup', key: 'k', steps: [], target: steps[0]!.sql.target }, ...steps] } };
+    await assert.rejects(() => runPlan(JSON.stringify(seeded), here), /not a setup/);
+    const stamped = { ...plan, root: { ...root, steps: root.steps.map((step) => ({ ...step, sql: { ...step.sql, stamp: '#stamp0' } })) } };
+    await assert.rejects(() => runPlan(JSON.stringify(stamped), here), /its own execution-trace stamp/);
   });
 });

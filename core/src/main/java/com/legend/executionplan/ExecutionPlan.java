@@ -357,10 +357,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * test data, its named runtime's, the program's runtime's -- each step as {@link Target#setup}'s, run on the
      * program's session. {@code key} names the seeds' sources (the planner's spelling of their value): a session that
      * holds those seeds and has run no write since skips the step (the seeds' memo, {@code SessionState}); otherwise
-     * the runner runs the steps and records the key. A test door's step (refused on the product's query door, B6).
+     * the runner runs the steps and records the key. {@code target} is the program's (the M3 audit's B3: a program
+     * of seeds and a constant answer opens its session by it). A test door's step (refused on the product's query
+     * door, B6).
      */
-    public record Setup(String key, List<SetupStep> steps) implements Node {
+    public record Setup(String key, List<SetupStep> steps, Target target) implements Node {
         public Setup {
+            Objects.requireNonNull(target, "target");
             Objects.requireNonNull(key, "key");
             if (key.isEmpty()) {
                 throw new IllegalArgumentException("a seed step names its seeds' key");

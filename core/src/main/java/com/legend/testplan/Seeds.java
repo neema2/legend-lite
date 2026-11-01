@@ -89,11 +89,13 @@ public final class Seeds {
         return com.legend.setup.CsvSeed.planned(setups, dialect);
     }
 
-    /** The seeds' name in a plan: their content (the steps' texts), so equal seeds share it. */
-    public static String key(List<com.legend.setup.CsvSeed.Planned> planned) {
+    /** The seeds' name in a plan: the content of the steps the session runs (a step's executed text, a load's rows),
+     *  so equal seeds share it and seeds that run differently never do (the M3 audit: the authored text alone named
+     *  two languages' runs of one text alike). */
+    public static String key(List<com.legend.executionplan.ExecutionPlan.SetupStep> steps) {
         StringBuilder sb = new StringBuilder();
-        for (com.legend.setup.CsvSeed.Planned p : planned) {
-            sb.append(p.text()).append('\u0000');
+        for (com.legend.executionplan.ExecutionPlan.SetupStep step : steps) {
+            sb.append(step).append('\u0000');
         }
         return "seeds:" + com.legend.cache.Hash.ofUtf8(sb.toString()).hex();
     }

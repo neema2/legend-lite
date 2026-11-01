@@ -52,10 +52,7 @@ public final class LetPlanner {
                 && com.legend.builtin.Pure.Lite.STAGE.equals(sc.callee().qualifiedName())) {
             return Kind.STAGED;
         }
-        if (rhs instanceof TypedNativeCall ec
-                && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
-                    || com.legend.builtin.NativeFn.Handle.of(ec.callee().id()).orElse(null)
-                            == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
+        if (rhs instanceof TypedNativeCall ec && com.legend.builtin.NativeFn.Handle.runsAFrame(ec.callee().id())) {
             return Kind.FRAME;
         }
         if (rhs instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation

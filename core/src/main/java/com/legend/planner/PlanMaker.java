@@ -128,6 +128,52 @@ public final class PlanMaker {
         };
     }
 
+    /** {@code steps}' checks with their stamp dropped where no step binds it. */
+    private static void unreadStampsDropped(List<ExecutionPlan.Node> steps) {
+        java.util.Set<String> read = new java.util.HashSet<>();
+        for (ExecutionPlan.Node step : steps) {
+            for (ExecutionPlan.Sql sql : sqls(step)) {
+                sql.slots().forEach(slot -> read.add(slot.parameter()));
+            }
+        }
+        steps.replaceAll(step -> step instanceof ExecutionPlan.Check c && c.sql().stamp() != null
+                && !read.contains(c.sql().stamp())
+                ? new ExecutionPlan.Check(new ExecutionPlan.Sql(c.sql().statement(), c.sql().slots(), c.sql().target(),
+                        c.sql().tree(), c.sql().regions()))
+                : step);
+    }
+
+    /** The test door's refusal of a statement its library does not plan and the product road prepares as no query
+     *  (the M3 audit: the query door's words misled there). */
+    private static void unplannedOnTheTestDoor(ProductStatements.Statement st) {
+        switch (st.prepared()) {
+            case Prepared.Effect e -> throw new com.legend.error.NotImplementedException("an effect ("
+                    + e.call().callee().qualifiedName() + ") on the test door's program road: not planned yet (the"
+                    + " test-is-the-product plan's M5; setUpDataSQLs' texts as a constant, B12 item 4, deferred there)");
+            case Prepared.EffectfulMap m -> throw new com.legend.error.NotImplementedException("a map over an effect on"
+                    + " the test door's program road: the T9 kind the test-is-the-product plan's M9 plans");
+            default -> {
+                // planned, or answered above (a store write, a constant, a handle)
+            }
+        }
+    }
+
+    /** The statements a program's step sends. */
+    private static List<ExecutionPlan.Sql> sqls(ExecutionPlan.Node step) {
+        return switch (step) {
+            case ExecutionPlan.TdsResult t -> List.of(t.sql());
+            case ExecutionPlan.Check c -> List.of(c.sql());
+            case ExecutionPlan.Update u -> List.of(u.sql());
+            case ExecutionPlan.Effect e -> List.of(e.sql());
+            case ExecutionPlan.Keyed k -> List.of(k.keys(), k.body());
+            case ExecutionPlan.Setup u -> List.of();
+            case ExecutionPlan.Constant c -> List.of();
+            case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict group on the program road:"
+                    + " planned from the test-is-the-product plan's M6");
+            case ExecutionPlan.Sequence q -> throw new IllegalStateException("a sequence inside a sequence");
+        };
+    }
+
     /** Whether {@code sql} binds the parameter {@code name}. */
     private static boolean reads(ExecutionPlan.Sql sql, String name) {
         return sql.slots().stream().anyMatch(slot -> slot.parameter().equals(name));
@@ -242,9 +288,15 @@ public final class PlanMaker {
                         ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
                                 sp.env()))), state.frames().definitions());
                 TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
-                steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(com.legend.sql.SqlDml.CreateTempTableAs
-                        .staged(table, q, com.legend.resolver.StagedRows.columns(rowsRoot.info()))), target, null),
-                        null));
+                ExecutionPlan.Sql stagedSql = sql(dialect.renderStatement(com.legend.sql.SqlDml.CreateTempTableAs
+                        .staged(table, q, com.legend.resolver.StagedRows.columns(rowsRoot.info()))), target, null);
+                String own = state.frames().ownStamp();
+                if (own != null && reads(stagedSql, own)) {
+                    // a write is sent with no trace comment (the M3 audit's B7c)
+                    throw new com.legend.error.NotImplementedException("a staged let's rows read an inline"
+                            + " execute(...)'s activity comment: a write is sent with no trace comment to record");
+                }
+                steps.add(new ExecutionPlan.Update(stagedSql, null));
                 staged.add(table);
                 lets.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
                         com.legend.resolver.StagedRows.storeOf(sp.body(), ctx, runtime), let.info()));
@@ -279,12 +331,18 @@ public final class PlanMaker {
                 }
                 continue;
             }
+            if (door == ProgramState.Door.TEST) {
+                unplannedOnTheTestDoor(st);
+            }
             Prepared.Planned p = ProductStatements.planned(st);
             SqlQuery q = state.lowered(st, last);
             TypedSpec answer = p.body().get(p.body().size() - 1);
             steps.add(stampedIfRead(last ? typed(answer, q, dialect, target)
                     : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), state.frames().ownStamp()));
         }
+        // a frame's run binds its stamp only where a later statement reads it (the M3 audit's B7a: an unread stamp would
+        // still be minted, and refused on a session whose statements carry no comment)
+        unreadStampsDropped(steps);
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : staged) {
             // (a failed program's transaction takes its tables back with its writes)
             steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new com.legend.sql.SqlDdl.DropTable(

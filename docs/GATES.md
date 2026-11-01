@@ -16583,6 +16583,60 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's M3: the doors, a test's effects, seeds and frames on the program road
+
+The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §6 B12 and §7 (M3, ruled R17); the decisions log D103. Movement:
+the product plans an inline lazy `execute(...)` read (D15; its statements were refused); on the test road, the Postgres
+verdict groups send their savepoint (F11's rung, below); every other test-road statement unchanged.
+
+1. **Built (M3a-M3h, one status line each in the plan's §10):**
+   - The plan records and the runner (M3b): `Effect`'s script (its statements, bracketed form, abort), the `Setup` seed
+     step (a key, its steps and its target; the runner skips a key the session holds clean), `Verdicts`' savepoint
+     (Postgres writes one); PlanJson 24 and the TypeScript runner's pin, which refuses a seed step and a stamp by name.
+     The transaction rule (R17 C1): only a store write opens the program's transaction; an effect commits itself,
+     its script bracketed only where the session owns its transaction, asked at each step.
+   - The doors (M3c): `planner/QueryDoor` refuses a test's kinds by name before anything is planned (an effect, a
+     `from()`'s inline test data, another runtime's test data, a let-bound `execute(...)`, an `assertError`, an
+     assert -- `fail` excepted); `testplan/TestDoor`, the test-planning library (`//core:testplan`, the driver's
+     alone), plans a body whole as one program through `PlanMaker.testProgram`, its target carrying no setup (C6).
+   - A test's effects (M3d, `EffectPlanner` moved into the library), seeds (M3e, `testplan/Seeds` the one owner) and
+     frames (M3f, `planner/ProgramFrames`: the eager run at the let a stamped `Check`, the activity comment a plan
+     parameter bound when the plan runs -- R17 C4, kept by the user at its cost); the frame's CTE where a statement
+     pastes its chain more than once (M3g); a `from()`'s own table renames on both roads (M3h).
+2. **The audit** (independent, R15, on e170939a..bb9de6ce): eight bugs, all fixed. B1 a rollback marks the seed memo
+   dirty; B2 the transaction asked at each step (an effect inside a keyed snapshot runs bare in it -- a named limit,
+   never bracketed inside); B3 a seed step carries its target (a program of seeds and a constant opens its session);
+   B4 a CTE read counted by the chain's pastes, not the hook's calls; B5 an effect marks the session written before
+   it runs; B6 the frames' consumed lets bound where read; B7 a stamp bound only where a later statement reads it, a
+   write refuses one, an inline run's rows per statement; B8 seeds named inside an effect run refused by name. Tests
+   for each but B5, B6, B8 (no core body reaches them): `ProgramRunnerTest` (an effect before a keyed step, seeds then
+   a constant, a rollback that re-seeds), `TestDoorTest` (a constant on a seeded runtime, activities plus one values
+   read pasting no CTE, the run's stamp kept where read and dropped where not, a `from()`'s renames on both doors),
+   `QueryDoorTest` (an assert inside a user function), `plan-runner.test.ts` (the seed step and the stamp refused),
+   and B7d's (a helper's inline run in two statements, each binding its own stamp, run end to end).
+   Writing those tests found two more, fixed: a statement's seeds were placed before the open script closed (the
+   walk sends the script first), and the let's own CTE planning re-registered its activity rows under a new stamp.
+   Recorded departures: B12 item 4 (`setUpDataSQLs` as a constant of its texts) not built, refused by name on the test
+   door; an `execute(...)` in value position at M9; the server carries the library through the driver; the referee's
+   recorded texts not on `Effect`/`Setup` until M5; `Seeds.key` hashes the executed steps; `QueryDoor.declaresTestData`
+   loud on what it cannot resolve; `verdictSavepoint`'s javadoc names only the measured dialects.
+   **Corrected records:** M3b's "no movement" -- `VerdictBatch` fills the Postgres savepoint on the walk, so the
+   Postgres verdict groups send `SAVEPOINT`/`RELEASE` around their fused statement (F11's rung, R17); the Postgres
+   lanes measure it at round 9. M3d's and M3e's censuses compared texts; they never ran the plans (B2 and B3 were
+   invisible to them).
+3. **Measured:**
+   - Every core test package's sent statements against M3h's: 17,362 -> 17,372 (28 of 28 targets passing); the ten new statements are the
+     new tests' own (the keyed effect, the rollback that re-seeds -- its seed sent twice, B1 -- the seed then a
+     constant, the test door's seeded constant); every other statement byte-identical, the test road's included.
+   - The census re-run (`docs/test-is-product-homework/C_M3I_CENSUS.md`): channel B no front-half difference; the
+     product's refusals on the corpus fall from 3,632 to 136 (DuckDB database pass) and from 4,381 to 120 (host), the
+     frames planned; effects 616 bodies per pass, every script identical to the walk's.
+4. **Guards, dated:** `JavaEvalLedgerTest` -- `EffectPlanner` 133 (moved), `BodyDriver` 963 -> 939, `FramePlanner`
+   172 -> 176, `BodyPlanner` 294, `LetPlanner` 110 -> 107 (the frame test is `NativeFn.Handle.runsAFrame`); the funnel
+   registers gain the library and the program state; `TypedSpecChildrenTest`'s rule for the parameter cell; one
+   `NAME_COMPARE` pin moved with its reason.
+5. **The chain:** run on this commit before the checkpoint; recorded with it.
+
 ## 2026-10-31 — The test-is-the-product plan's M2: the product's statement road
 
 The plan `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` §6 B11 and §7 (M2); the decisions log D101. Movement: product

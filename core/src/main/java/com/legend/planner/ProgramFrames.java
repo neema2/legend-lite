@@ -60,6 +60,16 @@ public final class ProgramFrames {
     private final Map<String, Integer> reads = new LinkedHashMap<>();
     /** The CTE definitions the statement being planned references, by CTE name, in first-read order. */
     private final Map<String, com.legend.sql.SqlQuery> definitions = new LinkedHashMap<>();
+    /** The lets the frames' chains consumed (the query lambda's own, a graph-tree qualifier's argument keeping its
+     *  spelling): a statement that reads one free -- a frame's eager run, its CTE, a reader -- binds it (the M3 audit's
+     *  B6; the walk's environment shared them across the body). */
+    private final Map<String, TypedSpec> consumed = new LinkedHashMap<>();
+    /** The call sites whose activity rows the statement being planned registered by its own inline lazy run: a later
+     *  statement's run of the same call site (a helper called twice) registers its own, with its own stamp (the M3
+     *  audit's B7d). A site a frame let registered keeps the let's rows -- its own CTE's planning asks for the same
+     *  site again -- so an inline run of a let's call site reads the let's stamp (no corpus body runs one call site
+     *  both ways). */
+    private final java.util.Set<String> inlineRuns = new java.util.LinkedHashSet<>();
 
     ProgramFrames() {
     }
@@ -74,6 +84,17 @@ public final class ProgramFrames {
     /** The frame bound by the let {@code name}. */
     public void let(String name, Frame frame) {
         frames.put(name, frame);
+    }
+
+    /** The lets a frame's chain consumed ({@code FramePlanner.FrameChain.env().queryLets()}), kept for the statements
+     *  that read them free. */
+    public void consumed(Map<String, TypedSpec> lets) {
+        lets.forEach(consumed::putIfAbsent);
+    }
+
+    /** The lets the frames' chains consumed. */
+    Map<String, TypedSpec> consumedLets() {
+        return java.util.Collections.unmodifiableMap(consumed);
     }
 
     /** The let {@code alias} reads the same frame as the let {@code of} ({@code $r.values->at(0)}). */
@@ -105,6 +126,8 @@ public final class ProgramFrames {
 
     /** A statement begins: it binds no stamp of its own yet, reads no frame. */
     void startStatement() {
+        inlineRuns.forEach(planRows::remove);
+        inlineRuns.clear();
         ownStamp = null;
         asCte.clear();
         reads.clear();
@@ -112,12 +135,14 @@ public final class ProgramFrames {
     }
 
     /** A second planning of the statement, the frames it read more than once read as their CTE (B10's rule, per
-     *  statement: a frame read once is pasted where it is read); false when none is (one planning suffices). */
-    boolean readAgainWithCtes() {
+     *  statement: a frame read once is pasted where it is read); false when none is (one planning suffices). A read
+     *  is a paste of the frame's chain in {@code body}, the statement as first inlined -- the hook is asked for a frame
+     *  by its other readers too (its activities, its SQL text, its size), which paste nothing (the M3 audit's B4). */
+    boolean readAgainWithCtes(List<TypedSpec> body) {
         java.util.Set<String> twice = new java.util.LinkedHashSet<>();
         reads.forEach((name, n) -> {
             Frame f = frames.get(name);
-            if (n > 1 && f != null && f.readsAsCte()) {
+            if (f != null && f.readsAsCte() && pastes(body, f.chain()) > 1) {
                 twice.add(name);
             }
         });
@@ -129,6 +154,22 @@ public final class ProgramFrames {
         ownStamp = own;
         asCte.addAll(twice);
         return true;
+    }
+
+    /** How many times {@code chain} (by identity: a pasted read places the frame's chain itself) stands in
+     *  {@code body}. */
+    private static int pastes(List<TypedSpec> body, TypedSpec chain) {
+        int n = 0;
+        java.util.ArrayDeque<TypedSpec> todo = new java.util.ArrayDeque<>(body);
+        while (!todo.isEmpty()) {
+            TypedSpec t = todo.pop();
+            if (t == chain) {
+                n++;
+                continue;
+            }
+            todo.addAll(t.children());
+        }
+        return n;
     }
 
     /** The CTE definitions the statement just planned references (FrameCtes.attach's), by CTE name. */
@@ -182,7 +223,14 @@ public final class ProgramFrames {
                 if (ownStamp == null) {
                     ownStamp = newStamp();
                 }
-                PlanAllocations.registerActivityRows(fc.source(), fc.chain(), letPrefix, specs, null, ownStamp, env);
+                // this statement's run of the call: its activity rows record this statement's stamp (an earlier
+                // statement's run of the same call site was dropped at this statement's start: the M3 audit's B7d)
+                String scope = com.legend.plan.PlanRows.scopeId(fc.source());
+                if (!planRows.containsKey(scope)) {
+                    inlineRuns.add(scope);
+                    PlanAllocations.registerActivityRows(fc.source(), fc.chain(), letPrefix, specs, null, ownStamp,
+                            env);
+                }
                 return new ResultEnvelopeSplice.View(fc.chain(), !fc.legendQuery() && fc.relationRooted(),
                         fc.source());
             }

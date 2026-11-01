@@ -394,6 +394,14 @@ posted the same way (R7 decision 12).
   M3g the frame's CTE -- counted;
   M3h the `from()` renames -- test-road SQL moves: counted, posted, landed;
   M3i the census re-run, the audit, the records, the checkpoint.
+  **Departures, recorded at M3i (the audit's §2):** item 4's `setUpDataSQLs` as a constant of its texts is NOT built
+  (the test door refuses it by name, M5); item 8's value-position `execute(...)` is refused by name until M9; item 3's
+  library rides into the product server through the driver (the driver's dependency, not the planner's: ArchUnit pins
+  the planner free of it); item 4's and item 7's steps do not carry the referee's recorded texts
+  (`EffectPlanner.Statement.recorded`, `CsvSeed.Planned.text`) -- the walk records them, the replay ledger's (T13) with
+  M5; item 6's savepoint is filled by `VerdictBatch` on the walk from M3b, so the Postgres verdict groups send it now
+  (not "at M6/M7"); item 5's effect inside a keyed step's snapshot runs bare in it (the snapshot holds the program in
+  a transaction a store write did not open), a named limit.
 
 - **B13, the system database on one code path (M4; written 2026-11-01 under R15, its ruling R9; drafted from a read of
   the code at bb9de6ce).** Today a product query that reads the system metamodel store (`Class.all()`, the metamodel
@@ -615,3 +623,14 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   `from()`'s runtime's renames with the environment's (an execute frame's), a conflict refused by name, on both roads.
   Measured: core's statements unchanged (M3a: 0 corpus statements move, the environment already holding the same
   renames); the corpora re-measured with M3i's chain. Next: M3i.
+- 2026-11-01: **M3i: the census re-run, the audit folded, the records** (D103;
+  `docs/test-is-product-homework/C_M3I_CENSUS.md`). The census: the product's refusals on the corpus fall from 3,632
+  to 136 (DuckDB database pass) and 4,381 to 120 (host), the frames planned; channel B no front-half difference;
+  effects identical. The independent audit found eight bugs, all fixed (a rollback leaving the seed memo clean; the
+  transaction decided once, wrong under a keyed snapshot; a seed step with no target; CTE reads counted by hook calls;
+  an effect marked written after it ran; the frames' consumed lets lost; four stamp edge cases; seeds inside an
+  effect run, refused), with tests; writing them found two more (seeds placed before the open script closed; the let's
+  own CTE planning re-stamping its activity rows), fixed. **Corrections:** M3b's "no movement" is wrong for Postgres --
+  its verdict groups send the savepoint on the walk (B12 item 6, departures above); M3b's "brackets only for an
+  Update" held only outside a keyed snapshot (fixed: asked at each step); M3d's and M3e's censuses compared texts and
+  never ran the plans. Every core package's statements against M3h: 17,362 -> 17,372, the ten new the new tests' own.
