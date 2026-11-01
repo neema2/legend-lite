@@ -16785,3 +16785,23 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
       `//datacube:verify_app_test` unprivileged 19 of 19. A first attempt filled the container's disk: its
       failures were "No space left on device", and the DuckDB database judge's pass, which could not unpack DuckDB's
       native library, was cached as UNMEASURED; its outputs deleted and the pass run again, the rosters are unchanged.
+11. **The Arrow ceiling, measured (no code)** (the user, 2026-11-01: "let's measure only arrow"). A scratch probe,
+    not in the repository, ran the same five-column statement at 10,000,000 rows on one DuckDB 1.5.6.0 connection,
+    three rounds:
+    - the raw JDBC typed read, one getter per cell: 4.6-4.8 s;
+    - DuckDB's own Arrow export (`DuckDBResultSet.arrowExportStream`, through `arrow-c-data`), every value read from
+      the vectors: 1.19 s (1.66 s in the first round);
+    - the same export written out as Arrow IPC with no value read: 1.1-1.2 s (515 MB).
+
+    The product path's Arrow writer takes 7.0-7.1 s on the same rows (item 10). A pass-through is not a drop-in: the
+    export's schema is not this writer's (`Int(32)` against `Int(64)`; `Timestamp(MICROSECOND, null)` against
+    nanoseconds in UTC; no column metadata), so it would need a ruling on the schema or a conversion of the vectors.
+    It would also put Arrow among `//core:exec`'s deps, and the wall (D72) does not allow that today. Nothing was
+    built.
+
+    Snowflake was looked at too and not pursued (the user, 2026-11-01). snowflake-jdbc 4.4.0, read from its class
+    files, has no public route to its Arrow chunks:
+    - the public `SnowflakeResultSetSerializable` answers a JDBC `ResultSet` per split;
+    - the chunk bytes are reachable only through `net.snowflake.client.internal.jdbc` (`SnowflakeResultSetSerializableV1`,
+      `ResultStreamProvider`), whose accessors report an outside caller to the driver's telemetry;
+    - the driver's own Arrow classes are shaded.
