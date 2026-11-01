@@ -35,9 +35,15 @@ public final class ProgramFrames {
      *  root is relation-shaped, the {@code execute(...)} call it came from, the table renames its runtime runs its
      *  query under. */
     public record Frame(TypedSpec chain, boolean relationRooted, TypedNativeCall source,
-            Map<String, String> tableReplace) {
+            Map<String, String> tableReplace, FramePlanner.Cte cte) {
         public Frame {
             tableReplace = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(tableReplace));
+        }
+
+        /** Whether a statement may read this frame as its planned CTE: a relation frame's plan, or a plain class
+         *  frame's extent rows (the walk's rule); any other is pasted. */
+        boolean readsAsCte() {
+            return cte.plan() != null && (relationRooted || cte.extentRows() != null);
         }
     }
 
@@ -48,6 +54,12 @@ public final class ProgramFrames {
     private final List<String> stamps = new ArrayList<>();
     /** The stamp the statement being planned binds itself (an inline lazy frame it reads), or null. */
     private @com.legend.base.Nullable String ownStamp;
+    /** The frames the statement being planned reads as their CTE (it reads each more than once, M3g). */
+    private final java.util.Set<String> asCte = new java.util.LinkedHashSet<>();
+    /** The statement being planned's reads of each frame, by name. */
+    private final Map<String, Integer> reads = new LinkedHashMap<>();
+    /** The CTE definitions the statement being planned references, by CTE name, in first-read order. */
+    private final Map<String, com.legend.sql.SqlQuery> definitions = new LinkedHashMap<>();
 
     ProgramFrames() {
     }
@@ -91,9 +103,37 @@ public final class ProgramFrames {
         return out;
     }
 
-    /** A statement begins: it binds no stamp of its own yet. */
+    /** A statement begins: it binds no stamp of its own yet, reads no frame. */
     void startStatement() {
         ownStamp = null;
+        asCte.clear();
+        reads.clear();
+        definitions.clear();
+    }
+
+    /** A second planning of the statement, the frames it read more than once read as their CTE (B10's rule, per
+     *  statement: a frame read once is pasted where it is read); false when none is (one planning suffices). */
+    boolean readAgainWithCtes() {
+        java.util.Set<String> twice = new java.util.LinkedHashSet<>();
+        reads.forEach((name, n) -> {
+            Frame f = frames.get(name);
+            if (n > 1 && f != null && f.readsAsCte()) {
+                twice.add(name);
+            }
+        });
+        if (twice.isEmpty()) {
+            return false;
+        }
+        String own = ownStamp;
+        startStatement();
+        ownStamp = own;
+        asCte.addAll(twice);
+        return true;
+    }
+
+    /** The CTE definitions the statement just planned references (FrameCtes.attach's), by CTE name. */
+    public Map<String, com.legend.sql.SqlQuery> definitions() {
+        return java.util.Collections.unmodifiableMap(definitions);
     }
 
     /** The stamp the statement just planned binds itself, or null. */
@@ -114,7 +154,21 @@ public final class ProgramFrames {
             @Override
             public ResultEnvelopeSplice.@com.legend.base.Nullable View frame(String name) {
                 Frame f = frames.get(name);
-                return f == null ? null : new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source());
+                if (f == null) {
+                    return null;
+                }
+                reads.merge(name, 1, Integer::sum);
+                if (!asCte.contains(name)) {
+                    return new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source());
+                }
+                // read by REFERENCE: its planned CTE, defined ahead of the statement (a class frame's is its extent
+                // rows, a relation frame's its plan), its aliases under the frame's own prefix (the walk's)
+                String cteName = "frame_" + name;
+                definitions.computeIfAbsent(cteName, n -> com.legend.sql.AliasPrefix.apply(
+                        com.legend.sql.AliasPrefix.frameBody(name), f.cte().extentRows() != null
+                                ? f.cte().extentRows() : java.util.Objects.requireNonNull(f.cte().plan())));
+                return new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source(), cteName,
+                        f.cte().plan(), f.cte().plannedInfo());
             }
 
             @Override

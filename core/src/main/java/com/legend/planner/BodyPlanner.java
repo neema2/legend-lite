@@ -226,6 +226,21 @@ public final class BodyPlanner {
                         body.get(body.size() - 1));
         if (!froms.isEmpty()) {
             env = env.withFrame(froms.get(0).context());
+            // the frame's own TABLE RENAMES (its runtime's post-processors, R17 C9; the test-is-the-product plan's M3h:
+            // a connection's post-processors apply to any query on it, upstream's postprocessor.pure:66-80), merged
+            // with the renames the environment holds (an execute frame's), a conflict refused by name
+            java.util.Map<String, String> own = froms.get(0).context().postProcessors().tableReplace();
+            if (!own.isEmpty()) {
+                java.util.Map<String, String> merged = new java.util.LinkedHashMap<>(env.tableReplace());
+                for (java.util.Map.Entry<String, String> r : own.entrySet()) {
+                    String prev = merged.putIfAbsent(r.getKey(), r.getValue());
+                    if (prev != null && !prev.equals(r.getValue())) {
+                        throw new IllegalStateException("conflicting table renames for '" + r.getKey() + "': '" + prev
+                                + "' (the execution's) vs '" + r.getValue() + "' (the from()'s runtime's)");
+                    }
+                }
+                env = env.withTableReplace(merged);
+            }
             // the engine's addDriverTablePkForProject option (#45) is PER
             // EXECUTE CALL — the from's own bound option (batch 121):
             // projections gain the driver table's PK columns

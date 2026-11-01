@@ -168,6 +168,14 @@ public final class FramePlanner {
      *  preparation's system route and answered kinds are the planner's since 2026-10-31; the body driver planned it
      *  until then). */
     public static Cte cte(FrameChain fc, java.util.List<TypedSpec> letPrefix, SpecCompiler specs) {
+        return cte(fc, specs, chain -> BodyPlanner.bare(chain, letPrefix, specs, fc.env()));
+    }
+
+    /** {@link #cte} with the frame's chain planned by {@code lower} (null: answered with no plan, so pasted): the
+     *  walk's identity lane ({@code BodyPlanner.bare}), or the product's configuration on its program road (the
+     *  test-is-the-product plan's M3g, B12 item 9: the CTE lowered once at the let). */
+    public static Cte cte(FrameChain fc, SpecCompiler specs,
+            java.util.function.Function<TypedSpec, BodyPlanner.@com.legend.base.Nullable Bare> lower) {
         PlanEnv env = fc.env();
         // leg 3.4 step 2: a relation-rooted frame of STATIC schema that ran
         // (eager) is also PLANNED once — every assert side that reads it
@@ -177,7 +185,7 @@ public final class FramePlanner {
                     fc.chain().info().type());
             if (schema != null && !schema.isLateBound() && schema.dynamicColumns().isEmpty()
                     && !schema.columns().isEmpty()) {
-                BodyPlanner.Bare b = BodyPlanner.bare(fc.chain(), letPrefix, specs, env);
+                BodyPlanner.Bare b = lower.apply(fc.chain());
                 // the PLANNED root's type is the frame's schema as a side sees
                 // it (the resolver's view: a validation's key columns are
                 // typed here, not in the raw chain); a plan whose width is
@@ -214,7 +222,7 @@ public final class FramePlanner {
             // reader ranges over that extent. The fold stays the frame's plan
             // of record (activity, the SQL-text referee). Any other chain or
             // pipeline shape stays pasted.
-            BodyPlanner.Bare b = BodyPlanner.bare(fc.chain(), letPrefix, specs, env);
+            BodyPlanner.Bare b = lower.apply(fc.chain());
             if (b != null) {
                 com.legend.sql.SqlSelect rows = com.legend.lowering.VerdictSql.classExtentRows(b.plan());
                 if (rows != null) {

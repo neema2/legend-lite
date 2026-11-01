@@ -575,3 +575,13 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   `ExecutionPlan.Sql.stamp` minted by the session (`Statements.nextStamp`) and bound by the runner; the user, asked
   whether its cost (15 files, +217/-37) is worth it, kept it (2026-11-01). Core's statements unchanged but the test
   door's own tests. Next: M3g.
+- 2026-11-01: **M3g built**: the frame's CTE (B10's rule, per statement). A frame let's CTE is lowered once at the
+  let with the product's configuration (`FramePlanner.cte`, its chain's lowering now a parameter: the walk's identity
+  lane, the product's road); a statement that reads a frame more than once is planned again with that frame read by
+  reference to its CTE, defined ahead of the statement (`FrameCtes.attach`, under the frame's alias prefix); one that
+  reads it once pastes its chain. MV9's movement (M3a's counts) lands with the body classes that read frames.
+  Measured: core's statements unchanged but the test door's own new test.
+- 2026-11-01: **M3h built**: a `from()`'s own table renames (R17 C9): `BodyPlanner.prepare` merges the outermost
+  `from()`'s runtime's renames with the environment's (an execute frame's), a conflict refused by name, on both roads.
+  Measured: core's statements unchanged (M3a: 0 corpus statements move, the environment already holding the same
+  renames); the corpora re-measured with M3i's chain. Next: M3i.

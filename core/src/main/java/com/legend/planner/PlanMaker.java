@@ -238,8 +238,9 @@ public final class PlanMaker {
                 Prepared.Planned sp = ProductStatements.planned(st);
                 com.legend.lowering.Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
                         withStamps(slots, state.frames()), sites);
-                SqlQuery q = com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(ProductStatements.postProcessed(
-                        lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)), sp.env())));
+                SqlQuery q = com.legend.sql.FrameCtes.attach(com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(
+                        ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
+                                sp.env()))), state.frames().definitions());
                 TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
                 steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(com.legend.sql.SqlDml.CreateTempTableAs
                         .staged(table, q, com.legend.resolver.StagedRows.columns(rowsRoot.info()))), target, null),

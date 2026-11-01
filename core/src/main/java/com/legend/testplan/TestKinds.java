@@ -105,8 +105,18 @@ final class TestKinds implements ProgramKinds {
         ProductStatements.Statement run = ProductStatements.prepare(query, List.of(fc.runChain()), program.runtime(),
                 index, program.features(), frames);
         program.add(new ExecutionPlan.Check(program.statement(program.lowered(run, false)).stamped(stamp)));
+        // its CTE, lowered once at the let with the product's configuration (M3g, B12 item 9): a statement that reads
+        // the frame more than once references it; one that reads it once pastes its chain
+        com.legend.planner.FramePlanner.Cte cte = fc.legendQuery() ? com.legend.planner.FramePlanner.Cte.NONE
+                : com.legend.planner.FramePlanner.cte(fc, query.specs(), chain -> {
+                    ProductStatements.Statement planned = ProductStatements.prepare(query, List.of(chain),
+                            program.runtime(), index, program.features(), frames);
+                    return planned.prepared() instanceof com.legend.planner.Prepared.Planned p
+                            ? new com.legend.planner.BodyPlanner.Bare(program.lowered(planned, false), p.root())
+                            : null;
+                });
         frames.let(let.name(), new com.legend.planner.ProgramFrames.Frame(fc.chain(),
-                !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace()));
+                !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace(), cte));
     }
 
     /**

@@ -95,8 +95,10 @@ public final class ProgramState {
      *  slots and the frames' stamps bound, the program's minter; {@code last} the program's last statement (the
      *  streaming graph root). */
     public com.legend.sql.SqlQuery lowered(ProductStatements.Statement st, boolean last) {
-        return com.legend.sql.EnumValueTables.apply(ProductStatements.lower(query, ProductStatements.planned(st),
-                st.temporal(), last, PlanMaker.withStamps(slots, frames), sites));
+        // the frames it reads as their CTE defined ahead of it (M3g)
+        return com.legend.sql.FrameCtes.attach(com.legend.sql.EnumValueTables.apply(ProductStatements.lower(query,
+                ProductStatements.planned(st), st.temporal(), last, PlanMaker.withStamps(slots, frames), sites)),
+                frames.definitions());
     }
 
     /** {@code q} written in the program's dialect for its target. */

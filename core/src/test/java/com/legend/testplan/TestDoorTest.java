@@ -280,4 +280,26 @@ class TestDoorTest {
                     String.valueOf(rows.get(0).get(0)));
         }
     }
+
+    /** M3g, B10's rule (per statement): a statement that reads a frame more than once reads it through its CTE,
+     *  lowered once at the let with the product's configuration; one that reads it once pastes its chain. */
+    @Test
+    void aFrameReadTwiceInAStatementIsItsCteAndReadOncePasted() throws Exception {
+        TypedQuery twice = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.values->filter(x|$x.name == 'Acme')->concatenate($r.values);}");
+        ExecutionPlan plan = TestDoor.plan(twice, "x::RT", Set.of(), null);
+        PlanRoundTrip.assertRoundTrips(plan, "a frame read twice");
+        String sql = plan.answerSql().statement();
+        assertTrue(sql.startsWith("WITH frame_r AS"), sql);
+        assertEquals(sql.indexOf("frame_r AS MATERIALIZED ("), sql.lastIndexOf("frame_r AS MATERIALIZED ("),
+                "defined once: " + sql);
+        assertEquals(2, sql.split("FROM frame_r AS ", -1).length - 1, "read twice: " + sql);
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("Acme"), List.of("Acme")), run(plan, c));
+        }
+        TypedQuery once = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.values->filter(x|$x.name == 'Acme');}");
+        String pasted = TestDoor.plan(once, "x::RT", Set.of(), null).answerSql().statement();
+        assertFalse(pasted.contains("frame_r"), pasted);
+    }
 }

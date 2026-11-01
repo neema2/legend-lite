@@ -74,6 +74,12 @@ public final class ProductStatements {
         com.legend.compiler.spec.UserCallInliner inliner = new com.legend.compiler.spec.UserCallInliner(specs,
                 com.legend.compiler.spec.ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
         List<TypedSpec> body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));   // Phase G½
+        if (frames.readAgainWithCtes()) {
+            // a frame the statement reads more than once: read by reference to its CTE (M3g, B10), so inlined again
+            inliner = new com.legend.compiler.spec.UserCallInliner(specs,
+                    com.legend.compiler.spec.ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
+            body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));
+        }
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
