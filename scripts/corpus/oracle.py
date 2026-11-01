@@ -4193,6 +4193,25 @@ def _fan_rows(c: Corpus, data, row: dict, spec: Spec) -> list[dict]:
     return out
 
 
+def _downcast(c: Corpus, data, row: dict, spec: Spec, p, dated) -> object:
+    """`$x->subType(@C).path` over a class whose set is the inheritance operation (EMIT's relational-polymorphic-query;
+    the improvement plan's EMIT target, 2026-11-01): C's path where the row is one of C's set's rows, absent where it is
+    another leaf's. legend-engine 4.145.0 plans it so, probed on DuckDB and H2 (scripts/corpus/unreached.py): the union
+    selects each leaf's column in that leaf's branch and NULL in the others'. The row's leaf is the table it was read
+    from, by identity, since _rows_for concatenates the leaves' own rows; a copied row (a merge's blanked columns) is
+    refused rather than guessed."""
+    if spec.root not in c.inheritance_ops:
+        raise Unsupported(f"{spec.short}: subType over {spec.root}, which no inheritance() set maps")
+    leaves = c.unions.get(spec.root) or []
+    if p.subtype not in c.main_table or c.main_table[p.subtype] not in leaves:
+        raise Unsupported(f"{spec.short}: {p.subtype} is not a mapped leaf of {spec.root}")
+    if not any(row is x for t in leaves for x in data[t]):
+        raise Unsupported(f"{spec.short}: a row of {spec.root} is in none of its leaves' tables")
+    if not any(row is x for x in data[c.main_table[p.subtype]]):
+        return None
+    return _value(c, data, row, p.subtype, p.path, p.args, p.func, dated)
+
+
 def _dated_for(c: Corpus, spec: Spec, params: dict | None) -> _Dated:
     root = c.classes.get(spec.root)
     return _Dated(root.temporal if root else None, _root_dates(c, spec, params), params)
@@ -4209,7 +4228,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
     plain = [p for p in spec.projections if p.agg is None and not p.func
              and not (len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS)]
     fan_out = getattr(spec, "fan_out", False)
-    if not fan_out and any(c.to_many_on(spec.root, p.path) for p in plain):
+    if not fan_out and any(c.to_many_on(getattr(p, "subtype", None) or spec.root, p.path) for p in plain):
         raise Fanout(f"{spec.short}: a non-aggregate projection crosses a to-many "
                      f"association, which would fan the row set out")
 
@@ -4222,6 +4241,7 @@ def evaluate(c: Corpus, spec: Spec, data: dict[str, list[dict]],
     out = [{p.alias: (_agg(c, data, r, spec.root, p, params) if p.agg
                       else _apply(p.apply, _value(c, data, r, spec.root, p.path, p.args, p.func, dated))
                       if getattr(p, "apply", None) is not None
+                      else _downcast(c, data, r, spec, p, dated) if getattr(p, "subtype", None) is not None
                       else _value(c, data, r, spec.root, p.path, p.args, p.func, dated))
             for p in spec.projections}
            for r in kept] if not fan_out else [x for r in kept for x in _fan_rows(c, data, r, spec)]
@@ -4380,6 +4400,8 @@ def kinds(c: Corpus, spec: Spec) -> dict[str, str]:
 def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
     out = {}
     for p in spec.projections:
+        # a downcast column's path is its subtype's (Proj.subtype, oracle._downcast)
+        root = getattr(p, "subtype", None) or spec.root
         if p.agg == "count":
             out[p.alias] = "int"
             continue
@@ -4387,7 +4409,7 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
             out[p.alias] = "bool"
             continue
         if p.agg is not None and p.over is not None:
-            table, col, _ = c.resolve(spec.root, list(p.path) + [p.over])
+            table, col, _ = c.resolve(root, list(p.path) + [p.over])
             out[p.alias] = c.tables[table].columns[col].kind
             continue
         if p.func:
@@ -4397,29 +4419,29 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
         if getattr(p, "apply", None) is not None:
             out[p.alias] = RET_KIND[p.apply.ret]
             continue
-        if len(p.path) == 2 and (spec.root, p.path[0]) in XSTORE_LINKS:
-            target = XSTORE_LINKS[(spec.root, p.path[0])][3]
+        if len(p.path) == 2 and (root, p.path[0]) in XSTORE_LINKS:
+            target = XSTORE_LINKS[(root, p.path[0])][3]
             col = c.columns[target][p.path[1]]
             out[p.alias] = c.tables[c.main_table[target]].columns[col].kind
             continue
-        hit = c.resolve_derived(spec.root, p.path)
+        hit = c.resolve_derived(root, p.path)
         if hit is not None:
             out[p.alias] = {"Float": "float", "Integer": "int", "Boolean": "bool",
                             "String": "string"}[hit[2].type]
             continue
-        if c.enum_props.get((c.owner_of(spec.root, p.path), p.path[-1])):
+        if c.enum_props.get((c.owner_of(root, p.path), p.path[-1])):
             out[p.alias] = "string"     # an enum renders as its VALUE NAME
             continue
-        owner = c.owner_of(spec.root, p.path)
+        owner = c.owner_of(root, p.path)
         if owner in c.json_backed and owner.startswith("semi::"):
             # A key of a Binding's document (Phase 9) is typed by its class's property, not by the payload column.
             out[p.alias] = _JSON_KIND[c.classes[owner].props[p.path[-1]].type]
             continue
-        dyn = c.dyna.get((c.owner_of(spec.root, p.path), p.path[-1]))
+        dyn = c.dyna.get((c.owner_of(root, p.path), p.path[-1]))
         if dyn is not None:
-            out[p.alias] = _dyna_kind(c, c.owner_of(spec.root, p.path), dyn)
+            out[p.alias] = _dyna_kind(c, c.owner_of(root, p.path), dyn)
             continue
-        chain = c.chains.get((c.owner_of(spec.root, p.path), p.path[-1]))
+        chain = c.chains.get((c.owner_of(root, p.path), p.path[-1]))
         if chain is not None:
             # A chained property's kind comes from the table the chain LANDS on, not from
             # the root's main table -- resolve() cannot reach it, since no association is
@@ -4427,7 +4449,7 @@ def _kinds_of_projections(c: Corpus, spec: Spec) -> dict[str, str]:
             _joins, ctbl, ccol = chain
             out[p.alias] = c.tables[ctbl].columns[ccol].kind
             continue
-        table, col, _ = c.resolve(spec.root, p.path)
+        table, col, _ = c.resolve(root, p.path)
         out[p.alias] = c.tables[table].columns[col].kind
     return out
 

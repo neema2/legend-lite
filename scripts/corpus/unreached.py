@@ -95,6 +95,32 @@ def _op(name: str, doc: str, root: str, binding: tuple[str, str], db: str, cols:
     return s
 
 
+def downcasts() -> list[Spec]:
+    """A polymorphic query: the parent dispatched through inheritance() and downcast with subType() to a property only
+    one leaf has, and to one every leaf has (EMIT's relational-polymorphic-query, whose downcastSuite this is; the
+    improvement plan's EMIT target, 2026-11-01). A downcast column holds the leaf's value on that leaf's rows and is
+    absent on the other's. Probed on legend-engine 4.145.0 first, as a Relation (DuckDB) and a TDS (H2): the union
+    selects the leaf's column in its own branch and NULL in the other's, and a filter over a downcast keeps only that
+    leaf's rows."""
+    car, truck = "surface::OpCar", "surface::OpTruck"
+    out = []
+    for name, paradigm, cols in (
+            ("Downcast", "relation", [Proj("k", ["k"]), Proj("label", ["label"]),
+                                      Proj("carDoors", ["doors"], subtype=car),
+                                      Proj("truckPayload", ["payload"], subtype=truck),
+                                      Proj("carLabel", ["label"], subtype=car)]),
+            ("DowncastTds", "tds", [Proj("k", ["k"]), Proj("carDoors", ["doors"], subtype=car),
+                                    Proj("truckPayload", ["payload"], subtype=truck),
+                                    Proj("truckLabel", ["label"], subtype=truck)])):
+        s = _op(name, "inheritance() and subType(): each leaf's own property read through a downcast, and a property "
+                      "every leaf maps read through one leaf's; each column holds that leaf's value on its rows and "
+                      "nothing on the other leaf's." + (" As a TDS." if paradigm == "tds" else ""),
+                "surface::OpVehicle", INHERITANCE, "surface::OpDB", [], paradigm=paradigm)
+        s.projections = cols
+        out.append(s)
+    return out
+
+
 def operations() -> list[Spec]:
     op, vehicle, code, link, merged = ("surface::Op", "surface::OpVehicle", "surface::OpCode", "surface::OpLink",
                                        "surface::MergeTgt")
@@ -113,6 +139,7 @@ def operations() -> list[Spec]:
             INHERITANCE, ops_db, ["k"], filters=[Pred(["label"], "isNotEmpty", None)]),
         _op("InheritanceTree", "inheritance(), fetched as a graph.", vehicle, INHERITANCE, ops_db,
             ["k", "label"], graph=True),
+        *downcasts(),
         _op("LiteralListCoalesce", "A literal list as coalesce's one argument, `coalesce([V, K])`: the key where "
                                    "the value is absent.", code, OPERATIONS, ops_db, ["k", "firstOf"]),
         _op("LiteralListIn", "A literal list `in` tests against, `in(K, ['OB-0001', 'OB-0004'])`.", code, OPERATIONS,

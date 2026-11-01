@@ -289,6 +289,10 @@ class Proj:
     apply: Apply | None = None
     # With `agg`: the property of the landed rows it reduces, `$x.path->map(t|$t.<over>)->sum()` (stage 6).
     over: str | None = None
+    # A downcast first, `$x->subType(@<subtype>).path`: the path is the subtype's, read where the row is one of the
+    # subtype's and absent where it is another leaf's (oracle._downcast; EMIT's relational-polymorphic-query, the
+    # improvement plan's EMIT target, 2026-11-01). Only over a class whose set is the inheritance operation.
+    subtype: str | None = None
 
 
 @dataclass

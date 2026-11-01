@@ -8133,6 +8133,122 @@ Service stress::UO_InheritanceTree
   ]
 }
 
+Service stress::UO_Downcast
+{
+    pattern: '/stress/unreached/downcast';
+    documentation: 'inheritance() and subType(): each leaf\'s own property read through a downcast, and a property every leaf maps read through one leaf\'s; each column holds that leaf\'s value on its rows and nothing on the other leaf\'s.';
+    execution: Single
+    {
+    query: |surface::OpVehicle.all()
+        ->project(~[
+            k:x|$x.k,
+            label:x|$x.label,
+            carDoors:x|$x->subType(@surface::OpCar).doors,
+            truckPayload:x|$x->subType(@surface::OpTruck).payload,
+            carLabel:x|$x->subType(@surface::OpCar).label
+        ]);
+        mapping: surface::InheritanceSurface;
+        runtime: surface::InheritanceRT;
+    }
+  testSuites:
+  [
+    UO_Downcast_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          opEnv:
+            Reference
+            #{
+              surface::OpData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 12 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"CAR-1","label":"Saloon","carDoors":4,"truckPayload":null,"carLabel":"Saloon"},{"k":"CAR-2","label":null,"carDoors":2,"truckPayload":null,"carLabel":null},{"k":"CAR-3","label":"Estate","carDoors":null,"truckPayload":null,"carLabel":"Estate"},{"k":"TRK-1","label":"Tipper","carDoors":null,"truckPayload":12,"carLabel":null},{"k":"TRK-2","label":null,"carDoors":null,"truckPayload":null,"carLabel":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service stress::UO_DowncastTds
+{
+    pattern: '/stress/unreached/downcasttds';
+    documentation: 'inheritance() and subType(): each leaf\'s own property read through a downcast, and a property every leaf maps read through one leaf\'s; each column holds that leaf\'s value on its rows and nothing on the other leaf\'s. As a TDS.';
+    execution: Single
+    {
+    query: |surface::OpVehicle.all()
+        ->project(
+            [
+                x|$x.k,
+                x|$x->subType(@surface::OpCar).doors,
+                x|$x->subType(@surface::OpTruck).payload,
+                x|$x->subType(@surface::OpTruck).label
+            ],
+            ['k', 'carDoors', 'truckPayload', 'truckLabel']
+        );
+        mapping: surface::InheritanceSurface;
+        runtime: surface::InheritanceRT;
+    }
+  testSuites:
+  [
+    UO_DowncastTds_suite:
+    {
+      data:
+      [
+        connections:
+        [
+          opEnv:
+            Reference
+            #{
+              surface::OpData
+            }#
+        ]
+      ]
+      tests:
+      [
+        // 5 rows; 11 absent cells.
+        expected_rows:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            matchesOracle:
+              EqualToJson
+              #{
+                expected:
+                  ExternalFormat
+                  #{
+                    contentType: 'application/json';
+                    data: '[{"k":"CAR-1","carDoors":4,"truckPayload":null,"truckLabel":null},{"k":"CAR-2","carDoors":2,"truckPayload":null,"truckLabel":null},{"k":"CAR-3","carDoors":null,"truckPayload":null,"truckLabel":null},{"k":"TRK-1","carDoors":null,"truckPayload":12,"truckLabel":"Tipper"},{"k":"TRK-2","carDoors":null,"truckPayload":null,"truckLabel":null}]';
+                  }#;
+              }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
 Service stress::UO_LiteralListCoalesce
 {
     pattern: '/stress/unreached/literallistcoalesce';

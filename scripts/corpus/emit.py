@@ -704,6 +704,10 @@ def query_text(spec: Spec) -> str:
             return _applied(f"${VAR}.{_path(p.path)}", p.apply)
         if getattr(p, "over", None) is not None:
             return f"${VAR}.{_path(p.path)}->map(t|$t.{p.over})->{p.agg}()"
+        if getattr(p, "subtype", None) is not None:
+            if p.agg or p.args or p.func:
+                raise ValueError(f"{p.alias}: a downcast column is a plain path")
+            return f"${VAR}->subType(@{p.subtype}).{_path(p.path)}"
         return (f"${VAR}.{_path(p.path)}"
                 + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
                 + (f"->{p.agg}()" if p.agg else ""))

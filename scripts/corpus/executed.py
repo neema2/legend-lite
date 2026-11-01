@@ -540,6 +540,11 @@ def _unreached_features(c: model.Corpus, specs, quarantined: set[str], add) -> N
     add("U7  join not-equal", joins_with(lambda x: x[0] == "cmp" and x[1][1] in ("!=", "<>")))
     add("U8  join numeric constant", joins_with(lambda x: x[0] == "cmp" and any(
         o[0] == "lit" and isinstance(o[1], (int, float)) for o in (x[1][0], x[1][2]))))
+    # 2026-11-01, the improvement plan's EMIT target: EMIT's relational-polymorphic-query, a subType() downcast over a
+    # class the inheritance operation dispatches (unreached.downcasts)
+    add("U9  polymorphic query (subType over inheritance)", [
+        s.short for s in live if s.root in c.inheritance_ops
+        and any(getattr(p, "subtype", None) for p in s.projections)])
 
 
 def _vocabulary_features(specs, quarantined: set[str], add) -> None:
