@@ -563,9 +563,9 @@ posted the same way (R7 decision 12).
 | **M4** ◆ | The system database, one code path (B7); after M5 (R19) | 3-5 days |
 | **M5** ◆ | The body router at the test door (B1, R16); the first class moves whole: assert-free programs (the corpus setup programs, assert-free bodies), each planned whole by the program road and run as one plan; the 2.A convergences that class needs (MV6, MV7 where its frames are eager) | 1-1.5 weeks |
 | **M6** ◆ | The verdict record (B3), the assert module in the test-planning library (B4, begun at M3; B5), the host judge on product sides; verdict steps planned on the program road | 1.5-2 weeks |
-| **M7** ◆ | The fused group composed at planning (from `VerdictBatch`'s flush); the second class moves: bodies whose asserts all have verdict steps (2.D's rule, MV1, for the bodies moved) | 1 week |
+| **M7** ◆ | (The row before M6's revalidation; superseded by the row below.) The fused group composed at planning (from `VerdictBatch`'s flush); the second class moves: bodies whose asserts all have verdict steps (2.D's rule, MV1, for the bodies moved) | 1 week |
 | **M9** ◆ | **BUILT 2026-11-01 (D109; §9 "M9a" to "M9d", §10): the frame programs under the host judge, 608 -> 1,080 bodies moved per DuckDB host pass, outcomes identical; its residual kinds (the engine-text asserts, the system-store reads, the test-data generator, `assertError` -- no corpus body --, staged grids, computed effects, effects through helpers, graph frames, seeded frames) named with their counts for M10a-d. Before M7 and M8 since M6's revalidation (the user, 2026-11-01: "the order is fine";** `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`**).** Frames read by asserts (the corpus's bulk: `let r = execute(...)`, its reads spliced into the asserts' sides, the eager run and the CTE as M3f/M3g planned them); the kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move, under the host judge first (zero output change expected) | 1-1.5 weeks |
-| **M7** ◆ | The fused group composed at planning (from `VerdictBatch`'s flush), with the frames' CTEs at its head; the database judge's and channel B's assert programs move (2.D's rule, MV1, for the bodies moved) | 1 week |
+| **M7** ◆ | **BUILT 2026-11-01 (D110; §9 "M7", §10): the database judge's assert and frame programs run whole -- the fused statement composed at planning by the batch's own planning half, with the frames' CTEs at its head; 604 -> 1,026 bodies moved per DuckDB database pass (604 -> 961 on H2), outcomes identical; channel B (BOTH) walks every assert body until M8.** The fused group composed at planning (from `VerdictBatch`'s flush), with the frames' CTEs at its head; the database judge's and channel B's assert programs move (2.D's rule, MV1, for the bodies moved) | 1 week |
 | **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
 | **M10** ◆ | Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
 | **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
@@ -778,6 +778,56 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   (`frameQueryKind`): its eager run byte-identical on the walk and the program road for the business-temporal frame
   the parity test pins on every in-process database (the walk's exists-join form is the product's since D5); the
   corpora measure the rest at M9's chain.
+- **M7 -- the database judge's assert and frame programs move (2026-11-01; its independent audit folded: F1 a STATIC
+  pass over every let and assert before any batch opens, so a body left for the walk has counted nothing (the arms
+  count the assert entered and its family as they plan); F2 the planned batch's one-shot latch allowlisted; F3 a frame
+  environment that raises before an arm and F4 a let that raises leave the body to the walk, which raises there
+  before anything is flushed; F5 planning stops at a WALL -- the segment closes at the wall's assert, every later assert
+  absorbed unplanned, the wall's exit counted where it is planned; N6 the walk's fragment map handed to the batch so a
+  split rung's reason names the frame's let).**
+  (1) `VerdictBatch.flush` split into `plan()` (the groups per session composed as the walk composes them: the fused
+  statement over the batch's frames, the dialect's split rung at planning member by member, the keyed members a
+  group of their own) and `Planned.judge()` (the root loop: a pending step's row, or `executeOne` at its place where
+  absent -- the split rung's wrapper, lazily, under FALLBACK; a resolved step's failure; the listener; the first
+  failure raising); the walk's flush is plan, run, judge, unchanged in behaviour; the flush census counted when the
+  groups start to run, so a batch planned and left for the walk counts nothing. (2) `AssertVerdicts.planDatabase`: the
+  walk's `batched` protocol under a COLLECTING batch with no flush -- a wall a step raised at the root's turn, told to
+  no listener (`VerdictBatch.wall`) -- gated statically by `databasePlansWithoutReading`: the host checks'
+  classification (`planHost` null: the shapes neither judge plans statically), then the three shapes whose database
+  arm reads a side on the host at the assert (the grid pair of two relation-typed sides, D3; the rendered-text pair;
+  `assertEq` over a class-kind side, D43) -- the walk's. (3) `driver/DatabaseAsserts` (the twin of `HostAsserts`): the
+  body walked under the collecting batch; a frame let built as the walk builds it under a batch (never run, its CTE
+  defined when a reader splices it, its activity comment the SEGMENT's fused statement's stamp `#stamp.fused<k>`, a
+  parameter that fused step binds: the walk's reserved comment); a segment closes where the walk flushes (an effect
+  statement, the body's end) and its groups are placed at the segment's last assert (the asserts before it absorbed:
+  `TestDoor.Asserts.at` answers a list, empty for an absorbed assert); refused before planning: a raw grid read, a
+  lineage scan; refused after: a group on another session than the body's, a keyed member, a segment the dialect
+  spells no member of, a frame whose activity stamp a later segment reads. (4) `TestKinds.frame` places no eager run
+  under the database judge (`Asserts.runsFrames()` false), adopting the stamp. (5) `BodyRouter`: the planner by judge
+  mode; the sink hands each row to its segment and judges at the segment's last verdict; the fused statement under
+  BODY. (6) `BodyClass.of(body, runtime, oneJudge)`: the assert and frame classes for one judge, host or database;
+  channel B (BOTH) walks every assert body until M8. Measured on the DuckDB corpus: the database pass `body-router
+  moved` 604 -> 1,026, outcomes identical (2473 / 108); the host pass unchanged (1,080; 2471 / 108). The kind census
+  of what still walks on the database pass: 1,131 engine-text asserts over activities, 392 system-store reads, 181
+  temporal frames with engine-text asserts, 102 other shapes the database arms do not plan statically, 29
+  database-unplanned frame bodies, system reads mixed with effects or frames, about 20 effect bodies; on H2 the
+  database pass 604 -> 961, `fallback=18` and every count the baseline's. Residue: (a) the census the arms count at
+  planning (the assert entered, its family) is counted on the program road before the program runs and on the walk at
+  the assert's turn -- the same count per test; the static pass refuses before any count every shape the corpus
+  shows, and the checks after planning (a group on another session, a keyed member the pre-scan missed -- none: the
+  grid report is minted for raw grids alone --, a segment the dialect spells no member of, an unbound frame stamp the
+  static pass missed through a let) would count it twice on a lane whose dialect refuses a canon; (b) a fused group's
+  verdicts carry no wrapper, so the split rung's wrapper runs through `executeOne` from the sink's judge, a statement
+  outside the body's plan as on the walk (M8 may carry the wrapper and let the runner's loop stop at the sink's
+  first failure); (c) the frame's CTE is defined on the batch at splice, so a frame read in two segments is defined in
+  both fused statements, as on the walk; (d) the rendered-text pair is gated to the walk though the database arm
+  plans it without reading (conservative; admit at M8); (e) an inline `execute(...)` inside a side registers its
+  activity comment as the walk's reserved literal, where the program road's fused statement is sent under a comment
+  minted on a trace-less session -- unobservable from Pure, a difference in the statement's comment alone; (f) the
+  router runs a moved body's program on `PlanSessions.of(session)` with no trace, so the body environment's
+  `ExecutionTrace` sees no moved body's stamps; (g) both roads run a fused statement after an effect bare (no
+  program transaction), the Postgres savepoint path unchanged and not parity-pinned (the parity backends are the
+  in-process ones).
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
   on the runner ("Free space left: 84 MB", then "No space left on device"), two before any test ran; the same death
@@ -1022,3 +1072,13 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   The remaining M9 kinds (T8, T9, T10, T12, the effect helpers) move inside M10's classes: each is a handful of bodies
   where M10a and M10b are thousands, so the order holds and nothing is built without a body to measure it on. Next:
   M7.
+- 2026-11-01: **M7 built** (D110): the database judge's assert and frame programs run whole. `VerdictBatch.flush` split
+  into its planning half (`plan()`: the groups per session, the fused statement over the frames' CTEs, the split rung
+  at planning) and its judging half (`Planned.judge()`: the root loop, the split rung's wrapper lazily at its place);
+  `driver/DatabaseAsserts` plans the body's asserts under a COLLECTING batch before the program, a static pass first
+  (the arms count nothing for a body left to the walk), each segment's groups placed at its last assert, the frames
+  never run (their CTEs inside the fused statement, their activity comment the fused statement's own stamp); the
+  router's sink judges each segment at its last verdict. The audit's F1-F5 and N6 folded; its N7-N8 recorded. Measured
+  on the corpora: the database pass `body-router moved` 604 -> 1,026 on DuckDB and 604 -> 961 on H2, outcomes and
+  every census count identical (`fallback=18` on H2); the host passes unchanged. The chain: GATES "The
+  test-is-the-product plan's M7". Next: M8.

@@ -127,7 +127,10 @@ public final class VerdictBatch {
         TypedSide appeal();
     }
 
-    private record Resolved(RuntimeException failure) implements Step {
+    /** A root resolved before any row: a static decision, an unjudged raise, a planned raise ({@code reported}: the
+     *  listener hears its verdict), or a WALL the arm left through ({@code reported} false: the walk discards the root
+     *  and surfaces the wall after the roots before it; the program road raises it at its turn the same way). */
+    private record Resolved(RuntimeException failure, boolean reported) implements Step {
     }
 
     private static final class Root {
@@ -266,7 +269,16 @@ public final class VerdictBatch {
 
     public void resolve(RuntimeException failure) {
         java.util.Objects.requireNonNull(current, "verdict batch: no open root")
-                .steps.add(new Resolved(failure));
+                .steps.add(new Resolved(failure, true));
+    }
+
+    /** The open root left through a WALL (not a verdict, not a data error): raised at its turn after the roots before
+     *  it are judged, told to no listener -- as the walk's {@code batched} discards it and surfaces it after the flush
+     *  (the test-is-the-product plan's M7: the program road plans the raise at the root's place; its exit is counted
+     *  where it was planned, as the walk counts it at the arm). */
+    public void wall(RuntimeException failure) {
+        java.util.Objects.requireNonNull(current, "verdict batch: no open root")
+                .steps.add(new Resolved(failure, false));
     }
 
     public void close() {
@@ -288,11 +300,56 @@ public final class VerdictBatch {
     /** Send the deferred statements (one fused statement per session), then
      * report every root in body order; the first failure raises. */
     public void flush(@com.legend.base.Nullable AssertListener l) {
-        if (!roots.isEmpty()) {
-            Census.inc(Census.Key.VERDICT_FLUSHES);
-        }
-        if (roots.isEmpty()) {
+        Planned planned = plan();
+        if (planned == null) {
             return;
+        }
+        planned.counted();
+        for (Group g : planned.groups()) {
+            VerdictSink sink = new VerdictSink() {
+                @Override
+                public void fused(ExecutionPlan.Verdicts group, com.legend.error.@com.legend.base.Nullable DataError rejected) {
+                    planned.fused(group, rejected);
+                }
+
+                @Override
+                public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
+                    planned.received(verdict, row);
+                }
+            };
+            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
+                // the body's fused statement carries the stamp its frames' activities reserved (ExecutionTrace.reserve)
+                PlanRunner.program(new ExecutionPlan(List.of(), g.step()), Map.of(), PlanSessions.of(g.on(), trace),
+                        PlanRunner.Judging.DATABASE, sink);
+            } catch (com.legend.error.DataError e) {
+                if (!g.keyed()) {
+                    throw e;
+                }
+                // the database rejected a keyed statement: the rows read before it stand; the rest are reached at
+                // their place (the root loop's executeOne), the error at its owner
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        }
+        planned.judge(l);
+    }
+
+    /** One verdict group of a planned batch: its step, the session it runs on, whether it is the keyed members' group
+     *  (each verdict its keyed wrapper, no fused statement; a rejection leaves its rows absent). */
+    public record Group(ExecutionPlan.Verdicts step, Sessions.Session on, boolean keyed) {
+    }
+
+    /**
+     * THE BATCH PLANNED (the test-is-the-product plan's M7): the deferred verdicts as verdict groups -- one fused
+     * statement per session over the batch's frames (the dialect's split rung at planning, member by member:
+     * {@link #spelled}), the keyed members a group of their own -- and the judgment over the rows the groups answer
+     * ({@link #judge}: the root loop, in body order, the first failure raising). The walk's {@link #flush} runs the
+     * groups through the plan runner between the two; the program road places the groups as steps of the body's plan
+     * and judges at the last of them. Null where nothing was deferred (no root).
+     */
+    public @com.legend.base.Nullable Planned plan() {
+        if (roots.isEmpty()) {
+            return null;
         }
         List<Root> batch = new ArrayList<>(roots);
         roots.clear();
@@ -305,7 +362,8 @@ public final class VerdictBatch {
                 }
             }
         }
-        Map<Integer, List<Object>> rows = new HashMap<>();
+        List<Group> out = new ArrayList<>();
+        Map<ExecutionPlan.Verdict, Pending> members = new java.util.IdentityHashMap<>();
         for (var g : groups.entrySet()) {
             List<Pending> all = g.getValue();
             if (PrepTrace.on()) {
@@ -319,7 +377,10 @@ public final class VerdictBatch {
             // a member whose statement reads a raw grid's report is keyed: its wrapper's keys are its grid's columns,
             // which no fused statement shares, so the keyed members are a group of their own, each its wrapper
             // (a member is keyed by its statement with the batch's frames, as it is planned: a frame may read a report)
-            keyedGroup(all.stream().filter(this::keyed).toList(), g.getKey(), rows);
+            Group keyedGroup = keyedGroup(all.stream().filter(this::keyed).toList(), g.getKey(), members);
+            if (keyedGroup != null) {
+                out.add(keyedGroup);
+            }
             List<Pending> ps = all.stream().filter(p -> !keyed(p)).toList();
             if (ps.isEmpty()) {
                 continue;
@@ -350,87 +411,129 @@ public final class VerdictBatch {
                     continue;
                 }
             }
-            List<Pending> members = ps;
-            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(members.size());
-            for (Pending p : members) {
-                verdicts.add(new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(), List.of(), null));
+            List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(ps.size());
+            for (Pending p : ps) {
+                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(),
+                        List.of(), null);
+                verdicts.add(v);
+                members.put(v, p);
             }
-            ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(verdicts, fusedPlan,
-                    fusedPlan == null ? null : runner.savepoint());
-            int[] next = {0};
-            VerdictSink sink = new VerdictSink() {
-                @Override
-                public void fused(ExecutionPlan.Verdicts g, com.legend.error.@com.legend.base.Nullable DataError rejected) {
-                    if (rejected == null) {
-                        Census.inc(Census.Key.VERDICT_FUSED);
-                    } else {
-                        // the split rung: the database rejected the fused statement; this batch judges statement by
-                        // statement below, so the error lands on the assert that owns it
-                        fallback(rejected);
-                    }
-                }
+            out.add(new Group(new ExecutionPlan.Verdicts(verdicts, fusedPlan, runner.savepoint()), g.getKey(),
+                    false));
+        }
+        return new Planned(batch, out, members);
+    }
 
-                @Override
-                public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
-                    int local = next[0]++;
-                    if (row != null) {
-                        rows.put(members.get(local).ix(), row);
-                    }
-                }
-            };
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-                // the body's fused statement carries the stamp its frames' activities reserved (ExecutionTrace.reserve)
-                PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(g.getKey(), trace),
-                        PlanRunner.Judging.DATABASE, sink);
-            } catch (java.io.IOException e) {
-                throw new java.io.UncheckedIOException(e);
+    /** The planned batch: its groups, and the judgment over their rows. */
+    public final class Planned {
+        private final List<Root> batch;
+        private final List<Group> groups;
+        private final Map<ExecutionPlan.Verdict, Pending> members;
+        private final Map<Integer, List<Object>> rows = new HashMap<>();
+        private boolean counted;
+
+        private Planned(List<Root> batch, List<Group> groups, Map<ExecutionPlan.Verdict, Pending> members) {
+            this.batch = batch;
+            this.groups = groups;
+            this.members = members;
+        }
+
+        /** The flush counted once, as the batch's groups start to run (the walk's flush before its first group; the
+         *  program road's first row or fused word): a batch planned and then left for the walk counts nothing. */
+        void counted() {
+            if (!counted) {
+                counted = true;
+                Census.inc(Census.Key.VERDICT_FLUSHES);
             }
         }
-        for (Root r : batch) {
-            RuntimeException failure = null;
-            if (r.steps.stream().noneMatch(s -> s instanceof Pending)) {
-                Census.inc(Census.Key.VERDICT_HOST_DECIDED);
+
+        /** The verdict groups, in the order they run: a session's keyed group, then its fused group, per session. */
+        public List<Group> groups() {
+            return java.util.Collections.unmodifiableList(groups);
+        }
+
+        /** The frames the fused statements define at their head (the readers' CTEs), by frame name. */
+        public Map<String, SqlQuery> frames() {
+            return VerdictBatch.this.frames();
+        }
+
+        /** The runner's word on a group's fused statement: sent, or rejected (the split rung; counted here, the
+         *  wrappers run by the root loop where a row is absent). */
+        public void fused(ExecutionPlan.Verdicts group, com.legend.error.@com.legend.base.Nullable DataError rejected) {
+            counted();
+            if (rejected == null) {
+                Census.inc(Census.Key.VERDICT_FUSED);
+            } else {
+                fallback(rejected);
             }
-            for (Step s : r.steps) {
-                try {
-                    if (s instanceof Pending p) {
-                        List<Object> row = rows.get(p.ix());
-                        if (row == null) {
-                            row = executeOne(p.name(), p.wantEqual(),
-                                    com.legend.sql.FrameCtes.attach(p.query(), frames), p.on(), runner);
-                        }
-                        try {
-                            judge.judge(p.name(), p.wantEqual(), row);
-                        } catch (com.legend.error.AssertFailed e) {
-                            if (p.appeal() == null) {
-                                throw e;
+        }
+
+        /** The row the runner read for {@code verdict} (null where none: the fused statement rejected, a keyed
+         *  wrapper unplanned or rejected); the root loop reaches an absent row at its place. */
+        public void received(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
+            counted();
+            Pending p = members.get(verdict);
+            if (p == null) {
+                throw new IllegalStateException("a verdict row for no member of this batch: " + verdict.name());
+            }
+            if (row != null) {
+                rows.put(p.ix(), row);
+            }
+        }
+
+        /** Every root judged in body order: a pending step's row (read, or run now at its place where absent: the
+         *  split rung, lazily, nothing sent past the first failure), a resolved step's failure; each root's verdict to
+         *  the listener; the first failure raises. */
+        public void judge(@com.legend.base.Nullable AssertListener l) {
+            counted();
+            for (Root r : batch) {
+                RuntimeException failure = null;
+                boolean reported = true;
+                if (r.steps.stream().noneMatch(s -> s instanceof Pending)) {
+                    Census.inc(Census.Key.VERDICT_HOST_DECIDED);
+                }
+                for (Step s : r.steps) {
+                    try {
+                        if (s instanceof Pending p) {
+                            List<Object> row = rows.get(p.ix());
+                            if (row == null) {
+                                row = executeOne(p.name(), p.wantEqual(),
+                                        com.legend.sql.FrameCtes.attach(p.query(), frames), p.on(), runner);
                             }
-                            // rung 2a: the row failed — the appeal decides (returns
-                            // on a pass by rows, raises its own failure otherwise)
-                            p.appeal().appeal();
+                            try {
+                                judge.judge(p.name(), p.wantEqual(), row);
+                            } catch (com.legend.error.AssertFailed e) {
+                                if (p.appeal() == null) {
+                                    throw e;
+                                }
+                                // rung 2a: the row failed — the appeal decides (returns
+                                // on a pass by rows, raises its own failure otherwise)
+                                p.appeal().appeal();
+                            }
+                        } else if (s instanceof Resolved rv) {
+                            reported = rv.reported();
+                            throw rv.failure();
                         }
-                    } else if (s instanceof Resolved rv) {
-                        throw rv.failure();
+                    } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
+                        failure = e;
+                        break;
                     }
-                } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
-                    failure = e;
-                    break;
                 }
-            }
-            if (failure == null) {
-                if (l != null) {
-                    l.verdict(r.listenerName, true, null);
+                if (failure == null) {
+                    if (l != null) {
+                        l.verdict(r.listenerName, true, null);
+                    }
+                    continue;
                 }
-                continue;
-            }
-            CanonicalDivergence.sqlRaised();
-            if (l != null) {
-                if (failure instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
-                    l.unjudged(r.listenerName, af.unjudgedReason());
+                CanonicalDivergence.sqlRaised();
+                if (l != null && reported) {
+                    if (failure instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+                        l.unjudged(r.listenerName, af.unjudgedReason());
+                    }
+                    l.verdict(r.listenerName, false, failure.getMessage());
                 }
-                l.verdict(r.listenerName, false, failure.getMessage());
+                throw failure;   // first-failure sequencing, as before
             }
-            throw failure;   // first-failure sequencing, as before
         }
     }
 
@@ -439,51 +542,24 @@ public final class VerdictBatch {
         return runner.keyed(com.legend.sql.FrameCtes.attach(p.query(), frames));
     }
 
-    /** The keyed members of a session's group run as a verdict group of their own, each verdict its keyed wrapper (the
-     *  planner-driver seam program's S3c, 2026-10-31): the body's statements, sent with the fused group's, their rows
-     *  into {@code rows}. A wrapper the dialect cannot spell, or a group the database rejects, leaves its members'
-     *  rows absent: the root loop reaches each at its place (executeOne), where its refusal is its own. */
-    private void keyedGroup(List<Pending> keyed, Sessions.Session on, Map<Integer, List<Object>> rows) {
-        List<Pending> members = new ArrayList<>(keyed.size());
+    /** The keyed members of a session's group as a verdict group of their own, each verdict its keyed wrapper (the
+     *  planner-driver seam program's S3c, 2026-10-31): the body's statements, run with the fused group's. A wrapper
+     *  the dialect cannot spell leaves its member out: the root loop reaches it at its place (executeOne), where its
+     *  refusal is its own. Null where no member is keyed (or none is spelled). */
+    private @com.legend.base.Nullable Group keyedGroup(List<Pending> keyed, Sessions.Session on,
+            Map<ExecutionPlan.Verdict, Pending> members) {
         List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(keyed.size());
         for (Pending p : keyed) {
             try {
-                verdicts.add(new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(), List.of(),
-                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false)));
-                members.add(p);
+                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(), List.of(),
+                        runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false));
+                verdicts.add(v);
+                members.put(v, p);
             } catch (com.legend.sql.dialect.DialectCapability e) {
                 // refused at its own place in the root loop
             }
         }
-        if (members.isEmpty()) {
-            return;
-        }
-        Map<Integer, List<Object>> got = new HashMap<>();
-        int[] next = {0};
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.BODY)) {
-            PlanRunner.program(new ExecutionPlan(List.of(), new ExecutionPlan.Verdicts(verdicts, null)), Map.of(),
-                    PlanSessions.of(on, trace), PlanRunner.Judging.DATABASE, new VerdictSink() {
-                        @Override
-                        public void fused(ExecutionPlan.Verdicts g,
-                                com.legend.error.@com.legend.base.Nullable DataError rejected) {
-                            throw new IllegalStateException("a group of keyed wrappers has no fused statement");
-                        }
-
-                        @Override
-                        public void verdict(ExecutionPlan.Verdict verdict, @com.legend.base.Nullable List<Object> row) {
-                            int local = next[0]++;
-                            if (row != null) {
-                                got.put(members.get(local).ix(), row);
-                            }
-                        }
-                    });
-        } catch (com.legend.error.DataError e) {
-            // the database rejected a keyed statement: the rows read before it stand; the rest are reached at their
-            // place (the root loop's executeOne), the error at its owner
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        rows.putAll(got);
+        return verdicts.isEmpty() ? null : new Group(new ExecutionPlan.Verdicts(verdicts, null), on, true);
     }
 
     /** A fused statement's plan: one typed result (a member that reads a raw grid's report never joins one). */

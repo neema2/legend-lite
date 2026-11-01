@@ -485,7 +485,10 @@ public final class BodyDriver {
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env, String stamp) {
         env.plan().stamps().add(stamp);
-        return buildFrame(ec, letPrefix, false, false, specs, env, stamp);
+        // under a verdict batch (the database judge, M7) the walk's eager build runs nothing and defines the frame's
+        // CTE on the batch, which is what the asserts' planner wants; with no batch (the host judge) an eager build
+        // would run the frame here, so the build is not eager
+        return buildFrame(ec, letPrefix, env.verdictBatch() != null, false, specs, env, stamp);
     }
 
     /** The activity's execution-trace comment: the run's when the frame ran

@@ -72,8 +72,19 @@ public final class TestDoor {
         /** No assert planned: an assert is refused by name. */
         Asserts NONE = statement -> null;
 
-        /** The verdict step for the statement at {@code statement} (0-based), or null. */
-        ExecutionPlan.@Nullable Verdicts at(int statement);
+        /** The verdict steps for the statement-root assert at {@code statement} (0-based): one step (the host judge's
+         *  verdict over its sides), several (the database judge's groups of the segment this assert closes: its keyed
+         *  members' then its fused statement, per session), none (the assert is ABSORBED into a later statement's
+         *  groups: the database judge defers every assert of a segment to the segment's last), or null (not planned:
+         *  the body is refused by name). */
+        @Nullable List<ExecutionPlan.Verdicts> at(int statement);
+
+        /** Whether a frame let's eager run is a step of the program (the host judge: Pure runs it at the let); the
+         *  database judge runs no frame at its let -- its readers reference the frame's CTE inside the fused statement
+         *  (the walk's one statement per body) -- so its planner answers false and the test door places no check. */
+        default boolean runsFrames() {
+            return true;
+        }
 
         /** The execution-trace stamp parameter the asserts' planner minted for the frame let at {@code statement}
          *  (its sides read the frame's activity comment through it: M9c), or null where it minted none; the frame's

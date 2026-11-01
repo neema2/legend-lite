@@ -487,6 +487,99 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M7: the assert programs under the DATABASE judge -- each assert's verdict statement deferred, the segment's
+     *  fused statement composed at planning and run as one step at the segment's last assert, the rows judged by the
+     *  batch's own root loop -- run both ways: the statements (the fused statement under BODY, a split-rung wrapper
+     *  under FALLBACK), the verdict census, the verdicts, the answer. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void assertProgramsUnderTheDatabaseJudge(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend, false));
+        for (String body : List.of(
+                "{| assertEquals(2, 1 + 1);}",
+                "{| assertEquals(3, 1 + 1);}",
+                "{| assertNotEquals(3, 1 + 1); 'after';}",
+                "{| let n = 2; assertEquals(['a', 'b'], ['b', 'a']->sort()); assertEquals($n, 1 + 1);}",
+                "{| assertSize([1, 2, 3], 3); assertEmpty([]); assertNotEmpty([1]); assert(1 < 2);"
+                        + " assertFalse(1 > 2); true;}",
+                "{| assertSameElements([1, 2], [2, 1]); assertContains([1, 2], 2);"
+                        + " assertEqWithinTolerance(1.0, 1.05, 0.1);}",
+                // an assert after a failing one: planned, judged after the first failure raised -- never
+                "{| assertEquals(3, 1 + 1); assertEquals(2, 1 + 1);}",
+                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
+                // a relation's toString against a literal: a string equality the database judges (not the rendered
+                // form the host reads: that is toCSV's, pinned walked below)
+                "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}")) {
+            assertParity(backend, ctx, RT, body, "select 1", List.of(), ExecuteOptions.JudgeMode.DATABASE);
+        }
+    }
+
+    /** M7: the assert shapes whose DATABASE arm reads a side on the host at the assert's turn (the grid pair of two
+     *  relation-typed sides, {@code assertEq} over a class-kind side, the rendered-text sides): the class admits the
+     *  body and the database planner leaves it on the walk by its static gate, before any side is read. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void theAssertShapesTheDatabasePlannerLeavesOnTheWalk(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (String body : List.of(
+                "{| assertEquals(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1),"
+                        + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1));}",
+                "{| assertEq(^x::Firm(name='a'), ^x::Firm(name='a'));}",
+                "{| assertEquals('a\n1\n', #TDS\na\n1\n#->meta::relational::tests::csv::toCSV());}")) {
+            assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), "x::RT", true), body);
+            Run walked = run(backend, ctx, "x::RT", body, false, "select 1", List.of(),
+                    ExecuteOptions.JudgeMode.DATABASE);
+            Run routed = run(backend, ctx, "x::RT", body, true, "select 1", List.of(),
+                    ExecuteOptions.JudgeMode.DATABASE);
+            assertEquals(walked.moved, routed.moved, "the router left the body on the walk: " + body);
+            assertEquals(walked.outcome, routed.outcome, "outcome: " + body);
+            assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
+            assertEquals(walked.census, routed.census, "the verdict census: " + body);
+            assertEquals(walked.origins, routed.origins, "the statement-origin census (nothing read at planning): "
+                    + body);
+        }
+    }
+
+    /** M7: the frame programs under the DATABASE judge: a frame is never run at its let -- the asserts' sides reference
+     *  its CTE inside the segment's fused statement, whose stamp is the frame's activity comment (a parameter the
+     *  fused step binds; the walk's reserved comment) -- an effect between two asserts closes a segment. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void framesUnderTheDatabaseJudge(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (String body : List.of(
+                "{| let r = " + EXECUTE + "; assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}",
+                "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2); let n = $r.values.rows->size();"
+                        + " assertEquals(2, $n); true;}",
+                "{| let r = " + EXECUTE + "; let s = " + EXECUTE + "; assertEquals($r.values.rows->size(),"
+                        + " $s.values.rows->size());}",
+                "{| assertEquals(1, 1); let r = " + EXECUTE + "; assertEquals(['Acme'], $r.values.rows.values);}",
+                "{| let r = " + EXECUTE + "; let v = $r.values->at(0); assertSize($v.rows, 2);"
+                        + " assertEquals(['Acme', 'Bolt'], $v.rows.values);}",
+                "{| assertSize(" + EXECUTE + ".values.rows, 2);}",
+                // an effect between two asserts: two segments, each its fused statement, the effect's script between
+                "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); let r = "
+                        + EXECUTE + "; assertSize($r.values.rows, 2); " + EXEC
+                        + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); assertSize($r.values.rows, 3);}",
+                "{| let r = " + EXECUTE_CLASS + "; assertSize($r.values, 2); assertEquals(['Acme', 'Bolt'],"
+                        + " $r.values.name);}",
+                // the activities: the SQL text, and the comment (the fused statement's own stamp)
+                "{| let r = " + EXECUTE + "; assertSize($r.activities, 1); assert($r.activities->at(0)->cast("
+                        + "@meta::relational::mapping::RelationalActivity).sql->toOne()->startsWith('select'));}",
+                "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
+                        + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
+                        + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                        + ".comment->toOne()->length());}",
+                "{| let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name], ['name']),"
+                        + " x::M, x::RT.runtimeValue, []); assertNotEmpty($p.rootExecutionNode.executionNodes);}",
+                "{| let r = " + EXECUTE_TEMPORAL + "; assertSize($r.values.rows, 1); assertEquals(['New'],"
+                        + " $r.values.rows.values);}")) {
+            assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.DATABASE);
+        }
+    }
+
     /** M9c: a frame's activity COMMENT is the trace stamp of its eager run on both roads -- the walk's frame holds the
      *  run's comment as a literal, the pre-planned frame a parameter the run's check step binds (R17 C4) -- so the
      *  sides' texts differ there by design and every other boundary is the same; the moved side carries the stamp
@@ -560,10 +653,17 @@ class BodyRouterParityTest {
      *  {@code setup} to (a table a frame reads; the harness sends its own SQL, as every test harness does). */
     private static void assertParity(TestBackend backend, ModelContext ctx, String runtime, String body, String check,
             List<String> setup) throws Exception {
+        assertParity(backend, ctx, runtime, body, check, setup, ExecuteOptions.JudgeMode.HOST);
+    }
+
+    /** {@code body} (a moved class's under {@code mode}'s judge) run on the walk and on the router, each on a fresh
+     *  database: every boundary observed the same. */
+    private static void assertParity(TestBackend backend, ModelContext ctx, String runtime, String body, String check,
+            List<String> setup, ExecuteOptions.JudgeMode mode) throws Exception {
         assertNotNull(BodyClass.of(typed(ctx, body), runtime, true),
-                "the body is a moved class's under the host judge: " + body);
-        Run walked = run(backend, ctx, runtime, body, false, check, setup);
-        Run moved = run(backend, ctx, runtime, body, true, check, setup);
+                "the body is a moved class's under one judge: " + body);
+        Run walked = run(backend, ctx, runtime, body, false, check, setup, mode);
+        Run moved = run(backend, ctx, runtime, body, true, check, setup, mode);
         assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
         assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
         assertEquals(walked.answer, moved.answer, "the answer: " + body);
@@ -605,6 +705,11 @@ class BodyRouterParityTest {
 
     private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body, boolean router,
             String check, List<String> setup) throws Exception {
+        return run(backend, ctx, runtime, body, router, check, setup, ExecuteOptions.JudgeMode.HOST);
+    }
+
+    private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body, boolean router,
+            String check, List<String> setup, ExecuteOptions.JudgeMode mode) throws Exception {
         try (Connection c = backend.open()) {
             try (Statement st = c.createStatement()) {
                 for (String sql : setup) {
@@ -613,7 +718,7 @@ class BodyRouterParityTest {
             }
             TypedQuery q = typed(ctx, body);
             RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
-            ExecuteOptions options = ExecuteOptions.recording(recorder, null);
+            ExecuteOptions options = ExecuteOptions.recording(recorder, null).withJudgeMode(mode);
             Capture capture = new Capture();
             Sessions.Session session = Sessions.borrowed(c);
             long[] before = StatementOrigin.snapshot();

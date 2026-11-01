@@ -125,15 +125,16 @@ public enum BodyClass {
      */
     FRAME_PROGRAM;
 
-    /** {@code body}'s class on {@code runtime} under a run that does not judge on the host alone (the database judge,
-     *  or both judges: channel B), or null when the walk runs it. */
+    /** {@code body}'s class on {@code runtime} under a run that judges with BOTH judges (channel B), or null when the
+     *  walk runs it. */
     public static @Nullable BodyClass of(TypedQuery body, String runtime) {
         return of(body, runtime, false);
     }
 
-    /** {@code body}'s class on {@code runtime}, {@code hostJudge} whether the run judges on the host, or null when
-     *  the walk runs it. */
-    public static @Nullable BodyClass of(TypedQuery body, String runtime, boolean hostJudge) {
+    /** {@code body}'s class on {@code runtime}, {@code oneJudge} whether the run judges with one judge (the host's,
+     *  M6 and M9, or the database's, M7: the assert and frame classes are theirs; a run judging with both, channel B,
+     *  keeps every assert body on the walk until M8), or null when the walk runs it. */
+    public static @Nullable BodyClass of(TypedQuery body, String runtime, boolean oneJudge) {
         if (QueryDoor.declaresTestData(runtime, body.context())) {
             return null;
         }
@@ -144,7 +145,7 @@ public enum BodyClass {
         if (queryProgram(body, scan)) {
             return QUERY_PROGRAM;
         }
-        if (!hostJudge || writesAStore(body)) {
+        if (!oneJudge || writesAStore(body)) {
             // a body a store write reaches (a side's, a value let's, a helper's) runs on the walk inside the
             // transaction the walk opens for it and rolls back on a raise; the program road opens one for an Update
             // step alone (the M9c audit's F2)

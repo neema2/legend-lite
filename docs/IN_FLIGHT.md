@@ -3003,8 +3003,14 @@ census record); `planner/PlanEnv.java` (`stamps`), `BodyPlanner.java` (the stamp
 (`adoptStamp`), `LetPlanner.java` (`badAliasIndex`, `unwrap`), `FramePlanner.java` (`relationRooted`);
 `compiler/spec/ExecuteChainAssembly.java` (`queryLambda`, `peeled`, `refused`); `exec/Census.java` (`STAYED_KINDS`),
 `PlanRunner.java` (`originOf`); the tests (`BodyRouterParityTest`, `BodyClassTest`, `ArchitectureTest`'s register,
-`HarnessDisciplineTest`, `JavaEvalLedgerTest`'s pins); `spec`'s `MinimalCorpusTest` (the histogram). Next: M7, then M8,
-M10a-d, Z, in this session.
+`HarnessDisciplineTest`, `JavaEvalLedgerTest`'s pins); `spec`'s `MinimalCorpusTest` (the histogram). **M7 built
+2026-11-01 (D110)** in the same session, its audit folded (the plan's §9 "M7"): `judge/VerdictBatch.java` (`plan`,
+`Planned`, `Group`, `wall`, `counted`), `driver/DatabaseAsserts.java` (new), `AssertVerdicts.java` (`planDatabase`,
+`DatabasePlan`, `databasePlansWithoutReading`), `BodyRouter.java` (the planner by judge mode; the sink's database
+verdicts), `BodyDriver.java` (`plannedFrame` under a batch), `HostAsserts.java` (a one-step list);
+`testplan/TestDoor.java` (`Asserts.at` a list, `runsFrames`), `TestKinds.java`, `BodyClass.java` (`of(..., oneJudge)`);
+the tests (`BodyRouterParityTest`'s DATABASE-mode runs, `ArchitectureTest`'s V3 exemption, `CodeShapeGuardrailTest`,
+`ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`). Next: M8, then M10a-d, Z, in this session.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

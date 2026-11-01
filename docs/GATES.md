@@ -16583,6 +16583,59 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's M7: the database judge's assert and frame programs run whole
+
+The plan's §7 (M7), §9 "M7", §10; the decisions log D110; the audit brief `docs/test-is-product-homework/M7_AUDIT_BRIEF.md`
+(its findings and folds recorded in §9).
+
+1. **Built:** `judge/VerdictBatch.flush` split into its planning half (`plan()`: the groups per session, the fused
+   statement over the frames' CTEs composed as the walk composes it, the dialect's split rung at planning member by
+   member, the keyed members a group of their own) and its judging half (`Planned.judge()`: the root loop, the split
+   rung's wrapper lazily at its place under FALLBACK, a wall raised at its turn and told to no listener, the first
+   failure raising); the walk's flush is plan, run, judge, unchanged in behaviour; the flush counted when the groups
+   start to run. `driver/DatabaseAsserts` (the twin of `HostAsserts`): the body's asserts planned under a COLLECTING
+   batch before the program -- a STATIC pass first (every let built, every assert asked whether its database arm plans
+   without reading a side: `AssertVerdicts.databasePlansWithoutReading` -- the host checks' classification, then the
+   grid pair, the rendered text, a class-kind `assertEq`; a let or a frame environment that raises leaves the body to
+   the walk), so a body left to the walk has counted nothing; then the planning pass: each segment (closed where the
+   walk flushes: an effect, the body's end, a wall) placed as its verdict groups at its last assert, the asserts before
+   absorbed (`TestDoor.Asserts.at` answers a list); a frame never run at its let (`Asserts.runsFrames` false), its CTE
+   inside the fused statement, its activity comment the fused statement's own stamp (`#stamp.fused<k>`, bound by that
+   step); the router's sink hands each row to its segment and judges at the segment's last verdict; the fused statement
+   under BODY. `BodyClass.of(body, runtime, oneJudge)`: the assert and frame classes for the host or the database judge;
+   channel B's BOTH walks every assert body until M8. The audit's F1-F5 and N6 folded (§9), N7-N8 recorded.
+2. **Movement:** the DuckDB database pass `body-router moved` 604 -> 1,026, the H2 database pass 604 -> 961, outcomes
+   and every census count identical (DuckDB database 2473 / 108, `body=6553 ... other=2`, session 6335 -> 6330: a moved
+   body opens one session per program; H2 database 2233 / 353, `fallback=18`); the host passes unchanged (1,080). The
+   kind census of what still walks on the DuckDB database pass: 1,131 engine-text asserts over activities (M10b), 392
+   system-store reads (M10a), 181 temporal frames with engine-text asserts, 102 other shapes the database arms do not
+   plan statically, 29 database-unplanned frame bodies, system reads mixed with effects or frames, about 20 effect
+   bodies. The parity test runs its bodies under the DATABASE judge too (frames, aliases, inline, an effect between two
+   asserts = two segments, the activities' SQL and comment, a plan handle, a temporal frame) and pins the three
+   host-reading shapes walked.
+3. **The chain (the handoff's §6):** core 28 of 28 with the statement dumps, every package byte-identical in text and
+   labels to M9's but `driver` (the parity test's own new DATABASE-mode runs: +172 lines -- 96 fused statements under
+   `body`, 48 session statements, 28 sides -- and 16 comment-reading sides whose trace-stamp literal differs run to
+   run);
+   `//pct:pct_duckdb` 6 of 6, `bodies-moved=0` in every suite; `//spec:corpus_duckdb` uncached, 6 of 6: host pass
+   2471 / 108, `moved=1080`, census identical to M9's; database pass 2473 / 108, `moved=1026`, census identical but
+   `session` 6335 -> 6330 (a moved body opens one session per program);
+   `//spec:corpus_h2` uncached, 6 of 6: host pass 2289 / 295, `moved=1080`; database pass 2233 / 353, `fallback=18`,
+   `moved=961`, every count the baseline's; channel B 5 of 5 (BOTH walks every assert body: nothing moves);
+   `//gates:local` 448 pass, 1 skipped, 9 red: the nine Postgres targets refusing root, 9 of 9 green unprivileged.
+4. **Guards, dated:** `JavaEvalLedgerTest` -- `DatabaseAsserts.java` registered in the driver's funnel register (plans
+   only, sends nothing, judges through the batch's seam), AssertVerdicts 1449 -> 1510 (`planDatabase`, its outcome and
+   its static gate); `ErrorShapeGuardrailTest.BROAD_CATCH_COUNTS` AssertVerdicts 1 -> 2, `DatabaseAsserts.java` 4 (each
+   a planned raise or a walk by name, nothing swallowed); `CodeShapeGuardrailTest` allowlists `VerdictBatch.counted`
+   (the planned batch's one-shot latch); `ArchitectureTest.hostVerdictIsReachableOnlyFromTheVerdictSeam` exempts
+   `VerdictBatch$Planned` (the batch's own root loop, moved into its inner class).
+5. **Residue, named:** the plan's §9 "M7" (a)-(g): the census the arms count at planning for a body a post-planning
+   check leaves to the walk (none in the corpora; the static pass refuses every shape seen first); the split rung's
+   wrapper run from the sink's judge, outside the body's plan as on the walk (M8); the rendered-text pair gated to the
+   walk though its database arm plans without reading; an inline execute's activity comment against the fused
+   statement's on the program road; the router's trace-less sessions; Postgres's savepoint path unchanged and not
+   parity-pinned.
+
 ## 2026-11-01 — The test-is-the-product plan's M9: the frame programs run whole under the host judge
 
 The plan's §7 (M9), §9 "M9a" to "M9d", §10; the decisions log D109; the audit briefs
@@ -16627,6 +16680,11 @@ recorded in §9 with its folds).
    channel B 5 of 5 (it judges BOTH: the class is the host judge's, nothing moves);
    `//gates:local` 448 pass, 1 skipped, 9 red: the nine Postgres targets refusing root (the eight core tests and
    `//datacube:verify_app_test`), 9 of 9 green unprivileged (`tools/postgres/as_unprivileged.sh ubuntu`). Disk at the chain's end: 94% of the allowance.
+   **CI on 8f0a5cd1 (read 2026-11-01 19:09 UTC):** every Linux lane green (the three that died of the runner's disk on
+   M6's head among them), every Windows lane, Linux-arm, the diagnostics battery; all fifteen macOS jobs CANCELLED four
+   to ten minutes after they started, their logs gone (404), the `gates green` aggregate red on that alone -- no lane
+   failed on the code. The M7 push supersedes this head's run; a second macOS cancellation would name an
+   infrastructure pattern (a runner limit), not this program's.
 4. **Guards, dated:** `JavaEvalLedgerTest` -- `BodyKinds.java` registered in the test-planning library's set (a
    measurement carrier, deciding nothing) and four pins re-pinned: LetPlanner 123 -> 131 (`badAliasIndex` over one
    `unwrap` with `aliasOf`), FramePlanner 199 -> 219 (`relationRooted`), BodyPlanner 336 -> 341 (the stamps bound),

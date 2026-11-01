@@ -109,10 +109,11 @@ final class TestKinds implements ProgramKinds {
             return true;
         }
         if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) && !(statement instanceof TypedLet)) {
-            // a statement-root assert its judge planned (M6): its verdict step, at its turn
-            ExecutionPlan.Verdicts verdict = asserts.at(index);
-            if (verdict != null) {
-                program.add(verdict);
+            // a statement-root assert its judge planned (M6): its verdict step(s) at its turn -- none where the judge
+            // absorbed it into a later statement's groups (the database judge's segment, M7)
+            List<ExecutionPlan.Verdicts> steps = asserts.at(index);
+            if (steps != null) {
+                steps.forEach(program::add);
                 return true;
             }
         }
@@ -144,6 +145,16 @@ final class TestKinds implements ProgramKinds {
     private void frame(ProgramState program, int index, TypedLet let) {
         TypedNativeCall ec = (TypedNativeCall) LetPlanner.rhs(let);
         ProgramFrames frames = program.frames();
+        if (!asserts.runsFrames()) {
+            // the database judge (M7): the frame is never run at its let; its readers reference its CTE inside the
+            // fused statement the asserts' planner composed, and its activity comment is that statement's stamp,
+            // which the planner names and the fused step binds -- adopted here so every statement's lowering binds it
+            String minted = asserts.frameStamp(index);
+            if (minted != null) {
+                frames.adoptStamp(minted);
+            }
+            return;
+        }
         TypedQuery query = program.query();
         PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(), frames.planRows());
         FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(), query.specs(), env);

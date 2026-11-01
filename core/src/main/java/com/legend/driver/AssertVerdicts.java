@@ -95,6 +95,92 @@ final class AssertVerdicts {
         }
     }
 
+    /**
+     * The database judge's classification of {@code bare} as a PLAN (the test-is-the-product plan's M7): the arm run
+     * under {@code env}'s batch -- a collector, nothing sent -- so its verdict statements DEFER into the open root, a
+     * decided outcome or a raise is a resolved step, and a WALL is a step raised at the root's turn (the walk discards
+     * the root and surfaces the wall after the flush: {@link #batched}; here nothing may run, so the raise is planned
+     * at its place). False where the arm answers null: not an assert the database judge plans. The census as the
+     * walk's: the assert entered here, its family at the arm, its verdict at the judgment.
+     */
+    /** {@link #planDatabase}'s answer: the root planned (deferred, or resolved as a decision or a raise), WALLED
+     *  (the arm left through a wall: the root a step raised at its turn, nothing after it planned), or UNPLANNED (not
+     *  an assert the database arms plan). */
+    enum DatabasePlan { PLANNED, WALLED, UNPLANNED }
+
+    static DatabasePlan planDatabase(com.legend.judge.VerdictBatch batch, TypedSpec bare, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
+        if (!databasePlansWithoutReading(bare, letPrefix, specs, env, rawHook)) {
+            return DatabasePlan.UNPLANNED;
+        }
+        com.legend.judge.CanonicalDivergence.sqlEnter();
+        batch.open(listenerName(bare));
+        TypedSide v;
+        try {
+            v = adjudicate(bare, letPrefix, specs, env, rawHook);
+        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
+            batch.resolve(e);
+            batch.close();
+            return DatabasePlan.PLANNED;
+        } catch (RuntimeException e) {
+            // counted as batched counts the exit, at the arm, under the wall's own family
+            com.legend.judge.CanonicalDivergence.sqlRaised();
+            batch.wall(e);
+            batch.close();
+            return DatabasePlan.WALLED;
+        }
+        if (v == null) {
+            batch.discard();
+            return DatabasePlan.UNPLANNED;
+        }
+        batch.close();
+        return DatabasePlan.PLANNED;
+    }
+
+    /**
+     * THE STATIC GATE of the database judge's planner (M7): whether {@code bare} is a shape whose database arm plans
+     * its verdict statement without READING a side on the host at its turn. The host checks' own classification
+     * ({@link #planHost}, null for the shapes neither judge plans statically: a lineage print, the quantified forms,
+     * the engine-text arms, the cell pool, the declining judgments) gates first; then the shapes the database
+     * dispatch hands to the host at the assert -- the grid pair of two relation-typed sides ({@code HostJudge
+     * .planGridPair}, D3), the rendered-text sides ({@link #renderedArm}), {@code assertEq} over a class-kind side
+     * ({@code HostJudge.eq}, D43) -- which would run their sides where the planner only plans. The walk runs such a
+     * body. Planning only: the host checks plan the sides; nothing is sent.
+     */
+    static boolean databasePlansWithoutReading(TypedSpec bare, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
+        HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
+        if (shape == null) {
+            return false;
+        }
+        NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+        if (fn == null) {
+            return false;
+        }
+        List<TypedSpec> raw = (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args();
+        SpliceHook hook = rawHook == null ? null : rawHook::apply;
+        return switch (fn) {
+            case ASSERT_EQUALS, ASSERT_NOT_EQUALS -> {
+                if (raw.size() < 2) {
+                    yield false;
+                }
+                boolean wantEqual = fn == NativeFn.Verdict.ASSERT_EQUALS;
+                List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix,
+                        specs);
+                yield !(com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
+                                && com.legend.compiler.element.type.Type.isRelation(args.get(1).info().type()))
+                        && renderedPlan(fn.bareName(), wantEqual, args, letPrefix, hook, true) == null;
+            }
+            case ASSERT_SAME_ELEMENTS -> raw.size() >= 2 && renderedPlan(fn.bareName(), true,
+                    com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs), letPrefix,
+                    hook, false) == null;
+            case ASSERT_EQ -> raw.size() >= 2 && !classKind(raw.get(0)) && !classKind(raw.get(1));
+            default -> true;
+        };
+    }
+
     /** Leg 3.4: the assert's verdict statements DEFER into the body's batch
      * (VerdictBatch); a decided outcome or a raise is a step in order,
      * reported at the flush. Any other exit (a wall) flushes what came

@@ -216,9 +216,9 @@ final class HostAsserts implements TestDoor.Asserts {
     }
 
     @Override
-    public ExecutionPlan.@Nullable Verdicts at(int statement) {
+    public @Nullable List<ExecutionPlan.Verdicts> at(int statement) {
         Planned p = byStatement.get(statement);
-        return p == null ? null : p.step();
+        return p == null ? null : List.of(p.step());
     }
 
     @Override

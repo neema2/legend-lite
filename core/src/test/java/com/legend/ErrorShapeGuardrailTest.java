@@ -149,7 +149,15 @@ class ErrorShapeGuardrailTest {
             // failure of any type to the program sink, which counts it as the walk counts it and returns the error
             // the runner then throws (PlanRunner.verdicts: 1)
             Map.entry("HostAsserts.java", 4),
-            Map.entry("AssertVerdicts.java", 1),
+            // M7 (2026-11-01): the database judge's planner -- AssertVerdicts.planDatabase records an arm's WALL as a
+            // step raised at the root's turn (the walk discards the root and surfaces the wall after its flush;
+            // nothing may run at planning, so the raise is planned, its exit counted there: 1 more); DatabaseAsserts
+            // (4): its static pass leaves a body whose let or frame environment raises to the walk (2: the walk raises
+            // at that turn, before anything is flushed -- the audit's F3, F4), leaves a gate that raises to the arm
+            // (1: the arm raises the same at its turn), and its planning pass records the gate's raise as the root's
+            // wall (1). Nothing swallowed
+            Map.entry("AssertVerdicts.java", 2),
+            Map.entry("DatabaseAsserts.java", 4),
             Map.entry("PlanRunner.java", 1),
             // contract program (2026-08-23): the wire census's
             // INSTRUMENT-ISOLATION catch — measurement must never throw

@@ -196,7 +196,11 @@ step by the router's sink with the walk's census and listener protocol), the fra
 2026-11-01: `let r = execute(...)` frames, aliases, inline executes, handles, activities reads -- the frame's trace
 stamp a plan parameter its eager run binds and the sides carry -- effects with literal arguments; a body a store write
 reaches, a side routed to another session than the body's, a system-store read, the engine-text asserts and the
-test-data generator stay on the walk); the kinds of each walked body are counted by `testplan/BodyKinds` into
+test-data generator stay on the walk), and the same two classes under the DATABASE judge (M7, 2026-11-01:
+`driver/DatabaseAsserts` plans the asserts under a collecting verdict batch before the program, a static pass first;
+the batch's planning half composes each segment's fused statement with the frames' CTEs at its head, the frames never
+run at their let; the router's sink judges each segment at its last verdict with the batch's own root loop; channel
+B's BOTH judging walks every assert body until M8); the kinds of each walked body are counted by `testplan/BodyKinds` into
 `Census.STAYED_KINDS` for the corpus lanes' histogram (measurement, deciding nothing); `ArchitectureTest.theDriverHasOneCaller`;
 package-private while it shared the root package with the door). The root package holds the five public doors alone:
 `Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the

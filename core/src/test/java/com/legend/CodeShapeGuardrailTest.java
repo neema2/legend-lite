@@ -77,6 +77,10 @@ class CodeShapeGuardrailTest {
             // frames' recorder (frozen into its reads), the body router's opened answer sink (opened only to answer,
             // as the walk opens it)
             "VerdictBatch.current", "CanonRider.wrap", "CanonRider.declined", "Lowerer.dbTimeZone",
+            // 2026-11-01, the test-is-the-product plan's M7: the planned batch's one-shot latch -- the flush counted
+            // once, when its groups start to run (the walk's flush, or the program road's first row), never for a
+            // batch planned and left for the walk
+            "VerdictBatch.counted",
             "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject", "BodyCompiler.last", "BodyCompiler.pendingVerdict", "BodyCompiler.answers",
