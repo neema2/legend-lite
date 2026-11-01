@@ -1703,6 +1703,10 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.compiler.spec.TdsNullForms", 1),
                     java.util.Map.entry("com.legend.compiler.spec.TypeAnnotations", 1),
                     java.util.Map.entry("com.legend.compiler.spec.Typer", 17),
+                    // 2026-11-01 (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md M3): the #TS model's facts -- a word's
+                    // overloads and parameters (TsToPure.Overload, Parameter), records of the model's signatures that
+                    // TsToPure reads, no program: the protocol package holds the #TS translator they are the input of
+                    java.util.Map.entry("com.legend.compiler.spec.TsIslands", 2),
                     java.util.Map.entry("com.legend.lineage.ScanRelations", 2),
                     java.util.Map.entry("com.legend.model.MappingFromProtocol", 4),
                     java.util.Map.entry("com.legend.test.PureTestRunner", 2),

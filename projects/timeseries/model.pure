@@ -1519,8 +1519,17 @@ function timeseries::fillZero<T,V,O>(t: Relation<T>[1], value: ColSpec<V⊆T>[1]
   $t->extend(~o:r|if($r->read($value)->isEmpty(), |0, |$r->read($value)))->rename(~o, $out)
 }
 
+// A part's column on every date of its line forward (pandas' ffill): each date its value at the period it last has one
+// at, none before its first -- never a later value (R12: the language's step).
+function timeseries::fillPrev<T,L,P,M,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], order: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->timeseries::lastValued($line, $order, $marker, ~lp)->timeseries::valueAt($line, $order, ~lp, $value, ~a)
+    ->without(~[lp])->rename(~a, $out)
+}
+
 // A part's column on every date of its line by step (gs-quant's align 'step', pandas' ffill then bfill): each date its
-// value at the period it last has one at, before its first its first.
+// value at the period it last has one at, before its first its first. The language never fills so (R12, a line's start
+// filled with a later value): its step is fillPrev; this one is the table library's, gs-quant's exactly.
 function timeseries::fillStep<T,L,P,M,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], order: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], value: ColSpec<V⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   $t->timeseries::lastValued($line, $order, $marker, ~lp)->timeseries::firstValued($line, $order, $marker, ~fp)
@@ -1892,7 +1901,8 @@ function timeseries::lines::meetOne<T,U,P,A,Q,B,O>(x: Relation<T>[1], period: Co
 }
 
 // How a line's values are put onto the periods of another's it has none at (R6, FILL): its last value at or before
-// (prev), linear in time between its values either side (linear), 0 (zero), none (none), gs-quant's step (step).
+// (prev), linear in time between its values either side (linear), 0 (zero), none (none), gs-quant's step (step) -- prev's
+// alias (R12, ruled 2026-10-31: gs-quant's step fills a line's start with its first value, the future read; none there).
 Enum timeseries::Fill
 {
   prev, linear, zero, none, step
@@ -1921,13 +1931,14 @@ function timeseries::lines::ontoOne<T,U,P,Q>(spine: Relation<T>[1], period: ColS
 
 // A LINE'S VALUE ONTO EVERY PERIOD OF THE ANSWER (R6, FILL) -- the library's alignment: prev, its last value at or before
 // each period (none before its first: never a later value); linear, linear in time between its values either side (none
-// outside them); zero, 0 where it has none; step, gs-quant's (prev, and before the line's first value its first); none,
+// outside them); zero, 0 where it has none; step, prev (R12: gs-quant's step fills a line's start with its first value,
+// a later one -- the future read, which the language never does); none,
 // as it is. marker says which periods are the line's own (a value of its row); own is its number in time there, time
 // every period's.
 function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], own: ColSpec<N⊆T>[1], time: ColSpec<X⊆T>[1], value: ColSpec<V⊆T>[1], how: timeseries::Fill[1], out: ColSpec<O>[1]): Relation<T+O>[1]
 {
   if($how == timeseries::Fill.zero, |$t->timeseries::fillZero($value, $out),
-    |if($how == timeseries::Fill.step, |$t->timeseries::fillStep($key, $period, $value, $value, $out),
+    |if($how == timeseries::Fill.step, |$t->timeseries::lastValued($key, $period, $marker, ~flp)->timeseries::valueAt($key, $period, ~flp, $value, ~flv)->without(~[flp])->rename(~flv, $out),
       |if($how == timeseries::Fill.prev, |$t->timeseries::lastValued($key, $period, $marker, ~flp)->timeseries::valueAt($key, $period, ~flp, $value, ~flv)->without(~[flp])->rename(~flv, $out),
         |if($how == timeseries::Fill.linear, |$t->timeseries::lastValued($key, $period, $marker, ~flp)->timeseries::nextValued($key, $period, $marker, ~fnp)
             ->timeseries::valueAt($key, $period, ~flp, $own, ~ft0)->timeseries::valueAt($key, $period, ~fnp, $own, ~ft1)
@@ -1969,15 +1980,23 @@ function timeseries::line::helpers::annualized<K,D>(x: Relation<(key:K, date:D, 
     ->select(~[key, date, value, py])
 }
 
+// gs-quant's ramp for a window of w observations (helper.normalize_window makes an integer w Window(w, w); apply_ramp then
+// drops the series' first w points, by position, whatever their values): x from its (w + 1)-th row on. The user,
+// 2026-11-01: "Why would we not match gs-quant?" (docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1).
+function timeseries::line::helpers::ramped<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,r|$p->rowNumber($r)})->filter(r|$r.rn > $w)->select(~[key, date, value])
+}
+
 // A returns type given, else simple (gs-quant's Returns.SIMPLE).
 function timeseries::line::helpers::returnsType(type: timeseries::Returns[0..1]): timeseries::Returns[1]
 {
   if($type->isEmpty(), |timeseries::Returns.simple, |$type->toOne())
 }
 
-function {meta::pure::profiles::doc.doc = 'The mean of x\'s values over a window: w observations to date (a value once it holds w), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The mean of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::mean(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::mean(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -1995,9 +2014,9 @@ function timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[
   $x->timeseries::line::helpers::since($w)->timeseries::line::mean(timeseries::Scope.all)
 }
 
-function {meta::pure::profiles::doc.doc = 'The sum of x\'s values over a window: w observations to date (a value once it holds w), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The sum of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::sum(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::sum(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2015,9 +2034,9 @@ function timeseries::line::sum<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
   $x->timeseries::line::helpers::since($w)->timeseries::line::sum(timeseries::Scope.all)
 }
 
-function {meta::pure::profiles::doc.doc = 'The least of x\'s values over a window: w observations to date (a value once it holds w), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The least of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::min(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::min(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2035,9 +2054,9 @@ function timeseries::line::min<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
   $x->timeseries::line::helpers::since($w)->timeseries::line::min(timeseries::Scope.all)
 }
 
-function {meta::pure::profiles::doc.doc = 'The greatest of x\'s values over a window: w observations to date (a value once it holds w), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The greatest of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::max(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::max(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2055,9 +2074,9 @@ function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
   $x->timeseries::line::helpers::since($w)->timeseries::line::max(timeseries::Scope.all)
 }
 
-function {meta::pure::profiles::doc.doc = 'The sample standard deviation of x\'s values over a window: w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The sample standard deviation of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::std(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::std(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2075,9 +2094,9 @@ function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
   $x->timeseries::line::helpers::since($w)->timeseries::line::std(timeseries::Scope.all)
 }
 
-function {meta::pure::profiles::doc.doc = 'The sample variance of x\'s values over a window: w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The sample variance of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::var(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::var(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2136,14 +2155,14 @@ function timeseries::line::volatility<K,D>(x: Relation<(key:K, date:D, value:Num
     ->timeseries::volatilityPeriod(~key, ~date, ~value, ~r, $w, $unit, ~py, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The z-score of each of x\'s values against its window -- w observations to date (a value once it holds w), a calendar period back, or the whole line (its default, and today\'s all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line\'s start to date).'} timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, or the whole line (its default, and today\'s all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line\'s start to date).'} timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::zscores(over(~[key], [~date->ascending()], rows(unbounded(), unbounded())), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
 function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::zscores(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::zscores(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::zscores<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2185,14 +2204,14 @@ function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:N
 // ---------------------------------------------------------------------------------------------------------------------
 // M2: the rest of the words over one line.
 
-function {meta::pure::profiles::doc.doc = 'The range of x\'s values (greatest less least) over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 22 observations unless given.'} timeseries::line::range_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The range of x\'s values (greatest less least) over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 22 observations unless given.'} timeseries::line::range_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::range_of(22)
 }
 
 function timeseries::line::range_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::range(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::range(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::range_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2225,14 +2244,14 @@ function timeseries::line::drawdown<K,D>(x: Relation<(key:K, date:D, value:Numbe
   $x->timeseries::drawdownPeriod(~key, ~date, ~value, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The deepest drawdown of x\'s values within a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.'} timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The deepest drawdown of x\'s values within a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; the line\'s start to date unless given.'} timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::max_drawdown(timeseries::Scope.all)
 }
 
 function timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::maxDrawdown(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::maxDrawdown(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2245,14 +2264,14 @@ function timeseries::line::max_drawdown<K,D>(x: Relation<(key:K, date:D, value:N
   $x->timeseries::maxDrawdownPeriod(~key, ~date, ~value, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The product of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.'} timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The product of x\'s values over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; the line\'s start to date unless given.'} timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::line::product(timeseries::Scope.all)
 }
 
 function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::product(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::product(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::product<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2332,7 +2351,7 @@ function {meta::pure::profiles::doc.doc = 'Each of x\'s values\' percentile amon
 
 function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::percentiles(~key, ~date, ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::percentiles(~key, ~date, ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::percentiles<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2352,7 +2371,7 @@ function {meta::pure::profiles::doc.doc = 'The median of x\'s values over a wind
 
 function timeseries::line::median<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::quantile(~key, ~date, ~value, $w, 0.5, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::quantile(~key, ~date, ~value, $w, 0.5, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::median<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2372,7 +2391,7 @@ function {meta::pure::profiles::doc.doc = 'The n-th percentile (50 unless given)
 
 function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[0..1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::quantile(~key, ~date, ~value, $w, timeseries::line::helpers::fraction($n), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::quantile(~key, ~date, ~value, $w, timeseries::line::helpers::fraction($n), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
 function timeseries::line::percentile<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], n: Float[0..1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -2600,14 +2619,14 @@ function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' weekday\'s numbe
   $x->timeseries::weekday(~date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band\'s width -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 20 observations unless given. A struct (R10): its lower, upper and width.'} timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band\'s width -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 20 observations unless given. A struct (R10): its lower, upper and width.'} timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
 {
   $x->timeseries::line::bollinger_bands(20, $k)
 }
 
 function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
 {
-  $x->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)->select(~[key, date, lower, upper, width])
+  $x->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)->extend(over(~[key], [~date->ascending()]), ~rn:{p,f,r|$p->rowNumber($r)})->filter(r|$r.rn > $w)->select(~[key, date, lower, upper, width])
 }
 
 function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
@@ -3139,9 +3158,26 @@ function timeseries::line::helpers::spread<K,D>(x: Relation<(key:K, date:D, valu
   timeseries::line::helpers::spreadOn(timeseries::line::helpers::periods($x, $sample), timeseries::line::helpers::periods($y, $sample), timeseries::line::helpers::periods($z, $sample))
 }
 
-function {meta::pure::profiles::doc.doc = 'Which of x and y is greater: 1, -1, or 0 where they are equal (gs-quant\'s compare) -- each a line or a number, two lines met on their dates (under FILL, filled).'} timeseries::line::compare<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'Which of x and y is greater: 1, -1, or 0 where they are equal or one has none (gs-quant\'s compare) -- each a line or a number; two lines aligned by a method, gs-quant\'s Interpolate: step unless given (every date either has, each line\'s last value at or before it -- gs-quant\'s but for a line\'s start, which gs-quant fills with its first value, a later one: none there, R12), intersect (the dates both have), nan (every date either has, none where one has none) or zero (0 there); under FILL, filled.'} timeseries::line::compare<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  timeseries::line::helpers::filled($x, $y, $sample, $fill)->timeseries::compare(~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  if($fill->isEmpty(), |timeseries::line::compare($x, $y, timeseries::Interpolation.step, $sample),
+    |timeseries::line::helpers::filled($x, $y, $sample, $fill)->timeseries::compare(~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value))
+}
+
+function timeseries::line::compare<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], method: timeseries::Interpolation[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::aligned($x, $y, $method, $sample)->timeseries::compare(~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// x and y aligned by a method of gs-quant's Interpolate (timeseries.datetime.align): the dates both have (intersect); every
+// date either has, none where one has none (nan), 0 there (zero), or each line's last value at or before it (step: gs-quant's
+// ffill, without its bfill -- a line's start filled with a later value, the future read: R12).
+function timeseries::line::helpers::aligned<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], method: timeseries::Interpolation[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, x:Number, y:Number)>[1]
+{
+  if($method == timeseries::Interpolation.intersect, |timeseries::line::helpers::meetOn(timeseries::line::helpers::periods($x, $sample), timeseries::line::helpers::periods($y, $sample)),
+    |if($method == timeseries::Interpolation.zero, |timeseries::line::helpers::filled($x, $y, $sample, timeseries::Fill.zero),
+      |if($method == timeseries::Interpolation.nan, |timeseries::line::helpers::filled($x, $y, $sample, timeseries::Fill.none),
+        |timeseries::line::helpers::filled($x, $y, $sample, timeseries::Fill.prev))))
 }
 
 function timeseries::line::compare<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Float[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, value:Number)>[1]
@@ -3218,7 +3254,7 @@ function {meta::pure::profiles::doc.doc = 'A candle (R10): its open, high, low a
   timeseries::line::helpers::filled($open, $high, $low, $close, $sample, $fill)
 }
 
-function {meta::pure::profiles::doc.doc = 'x on y\'s dates (gs-quant\'s interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant\'s step -- at the first, x\'s value as of it (its first, before x starts), at each later its own, else the one before among them.'} timeseries::line::interpolate<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'x on y\'s dates (gs-quant\'s interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant\'s step -- at the first, x\'s value as of it (none before x starts: gs-quant\'s its first, a later value, R12), at each later its own, else the one before among them.'} timeseries::line::interpolate<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::interpolate($x, $y, timeseries::Interpolation.intersect, $sample)
 }
@@ -3231,13 +3267,14 @@ function timeseries::line::interpolate<K,D>(x: Relation<(key:K, date:D, value:Nu
         |timeseries::line::helpers::spread($x, $y, $sample)->filter(r|$r.yo->isNotEmpty())->select(~[key, date, x])->rename(~x, ~value))))
 }
 
-// gs-quant's step onto y's dates: at the first, x's value as of it (its last at or before it, else its first), at each later
-// its own, else the one before among them -- an x date between two asked never read.
+// gs-quant's step onto y's dates: at the first, x's value as of it (its last at or before it; none before x starts --
+// gs-quant's its first, a later value: R12), at each later its own, else the one before among them -- an x date between
+// two asked never read.
 function timeseries::line::helpers::stepOnto<K,D>(s: Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $s->timeseries::fillStep(~key, ~date, ~x, ~x, ~asof)->timeseries::firstValued(~key, ~date, ~yo, ~fy)->filter(r|$r.yo->isNotEmpty())
+  $s->timeseries::fillPrev(~key, ~date, ~x, ~x, ~asof)->timeseries::firstValued(~key, ~date, ~yo, ~fy)->filter(r|$r.yo->isNotEmpty())
     ->extend(~v1:r|if($r.x->isNotEmpty(), |$r.x, |if($r.date == $r.fy, |$r.asof, |[])))
-    ->timeseries::fillStep(~key, ~date, ~v1, ~v1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+    ->timeseries::fillPrev(~key, ~date, ~v1, ~v1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
 // WEIGHTED MEMBERS MET (R6): each member's rows on the periods (and the keys) every one of the n members has, dated at the

@@ -15,8 +15,8 @@ AGREE       beta A                       beta(close[AAPL], close[SPX], 126)     
 AGREE       beta B                       beta(close[MSFT], close[SPX], 126)                                     1178 points
 AGREE       beta C                       beta(close[NVDA], close[SPX], 126)                                     1178 points
 AGREE       bollinger A                  close[GLD]                                                             1304 points
-DIFFER      bollinger B                  bollinger_bands(close[GLD])                                            1284 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-29
-DIFFER      bollinger C                  mean(close[GLD], 20)                                                   1284 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-29
+AGREE       bollinger B                  bollinger_bands(close[GLD])                                            1284 points
+AGREE       bollinger C                  mean(close[GLD], 20)                                                   1284 points
 AGREE       bonds A                      px:close[TLT]                                                          1304 points
 AGREE       bonds B                      rates:yield[10Y]                                                       1304 points
 AGREE       bonds C                      correlation(px:close[TLT], rates:yield[10Y])                           1241 points
@@ -85,11 +85,11 @@ AGREE       first-last-count A           close[SPX]                             
 AGREE       first-last-count B           first(close[SPX])                                                      1304 points
 AGREE       first-last-count C           last(close[SPX])                                                       1304 points
 AGREE       first-last-count D           count(close[SPX])                                                      1304 points
-DIFFER      floor-ceil A                 zscores(close[EURUSD], 63)                                             1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
-DIFFER      floor-ceil B                 ceil(floor(zscores(close[EURUSD], 63), -2), 2)                         1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
-DIFFER      if-compare A                 if(close[SPX] < mean(close[SPX], 200), close[SPX], mean(close[SPX], 20 1104 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-10-07
-DIFFER      if-compare B                 compare(close[SPX], mean(close[SPX], 200))                             1304 common, 199 differ, 0 lite's alone, 0 gs-quant's alone; 2020-01-02: lite 0, gs-quant -1; 2020-01-03: lite 0, gs-quant -1; 2020-01-06: lite 0, gs-quant -1
-DIFFER      if-compare C                 not(close[SPX] > mean(close[SPX], 200))                                1104 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-10-07
+AGREE       floor-ceil A                 zscores(close[EURUSD], 63)                                             1241 points
+AGREE       floor-ceil B                 ceil(floor(zscores(close[EURUSD], 63), -2), 2)                         1241 points
+AGREE       if-compare A                 if(close[SPX] < mean(close[SPX], 200), close[SPX], mean(close[SPX], 20 1104 points
+DIFFER      if-compare B                 compare(close[SPX], mean(close[SPX], 200))                             1304 common, 200 differ, 0 lite's alone, 0 gs-quant's alone; 2020-01-02: lite 0, gs-quant -1; 2020-01-03: lite 0, gs-quant -1; 2020-01-06: lite 0, gs-quant -1
+AGREE       if-compare C                 not(close[SPX] > mean(close[SPX], 200))                                1104 points
 AGREE       index A                      index(close[JPM])                                                      1304 points
 NOT-CHECKED index A from 2022-03-15      index(close[JPM])                                                      anchor
 AGREE       index B                      index(close[XOM])                                                      1304 points
@@ -106,19 +106,19 @@ AGREE       log-scale B                  close[SPX]                             
 AGREE       macd A                       macd(close[SPX])                                                       1304 points
 AGREE       macd B                       macd(close[SPX], 12, 26, 9)                                            1304 points
 AGREE       macd C                       macd(close[SPX]) - macd(close[SPX], 12, 26, 9)                         1304 points
-DIFFER      max-drawdown-year A          max_drawdown(close[SPX], 252)                                          1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
-DIFFER      max-drawdown-year B          max_drawdown(close[NDX], 252)                                          1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
+AGREE       max-drawdown-year A          max_drawdown(close[SPX], 252)                                          1052 points
+AGREE       max-drawdown-year B          max_drawdown(close[NDX], 252)                                          1052 points
 AGREE       mean A                       close[SPX]                                                             1304 points
-DIFFER      mean B                       mean(close[SPX], 50)                                                   1254 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-11
-DIFFER      mean C                       mean(close[SPX], 200)                                                  1104 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-10-07
+AGREE       mean B                       mean(close[SPX], 50)                                                   1254 points
+AGREE       mean C                       mean(close[SPX], 200)                                                  1104 points
 AGREE       min-max-range A              close[MSFT]                                                            1304 points
-DIFFER      min-max-range B              max(close[MSFT], 252)                                                  1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
-DIFFER      min-max-range C              min(close[MSFT], 252)                                                  1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
-DIFFER      min-max-range D              range(close[MSFT], 252)                                                1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
+AGREE       min-max-range B              max(close[MSFT], 252)                                                  1052 points
+AGREE       min-max-range C              min(close[MSFT], 252)                                                  1052 points
+AGREE       min-max-range D              range(close[MSFT], 252)                                                1052 points
 NOT-CHECKED monthly A                    close[SPX]                                                             grain
 NOT-CHECKED monthly B                    returns(close[SPX], 12)                                                grain
 AGREE       pair A                       close[AAPL] / close[MSFT]                                              1304 points
-DIFFER      pair B                       zscores(close[AAPL] / close[MSFT], 126)                                1178 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-06-25
+AGREE       pair B                       zscores(close[AAPL] / close[MSFT], 126)                                1178 points
 NO-GSQUANT  percent-change A             percent_change(close[AAPL])                                            percent_change
 NOT-CHECKED percent-change A from 2022-03-15 percent_change(close[AAPL])                                            anchor
 NO-GSQUANT  percent-change B             percent_change(close[MSFT])                                            percent_change
@@ -164,22 +164,22 @@ AGREE       splice A                     append(filter(if(year(close[GLD]) < 202
 AGREE       splice B                     prepend(close[GLD], filter(if(year(close[TLT]) >= 2023, close[TLT], 0) 1304 points
 AGREE       splice C                     union(filter(close[GLD], greater_than, 190), close[TLT])               1304 points
 NOT-CHECKED split A                      volatility(close[asset_class=Equity], 63)                              split
-DIFFER      sqrt-power A                 std(close[GLD], 63)                                                    1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
-DIFFER      sqrt-power B                 sqrt(var(close[GLD], 63))                                              1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
-DIFFER      sqrt-power C                 power(std(close[GLD], 63))                                             1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
-DIFFER      std-var A                    std(close[GLD], 63)                                                    1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
-DIFFER      std-var B                    var(close[GLD], 63)                                                    1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+AGREE       sqrt-power A                 std(close[GLD], 63)                                                    1241 points
+AGREE       sqrt-power B                 sqrt(var(close[GLD], 63))                                              1241 points
+AGREE       sqrt-power C                 power(std(close[GLD], 63))                                             1241 points
+AGREE       std-var A                    std(close[GLD], 63)                                                    1241 points
+AGREE       std-var B                    var(close[GLD], 63)                                                    1241 points
 AGREE       styles A                     close[JPM]                                                             1304 points
-DIFFER      styles B                     max(close[JPM], 21)                                                    1283 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-30
-DIFFER      styles C                     mean(close[JPM], 21)                                                   1283 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-30
+AGREE       styles B                     max(close[JPM], 21)                                                    1283 points
+AGREE       styles C                     mean(close[JPM], 21)                                                   1283 points
 AGREE       styles D                     returns(close[JPM])                                                    1303 points
 AGREE       styles E                     volume[JPM]                                                            1304 points
-DIFFER      sum A                        sum(volume[AAPL], 21)                                                  1283 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-30
+AGREE       sum A                        sum(volume[AAPL], 21)                                                  1283 points
 AGREE       sum B                        sum(volume[AAPL])                                                      1304 points
 NO-GSQUANT  technicals A                 ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])                   ohlc
-DIFFER      technicals B                 bollinger_bands(close[AAPL])                                           1284 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-29
-DIFFER      technicals C                 mean(close[AAPL], 50)                                                  1254 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-11
-DIFFER      technicals D                 mean(close[AAPL], 200)                                                 1104 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-10-07
+AGREE       technicals B                 bollinger_bands(close[AAPL])                                           1284 points
+AGREE       technicals C                 mean(close[AAPL], 50)                                                  1254 points
+AGREE       technicals D                 mean(close[AAPL], 200)                                                 1104 points
 AGREE       technicals E                 rsi(close[AAPL])                                                       1289 points
 NO-GSQUANT  technicals F                 volume[AAPL].sum                                                       no reading of Attribute(value=Subscript(value=Name(id='volume', ctx=Load()
 AGREE       total-return A               close[SPX]                                                             1304 points
@@ -207,7 +207,6 @@ NO-GSQUANT  volume-flow B                vwap(close[AAPL], volume[AAPL])        
 NO-GSQUANT  volume-flow C                obv(close[AAPL], volume[AAPL])                                         obv
 AGREE       winsorize A                  winsorize(returns(close[EURUSD]), 1.5)                                 1303 points
 AGREE       winsorize B                  returns(close[EURUSD])                                                 1303 points
-DIFFER      zscores A                    zscores(close[NVDA], 63)                                               1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+AGREE       zscores A                    zscores(close[NVDA], 63)                                               1241 points
 
-AGREE 119, DIFFER 27, NO-GSQUANT 39, NOT-CHECKED 25
-of the DIFFER, 26 differ only in lite's first value, one observation before gs-quant's: bollinger B, bollinger C, floor-ceil A, floor-ceil B, if-compare A, if-compare C, max-drawdown-year A, max-drawdown-year B, mean B, mean C, min-max-range B, min-max-range C, min-max-range D, pair B, sqrt-power A, sqrt-power B, sqrt-power C, std-var A, std-var B, styles B, styles C, sum A, technicals B, technicals C, technicals D, zscores A
+AGREE 145, DIFFER 1, NO-GSQUANT 39, NOT-CHECKED 25

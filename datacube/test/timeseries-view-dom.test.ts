@@ -308,7 +308,8 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       // its periods: where the close is above its 21-day mean, each from its first date to the next, from which it no
       // longer holds (its own last at the line's end) -- a run of one date a day wide (the E9 review's 4)
       const spx = of('SPX');
-      const mean = spx.closes.map((_, i) => (i < 20 ? null : spx.closes.slice(i - 20, i + 1).reduce((a, b) => a + b, 0) / 21));
+      // the 21-day mean from the 22nd close (gs-quant's ramp: docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
+      const mean = spx.closes.map((_, i) => (i < 21 ? null : spx.closes.slice(i - 20, i + 1).reduce((a, b) => a + b, 0) / 21));
       const holds = spx.closes.map((c, i) => mean[i] !== null && c > mean[i]!);
       const runs: [string, string][] = [];
       holds.forEach((h, i) => {

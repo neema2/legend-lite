@@ -3000,7 +3000,7 @@ public final class Lowerer {
      *  period, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S1d). */
     private static TypedSpec refusingFail(TypedSpec spec) {
         if (spec instanceof TypedNativeCall nc
-                && "meta::pure::functions::asserts::fail".equals(nc.callee().qualifiedName())) {
+                && com.legend.builtin.Pure.AT_ASSERTS_FAIL.contains(nc.callee().id())) {
             String message = !nc.args().isEmpty() && nc.args().get(0) instanceof TypedCString m ? m.value() : "fail";
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE, message);
         }

@@ -41,8 +41,8 @@ public final class TsAst {
     public record Span(int n, String unit, SqlAst.Pos pos) {
     }
 
-    /** How lines meet on dates one has and another has not (R6): {@code PREV}, {@code STEP} (gs-quant's: PREV, and a
-     *  line's first value before it starts), {@code LINEAR}, {@code NULL}, {@code ZERO} ({@code FILL(0)}), where it is
+    /** How lines meet on dates one has and another has not (R6): {@code PREV}, {@code STEP} (PREV's alias, R12: gs-quant's
+     *  step also fills a line's start with its first value, the future read), {@code LINEAR}, {@code NULL}, {@code ZERO} ({@code FILL(0)}), where it is
      *  written. */
     public record Fill(String how, SqlAst.Pos pos) {
     }

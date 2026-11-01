@@ -224,8 +224,18 @@ class TsIslandTest {
         return List.of(TestBackends.platform());
     }
 
+    /** The mean of three observations as gs-quant's mean(x, 3): its first three points dropped (helper.apply_ramp,
+     *  Window(3, 3)), a value from the fourth. */
     private static Double mean3(double[] x, int i) {
-        return i < 2 ? null : (x[i] + x[i - 1] + x[i - 2]) / 3;
+        return i < 3 ? null : (x[i] + x[i - 1] + x[i - 2]) / 3;
+    }
+
+    /** gs-quant's ramp in a chain of the library's table functions (helper.apply_ramp: a window of n observations drops
+     *  its line's first n points): {@code c} none in each line's first n rows. */
+    private static String ramp(String line, String date, String c, int n) {
+        return "->extend(over(~[" + line + "], [~" + date + "->ascending()]), ~__rn:{p,f,r|$p->rowNumber($r)})"
+                + "->extend(~__g:r|if($r.__rn > " + n + ", |$r." + c + ", |[]))->without(~[" + c + ", __rn])"
+                + "->rename(~__g, ~" + c + ")";
     }
 
     private static String refused(String ts, boolean library) throws Exception {
@@ -243,7 +253,8 @@ class TsIslandTest {
     private static final String PURE_ONE = """
             |ts::Quote.all()->project(~[day: x|$x.day, ticker: x|$x.instrument.ticker, close: x|$x.close])
               ->extend(~px: r|$r.close)
-              ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-2, 0)), ~close, 3, ~ma3)
+              ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-2, 0)), ~close, 3, ~ma3)"""
+            + ramp("ticker", "day", "ma3", 3) + """
               ->timeseries::returns(over(~[ticker], [~day->ascending()]), ~close, 1, timeseries::Returns.simple, ~r)
               ->timeseries::sum(over(~[ticker], [~day->ascending()], rows(unbounded(), 0)), ~close, 1, ~running)
               ->select(~[day, ticker, px, ma3, r, running])
@@ -282,7 +293,8 @@ class TsIslandTest {
                 SELECT avg(px, 3) AS ma3, px / ma3 - 1 AS dev
                 FROM   q ON day BY sym""", """
                 |ts::Quote.all()->project(~[sym: x|$x.instrument.ticker, day: x|$x.day, px: x|$x.close])
-                  ->timeseries::mean(over(~[sym], [~day->ascending()], rows(-2, 0)), ~px, 3, ~ma3)
+                  ->timeseries::mean(over(~[sym], [~day->ascending()], rows(-2, 0)), ~px, 3, ~ma3)"""
+                + ramp("sym", "day", "ma3", 3) + """
                   ->extend(~dev: r|if($r.px->isEmpty() || $r.ma3->isEmpty(), |[], |$r.px->toOne() / $r.ma3->toOne() - 1))
                   ->select(~[day, sym, ma3, dev])
                   ->sort([~day->ascending(), ~sym->ascending()])""", 2);
@@ -292,7 +304,8 @@ class TsIslandTest {
     void aTableAFilteredSourceAndAVariableAreRelations() throws Exception {
         // R1.3 and R1.4: a table by its simple name, a source's WHERE, a relation of the enclosing Pure
         String pure = """
-                ->timeseries::mean(over(~[SYMBOL], [~DAY->ascending()], rows(-2, 0)), ~CLOSE, 3, ~ma3)
+                ->timeseries::mean(over(~[SYMBOL], [~DAY->ascending()], rows(-2, 0)), ~CLOSE, 3, ~ma3)"""
+                + ramp("SYMBOL", "DAY", "ma3", 3) + """
                   ->select(~[DAY, SYMBOL, ma3])
                   ->sort([~DAY->ascending(), ~SYMBOL->ascending()])""";
         same("SELECT avg(CLOSE, 3) AS ma3 FROM PRICES ON DAY BY SYMBOL", "|#>{ts::DB.PRICES}#" + pure, 2);
@@ -302,7 +315,7 @@ class TsIslandTest {
             List<Map<String, String>> got = rows(backend, """
                     |let p = #>{ts::DB.PRICES}#->filter(r|$r.SYMBOL == 'BBB');
                     #TS{SELECT avg(CLOSE, 3) AS ma3 FROM $p ON DAY BY SYMBOL}#;""");
-            assertClose(each(BBB.length - 2, i -> mean3(BBB, i + 2)), column(got, null, null, "ma3"),
+            assertClose(each(BBB.length - 3, i -> mean3(BBB, i + 3)), column(got, null, null, "ma3"),
                     backend + ": a variable's relation, a row where the mean has a value (R6)");
         }
     }
@@ -317,16 +330,17 @@ class TsIslandTest {
                 |ts::Quote.all()->project(~[day: x|$x.day, close: x|$x.close, ticker: x|$x.instrument.ticker])
                   ->filter(r|$r.ticker == 'AAA')
                   ->extend(~__ts_line: r|'')
-                  ->timeseries::mean(over(~[__ts_line], [~day->ascending()], rows(-2, 0)), ~close, 3, ~ma3)
+                  ->timeseries::mean(over(~[__ts_line], [~day->ascending()], rows(-2, 0)), ~close, 3, ~ma3)"""
+                + ramp("__ts_line", "day", "ma3", 3) + """
                   ->timeseries::diff(over(~[__ts_line], [~day->ascending()]), ~close, 2, ~d2)
                   ->select(~[day, ma3, d2])
                   ->filter(r|$r.ma3->isNotEmpty() && ($r.day->toOne() < %2024-01-29))
                   ->sort([~day->ascending()])""", 1);
         for (Map.Entry<TestBackend, List<Map<String, String>>> a : answers.entrySet()) {
-            // the 22nd's mean is the first full one; the 28th the last before the 29th
-            assertClose(each(7, i -> mean3(AAA, i + 2)), column(a.getValue(), null, null, "ma3"),
-                    a.getKey() + ": the mean of three, from the third day to the 28th");
-            assertClose(each(7, i -> AAA[i + 2] - AAA[i]), column(a.getValue(), null, null, "d2"),
+            // the 23rd's mean is the first (gs-quant's ramp: the fourth observation); the 28th the last before the 29th
+            assertClose(each(6, i -> mean3(AAA, i + 3)), column(a.getValue(), null, null, "ma3"),
+                    a.getKey() + ": the mean of three, from the fourth day to the 28th");
+            assertClose(each(6, i -> AAA[i + 3] - AAA[i + 1]), column(a.getValue(), null, null, "d2"),
                     a.getKey() + ": the change over two observations");
         }
     }
@@ -340,8 +354,10 @@ class TsIslandTest {
                 FILTER ticker = 'BBB'""", """
                 |ts::Quote.all()->project(~[day: x|$x.day, ticker: x|$x.instrument.ticker, close: x|$x.close])
                   ->timeseries::returns(over(~[ticker], [~day->ascending()]), ~close, 1, timeseries::Returns.simple, ~__ts_1)
-                  ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-1, 0)), ~__ts_1, 2, ~mr)
-                  ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-2, 0)), ~close, 3, ~__ts_2)
+                  ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-1, 0)), ~__ts_1, 2, ~mr)"""
+                + ramp("ticker", "day", "mr", 2) + """
+                  ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-2, 0)), ~close, 3, ~__ts_2)"""
+                + ramp("ticker", "day", "__ts_2", 3) + """
                   ->extend(~dev: r|if($r.close->isEmpty() || $r.__ts_2->isEmpty(), |[], |$r.close->toOne() / $r.__ts_2->toOne() - 1))
                   ->select(~[day, ticker, mr, dev])
                   ->filter(r|$r.mr->isNotEmpty() || $r.dev->isNotEmpty())
@@ -352,7 +368,7 @@ class TsIslandTest {
             // R6: no row where no item has a value (the first two dates)
             assertClose(each(x.length - 2, i -> (x[i + 2] / x[i + 1] - 1 + x[i + 1] / x[i] - 1) / 2),
                     column(a.getValue(), null, null, "mr"), a.getKey() + ": the mean of two returns");
-            assertClose(each(x.length - 2, i -> x[i + 2] / mean3(x, i + 2) - 1),
+            assertClose(each(x.length - 2, i -> i + 2 < 3 ? null : x[i + 2] / mean3(x, i + 2) - 1),
                     column(a.getValue(), null, null, "dev"), a.getKey() + ": the close against its mean");
         }
     }
@@ -364,7 +380,7 @@ class TsIslandTest {
             List<Map<String, String>> one = rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS ma"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
             assertEquals(List.of("DAY", "ma"), List.copyOf(one.get(0).keySet()), backend + ": one line, no instrument");
-            assertClose(each(AAA.length - 2, i -> mean3(AAA, i + 2)), column(one, null, null, "ma"),
+            assertClose(each(AAA.length - 3, i -> mean3(AAA, i + 3)), column(one, null, null, "ma"),
                     backend + ": AAA's mean, a row where it has a value (R6)");
             List<Map<String, String>> rel = rows(backend, "|#TS{SELECT CLOSE / CLOSE['AAA'] AS rel"
                     + " FROM PRICES ON DAY BY SYMBOL}#");
@@ -507,8 +523,8 @@ class TsIslandTest {
                     .toArray(Double[]::new), column(got, null, null, "wk_max"), backend + ": each week's highest");
             assertClose(weeks.stream().map(w -> w.stream().mapToDouble(i -> AAA[i]).average().orElseThrow())
                     .toArray(Double[]::new), column(got, null, null, "wk_avg"), backend + ": each week's average");
-            assertClose(each(sums.length, i -> i < 1 ? null : sums[i] + sums[i - 1]), column(got, null, null, "two"),
-                    backend + ": a window of two weeks");
+            assertClose(each(sums.length, i -> i < 2 ? null : sums[i] + sums[i - 1]), column(got, null, null, "two"),
+                    backend + ": a window of two weeks, from the third (gs-quant's ramp)");
             List<String> dates = got.stream().map(r -> r.get("DAY")).toList();
             assertEquals(weeks.stream().map(w -> FIRST.plusDays(w.get(w.size() - 1)).toString()).toList(), dates,
                     backend + ": each week dated at its last day with data");
@@ -572,8 +588,9 @@ class TsIslandTest {
         List<Map<String, String>> got = rows(TestBackends.platform(), "|#TS{SELECT avg(CLOSE['AAA'], 3d) AS cal,"
                 + " avg(CLOSE['AAA'], 3) AS obs FROM (PRICES WHERE SYMBOL = 'AAA' AND DAY <> '2024-01-25') ON DAY"
                 + " BY SYMBOL}#");
-        // R6: no row on the 20th and the 21st, where neither has a value
-        assertClose(days.stream().skip(2).map(i -> {
+        // R6: no row on the 20th, the 21st and the 22nd, where neither has a value (a span's from three days on,
+        // three observations' from the fourth, gs-quant's ramp)
+        assertClose(days.stream().skip(3).map(i -> {
             if (i < 3) {
                 return null;
             }
@@ -587,7 +604,7 @@ class TsIslandTest {
             }
             return sum / n;
         }).toArray(Double[]::new), column(got, null, null, "cal"), "a span's mean, from three days on");
-        assertClose(java.util.stream.IntStream.range(2, days.size()).mapToObj(j ->
+        assertClose(java.util.stream.IntStream.range(3, days.size()).mapToObj(j ->
                 (AAA[days.get(j)] + AAA[days.get(j - 1)] + AAA[days.get(j - 2)]) / 3).toArray(Double[]::new),
                 column(got, null, null, "obs"), "three observations' mean");
     }
@@ -672,7 +689,7 @@ class TsIslandTest {
             assertClose(each(x.length, i -> x[i] / x[0] * 100), column(got, null, null, "rb"), of + "rebased to 100");
             assertClose(each(x.length, i -> x[i] - x[0]), column(got, null, null, "ch"), of + "the change from the first");
             assertClose(each(x.length, i -> x[i] / x[0] - 1), column(got, null, null, "pc"), of + "the % change");
-            assertClose(each(x.length, i -> i < 2 ? null : Math.max(x[i], Math.max(x[i - 1], x[i - 2]))
+            assertClose(each(x.length, i -> i < 3 ? null : Math.max(x[i], Math.max(x[i - 1], x[i - 2]))
                     - Math.min(x[i], Math.min(x[i - 1], x[i - 2]))), column(got, null, null, "rg"), of + "the range");
             // three returns' deviation, annualized by the 252 days a year the daily dates infer, in percent
             assertClose(each(x.length, i -> i < 3 ? null : sampleStd(r, i - 2, i) * Math.sqrt(252) * 100),
@@ -709,8 +726,9 @@ class TsIslandTest {
             // a band's fields each the answer's column (R10)
             assertEquals(List.of("DAY", "bb_lower", "bb_upper", "bb_width", "spread"), List.copyOf(band.get(0).keySet()),
                     of + "the answer's columns");
-            Double[] mean = each(AAA.length - 2, i -> mean3(AAA, i + 2));
-            Double[] std = each(AAA.length - 2, i -> sampleStd(AAA, i, i + 2));
+            // from the fourth day: gs-quant's ramp of three
+            Double[] mean = each(AAA.length - 3, i -> mean3(AAA, i + 3));
+            Double[] std = each(AAA.length - 3, i -> sampleStd(AAA, i + 1, i + 3));
             assertClose(each(mean.length, i -> mean[i] - 2 * std[i]), column(band, null, null, "bb_lower"),
                     of + "the band's lower");
             assertClose(each(mean.length, i -> mean[i] + 2 * std[i]), column(band, null, null, "bb_upper"),
@@ -808,14 +826,15 @@ class TsIslandTest {
     }
 
     @Test
-    void stepFillsALinesStartWithItsFirstValueAndPrevLeavesItEmpty() throws Exception {
-        // FILL(STEP), gs-quant's step (the tile's): PREV, and before a line's first value its first; FILL(PREV) none there
+    void stepIsPrevAndNeitherFillsALinesStart() throws Exception {
+        // FILL(STEP) is FILL(PREV) (R12, ruled 2026-10-31: gs-quant's step also gives a line's first value before it
+        // starts, the future read; docs/SEMANTICS_REGISTER.md S130): none before BBB's first value either way
         String from = " FROM PRICES a ON DAY BY SYMBOL, (PRICES WHERE DAY >= DATE '2024-01-24') b ON DAY BY SYMBOL";
         for (TestBackend backend : deep()) {
             List<Map<String, String>> step = rows(backend, "|#TS{SELECT a.CLOSE['AAA'] - b.CLOSE['BBB'] AS d" + from
                     + " FILL(STEP)}#");
-            assertClose(each(AAA.length, i -> AAA[i] - BBB[Math.max(i, 4)]), column(step, null, null, "d"),
-                    backend + ": BBB's first value before it starts");
+            assertClose(each(AAA.length - 4, i -> AAA[i + 4] - BBB[i + 4]), column(step, null, null, "d"),
+                    backend + ": none before BBB's first value (R12)");
             List<Map<String, String>> prev = rows(backend, "|#TS{SELECT a.CLOSE['AAA'] - b.CLOSE['BBB'] AS d" + from
                     + " FILL(PREV)}#");
             assertClose(each(AAA.length - 4, i -> AAA[i + 4] - BBB[i + 4]), column(prev, null, null, "d"),
@@ -851,7 +870,8 @@ class TsIslandTest {
     void anEnumerationsValueIsWrittenAsAString() throws Exception {
         // R13: 'TECH' is ts::Sector.TECH, which the mapping stores as 'T' -- not the stored code compared with a string
         String pure = """
-                  ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-2, 0)), ~close, 3, ~ma3)
+                  ->timeseries::mean(over(~[ticker], [~day->ascending()], rows(-2, 0)), ~close, 3, ~ma3)"""
+                + ramp("ticker", "day", "ma3", 3) + """
                   ->select(~[day, ticker, ma3])
                   ->sort([~day->ascending(), ~ticker->ascending()])""";
         String quotes = "|ts::Quote.all()->project(~[day: x|$x.day, ticker: x|$x.instrument.ticker,"
@@ -865,9 +885,9 @@ class TsIslandTest {
                 FROM   (Quote WHERE instrument.sector IN ('TECH', 'ENERGY')) ON day BY instrument.ticker""",
                 quotes + "->filter(r|$r.sector->in([ts::Sector.TECH, ts::Sector.ENERGY]))" + pure, 2);
         for (TestBackend backend : tech.keySet()) {
-            assertClose(each(AAA.length - 2, i -> mean3(AAA, i + 2)), column(tech.get(backend), null, null, "ma3"),
+            assertClose(each(AAA.length - 3, i -> mean3(AAA, i + 3)), column(tech.get(backend), null, null, "ma3"),
                     backend + ": the TECH instrument's line alone, where its mean has a value (R6)");
-            assertEquals(AAA.length + BBB.length - 4, both.get(backend).size(), backend + ": both sectors' lines");
+            assertEquals(AAA.length + BBB.length - 6, both.get(backend).size(), backend + ": both sectors' lines");
         }
         assertTrue(refused("SELECT avg(close, 3) AS ma3 FROM (Quote WHERE instrument.sector = 'TEK') ON day", true)
                 .contains("'TEK' is not a value of ts::Sector: TECH, ENERGY (R13)"), "a value the enumeration has not");

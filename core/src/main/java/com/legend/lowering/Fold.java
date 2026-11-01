@@ -256,7 +256,8 @@ final class Fold {
 
     /**
      * A filter always has a slot in an UNTRUNCATED select: WHERE normally,
-     * HAVING over GROUP BY, QUALIFY over window columns (filtering commutes
+     * HAVING over GROUP BY, QUALIFY over window columns or beside a QUALIFY
+     * (filtering commutes
      * with sorting, so ORDER BY does not force isolation &mdash; but LIMIT/OFFSET
      * truncate, and filtering does not commute with truncation). DISTINCT is
      * also a boundary: filtering after dedup can only be expressed after the
@@ -268,6 +269,15 @@ final class Fold {
             return FilterSlot.ISOLATE;
         }
         if (referencesWindowColumn) {
+            return FilterSlot.QUALIFY;
+        }
+        // a filter after a QUALIFY is after the select's windows, as legend-engine's is (it wraps the window's filter
+        // and filters outside): beside the QUALIFY, never a WHERE, which runs before the windows and shrank the rows
+        // they read -- extend(over(~k, ~d), ~rn: rowNumber)->filter(rn > 3)->filter(v->isNotEmpty()) numbered the
+        // rows the later filter kept (2026-11-01, the timeseries ramp: a mean over 3 rows began 3 rows late, not 1).
+        // A filter after a window COLUMN alone keeps legend-engine's fold, a WHERE under the window (PCT
+        // testExtendFilterOutNull; RelationMappingWindowSeamTest)
+        if (s.qualify() != null) {
             return FilterSlot.QUALIFY;
         }
         if (!s.groupBy().isEmpty()) {

@@ -201,8 +201,9 @@ are:
 - **without `FILL`**: the dates every line in the expression has;
 - **with `FILL(…)`**: the dates any line in the expression has, each line given a value where it has none:
   - `FILL(PREV)`: its last value before that date; **none before its first value** (never a later value);
-  - `FILL(STEP)`: gs-quant's step (`align(x, y, Interpolate.STEP)`, the tile's): `PREV`, and before its first value
-    its first -- the one fill that reads a later value, written for a chart's look, never for a backtest;
+  - `FILL(STEP)`: `PREV`'s alias (R12, ruled 2026-10-31, docs/TS_ONE_TREE_PLAN_2026_10_31.md §11). gs-quant's step
+    (`align(x, y, Interpolate.STEP)`, `ffill().bfill()`) also gives a line's first value before it starts -- a later
+    value -- which no fill does: nothing is ever backfilled (`docs/SEMANTICS_REGISTER.md`, the step's row);
   - `FILL(LINEAR)`: the value on the straight line in time between its values either side; none outside its first and
     last;
   - `FILL(NULL)`: none;

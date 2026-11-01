@@ -106,6 +106,11 @@ const rolling = (x: Line, w: number, f: (vals: number[]) => number | null): Line
   if (vals.some((v) => v === null)) return null;
   return f(vals as number[]);
 });
+// gs-quant's ramp (helper.apply_ramp: an integer window w is Window(w, w), its series' first w points dropped): a line
+// from its (w + 1)-th point -- each windowed word's answer of w observations (docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
+const ramp = <T>(x: readonly T[], w: number): T[] => x.slice(w);
+// the same, its points kept in place: none in the first w
+const ramped = (x: Line, w: number): Line => x.map((v, i) => (i < w ? null : v));
 const avg = (v: number[]): number => v.reduce((a, b) => a + b, 0) / v.length;
 const sd = (v: number[]): number => {
   const m = avg(v);
@@ -321,7 +326,7 @@ describe('a column along the dates', () => {
     close(got(TS_VALUE), weeks.map((w) => of(w).at(-1)!), 'close', 1e-12);
     // a function inside a candle runs over its sources' dates: a 5-day mean's candle, the week's first, most, least, last
     const m = 'mean(close[AAA], 5)';
-    const mean5 = rolling(AAA, 5, avg);
+    const mean5 = ramped(rolling(AAA, 5, avg), 5);
     const mt = await run(seriesQuery(inputs, spec({ A: `ohlc(${m}, ${m}, ${m}, ${m})` }, { grain: 'week' }), spec({ A: `ohlc(${m}, ${m}, ${m}, ${m})` }, { grain: 'week' }).series[0]!));
     const has = (w: string): number[] => mean5.filter((v, i) => v !== null && weekOf(DAYS[i]!) === w) as number[];
     const shown = weeks.filter((w) => has(w).length > 0);
@@ -402,15 +407,15 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'lag(close[AAA], 3)' }))).values, lagged(AAA, 3), 'lag');
   });
 
-  it('rolling mean, sum, min, max, range, standard deviation and variance: drawn once the window is full', async () => {
-    close((await line(spec({ A: 'mean(close[AAA], 5)' }))).values, rolling(AAA, 5, avg), 'mean');
-    close((await line(spec({ A: 'moving_average(close[AAA], 5)' }))).values, rolling(AAA, 5, avg), 'moving_average');
-    close((await line(spec({ A: 'sum(close[AAA], 4)' }))).values, rolling(AAA, 4, (v) => v.reduce((a, b) => a + b, 0)), 'sum');
-    close((await line(spec({ A: 'min(close[AAA], 4)' }))).values, rolling(AAA, 4, (v) => Math.min(...v)), 'min');
-    close((await line(spec({ A: 'max(close[AAA], 4)' }))).values, rolling(AAA, 4, (v) => Math.max(...v)), 'max');
-    close((await line(spec({ A: 'range(close[AAA], 4)' }))).values, rolling(AAA, 4, (v) => Math.max(...v) - Math.min(...v)), 'range');
-    close((await line(spec({ A: 'std(close[AAA], 6)' }))).values, rolling(AAA, 6, sd), 'std', 1e-7);
-    close((await line(spec({ A: 'var(close[AAA], 6)' }))).values, rolling(AAA, 6, (v) => sd(v) ** 2), 'var', 1e-7);
+  it('rolling mean, sum, min, max, range, standard deviation and variance: drawn from the point after the first full window (gs-quant\'s ramp)', async () => {
+    close((await line(spec({ A: 'mean(close[AAA], 5)' }))).values, ramp(rolling(AAA, 5, avg), 5), 'mean');
+    close((await line(spec({ A: 'moving_average(close[AAA], 5)' }))).values, ramp(rolling(AAA, 5, avg), 5), 'moving_average');
+    close((await line(spec({ A: 'sum(close[AAA], 4)' }))).values, ramp(rolling(AAA, 4, (v) => v.reduce((a, b) => a + b, 0)), 4), 'sum');
+    close((await line(spec({ A: 'min(close[AAA], 4)' }))).values, ramp(rolling(AAA, 4, (v) => Math.min(...v)), 4), 'min');
+    close((await line(spec({ A: 'max(close[AAA], 4)' }))).values, ramp(rolling(AAA, 4, (v) => Math.max(...v)), 4), 'max');
+    close((await line(spec({ A: 'range(close[AAA], 4)' }))).values, ramp(rolling(AAA, 4, (v) => Math.max(...v) - Math.min(...v)), 4), 'range');
+    close((await line(spec({ A: 'std(close[AAA], 6)' }))).values, ramp(rolling(AAA, 6, sd), 6), 'std', 1e-7);
+    close((await line(spec({ A: 'var(close[AAA], 6)' }))).values, ramp(rolling(AAA, 6, (v) => sd(v) ** 2), 6), 'var', 1e-7);
   });
 
   it('from the start (w=0): a running total, a running mean', async () => {
@@ -421,7 +426,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   it('z-scores over a window, and over every observation', async () => {
     const want = AAA.map((v, i) => (i < 9 ? null : (v - avg(AAA.slice(i - 9, i + 1))) / sd(AAA.slice(i - 9, i + 1))));
-    close((await line(spec({ A: 'zscores(close[AAA], 10)' }))).values, want, 'rolling z', 1e-7);
+    close((await line(spec({ A: 'zscores(close[AAA], 10)' }))).values, ramp(want, 10), 'rolling z', 1e-7);
     const m = avg(AAA);
     const s = sd(AAA);
     close((await line(spec({ A: 'zscores(close[AAA])' }))).values, AAA.map((v) => (v - m) / s), 'z', 1e-7);
@@ -600,7 +605,7 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     const rolledPeak = AAA.map((_, i) => Math.max(...AAA.slice(Math.max(0, i - 4), i + 1)));
     const rolledDd = AAA.map((v, i) => v / rolledPeak[i]! - 1);
     close((await line(spec({ A: 'max_drawdown(close[AAA], 5)' }))).values,
-      rolledDd.map((_, i) => (i < 4 ? null : Math.min(...rolledDd.slice(i - 4, i + 1)))), 'rolling max drawdown', 1e-9);
+      ramp(rolledDd.map((_, i) => (i < 4 ? null : Math.min(...rolledDd.slice(i - 4, i + 1)))), 5), 'rolling max drawdown', 1e-9);
   });
 
   it('correlation, beta and covariance of two instruments\' returns', async () => {
@@ -677,10 +682,10 @@ describe('gs-quant\'s functions, as the database computes them', () => {
     close((await line(spec({ A: 'beta(close[AAA], lag(close[BBB], 3), 8)' }))).values, pairs(ra, rb, 8, slope), 'beta on a lag', 1e-7);
     close((await line(spec({ A: 'correlation(close[AAA], lag(close[BBB], 3), 8)' }))).values,
       pairs(ra, rb, 8, (p, q) => cov(p, q) / (sd(p) * sd(q))), 'correlation on a lag', 1e-7);
-    const mb = rolling(BBB, 5, avg);
+    const mb = ramped(rolling(BBB, 5, avg), 5);
     close((await line(spec({ A: 'residual(close[AAA], mean(close[BBB], 5), 8)' }))).values,
-      pairs(AAA, mb, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 'residual on a mean', 1e-7);
-    close((await line(spec({ A: 'hedge_ratio(close[AAA], mean(close[BBB], 5), 8)' }))).values, pairs(AAA, mb, 8, slope), 'hedge ratio on a mean', 1e-7);
+      ramp(pairs(AAA, mb, 8, (p, q) => p.at(-1)! - (avg(p) - slope(p, q) * avg(q)) - slope(p, q) * q.at(-1)!), 5), 'residual on a mean', 1e-7);
+    close((await line(spec({ A: 'hedge_ratio(close[AAA], mean(close[BBB], 5), 8)' }))).values, ramp(pairs(AAA, mb, 8, slope), 5), 'hedge ratio on a mean', 1e-7);
   });
 
   it('a series read by another: $A', async () => {
@@ -694,8 +699,8 @@ describe('gs-quant\'s functions, as the database computes them', () => {
 
   it('Bollinger bands: k deviations either side of the moving average', async () => {
     const l = await line(spec({ A: 'bollinger_bands(close[AAA], 5, 2)' }));
-    close(l.lower!, rolling(AAA, 5, (v) => avg(v) - 2 * sd(v)), 'lower', 1e-7);
-    close(l.upper!, rolling(AAA, 5, (v) => avg(v) + 2 * sd(v)), 'upper', 1e-7);
+    close(l.lower!, ramp(rolling(AAA, 5, (v) => avg(v) - 2 * sd(v)), 5), 'lower', 1e-7);
+    close(l.upper!, ramp(rolling(AAA, 5, (v) => avg(v) + 2 * sd(v)), 5), 'upper', 1e-7);
   });
 
   it('RSI of Wilder\'s smoothed averages of the gains and the losses (gs-quant\'s)', async () => {
@@ -1037,10 +1042,15 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
     close((await line(aligned('zero'))).values, AAA.map((v, i) => (i % 3 === 0 ? v - CCC[i]! : v)), 'zero', 1e-9);
   });
 
-  it('step before a series\' first value: its first (gs-quant\'s ffill, then bfill)', async () => {
+  // R12 (ruled 2026-10-31): step is prev -- gs-quant's ffill, without its bfill (a line's first value before it starts,
+  // the future read; docs/SEMANTICS_REGISTER.md S130)
+  it('step before a series\' first value: none (gs-quant\'s ffill, never its bfill: R12)', async () => {
     const l = await line(spec({ A: 'close[AAA] - mean(close[CCC], 3)' }, { align: 'step' } as Partial<TimeseriesSpec>));
     const mean3 = (j: number): number => (CCC[j]! + CCC[j - 3]! + CCC[j - 6]!) / 3;
-    close(l.values, AAA.map((v, i) => v - mean3(Math.max(6, before(i)))), 'bfilled', 1e-9);
+    // the mean's first value at CCC's fourth date (gs-quant's ramp of 3), none before it (the tile's answer keeps the date)
+    const first = own[3]!;
+    assert.deepEqual(l.dates, DAYS);
+    close(l.values, AAA.map((v, i) => (i < first ? null : v - mean3(before(i)))), 'stepped forward only', 1e-9);
   });
 
   it('a line per symbol: each its own dates and CCC\'s', async () => {
@@ -1071,10 +1081,11 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
 
   it('three parts under step: each its last value at or before each date, a lag of CCC on CCC\'s own dates', async () => {
     const l = await line(spec({ A: 'close[AAA] - close[CCC] + lag(close[CCC], 1)' }, { align: 'step' } as Partial<TimeseriesSpec>));
+    // the lag's first value at CCC's second date, none before it (R12: never backfilled)
+    const first = own[1]!;
     assert.deepEqual(l.dates, DAYS);
-    // the lag's first value at CCC's second date (bfilled before it)
-    const lag = (i: number): number => { const j = own.indexOf(before(i)); return CCC[own[Math.max(1, j) - 1]!]!; };
-    close(l.values, AAA.map((v, i) => v - CCC[before(i)]! + lag(i)), 'three parts', 1e-9);
+    const lag = (i: number): number => { const j = own.indexOf(before(i)); return CCC[own[j - 1]!]!; };
+    close(l.values, AAA.map((v, i) => (i < first ? null : v - CCC[before(i)]! + lag(i))), 'three parts', 1e-9);
   });
 
   // the Phase 1 review's 3: gs-quant's if_ is of the flags' dates -- each x or y there, none where that one has none --
@@ -1094,14 +1105,16 @@ describe('two series on two calendars: the tile\'s align, and interpolate', () =
     const plain = await line(spec({ A: 'interpolate(close[CCC], close[AAA])' }));
     assert.deepEqual(plain.dates, own.map((i) => DAYS[i]!), 'intersect, gs-quant\'s default');
     // x: AAA at or above its median (filter drops those below), onto CCC's every third -- gs-quant's __interpolate_step
-    // written out: from x's value as of the first date asked (its first, before it starts), each date asked its own
-    // value, else the one before among them
+    // written out: from x's value as of the first date asked (none before x starts: gs-quant's its first, a later value,
+    // R12), each date asked its own value, else the one before among them
     const m = [...AAA].sort((a, b) => a - b)[AAA.length / 2]!;
     const xs = DAYS.map((_, i) => i).filter((i) => AAA[i]! >= m);
     assert.ok(own.some((i) => !xs.includes(i)) && xs.some((i) => !own.includes(i)), 'each has dates the other lacks');
     const step = await line(spec({ A: `interpolate(filter(close[AAA], less_than, ${m}), close[CCC], step)` }));
-    let current = AAA[xs.filter((j) => j <= own[0]!).at(-1) ?? xs[0]!]!;
+    const asOf = xs.filter((j) => j <= own[0]!).at(-1);
+    let current: number | null = asOf === undefined ? null : AAA[asOf]!;
     const want = own.map((i) => (xs.includes(i) ? (current = AAA[i]!) : current));
+    assert.equal(want[0], null, 'x starts after the first date asked: none there');
     assert.deepEqual(step.dates, own.map((i) => DAYS[i]!));
     close(step.values, want, 'step over the dates asked', 1e-12);
     // y begun later, on a date x has none of: x's value as of it, from x's own dates before it -- never the next date
@@ -1176,8 +1189,8 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
     assert.deepEqual(l.dates, kept.map(([, i]) => DAYS[i]!));
     close(l.values, kept.map(([v]) => v), 'filtered', 0);
     const meanOf = await line(spec({ A: 'mean(filter(close[AAA], greater_than, 102), 3)' }));
-    close(meanOf.values, rolling(kept.map(([v]) => v), 3, avg), 'a window over the dates left', 1e-9);
-    const m3 = rolling(AAA, 3, avg);
+    close(meanOf.values, ramp(rolling(kept.map(([v]) => v), 3, avg), 3), 'a window over the dates left', 1e-9);
+    const m3 = ramp(rolling(AAA, 3, avg), 3);
     const after = await line(spec({ A: 'filter(mean(close[AAA], 3), greater_than, 102)' }));
     close(after.values, m3.filter((v) => !(v !== null && v > 102)), 'a window read before', 1e-9);
     const empty = await line(spec({ A: 'filter(lag(close[AAA], 2))' }));
@@ -1194,7 +1207,7 @@ describe('gs-quant\'s remaining functions, each as gs-quant defines it', () => {
 
   it('product, geometrically_aggregate and weighted_sum', async () => {
     close((await line(spec({ A: 'product(close[AAA] / 100, 5)' }))).values,
-      rolling(AAA.map((v) => v / 100), 5, (v) => v.reduce((a, b) => a * b, 1)), 'product of 5', 1e-9);
+      ramp(rolling(AAA.map((v) => v / 100), 5, (v) => v.reduce((a, b) => a * b, 1)), 5), 'product of 5', 1e-9);
     close((await line(spec({ A: 'geometrically_aggregate(returns(close[AAA]))' }))).values,
       AAA.map((v, i) => (i === 0 ? null : v / AAA[0]! - 1)), 'compounded', 1e-9);
     close((await line(spec({ A: 'weighted_sum(close[AAA], 0.6, close[BBB], 0.4)' }))).values,
@@ -1376,9 +1389,10 @@ describe('conditions: a comparison, and two joined, each date\'s run where it ho
     assert.equal(q.shade, true);
     assert.equal(q.level, false);
     const t = await run(q);
-    const mean5 = rolling(AAA, 5, avg);
+    const mean5 = ramped(rolling(AAA, 5, avg), 5);
     const flag: Line = AAA.map((v, i) => (mean5[i] === null ? null : v > mean5[i]! ? 1 : 0));
-    assert.deepEqual(values(t, TS_VALUE).map(num).reverse(), flag);
+    // the dates the close and its mean both have: the mean's from its sixth (gs-quant's ramp)
+    assert.deepEqual(values(t, TS_VALUE).map(num).reverse(), ramp(flag, 5));
     // the runs, as plain arithmetic: a run of the same flag, from its first date to its last
     const runOf = flag.map((f, i) => {
       if (f !== 1) return null;
@@ -1390,8 +1404,8 @@ describe('conditions: a comparison, and two joined, each date\'s run where it ho
       return [DAYS[a]!, DAYS[Math.min(b + 1, DAYS.length - 1)]!] as const;
     });
     const day = (n: string): (string | null)[] => values(t, n).map((d) => (d === null ? null : String(d).slice(0, 10))).reverse();
-    assert.deepEqual(day(TS_FROM), runOf.map((r) => r?.[0] ?? null), 'each run\'s first date');
-    assert.deepEqual(day(TS_TO), runOf.map((r) => r?.[1] ?? null), 'and the date after its last');
+    assert.deepEqual(day(TS_FROM), ramp(runOf.map((r) => r?.[0] ?? null), 5), 'each run\'s first date');
+    assert.deepEqual(day(TS_TO), ramp(runOf.map((r) => r?.[1] ?? null), 5), 'and the date after its last');
     assert.ok(runOf.every((r) => r === null || r[0] < r[1] || r[1] === DAYS.at(-1)), 'every run of a width, but one of the last date alone');
     assert.ok(new Set(runOf.filter((r) => r !== null).map((r) => r![0])).size >= 2, 'more than one run in the fixture');
   });
@@ -1412,19 +1426,19 @@ describe('conditions: a comparison, and two joined, each date\'s run where it ho
 describe('a window by its rows: percentile ranks, medians and percentiles', () => {
   it('percentiles: each value\'s rank among its window\'s, 0 to 100 -- over 10, from the start, over 2w', async () => {
     close((await line(spec({ A: 'percentiles(close[AAA], 10)' }))).values,
-      AAA.map((v, i) => (i < 9 ? null : rankIn(AAA.slice(i - 9, i + 1), v))), 'over 10', 1e-12);
+      ramp(AAA.map((v, i) => (i < 9 ? null : rankIn(AAA.slice(i - 9, i + 1), v))), 10), 'over 10', 1e-12);
     close((await line(spec({ A: 'percentiles(close[AAA])' }))).values, AAA.map((v, i) => rankIn(AAA.slice(0, i + 1), v)), 'from the start', 1e-12);
     const start = onBy(DAYS[0]!, 2, 'w');
     close((await line(spec({ A: 'percentiles(close[AAA], 2w)' }))).values, DAYS.map((d, i) => (d < start ? null
       : rankIn(AAA.filter((_, j) => DAYS[j]! > backBy(d, 2, 'w') && DAYS[j]! <= d), AAA[i]!))), 'over 2w', 1e-12);
     // a constant series: every value equal to every other, each the middle of its window
-    close((await line(spec({ A: 'percentiles(close[AAA] * 0, 5)' }))).values, AAA.map((_, i) => (i < 4 ? null : 50)), 'all equal', 1e-12);
+    close((await line(spec({ A: 'percentiles(close[AAA] * 0, 5)' }))).values, ramp(AAA.map((_, i) => (i < 4 ? null : 50)), 5), 'all equal', 1e-12);
   });
 
   it('median and percentile: pandas\' quantile over each window, a percentile of the whole series a line', async () => {
-    close((await line(spec({ A: 'median(close[AAA], 5)' }))).values, AAA.map((_, i) => (i < 4 ? null : quantile(AAA.slice(i - 4, i + 1), 0.5))), 'median of 5', 1e-12);
-    close((await line(spec({ A: 'median(close[AAA], 4)' }))).values, AAA.map((_, i) => (i < 3 ? null : quantile(AAA.slice(i - 3, i + 1), 0.5))), 'median of 4: the two middle ones\' mean', 1e-12);
-    close((await line(spec({ A: 'percentile(close[AAA], 90, 10)' }))).values, AAA.map((_, i) => (i < 9 ? null : quantile(AAA.slice(i - 9, i + 1), 0.9))), '90th of 10', 1e-12);
+    close((await line(spec({ A: 'median(close[AAA], 5)' }))).values, ramp(AAA.map((_, i) => (i < 4 ? null : quantile(AAA.slice(i - 4, i + 1), 0.5))), 5), 'median of 5', 1e-12);
+    close((await line(spec({ A: 'median(close[AAA], 4)' }))).values, ramp(AAA.map((_, i) => (i < 3 ? null : quantile(AAA.slice(i - 3, i + 1), 0.5))), 4), 'median of 4: the two middle ones\' mean', 1e-12);
+    close((await line(spec({ A: 'percentile(close[AAA], 90, 10)' }))).values, ramp(AAA.map((_, i) => (i < 9 ? null : quantile(AAA.slice(i - 9, i + 1), 0.9))), 10), '90th of 10', 1e-12);
     close((await line(spec({ A: 'percentile(close[AAA], 25)' }))).values, AAA.map(() => quantile(AAA, 0.25)), 'the 25th of every one', 1e-12);
     // of every value: one aggregate a line joined back (the library's quantileOfLine), never each row joined to every
     // other (the E9 review's 5)
@@ -2274,8 +2288,10 @@ describe('an analyst\'s packs: technicals, a benchmark, a total return, a basket
     let total = 0;
     close((await packLine('obv(close[P], volume[P])', weekly)).values,
       WC.map((c, i) => (i === 0 ? 0 : (total += Math.sign(c - WC[i - 1]!) * WV[i]!))), 'weekly OBV', 0);
+    // the tile's weekly VWAP is a rolling sum of the weeks' sums (sum(sum(traded), 3) / sum(sum(volume), 3)): gs-quant's
+    // sum of 3, from the fourth week (its ramp)
     close((await packLine('vwap(close[P], volume[P], 3)', weekly)).values,
-      WV.map((_, i) => (i < 2 ? null : WPV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0) / WV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0))), 'weekly VWAP', 1e-12);
+      ramp(WV.map((_, i) => (i < 2 ? null : WPV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0) / WV.slice(i - 2, i + 1).reduce((a, b) => a + b, 0))), 3), 'weekly VWAP', 1e-12);
   });
 
   // the Phase 4 review's 3 and 8: a long and a short (weights summing to 0) is a basket as any; a price of none makes

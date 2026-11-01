@@ -325,19 +325,21 @@ SAMPLE BY, meeting, FILL) are `timeseries::lines::` functions. Core's `#TS` Java
 sources and columns, the per-point SQL, the answer's assembly, and the plumbing that names columns.
 
 - **Step 1** (frozen answers): done.
-- **Step 2** (the gs-quant oracle): done (docs/TS_GSQUANT_ORACLE_2026_11_01.md). 119 of 210 series agree; O1 and O2
-  are asked.
+- **Step 2** (the gs-quant oracle): done (docs/TS_GSQUANT_ORACLE_2026_11_01.md). First run 119 of 210 agree; O1 (a
+  window's first value) and O2 (compare) then matched to gs-quant (the user, 2026-11-01: "Why would we not match
+  gs-quant for 1&2?"): 145 agree, 1 differs -- R12's one departure, gs-quant's step backfilling a line's start
+  (`docs/SEMANTICS_REGISTER.md` S130).
 - **Step 8** (the guide from the catalog): done, docs/timeseries/WORDS.md, written by core's export. The tile's option
   values (src/generated/library-enums.ts) and its words (src/generated/ts-words.ts) come from the same export; the
   regex tool is gone.
-- **Steps 3, 4 and 6 wait on rulings.** The tile still reads its own TS_SIGNATURES, because its vocabulary is gs-quant's
-  (`range`, `first`, `last`, `filter`, `union`, `day`) where `#TS`'s is `range_of`, `first_of`, `last_of`,
-  `filter_values`, `union_of`, `day_of`. `#TS` keeps the one-argument `first`, `last`, `max`, `min`, `sum` and `avg`
-  for SAMPLE BY's aggregates (R5). One vocabulary (§4, R11-R16) comes first. Only then can the tile read core's words in
-  place of its table, and the Python DSL's stubs be made from them.
-- **Step 4's numbers wait on O1 and O2** (the oracle's): a window's first value, and compare where a side has none.
-- **The library's text the clients ship** waits on the question asked on 2026-11-01: build it into the planner (every
-  page downloads it inside the WebAssembly module), or keep it a chunk fetched when a query uses it.
+- **The vocabulary is ruled** -- D3 (`first(x, all)`, `last(x, whole)`; `first_of`/`last_of` deleted), gs-quant's names
+  (D2, R10: "the functions take gs-quant's names", so R3's `range`, `filter`, `union`, `weekday`), R14 (`m` is months),
+  R15 (`mean` canonical, `avg` its alias) -- and is being built (an earlier version of this status said it waited on
+  rulings: wrong, the user, 2026-11-01). The tile then reads core's words in place of its TS_SIGNATURES, and the Python
+  DSL's stubs are made from them (steps 3, 4, 6).
+- **The library's text** (`datacube/src/pure-library-text.ts`, 279 KB, sent with each model the tile and the headless
+  path plan): step S4, the planner resolving the timeseries project as any project's dependency, its clients sending
+  their own model alone. No ruling: a platform library is the planner's, never a client's copy.
 
 ## 7. Spec by verification, applied to gs-quant
 

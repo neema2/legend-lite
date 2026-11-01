@@ -46,22 +46,6 @@ final class TsFunctions {
     record Signature(int lines, List<Param> params) {
     }
 
-    private static Param span(String name, int fallback) {
-        return new Param(name, Kind.SPAN, fallback, List.of());
-    }
-
-    private static Param number(String name, double fallback) {
-        return new Param(name, Kind.NUMBER, fallback, List.of());
-    }
-
-    private static Param word(String name, String fallback, String... words) {
-        return new Param(name, Kind.WORD, fallback, List.of(words));
-    }
-
-    private static Signature one(Param... params) {
-        return new Signature(1, List.of(params));
-    }
-
     /** What the functions are written with: a line's node, fresh names, a per-point lambda, the query. */
     interface Ctx extends TsLines.Writer {
         TsLines.Node node(SqlAst.Expr e);

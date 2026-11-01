@@ -82,7 +82,7 @@ Forms: `beta(x: Line, y: Line)`, `beta(x: Line, y: Line, w: Integer)`, `beta(x: 
 
 ## `bollinger_bands`
 
-Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band's width -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; 20 observations unless given. A struct (R10): its lower, upper and width.
+Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band's width -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; 20 observations unless given. A struct (R10): its lower, upper and width.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -105,14 +105,15 @@ Forms: `change(x: Line)`, `change(x: Line, from: StrictDate)`.
 
 ## `compare`
 
-Which of x and y is greater: 1, -1, or 0 where they are equal (gs-quant's compare) -- each a line or a number, two lines met on their dates (under FILL, filled).
+Which of x and y is greater: 1, -1, or 0 where they are equal or one has none (gs-quant's compare) -- each a line or a number; two lines aligned by a method, gs-quant's Interpolate: step unless given (every date either has, each line's last value at or before it -- gs-quant's but for a line's start, which gs-quant fills with its first value, a later one: none there, R12), intersect (the dates both have), nan (every date either has, none where one has none) or zero (0 there); under FILL, filled.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line_or_number |  | yes |
 | `y` | line_or_number |  | yes |
+| `method` | word | intersect, nan, zero, step | no |
 
-Forms: `compare(x: Line, y: Line)`, `compare(x: Line, y: Float)`, `compare(x: Float, y: Line)`.
+Forms: `compare(x: Line, y: Line)`, `compare(x: Line, y: Line, method: Interpolation)`, `compare(x: Line, y: Float)`, `compare(x: Float, y: Line)`.
 
 ## `consecutive`
 
@@ -378,7 +379,7 @@ Forms: `information_ratio(x: Line, y: Line, annualization_factor: Integer (optio
 
 ## `interpolate`
 
-x on y's dates (gs-quant's interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant's step -- at the first, x's value as of it (its first, before x starts), at each later its own, else the one before among them.
+x on y's dates (gs-quant's interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant's step -- at the first, x's value as of it (none before x starts: gs-quant's its first, a later value, R12), at each later its own, else the one before among them.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -452,7 +453,7 @@ Forms: `macd(x: Line, m: Integer (optional), n: Integer (optional), s: Integer (
 
 ## `max`
 
-The greatest of x's values over a window: w observations to date (a value once it holds w), a calendar period back, the line's start to date, or a date on.
+The greatest of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -463,7 +464,7 @@ Forms: `max(x: Line, w: Integer)`, `max(x: Line, w: Integer, unit: DurationUnit)
 
 ## `max_drawdown`
 
-The deepest drawdown of x's values within a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; the line's start to date unless given.
+The deepest drawdown of x's values within a window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; the line's start to date unless given.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -474,7 +475,7 @@ Forms: `max_drawdown(x: Line)`, `max_drawdown(x: Line, w: Integer)`, `max_drawdo
 
 ## `mean`
 
-The mean of x's values over a window: w observations to date (a value once it holds w), a calendar period back, the line's start to date, or a date on.
+The mean of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -496,7 +497,7 @@ Forms: `median(x: Line)`, `median(x: Line, w: Integer)`, `median(x: Line, w: Sco
 
 ## `min`
 
-The least of x's values over a window: w observations to date (a value once it holds w), a calendar period back, the line's start to date, or a date on.
+The least of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -598,7 +599,7 @@ Forms: `prices(x: Line, initial: Float (optional), type: Returns (optional))`.
 
 ## `product`
 
-The product of x's values over a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; the line's start to date unless given.
+The product of x's values over a window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; the line's start to date unless given.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -631,7 +632,7 @@ Forms: `r_squared(x: Line, y: Line)`, `r_squared(x: Line, y: Line, w: Integer)`,
 
 ## `range_of`
 
-The range of x's values (greatest less least) over a window -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; 22 observations unless given.
+The range of x's values (greatest less least) over a window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; 22 observations unless given.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -736,7 +737,7 @@ Forms: `smoothed_moving_average(x: Line)`, `smoothed_moving_average(x: Line, w: 
 
 ## `std`
 
-The sample standard deviation of x's values over a window: w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date, or a date on.
+The sample standard deviation of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -760,7 +761,7 @@ Forms: `stochastic(high: Line, low: Line, close: Line)`, `stochastic(high: Line,
 
 ## `sum`
 
-The sum of x's values over a window: w observations to date (a value once it holds w), a calendar period back, the line's start to date, or a date on.
+The sum of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -841,7 +842,7 @@ Forms: `value_at(x: Line, date: StrictDate)`.
 
 ## `var`
 
-The sample variance of x's values over a window: w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date, or a date on.
+The sample variance of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -929,7 +930,7 @@ Forms: `year_of(x: Line)`.
 
 ## `zscores`
 
-The z-score of each of x's values against its window -- w observations to date (a value once it holds w), a calendar period back, or the whole line (its default, and today's all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line's start to date).
+The z-score of each of x's values against its window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, or the whole line (its default, and today's all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line's start to date).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|

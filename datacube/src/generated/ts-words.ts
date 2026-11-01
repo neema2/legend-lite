@@ -84,7 +84,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'k', kind: 'number', takes: [], words: [], required: false },
     ],
     forms: ['bollinger_bands(x: Line, k: Float (optional))', 'bollinger_bands(x: Line, w: Integer, k: Float (optional))', 'bollinger_bands(x: Line, w: Scope, k: Float (optional))', 'bollinger_bands(x: Line, w: Integer, unit: DurationUnit, k: Float (optional))'],
-    doc: 'Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band\'s width -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 20 observations unless given. A struct (R10): its lower, upper and width.',
+    doc: 'Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band\'s width -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 20 observations unless given. A struct (R10): its lower, upper and width.',
   },
   change: {
     params: [
@@ -98,9 +98,10 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     params: [
       { name: 'x', kind: 'line_or_number', takes: [], words: [], required: true },
       { name: 'y', kind: 'line_or_number', takes: [], words: [], required: true },
+      { name: 'method', kind: 'word', takes: [], words: ['intersect', 'nan', 'zero', 'step'], required: false },
     ],
-    forms: ['compare(x: Line, y: Line)', 'compare(x: Line, y: Float)', 'compare(x: Float, y: Line)'],
-    doc: 'Which of x and y is greater: 1, -1, or 0 where they are equal (gs-quant\'s compare) -- each a line or a number, two lines met on their dates (under FILL, filled).',
+    forms: ['compare(x: Line, y: Line)', 'compare(x: Line, y: Line, method: Interpolation)', 'compare(x: Line, y: Float)', 'compare(x: Float, y: Line)'],
+    doc: 'Which of x and y is greater: 1, -1, or 0 where they are equal or one has none (gs-quant\'s compare) -- each a line or a number; two lines aligned by a method, gs-quant\'s Interpolate: step unless given (every date either has, each line\'s last value at or before it -- gs-quant\'s but for a line\'s start, which gs-quant fills with its first value, a later one: none there, R12), intersect (the dates both have), nan (every date either has, none where one has none) or zero (0 there); under FILL, filled.',
   },
   consecutive: {
     params: [
@@ -302,7 +303,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'method', kind: 'word', takes: [], words: ['intersect', 'nan', 'zero', 'step'], required: false },
     ],
     forms: ['interpolate(x: Line, y: Line)', 'interpolate(x: Line, y: Line, method: Interpolation)'],
-    doc: 'x on y\'s dates (gs-quant\'s interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant\'s step -- at the first, x\'s value as of it (its first, before x starts), at each later its own, else the one before among them.',
+    doc: 'x on y\'s dates (gs-quant\'s interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant\'s step -- at the first, x\'s value as of it (none before x starts: gs-quant\'s its first, a later value, R12), at each later its own, else the one before among them.',
   },
   keltner_channels: {
     params: [
@@ -357,7 +358,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all', 'date'], words: [], required: true },
     ],
     forms: ['max(x: Line, w: Integer)', 'max(x: Line, w: Integer, unit: DurationUnit)', 'max(x: Line, w: Scope)', 'max(x: Line, w: StrictDate)'],
-    doc: 'The greatest of x\'s values over a window: w observations to date (a value once it holds w), a calendar period back, the line\'s start to date, or a date on.',
+    doc: 'The greatest of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
   },
   max_drawdown: {
     params: [
@@ -365,7 +366,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
     ],
     forms: ['max_drawdown(x: Line)', 'max_drawdown(x: Line, w: Integer)', 'max_drawdown(x: Line, w: Scope)', 'max_drawdown(x: Line, w: Integer, unit: DurationUnit)'],
-    doc: 'The deepest drawdown of x\'s values within a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    doc: 'The deepest drawdown of x\'s values within a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
   },
   mean: {
     params: [
@@ -373,7 +374,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all', 'date'], words: [], required: true },
     ],
     forms: ['mean(x: Line, w: Integer)', 'mean(x: Line, w: Integer, unit: DurationUnit)', 'mean(x: Line, w: Scope)', 'mean(x: Line, w: StrictDate)'],
-    doc: 'The mean of x\'s values over a window: w observations to date (a value once it holds w), a calendar period back, the line\'s start to date, or a date on.',
+    doc: 'The mean of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
   },
   median: {
     params: [
@@ -389,7 +390,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all', 'date'], words: [], required: true },
     ],
     forms: ['min(x: Line, w: Integer)', 'min(x: Line, w: Integer, unit: DurationUnit)', 'min(x: Line, w: Scope)', 'min(x: Line, w: StrictDate)'],
-    doc: 'The least of x\'s values over a window: w observations to date (a value once it holds w), a calendar period back, the line\'s start to date, or a date on.',
+    doc: 'The least of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
   },
   month_of: {
     params: [
@@ -464,7 +465,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
     ],
     forms: ['product(x: Line)', 'product(x: Line, w: Integer)', 'product(x: Line, w: Scope)', 'product(x: Line, w: Integer, unit: DurationUnit)'],
-    doc: 'The product of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    doc: 'The product of x\'s values over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
   },
   quarter_of: {
     params: [
@@ -488,7 +489,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
     ],
     forms: ['range_of(x: Line)', 'range_of(x: Line, w: Integer)', 'range_of(x: Line, w: Scope)', 'range_of(x: Line, w: Integer, unit: DurationUnit)'],
-    doc: 'The range of x\'s values (greatest less least) over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 22 observations unless given.',
+    doc: 'The range of x\'s values (greatest less least) over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 22 observations unless given.',
   },
   rebase: {
     params: [
@@ -566,7 +567,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all', 'date'], words: [], required: true },
     ],
     forms: ['std(x: Line, w: Integer)', 'std(x: Line, w: Integer, unit: DurationUnit)', 'std(x: Line, w: Scope)', 'std(x: Line, w: StrictDate)'],
-    doc: 'The sample standard deviation of x\'s values over a window: w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date, or a date on.',
+    doc: 'The sample standard deviation of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
   },
   stochastic: {
     params: [
@@ -584,7 +585,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all', 'date'], words: [], required: true },
     ],
     forms: ['sum(x: Line, w: Integer)', 'sum(x: Line, w: Integer, unit: DurationUnit)', 'sum(x: Line, w: Scope)', 'sum(x: Line, w: StrictDate)'],
-    doc: 'The sum of x\'s values over a window: w observations to date (a value once it holds w), a calendar period back, the line\'s start to date, or a date on.',
+    doc: 'The sum of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
   },
   total_return: {
     params: [
@@ -644,7 +645,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all', 'date'], words: [], required: true },
     ],
     forms: ['var(x: Line, w: Integer)', 'var(x: Line, w: Integer, unit: DurationUnit)', 'var(x: Line, w: Scope)', 'var(x: Line, w: StrictDate)'],
-    doc: 'The sample variance of x\'s values over a window: w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date, or a date on.',
+    doc: 'The sample variance of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
   },
   vol_swap_volatility: {
     params: [
@@ -708,6 +709,6 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'w', kind: 'span', takes: ['observations', 'period', 'all'], words: [], required: false },
     ],
     forms: ['zscores(x: Line)', 'zscores(x: Line, w: Integer)', 'zscores(x: Line, w: Scope)', 'zscores(x: Line, w: Integer, unit: DurationUnit)'],
-    doc: 'The z-score of each of x\'s values against its window -- w observations to date (a value once it holds w), a calendar period back, or the whole line (its default, and today\'s all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line\'s start to date).',
+    doc: 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, or the whole line (its default, and today\'s all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line\'s start to date).',
   },
 };

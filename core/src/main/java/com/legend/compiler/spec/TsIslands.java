@@ -70,13 +70,22 @@ public final class TsIslands {
      *  values in their declared order: an option's one source, exported for the clients (TsCatalogExport). */
     public static Map<String, List<String>> enumerations(ModelContext model, String pkg) {
         Map<String, List<String>> out = new java.util.LinkedHashMap<>();
-        String prefix = pkg + "::";
         for (String fqn : model.elementFqns().stream().sorted().toList()) {
-            if (fqn.startsWith(prefix) && !fqn.substring(prefix.length()).contains("::")) {
-                model.findEnum(fqn).ifPresent(e -> out.put(fqn.substring(prefix.length()), e.values()));
+            String name = memberOf(fqn, pkg);
+            if (name != null) {
+                model.findEnum(fqn).ifPresent(e -> out.put(name, e.values()));
             }
         }
         return java.util.Collections.unmodifiableMap(out);
+    }
+
+    /** {@code fqn}'s simple name where it is an element directly in the package {@code pkg}, else null: the model
+     *  lists its elements by path alone, so a package's members are read by their paths' prefix (the one site,
+     *  2026-11-01: the library's words and its enumerations, the catalog's two readers). */
+    private static @com.legend.base.Nullable String memberOf(String fqn, String pkg) {
+        String prefix = pkg + "::";
+        return fqn.startsWith(prefix) && !fqn.substring(prefix.length()).contains("::")
+                ? fqn.substring(prefix.length()) : null;
     }
 
     /** The model's classes by their simple names (R13), computed once per model. */
@@ -220,9 +229,7 @@ public final class TsIslands {
 
         @Override
         public List<String> functionsIn(String pkg) {
-            String prefix = pkg + "::";
-            return model.functionFqns().stream().filter(f -> f.startsWith(prefix)
-                    && !f.substring(prefix.length()).contains("::")).map(f -> f.substring(prefix.length()))
+            return model.functionFqns().stream().map(f -> memberOf(f, pkg)).filter(java.util.Objects::nonNull)
                     .distinct().sorted().toList();
         }
     }

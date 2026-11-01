@@ -709,8 +709,11 @@ const BUDGET = 431_000;
  *  date). Measured 400,965.
  *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506.
  *  413,000 / 402,100 -> 418,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
- *  same date). Measured 417,953. */
-const ENGINE_BUDGET = 418_500;
+ *  same date). Measured 417,953.
+ *  418,500 -> 419,000 (2026-11-01, the library's text, which the engine page carries for its timeseries -- the
+ *  timeseries budget's note of the same date: O1's ramp and O2's compare, 0.8 KB gzipped). Measured 418,511; S4 (the
+ *  planner resolving the library) takes the text out. */
+const ENGINE_BUDGET = 419_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -841,8 +844,14 @@ const CHART_BUDGET = 303_500;
  *  the last views as its functions (summaryStatistics, seasonality, projection, tradedValue, linearAt, periodIndex, in
  *  its text), the writer's enumeration values (timeseries-query.ts libraryOption), the program of a page of its own
  *  (timeseries-code.ts) and each formula's Pure under it (ui/timeseries-view.ts #codePanel), docs/TIMESERIES_REVIEW_2026_10_25.md
- *  §19-§20 -- the headroom ~2%). Measured 100,296. */
-const TIMESERIES_BUDGET = 102_000;
+ *  §19-§20 -- the headroom ~2%). Measured 100,296.
+ *  102,000 -> 114,000 (2026-11-01, the user: "Should this stuff all live in pure or in java?" -- the library defines the
+ *  language, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S1 to S1e: the 81 words of #TS and its line rules
+ *  (timeseries::line::, timeseries::lines::) in the library's text, about 10.6 KB of it gzipped; and the user's "Why
+ *  would we not match gs-quant": O1's ramp and O2's compare, docs/TS_GSQUANT_ORACLE_2026_11_01.md, 0.8 KB -- the
+ *  headroom ~2%). Measured 111,691. The text leaves the client with the one-tree plan's S4 (the planner resolves the
+ *  timeseries project itself, docs/TS_ONE_TREE_PLAN_2026_10_31.md §6a), and this budget falls by its size then. */
+const TIMESERIES_BUDGET = 114_000;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's

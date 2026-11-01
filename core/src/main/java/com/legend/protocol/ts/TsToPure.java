@@ -1093,10 +1093,6 @@ public final class TsToPure {
             return new Arguments(positional, named, fc.pos());
         }
 
-        /** A span as the library's calendar periods take it (§5): a count of a DurationUnit, a quarter three months. */
-        private record Period(int n, String unit) {
-        }
-
         /** {@code e} with each span ({@code 1y}) Postgres's interval ({@code INTERVAL '1 year'}): date arithmetic in a
          *  condition or a per-point expression (R9). */
         private SqlAst.Expr intervals(SqlAst.Expr e) {
@@ -1417,9 +1413,5 @@ public final class TsToPure {
 
     private static SqlTranslationException invalid(String message, SqlAst.Pos pos) {
         return SqlTranslationException.invalid(message, pos);
-    }
-
-    private static SqlTranslationException unsupported(String message, SqlAst.Pos pos) {
-        return SqlTranslationException.unsupported(message, pos);
     }
 }
