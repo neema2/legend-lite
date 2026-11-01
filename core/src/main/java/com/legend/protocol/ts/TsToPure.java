@@ -869,7 +869,7 @@ public final class TsToPure {
             /** An item's node: a struct allowed where the item is a function's whole answer (R10). */
             TsLines.Node item(SqlAst.Expr e) {
                 if (e instanceof SqlAst.FunctionCall fc && alongTime(fc)
-                        && TsFunctions.has(java.util.Objects.requireNonNull(fn(fc)))) {
+                        && function(java.util.Objects.requireNonNull(fn(fc)))) {
                     Arguments a = arguments(fc);
                     return TsFunctions.call(this, fc, a.positional(), a.named());
                 }
@@ -919,7 +919,7 @@ public final class TsToPure {
                 }
                 if (e instanceof SqlAst.FunctionCall fc && alongTime(fc)) {
                     String name = fn(fc);
-                    if (TsFunctions.has(java.util.Objects.requireNonNull(name))) {
+                    if (function(java.util.Objects.requireNonNull(name))) {
                         Arguments a = arguments(fc);
                         TsLines.Node n = TsFunctions.call(this, fc, a.positional(), a.named());
                         Map<String, String> struct = n instanceof TsLines.Valued v ? structs.get(v.value()) : null;
@@ -1063,11 +1063,18 @@ public final class TsToPure {
                 if (name == null) {
                     return false;
                 }
-                if (LATER.contains(name) && !TsFunctions.has(name)) {
+                if (LATER.contains(name) && !TsFunctions.has(this, name)) {
                     throw unsupported(name + " is one of the catalog's (§6) still to come", fc.pos());
                 }
                 return WINDOWED.containsKey(name) || BACK.containsKey(name) || "count".equals(name)
-                        || TsFunctions.has(name);
+                        || TsFunctions.has(this, name);
+            }
+
+            /** Whether {@code name} is called through TsFunctions: a function of the language but the windowed basics
+             *  and the lags, which {@link #along} reads (their date windows, their aliases: avg, stddev, variance). */
+            private boolean function(String name) {
+                return !WINDOWED.containsKey(name) && !BACK.containsKey(name) && !"count".equals(name)
+                        && TsFunctions.has(this, name);
             }
 
             /** A figure along time (R4): the library's call over its line's rows, its window the line's periods. */

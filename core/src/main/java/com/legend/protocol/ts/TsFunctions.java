@@ -62,61 +62,13 @@ final class TsFunctions {
         return new Param(name, Kind.WORD, fallback, List.of(words));
     }
 
-    private static Param date(String name) {
-        return new Param(name, Kind.DATE, "", List.of());
-    }
-
-    private static Param since(String name) {
-        return new Param(name, Kind.SINCE, "", List.of());
-    }
-
     private static Signature one(Param... params) {
         return new Signature(1, List.of(params));
     }
 
-    private static final Param TYPE = word("type", "simple", "simple", "log", "absolute");
-
-    /** THE FUNCTIONS (§6), each by its language name: what a call's name is registered as, and what it dispatches
-     *  on. */
+    /** THE FUNCTIONS STILL WRITTEN HERE (§6), each by its language name: those over several lines, and the
+     *  decomposition. A word over one line is the library's ({@link TsWords}, {@link TsCatalog}): it has no entry here. */
     enum Fn {
-        PRICES("prices"),
-        ANNUALIZE("annualize"),
-        INDEX("index"),
-        REBASE("rebase"),
-        CHANGE("change"),
-        PERCENT_CHANGE("percent_change"),
-        RANGE_OF("range_of"),
-        ZSCORES("zscores"),
-        WINSORIZE("winsorize"),
-        VOLATILITY("volatility"),
-        DRAWDOWN("drawdown"),
-        MAX_DRAWDOWN("max_drawdown"),
-        SHARPE_RATIO("sharpe_ratio"),
-        RSI("rsi"),
-        SMOOTHED_MOVING_AVERAGE("smoothed_moving_average"),
-        EXPONENTIAL_MOVING_AVERAGE("exponential_moving_average"),
-        EXPONENTIAL_STD("exponential_std"),
-        EXPONENTIAL_VOLATILITY("exponential_volatility"),
-        EXPONENTIAL_SPREAD_VOLATILITY("exponential_spread_volatility"),
-        MACD("macd"),
-        PERCENTILES("percentiles"),
-        MEDIAN("median"),
-        PERCENTILE("percentile"),
-        DICKEY_FULLER("dickey_fuller"),
-        HALF_LIFE("half_life"),
-        PRODUCT("product"),
-        GEOMETRICALLY_AGGREGATE("geometrically_aggregate"),
-        VOL_SWAP_VOLATILITY("vol_swap_volatility"),
-        SMOOTH_SPIKES("smooth_spikes"),
-        CONSECUTIVE("consecutive"),
-        FIRST_OF("first_of"),
-        LAST_OF("last_of"),
-        FILTER_VALUES("filter_values"),
-        DAY_OF("day_of"),
-        MONTH_OF("month_of"),
-        YEAR_OF("year_of"),
-        QUARTER_OF("quarter_of"),
-        WEEKDAY_OF("weekday_of"),
         CORRELATION("correlation"),
         BETA("beta"),
         COV("cov"),
@@ -144,10 +96,8 @@ final class TsFunctions {
         PREPEND("prepend"),
         WEIGHTED_SUM("weighted_sum"),
         BASKET("basket"),
-        BOLLINGER_BANDS("bollinger_bands"),
         INTERPOLATE("interpolate"),
         OHLC("ohlc"),
-        VALUE_AT("value_at"),
         TREND("trend"),
         SEASONALLY_ADJUSTED("seasonally_adjusted");
 
@@ -173,51 +123,12 @@ final class TsFunctions {
         }
     }
 
-    /** THE SIGNATURES, the tile's (timeseries-spec.ts TS_SIGNATURES), each function by its language name -- but the
-     *  windowed basics and the lags (avg, sum, min, max, std, var, count, lag, diff, returns: the builder's own,
-     *  TsToPure's along, with its date windows). */
+    /** THE SIGNATURES of the functions still written here, each by its language name. A word the library defines
+     *  has its signature read from its overloads ({@link TsCatalog#signature}). */
     static final Map<Fn, Signature> SIGNATURES;
 
     static {
         Map<Fn, Signature> s = new java.util.EnumMap<>(Fn.class);
-        s.put(Fn.PRICES, one(number("initial", 1), TYPE));
-        s.put(Fn.ANNUALIZE, one());
-        // each of its first value, or (from) of its value as of a date: the first a chart shows (R9)
-        s.put(Fn.INDEX, one(number("initial", 1), since("from")));
-        s.put(Fn.REBASE, one(number("base", 100), since("from")));
-        s.put(Fn.CHANGE, one(since("from")));
-        s.put(Fn.PERCENT_CHANGE, one(since("from")));
-        s.put(Fn.RANGE_OF, one(span("w", 22)));
-        s.put(Fn.ZSCORES, one(span("w", 0)));
-        s.put(Fn.WINSORIZE, one(number("limit", 2.5)));
-        s.put(Fn.VOLATILITY, one(span("w", 22), TYPE));
-        s.put(Fn.DRAWDOWN, one(span("w", 0)));
-        s.put(Fn.MAX_DRAWDOWN, one(span("w", 0)));
-        s.put(Fn.SHARPE_RATIO, one(span("w", 252)));
-        s.put(Fn.RSI, one(whole("w", 14)));
-        s.put(Fn.SMOOTHED_MOVING_AVERAGE, one(whole("w", 14)));
-        s.put(Fn.EXPONENTIAL_MOVING_AVERAGE, one(number("beta", 0.75)));
-        s.put(Fn.EXPONENTIAL_STD, one(number("beta", 0.75)));
-        s.put(Fn.EXPONENTIAL_VOLATILITY, one(number("beta", 0.75)));
-        s.put(Fn.EXPONENTIAL_SPREAD_VOLATILITY, one(number("beta", 0.75)));
-        s.put(Fn.MACD, one(whole("m", 12), whole("n", 26), whole("s", 1)));
-        s.put(Fn.PERCENTILES, one(span("w", 0)));
-        s.put(Fn.MEDIAN, one(span("w", 22)));
-        s.put(Fn.PERCENTILE, one(number("n", 50), span("w", 0)));
-        s.put(Fn.DICKEY_FULLER, one(span("w", 0)));
-        s.put(Fn.HALF_LIFE, one(span("w", 0)));
-        s.put(Fn.PRODUCT, one(span("w", 0)));
-        s.put(Fn.GEOMETRICALLY_AGGREGATE, one());
-        s.put(Fn.VOL_SWAP_VOLATILITY, one(span("w", 0)));
-        s.put(Fn.SMOOTH_SPIKES, one(number("threshold", 0.5), word("type", "percentage", "percentage", "absolute")));
-        s.put(Fn.CONSECUTIVE, one(word("direction", "positive", "positive", "negative")));
-        s.put(Fn.FIRST_OF, one());
-        s.put(Fn.LAST_OF, one());
-        s.put(Fn.FILTER_VALUES, one(word("operator", "empty", "empty", "less_than", "greater_than", "l_equals",
-                "g_equals", "equals", "not_equals"), number("value", 0)));
-        for (String d : List.of("day_of", "month_of", "year_of", "quarter_of", "weekday_of")) {
-            s.put(java.util.Objects.requireNonNull(Fn.of(d)), one());
-        }
         for (String pair : List.of("correlation", "beta", "cov", "alpha", "r_squared", "hedge_ratio", "residual",
                 "tracking_error", "information_ratio", "up_capture", "down_capture")) {
             s.put(java.util.Objects.requireNonNull(Fn.of(pair)), new Signature(2, List.of(span("w", 63))));
@@ -238,11 +149,9 @@ final class TsFunctions {
         s.put(Fn.PREPEND, new Signature(2, List.of()));
         s.put(Fn.WEIGHTED_SUM, new Signature(-1, List.of()));
         s.put(Fn.BASKET, new Signature(-1, List.of(word("rebalance", "daily", "daily", "weekly", "monthly"))));
-        s.put(Fn.BOLLINGER_BANDS, one(span("w", 20), number("k", 2)));
         s.put(Fn.INTERPOLATE, new Signature(2, List.of(word("method", "intersect", "intersect", "nan", "zero",
                 "step"))));
         s.put(Fn.OHLC, new Signature(4, List.of()));
-        s.put(Fn.VALUE_AT, one(date("date")));
         for (String d : List.of("trend", "seasonally_adjusted")) {
             s.put(java.util.Objects.requireNonNull(Fn.of(d)), one(word("method", "additive", "additive", "multiplicative"), word("freq", "year", "year",
                     "quarter", "month", "week")));
@@ -263,9 +172,9 @@ final class TsFunctions {
         void struct(String value, Map<String, String> fields);
     }
 
-    /** Whether {@code name} is one of the functions here. */
-    static boolean has(String name) {
-        return Fn.of(name) != null;
+    /** Whether {@code name} is a function of the language: one written here, or a word the library defines. */
+    static boolean has(Ctx c, String name) {
+        return Fn.of(name) != null || TsWords.defines(c, name);
     }
 
     /** A window or a lag as given: a number of observations ({@code 0}: from the start, {@code all}), or a span. */
@@ -458,16 +367,21 @@ final class TsFunctions {
     static TsLines.Valued call(Ctx c, SqlAst.FunctionCall fc, List<SqlAst.Expr> positional,
             Map<String, SqlAst.Expr> named) {
         String fn = java.util.Objects.requireNonNull(TsToPure.name(fc));
+        if (TsWords.defines(c, fn)) {
+            // the library's word over lines (TsWords): its parameters read from its overloads (TsCatalog), the
+            // arguments as given, its defaults its own
+            Signature sig = TsCatalog.signature(c.model(), fn);
+            if (positional.isEmpty()) {
+                throw invalid(fn + " reads a line: " + fn + "(x, ...)", fc.pos());
+            }
+            Map<String, TsWords.Given> given = given(c, fc, fn, sig, positional, named);
+            return TsWords.call(c, fn, line(c, fn, positional.get(0), 0), given, fc.pos());
+        }
         Fn f = java.util.Objects.requireNonNull(Fn.of(fn));
         Signature sig = java.util.Objects.requireNonNull(SIGNATURES.get(f));
         if (positional.size() < sig.lines()) {
             throw invalid(fn + " reads " + sig.lines() + " line" + (sig.lines() == 1 ? "" : "s") + ": " + fn + "(x"
                     + (sig.lines() > 1 ? ", y" : "") + ", ...)", fc.pos());
-        }
-        if (sig.lines() == 1 && TsWords.defines(c, fn)) {
-            // the library's word over lines (TsWords): the arguments as given, its defaults its own
-            Map<String, TsWords.Given> given = given(c, fc, fn, sig, positional, named);
-            return TsWords.call(c, fn, line(c, fn, positional.get(0), 0), given, fc.pos());
         }
         Bound p = new Bound(bind(c, fc, fn, sig, positional, named));
         TsLines.Valued many = several(c, fc, f, p, positional);

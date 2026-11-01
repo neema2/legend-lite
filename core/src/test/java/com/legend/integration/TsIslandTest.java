@@ -904,8 +904,10 @@ class TsIslandTest {
                 "bb has lower, upper, width, not middle");
         refusals.put("SELECT volatility(CLOSE, 3, 'ln') AS v FROM PRICES ON DAY BY SYMBOL",
                 "volatility's type is 'simple', 'log', 'absolute'");
-        refusals.put("SELECT volatility(CLOSE, 3, 'log', 1) AS v FROM PRICES ON DAY BY SYMBOL",
-                "volatility takes 1 line and its parameters w, type");
+        // gs-quant's volatility(x, w, returns_type, annualization_factor): a fifth is one too many (the catalog's
+        // order, the library's widest overload, M3)
+        refusals.put("SELECT volatility(CLOSE, 3, 'log', 12, 1) AS v FROM PRICES ON DAY BY SYMBOL",
+                "volatility takes 1 line and its parameters w, type, annualization_factor");
         refusals.put("SELECT CLOSE['AAA', 'BBB'] AS a FROM PRICES ON DAY BY SYMBOL", "a subscript names one instrument");
         refusals.put("SELECT close['AAA'] AS a FROM (PRICES WHERE SYMBOL = 'AAA') ON DAY",
                 "has no BY: it has no instrument to pick");
@@ -952,5 +954,37 @@ class TsIslandTest {
         }
         assertTrue(refused("SELECT avg(CLOSE, 3) AS a FROM PRICES ON DAY", false)
                 .contains("#TS uses the timeseries library: add the project timeseries"), "the library is a dependency");
+    }
+
+    /** M3: the catalog is the library -- every word over one line the timeseries library defines, its parameters by
+     *  place with their kinds and forms, an option's values and its documentation, read from the compiled model. */
+    @Test
+    void theCatalogIsReadFromTheLibrarysWords() throws java.io.IOException {
+        List<com.legend.protocol.ts.TsCatalog.Word> words = com.legend.compiler.spec.TsIslands.catalog(
+                Compiler.compileModel(library()));
+        Map<String, com.legend.protocol.ts.TsCatalog.Word> byName = new LinkedHashMap<>();
+        words.forEach(w -> byName.put(w.name(), w));
+        assertEquals(50, words.size(), "the words over one line: " + byName.keySet());
+        assertTrue(byName.keySet().stream().noneMatch(n -> n.contains("::")), "the helpers are not words");
+        for (com.legend.protocol.ts.TsCatalog.Word w : words) {
+            assertNotNull(w.doc(), w.name() + " is documented");
+            assertTrue(!w.forms().isEmpty(), w.name() + " has forms");
+        }
+        com.legend.protocol.ts.TsCatalog.Word vol = java.util.Objects.requireNonNull(byName.get("volatility"));
+        assertEquals("w span [observations, period, all] [] optional; type word [] [simple, log, absolute] optional;"
+                + " annualization_factor whole [] [] optional", params(vol));
+        assertEquals(4, vol.forms().size(), vol.forms().toString());
+        assertEquals("w span [observations, period, all, date] [] required", params(java.util.Objects.requireNonNull(
+                byName.get("mean"))));
+        assertEquals("date date [] [] required", params(java.util.Objects.requireNonNull(byName.get("value_at"))));
+        assertEquals("initial number [] [] optional; from since [] [] optional", params(java.util.Objects
+                .requireNonNull(byName.get("index"))));
+        assertEquals("obs span [observations, period] [] optional; type word [] [simple, log, absolute] optional",
+                params(java.util.Objects.requireNonNull(byName.get("returns"))));
+    }
+
+    private static String params(com.legend.protocol.ts.TsCatalog.Word w) {
+        return String.join("; ", w.params().stream().map(p -> p.name() + " " + p.kind() + " " + p.takes() + " "
+                + p.words() + " " + (p.required() ? "required" : "optional")).toList());
     }
 }

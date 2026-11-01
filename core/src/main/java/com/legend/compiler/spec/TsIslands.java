@@ -15,6 +15,7 @@ import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.sql.InputLanguages;
 import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlTranslationException;
+import com.legend.protocol.ts.TsCatalog;
 import com.legend.protocol.ts.TsToPure;
 
 import java.util.ArrayList;
@@ -31,9 +32,18 @@ import java.util.function.Function;
  * and resolves the result's names as the resolver resolves any query; the Typer then types it once. A refusal becomes
  * the compile error its kind says, placed in the enclosing source.
  */
-final class TsIslands {
+public final class TsIslands {
 
     private TsIslands() {
+    }
+
+    /** THE CATALOG (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md M3): the words over one line {@code model}'s
+     *  timeseries library defines, read from their overloads -- what a formula box completes, a help page says and the
+     *  Python DSL's stubs are made of ({@link TsCatalog}). */
+    public static List<TsCatalog.Word> catalog(ModelContext model) {
+        return TsCatalog.words(new Facts((source, column) -> {
+            throw new IllegalStateException("the catalog reads no relation");
+        }, model));
     }
 
     /** The relation expression {@code island}, a {@code #TS{...}#} query, means, names resolved; {@code typeSource}

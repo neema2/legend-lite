@@ -2353,9 +2353,16 @@ function timeseries::line::smoothed_moving_average<K,D>(x: Relation<(key:K, date
   $x->timeseries::smoothedMean(~key, ~date, ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'The exponentially weighted moving average, each value\'s weight beta (0.75 unless given) of the one after it.'} timeseries::line::exponential_moving_average<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], beta: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The exponentially weighted moving average, each value\'s weight beta (0.75 unless given) of the one after it; beta 0, the line itself.'} timeseries::line::exponential_moving_average<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::ewma(~key, ~date, ~value, if($beta->isEmpty(), |0.75, |$beta->toOne()), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+  $x->timeseries::line::exponential_moving_average(0.75)
+}
+
+// beta reaches the word as written (an overload's default, not one computed in the body), so its case of 0 folds: a
+// decay of 0 has no logarithm, which the library's closed form takes.
+function timeseries::line::exponential_moving_average<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], beta: Float[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  if($beta == 0.0, |$x, |$x->timeseries::ewma(~key, ~date, ~value, $beta, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value))
 }
 
 function {meta::pure::profiles::doc.doc = 'The exponentially weighted standard deviation (beta 0.75 unless given).'} timeseries::line::exponential_std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], beta: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
