@@ -1594,7 +1594,10 @@ class JavaEvalLedgerTest {
                             // a statement's seeds: their sources (the key the session's state is checked by) and their
                             // setup steps (CsvSeed.planned), one owner for the walk and the test door (M3e, from the
                             // body driver); nothing evaluated
-                            "Seeds.java"),
+                            "Seeds.java",
+                            // the classes of bodies that run whole on the program road (M5, R16, 2026-11-01): a named
+                            // rule over a body's typed shape, reading it, never running it; nothing evaluated
+                            "BodyClass.java"),
                     "core/src/main/java/com/legend/testdatagen",
                     // TestDataGenerationNatives (TDG lane S1): the ORCHESTRATION-time fold
                     // of the checker's census CARRIER — computes the census
