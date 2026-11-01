@@ -92,10 +92,10 @@ SAMPLE BY 1d`,
     sources: [QUOTES, TRADES],
     series: [
       { name: 'close', expr: 'px:close[AAPL]' },
-      // the tile matches a string against the enumeration's STORED code ('B', the mapping's), as legend-engine compares
-      // an enum column with a string: side="BUY" matches no row. #TS is to read 'BUY' as trading::Side.BUY (proposed)
-      { name: 'bought', expr: 'tr:quantity[AAPL, side="B"].sum' },
-      { name: 'sold', expr: 'tr:quantity[AAPL, side="S"].sum' },
+      // an enumeration's value by its name, as the #TS query beside it writes it: the tile writes #TS, which reads 'BUY' as
+      // trading::Side.BUY (R13, built 2026-10-31); the stored code ('B', the mapping's) is no value of it, refused by name
+      { name: 'bought', expr: 'tr:quantity[AAPL, side="BUY"].sum' },
+      { name: 'sold', expr: 'tr:quantity[AAPL, side="SELL"].sum' },
     ],
   },
 ];

@@ -1930,6 +1930,112 @@ function timeseries::lines::each<I,T>(keys: Relation<I>[1], periods: Relation<T>
     ->without(~[ek, el])
 }
 
+// THE ANSWER'S ROWS (R6): a row where at least one of its items has a value -- each item a column, by place; a
+// query's items one overload, by their count (twelve at most: a query of more is refused by name, its fix to split
+// it).
+function timeseries::lines::someValued<T,A>(t: Relation<T>[1], a: ColSpec<A⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D,E>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D,E,F>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D,E,F,G>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1], i: ColSpec<I⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I,J>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1], i: ColSpec<I⊆T>[1], j: ColSpec<J⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty() || $r->read($j)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I,J,K>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1], i: ColSpec<I⊆T>[1], j: ColSpec<J⊆T>[1], k: ColSpec<K⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty() || $r->read($j)->isNotEmpty() || $r->read($k)->isNotEmpty())
+}
+
+function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I,J,K,L>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1], i: ColSpec<I⊆T>[1], j: ColSpec<J⊆T>[1], k: ColSpec<K⊆T>[1], l: ColSpec<L⊆T>[1]): Relation<T>[1]
+{
+  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty() || $r->read($j)->isNotEmpty() || $r->read($k)->isNotEmpty() || $r->read($l)->isNotEmpty())
+}
+
+// THE DATA'S LAST DATE (R9, latest): every row's the latest date of the answer, under the caller's name.
+function timeseries::lines::latest<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~lone:r|1)->extend(over(~[lone]), ~lt:{p,w,r|$r->read($date)}:y|$y->max())->without(~[lone])->rename(~lt, $out)
+}
+
+// THE ANSWER'S ORDER: by its date, then by its instrument (a line per instrument's answer).
+function timeseries::lines::ordered<T,D>(t: Relation<T>[1], date: ColSpec<D⊆T>[1]): Relation<T>[1]
+{
+  $t->sort([$date->ascending()])
+}
+
+function timeseries::lines::ordered<T,D,K>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], key: ColSpec<K⊆T>[1]): Relation<T>[1]
+{
+  $t->sort([$date->ascending(), $key->ascending()])
+}
+
+// A LINE'S PERIODS (R5, R6): each of its rows' key, period, date and number in time, under the caller's names -- what
+// the answer's periods are made of (spine).
+function timeseries::lines::periodsOf<T,K,P,A,O,OK,OP,OA,OO>(line: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], ord: ColSpec<O⊆T>[1], outKey: ColSpec<OK>[1], outPeriod: ColSpec<OP>[1], outAt: ColSpec<OA>[1], outOrd: ColSpec<OO>[1]): Relation<OK+OP+OA+OO>[1]
+{
+  $line->extend(~[pk:r|$r->read($key), pp:r|$r->read($period), pa:r|$r->read($at), po:r|$r->read($ord)])->select(~[pk, pp, pa, po])
+    ->rename(~pk, $outKey)->rename(~pp, $outPeriod)->rename(~pa, $outAt)->rename(~po, $outOrd)
+}
+
+// A line of no instrument's periods under each instrument of instruments (R2's broadcast: a line of one instrument
+// beside lines per instrument is every instrument's).
+function timeseries::lines::periodsOfOne<T,I,P,A,O,J,OK,OP,OA,OO>(line: Relation<T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], ord: ColSpec<O⊆T>[1], instruments: Relation<I>[1], instrument: ColSpec<J⊆I>[1], outKey: ColSpec<OK>[1], outPeriod: ColSpec<OP>[1], outAt: ColSpec<OA>[1], outOrd: ColSpec<OO>[1]): Relation<OK+OP+OA+OO>[1]
+{
+  $instruments->extend(~ik:r|$r->read($instrument))->select(~[ik])->distinct()
+    ->timeseries::lines::each($line->extend(~[pp:r|$r->read($period), pa:r|$r->read($at), po:r|$r->read($ord)])->select(~[pp, pa, po]))
+    ->rename(~ik, $outKey)->rename(~pp, $outPeriod)->rename(~pa, $outAt)->rename(~po, $outOrd)
+}
+
+// THE ANSWER'S PERIODS (R5: one date for every line; R6: every period any line has): each key and period of periods,
+// dated at its latest line's date and number in time.
+function timeseries::lines::spine<T,K,P,A,O,OK,OP,OA,OO>(periods: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], ord: ColSpec<O⊆T>[1], outKey: ColSpec<OK>[1], outPeriod: ColSpec<OP>[1], outAt: ColSpec<OA>[1], outOrd: ColSpec<OO>[1]): Relation<OK+OP+OA+OO>[1]
+{
+  $periods->extend(~[sk:r|$r->read($key), sp:r|$r->read($period), sa:r|$r->read($at), so:r|$r->read($ord)])
+    ->groupBy(~[sk, sp], ~[ga:x|$x.sa:y|$y->max(), go:x|$x.so:y|$y->max()])
+    ->rename(~sk, $outKey)->rename(~sp, $outPeriod)->rename(~ga, $outAt)->rename(~go, $outOrd)
+}
+
 // A LINE'S VALUES ONTO THE ANSWER'S PERIODS (R6): each of spine's rows, the line's row of its period and its key where it
 // has one.
 function timeseries::lines::onto<T,U,K,P,L,Q>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<Q⊆U>[1]): Relation<T+U>[1]

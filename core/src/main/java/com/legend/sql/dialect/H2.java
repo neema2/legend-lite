@@ -71,6 +71,9 @@ public class H2 extends AnsiSqlRenderer {
         ps.add(new ConstantLateralsAsRows());
         ps.add(new LateralExplodeToUnion());
         ps.add(new AggregatesDeliverDouble(java.util.Set.of(com.legend.sql.SqlAgg.Fn.AVG)));
+        // a select that only names its subselect's columns folded into it: H2 plans each nested derived table again at
+        // every level above it (ProjectionWrapsFold)
+        ps.add(new ProjectionWrapsFold());
         // LAST: every source the passes above introduced is in scope when
         // references take their source's spelling (Phase 1, batch 135)
         ps.add(new SourceSpelling());

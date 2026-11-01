@@ -1,0 +1,71 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.sql.dialect;
+
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlQuery;
+import com.legend.sql.SqlRewriter;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * A PROJECTION-ONLY WRAP FOLDED INTO ITS SOURCE (H2): a select that only names or narrows the columns of its one
+ * subselect -- each projection a column of it, no WHERE, GROUP BY, HAVING, QUALIFY, ORDER BY, LIMIT, OFFSET or
+ * DISTINCT -- is that subselect with its columns under the outer names. The lowering frames a rename of a projected
+ * source as legend-engine's text does (Lowerer.rename), and the engine-style printers keep that frame; H2's optimizer
+ * plans every nested derived table again at each level above it (QueryExpressionIndex.getQuery, measured
+ * 2026-11-01: a #TS answer of two lines whose periods a library function groups ran out of 512 MB planning), so H2
+ * reads the same rows from one level fewer per rename. The subselect folds only where narrowing it cannot change its
+ * rows or its order: it is not DISTINCT and has no ORDER BY, LIMIT or OFFSET.
+ */
+final class ProjectionWrapsFold extends SqlRewriter {
+
+    @Override
+    protected SqlQuery select(SqlSelect s) {
+        if (!(s.from() instanceof SqlSource.Subselect sub) || !(sub.inner() instanceof SqlSelect inner)
+                || !wrapOnly(s) || !foldable(inner)) {
+            return s;
+        }
+        Map<String, SqlSelect.Projection> byName = new HashMap<>();
+        for (SqlSelect.Projection p : inner.projections()) {
+            String name = p.outputName();
+            if (p.expr() instanceof SqlExpr.Star || name == null || byName.put(name, p) != null) {
+                return s;
+            }
+        }
+        List<SqlSelect.Projection> folded = new ArrayList<>(s.projections().size());
+        for (SqlSelect.Projection p : s.projections()) {
+            String name = p.outputName();
+            if (!(p.expr() instanceof SqlExpr.Column c) || !sub.alias().equals(c.table()) || name == null) {
+                return s;
+            }
+            SqlSelect.Projection source = byName.get(c.name());
+            if (source == null) {
+                return s;
+            }
+            boolean named = source.expr() instanceof SqlExpr.Column own && own.name().equals(name);
+            folded.add(new SqlSelect.Projection(source.expr(), named ? null : name, p.out()));
+        }
+        return new SqlSelect(folded, false, inner.from(), inner.where(), inner.groupBy(), inner.having(),
+                inner.qualify(), inner.orderBy(), inner.limit(), inner.offset(), s.outputs());
+    }
+
+    /** Whether {@code s} does nothing but project its source's columns. */
+    private static boolean wrapOnly(SqlSelect s) {
+        return !s.projections().isEmpty() && !s.distinct() && s.where() == null && s.groupBy().isEmpty()
+                && s.having() == null && s.qualify() == null && s.orderBy().isEmpty() && s.limit() == null
+                && s.offset() == null;
+    }
+
+    /** Whether narrowing {@code inner}'s columns keeps its rows and their order. */
+    private static boolean foldable(SqlSelect inner) {
+        return !inner.projections().isEmpty() && !inner.distinct() && inner.orderBy().isEmpty()
+                && inner.limit() == null && inner.offset() == null;
+    }
+}

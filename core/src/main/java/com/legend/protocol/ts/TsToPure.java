@@ -5,7 +5,6 @@ package com.legend.protocol.ts;
 
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
-import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.ColSpec;
 import com.legend.protocol.spec.ColSpecArray;
 import com.legend.protocol.spec.EnumValue;
@@ -126,6 +125,9 @@ public final class TsToPure {
 
     /** The relation {@code text}, a {@code #TS{...}#} query, means over {@code model}, its per-point expressions in
      *  {@code dialect} (Postgres's); a {@link SqlTranslationException}, placed in the text, where it means none. */
+    /** The most columns an answer has: the library's {@code someValued}'s overloads (R6). */
+    private static final int SOME_VALUED = 12;
+
     public static ValueSpecification translate(String text, Model model, InputDialect dialect) {
         return new Builder(model, dialect, TsParser.parse(text)).query();
     }
@@ -310,13 +312,14 @@ public final class TsToPure {
             }
             answer.addAll(columns);
             rel = call("select", rel, new ColSpecArray(answer.stream().map(ColSpec::new).toList()));
-            // a row where at least one item has a value (R6)
-            ValueSpecification some = null;
-            for (String n : columns) {
-                ValueSpecification has = call("isNotEmpty", new AppliedProperty(new Variable("x"), n));
-                some = some == null ? has : call("or", some, has);
+            // a row where at least one item has a value (R6): the library's someValued over the items' columns
+            if (columns.size() > SOME_VALUED) {
+                throw invalid("a query answers " + SOME_VALUED + " columns at most: split its " + columns.size()
+                        + " into queries", aliases.get(0).pos());
             }
-            rel = call("filter", rel, lambda("x", java.util.Objects.requireNonNull(some)));
+            List<ValueSpecification> some = new ArrayList<>(List.of(rel));
+            columns.forEach(n -> some.add(new ColSpec(n)));
+            rel = call(TsLines.LINES + "someValued", some);
             if (query.filter() != null) {
                 // a struct's field as the answer names it: bb.lower its column bb_lower (R10)
                 SqlAst.Expr condition = map(intervals(perPoint(query.filter())), x -> x instanceof SqlAst.ColumnRef c
@@ -333,13 +336,9 @@ public final class TsToPure {
                     visit(condition, x -> reads[0] |= x instanceof SqlAst.ColumnRef c && c.parts().size() == 1
                             && !c.parts().get(0).quoted() && "latest".equalsIgnoreCase(c.parts().get(0).text()));
                     if (reads[0]) {
-                        String one = lines.fresh("one");
+                        // the data's last date, the library's latest
                         latest = lines.fresh("latest");
-                        rel = call("extend", rel, new ColSpec(one, lambda("x", new CInteger(1L))));
-                        rel = call("extend", rel, call("over", new ColSpecArray(List.of(new ColSpec(one)))),
-                                new ColSpec(latest, new LambdaFunction(List.of(new Variable("p"), new Variable("w"),
-                                        new Variable("r")), List.of(new AppliedProperty(new Variable("r"), date))),
-                                        lambda("y", call("max", new Variable("y")))));
+                        rel = call(TsLines.LINES + "latest", rel, new ColSpec(date), new ColSpec(latest));
                         String l = latest;
                         condition = map(condition, x -> x instanceof SqlAst.ColumnRef c && c.parts().size() == 1
                                 && !c.parts().get(0).quoted() && "latest".equalsIgnoreCase(c.parts().get(0).text())
@@ -364,11 +363,9 @@ public final class TsToPure {
                     rel = call("select", rel, new ColSpecArray(answer.stream().map(ColSpec::new).toList()));
                 }
             }
-            List<ValueSpecification> order = new ArrayList<>(List.of(call("ascending", new ColSpec(date))));
-            if (instrument != null) {
-                order.add(call("ascending", new ColSpec(instrument)));
-            }
-            return call("sort", rel, new PureCollection(order));
+            // the answer's order, the library's: by date, then by instrument
+            return instrument == null ? call(TsLines.LINES + "ordered", rel, new ColSpec(date))
+                    : call(TsLines.LINES + "ordered", rel, new ColSpec(date), new ColSpec(instrument));
         }
 
         /** The types of {@code relation}'s columns, by name, in order. */

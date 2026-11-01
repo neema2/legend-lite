@@ -189,7 +189,7 @@ final class TsLines {
         List<List<String>> values = distinct(nodes, distinct);
         String at = w.fresh("sp_at");
         String ord = w.fresh("sp_ord");
-        // the instruments the lines per instrument have
+        // the instruments the lines per instrument have (each line's own: the library's broadcast reads them)
         ValueSpecification instruments = null;
         for (Line l : distinct) {
             if (l.byInstrument()) {
@@ -197,31 +197,22 @@ final class TsLines {
                 instruments = instruments == null ? own : call("concatenate", instruments, own);
             }
         }
-        String inst = w.fresh("sp_i");
-        if (instruments != null) {
-            instruments = call("rename", instruments, new ColSpec(part), new ColSpec(inst));
-        }
-        // the periods each line has, keyed alike: a line of no instrument's under every instrument (the library's each)
+        // the periods each line has, keyed alike: a line of no instrument's under every instrument (the library's
+        // periodsOf, periodsOfOne); the answer's periods, each dated at its latest line's date and number in time (R5:
+        // one date for every line), the library's spine
         ValueSpecification keys = null;
         for (Line l : distinct) {
-            ValueSpecification k = call("rename", call("rename", call("select", l.rel(), new ColSpecArray(List.of(
-                    new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at()), new ColSpec(ORD)))),
-                    new ColSpec(l.at()), new ColSpec(at)), new ColSpec(ORD), new ColSpec(ord));
-            if (instruments != null && !l.byInstrument()) {
-                k = call("select", k, new ColSpecArray(List.of(new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord))));
-                k = call("rename", call(LINES + "each", instruments, k), new ColSpec(inst), new ColSpec(part));
-                k = call("select", k, new ColSpecArray(List.of(new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
-                        new ColSpec(ord))));
-            }
+            ValueSpecification k = instruments != null && !l.byInstrument()
+                    ? call(LINES + "periodsOfOne", l.rel(), new ColSpec(PERIOD), new ColSpec(l.at()), new ColSpec(ORD),
+                            instruments, new ColSpec(part), new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
+                            new ColSpec(ord))
+                    : call(LINES + "periodsOf", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at()),
+                            new ColSpec(ORD), new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
             keys = keys == null ? k : call("concatenate", keys, k);
         }
-        // the answer's periods: each (instrument, period) once, dated at its latest line's date and number in time (R5).
-        // Written here, not as a library function: a function's aggregate renamed to the caller's name is a derived
-        // table more, and H2 plans nested derived tables exponentially (it ran out of memory on two items' answer).
-        ValueSpecification spine = call("groupBy", java.util.Objects.requireNonNull(keys, "lines to spread"),
-                new ColSpecArray(List.of(new ColSpec(part), new ColSpec(PERIOD))), new ColSpecArray(List.of(
-                new ColSpec(at, lambda("x", col(at)), lambda("y", call("max", new Variable("y")))),
-                new ColSpec(ord, lambda("x", col(ord)), lambda("y", call("max", new Variable("y")))))));
+        ValueSpecification spine = call(LINES + "spine", java.util.Objects.requireNonNull(keys, "lines to spread"),
+                new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord), new ColSpec(part),
+                new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
         // each line's values onto them (the library's onto; a line of no instrument's among lines per instrument,
         // ontoOne)
         List<String> owns = new ArrayList<>();
