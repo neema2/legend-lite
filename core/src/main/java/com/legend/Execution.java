@@ -3,9 +3,8 @@
 
 package com.legend;
 
-import com.legend.driver.BodyDriver;
-
 import com.legend.compiler.element.ModelContext;
+import com.legend.driver.BodyRouter;
 
 /**
  * THE EXECUTION FRONT DOOR (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a query planned by
@@ -186,6 +185,8 @@ public final class Execution {
             @com.legend.base.Nullable Answer answer) {
         ModelContext ctx = typed.context();
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn, session);
-        BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
+        // the test door's router (the test-is-the-product plan's M5, R16): a body of a moved class runs whole as one plan,
+        // every other is walked
+        BodyRouter.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
     }
 }

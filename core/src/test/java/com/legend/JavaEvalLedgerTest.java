@@ -1488,6 +1488,10 @@ class JavaEvalLedgerTest {
                     "HostJudge.java", "DatabaseJudge.java",
                     "VerdictArm.java",
                     "BodyCompiler.java", "BodyDriver.java",
+                    // the test door's router (the test-is-the-product plan's M5, R16, 2026-11-01): a body of a moved
+                    // class (testplan/BodyClass) planned whole and run as one plan, every other walked; it plans
+                    // nothing itself and evaluates nothing (the ledger's texts are the plan's, recorded as they ran)
+                    "BodyRouter.java",
                     // ConnectionLets.java left for the planner 2026-10-31 (the seam program's S2b: a let's read analysis)
                     "KindClass.java",
                     "LiteralFold.java",

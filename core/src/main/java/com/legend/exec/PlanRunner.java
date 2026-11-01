@@ -162,6 +162,21 @@ public final class PlanRunner {
          *  side's and a keyed side's read from the database, a constant side's its columns and its TEXT cells as the
          *  program wrote them (the sink reads them by the columns' facts). */
         void sides(ExecutionPlan.Verdict verdict, List<Rows> sides) throws IOException;
+
+        /** The program's seed step {@code step} ran (a step the session held established runs nothing and is not
+         *  told): each of its setup steps' statements in order, whether it answered rows (the raw-SQL ledger's kind;
+         *  the test-is-the-product plan's M5). */
+        default void seeded(int step, List<Boolean> answeredRows) {
+        }
+
+        /** The program's effect step {@code step} ran: its script applied. */
+        default void effectRan(int step) {
+        }
+
+        /** The program's effect step {@code step} failed with {@code failure} (its script's abort sent): the ledger
+         *  records what the database applied before it, as the walk's ({@code SqlDialect.failingStatement}). */
+        default void effectFailed(int step, com.legend.error.DataError failure) {
+        }
     }
 
     /**
@@ -345,17 +360,29 @@ public final class PlanRunner {
     private static void runSteps(ExecutionPlan.Sequence sequence, Map<String, PlanParameters.Checked> checked,
             Judging judging, Sessions.Session session, Statements st, Held held, ProgramSink sink) throws IOException {
         Map<String, PlanParameters.Checked> live = new HashMap<>(checked);
-        for (ExecutionPlan.Node step : sequence.steps()) {
-            switch (step) {
+        List<ExecutionPlan.Node> steps = sequence.steps();
+        for (int i = 0; i < steps.size(); i++) {
+            switch (steps.get(i)) {
                 case ExecutionPlan.Update u -> update(u, live, st);
                 case ExecutionPlan.Check k -> check(k, live, st);
                 case ExecutionPlan.Effect e -> {
                     // marked written BEFORE it runs, as the walk marks it: a script that fails part-applied leaves
                     // the session's seeds to establish again (the M3 audit's B5)
                     session.state().markWriting();
-                    script(e, live, st, insideATransaction(st));
+                    try {
+                        script(e, live, st, insideATransaction(st));
+                    } catch (DataError failed) {
+                        sink.effectFailed(i, failed);
+                        throw failed;
+                    }
+                    sink.effectRan(i);
                 }
-                case ExecutionPlan.Setup u -> seed(u, session, st);
+                case ExecutionPlan.Setup u -> {
+                    List<Boolean> answered = seed(u, session, st);
+                    if (answered != null) {
+                        sink.seeded(i, answered);
+                    }
+                }
                 case ExecutionPlan.TdsResult t -> result(t, live, st, held);
                 case ExecutionPlan.Constant c -> constant(c, held);
                 case ExecutionPlan.Keyed k -> keyedOn(k, live, st, heldSink(held));
@@ -853,12 +880,17 @@ public final class PlanRunner {
             boolean inTransaction) {
         unstamped(e.sql());
         ExecutionPlan.Effect.Script script = e.script();
+        // the script is the body's statement, whatever mark is in force (a fixture's seeding); its abort is not
         if (script == null || inTransaction) {
-            effect(e, values, st);
+            try (var origin = StatementOrigin.enter(StatementOrigin.BODY)) {
+                effect(e, values, st);
+            }
             return;
         }
         try {
-            sendStatement(script.bracketed(), st);
+            try (var origin = StatementOrigin.enter(StatementOrigin.BODY)) {
+                sendStatement(script.bracketed(), st);
+            }
         } catch (DataError failed) {
             if (script.abort() != null) {
                 sendStatement(script.abort(), st);
@@ -875,26 +907,32 @@ public final class PlanRunner {
 
     /** A program's seed step (B12): skipped where the session holds its key's seeds and has run no write since; run
      *  otherwise, step by step as a target's setup is, and its key recorded. */
-    private static void seed(ExecutionPlan.Setup seeds, Sessions.Session session,
+    private static @Nullable List<Boolean> seed(ExecutionPlan.Setup seeds, Sessions.Session session,
             Statements st) {
         SeedKey key = new SeedKey(seeds.key());
         if (session.state().established(key)) {
-            return;
+            return null;
         }
+        List<Boolean> answered = new ArrayList<>(seeds.steps().size());
         try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
             for (ExecutionPlan.SetupStep step : seeds.steps()) {
                 switch (step) {
-                    case ExecutionPlan.SetupStep.Statement s -> sendStatement(s.sql(), st);
+                    case ExecutionPlan.SetupStep.Statement s -> {
+                        StatementOrigin.sent(s.sql());
+                        answered.add(st.execute(s.sql()));
+                    }
                     case ExecutionPlan.SetupStep.Rows r -> {
                         if (!st.load(r)) {
                             throw new IllegalStateException("the seeds have rows for a bulk loader, and the session's"
                                     + " database has none (" + r.stagingTable() + ")");
                         }
+                        answered.add(false);
                     }
                 }
             }
         }
         session.state().establish(key);
+        return answered;
     }
 
     /** A seed step's key as the session's seeds' memo holds it. */

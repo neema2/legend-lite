@@ -25,12 +25,14 @@ import com.legend.planner.ProgramKinds;
 import com.legend.planner.ProgramState;
 import com.legend.planner.QueryDoor;
 import com.legend.setup.CsvSeed;
+import com.legend.sql.RawSql;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +62,11 @@ final class TestKinds implements ProgramKinds {
     private final QueryDoor.Scan scan;
     /** The open script: the effect statements since the last statement of another kind. */
     private final List<String> script = new ArrayList<>();
+    /** The raw-SQL ledger's texts of the open script's statements, the walk's (M5). */
+    private final List<TestDoor.Recorded> scriptRecorded = new ArrayList<>();
+    /** The raw-SQL ledger's texts of each effect and seed step this program planned, by the step (M5): beside the
+     *  plan, never in it. */
+    private final Map<ExecutionPlan.Node, List<TestDoor.Recorded>> recorded = new IdentityHashMap<>();
     /** The seed sources placed since the program's last write. */
     private final Set<Seeds.Sources> established = new HashSet<>();
     /** The seeds' steps, generated once per sources value. */
@@ -181,7 +188,9 @@ final class TestKinds implements ProgramKinds {
                     + " not designed");
         }
         List<ExecutionPlan.SetupStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
-        program.add(new ExecutionPlan.Setup(Seeds.key(steps), steps, program.target()));
+        ExecutionPlan.Setup setup = new ExecutionPlan.Setup(Seeds.key(steps), steps, program.target());
+        program.add(setup);
+        recorded.put(setup, planned.stream().map(p -> new TestDoor.Recorded(p.text(), false)).toList());
     }
 
     /** The effect {@code statement}'s statements added to the open script; the script closed and the effect's answer
@@ -226,6 +235,7 @@ final class TestKinds implements ProgramKinds {
         for (EffectPlanner.Statement s : EffectPlanner.statements(e.call(), values, e.body(),
                 e.env().withDialect(program.dialect()))) {
             script.add(s.executed());
+            scriptRecorded.add(new TestDoor.Recorded(s.recorded(), RawSql.isSingleQuery(s.executed())));
         }
         if (last) {
             close(program);
@@ -237,15 +247,23 @@ final class TestKinds implements ProgramKinds {
         }
     }
 
+    /** The ledger texts of the steps this program planned, by step. */
+    Map<ExecutionPlan.Node, List<TestDoor.Recorded>> recorded() {
+        return recorded;
+    }
+
     /** The open script, if any, placed as one effect step. */
     private void close(ProgramState program) {
         if (script.isEmpty()) {
             return;
         }
         SqlDialect dialect = program.dialect();
-        program.add(new ExecutionPlan.Effect(new ExecutionPlan.Sql(String.join(";\n", script) + ";", List.of(),
-                program.target(), null, List.of()), new ExecutionPlan.Effect.Script(script, dialect.script(script),
-                dialect.scriptAbort())));
+        ExecutionPlan.Effect effect = new ExecutionPlan.Effect(new ExecutionPlan.Sql(String.join(";\n", script) + ";",
+                List.of(), program.target(), null, List.of()), new ExecutionPlan.Effect.Script(script,
+                dialect.script(script), dialect.scriptAbort()));
+        program.add(effect);
+        recorded.put(effect, List.copyOf(scriptRecorded));
         script.clear();
+        scriptRecorded.clear();
     }
 }
