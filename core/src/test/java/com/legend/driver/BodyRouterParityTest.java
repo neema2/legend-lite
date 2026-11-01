@@ -31,8 +31,10 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE BODY ROUTER'S PARITY (the test-is-the-product plan's M5; the M5 audit's missing test): a body of a moved class
@@ -143,6 +145,9 @@ class BodyRouterParityTest {
                 "{| assertSameElements([1, 2], [2, 1]); assertContains([1, 2], 2);"
                         + " assertEqWithinTolerance(1.0, 1.05, 0.1);}",
                 "{| assertJsonStringsEqual('{\"a\":1}', '{\"a\": 1}');}",
+                // a class test by a type reference (M9c: a class reference is a value the class rule admits, as the
+                // resolver reads it; the host checks plan the type's name)
+                "{| assertInstanceOf(1, Integer); assertInstanceOf('a', String);}",
                 "{| assertEquals(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1));}",
                 "{| assertEquals(1, #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1)->size());}",
@@ -252,6 +257,258 @@ class BodyRouterParityTest {
         }
     }
 
+    /** A store, a mapping and a runtime with NO test data on {@code backend} (a seeded runtime is left on the walk):
+     *  the frames' model, plus a seeded runtime over the same store for the frame-runtime case. The table is the
+     *  harness's to create. */
+    private static String frameModel(TestBackend backend) {
+        return """
+                Class x::Firm { name: String[1]; }
+                Class <<meta::pure::profiles::temporal.businesstemporal>> x::TFirm { name: String[1]; }
+                function x::firms(): meta::pure::tds::TabularDataSet[1] { x::Firm.all()->project([f|$f.name], ['name']) }
+                function x::aFirm(): x::Firm[1] { ^x::Firm(name='Cyl') }
+                function x::oneExec(): Integer[1] { meta::pure::router::execute(|x::Firm.all()->project([f|$f.name],
+                    ['name']), x::M, x::RT.runtimeValue, [])->size() }
+                function x::execHelper(): meta::pure::mapping::Result<Any|*>[1] { meta::pure::router::execute(
+                    |x::Firm.all()->project([f|$f.name], ['name']), x::M, x::RT.runtimeValue, []) }
+                ###Relational
+                Database x::DB (
+                  Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32))
+                  Table TFIRM ( milestoning( business(BUS_FROM=from_z, BUS_THRU=thru_z) )
+                    ID INTEGER PRIMARY KEY, NAME VARCHAR(32), from_z DATE, thru_z DATE)
+                )
+                ###Mapping
+                Mapping x::M (
+                  *x::Firm: Relational { ~mainTable [x::DB] FIRM name: [x::DB] FIRM.NAME }
+                  *x::TFirm: Relational { ~mainTable [x::DB] TFIRM name: [x::DB] TFIRM.NAME }
+                )
+                ###Connection
+                RelationalDatabaseConnection x::Conn
+                {
+                    store: x::DB;
+                    type: %s;
+                    specification: LocalH2 { };
+                    auth: DefaultH2;
+                }
+                RelationalDatabaseConnection x::ConnSeeded
+                {
+                    store: x::DB;
+                    type: %s;
+                    specification: LocalH2 { testDataSetupSqls: ['insert into FIRM values (9, \\'Seed\\')']; };
+                    auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ env: x::Conn ] ]; }
+                Runtime x::RTSeeded { mappings: [x::M]; connections: [ x::DB: [ env: x::ConnSeeded ] ]; }
+                """.formatted(backend.type().name(), backend.type().name());
+    }
+
+    private static final List<String> FIRM_ROWS = List.of(
+            "create table FIRM (ID integer primary key, NAME varchar(32))",
+            "insert into FIRM values (1, 'Acme'), (2, 'Bolt')",
+            "create table TFIRM (ID integer primary key, NAME varchar(32), from_z date, thru_z date)",
+            "insert into TFIRM values (1, 'Old', date '2000-01-01', date '2010-01-01'),"
+                    + " (2, 'New', date '2010-01-01', date '9999-12-31')");
+    /** A frame over a business-temporal class (M9d): its eager run is the product's lowering of the temporal read. */
+    private static final String EXECUTE_TEMPORAL = "meta::pure::router::execute(|x::TFirm.all(%2020-06-01)"
+            + "->project([t|$t.name], ['name']), x::M, x::RT.runtimeValue, [])";
+    private static final String EXECUTE = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']),"
+            + " x::M, x::RT.runtimeValue, [])";
+    /** A class-rooted frame (the M9a audit's S2): the eager run is the product's lowering of an object read. */
+    private static final String EXECUTE_CLASS = "meta::pure::router::execute(|x::Firm.all(), x::M, x::RT.runtimeValue,"
+            + " [])";
+
+    /** The frame programs (M9a): {@code let r = execute(...)} read by the asserts after it -- the corpus's idiom --
+     *  run both ways: every statement (the frame's eager run under LET, the asserts' sides), the census, the verdicts,
+     *  the answer. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void framePrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (String body : List.of(
+                // one frame, one assert over its rows
+                "{| let r = " + EXECUTE + "; assertEquals(['Acme', 'Bolt'], $r.values.rows.values);}",
+                // a frame read by two asserts, a value let reading it between them, a literal last
+                "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2); let n = $r.values.rows->size();"
+                        + " assertEquals(2, $n); true;}",
+                // two frames, each read
+                "{| let r = " + EXECUTE + "; let s = " + EXECUTE + "; assertEquals($r.values.rows->size(),"
+                        + " $s.values.rows->size());}",
+                // an assert before the frame, then the frame, then an assert that fails
+                "{| assertEquals(1, 1); let r = " + EXECUTE + "; assertEquals(['Acme'], $r.values.rows.values);}",
+                // the frame's rows filtered in the side
+                "{| let r = " + EXECUTE + "; assertEquals(['Bolt'], $r.values->filter(x|$x.name == 'Bolt').rows"
+                        + ".values);}",
+                // M9b: an alias of the frame, the same frame under another name
+                "{| let r = " + EXECUTE + "; let v = $r.values->at(0); assertSize($v.rows, 2);"
+                        + " assertEquals(['Acme', 'Bolt'], $v.rows.values);}",
+                // M9b: an inline execute read where it stands (the product's lazy splice)
+                "{| assertSize(" + EXECUTE + ".values.rows, 2);}",
+                // M9b: a database effect between the frame's let and its reader (the eager run before the effect, the
+                // side after it)
+                "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); let r = "
+                        + EXECUTE + "; assertSize($r.values.rows, 2); " + EXEC
+                        + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); assertSize($r.values.rows, 3);}",
+                // the M9a audit's S2: a class-rooted frame (the eager run an object read; its values the objects)
+                "{| let r = " + EXECUTE_CLASS + "; assertSize($r.values, 2); assertEquals(['Acme', 'Bolt'],"
+                        + " $r.values.name);}",
+                // the M9a audit's S4: a frame read only through a value let; a failing first assert, then a reader
+                "{| let r = " + EXECUTE + "; let n = $r.values.rows->size(); assertEquals(2, $n);}",
+                "{| let r = " + EXECUTE + "; assertEquals(['Acme'], $r.values.rows.values); assertSize($r.values.rows,"
+                        + " 2);}",
+                // the M9b audit's F3: a frame's query through a plain helper (inlined on both roads; the rule's reach
+                // into the helper finds no kind planned another way)
+                "{| let r = meta::pure::router::execute(|x::firms(), x::M, x::RT.runtimeValue, []);"
+                        + " assertSize($r.values.rows, 2);}",
+                // F3: an alias of an alias; an alias read by a value let
+                "{| let r = " + EXECUTE + "; let v = $r.values->at(0); let w = $v->toOne(); let n = $w.rows->size();"
+                        + " assertEquals(2, $n); assertSize($w.rows, 2);}",
+                // F3: an effect before the frame's let (the effect's script closed before the eager run)
+                "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); " + EXEC
+                        + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); let r = " + EXECUTE
+                        + "; assertSize($r.values.rows, 3);}",
+                // F3: a print of a frame read between the asserts (inert on both roads)
+                "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2); print($r.values.rows->size());"
+                        + " assertSize($r.values.rows, 2);}",
+                // the M9c audit's F7: a helper-wrapped execute bound by a let is a VALUE let both roads splice lazily
+                // (the walk's standing divergence from upstream, which runs it at the let: recorded in the plan's §9)
+                "{| let r = x::execHelper(); assertSize($r.values.rows, 2);}",
+                "{| let r = " + EXECUTE + "; assertEquals($r.values.rows->size(), x::execHelper().values.rows"
+                        + "->size());}",
+                // the M9c audit's F8: the side kinds admitted since M9c -- an object literal's property, a temporal
+                // class's extent, the activity comment through a tainted value let
+                "{| let r = " + EXECUTE + "; assertEquals('Cyl', ^x::Firm(name='Cyl').name);"
+                        + " assertSize($r.values.rows, 2);}",
+                "{| let r = " + EXECUTE + "; assertEquals(1, x::TFirm.all(%2020-06-01)->from(x::M, x::RT)->size());"
+                        + " assertSize($r.values.rows, 2);}",
+                "{| let r = " + EXECUTE + "; let cm = $r.activities->at(0)->cast(@meta::relational::mapping::"
+                        + "RelationalActivity).comment->toOne(); assert($cm->startsWith('-- \"executionTraceID\"'));}",
+                // M9d: a frame over a business-temporal class, read by the asserts
+                "{| let r = " + EXECUTE_TEMPORAL + "; assertSize($r.values.rows, 1); assertEquals(['New'],"
+                        + " $r.values.rows.values);}",
+                // M9d: the corpus's plan-handle idiom (`let p = executionPlan(...)`, its mapping a reference the rule
+                // reads as the handle's query, never as a system-store read), the plan's SQL read from the handle's rows
+                "{| let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name], ['name']),"
+                        + " x::M, x::RT.runtimeValue, []); assertNotEmpty($p.rootExecutionNode.executionNodes);"
+                        + " assert($p.rootExecutionNode.executionNodes->at(0)->cast(@meta::relational::mapping::"
+                        + "SQLExecutionNode).sqlQuery->toOne()->startsWith('select'));}",
+                // M9d: the corpus's value-let idiom over an inline execute (`let tds = execute(...).values->toOne()`)
+                "{| let tds = " + EXECUTE + ".values->toOne(); assertEquals(2, $tds.rows->size());"
+                        + " assertSameElements(['Acme', 'Bolt'], $tds.rows->map(r|$r.get('name')->toString()));}",
+                // M9c: the frame's activities read -- the run's SQL (a planning-time render on both roads), through the
+                // corpus's filter-and-cast idiom, through a value let, and inline
+                "{| let r = " + EXECUTE + "; assertSize($r.activities, 1); assert($r.activities->at(0)->cast("
+                        + "@meta::relational::mapping::RelationalActivity).sql->toOne()->startsWith('select'));}",
+                "{| let r = " + EXECUTE + "; assertEquals(1, $r.activities->filter(a|$a->instanceOf("
+                        + "meta::relational::mapping::RelationalActivity))->cast(@meta::relational::mapping::"
+                        + "RelationalActivity).sql->size());}",
+                "{| let r = " + EXECUTE + "; let a = $r.activities; assertSize($a, 1); let s = $r.activities->at(0)"
+                        + "->cast(@meta::relational::mapping::RelationalActivity).sql->toOne();"
+                        + " assert($s->startsWith('select'));}",
+                "{| assertSize(" + EXECUTE + ".activities, 1);}",
+                // the M9a audit's S3: the frame's own runtime argument declares test data the body's runtime does not:
+                // neither road seeds it (the seeds are a from()'s; the frame's run reads the table as it stands)
+                "{| let r = meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']), x::M,"
+                        + " x::RTSeeded.runtimeValue, []); assertSize($r.values.rows, 2);}")) {
+            assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS);
+        }
+        // a body whose own runtime declares test data stays on the walk (the first rule of every class)
+        assertNull(BodyClass.of(typed(ctx, "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2);}"),
+                "x::RTSeeded", true));
+    }
+
+    /** The frame shapes M9 leaves on the walk, each by name: the eager inline execute, an effect let, a frame reading
+     *  a frame, a kind planned another way inside a helper, a computed effect, an effect last. */
+    @Test
+    void theFrameShapesTheRuleKeepsOnTheWalk() {
+        TestBackend backend = TestBackends.platform();
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        for (String body : List.of(
+                // the one inline shape the splice runs at planning: size(execute(...))
+                "{| assertEquals(1, " + EXECUTE + "->size());}",
+                // an effect let (its value a raw grid)
+                "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); let x = " + EXEC
+                        + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000); let r = " + EXECUTE
+                        + "; assertSize($r.values.rows, 3);}",
+                // $r.values->at(k>0) over a relation frame: the walk raises it at the let (the M9a audit's S1), so
+                // the rule names the shape and leaves it
+                "{| let r = " + EXECUTE + "; let v = $r.values->at(1); assertSize($v.rows, 2);}",
+                // a frame with no assert after it is no assert program
+                "{| let r = " + EXECUTE + "; $r.values.rows->size();}",
+                // the M9a audit's N1: a frame's query reading an earlier frame by name (the walk's run chain is
+                // resolved with no splice, so the walk raises at the let where the program road would splice it)
+                "{| let r = " + EXECUTE + "; let s = meta::pure::router::execute(|x::Firm.all()->filter(f|$f.name"
+                        + " != $r.values.rows->size()->toString())->project([f|$f.name], ['name']), x::M,"
+                        + " x::RT.runtimeValue, []); assertSize($s.values.rows, 2);}",
+                // the M9b audit's F2: the same read through a value let tainted by the frame, and by an inline
+                // execute
+                "{| let r = " + EXECUTE + "; let n = $r.values.rows->size(); let s = meta::pure::router::execute("
+                        + "|x::Firm.all()->filter(f|$f.name != $n->toString())->project([f|$f.name], ['name']), x::M,"
+                        + " x::RT.runtimeValue, []); assertSize($s.values.rows, 2);}",
+                "{| let n = " + EXECUTE + ".values.rows->size(); let s = meta::pure::router::execute("
+                        + "|x::Firm.all()->filter(f|$f.name != $n->toString())->project([f|$f.name], ['name']), x::M,"
+                        + " x::RT.runtimeValue, []); assertSize($s.values.rows, 2);}",
+                // F2, through an alias and a let of a tainted let
+                "{| let r = " + EXECUTE + "; let v = $r.values->at(0); let n = $v.rows->size(); let m = $n + 0;"
+                        + " let s = meta::pure::router::execute(|x::Firm.all()->filter(f|$f.name != $m->toString())"
+                        + "->project([f|$f.name], ['name']), x::M, x::RT.runtimeValue, []);"
+                        + " assertSize($s.values.rows, 2);}",
+                // the M9b audit's F1: a kind planned another way, or an execute, inside a helper the frame's query or
+                // an assert calls (the rule's reach into the helper is blind to no callee: one memo per predicate)
+                "{| let r = meta::pure::router::execute(|x::aFirm(), x::M, x::RT.runtimeValue, []);"
+                        + " assertSize($r.values, 1);}",
+                "{| let r = " + EXECUTE + "; assertEquals(1, x::oneExec()); assertSize($r.values.rows, 2);}",
+                "{| let r = " + EXECUTE + "; let n = x::oneExec(); assertEquals(1, $n); assertSize($r.values.rows,"
+                        + " 2);}",
+                // F3: the eager inline shape bound by a let
+                "{| let n = " + EXECUTE + "->size(); assertEquals(1, $n);}",
+                // the M9c audit's F8: an element used as a value is the system store's row (its session the system
+                // database's: M10a)
+                "{| let r = " + EXECUTE + "; let m = x::M; assertEquals('M', $m.name); assertSize($r.values.rows, 2);}",
+                "{| let r = " + EXECUTE + "; assertEquals('M', x::M.name); assertSize($r.values.rows, 2);}",
+                // the M9c audit's F2: a store write inside a side runs where its side is planned, inside the walk's
+                // transaction; a body it reaches stays on the walk
+                "{| let r = " + EXECUTE + "; assertEquals(2, #>{x::DB.FIRM}#->filter(f|$f.ID <= 2)"
+                        + "->write(#>{x::DB.FIRM}#)); assertSize($r.values.rows, 2);}",
+                "{| assertEquals(2, #>{x::DB.FIRM}#->filter(f|$f.ID <= 2)->write(#>{x::DB.FIRM}#)); assertEquals(1, 2);}",
+                // F3: an effect whose String argument reads a frame (not a literal), and an effect as the last
+                // statement
+                "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); let r = "
+                        + EXECUTE + "; " + EXEC + "'insert into FIRM values (3, \\'' + $r.values.rows->size()"
+                        + "->toString() + '\\')', $c, 0, 1000); assertSize($r.values.rows, 3);}",
+                "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                        + "type=meta::relational::runtime::DatabaseType." + backend.type().name() + "); let r = "
+                        + EXECUTE + "; assertSize($r.values.rows, 2); " + EXEC
+                        + "'insert into FIRM values (3, \\'Cyl\\')', $c, 0, 1000);}")) {
+            assertNull(BodyClass.of(typed(ctx, body), "x::RT", true), body);
+        }
+    }
+
+    /** M9c: a frame's activity COMMENT is the trace stamp of its eager run on both roads -- the walk's frame holds the
+     *  run's comment as a literal, the pre-planned frame a parameter the run's check step binds (R17 C4) -- so the
+     *  sides' texts differ there by design and every other boundary is the same; the moved side carries the stamp
+     *  as a bound parameter, never as text. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void theActivityCommentIsTheRunsStamp(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String body = "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
+                + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
+                + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                + ".comment->toOne()->length());}";
+        assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS);
+        Run walked = run(backend, ctx, "x::RT", body, false, "select count(*) from FIRM", FIRM_ROWS);
+        Run moved = run(backend, ctx, "x::RT", body, true, "select count(*) from FIRM", FIRM_ROWS);
+        assertEquals("ok", walked.outcome);
+        assertTrue(walked.statements.stream().anyMatch(s -> STAMP_LITERAL.matcher(s).find()),
+                "the walk's side spells the run's comment: " + walked.statements);
+        assertFalse(moved.statements.stream().anyMatch(s -> STAMP_LITERAL.matcher(s).find()),
+                "the moved side binds the comment, never spelling it: " + moved.statements);
+    }
+
     /** The assert shapes the class admits and the host checks do not plan (M6's audit, S3 and N3): the router leaves
      *  the body on the walk, by a static rule ({@code AssertVerdicts.planHost} answers null before any side). */
     @ParameterizedTest
@@ -273,11 +530,6 @@ class BodyRouterParityTest {
             assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
             assertEquals(walked.census, routed.census, "the verdict census: " + body);
         }
-        // a type named as an argument is a packageable reference the class rule leaves on the walk (the query
-        // program's list), so the class test by a type reference never reaches the host checks
-        ModelContext ctx = Compiler.compileModel(model(backend, false));
-        assertNull(BodyClass.of(typed(ctx, "{| assertInstanceOf(1, Integer); assertInstanceOf('a', String);}"), RT,
-                true));
     }
 
     private static String model(TestBackend backend, boolean seeded) {
@@ -301,22 +553,45 @@ class BodyRouterParityTest {
     /** {@code body} (a moved class's) run on the walk and on the router, each on a fresh database: every boundary
      *  observed the same. */
     private static void assertParity(TestBackend backend, String body, String check) throws Exception {
-        ModelContext ctx = Compiler.compileModel(model(backend, false));
-        assertNotNull(BodyClass.of(typed(ctx, body), RT, true),
+        assertParity(backend, Compiler.compileModel(model(backend, false)), RT, body, check, List.of());
+    }
+
+    /** {@code body} on {@code ctx} and {@code runtime}, each run on a fresh database the harness first sends
+     *  {@code setup} to (a table a frame reads; the harness sends its own SQL, as every test harness does). */
+    private static void assertParity(TestBackend backend, ModelContext ctx, String runtime, String body, String check,
+            List<String> setup) throws Exception {
+        assertNotNull(BodyClass.of(typed(ctx, body), runtime, true),
                 "the body is a moved class's under the host judge: " + body);
-        Run walked = run(backend, ctx, body, false, check);
-        Run moved = run(backend, ctx, body, true, check);
+        Run walked = run(backend, ctx, runtime, body, false, check, setup);
+        Run moved = run(backend, ctx, runtime, body, true, check, setup);
         assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
         assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
         assertEquals(walked.answer, moved.answer, "the answer: " + body);
         assertEquals(walked.origins, moved.origins, "the statement-origin census: " + body);
         assertEquals(walked.effects, moved.effects, "the effects census: " + body);
         assertEquals(walked.database, moved.database, "the database left: " + body);
-        assertEquals(walked.statements, moved.statements, "the statements sent (origin and text, in order): " + body);
+        assertEquals(stampsAsParameters(walked.statements), stampsAsParameters(moved.statements),
+                "the statements sent (origin and text, in order; a frame's trace stamp as the plan binds it): " + body);
         assertEquals(walked.verdicts, moved.verdicts, "the verdicts the listener heard: " + body + " (" + walked.outcome
                 + ")");
         assertEquals(walked.census, moved.census, "the verdict census: " + body + " (" + walked.outcome + ")");
         assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
+    }
+
+    /** The walk's spelling of a frame's trace stamp (the run's comment, a literal in the activity rows it registered
+     *  after the run) replaced by {@code <stamp>}, and the plan's (the parameter the run's check step binds, R17 C4;
+     *  M9c) likewise: the one designed difference in a side reading a frame's activities. */
+    private static final java.util.regex.Pattern STAMP_LITERAL =
+            java.util.regex.Pattern.compile("'-- \"executionTraceID\" : \"[0-9a-f-]{36}\"'");
+    private static final java.util.regex.Pattern STAMP_PARAMETER =
+            java.util.regex.Pattern.compile("CAST\\(\\? AS VARCHAR\\)|\\?");
+
+    private static List<String> stampsAsParameters(List<String> statements) {
+        List<String> out = new ArrayList<>(statements.size());
+        for (String s : statements) {
+            out.add(STAMP_PARAMETER.matcher(STAMP_LITERAL.matcher(s).replaceAll("<stamp>")).replaceAll("<stamp>"));
+        }
+        return out;
     }
 
     private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,
@@ -325,7 +600,17 @@ class BodyRouterParityTest {
 
     private static Run run(TestBackend backend, ModelContext ctx, String body, boolean router, String check)
             throws Exception {
+        return run(backend, ctx, RT, body, router, check, List.of());
+    }
+
+    private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body, boolean router,
+            String check, List<String> setup) throws Exception {
         try (Connection c = backend.open()) {
+            try (Statement st = c.createStatement()) {
+                for (String sql : setup) {
+                    st.execute(sql);
+                }
+            }
             TypedQuery q = typed(ctx, body);
             RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
             ExecuteOptions options = ExecuteOptions.recording(recorder, null);
@@ -352,10 +637,10 @@ class BodyRouterParityTest {
                     com.legend.judge.CanonicalDivergence.sqlCensus());
             try (var observing = StatementOrigin.observing(statements)) {
                 if (router) {
-                    Execution.runProgram(q, RT, Execution.Source.given(session), listener, null, options,
+                    Execution.runProgram(q, runtime, Execution.Source.given(session), listener, null, options,
                             capture::of);
                 } else {
-                    BodyDriver.execute(q, RT, backend.dialect().forServer(session.version()), session, listener,
+                    BodyDriver.execute(q, runtime, backend.dialect().forServer(session.version()), session, listener,
                             null, options, capture::of);
                 }
             } catch (RuntimeException e) {

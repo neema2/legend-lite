@@ -61,6 +61,17 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
 
 ## Other traps
 
+- **Never delete the LLVM toolchain's tarball from the download cache** (`~/.cache/bazel/_bazel_root/cache/repos/v1/content_addressable`,
+  the 1.9 GB `LLVM-20.1.8-Linux-X64.tar.xz`), even with its extraction in place (2026-11-01, measured the hard way):
+  the next build that needed the toolchain re-fetched the repository -- downloaded the tarball again and extracted its
+  11 GB into a full disk, killing the build -- although the repository-contents cache (`cache/repos/v1/contents`,
+  which hard-links its extractions into the output base) still held the extraction. The other downloaded archives
+  can go once extracted (about 4 GB), the LLVM one cannot. Recovery when it happens: keep `--repo_contents_cache`
+  ENABLED (the line `common --repo_contents_cache=` in `~/.bazelrc` turns it off; with it off the restore is a
+  download), then `bazel fetch --repo=@@toolchains_llvm++llvm+llvm_toolchain_llvm` restores the extraction from the
+  cache in seconds without a download; `bazel clean` (not `--expunge`) frees the build outputs (about 5 GB after a
+  gate run) at the cost of recompiling core.
+
 - **The disk allowance.** The output base (about 8 GB) and the repository cache (about 20 GB) take most of it, and
   "No space left on device" then appears mid-build, often while copying inputs into a sandbox. When no build runs,
   `rm -rf "$(bazel info output_base)"/sandbox/*` and stale scratch output free a few GB. `df` reports the

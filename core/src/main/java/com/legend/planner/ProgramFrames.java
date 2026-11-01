@@ -94,6 +94,19 @@ public final class ProgramFrames {
         return name;
     }
 
+    /** {@code name}, a stamp parameter minted outside this program (the asserts' planner's, for a frame let whose
+     *  activity rows its sides read: the test-is-the-product plan's M9c), adopted as one of the program's: every
+     *  statement's lowering binds it, and the frame's eager run binds its value. The name spells the stamp prefix. */
+    public String adoptStamp(String name) {
+        if (!name.startsWith(STAMP)) {
+            throw new IllegalArgumentException("a stamp parameter spells the prefix '" + STAMP + "': " + name);
+        }
+        if (!stamps.contains(name)) {
+            stamps.add(name);
+        }
+        return name;
+    }
+
     /** The frame bound by the let {@code name}. */
     public void let(String name, Frame frame) {
         frames.put(name, frame);

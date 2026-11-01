@@ -213,6 +213,8 @@ public class MinimalCorpusTest {
         List<String> artifactRows = new ArrayList<>();
         List<String> hostComparedRows = new ArrayList<>();
         List<String> fallbackRows = new ArrayList<>();
+        /** the kinds of each body the router left on the walk, per test (the test-is-the-product plan's M9) */
+        List<String> stayedRows = new ArrayList<>();
         java.util.Map<com.legend.exec.StatementOrigin, java.util.Map<String, Long>> originTop = new java.util.EnumMap<>(com.legend.exec.StatementOrigin.class);
         long t0 = System.nanoTime();
         try {
@@ -231,6 +233,7 @@ public class MinimalCorpusTest {
                 long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
                 long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
                 long movedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
+                int stayedBefore = com.legend.exec.Census.STAYED_KINDS.size();
                 if (TRACE) {
                     // -Dlegend.diagnostics=corpus-trace: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -298,6 +301,9 @@ public class MinimalCorpusTest {
                 for (int fi = fallbacksBefore; fi < com.legend.exec.Census.FALLBACK_REASONS.size(); fi++) {
                     fallbackRows.add(r.fqn() + "\t" + com.legend.exec.Census.FALLBACK_REASONS.get(fi));
                 }
+                for (int si = stayedBefore; si < com.legend.exec.Census.STAYED_KINDS.size(); si++) {
+                    stayedRows.add(r.fqn() + "\t" + r.status() + "\t" + com.legend.exec.Census.STAYED_KINDS.get(si));
+                }
                 long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
                 if (fired > 0) {
                     engineOrder.add(ENGINE_ORDER + " " + r.fqn() + " :: x" + fired);
@@ -357,6 +363,18 @@ public class MinimalCorpusTest {
                 + " max-asserts=" + maxAsserts + " max-frames=" + maxFrames);
         System.out.println("[corpus2] body-compiler effect-statements-in-scripts=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.EFFECTS_IN_SCRIPT));
         System.out.println("[corpus2] body-router moved=" + com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED));
+        // THE KIND CENSUS of the bodies the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
+        // per test in the TSV; the histogram over the PASSING tests' bodies names what each movement step must admit
+        Files.write(com.legend.testing.TestOutputs.file("corpus2-body-stayed.tsv"), stayedRows);
+        java.util.Map<String, Integer> stayedByKinds = new java.util.TreeMap<>();
+        for (String row : stayedRows) {
+            String[] cols = row.split("\t", 3);
+            if ("PASS".equals(cols[1])) {
+                stayedByKinds.merge(cols[2].isEmpty() ? "(none)" : cols[2], 1, Integer::sum);
+            }
+        }
+        stayedByKinds.entrySet().stream().sorted((x, y) -> Integer.compare(y.getValue(), x.getValue()))
+                .forEach(e -> System.out.println("[corpus2] body-router stayed " + e.getValue() + " " + e.getKey()));
         java.util.Map<String, Integer> fallbackByReason = new java.util.TreeMap<>();
         for (String row : fallbackRows) {
             String reason = row.substring(row.indexOf('\t') + 1);

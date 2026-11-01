@@ -399,7 +399,7 @@ public final class BodyDriver {
             return AssertErrorNative.run(pv.contextOwner(), pv.lets(), specs, pv.env(), frames);
         }
         if (pv.forcedFrame() != null) {
-            return buildFrame(pv.forcedFrame(), pv.lets(), true, true, specs, pv.env()).result();
+            return buildFrame(pv.forcedFrame(), pv.lets(), true, true, specs, pv.env(), null).result();
         }
         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(
                 com.legend.exec.StatementOrigin.STATEMENT)) {
@@ -474,7 +474,18 @@ public final class BodyDriver {
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             java.util.List<TypedSpec> letPrefix, boolean eager,
             SpecCompiler specs, ExecEnv env) {
-        return buildFrame(ec, letPrefix, eager, false, specs, env);
+        return buildFrame(ec, letPrefix, eager, false, specs, env, null);
+    }
+
+    /** A frame PRE-PLANNED for a moved body (the test-is-the-product plan's M9, M9c): built as the walk builds a let's
+     *  frame but not run -- the program's check step runs it at the let -- its activity's comment the stamp parameter
+     *  {@code stamp}, which that check binds when the plan runs and every statement on {@code env} binds as a
+     *  parameter (the comment of a frame the walk ran is the run's; this frame's is the run's too, read at run). */
+    static ExecFrame plannedFrame(
+            com.legend.compiler.spec.typed.TypedNativeCall ec,
+            java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env, String stamp) {
+        env.plan().stamps().add(stamp);
+        return buildFrame(ec, letPrefix, false, false, specs, env, stamp);
     }
 
     /** The activity's execution-trace comment: the run's when the frame ran
@@ -493,7 +504,7 @@ public final class BodyDriver {
     private static ExecFrame buildFrame(
             com.legend.compiler.spec.typed.TypedNativeCall ec0,
             java.util.List<TypedSpec> letPrefix, boolean eager, boolean resultNeeded,
-            SpecCompiler specs, ExecEnv env0) {
+            SpecCompiler specs, ExecEnv env0, @com.legend.base.Nullable String stampParameter) {
         // the frame's chain, planned (the seam program's S2g, 2026-10-31): the plan-execute normalization, the string
         // entry's envelope and activity SQL, the runtime's table renames and the chain's assembly -- the planner's
         com.legend.planner.FramePlanner.FrameChain fc =
@@ -521,7 +532,7 @@ public final class BodyDriver {
             }
         }
         com.legend.planner.PlanAllocations.registerActivityRows(ec, fc.chain(), letPrefix, specs,
-                activityComment(run, env), env.plan());
+                stampParameter == null ? activityComment(run, env) : null, stampParameter, env.plan());
         if (fc.legendQuery()) {
             // the string entry's value is one string: no planned CTE, no read kind
             return new ExecFrame(fc.chain(), false, run, env.tableReplace(), ec);

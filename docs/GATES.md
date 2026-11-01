@@ -16583,6 +16583,65 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's M9: the frame programs run whole under the host judge
+
+The plan's §7 (M9), §9 "M9a" to "M9d", §10; the decisions log D109; the audit briefs
+`docs/test-is-product-homework/M9A_AUDIT_BRIEF.md`, `M9B_AUDIT_BRIEF.md`, `M9C_AUDIT_BRIEF.md` (each audit's findings
+recorded in §9 with its folds).
+
+1. **Built, in four sub-steps, each measured on the DuckDB corpus and audited** (the user: "audits along the way at each
+   step and substep", the expensive chain at the milestone): M9a the frame programs (`BodyClass.FRAME_PROGRAM`: `let r =
+   execute(...)` read by the asserts and value lets after it, the eager run the test door's check step at the let under
+   the LET origin, the asserts' sides planned by `HostAsserts` over the walk's own frames); M9b aliases, inline
+   executes, effects with literal arguments between, handle lets -- its audit: one reach memo per predicate (a shared
+   memo blinded every later predicate to the callees the first had walked), frame taint through value lets, the
+   relation-rootedness read off the query lambda's typed root with no chain built (`FramePlanner.relationRooted`,
+   `ExecuteChainAssembly.queryLambda`); M9c activities reads -- the frame's trace comment the stamp parameter its eager
+   run binds and the sides carry (R17 C4; `PlanEnv.stamps`, `ProgramFrames.adoptStamp`, `TestDoor.Asserts.frameStamp`),
+   the side-kind rule (`BodyClass.sideKind`), the element-reference rule (`systemElementReference`), the kind census
+   (`BodyKinds`, `Census.STAYED_KINDS`, `[corpus2] body-router stayed`) -- its audit: a store write in a side walked,
+   a pending let followed by a frame or an effect walked, the query peel non-raising, the splice hook on the body's
+   environment; M9d handles and `from()` contexts read as their queries, the session guard (`HostSides.Planned.on()`
+   against the body's session: five `scanColumns` tests had failed moved, "schema metamodel does not exist"),
+   temporal frames (byte-identical eager run, pinned).
+2. **Movement, per DuckDB host pass:** `body-router moved` 608 (M6) -> 853 (M9b) -> 892 (M9c) -> 1,080 (M9d);
+   outcomes identical at every step (host 2471 pass / 108 fail; database 2473 / 108, moved 604 unchanged: the class is
+   the host judge's). The kind census of what still walks (host pass, passing tests): 1,131 engine-text asserts over
+   activities (M10b), 390 system-store reads (M10a), 181 temporal frames whose asserts are engine text (M10b), 98 other
+   host shapes the checks do not plan, about 190 system reads mixed with effects or frames, about 20 effect bodies
+   (through helpers or computed), 10 seeded frames, 8 graph frames, one each of `loadCsvToDbTable`, a staged grid, the
+   eager inline execute; no body holds `assertError` or the test-data generator.
+3. **The chain (the handoff's §6):** core 28 of 28 with the statement dumps, every package byte-identical in text and
+   labels to M6's but `driver` (+444 lines, all additions: the parity test's own new runs -- 112 eager runs under `let`,
+   264 verdict sides under `other`, 60 session statements, 8 `body`) and `exec` (one statement's position swapped with
+   its neighbour, the same 457 lines);
+   `//pct:pct_duckdb` 6 of 6 and `bodies-moved=0` in every suite (PCT runs each test as a call of the test function:
+   its asserts sit inside a user function, M10c's shape);
+   `//spec:corpus_duckdb` uncached, 6 of 6: host pass 2471 / 108 / 14 skipped, `body-router moved=1080`, its
+   statement-origins census `body=3972 let=1974 seed=100 session=6397 system=121 referee_ours=1188
+   referee_golden=1258 statement=35 other=6219` (the session count 6405 -> 6397 against the M9b measurement: a moved
+   body opens one session per program where the walk opened one per assert, M6's N4); database pass 2473 / 108,
+   `moved=604`, census identical to the baseline (`body=6553 ... other=2`);
+   `//spec:corpus_h2` uncached, 6 of 6: host pass 2289 / 295, `moved=1080`; database pass 2233 / 353, `fallback=18`,
+   `moved=604`, every count the baseline's;
+   channel B 5 of 5 (it judges BOTH: the class is the host judge's, nothing moves);
+   `//gates:local` 448 pass, 1 skipped, 9 red: the nine Postgres targets refusing root (the eight core tests and
+   `//datacube:verify_app_test`), 9 of 9 green unprivileged (`tools/postgres/as_unprivileged.sh ubuntu`). Disk at the chain's end: 94% of the allowance.
+4. **Guards, dated:** `JavaEvalLedgerTest` -- `BodyKinds.java` registered in the test-planning library's set (a
+   measurement carrier, deciding nothing) and four pins re-pinned: LetPlanner 123 -> 131 (`badAliasIndex` over one
+   `unwrap` with `aliasOf`), FramePlanner 199 -> 219 (`relationRooted`), BodyPlanner 336 -> 341 (the stamps bound),
+   BodyDriver 939 -> 945 (`plannedFrame`); nothing evaluated moved into Java. `ArchitectureTest`'s mutable-static
+   register gains `Census.STAYED_KINDS` (appended by the router, read by the lanes). `HarnessDisciplineTest`
+   `MinimalCorpusTest.java` 2 -> 3 (the stayed-kinds histogram, a display ordering). `BodyClassTest.MOVED` grows by
+   `FRAME_PROGRAM`. The guardrails' own catches folded at the root rather than re-pinned: the kinds an enum (no string
+   compare), the catalog's family for `evaluateAndDeactivate` (no FQN literal), a `from()` read by its source (no typed
+   node minted outside the compiler).
+5. **Residue, named** (R23): the plan's §9 "M9a"-"M9d". The largest: a helper-wrapped `execute` bound by a let is
+   spliced lazily on both roads where upstream runs it at the let (the walk's standing divergence, now the program
+   road's: a `docs/SEMANTICS_REGISTER.md` row is the user's call); an inline `execute(...).activities` comment is `""`
+   on both roads; the stamp parameter the one designed text difference in a side; the remaining M9 kinds (TDG, T9, T10,
+   T12, effect helpers, graph and seeded frames) move inside M10's classes, each a handful of bodies.
+
 ## 2026-11-01 — The test-is-the-product plan's M6: the host judge's arms in two halves; the assert programs run whole
 
 The plan's §6 B3-B5, §7 (the order after M7), §9, §10; the decisions log D108; the handoff
@@ -16590,7 +16649,11 @@ The plan's §6 B3-B5, §7 (the order after M7), §9, §10; the decisions log D10
 `docs/test-is-product-homework/M6_AUDIT.md`; the revalidation `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`.
 
 1. **The R21 checkpoint recorded late (93c930cd):** CI green on every OS, 52 of 52 checks (not recorded with D107's
-   entry; recorded here with M6, as the handoff asked).
+   entry; recorded here with M6, as the handoff asked). **CI on c9847ebe (M6 itself), read 2026-11-01 16:46 UTC:** 45
+   of 52 green -- every Windows, Linux-arm and Linux lane but three, every macOS lane but three; the Linux `stress`,
+   `datacube` and `pct_postgres` jobs died in the runner's LLVM extraction ("No space left on device", the standing
+   hazard below), and the macOS `datacube`, `pct_channel_b` and `checks` jobs were cancelled when the `gates green`
+   aggregate failed on those. No lane failed on the code. The M9 push supersedes this head's run.
 2. **Built** (the handoff's §4.1; the WIP commit `89e604de` brought in by cherry-pick, then the audit folded): every
    single-fetch host arm split into a PLAN half (`HostSides.Check`: the sides it asks for) and a JUDGMENT over the
    shaped sides (`HostJudge.planX`), the walk running both halves back to back (`HostSides.run`/`judged`);

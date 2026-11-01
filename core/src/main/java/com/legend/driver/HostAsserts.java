@@ -55,9 +55,13 @@ final class HostAsserts implements TestDoor.Asserts {
     /** The same, by the verdict the runner hands back (a record compares by value: two asserts alike are two
      *  verdicts). */
     private final Map<ExecutionPlan.Verdict, Planned> byVerdict;
+    /** The stamp parameter minted for each frame let, by the let's place (M9c): the comment the let's eager run
+     *  binds and the sides reading the frame's activities carry. */
+    private final Map<Integer, String> frameStamps;
 
-    private HostAsserts(Map<Integer, Planned> byStatement) {
+    private HostAsserts(Map<Integer, Planned> byStatement, Map<Integer, String> frameStamps) {
         this.byStatement = Collections.unmodifiableMap(new LinkedHashMap<>(byStatement));
+        this.frameStamps = Collections.unmodifiableMap(new LinkedHashMap<>(frameStamps));
         Map<ExecutionPlan.Verdict, Planned> verdicts = new IdentityHashMap<>();
         byStatement.values().forEach(p -> verdicts.put(p.verdict(), p));
         this.byVerdict = Collections.unmodifiableMap(verdicts);
@@ -67,36 +71,67 @@ final class HostAsserts implements TestDoor.Asserts {
      * {@code typed}'s asserts planned on {@code env} (the body's environment, as the walk makes it), each with the
      * lets before it as the walk holds them -- every let of an assert program the program rides ({@code VALUE}): its
      * handles registered, then the let on the prefix. Null where an assert is of a shape the host checks do not plan
-     * yet: the walk runs the body.
+     * yet: the walk runs the body. A frame let ({@code let r = execute(...)}, M9) is built as the walk builds it
+     * ({@code BodyDriver.buildFrame}) without its eager run -- the program's check step runs it at the let -- and the
+     * asserts after it splice their reads of it as the walk does.
      */
     static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env) {
         SpecCompiler specs = typed.specs();
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         List<TypedSpec> body = typed.body();
         List<TypedSpec> letPrefix = new ArrayList<>();
+        // the body's frames as the walk builds them (M9): a frame let's chain, not run here -- its eager run is the
+        // program's check step at the let -- so an assert's side reading the frame is the walk's statement
+        Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
+        Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         Map<Integer, Planned> planned = new LinkedHashMap<>();
+        Map<Integer, String> frameStamps = new LinkedHashMap<>();
         // a let whose handle registration raised: the walk raises it at the let's turn, after the asserts before it
-        // ran and reported; the next assert raises it at its turn instead (nothing between them sends: the class
-        // admits no step there), the asserts after it never run (S1)
+        // ran and reported; the next assert raises it at its turn instead, the asserts after it never run (S1) --
+        // where a frame or an effect stands between them the body stays on the walk (above)
         RuntimeException pendingLet = null;
         boolean raisedByAnAssert = false;
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             boolean last = i == body.size() - 1;
+            EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
+            if (pendingLet != null && (kinds.contains(QueryDoor.TestOnly.EFFECT)
+                    || kinds.contains(QueryDoor.TestOnly.LET_EXECUTE))) {
+                // the raise is the next assert's, and nothing between may send: a frame's eager run or an effect
+                // here would be a step the program runs before that assert, where the walk raised at the let and
+                // sent nothing (the M9c audit's F3) -- the walk runs the body
+                return null;
+            }
             if (statement instanceof TypedLet let && !last) {
                 if (pendingLet == null) {
                     try {
-                        PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs,
-                                env.plan());
-                        letPrefix.add(let);
+                        java.util.function.Predicate<String> relationFrame =
+                                n -> frames.containsKey(n) && frames.get(n).relationRooted();
+                        LetPlanner.Kind kind = LetPlanner.kind(let, body, i, specs, effectMemo, relationFrame);
+                        if (kind == LetPlanner.Kind.FRAME) {
+                            // the frame's activity comment is the stamp of its eager run, the program's check step at
+                            // the let: a parameter named here, adopted by the test door for that step (M9c)
+                            String stamp = stampOfFrameLet(i);
+                            frameStamps.put(i, stamp);
+                            frames.put(let.name(), BodyDriver.plannedFrame(
+                                    (com.legend.compiler.spec.typed.TypedNativeCall) LetPlanner.rhs(let), letPrefix,
+                                    specs, env, stamp));
+                        } else if (kind == LetPlanner.Kind.ALIAS) {
+                            // an alias of a relation frame: the same frame under the let's name (the walk's rule)
+                            frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(
+                                    java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame)))));
+                        } else {
+                            PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs,
+                                    env.plan());
+                            letPrefix.add(let);
+                        }
                     } catch (RuntimeException e) {
                         pendingLet = e;
                     }
                 }
                 continue;
             }
-            if (!scan.kinds(statement).equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))
-                    || statement instanceof TypedLet) {
+            if (!kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) || statement instanceof TypedLet) {
                 continue;
             }
             TypedSpec bare = Lets.bare(statement);
@@ -106,7 +141,7 @@ final class HostAsserts implements TestDoor.Asserts {
                         pendingLet), HostSides.Planned.NONE);
                 raisedByAnAssert = true;
             } else {
-                p = planAssert(statement, bare, letPrefix, specs, env);
+                p = planAssert(statement, bare, letPrefix, frames, specs, env);
                 if (p == null) {
                     return null;
                 }
@@ -116,20 +151,28 @@ final class HostAsserts implements TestDoor.Asserts {
         if (pendingLet != null && !raisedByAnAssert) {
             throw pendingLet;
         }
-        return new HostAsserts(planned);
+        return new HostAsserts(planned, frameStamps);
+    }
+
+    /** The stamp parameter of the frame let at {@code statement}: the stamp prefix (the program's, so the test door
+     *  adopts it and the runner binds it), then the let's place -- a name no program-minted stamp spells. */
+    private static String stampOfFrameLet(int statement) {
+        return com.legend.planner.ProgramFrames.STAMP + ".let" + statement;
     }
 
     /** {@code statement}, a statement-root assert ({@code bare} its call), planned over the lets before it; null where
      *  the host checks do not plan its shape. */
     private static @Nullable Planned planAssert(TypedSpec statement, TypedSpec bare, List<TypedSpec> letPrefix,
-            SpecCompiler specs, BodyDriver.ExecEnv env) {
+            Map<String, BodyDriver.ExecFrame> frames, SpecCompiler specs, BodyDriver.ExecEnv env) {
         // the lets before the assert, as they stood at its turn (its judgment reads them after the program ran)
         List<TypedSpec> before = new ArrayList<>(letPrefix);
         BodyDriver.ExecEnv at;
         AssertVerdicts.SpliceHook hook;
         try {
-            at = BodyDriver.frameReplaceEnv(statement, Map.of(), env, before, specs);
-            hook = BodyDriver.spliceHook(Map.of(), before, specs, at)::apply;
+            at = BodyDriver.frameReplaceEnv(statement, frames, env, before, specs);
+            // the hook on the body's environment, as the walk's (BodyCompiler hands it seg.env()): an inline frame it
+            // builds takes no renames from the statement's frames (the M9c audit's F6)
+            hook = BodyDriver.spliceHook(frames, before, specs, env)::apply;
         } catch (RuntimeException e) {
             // the frame environment raised: the walk raises it before the arm is entered (S1)
             return planned(AssertVerdicts.HostAssert.raisingBeforeTheArm(AssertVerdicts.listenerName(bare), e),
@@ -155,6 +198,13 @@ final class HostAsserts implements TestDoor.Asserts {
             assertion = AssertVerdicts.HostAssert.raising(assertion.listenerName(), assertion.family(), e);
             sides = HostSides.Planned.NONE;
         }
+        if (sides.on() != null && sides.on() != env.session()) {
+            // a side the walk's planner routed to another session than the body's (the system database's: a lineage
+            // scan's rows join the metamodel tables, an element's row) -- the walk runs the group there; a moved
+            // body's program runs on the body's session alone until M10a opens the system session, so the body stays
+            // on the walk, decided by the planned route before any run (M9d)
+            return null;
+        }
         return planned(assertion, sides);
     }
 
@@ -169,6 +219,11 @@ final class HostAsserts implements TestDoor.Asserts {
     public ExecutionPlan.@Nullable Verdicts at(int statement) {
         Planned p = byStatement.get(statement);
         return p == null ? null : p.step();
+    }
+
+    @Override
+    public @Nullable String frameStamp(int statement) {
+        return frameStamps.get(statement);
     }
 
     /** The assert the runner handed {@code verdict} for. */

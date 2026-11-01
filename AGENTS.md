@@ -192,7 +192,12 @@ alone calls; the router runs a body of a moved class whole on the program road a
 body driver (the test-is-the-product plan's M5, 2026-11-01, until M10 deletes both; the classes moved: the effect setup
 programs and the plain query programs (M5), the assert programs under the host judge (M6: each assert's sides planned
 before the program by `driver/HostAsserts` through the test library's `TestDoor.Asserts` hook, judged at its verdict
-step by the router's sink with the walk's census and listener protocol); `ArchitectureTest.theDriverHasOneCaller`;
+step by the router's sink with the walk's census and listener protocol), the frame programs under the host judge (M9,
+2026-11-01: `let r = execute(...)` frames, aliases, inline executes, handles, activities reads -- the frame's trace
+stamp a plan parameter its eager run binds and the sides carry -- effects with literal arguments; a body a store write
+reaches, a side routed to another session than the body's, a system-store read, the engine-text asserts and the
+test-data generator stay on the walk); the kinds of each walked body are counted by `testplan/BodyKinds` into
+`Census.STAYED_KINDS` for the corpus lanes' histogram (measurement, deciding nothing); `ArchitectureTest.theDriverHasOneCaller`;
 package-private while it shared the root package with the door). The root package holds the five public doors alone:
 `Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the
 machinery is `planner/` and `driver/`, and the planner depends on no execution class (`plannerIsExecutionFree`). The driver never re-implements a step; the body driver never decides pipeline

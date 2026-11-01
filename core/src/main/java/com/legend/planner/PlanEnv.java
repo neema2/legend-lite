@@ -42,9 +42,14 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
         List<ValueSpecification> protocolBody,
         com.legend.compiler.spec.typed.@Nullable ExecutionContext frame,
         Set<Feature> features,
-        Function<TypedTestDataGen, String> generatorPlanText) {
+        Function<TypedTestDataGen, String> generatorPlanText,
+        List<String> stamps) {
 
     /** A body's planning environment at its start: empty accumulators, no renames, no frame, no protocol body.
+     *  {@code stamps} (the third run-scoped accumulator, the test-is-the-product plan's M9c): the execution-trace stamp
+     *  parameters a frame's pre-planned activity rows carry as cells ({@code LazyRows.Parameter}), which every
+     *  statement lowered on this environment binds as a String plan parameter ({@code BodyPlanner.lowererFor}) -- the
+     *  comment of a frame run by the program's check step at its let, read by a side planned before the program ran.
      *  {@code generatorPlanText}: a test-data generator's plan text ({@code planToString} over the generator's
      *  carrier), which is the generator library's -- a library the planner does not reach, since it also runs the
      *  generator's statements -- handed in by the driver until the generator's planning moves (the seam program's
@@ -58,27 +63,27 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
                 // spelling until its layouts converge on the product's (the plan's M5)
                 new ObjectSites("i"), new LinkedHashMap<>(), List.of(), null,
                 features,
-                generatorPlanText);
+                generatorPlanText, new java.util.ArrayList<>());
     }
 
     /** This environment reading and registering the plan rows {@code rows} (a program's, shared by its statements:
      *  the test-is-the-product plan's M3f). */
     public PlanEnv withPlanRows(Map<String, Map<String, List<List<String>>>> rows) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, rows, protocolBody, frame,
-                features, generatorPlanText);
+                features, generatorPlanText, stamps);
     }
 
     /** This environment writing its statements in {@code d}: a test's program on the product's road, its runtime
      *  decided (the test door's effects, the test-is-the-product plan's M3d). */
     public PlanEnv withDialect(SqlDialect d) {
         return new PlanEnv(ctx, runtimeFqn, d, queryLets, tableReplace, instanceIds, planRows, protocolBody, frame,
-                features, generatorPlanText);
+                features, generatorPlanText, stamps);
     }
 
     /** The run's feature flags (the caller's execute options'). */
     public PlanEnv withFeatures(Set<Feature> f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
-                frame, f, generatorPlanText);
+                frame, f, generatorPlanText, stamps);
     }
 
     /** The dialect this environment's statements are written in: a test body's environment always names one; the
@@ -93,19 +98,19 @@ public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
      *  entered. */
     public PlanEnv withFrame(ExecutionContext f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody, f,
-                features, generatorPlanText);
+                features, generatorPlanText, stamps);
     }
 
     public PlanEnv withTableReplace(Map<String, String> tr) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tr, instanceIds, planRows, protocolBody, frame,
-                features, generatorPlanText);
+                features, generatorPlanText, stamps);
     }
 
     /** The query's PROTOCOL statements (the source-shaped lets a handle's rows are built from -- the lineage scan
      *  walks the raw query lambda). */
     public PlanEnv withProtocolBody(List<ValueSpecification> body) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, body, frame,
-                features, generatorPlanText);
+                features, generatorPlanText, stamps);
     }
 
     public ExecutionContext.PostProcessors postProcessors() {

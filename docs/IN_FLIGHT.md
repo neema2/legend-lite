@@ -2994,8 +2994,17 @@ M6-M10 and Z at R22's cadence, no questions (R23). **M6 half-built and HANDED OF
 `ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`); `pct`'s `PctCensusGate` (the moved-bodies count printed);
 `docs/test-is-product-homework/REVALIDATION_2026_11_01.md` (the plan revalidated with the user: the order M9, M7, M8,
 M10a-d; B3 struck -- the host judge is the harness; the engine-text asserts' appeal a Java harness on every lane; M4
-narrow in M10a with a product follow-up). Next: M9 (frames read by asserts, T8, T9, T10, T12), then M7, M8, M10a-d, Z,
-in this session.
+narrow in M10a with a product follow-up). **M9 built 2026-11-01 (D109)** in the same session, four sub-steps each
+audited and folded (the plan's §9 "M9a"-"M9d"): `testplan/BodyClass.java` (`FRAME_PROGRAM`, `Kind`, `sideKind`,
+`frameQueryKind`, `systemElementReference`, `framesAndHandlesAsTheirQueries`, `writesAStore`), `BodyKinds.java` (new,
+the kind census), `TestDoor.java` (`Asserts.frameStamp`), `TestKinds.java` (the adopted stamp); `driver/HostAsserts.java`
+(frames, stamps, the session guard, the pending-let rule), `BodyDriver.java` (`plannedFrame`), `BodyRouter.java` (the
+census record); `planner/PlanEnv.java` (`stamps`), `BodyPlanner.java` (the stamps bound), `ProgramFrames.java`
+(`adoptStamp`), `LetPlanner.java` (`badAliasIndex`, `unwrap`), `FramePlanner.java` (`relationRooted`);
+`compiler/spec/ExecuteChainAssembly.java` (`queryLambda`, `peeled`, `refused`); `exec/Census.java` (`STAYED_KINDS`),
+`PlanRunner.java` (`originOf`); the tests (`BodyRouterParityTest`, `BodyClassTest`, `ArchitectureTest`'s register,
+`HarnessDisciplineTest`, `JavaEvalLedgerTest`'s pins); `spec`'s `MinimalCorpusTest` (the histogram). Next: M7, then M8,
+M10a-d, Z, in this session.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

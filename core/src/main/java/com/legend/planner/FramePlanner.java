@@ -56,6 +56,33 @@ public final class FramePlanner {
             TypedSpec runChain, boolean relationRooted, boolean legendQuery, PlanEnv env) {
     }
 
+    /** Whether the frame {@code ec} binds is RELATION-rooted (its value a relation or a TDS: one TDS in its values
+     *  envelope, the fact {@link FrameChain#relationRooted} carries), decided from the query lambda's typed root
+     *  without building the chain (the test-is-the-product plan's M9b audit, F5: the body-class rule asks it of every
+     *  frame before any plan); null where the shape is not one {@link #chain} builds (no zero-argument lambda at the
+     *  query position, a plan-execute not tracing to its build), which a rule leaves to the run's own refusal at the
+     *  let's turn. The string entry is never relation-rooted (its value one string). */
+    public static @Nullable Boolean relationRooted(TypedNativeCall ec, List<TypedSpec> letPrefix,
+            SpecCompiler specs) {
+        if (PlatformTypes.EXECUTION_PLAN_EXECUTE.equals(ec.callee().qualifiedName())) {
+            TypedSpec plan = Lets.bound(ec.args().get(0), letPrefix);
+            if (!(plan instanceof TypedNativeCall pb
+                    && PlatformTypes.EXECUTION_PLAN.equals(pb.callee().qualifiedName()))) {
+                return null;
+            }
+            ec = pb;
+        }
+        if (NativeFn.Handle.of(ec.callee().id()).orElse(null) == NativeFn.Handle.EXECUTE_LEGEND_QUERY) {
+            return false;
+        }
+        com.legend.compiler.spec.typed.TypedLambda lam = ExecuteChainAssembly.queryLambda(ec, letPrefix, specs);
+        if (lam == null || lam.body().isEmpty()) {
+            return null;
+        }
+        Type root = lam.body().get(lam.body().size() - 1).info().type();
+        return Type.isRelation(root) || PlatformTypes.isTdsType(root);
+    }
+
     /** {@code ec}'s chain over {@code env}, the statement's preceding lets {@code letPrefix}. */
     public static FrameChain chain(TypedNativeCall ec,
             List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env) {

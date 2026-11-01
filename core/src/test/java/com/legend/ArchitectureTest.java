@@ -1433,6 +1433,9 @@ final class ArchitectureTest {
                 "com.legend.exec.Census.COUNTS",
                 "com.legend.exec.Census.KEYED",
                 "com.legend.exec.Census.FALLBACK_REASONS",
+                // the kinds of each body the router left on the walk (the test-is-the-product plan's M9, 2026-11-01):
+                // appended by the router, read by the corpus lanes' histogram only -- measurement, never a verdict
+                "com.legend.exec.Census.STAYED_KINDS",
                 // write-once static-init tables (populated once in <clinit>,
                 // read-only thereafter) — burn-down: wrap immutable
                 "com.legend.lexer.Lexer.KEYWORDS",

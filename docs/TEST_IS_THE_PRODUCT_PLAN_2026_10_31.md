@@ -307,6 +307,31 @@ posted the same way (R7 decision 12).
   facts to compare rows). A later ruling, after M8 is measured: the database judge the verdict of record, the host
   judge the cross-check (today channel B has it the other way); PCT stays host-judged until the database judge spells
   every lane's dialect.
+  **B3 as settled (the user, 2026-11-01, "I love it"), three designs, each in plain words:**
+  1. *The database judge* -- an assert IS a function lowered to SQL like any other: one statement whose row says
+     `holds`, `message`, `unjudged`; the plan carries that statement and nothing about the assert (M8 moves the
+     polarity and the message into it too). Java reads the row.
+  2. *The host judge* -- the verdict step carries the two side statements, ONE ENUM naming the comparison (a closed
+     list, one Java function each: EQUALS, NOT_EQUALS, SAME_ELEMENTS, SIZE, EMPTY, NOT_EMPTY, CONTAINS, EQ,
+     TOLERANCE, TDS_EQUIVALENT, JSON, RENDERED_TEXT, CONDITION, IS, INSTANCE_OF) and two or three small flags the
+     enum cannot express (order matters; which side is the golden; a quantified assert's literal message). The runner
+     runs the two statements; the sink switches on the enum and calls that function with the rows and the flags; the
+     types the comparison needs are the sides' result columns, already in the plan. The two places today's Java
+     consults the model at judge time are precomputed at planning: `assertInstanceOf`'s subtype check becomes a SQL
+     side answering a boolean (as the database judge lowers it); the identity-key restriction becomes a flag decided
+     when the side's SQL is written. After it the sink holds no compiler object and the plan is complete data. M8's
+     first item (it touches the arms M8 completes); until then M6's closures stand.
+  3. *The engine-text asserts* (M10b) -- `assertSameSQL(golden, $q->toSQLString(...))` is a comparison of two
+     strings known at planning (`toSQLString` a plan-time text, the golden a literal), so it plans and runs EXACTLY
+     like `assertEquals('a', 'b')`: a constant verdict, no special logic in the plan or the planner, on any database.
+     Only when that verdict FAILS does the harness run its extra step at the assert's turn, outside the plan: our rows
+     (our query for `q` run through the plan runner as a one-statement plan on the lane's database), the golden
+     replayed on the H2 referee seeded from the body's recorded setup, the two row sets compared in Java; agree ->
+     pass (the text mismatch counted, as today), differ -> fail showing both. The three variants (`assertSameSQL`, the
+     test-data-generator form, the dual-golden form) the same. Nuances: a golden can run only where its dialect runs
+     (today every golden is engine H2 text: the referee is H2 by construction; a golden in a lane's own spelling would
+     match our text and never reach the appeal); the harness fetches our rows itself, so the test's plan is exactly
+     what the Pure says.
 - **B4, where test-only planning lives (M6).** The assert module, the fused composition and the database forms in a
   library the product server and the WebAssembly and native planners do not depend on (`//core:plan_side` ships into
   `wasm/BUILD.bazel:29-45`), held by an ArchUnit rule.
@@ -539,7 +564,7 @@ posted the same way (R7 decision 12).
 | **M5** ◆ | The body router at the test door (B1, R16); the first class moves whole: assert-free programs (the corpus setup programs, assert-free bodies), each planned whole by the program road and run as one plan; the 2.A convergences that class needs (MV6, MV7 where its frames are eager) | 1-1.5 weeks |
 | **M6** ◆ | The verdict record (B3), the assert module in the test-planning library (B4, begun at M3; B5), the host judge on product sides; verdict steps planned on the program road | 1.5-2 weeks |
 | **M7** ◆ | The fused group composed at planning (from `VerdictBatch`'s flush); the second class moves: bodies whose asserts all have verdict steps (2.D's rule, MV1, for the bodies moved) | 1 week |
-| **M9** ◆ | **Before M7 and M8 since M6's revalidation (the user, 2026-11-01: "the order is fine";** `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`**).** Frames read by asserts (the corpus's bulk: `let r = execute(...)`, its reads spliced into the asserts' sides, the eager run and the CTE as M3f/M3g planned them); the kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move, under the host judge first (zero output change expected) | 1-1.5 weeks |
+| **M9** ◆ | **BUILT 2026-11-01 (D109; §9 "M9a" to "M9d", §10): the frame programs under the host judge, 608 -> 1,080 bodies moved per DuckDB host pass, outcomes identical; its residual kinds (the engine-text asserts, the system-store reads, the test-data generator, `assertError` -- no corpus body --, staged grids, computed effects, effects through helpers, graph frames, seeded frames) named with their counts for M10a-d. Before M7 and M8 since M6's revalidation (the user, 2026-11-01: "the order is fine";** `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`**).** Frames read by asserts (the corpus's bulk: `let r = execute(...)`, its reads spliced into the asserts' sides, the eager run and the CTE as M3f/M3g planned them); the kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move, under the host judge first (zero output change expected) | 1-1.5 weeks |
 | **M7** ◆ | The fused group composed at planning (from `VerdictBatch`'s flush), with the frames' CTEs at its head; the database judge's and channel B's assert programs move (2.D's rule, MV1, for the bodies moved) | 1 week |
 | **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
 | **M10** ◆ | Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
@@ -671,6 +696,94 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   product decision by measurement on the real projects -- plan size and latency of embedded-metamodel plans against
   a server-side system connection and Trino's lack of temporary tables; upstream has no SQL form of the metamodel
   (`Mapping.all()` is in-memory Pure). Outside this program.
+- **M9a's residue -- RECORDED (the independent audit of the frame programs, 2026-11-01; no blockers, its S1-S4
+  folded).** (1) The frame's eager run: the walk materializes its rows, shapes them and holds the to-one reader's
+  contract (`let r = execute(|<relation>->toOne(), ...)` raises there when the rows are not one); the program road's
+  check drops the rows. (2) The eager run is lowered by the product (`ProductStatements.lower`, MV6) where the walk
+  lowers it its own way (`BodyPlanner.lowerAndPrepare`): measured byte-identical for the relation-rooted and the
+  class-rooted frames the parity test holds; the corpora measure the rest at M9's chain. (3) The activity comment: the
+  walk registers the run's trace comment, the pre-planned frame none; a read of a frame's `activities` is excluded by
+  name (through a user call too: `StatementEffects.reaches` compiles the callee); the check's stamp is always unread
+  and stripped. (4) A frame's OWN runtime argument's declared test data is seeded by neither road (the seeds are a
+  `from()`'s), pinned equal. (5) A frame whose query reads an earlier frame: the walk resolves the run chain with no
+  splice and fails, the program road splices it -- refused by name in the rule until a later sub-step. (6) A frame
+  whose chain cannot be built fails the moved body at planning (the M5 audit's S6): the pre-planned raise never fires
+  for frames, since the test door plans the same chain uncaught. (7) The eager run's origin: the walk `enter(LET)`, the
+  program road `enterIfUnmarked(LET)` -- equal under every harness (unmarked or STATEMENT), different under a strong
+  mark. (8) `TestDoor.Planned.frameRuns` is keyed by the step's place, relying on `withoutUnreadStamps` mapping one to
+  one and `finished` only appending (a check that the place holds a `Check`). (9) `BodyClass` learns a frame's
+  relation-rootedness by building its chain (`FramePlanner.chain`), the planner's own fact -- replaced at M9b's audit
+  (F5) by `FramePlanner.relationRooted`, the query lambda's typed root read with no chain built and no raise (a
+  shape the build refuses is left to the walk by name; the chain is built twice per frame, by the host asserts for the
+  walk's own frame and by the test door for the plan).
+- **M9b's residue -- RECORDED (the independent audit of the widened frame class, 2026-11-01; two should-fix folded:
+  F1 one reach memo per predicate -- a memo shared by two predicates blinded the second to every callee the first had
+  walked, so a frame's query through a helper reaching a graph, an object or an `execute` was admitted; F2 a frame's
+  query reading a frame through a VALUE let tainted by one, now refused by name as the by-name read is (N1); F4 the
+  duplicate imports; F5 above; F3's parity cases added).** (1) `readsActivities` refuses an inline
+  `execute(...).activities` too, though both roads register identical null-comment rows. (2)
+  `inlineExecutesAsTheirQueries` rewrites the statement's own tree only: a helper that wraps `execute(...)` (the
+  corpus's `executeInternal` idiom) is refused by `plannedAnotherWay` and stays on the walk until a sub-step inlines
+  callees before the scan. (3) `plansNoStep` admits `print(<anything>)`: a `print` of a frame read or an inline
+  execute is inert on both roads where Pure would run it (S128's class, M6). (4) The host asserts' frames carry a
+  null activity comment; the eager run's origin under a strong mark (M9a's (3), (7)). (5) The effect program's
+  `onlyConnectionReads` guard is not needed by the frame class (effect lets refused outright); a sub-step admitting
+  effect lets must carry it. (6) The kind census (`testplan/BodyKinds`, `Census.STAYED_KINDS`, the corpus's
+  `[corpus2] body-router stayed` histogram) is a measurement carrier in the test-planning library, deciding nothing;
+  it goes with the router at M10.
+- **M9c -- activities reads, the side-kind rule, the kind census (2026-11-01; its independent audit folded: F1 the
+  census list registered, F2 a store write refused in a side and a body it reaches walked, F3 a pending let with a
+  frame or an effect after it walked, F4 the query peel non-raising for the if without a taken branch and the
+  concatenate over a non-literal collection (`ExecuteChainAssembly.queryLambda`; `prepare` spells each refusal), F5
+  the census's frame-query flag, F6 the splice hook on the body's environment as the walk's, F7-F8 parity cases).**
+  (1) A frame's activities (`$r.activities`: the run's SQL and its trace comment) read by a moved body: the SQL a
+  planning-time render on both roads; the comment the eager run's trace stamp -- the walk's frame holds it as a
+  LITERAL in the rows it registers after the run, the pre-planned frame as a PARAMETER (`#stamp.let<i>`, minted by
+  `HostAsserts`, adopted by the test door for the frame's check step through `TestDoor.Asserts.frameStamp`, bound by
+  the runner when that step runs: R17 C4), so a side reading activities differs in text at that one cell by design
+  (`BodyRouterParityTest.assertParity` compares statements with the two spellings normalized -- every `?` of a side,
+  so another bound parameter's text difference would be masked, the count still compared;
+  `theActivityCommentIsTheRunsStamp` pins both roads' comment as the run's and the moved side's as a parameter never
+  spelled). `PlanEnv.stamps`: the third run-scoped accumulator, bound by `BodyPlanner.lowererFor` as typed String
+  plan parameters. (2) The side-kind rule (`BodyClass.sideKind`): an assert statement or a value let of the ASSERT and
+  FRAME classes is refused for a system-store read (M10a: the system session), a store write (run where its side is
+  planned: the walk inside the body's transaction, the program road before the program) and the eager inline execute
+  alone; every other kind (an object, a graph, a temporal read, a class reference, an execute inside a helper) is
+  admitted, since the sides are the walk's plans on both roads and a value let sends nothing on either; the frame's
+  QUERY keeps the another-way test (its eager run is the product's lowering), a temporal class read excepted since
+  M9d. (3) An element reference is a system-store read by the resolver's own criterion (`systemElementReference`: a
+  bare tracked class the system mapping binds); a class reference (`instanceOf`'s type argument, the corpus's `sql()`
+  helper) is a value -- `element-ref` retired as a kind. (4) The kind census: `testplan/BodyKinds` +
+  `Census.STAYED_KINDS` + the corpus's `[corpus2] body-router stayed` histogram over passing tests and
+  `corpus2-body-stayed.tsv`; it reads each statement where the rule reads it; measurement only, goes with the router
+  at M10. Residue: (a) a helper-wrapped execute bound by a let (`let r = execHelper()`) is a VALUE let both roads
+  splice lazily where upstream runs it at the let -- the walk's standing divergence, now the program road's too
+  (M9b's residue (2) obsolete; a register row is the user's call); (b) an inline `execute(...).activities` comment is
+  `""` on both roads under the host judge where upstream records the run's (M9b's residue (1) obsolete as a
+  difference between the roads); (c) rule-time raises older than M9 whose timing differs from the walk's
+  statement-turn raise (`EffectPlanner.storeOf` for a let-bound database argument, `BodyPlanner.handleType` for a
+  connection-typed value carrying an effect, the callee compile in `StatementEffects.reaches` catching the typer's
+  exception alone); (d) a frame's query reading a handle let's rows: the program's eager run is planned on an
+  environment whose plan rows hold no handle rows, the walk's does -- no corpus case; (e) the census tags
+  `frame-reads-frame` by name only; (f) `ChainNormalizer` holds a second element-identity criterion (a `Class<X>`
+  reference against a class-typed row read), reachable only through a system-class row read `sideKind` refuses.
+- **M9d -- handles, from() contexts, the session guard, temporal frames (2026-11-01).** (1) The rule reads a frame's
+  and a HANDLE's query (`executionPlan(...)`, the lineage scans) and a `from()`'s source, never their mapping and
+  runtime references (`framesAndHandlesAsTheirQueries`): the corpus's `let plan = executionPlan($q, Mapping, ...)`
+  and `let tds = execute(...).values->toOne()` idioms, refused as system reads of their mapping argument, move. (2) A
+  side the walk's planner routes to another session than the body's (a lineage scan's rows join the metamodel tables
+  through `column.owner`; measured: five `scanColumns` tests failed moved, "schema metamodel does not exist") keeps
+  the body on the walk, decided by the planned route (`HostSides.Planned.on()`) before any run (`HostAsserts.plan`);
+  a moved body's program opens the body's session alone until M10a. (3) A frame over a temporal class is admitted
+  (`frameQueryKind`): its eager run byte-identical on the walk and the program road for the business-temporal frame
+  the parity test pins on every in-process database (the walk's exists-join form is the product's since D5); the
+  corpora measure the rest at M9's chain.
+- **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
+  c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
+  on the runner ("Free space left: 84 MB", then "No space left on device"), two before any test ran; the same death
+  took `stress` on 3bd68a81 (M5f). The lanes build no native code; the toolchain (about 11 GB extracted) is fetched for
+  their analysis, against the runner's 14 GB with the Bazel cache restored. Noted on PR #83; a follow-up for the build
+  program (trim the distribution, or keep the toolchain out of the lanes that need no C++).
 
 ## 10. Status
 
@@ -893,3 +1006,19 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   road inside M10 with a product follow-up (§9); **B3 struck** (an assert is a function the database judge lowers;
   the plan needs no assert metadata; the host judge is the harness: §6 B3); the engine-text asserts: the test in the
   plan on every lane, the appeal a Java harness, no lane special-cased (M10b). Next: M9.
+- 2026-11-01: **M9 built** (D109): the frame programs under the host judge, in four sub-steps each with its independent
+  audit folded (§9 "M9a" to "M9d"): M9a frames read by asserts (`BodyClass.FRAME_PROGRAM`, the eager run a check step,
+  the asserts' sides over the walk's own frames); M9b aliases, inline executes, effects between, handle lets, the rule's
+  memos one per predicate, frame taint; M9c activities reads (the trace stamp a plan parameter: R17 C4), the side-kind
+  rule, the element-reference rule, the kind census (`BodyKinds`, `Census.STAYED_KINDS`, `[corpus2] body-router
+  stayed`); M9d handles and `from()` contexts read as their queries, the session guard, temporal frames. Measured on the
+  DuckDB corpus after each sub-step: outcomes identical throughout (host pass 2471 / 108, database pass 2473 / 108),
+  `body-router moved` on the host pass 608 -> 853 (M9b) -> 892 (M9c) -> 1,080 (M9d); the database pass 604
+  (unchanged: the class is the host judge's). The kind census of the bodies still walked (host pass, passing tests):
+  1,131 engine-text asserts over activities (M10b), 390 system-store reads (M10a), 181 temporal frames whose asserts
+  are engine text (M10b), 98 other host shapes the checks do not plan, about 190 system reads mixed with effects or
+  frames, about 20 effect bodies (through helpers or computed), 10 seeded frames, 8 graph frames, one each of
+  loadCsvToDbTable, a staged grid, the eager inline execute; no body holds `assertError` or the test-data generator.
+  The remaining M9 kinds (T8, T9, T10, T12, the effect helpers) move inside M10's classes: each is a handful of bodies
+  where M10a and M10b are thousands, so the order holds and nothing is built without a body to measure it on. Next:
+  M7.

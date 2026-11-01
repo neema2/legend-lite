@@ -71,6 +71,10 @@ final class TestKinds implements ProgramKinds {
     private final Map<ExecutionPlan.Node, TestDoor.Effect> effects = new IdentityHashMap<>();
     /** Each seed step this program planned, its statements' ledger texts beside it (M5). */
     private final Map<ExecutionPlan.Node, List<String>> seeds = new IdentityHashMap<>();
+    /** The places in the program's sequence of the frame lets' eager-run steps this program planned (M9): the walk
+     *  sends a frame's run under its own statement origin (LET), which the plan does not say; the router's sink names
+     *  it to the runner. By place, not identity: the finished plan rebuilds a check whose stamp nothing reads. */
+    private final Set<Integer> frameRuns = new java.util.TreeSet<>();
     /** The seed sources placed since the program's last write. */
     private final Set<Seeds.Sources> established = new HashSet<>();
     /** The seeds' steps, generated once per sources value. */
@@ -144,8 +148,12 @@ final class TestKinds implements ProgramKinds {
         PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(), frames.planRows());
         FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(), query.specs(), env);
         frames.consumed(fc.env().queryLets());
-        String stamp = frames.newStamp();
+        // the run's stamp: the asserts' planner's name where its sides read the frame's activity comment (M9c), the
+        // program's own otherwise
+        String minted = asserts.frameStamp(index);
+        String stamp = minted != null ? frames.adoptStamp(minted) : frames.newStamp();
         PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(), null, stamp, env);
+        frameRuns.add(program.size());
         program.add(eagerRun(program, index, fc, stamp));
         FramePlanner.Cte cte = fc.legendQuery() ? FramePlanner.Cte.NONE : cte(program, index, fc);
         frames.let(let.name(), new ProgramFrames.Frame(fc.chain(),
@@ -268,6 +276,11 @@ final class TestKinds implements ProgramKinds {
     /** The seed steps this program planned, each with its statements' ledger texts. */
     Map<ExecutionPlan.Node, List<String>> seeds() {
         return Collections.unmodifiableMap(seeds);
+    }
+
+    /** The places of the frame lets' eager-run steps this program planned (M9). */
+    Set<Integer> frameRuns() {
+        return Collections.unmodifiableSet(frameRuns);
     }
 
     /** The open script, if any, placed as one effect step, its segment (the walk's: the body's statements it holds)

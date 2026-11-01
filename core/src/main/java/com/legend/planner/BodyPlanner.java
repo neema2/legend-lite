@@ -197,6 +197,14 @@ public final class BodyPlanner {
                 : lowerer.withObjectIdentity(env.instanceIds()::idOf).withDeclaredEgress();
         // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
         lowerer = lowerer.withFeatures(featuresOf(env, body));
+        // the trace stamps the environment's frames carry as activity cells (M9c): each a String plan parameter the
+        // statement binds, as the program road binds every stamp it minted (PlanMaker.withStamps)
+        for (String stamp : env.stamps()) {
+            // a String[1], typed as a declared parameter is (the comment column's type: ProgramFrames.stampSlots)
+            lowerer = lowerer.bindPlanParam(new QueryParameters.Declared(stamp,
+                    com.legend.compiler.element.type.Type.Primitive.STRING,
+                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE).slot());
+        }
         return lowerer;
     }
 

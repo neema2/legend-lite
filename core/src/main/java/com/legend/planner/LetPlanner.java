@@ -98,6 +98,29 @@ public final class LetPlanner {
      */
     public static @Nullable String aliasOf(TypedSpec rhs,
             Predicate<String> relationFrame) {
+        Unwrapped u = unwrap(rhs, relationFrame);
+        if (u.frame() != null && u.badIndex()) {
+            throw new IllegalStateException("Result.values->at(k>0) on a"
+                    + " relation-rooted query — the values envelope holds"
+                    + " one TDS");
+        }
+        return u.frame();
+    }
+
+    /** Whether {@link #aliasOf} would RAISE on {@code rhs} ({@code $frame.values->at(k)} with k > 0 over a
+     *  relation frame): the shape named without raising, so a rule can leave the body to the walk, which raises it at
+     *  the let's turn (the test-is-the-product plan's M9a audit, S1). */
+    public static boolean badAliasIndex(TypedSpec rhs, Predicate<String> relationFrame) {
+        Unwrapped u = unwrap(rhs, relationFrame);
+        return u.frame() != null && u.badIndex();
+    }
+
+    /** {@code rhs} with its Result-envelope wrappers off: the relation frame at its root (null where the root is no
+     *  relation frame) and whether an {@code at(k)} with k > 0 was among the wrappers. */
+    private record Unwrapped(@Nullable String frame, boolean badIndex) {
+    }
+
+    private static Unwrapped unwrap(TypedSpec rhs, Predicate<String> relationFrame) {
         TypedSpec cur = rhs;
         boolean badIndex = false;
         while (true) {
@@ -122,15 +145,8 @@ public final class LetPlanner {
             }
             break;
         }
-        if (cur instanceof TypedVariable v && relationFrame.test(v.name())) {
-            if (badIndex) {
-                throw new IllegalStateException("Result.values->at(k>0) on a"
-                        + " relation-rooted query — the values envelope holds"
-                        + " one TDS");
-            }
-            return v.name();
-        }
-        return null;
+        return new Unwrapped(cur instanceof TypedVariable v && relationFrame.test(v.name()) ? v.name() : null,
+                badIndex);
     }
 
     /** Whether a statement after {@code at} reads the let {@code name} -- itself or through a let that reads it --
