@@ -163,6 +163,14 @@ public final class PlanRunner {
          *  program wrote them (the sink reads them by the columns' facts). */
         void sides(ExecutionPlan.Verdict verdict, List<Rows> sides) throws IOException;
 
+        /** The HOST judge's sides for {@code verdict} could not be read: the database refused one of them, or the
+         *  read raised ({@code failure}: a data error, or any other; an I/O failure unchecked) (the test-is-the-product
+         *  plan's M6). The sink's accounting -- the walk counts the assert and reports its failure as it does an assert
+         *  whose side raised -- and the error the program raises is the one returned. */
+        default RuntimeException sidesFailed(ExecutionPlan.Verdict verdict, RuntimeException failure) {
+            return failure;
+        }
+
         /** The program's seed step {@code step} ran (a step the session held established runs nothing and is not
          *  told): each of its setup steps that ran, in order, whether it answered rows (the raw-SQL ledger's kind;
          *  the test-is-the-product plan's M5) -- where one failed, those before it. */
@@ -198,7 +206,7 @@ public final class PlanRunner {
         Held held = new Held();
         ExecutionPlan.Target on = shape.target();
         if (on == null) {
-            constantsAlone(sequence, held);
+            constantsAlone(sequence, judging, held, sink);
         } else {
             try (Sessions.Session session = shape.changes() ? sessions.openToChange(on) : sessions.open(on)) {
                 Statements st = opened(session, on);
@@ -317,16 +325,46 @@ public final class PlanRunner {
     }
 
     /** A program that sends nothing (the test-is-the-product plan's B2, M2): its constant answer, held, no session
-     *  opened. A step with nothing to send that is not a constant (a verdict group of constant sides alone) is the
-     *  verdict design's (M6), refused by name. */
-    private static void constantsAlone(ExecutionPlan.Sequence sequence, Held held) {
+     *  opened; a verdict group whose sides are all constants (M6) handed to the sink as {@code judging} asks -- each
+     *  verdict's constant sides to the host judge, no row to the database judge (it judges nothing without a
+     *  wrapper). Any other step sends something, so it has a target. */
+    private static void constantsAlone(ExecutionPlan.Sequence sequence, Judging judging, Held held,
+            ProgramSink sink) throws IOException {
         for (ExecutionPlan.Node step : sequence.steps()) {
-            if (!(step instanceof ExecutionPlan.Constant c)) {
-                throw new NotImplementedException("a program that sends nothing but a "
-                        + step.getClass().getSimpleName() + " step: only a constant answer runs with no session");
+            switch (step) {
+                case ExecutionPlan.Constant c -> constant(c, held);
+                case ExecutionPlan.Verdicts v -> {
+                    for (ExecutionPlan.Verdict each : v.verdicts()) {
+                        if (judging == Judging.HOST || judging == Judging.BOTH) {
+                            List<Rows> sides = new ArrayList<>(each.base().size());
+                            for (ExecutionPlan.Side side : each.base()) {
+                                if (!(side instanceof ExecutionPlan.Side.Constant c)) {
+                                    throw new IllegalStateException("a verdict side that sends a statement in a"
+                                            + " program with no target");
+                                }
+                                sides.add(constantRows(c));
+                            }
+                            sink.sides(each, sides);
+                        }
+                        if (judging == Judging.DATABASE || judging == Judging.BOTH) {
+                            sink.verdict(each, null);
+                        }
+                    }
+                }
+                default -> throw new IllegalStateException("a program that sends nothing holds a "
+                        + step.getClass().getSimpleName() + " step: only a constant or a verdict group of constants"
+                        + " runs with no session");
             }
-            constant(c, held);
         }
+    }
+
+    /** A constant side's rows: its columns and its TEXT cells as the program wrote them. */
+    private static Rows constantRows(ExecutionPlan.Side.Constant c) {
+        List<List<Object>> rows = new ArrayList<>(c.cells().size());
+        for (List<String> row : c.cells()) {
+            rows.add(new ArrayList<Object>(row));
+        }
+        return new Rows(c.columns(), rows);
     }
 
     /** {@code work} run in the bracket {@code shape} asks: the strictest snapshot its keyed steps ask, where the
@@ -423,98 +461,113 @@ public final class PlanRunner {
             throws IOException {
         if (judging == Judging.HOST || judging == Judging.BOTH) {
             for (ExecutionPlan.Verdict each : group.verdicts()) {
-                List<Rows> sides = new ArrayList<>(each.base().size());
-                for (ExecutionPlan.Side side : each.base()) {
-                    sides.add(switch (side) {
-                        case ExecutionPlan.Side.Rows r -> {
-                            Held h = new Held();
-                            result(r.result(), values, st, h);
-                            yield collected(h);
-                        }
-                        case ExecutionPlan.Side.KeyedRows k -> {
-                            Held h = new Held();
-                            keyedOn(k.keyed(), values, st, heldSink(h));
-                            yield collected(h);
-                        }
-                        case ExecutionPlan.Side.Constant c -> {
-                            List<List<Object>> rows = new ArrayList<>(c.cells().size());
-                            for (List<String> row : c.cells()) {
-                                rows.add(new ArrayList<Object>(row));
-                            }
-                            yield new Rows(c.columns(), rows);
-                        }
-                    });
+                List<Rows> sides;
+                try {
+                    sides = hostSides(each, values, st);
+                } catch (RuntimeException e) {
+                    throw sink.sidesFailed(each, e);
+                } catch (IOException e) {
+                    throw sink.sidesFailed(each, new UncheckedIOException(e));
                 }
                 sink.sides(each, sides);
             }
         }
         if (judging == Judging.DATABASE || judging == Judging.BOTH) {
-            Map<Integer, List<Object>> rows = new HashMap<>();
-            boolean rejected = false;
-            if (group.fused() != null) {
-                Held h = new Held();
-                // F11: inside a transaction on a database that aborts it on a failing statement, the fused statement
-                // is guarded by the group's savepoint, so a rejection leaves the wrappers a live transaction
-                ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
-                if (guard != null) {
-                    sendStatement(guard.set(), st);
-                }
-                try {
-                    result(group.fused(), values, st, h);
-                    for (List<Object> row : collected(h).rows()) {
-                        if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
-                            throw new IllegalStateException("a fused verdict row's first cell is the verdict's index:"
-                                    + " " + (row.isEmpty() ? "no cell" : row.get(0)));
-                        }
-                        rows.put(index.intValue(), row.subList(1, row.size()));
-                    }
-                    if (rows.size() != group.verdicts().size()) {
-                        throw new IllegalStateException("the fused verdict statement answered " + rows.size()
-                                + " rows for " + group.verdicts().size() + " verdicts");
-                    }
-                    sink.fused(group, null);
-                    if (guard != null) {
-                        sendStatement(guard.release(), st);
-                    }
-                } catch (DataError e) {
-                    if (guard != null) {
-                        sendStatement(guard.rollbackTo(), st);
-                    }
-                    // the split rung: the database rejected the fused statement, so each verdict's own wrapper runs
-                    // below and the error lands on the verdict that owns it; the sink's accounting, never a verdict
-                    // change
-                    rows.clear();
-                    rejected = true;
-                    sink.fused(group, e);
-                }
-            }
-            for (int i = 0; i < group.verdicts().size(); i++) {
-                ExecutionPlan.Verdict each = group.verdicts().get(i);
-                List<Object> row = rows.get(i);
-                if (row == null && each.wrapper() != null) {
+            databaseVerdicts(group, values, st, sink, inTransaction);
+        }
+    }
+
+    /** {@code each}'s base sides read for the host judge, in the base's order. */
+    private static List<Rows> hostSides(ExecutionPlan.Verdict each, Map<String, PlanParameters.Checked> values,
+            Statements st) throws IOException {
+        List<Rows> sides = new ArrayList<>(each.base().size());
+        for (ExecutionPlan.Side side : each.base()) {
+            sides.add(switch (side) {
+                case ExecutionPlan.Side.Rows r -> {
                     Held h = new Held();
-                    // the split rung's wrapper (the database rejected the fused statement) is a fallback; a group
-                    // planned with no fused statement runs its wrappers as its caller sends them (the batch's keyed
-                    // verdicts as the body's, its one-verdict retry as a fallback: VerdictBatch.executeOne; the
-                    // planner-driver seam program's S3c, 2026-10-31)
-                    try (var origin = StatementOrigin.enter(rejected ? StatementOrigin.FALLBACK
-                            : StatementOrigin.current())) {
-                        switch (each.wrapper()) {
-                            case ExecutionPlan.TdsResult t -> result(t, values, st, h);
-                            case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(h));
-                            default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
-                                    + " result");
-                        }
-                    }
-                    Rows single = collected(h);
-                    if (single.rows().size() != 1) {
-                        throw new IllegalStateException(each.name() + ": the verdict statement answered "
-                                + single.rows().size() + " rows");
-                    }
-                    row = single.rows().get(0);
+                    result(r.result(), values, st, h);
+                    yield collected(h);
                 }
-                sink.verdict(each, row);
+                case ExecutionPlan.Side.KeyedRows k -> {
+                    Held h = new Held();
+                    keyedOn(k.keyed(), values, st, heldSink(h));
+                    yield collected(h);
+                }
+                case ExecutionPlan.Side.Constant c -> constantRows(c);
+            });
+        }
+        return sides;
+    }
+
+    /** The DATABASE judge's rows for {@code group}: its fused statement (the split rung on a rejection), else each
+     *  verdict's own wrapper, each row handed to the sink in the group's order. */
+    private static void databaseVerdicts(ExecutionPlan.Verdicts group, Map<String, PlanParameters.Checked> values,
+            Statements st, ProgramSink sink, boolean inTransaction) throws IOException {
+        Map<Integer, List<Object>> rows = new HashMap<>();
+        boolean rejected = false;
+        if (group.fused() != null) {
+            Held h = new Held();
+            // F11: inside a transaction on a database that aborts it on a failing statement, the fused statement
+            // is guarded by the group's savepoint, so a rejection leaves the wrappers a live transaction
+            ExecutionPlan.Verdicts.Savepoint guard = inTransaction ? group.savepoint() : null;
+            if (guard != null) {
+                sendStatement(guard.set(), st);
             }
+            try {
+                result(group.fused(), values, st, h);
+                for (List<Object> row : collected(h).rows()) {
+                    if (row.isEmpty() || !(row.get(0) instanceof Number index)) {
+                        throw new IllegalStateException("a fused verdict row's first cell is the verdict's index:"
+                                + " " + (row.isEmpty() ? "no cell" : row.get(0)));
+                    }
+                    rows.put(index.intValue(), row.subList(1, row.size()));
+                }
+                if (rows.size() != group.verdicts().size()) {
+                    throw new IllegalStateException("the fused verdict statement answered " + rows.size()
+                            + " rows for " + group.verdicts().size() + " verdicts");
+                }
+                sink.fused(group, null);
+                if (guard != null) {
+                    sendStatement(guard.release(), st);
+                }
+            } catch (DataError e) {
+                if (guard != null) {
+                    sendStatement(guard.rollbackTo(), st);
+                }
+                // the split rung: the database rejected the fused statement, so each verdict's own wrapper runs
+                // below and the error lands on the verdict that owns it; the sink's accounting, never a verdict
+                // change
+                rows.clear();
+                rejected = true;
+                sink.fused(group, e);
+            }
+        }
+        for (int i = 0; i < group.verdicts().size(); i++) {
+            ExecutionPlan.Verdict each = group.verdicts().get(i);
+            List<Object> row = rows.get(i);
+            if (row == null && each.wrapper() != null) {
+                Held h = new Held();
+                // the split rung's wrapper (the database rejected the fused statement) is a fallback; a group
+                // planned with no fused statement runs its wrappers as its caller sends them (the batch's keyed
+                // verdicts as the body's, its one-verdict retry as a fallback: VerdictBatch.executeOne; the
+                // planner-driver seam program's S3c, 2026-10-31)
+                try (var origin = StatementOrigin.enter(rejected ? StatementOrigin.FALLBACK
+                        : StatementOrigin.current())) {
+                    switch (each.wrapper()) {
+                        case ExecutionPlan.TdsResult t -> result(t, values, st, h);
+                        case ExecutionPlan.Keyed k -> keyedOn(k, values, st, heldSink(h));
+                        default -> throw new IllegalStateException("a verdict's wrapper is a typed or keyed"
+                                + " result");
+                    }
+                }
+                Rows single = collected(h);
+                if (single.rows().size() != 1) {
+                    throw new IllegalStateException(each.name() + ": the verdict statement answered "
+                            + single.rows().size() + " rows");
+                }
+                row = single.rows().get(0);
+            }
+            sink.verdict(each, row);
         }
     }
 

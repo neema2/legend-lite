@@ -237,8 +237,29 @@ public final class PlanMaker {
             case ExecutionPlan.Keyed k -> List.of(k.keys(), k.body());
             case ExecutionPlan.Setup u -> List.of();
             case ExecutionPlan.Constant c -> List.of();
-            case ExecutionPlan.Verdicts v -> throw new IllegalStateException("a verdict group on the program road:"
-                    + " planned from the test-is-the-product plan's M6");
+            // a verdict group (the test-is-the-product plan's M6): its sides' statements, its wrappers', its fused one
+            case ExecutionPlan.Verdicts v -> {
+                List<ExecutionPlan.Sql> out = new ArrayList<>();
+                for (ExecutionPlan.Verdict verdict : v.verdicts()) {
+                    for (ExecutionPlan.Side side : verdict.base()) {
+                        switch (side) {
+                            case ExecutionPlan.Side.Rows r -> out.add(r.result().sql());
+                            case ExecutionPlan.Side.KeyedRows k -> out.addAll(List.of(k.keyed().keys(),
+                                    k.keyed().body()));
+                            case ExecutionPlan.Side.Constant c -> {
+                                // nothing sent
+                            }
+                        }
+                    }
+                    if (verdict.wrapper() != null) {
+                        out.addAll(sqls(verdict.wrapper()));
+                    }
+                }
+                if (v.fused() != null) {
+                    out.add(v.fused().sql());
+                }
+                yield out;
+            }
             case ExecutionPlan.Sequence q -> throw new IllegalStateException("a sequence inside a sequence");
         };
     }

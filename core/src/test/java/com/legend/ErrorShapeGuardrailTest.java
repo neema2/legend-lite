@@ -141,6 +141,16 @@ class ErrorShapeGuardrailTest {
             // decline, never a rescue (witness testRepeatStringNoString:
             // the BLOB wire under a STRING stamp).
             Map.entry("BodyDriver.java", 3),   // StatementExecutor.java until 2026-10-29 (track D)
+            // (2026-11-01, the test-is-the-product plan's M6; its audit's S1, S2 and N2; R14's planned raise): an
+            // assert program's asserts are planned BEFORE the program runs, so a failure the walk would raise at the
+            // assert's turn -- the classification's, a side's planning, a let's handle registration, the frame
+            // environment's, of whatever type -- is captured into a raise the sink throws at that turn, nothing
+            // swallowed (HostAsserts: 4 sites; AssertVerdicts.planHost: 1); and the runner hands a host side's read
+            // failure of any type to the program sink, which counts it as the walk counts it and returns the error
+            // the runner then throws (PlanRunner.verdicts: 1)
+            Map.entry("HostAsserts.java", 4),
+            Map.entry("AssertVerdicts.java", 1),
+            Map.entry("PlanRunner.java", 1),
             // contract program (2026-08-23): the wire census's
             // INSTRUMENT-ISOLATION catch — measurement must never throw
             // into execution (the Dual.alias lesson); an unreadable

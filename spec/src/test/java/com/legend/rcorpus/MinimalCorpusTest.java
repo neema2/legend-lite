@@ -230,6 +230,7 @@ public class MinimalCorpusTest {
                 int fallbacksBefore = com.legend.exec.Census.FALLBACK_REASONS.size();
                 long flushesBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_FLUSHES);
                 long hostDecidedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.VERDICT_HOST_DECIDED);
+                long movedBefore = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
                 if (TRACE) {
                     // -Dlegend.diagnostics=corpus-trace: name each test BEFORE it runs, so a
                     // run the JVM never returns from (StackOverflowError,
@@ -244,6 +245,13 @@ public class MinimalCorpusTest {
                                     + MinimalCorpus.whole(e.getMessage()));
                 }
                 ran.add(r.fqn());
+                long movedNow = com.legend.exec.Census.count(com.legend.exec.Census.Key.BODIES_MOVED);
+                if (movedNow > movedBefore) {
+                    // the tests whose run the body router moved bodies of, and how many (a test's setup program and
+                    // its body each count; the test-is-the-product plan's M6, 2026-11-01: the census above counts
+                    // them, the two passes' prints name them -- a host-only class shows as the host pass's larger delta)
+                    System.out.println("[corpus2] body-router moved " + (movedNow - movedBefore) + " " + t.fqn());
+                }
                 String[] acc = acceptedRegister.get(r.fqn());
                 if (acc != null && r.status() == MinimalCorpus.Status.FAIL) {
                     r = r.reason().contains(acc[1])

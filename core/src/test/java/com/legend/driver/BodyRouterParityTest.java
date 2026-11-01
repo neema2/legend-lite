@@ -130,6 +130,56 @@ class BodyRouterParityTest {
         }
     }
 
+    @ParameterizedTest
+    @MethodSource("backends")
+    void assertPrograms(TestBackend backend) throws Exception {
+        for (String body : List.of(
+                "{| assertEquals(2, 1 + 1);}",
+                "{| assertEquals(3, 1 + 1);}",
+                "{| assertNotEquals(3, 1 + 1); 'after';}",
+                "{| let n = 2; assertEquals(['a', 'b'], ['b', 'a']->sort()); assertEquals($n, 1 + 1);}",
+                "{| assertSize([1, 2, 3], 3); assertEmpty([]); assertNotEmpty([1]); assert(1 < 2);"
+                        + " assertFalse(1 > 2); true;}",
+                "{| assertSameElements([1, 2], [2, 1]); assertContains([1, 2], 2);"
+                        + " assertEqWithinTolerance(1.0, 1.05, 0.1);}",
+                "{| assertJsonStringsEqual('{\"a\":1}', '{\"a\": 1}');}",
+                "{| assertEquals(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1),"
+                        + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1));}",
+                "{| assertEquals(1, #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1)->size());}",
+                "{| assertEq(1, 1); assertEq('a', 'a');}",
+                // a side the database refuses: the assert reported failed, the data error the body's
+                "{| assertEquals(1, 'abc'->parseInteger());}")) {
+            assertParity(backend, body, "select 1");
+        }
+        // asserts, then a query answered: its planning after the asserts is the walk's at its turn
+        ModelContext ctx = Compiler.compileModel(model(backend, false));
+        assertNull(BodyClass.of(typed(ctx, "{| assertEquals(2, 1 + 1); #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1);}"),
+                RT, true));
+    }
+
+    /** The cases M6's audit asked for (S4): an assert after a failing one, a let between asserts, the class test,
+     *  the TDS equivalence, the rendered text, and a planned raise from a side's planning. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void assertProgramsTheAuditAsked(TestBackend backend) throws Exception {
+        for (String body : List.of(
+                // an assert after a failing one: planned, never reached
+                "{| assertEquals(3, 1 + 1); assertEquals(2, 1 + 1);}",
+                // a let between asserts; a statement that sends nothing last
+                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
+                "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
+                        + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1);}",
+                // the rendered text: one side a grid's text (the CSV form, toCSV, is the relational tests' own
+                // function, absent from this model: the corpora measure it)
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
+                // a side whose planning raises (a computed bound the lowering refuses by name): raised at its turn,
+                // after the assert before it ran and reported, counted under its family
+                "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
+                        + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}")) {
+            assertParity(backend, body, "select 1");
+        }
+    }
+
     /** A model of a class, a temporal class and a function, for the shapes the query-program rule keeps on the walk
      *  (classified only: none runs). */
     private static final String CLASSES = """
@@ -186,6 +236,50 @@ class BodyRouterParityTest {
         assertNull(BodyClass.of(typed(ctx, body), RT), body);
     }
 
+    /** A side whose planning raises is a PLANNED RAISE at its assert's turn (R14; M6's audit, S1): the assert before it
+     *  ran and reported, the body fails with the planning's own error, on both roads. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void aSidesPlanningRaisesAtItsTurn(TestBackend backend) throws Exception {
+        String body = "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
+                + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}";
+        ModelContext ctx = Compiler.compileModel(model(backend, false));
+        for (boolean router : List.of(false, true)) {
+            Run run = run(backend, ctx, body, router, "select 1");
+            assertEquals(true, run.outcome.startsWith("NotImplementedException: dynamic slicing bounds"),
+                    (router ? "the router: " : "the walk: ") + run.outcome);
+            assertEquals(1, run.verdicts.size(), "the first assert reported, the second raised: " + run.verdicts);
+        }
+    }
+
+    /** The assert shapes the class admits and the host checks do not plan (M6's audit, S3 and N3): the router leaves
+     *  the body on the walk, by a static rule ({@code AssertVerdicts.planHost} answers null before any side). */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void theAssertShapesTheHostChecksLeaveOnTheWalk(TestBackend backend) throws Exception {
+        for (String body : List.of(
+                // an instance test of a computed type (the walk's judgment would decline it after reading its side)
+                "{| assertInstanceOf(1, type(2));}",
+                // the identity of two values that are not elements
+                "{| assertIs(1, 1);}",
+                // a quantified assert (a map over asserts)
+                "{| [1, 2]->map(x|assertEquals($x, $x)); true;}")) {
+            ModelContext ctx = Compiler.compileModel(model(backend, false));
+            assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), RT, true), body);
+            Run walked = run(backend, ctx, body, false, "select 1");
+            Run routed = run(backend, ctx, body, true, "select 1");
+            assertEquals(walked.moved, routed.moved, "the router left the body on the walk: " + body);
+            assertEquals(walked.outcome, routed.outcome, "outcome: " + body);
+            assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
+            assertEquals(walked.census, routed.census, "the verdict census: " + body);
+        }
+        // a type named as an argument is a packageable reference the class rule leaves on the walk (the query
+        // program's list), so the class test by a type reference never reaches the host checks
+        ModelContext ctx = Compiler.compileModel(model(backend, false));
+        assertNull(BodyClass.of(typed(ctx, "{| assertInstanceOf(1, Integer); assertInstanceOf('a', String);}"), RT,
+                true));
+    }
+
     private static String model(TestBackend backend, boolean seeded) {
         if (!seeded) {
             return backend.withStorelessRuntime("");
@@ -208,7 +302,8 @@ class BodyRouterParityTest {
      *  observed the same. */
     private static void assertParity(TestBackend backend, String body, String check) throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend, false));
-        assertNotNull(BodyClass.of(typed(ctx, body), RT), "the body is a moved class's: " + body);
+        assertNotNull(BodyClass.of(typed(ctx, body), RT, true),
+                "the body is a moved class's under the host judge: " + body);
         Run walked = run(backend, ctx, body, false, check);
         Run moved = run(backend, ctx, body, true, check);
         assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
@@ -218,11 +313,14 @@ class BodyRouterParityTest {
         assertEquals(walked.effects, moved.effects, "the effects census: " + body);
         assertEquals(walked.database, moved.database, "the database left: " + body);
         assertEquals(walked.statements, moved.statements, "the statements sent (origin and text, in order): " + body);
+        assertEquals(walked.verdicts, moved.verdicts, "the verdicts the listener heard: " + body + " (" + walked.outcome
+                + ")");
+        assertEquals(walked.census, moved.census, "the verdict census: " + body + " (" + walked.outcome + ")");
         assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
     }
 
     private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,
-            String database, long moved, List<String> statements) {
+            String database, long moved, List<String> statements, List<String> verdicts, String census) {
     }
 
     private static Run run(TestBackend backend, ModelContext ctx, String body, boolean router, String check)
@@ -238,12 +336,27 @@ class BodyRouterParityTest {
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
             String outcome = "ok";
             List<String> statements = new ArrayList<>();
+            List<String> verdicts = new ArrayList<>();
+            com.legend.judge.AssertListener listener = new com.legend.judge.AssertListener() {
+                @Override
+                public void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
+                    verdicts.add(assertName + " " + pass + " " + detail);
+                }
+
+                @Override
+                public void unjudged(String assertName, String reason) {
+                    verdicts.add(assertName + " unjudged " + reason);
+                }
+            };
+            java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
+                    com.legend.judge.CanonicalDivergence.sqlCensus());
             try (var observing = StatementOrigin.observing(statements)) {
                 if (router) {
-                    Execution.runProgram(q, RT, Execution.Source.given(session), null, null, options, capture::of);
+                    Execution.runProgram(q, RT, Execution.Source.given(session), listener, null, options,
+                            capture::of);
                 } else {
-                    BodyDriver.execute(q, RT, backend.dialect().forServer(session.version()), session, null, null,
-                            options, capture::of);
+                    BodyDriver.execute(q, RT, backend.dialect().forServer(session.version()), session, listener,
+                            null, options, capture::of);
                 }
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -255,9 +368,16 @@ class BodyRouterParityTest {
             }
             List<String> ledger = new ArrayList<>();
             recorder.entries().forEach(e -> ledger.add(String.valueOf(e)));
+            java.util.SortedMap<String, Long> census = new java.util.TreeMap<>();
+            com.legend.judge.CanonicalDivergence.sqlCensus().forEach((k, v) -> {
+                long d = v - censusBefore.getOrDefault(k, 0L);
+                if (d != 0) {
+                    census.put(k, d);
+                }
+            });
             return new Run(outcome, ledger, capture.toString(), Arrays.toString(delta),
                     Census.count(Census.Key.EFFECTS_IN_SCRIPT) - effectsBefore, database(c, check),
-                    Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements);
+                    Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements, verdicts, census.toString());
         }
     }
 

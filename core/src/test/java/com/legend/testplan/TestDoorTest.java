@@ -98,8 +98,8 @@ class TestDoorTest {
     void aTestsKindIsTheLibrarysRefusedByNameUntilItsStep() {
         TypedQuery body = Compiler.query(Compiler.compileModel(StorelessRuntime.with("", Databases.PLATFORM)),
                 "{|let x = 1; assertEquals(1, $x);}");
-        assertEquals("an assert on the test door's program road: not planned yet (the test-is-the-product plan's M6,"
-                + " the verdict record)", assertThrows(NotImplementedException.class,
+        assertEquals("an assert on the test door's program road: not planned yet (the test-is-the-product plan's"
+                + " M6-M8: an assert its judge planned no verdict step for)", assertThrows(NotImplementedException.class,
                         () -> TestDoor.plan(body, StorelessRuntime.RUNTIME, Set.of(), null)).getMessage());
     }
 

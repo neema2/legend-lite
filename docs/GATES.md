@@ -16583,6 +16583,80 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's M6: the host judge's arms in two halves; the assert programs run whole
+
+The plan's §6 B3-B5, §7 (the order after M7), §9, §10; the decisions log D108; the handoff
+`docs/TEST_IS_THE_PRODUCT_HANDOFF_2026_11_01.md` (its §4.3 closed here); the audit
+`docs/test-is-product-homework/M6_AUDIT.md`; the revalidation `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`.
+
+1. **The R21 checkpoint recorded late (93c930cd):** CI green on every OS, 52 of 52 checks (not recorded with D107's
+   entry; recorded here with M6, as the handoff asked).
+2. **Built** (the handoff's §4.1; the WIP commit `89e604de` brought in by cherry-pick, then the audit folded): every
+   single-fetch host arm split into a PLAN half (`HostSides.Check`: the sides it asks for) and a JUDGMENT over the
+   shaped sides (`HostJudge.planX`), the walk running both halves back to back (`HostSides.run`/`judged`);
+   `AssertVerdicts.planHost`, the host judge's classification as a plan (null for the shapes the host checks do not
+   plan: engine text, the quantified forms, the cell pool, lineage lines, and -- the audit's S3 -- a computed instance
+   type, a non-relation TDS equivalence, a membership of a value not exactly one, a JSON text not one String);
+   `driver/HostAsserts` (new): an assert program's asserts planned BEFORE the program, each with the walk's let prefix
+   and environment, handed to the test library as `TestDoor.Asserts` and placed by `TestKinds` as a verdict step at the
+   assert's turn; `BodyClass.ASSERT_PROGRAM` (the host judge alone); the router's sink judging at the step with the
+   walk's census and listener protocol (`judgedAtItsStep`, `sideRefused`); a body ending on an assert answering its
+   verdict as the walk does; `PlanRunner.constantsAlone` running a verdict group of constant sides with no session;
+   `ExecutionPlan.answers()`; `PlanMaker.sqls` listing a verdict group's statements.
+3. **The audit folded** (no blockers; S1-S4 should-fix): S1 -- a let's handle registration and the assert's frame
+   environment raise BEFORE the walk enters the arm, so they are planned as an uncounted raise at the next assert's
+   turn (`HostAssert.raisingBeforeTheArm`: no census, no listener; a let whose registration raised and no assert after
+   it fails at planning, the M5 audit's S6 residue); S2 -- a host side's read failure of ANY type (not the data error
+   alone) reaches the sink (`ProgramSink.sidesFailed(verdict, RuntimeException)`, an I/O failure unchecked), counted as
+   the walk counts it, a verdict reported for a data error alone; S3 -- the four declining judgments decided
+   statically in `planHost`, so a moved body's judgment never declines (the refusal by name stays as a guard); S4 --
+   the parity test gains the audit's cases (an assert after a failing one, a let between asserts, the TDS equivalence,
+   the rendered text, a side whose planning raises -- pinned as a planned raise at its turn after the first assert
+   reported) and the walked pins (a computed instance type, two non-element values under `assertIs`, a map over
+   asserts; a type reference an argument is a packageable ref the class leaves on the walk). N2 fixed (a classification
+   raise under a named family counted under it). N1 kept as residue; N5, N6 folded; N7 named (below).
+4. **Measured** (the chain, against the base regenerated in this container on f08cc4d9's source: 17,471 core
+   statements, 28 of 28): core 28 of 28, every package byte-identical in text and labels but `driver` -- 17,471 ->
+   17,671, all additions, the parity test's own new runs (168 verdict sides under `other`, 32 session statements);
+   `//pct:pct_duckdb` 6 of 6 and `bodies-moved=0` in every suite (the census print added for it; PCT runs each test
+   as a CALL of the test function -- `PureTestRunner.runProgram(... call ...)` -- so its asserts sit inside a user
+   function, not at statement root, and the class admits statement-root asserts only: M10c's shape); both corpora uncached, every pass's statement-origins census and pass/fail counts
+   identical to the baseline (DuckDB database `body=6553 ... other=2`, pass 2473 / fail 108; H2 database `fallback=18`,
+   pass 2233 / fail 353; DuckDB host pass 2471 / fail 108; H2 host pass 2289 / fail 295), `body-router moved` 604 -> 608
+   on both HOST passes (four assert programs per pass run whole, named below), 604 on the database passes (unchanged,
+   as designed); channel B 5 of 5 (it judges BOTH: nothing moves); `//gates:local` 447 pass, 1 skipped, 10 red: the 9
+   Postgres targets refusing root (9 of 9 unprivileged: the eight core tests and `//datacube:verify_app_test`) and
+   `//core:census` on the Java-evaluation ledger (item 5; green after the re-pin). The four moved corpus bodies (named by the two passes' per-test
+   deltas, a host-only class showing as the host pass's larger delta): `meta::pure::tds::tests::extensions::iqrClassifyTest`,
+   `meta::pure::tds::tests::extensions::testExtendDigest_InMemory`, `meta::pure::tds::tests::extensions::zScoreTest`,
+   `meta::relational::functions::sqlQueryToString::tests::testUseDbNativeImplicitNullOrderingResolutionOffByDefault`.
+5. **Guards, dated:** `ErrorShapeGuardrailTest.BROAD_CATCH_COUNTS` gains `HostAsserts.java` 4, `AssertVerdicts.java` 1,
+   `PlanRunner.java` 1 (R14's planned raise: a planning failure of any type captured into a raise at its turn, nothing
+   swallowed); `CodeShapeGuardrailTest` allowlists `BodyRouter.lastVerdict`; `BodyClassTest.MOVED` grows by
+   `ASSERT_PROGRAM`; `TestDoorTest`'s refusal text; `JavaEvalLedgerTest` -- `HostAsserts.java` registered in the
+   driver's funnel register (plans only, sends nothing, judges nothing) and four pins re-pinned: HostJudge 956 -> 1066
+   (the plan half beside each arm's run form), AssertVerdicts 1226 -> 1449 (the host dispatch as a plan, the HostAssert
+   record, the verdict seam), SqlTextVerdicts 1240 -> 1254 (`mayArm`), BodyDriver 934 -> 939 (`bodyEnv`); no judgment
+   moved into Java, the growth is the second entry per arm, gone with the walk's run forms at M10d.
+6. **Residue, named** (R23: recorded, not stopped for): B3 -- the judgment is a closure over the typed arguments and
+   the let prefix, reading the model and the typed tree at judge time (`isSubtype`, `instanceKeys`, `restrictToKeys`,
+   `OrderView.of`, `typeRefName`), not a data record (folded into M8, the revalidation's 2.3); B4 -- the assert
+   planning lives in the driver, not the test library (M10); B5 -- the census is counted by the seam at the verdict
+   step, not by the runner per step kind; N1 -- `assertTdsEquivalent`'s tolerances are read in the grids' group (the
+   walk read them after the grids; identical for literal tolerances; a tolerance on another session now refused);
+   N3 -- `SqlTextVerdicts.lookThrough` decides "no producer" by catching an inliner failure (the walk's own gate, older
+   than M6, goes with it at M10); N4 -- one session per program where the walk opened one per assert (identical under
+   the harnesses' autocommit sessions); N7 -- a guard hole older than M6: `CodeShapeGuardrailTest`'s `SIG` pattern skips
+   methods with an annotated return type, so `METHOD_LIMIT` never scans `AssertVerdicts.adjudicate` (about 300 lines)
+   or `planHost`; the DATABASE and BOTH judges' bodies stay on the walk until M7.
+7. **The plan revalidated with the user** (`REVALIDATION_2026_11_01.md`, the rulings of 2026-11-01): R16, the audits
+   and the register hold; the order after M6 is M9 (frames), M7, M8, M10a-d ("the order is fine"); M10 split (M10a the
+   narrow M4 on the test road -- a prerequisite of deleting the walk, with a product follow-up recorded in the plan's
+   §9; M10b the engine-text asserts -- the test in the plan on every lane, the appeal a Java harness, no lane
+   special-cased; M10c the remaining host shapes; M10d the deletion); **B3 struck** -- an assert is a regular function
+   the database judge lowers, the plan carries its SQL and no assert metadata, the host judge is the test harness and
+   may read the typed tree when it compares (the plan's §6 B3).
+
 ## 2026-11-01 — The test-is-the-product plan: the answer facts as upstream answers them (R21), M5f's checkpoint
 
 The plan's §1 R21, R22, §9, §10; the decisions log D107; the semantics register S128.

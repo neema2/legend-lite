@@ -56,20 +56,9 @@ public final class BodyDriver {
             com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
             ExecuteOptions options, Execution.@com.legend.base.Nullable Answer answer) {
-        ModelContext ctx = typed.context();
         SpecCompiler specs = typed.specs();
         java.util.List<TypedSpec> typedBody = new java.util.ArrayList<>(typed.body());
-        com.legend.protocol.spec.ValueSpecification resolved = typed.resolved();
-        // the execution OPTIONS: the per-call ones ride each execute call's
-        // own from (the engine's exeCtx overload binds them onto its bound
-        // context); the caller's ride the environment
-        ExecEnv env0 = ExecEnv.of(ctx, runtimeFqn, dialect, session, options);
-        ExecEnv env = assertListener == null && replayReferee == null ? env0
-                : env0.withListeners(assertListener, replayReferee);
-        if (resolved instanceof com.legend.protocol.spec.LambdaFunction rlf
-                && rlf.parameters().isEmpty()) {
-            env = env.withProtocolBody(rlf.body());
-        }
+        ExecEnv env = bodyEnv(typed, runtimeFqn, dialect, session, assertListener, replayReferee, options);
         // a program that writes a store table runs in ONE transaction (docs/WRITES_DESIGN_2026_10_18.md §4): its
         // writes all land or none do; a caller's open transaction is joined, not committed. So does one that stages
         // rows: its staged tables are the transaction's (SqlDml.CreateTempTableAs.staged)
@@ -83,6 +72,24 @@ public final class BodyDriver {
             return;
         }
         BodyCompiler.execute(typedBody, new java.util.ArrayList<>(), specs, env, answer);
+    }
+
+    /** A body's environment at its start, as the walk makes it: the execution OPTIONS (the per-call ones ride each
+     *  execute call's own from -- the engine's exeCtx overload binds them onto its bound context; the caller's ride
+     *  the environment), the listeners, the query's protocol statements. The body router plans an assert program's
+     *  asserts on it (the test-is-the-product plan's M6). */
+    static ExecEnv bodyEnv(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            com.legend.sql.dialect.SqlDialect dialect, com.legend.exec.Sessions.Session session,
+            com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
+            com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee, ExecuteOptions options) {
+        ExecEnv env0 = ExecEnv.of(typed.context(), runtimeFqn, dialect, session, options);
+        ExecEnv env = assertListener == null && replayReferee == null ? env0
+                : env0.withListeners(assertListener, replayReferee);
+        if (typed.resolved() instanceof com.legend.protocol.spec.LambdaFunction rlf
+                && rlf.parameters().isEmpty()) {
+            env = env.withProtocolBody(rlf.body());
+        }
+        return env;
     }
 
     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it

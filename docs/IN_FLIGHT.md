@@ -2983,12 +2983,19 @@ statement's label), `StatementOrigin.java` (`observing`); the tests (`BodyRouter
 ledger; `parser-equivalence`'s `ratchets.tsv`. **The answer facts as upstream answers them 2026-11-01 (D107, R21)**:
 `driver/JudgePlans.java` (the host scalar), `planner/ProductStatements.java` (`asATestAnswers`), `PlanMaker.java`
 (the value column), `testplan/TestKinds.java`; `upstream-api/m5-answers.{json,pure}`. M4 DEFERRED (R23, 2026-11-01);
-M6-M10 and Z at R22's cadence, no questions (R23). **M6 half-built and HANDED OFF 2026-11-01**: the next session starts
-at `docs/TEST_IS_THE_PRODUCT_HANDOFF_2026_11_01.md`; M6's code (unmeasured beyond the quick tests) is the one commit on
-`claude/wizardly-dirac-rw6tim-seam-wip` (`89e604de`): `driver/HostSides.java`, `HostJudge.java`, `AssertVerdicts.java`,
-`HostAsserts.java` (new), `BodyRouter.java`, `BodyDriver.java`, `SqlTextVerdicts.java`; `exec/PlanRunner.java`;
-`executionplan/ExecutionPlan.java`; `planner/PlanMaker.java`; `testplan/BodyClass.java`, `TestDoor.java`,
-`TestKinds.java`; the tests (`BodyRouterParityTest`, `BodyClassTest`, `TestDoorTest`, `CodeShapeGuardrailTest`).
+M6-M10 and Z at R22's cadence, no questions (R23). **M6 half-built and HANDED OFF 2026-11-01**, then **built 2026-11-01
+(D108)** by the session that took the handoff (`docs/TEST_IS_THE_PRODUCT_HANDOFF_2026_11_01.md`, closed): the WIP commit
+`89e604de` brought in by cherry-pick and the audit's S1-S4 folded -- `driver/HostSides.java` (`Check`, `Planned.NONE`),
+`HostJudge.java` (the `planX` halves), `AssertVerdicts.java` (`HostAssert`, `planHost`/`planArm`, `judgedAtItsStep`,
+`sideRefused`), `HostAsserts.java` (new), `BodyRouter.java`, `BodyDriver.java` (`bodyEnv`), `SqlTextVerdicts.java`
+(`mayArm`); `exec/PlanRunner.java` (`sidesFailed`, `constantsAlone`); `executionplan/ExecutionPlan.java` (`answers`);
+`planner/PlanMaker.java` (`sqls`); `testplan/BodyClass.java` (`ASSERT_PROGRAM`), `TestDoor.java` (`Asserts`),
+`TestKinds.java`; the tests (`BodyRouterParityTest`, `BodyClassTest`, `TestDoorTest`, `CodeShapeGuardrailTest`,
+`ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`); `pct`'s `PctCensusGate` (the moved-bodies count printed);
+`docs/test-is-product-homework/REVALIDATION_2026_11_01.md` (the plan revalidated with the user: the order M9, M7, M8,
+M10a-d; B3 struck -- the host judge is the harness; the engine-text asserts' appeal a Java harness on every lane; M4
+narrow in M10a with a product follow-up). Next: M9 (frames read by asserts, T8, T9, T10, T12), then M7, M8, M10a-d, Z,
+in this session.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

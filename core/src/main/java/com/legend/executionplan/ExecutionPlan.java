@@ -52,6 +52,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         };
     }
 
+    /** Whether this plan answers at all: a program whose steps hold no result step (a test body ending on an assert,
+     *  the test-is-the-product plan's M6) answers no rows, its verdicts going to the program's sink. */
+    public boolean answers() {
+        return !(root instanceof Sequence s) || s.steps().stream()
+                .anyMatch(x -> x instanceof TdsResult || x instanceof Keyed || x instanceof Constant);
+    }
+
     /** Whether this plan's answer is a statement's rows ({@link #answerSql}), not a value the plan wrote
      *  ({@link Constant}). */
     public boolean sendsTheAnswer() {

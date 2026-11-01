@@ -645,22 +645,31 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide tdsEquivalent(String name, List<TypedSpec> targs,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> grids = sides(name, List.of(valueAsk(targs.get(0), hook), valueAsk(targs.get(1), hook)),
-                letPrefix, specs, env);
-        TypedSide.Tabular one = grids.get(0) instanceof TypedSide.Tabular t0 ? t0 : null;
-        TypedSide.Tabular two = grids.get(1) instanceof TypedSide.Tabular t1 ? t1 : null;
+        return HostSides.run(name, planTdsEquivalent(targs, hook), letPrefix, specs, env);
+    }
+
+    /** {@link #tdsEquivalent} planned: the two grids and the tolerances, one verdict's base (M6: the walk read the
+     *  tolerances after the grids, a group of their own; literal tolerances send nothing either way). */
+    static HostSides.Check planTdsEquivalent(List<TypedSpec> targs,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        List<HostSides.Ask> asks = new java.util.ArrayList<>(List.of(valueAsk(targs.get(0), hook),
+                valueAsk(targs.get(1), hook), valueAsk(targs.get(2), hook)));
+        if (targs.size() == 4) {
+            asks.add(valueAsk(targs.get(3), hook));
+        }
+        return new HostSides.Check(asks, sides -> tdsEquivalentOf(targs, sides));
+    }
+
+    private static @com.legend.base.Nullable TypedSide tdsEquivalentOf(List<TypedSpec> targs, List<TypedSide> sides) {
+        TypedSide.Tabular one = sides.get(0) instanceof TypedSide.Tabular t0 ? t0 : null;
+        TypedSide.Tabular two = sides.get(1) instanceof TypedSide.Tabular t1 ? t1 : null;
         if (one == null || two == null) {
             return null;   // non-tabular shape — fall through, loud later
         }
-        List<HostSides.Ask> toleranceAsks = new java.util.ArrayList<>(List.of(valueAsk(targs.get(2), hook)));
-        if (targs.size() == 4) {
-            toleranceAsks.add(valueAsk(targs.get(3), hook));
-        }
-        List<TypedSide> tolerances = sides(name, toleranceAsks, letPrefix, specs, env);
-        double delta = ((Number) AssertVerdicts.one(AssertVerdicts.decodeSide(tolerances.get(0)),
+        double delta = ((Number) AssertVerdicts.one(AssertVerdicts.decodeSide(sides.get(2)),
                 "assertTdsEquivalent delta")).doubleValue();
         double timeDelta = targs.size() == 4
-                ? ((Number) AssertVerdicts.one(AssertVerdicts.decodeSide(tolerances.get(1)),
+                ? ((Number) AssertVerdicts.one(AssertVerdicts.decodeSide(sides.get(3)),
                         "assertTdsEquivalent timeDelta")).doubleValue()
                 : 0.0;
         List<String> c1 = one.columns().stream()
@@ -676,12 +685,45 @@ final class HostJudge {
         return d == null ? AssertVerdicts.ok() : AssertVerdicts.fail(d);
     }
 
+    /** The GRID PAIR ({@code assertEquals} / {@code assertNotEquals} over two statically relation-stamped sides,
+     *  D3): both grids executed in definition order, the grid owner ({@link com.legend.judge.TdsCompare#grids}:
+     *  columns ordered, rows under the order view of the actual side) judges -- never a byte decline. */
+    static HostSides.Check planGridPair(String name, boolean wantEqual, List<TypedSpec> args,
+            List<TypedSpec> letPrefix, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        boolean sorted = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                == com.legend.compiler.spec.OrderView.SORTED;
+        return new HostSides.Check(List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)), grids -> {
+            TypedSide.Tabular te = grids.get(0) instanceof TypedSide.Tabular t0 ? t0 : null;
+            TypedSide.Tabular ta = grids.get(1) instanceof TypedSide.Tabular t1 ? t1 : null;
+            if (te == null || ta == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "relation-stamped assert side executed"
+                                + " to a non-tabular result");
+            }
+            boolean held = com.legend.judge.TdsCompare.grids(te, ta, sorted);
+            com.legend.judge.CanonicalDivergence.sqlRoute(name, "grid-pair");
+            if (held != wantEqual) {
+                return AssertVerdicts.fail(name + ":\n" + summarize(te)
+                        + "\n does not match:\n" + summarize(ta));
+            }
+            return AssertVerdicts.ok();
+        });
+    }
+
     /** {@code assertSize(coll, n)}: the side executed, its size by result kind. */
     static TypedSide size(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> both = sides(name, List.of(valueAsk(args.get(1), hook), valueAsk(args.get(0), hook)),
-                letPrefix, specs, env);
+        return HostSides.judged(name, planSize(args, letPrefix, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planSize(List<TypedSpec> args, List<TypedSpec> letPrefix,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(valueAsk(args.get(1), hook), valueAsk(args.get(0), hook)),
+                both -> sizeOf(args, letPrefix, both));
+    }
+
+    private static TypedSide sizeOf(List<TypedSpec> args, List<TypedSpec> letPrefix, List<TypedSide> both) {
         Object n = AssertVerdicts.one(AssertVerdicts.decodeSide(both.get(0)), "assertSize size");
         // D3: the size rule is per-result-kind — grid ROWS,
         // graph array length, values otherwise; the ONE-CARRIER
@@ -714,15 +756,24 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide contains(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> both = sides(name, List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
-                letPrefix, specs, env);
+        return HostSides.run(name, planContains(args, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planContains(List<TypedSpec> args,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
+                HostJudge::containsOf);
+    }
+
+    private static @com.legend.base.Nullable TypedSide containsOf(List<TypedSide> both) {
         List<Object> coll = AssertVerdicts.decodeSide(both.get(0));
         List<Object> val = AssertVerdicts.decodeSide(both.get(1));
         if (val.size() != 1) {
             return null;   // non-[1] value arg — generic path
         }
         boolean member = coll.stream().anyMatch(x ->
-                com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(x), com.legend.judge.Equality.Typed.of(val.get(0))));
+                com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(x),
+                        com.legend.judge.Equality.Typed.of(val.get(0))));
         return member ? AssertVerdicts.ok()
                 : AssertVerdicts.fail("assertContains: " + coll
                         + " does not contain " + val.get(0));
@@ -732,8 +783,16 @@ final class HostJudge {
     static TypedSide tolerance(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> three = sides(name, List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook),
-                valueAsk(args.get(2), hook)), letPrefix, specs, env);
+        return HostSides.judged(name, planTolerance(args, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planTolerance(List<TypedSpec> args,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook),
+                valueAsk(args.get(2), hook)), HostJudge::toleranceOf);
+    }
+
+    private static TypedSide toleranceOf(List<TypedSide> three) {
         String d = com.legend.judge.PureAsserts.assertEqWithinTolerance(
                 (Number) AssertVerdicts.one(AssertVerdicts.decodeSide(three.get(0)), "tolerance expected"),
                 (Number) AssertVerdicts.one(AssertVerdicts.decodeSide(three.get(1)), "tolerance actual"),
@@ -746,6 +805,11 @@ final class HostJudge {
     static TypedSide condition(String name, TypedSpec cond, boolean wantTrue,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return HostSides.judged(name, planCondition(name, cond, wantTrue, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planCondition(String name, TypedSpec cond, boolean wantTrue,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // forAll-contains SUBSET (the functionvariables idiom
         // — the harness's audited fc arm, moved to the owner):
         // both sides evaluate IN THE DATABASE; the membership
@@ -754,29 +818,34 @@ final class HostJudge {
         // pure's own evaluation of this shape is in-memory).
         TypedSpec[] fc = AssertVerdicts.forAllContains(cond);
         if (fc != null) {
-            List<TypedSide> pair = sides(name, List.of(valueAsk(fc[0], hook), valueAsk(fc[1], hook)), letPrefix,
-                    specs, env);
-            List<Object> need = AssertVerdicts.decodeSide(pair.get(0));
-            List<Object> have = AssertVerdicts.decodeSide(pair.get(1));
-            List<Object> missing = need.stream()
-                    .filter(n2 -> have.stream().noneMatch(h ->
-                            com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(n2), com.legend.judge.Equality.Typed.of(h))))
-                    .toList();
-            boolean subsetHolds = missing.isEmpty();
-            if (subsetHolds == wantTrue) {
-                return AssertVerdicts.ok();
-            }
-            return AssertVerdicts.fail(name + " (forAll-contains subset):"
-                    + " missing " + missing);
+            return new HostSides.Check(List.of(valueAsk(fc[0], hook), valueAsk(fc[1], hook)),
+                    pair -> subsetOf(name, wantTrue, pair));
         }
         // F13c: the CONDITION rides the identity lane — eq/
         // equal over instances compile the engine relation
         // (identity/key canon); the egress is one boolean, so
         // no other lane ever sees the identity field
-        Object c = AssertVerdicts.one(AssertVerdicts.decodeSide(
-                sides(name, List.of(identityAsk(cond, hook)), letPrefix, specs, env).get(0)), name + " condition");
-        boolean held = Boolean.TRUE.equals(c) == wantTrue;
-        return held ? AssertVerdicts.ok() : AssertVerdicts.fail("Assert failed");
+        return new HostSides.Check(List.of(identityAsk(cond, hook)), one -> {
+            Object c = AssertVerdicts.one(AssertVerdicts.decodeSide(one.get(0)), name + " condition");
+            boolean held = Boolean.TRUE.equals(c) == wantTrue;
+            return held ? AssertVerdicts.ok() : AssertVerdicts.fail("Assert failed");
+        });
+    }
+
+    private static TypedSide subsetOf(String name, boolean wantTrue, List<TypedSide> pair) {
+        List<Object> need = AssertVerdicts.decodeSide(pair.get(0));
+        List<Object> have = AssertVerdicts.decodeSide(pair.get(1));
+        List<Object> missing = need.stream()
+                .filter(n2 -> have.stream().noneMatch(h ->
+                        com.legend.judge.Equality.same(com.legend.judge.Equality.Typed.of(n2),
+                                com.legend.judge.Equality.Typed.of(h))))
+                .toList();
+        boolean subsetHolds = missing.isEmpty();
+        if (subsetHolds == wantTrue) {
+            return AssertVerdicts.ok();
+        }
+        return AssertVerdicts.fail(name + " (forAll-contains subset):"
+                + " missing " + missing);
     }
 
     /** {@code assertEmpty} / {@code assertNotEmpty}: a tabular side's emptiness is its
@@ -784,9 +853,17 @@ final class HostJudge {
     static TypedSide empty(String name, TypedSpec arg, boolean wantEmpty,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return HostSides.judged(name, planEmpty(arg, wantEmpty, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planEmpty(TypedSpec arg, boolean wantEmpty,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // §8 leg 1: a TABULAR side's emptiness is its ROW count
         // (engine relation semantics) — no canon involved
-        TypedSide er = sides(name, List.of(valueAsk(arg, hook)), letPrefix, specs, env).get(0);
+        return new HostSides.Check(List.of(valueAsk(arg, hook)), one -> emptyOf(wantEmpty, one.get(0)));
+    }
+
+    private static TypedSide emptyOf(boolean wantEmpty, TypedSide er) {
         boolean empty = er instanceof TypedSide.Tabular te3
                 ? te3.rows().isEmpty()
                 : AssertVerdicts.decodeSide(er).isEmpty();
@@ -873,8 +950,17 @@ final class HostJudge {
     static TypedSide eq(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> pair = sides(name, List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
-                letPrefix, specs, env);
+        return HostSides.judged(name, planEq(args, letPrefix, env, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planEq(List<TypedSpec> args, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+                pair -> eqOf(args, letPrefix, env, pair));
+    }
+
+    private static TypedSide eqOf(List<TypedSpec> args, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env,
+            List<TypedSide> pair) {
         SideFetch ef = sideCanonOf(pair.get(0), false);
         SideFetch af = sideCanonOf(pair.get(1), false);
         Object ee = AssertVerdicts.one(ef.values(), "assertEq expected");
@@ -901,9 +987,17 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide instanceOf(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        Object v = AssertVerdicts.one(AssertVerdicts.decodeSide(
-                sides(name, List.of(valueAsk(args.get(0), hook)), letPrefix, specs, env).get(0)),
-                "assertInstanceOf instance");
+        return HostSides.run(name, planInstanceOf(args, env, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planInstanceOf(List<TypedSpec> args, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(valueAsk(args.get(0), hook)), one -> instanceOfOf(args, env, one.get(0)));
+    }
+
+    private static @com.legend.base.Nullable TypedSide instanceOfOf(List<TypedSpec> args, BodyDriver.ExecEnv env,
+            TypedSide side) {
+        Object v = AssertVerdicts.one(AssertVerdicts.decodeSide(side), "assertInstanceOf instance");
         String type = AssertVerdicts.typeRefName(args.get(1));
         if (type == null) {
             return null;   // non-literal type arg — fall through
@@ -930,6 +1024,12 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide is(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return HostSides.run(name, planIs(name, args, specs, hook), letPrefix, specs, env);
+    }
+
+    /** {@link #is} planned; null (no side asked) where the pair is not two elements. */
+    static HostSides.@com.legend.base.Nullable Check planIs(String name, List<TypedSpec> args, SpecCompiler specs,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // ELEMENT IDENTITY (metamodel-as-relations D2/D3): a tracked
         // element's identity is its row's primary key — `is` over an
         // element reference and a metamodel row is the same equality
@@ -939,11 +1039,11 @@ final class HostJudge {
         if (AssertVerdicts.elementTyped(args.get(0), specs) && AssertVerdicts.elementTyped(args.get(1), specs)) {
             TypedSpec cond = com.legend.resolver.ChainNormalizer.identityCondition(
                     specs.ctx(), args.get(0), args.get(1));
-            Object c2 = AssertVerdicts.one(AssertVerdicts.decodeSide(
-                    sides(name, List.of(identityAsk(cond, hook)), letPrefix, specs, env).get(0)),
-                    name + " condition");
-            return Boolean.TRUE.equals(c2) ? AssertVerdicts.ok()
-                    : AssertVerdicts.fail("assertIs: the element references differ");
+            return new HostSides.Check(List.of(identityAsk(cond, hook)), one -> {
+                Object c2 = AssertVerdicts.one(AssertVerdicts.decodeSide(one.get(0)), name + " condition");
+                return Boolean.TRUE.equals(c2) ? AssertVerdicts.ok()
+                        : AssertVerdicts.fail("assertIs: the element references differ");
+            });
         }
         return null;
     }
@@ -954,8 +1054,17 @@ final class HostJudge {
     static TypedSide sameElements(String name, List<TypedSpec> args, boolean gridPair,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> pair = sides(name, List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
-                letPrefix, specs, env);
+        return HostSides.judged(name, planSameElements(args, gridPair, letPrefix, env, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planSameElements(List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix,
+            BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+                pair -> sameElementsOf(args, gridPair, letPrefix, env, pair));
+    }
+
+    private static TypedSide sameElementsOf(List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix,
+            BodyDriver.ExecEnv env, List<TypedSide> pair) {
         SideFetch ef = sideCanonOf(pair.get(0), !gridPair);
         SideFetch af = sideCanonOf(pair.get(1), !gridPair);
         // §8 leg 1 — TABULAR sides under the MULTISET form:
@@ -1201,8 +1310,18 @@ final class HostJudge {
     static TypedSide equals(String name, boolean wantEqual, List<TypedSpec> args,
             boolean incidental, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> pair = sides(name, List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+        return HostSides.judged(name, planEquals(name, wantEqual, args, incidental, gridPair, letPrefix, env, hook),
                 letPrefix, specs, env);
+    }
+
+    static HostSides.Check planEquals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
+            boolean gridPair, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(canonAsk(args.get(0), hook), canonAsk(args.get(1), hook)),
+                pair -> equalsOf(name, wantEqual, args, incidental, gridPair, letPrefix, env, pair));
+    }
+
+    private static TypedSide equalsOf(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
+            boolean gridPair, List<TypedSpec> letPrefix, BodyDriver.ExecEnv env, List<TypedSide> pair) {
         SideFetch ef = sideCanonOf(pair.get(0), incidental && !gridPair);
         SideFetch af = sideCanonOf(pair.get(1), incidental && !gridPair);
         // the FLAT-CELLS verdict (grid canon byte channel +
@@ -1249,7 +1368,8 @@ final class HostJudge {
                 byteVerdict == null ? "" : byteVerdict.detail(),
                 () -> incidental
                         ? com.legend.judge.PureAsserts.assertSameElements(e, a)
-                        : com.legend.judge.PureAsserts.assertEquals(e, a, args.get(0).info().type(), args.get(1).info().type()));
+                        : com.legend.judge.PureAsserts.assertEquals(e, a, args.get(0).info().type(),
+                                args.get(1).info().type()));
     }
 
     /** {@code assertJsonStringsEqual(golden, actual)}: both strings executed, parsed, the
@@ -1258,8 +1378,17 @@ final class HostJudge {
     static @com.legend.base.Nullable TypedSide jsonStringsEqual(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> pair = sides(name, List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
-                letPrefix, specs, env);
+        return HostSides.run(name, planJsonStringsEqual(args, letPrefix, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planJsonStringsEqual(List<TypedSpec> args, List<TypedSpec> letPrefix,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
+                pair -> jsonOf(args, letPrefix, pair));
+    }
+
+    private static @com.legend.base.Nullable TypedSide jsonOf(List<TypedSpec> args, List<TypedSpec> letPrefix,
+            List<TypedSide> pair) {
         String ejson = AssertVerdicts.jsonSideTextOf(pair.get(0));
         String ajson = AssertVerdicts.jsonSideTextOf(pair.get(1));
         if (ejson == null || ajson == null) {
@@ -1309,8 +1438,20 @@ final class HostJudge {
             TypedSpec rendered, @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm,
             boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> pair = sides(name, List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
-                letPrefix, specs, env);
+        return HostSides.judged(name, planRendered(name, wantEqual, args, form, rendered, eForm, aForm, orderedForm,
+                letPrefix, hook), letPrefix, specs, env);
+    }
+
+    static HostSides.Check planRendered(String name, boolean wantEqual, List<TypedSpec> args, String form,
+            TypedSpec rendered, @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm,
+            boolean orderedForm, List<TypedSpec> letPrefix, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(valueAsk(args.get(0), hook), valueAsk(args.get(1), hook)),
+                pair -> renderedOf(name, wantEqual, form, rendered, eForm, aForm, orderedForm, letPrefix, pair));
+    }
+
+    private static TypedSide renderedOf(String name, boolean wantEqual, String form, TypedSpec rendered,
+            @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm, boolean orderedForm,
+            List<TypedSpec> letPrefix, List<TypedSide> pair) {
         List<Object> ev = AssertVerdicts.decodeSide(pair.get(0));
         List<Object> av = AssertVerdicts.decodeSide(pair.get(1));
         if (ev.size() == 1 && ev.get(0) instanceof String et
@@ -1319,7 +1460,8 @@ final class HostJudge {
             // sorted queries legally tie-flip between two executions)
             boolean sorted = orderedForm
                     && (eForm == null ^ aForm == null)
-                    && com.legend.compiler.spec.OrderView.of(rendered, letPrefix) == com.legend.compiler.spec.OrderView.SORTED;
+                    && com.legend.compiler.spec.OrderView.of(rendered, letPrefix)
+                            == com.legend.compiler.spec.OrderView.SORTED;
             boolean held = com.legend.judge.TdsCompare.renderedText(
                     aForm != null ? et : at, aForm != null ? at : et,
                     form, sorted);

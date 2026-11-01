@@ -36,8 +36,61 @@ final class HostSides {
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
     }
 
-    /** The arm's sides, in its order: planned, run as one verdict's base, shaped. */
-    static List<TypedSide> fetch(String name, List<Ask> asks, List<TypedSpec> letPrefix, SpecCompiler specs,
+    /**
+     * An arm PLANNED (the test-is-the-product plan's M6, brief B3): the sides it asks for, in its order, and its
+     * judgment over them once they ran -- the two halves of a host arm, so a side is never planned at judging time.
+     * The walk runs them back to back ({@link #run}); the test door's program places the asks as a verdict step's base
+     * ({@link #plan}) and the body router judges at that step. The judgment is a closure over the arm's typed
+     * arguments and the lets before it: it reads the sides, and at judging time the typed tree (a side's static type,
+     * its order view) and the model (a class's key tree, the subtype relation) -- the facts B3's verdict record would
+     * carry, named as residue in M6's records; null where the arm declines the sides it read (the walk's generic path
+     * continues; the program road refuses it by name, a shape {@code AssertVerdicts.planHost} leaves on the walk).
+     */
+    record Check(List<Ask> asks, Judgment judgment) {
+        Check {
+            asks = List.copyOf(asks);
+        }
+    }
+
+    /** A host arm's comparison over its sides, shaped and in the arm's order. */
+    @FunctionalInterface
+    interface Judgment {
+        @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides);
+    }
+
+    /** {@code check} run in place (the walk): its sides fetched, then judged; null where there is no check (the arm
+     *  declined the shape before any side) or the judgment declined. */
+    static @com.legend.base.Nullable TypedSide run(String name, @com.legend.base.Nullable Check check,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env) {
+        if (check == null) {
+            return null;
+        }
+        return check.judgment().judge(fetch(name, check.asks(), letPrefix, specs, env));
+    }
+
+    /** {@code check} run in place where its judgment always decides (an arm with no declining shape). */
+    static TypedSide judged(String name, Check check, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env) {
+        return java.util.Objects.requireNonNull(run(name, check, letPrefix, specs, env),
+                () -> name + ": an arm that always decides declined its sides");
+    }
+
+    /** An arm's sides PLANNED, in its order: one verdict's base and what shaping each needs once it ran; {@code on}
+     *  the session the group runs on, null where every side is a constant (nothing sent: each is read from its own
+     *  text, and no side is a to-one reader's). */
+    record Planned(List<JudgePlans.PlannedSide> sides, List<ExecutionPlan.Side> base,
+            Sessions.@com.legend.base.Nullable Session on) {
+        Planned {
+            sides = List.copyOf(sides);
+            base = List.copyOf(base);
+        }
+
+        /** No side: an assert planned as a raise at its turn asks for none. */
+        static final Planned NONE = new Planned(List.of(), List.of(), null);
+    }
+
+    /** The arm's sides planned as one verdict's base, run nowhere yet. */
+    static Planned plan(String name, List<Ask> asks, List<TypedSpec> letPrefix, SpecCompiler specs,
             BodyDriver.ExecEnv env) {
         List<JudgePlans.PlannedSide> planned = new ArrayList<>(asks.size());
         List<ExecutionPlan.Side> base = new ArrayList<>(asks.size());
@@ -64,17 +117,41 @@ final class HostSides {
                 }
             }
         }
-        if (on == null) {
-            on = any;
+        return new Planned(planned, base, on != null ? on : any);
+    }
+
+    /** The rows the runner read for {@code planned}'s base, each shaped by its position as the arm takes it; the
+     *  to-one reader's check where a side was sent. */
+    static List<TypedSide> shaped(String name, Planned planned, List<PlanRunner.Rows> rows) {
+        if (rows.size() != planned.sides().size()) {
+            throw new IllegalStateException(name + ": the runner handed " + rows.size() + " sides for "
+                    + planned.sides().size() + " asked");
         }
+        List<TypedSide> out = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            JudgePlans.PlannedSide p = planned.sides().get(i);
+            TypedSide shaped = JudgePlans.shape(p, rows.get(i));
+            if (planned.on() != null) {
+                JudgePlans.toOneReader(p.root(), shaped);
+            }
+            out.add(shaped);
+        }
+        return out;
+    }
+
+    /** The arm's sides, in its order: planned, run as one verdict's base, shaped. */
+    static List<TypedSide> fetch(String name, List<Ask> asks, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env) {
+        Planned planned = plan(name, asks, letPrefix, specs, env);
+        Sessions.Session on = planned.on();
         List<TypedSide> out = new ArrayList<>(asks.size());
         if (on == null) {
-            for (JudgePlans.PlannedSide p : planned) {
+            for (JudgePlans.PlannedSide p : planned.sides()) {
                 out.add(JudgePlans.shape(p, JudgePlans.runSide(p, env)));
             }
             return out;
         }
-        ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(name, name, true, base, null);
+        ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(name, name, true, planned.base(), null);
         ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(verdict), null);
         List<List<PlanRunner.Rows>> got = new ArrayList<>(1);
         try {
@@ -83,16 +160,10 @@ final class HostSides {
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
         }
-        if (got.size() != 1 || got.get(0).size() != planned.size()) {
-            throw new IllegalStateException(name + ": the runner handed " + (got.isEmpty() ? 0 : got.get(0).size())
-                    + " sides for " + planned.size() + " asked");
+        if (got.size() != 1) {
+            throw new IllegalStateException(name + ": the runner handed " + got.size() + " verdicts' sides for one");
         }
-        for (int i = 0; i < planned.size(); i++) {
-            TypedSide shaped = JudgePlans.shape(planned.get(i), got.get(0).get(i));
-            JudgePlans.toOneReader(planned.get(i).root(), shaped);
-            out.add(shaped);
-        }
-        return out;
+        return shaped(name, planned, got.get(0));
     }
 
     /** The receiver of one verdict's sides; a verdict group of host sides answers no rows and is judged by no

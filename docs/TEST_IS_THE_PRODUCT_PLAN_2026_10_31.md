@@ -293,9 +293,20 @@ posted the same way (R7 decision 12).
   aborts a transaction on error (F11), so the split rung can run. NOT new: what must run before a later
   statement can be written (T8, T9, the map over `executeInDb`) is the existing `Keyed` step inside the `Sequence`
   (S110, S1a); an invalid or unsupported program is a compile error (R14), so there is no "refused" step.
-- **B3, the verdict record (M6).** Label, `check`, base sides, the database form, and every fact a judge reads at
-  judge time today (the sides' static types, the order view, the keyed-class restriction, the TDSNull direction, a
-  quantified assert's literal message, tolerance arguments), so no judge reads the model.
+- **B3, the verdict record (M6) -- STRUCK 2026-11-01 (the user, at M6's revalidation: "shouldn't asserts be regular
+  lite functions that lower like any other function in the database judge? Why would they need extra data/metadata in
+  the plan?").** As written: label, `check`, base sides, the database form, and every fact a judge reads at judge time
+  today (the sides' static types, the order view, the keyed-class restriction, the TDSNull direction, a quantified
+  assert's literal message, tolerance arguments), so no judge reads the model. Why it goes: in the DATABASE judge an
+  assert already IS a regular function lowered like any other (`VerdictSql`: one statement whose row is `holds`,
+  `message`, `unjudged`); the plan carries that SQL and nothing about the assert (after M8's MV2/MV3 not even the
+  polarity). The facts B3 named are read by the HOST judge's Java comparison alone, and the host judge is the TEST
+  HARNESS (the cross-check: channel B's agreement, the corpus host pass, PCT) -- harness Java may read the typed tree
+  when it compares, as the referee does. So: no assert metadata in the plan; M6's closures stand as the harness's
+  form; `theDriverCompilesNothing` (M10d) is stated as "the driver sends nothing and plans nothing" (it may read typed
+  facts to compare rows). A later ruling, after M8 is measured: the database judge the verdict of record, the host
+  judge the cross-check (today channel B has it the other way); PCT stays host-judged until the database judge spells
+  every lane's dialect.
 - **B4, where test-only planning lives (M6).** The assert module, the fused composition and the database forms in a
   library the product server and the WebAssembly and native planners do not depend on (`//core:plan_side` ships into
   `wasm/BUILD.bazel:29-45`), held by an ArchUnit rule.
@@ -528,9 +539,10 @@ posted the same way (R7 decision 12).
 | **M5** ◆ | The body router at the test door (B1, R16); the first class moves whole: assert-free programs (the corpus setup programs, assert-free bodies), each planned whole by the program road and run as one plan; the 2.A convergences that class needs (MV6, MV7 where its frames are eager) | 1-1.5 weeks |
 | **M6** ◆ | The verdict record (B3), the assert module in the test-planning library (B4, begun at M3; B5), the host judge on product sides; verdict steps planned on the program road | 1.5-2 weeks |
 | **M7** ◆ | The fused group composed at planning (from `VerdictBatch`'s flush); the second class moves: bodies whose asserts all have verdict steps (2.D's rule, MV1, for the bodies moved) | 1 week |
-| **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3), then the canon over the product columns (B8, MV4); the bodies those arms gate move | 2 weeks |
-| **M9** ◆ | The kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move | 1 week |
-| **M10** ◆ | The last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave) and the router deleted; a planning failure a compile error (R14, MV8); `theDriverCompilesNothing`; the parity guard's permanent form; the layer file | 1 week |
+| **M9** ◆ | **Before M7 and M8 since M6's revalidation (the user, 2026-11-01: "the order is fine";** `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`**).** Frames read by asserts (the corpus's bulk: `let r = execute(...)`, its reads spliced into the asserts' sides, the eager run and the CTE as M3f/M3g planned them); the kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move, under the host judge first (zero output change expected) | 1-1.5 weeks |
+| **M7** ◆ | The fused group composed at planning (from `VerdictBatch`'s flush), with the frames' CTEs at its head; the database judge's and channel B's assert programs move (2.D's rule, MV1, for the bodies moved) | 1 week |
+| **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
+| **M10** ◆ | Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
 | **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
 
 ## 8. Start here (for a session picking this up)
@@ -639,6 +651,26 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   failing one (its seeds, value statements and closed scripts); a moved body runs none, so the database and the ledger
   a later body on the same session finds can differ. The outcome and message are the same. Measured: 0 such bodies in
   core, both corpora and channel B. MV8 (M10) generalizes it to every class.
+- **M6's residue -- RECORDED, not ruled on (R23).** B4: the assert planning (`AssertVerdicts.planHost`,
+  `HostJudge.planX`, `HostSides.plan`, `driver/HostAsserts`) lives in the driver, not the test-planning library (M10d).
+  B5: the census is counted by the seam at the verdict step, not by the runner per step kind. N1:
+  `assertTdsEquivalent`'s tolerances are read in the grids' verdict group (the walk read them after the grids, in a
+  group of their own): identical with literal tolerances; a tolerance on another session is now refused ("two
+  sessions"). N3: `SqlTextVerdicts.lookThrough` decides "no producer" by catching an inliner failure (R16's letter;
+  the walk's own gate, older than M6; goes with it at M10d). N4: a moved body opens one session for the program where
+  the walk opened one per assert (identical under the harnesses' autocommit sessions; a keyed side's snapshot
+  brackets the program). N7: a guard hole older than M6 -- `CodeShapeGuardrailTest`'s `SIG` pattern skips a method
+  whose return type is annotated, so `METHOD_LIMIT` never scans `AssertVerdicts.adjudicate` (about 300 lines) nor
+  `planHost`. A let whose handle registration raises with no assert after it fails the moved body at planning (the M5
+  audit's S6). The shapes `planHost` does not plan (engine text, quantified, cell pool, lineage, a computed instance
+  type) keep their bodies walked; the DATABASE and BOTH judges' bodies move at M7. B3's residue (the judgment a closure
+  reading the model at judge time) is no longer residue: B3 is struck (§6).
+- **The system database: a product follow-up (the user, 2026-11-01, on M4 narrow: "fine for now but needs a product
+  follow up").** The test road keeps its separate system database, seeded once per graph (M10a). Whether the PRODUCT
+  moves from embedding the metamodel tables in each query's plan (`PlanMaker.metamodel`) to the seeded database is a
+  product decision by measurement on the real projects -- plan size and latency of embedded-metamodel plans against
+  a server-side system connection and Trino's lack of temporary tables; upstream has no SQL form of the metamodel
+  (`Mapping.all()` is in-memory Pure). Outside this program.
 
 ## 10. Status
 
@@ -839,3 +871,25 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   Measured: every core package's statements identical to M5f's (17,471), core 28 of 28; `pct_duckdb` 6 of 6; both
   corpora's censuses and pass/fail counts identical, 604 moved per pass; channel B 5 of 5; `//gates:local` 448 pass
   and 1 skipped (the 9 Postgres targets refusing root, 9 of 9 unprivileged). Next: M4 as R21 rules it (B13 rewritten).
+- 2026-11-01: **M6 built and its audit folded** (D108; the handoff `docs/TEST_IS_THE_PRODUCT_HANDOFF_2026_11_01.md`
+  closed by the session that took it over; its WIP commit `89e604de` brought in by cherry-pick). The host judge's
+  arms split into a plan half and a judgment (`HostSides.Check`); the third class `ASSERT_PROGRAM` (the host judge
+  alone) planned whole: each statement-root assert classified and its sides planned before the program
+  (`driver/HostAsserts`, through the test library's hook `TestDoor.Asserts`), placed by `TestKinds` as a verdict step
+  at its turn, judged at that step by the router's sink with the walk's census and listener protocol; a planning
+  failure a planned raise at the assert's turn (R14) -- inside the arm counted under its family, before the arm
+  uncounted, as the walk raises each (the audit's S1, N2); a host side's read failure of any type counted (S2); the
+  four declining judgments decided statically (S3); the parity test's cases (S4). The walk runs both halves back to
+  back: no behaviour change. Measured against the base regenerated on f08cc4d9's source (17,471 core statements, 28 of
+  28): core 28 of 28, every package byte-identical in text and labels but `driver` (+200 lines, all additions: the
+  parity test's own new runs, 168 verdict sides under `other` and 32 session statements); `pct_duckdb` 6 of 6; both
+  corpora uncached, every pass's statement-origins census and pass/fail counts identical to the baseline,
+  `body-router moved` 604 -> 608 on both HOST passes (four assert programs per pass run whole), 604 on the database
+  passes; channel B 5 of 5 (it judges BOTH: nothing moves); `//gates:local` 447 pass, 1 skipped, the 9 Postgres
+  targets refusing root (9 of 9 unprivileged) and `//core:census` red on the Java-evaluation ledger (re-pinned, dated:
+  the plan halves; `HostAsserts` registered) then green. The R21 checkpoint 93c930cd recorded: CI 52 of 52. **The plan
+  revalidated at the user's invitation** (`REVALIDATION_2026_11_01.md`; the user's rulings of 2026-11-01): R16, the
+  audits and the register hold; the order after M6 is M9, M7, M8, M10a-d ("the order is fine"); M4 narrow on the test
+  road inside M10 with a product follow-up (§9); **B3 struck** (an assert is a function the database judge lowers;
+  the plan needs no assert metadata; the host judge is the harness: §6 B3); the engine-text asserts: the test in the
+  plan on every lane, the appeal a Java harness, no lane special-cased (M10b). Next: M9.
