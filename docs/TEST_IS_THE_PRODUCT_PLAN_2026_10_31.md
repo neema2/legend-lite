@@ -634,3 +634,10 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   its verdict groups send the savepoint on the walk (B12 item 6, departures above); M3b's "brackets only for an
   Update" held only outside a keyed snapshot (fixed: asked at each step); M3d's and M3e's censuses compared texts and
   never ran the plans. Every core package's statements against M3h: 17,362 -> 17,372, the ten new the new tests' own.
+- 2026-11-01: M3's chain green on 01141e17 (corpora and channel B identical to M2's census; the local gate after two
+  stale generated files were regenerated); the checkpoint pushed (90ea4e5c, with M2's commits), CI and the lane
+  sessions' round 9 asked. **M4a measured** (`docs/test-is-product-homework/C_M4A_MEASUREMENTS.md`): no core test
+  executes a product query over the system store (one test plans one per dialect); the test road opens 75 system
+  databases in core holding 6 distinct contents, one per corpus pass, so a store kept by content is bounded; Trino
+  alone has no temporary table. Posted to the user: a server engine with no system connection configured turns a
+  product store read from an answer into a refusal under B13 item 2; and whether M5 comes before M4.
