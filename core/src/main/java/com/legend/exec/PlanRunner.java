@@ -164,8 +164,8 @@ public final class PlanRunner {
         void sides(ExecutionPlan.Verdict verdict, List<Rows> sides) throws IOException;
 
         /** The program's seed step {@code step} ran (a step the session held established runs nothing and is not
-         *  told): each of its setup steps' statements in order, whether it answered rows (the raw-SQL ledger's kind;
-         *  the test-is-the-product plan's M5). */
+         *  told): each of its setup steps that ran, in order, whether it answered rows (the raw-SQL ledger's kind;
+         *  the test-is-the-product plan's M5) -- where one failed, those before it. */
         default void seeded(int step, List<Boolean> answeredRows) {
         }
 
@@ -174,8 +174,11 @@ public final class PlanRunner {
         }
 
         /** The program's effect step {@code step} failed with {@code failure} (its script's abort sent): the ledger
-         *  records what the database applied before it, as the walk's ({@code SqlDialect.failingStatement}). */
-        default void effectFailed(int step, com.legend.error.DataError failure) {
+         *  records what the database applied before it, as the walk's ({@code SqlDialect.failingStatement}); the
+         *  error the program raises is the one returned (the failure itself, or the failure named where it
+         *  happened). */
+        default DataError effectFailed(int step, DataError failure) {
+            return failure;
         }
     }
 
@@ -372,17 +375,11 @@ public final class PlanRunner {
                     try {
                         script(e, live, st, insideATransaction(st));
                     } catch (DataError failed) {
-                        sink.effectFailed(i, failed);
-                        throw failed;
+                        throw sink.effectFailed(i, failed);
                     }
                     sink.effectRan(i);
                 }
-                case ExecutionPlan.Setup u -> {
-                    List<Boolean> answered = seed(u, session, st);
-                    if (answered != null) {
-                        sink.seeded(i, answered);
-                    }
-                }
+                case ExecutionPlan.Setup u -> seed(u, i, session, st, sink);
                 case ExecutionPlan.TdsResult t -> result(t, live, st, held);
                 case ExecutionPlan.Constant c -> constant(c, held);
                 case ExecutionPlan.Keyed k -> keyedOn(k, live, st, heldSink(held));
@@ -905,18 +902,20 @@ public final class PlanRunner {
         st.execute(statement);
     }
 
-    /** A program's seed step (B12): skipped where the session holds its key's seeds and has run no write since; run
-     *  otherwise, step by step as a target's setup is, and its key recorded. */
-    private static @Nullable List<Boolean> seed(ExecutionPlan.Setup seeds, Sessions.Session session,
-            Statements st) {
+    /** A program's seed step (B12), its place {@code step}: skipped where the session holds its key's seeds and has
+     *  run no write since; run otherwise, step by step as a target's setup is, and its key recorded. {@code sink} is
+     *  told which of its statements ran, and whether each answered rows -- on a failure, those before it, as the walk
+     *  records a setup's statements as each runs (the M5 audit's S1). */
+    private static void seed(ExecutionPlan.Setup seeds, int step, Sessions.Session session, Statements st,
+            ProgramSink sink) {
         SeedKey key = new SeedKey(seeds.key());
         if (session.state().established(key)) {
-            return null;
+            return;
         }
         List<Boolean> answered = new ArrayList<>(seeds.steps().size());
         try (var origin = StatementOrigin.enter(StatementOrigin.SEED)) {
-            for (ExecutionPlan.SetupStep step : seeds.steps()) {
-                switch (step) {
+            for (ExecutionPlan.SetupStep each : seeds.steps()) {
+                switch (each) {
                     case ExecutionPlan.SetupStep.Statement s -> {
                         StatementOrigin.sent(s.sql());
                         answered.add(st.execute(s.sql()));
@@ -930,9 +929,10 @@ public final class PlanRunner {
                     }
                 }
             }
+        } finally {
+            sink.seeded(step, List.copyOf(answered));
         }
         session.state().establish(key);
-        return answered;
     }
 
     /** A seed step's key as the session's seeds' memo holds it. */

@@ -1,0 +1,30 @@
+import com.legend.Execution;
+import com.legend.exec.PlanSessions;
+import com.legend.exec.Sessions;
+import com.legend.result.JsonRowsWriter;
+import com.legend.test.StorelessRuntime;
+import com.legend.database.Databases;
+import java.io.StringWriter;
+import java.sql.Connection;
+
+/** Scratch probe: what the product's writers spell for a query ending on print (the no-value constant). */
+public class PrintAnswer {
+    public static void main(String[] a) throws Exception {
+        String model = StorelessRuntime.with("", Databases.PLATFORM);
+        for (String q : new String[] {"|print('x', 1)", "|'abc'"}) {
+            for (String w : new String[] {"rows"}) {
+                try (Connection c = com.legend.exec.Connectors.of(Databases.PLATFORM).openPrivate()) {
+                    Sessions.Session s = Sessions.borrowed(c);
+                    StringWriter out = new StringWriter();
+                    try {
+                        Execution.run(model, q, StorelessRuntime.RUNTIME, Execution.Source.given(s), PlanSessions.of(s),
+                                plan -> new JsonRowsWriter(out, plan.answerShape()));
+                        System.out.println(q + " [" + w + "] => " + out);
+                    } catch (Exception e) {
+                        System.out.println(q + " [" + w + "] => " + e);
+                    }
+                }
+            }
+        }
+    }
+}

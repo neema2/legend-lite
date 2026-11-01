@@ -254,6 +254,24 @@ posted the same way (R7 decision 12).
      identical; the census per pass; the lanes.
   Sub-steps: M5a measured; M5b the class rule and its guard; M5c the ledger beside the plan and the sink's step
   event; M5d the router and the move, measured; M5e the audit, the records, the checkpoint.
+  5. **The classes, as built (2026-11-01, M5b-M5e; item 1 superseded).** M5a showed the assert-free bodies are four
+     populations, not one: the corpus's effect setup programs (616 per pass), core's metamodel reads (76, the system
+     store: M4's), core's raw-grid, staged and `execute(...)` bodies (each a kind a later step plans: T8, T9, M9),
+     and plain query programs. A rule admitting "assert-free minus the named shapes" would re-derive over the typed
+     body refusals the lowering makes deep inside it (a raw grid read as cells, `toString` over a grid, an `execute`
+     read where it stands): a second copy of the lowering's knowledge. So each class is a POSITIVE rule that admits
+     only the shapes it names. `EFFECT_PROGRAM` (M5d, narrowed by its audit): database effects with literal
+     arguments and lets of them read only as a connection; orchestration handles (`BodyPlanner.handleType`, one rule
+     with the planner); String and Boolean literals; `print` holding no test kind and no store read; at least one
+     effect; no statement names test data and the runtime declares none. 600 bodies per corpus pass move (M5d's first
+     rule moved 616; the 16 the narrowing returned to the walk are shapes it does not admit, not yet itemized). The answer a moved body hands
+     its caller is the walk's (a `[0..1]` column, no row for no value: `ProductStatements.asTheWalkAnswers`, the
+     test door only, a named residue until §9's question is ruled); a failing script is named as the walk names it
+     (`testplan/EffectSegment`, one spelling for both roads). `BodyRouterParityTest` runs each admitted shape both
+     ways on every in-process database Pure's `DatabaseType` names and compares the outcome and message, the
+     raw-SQL ledger, the answer, both censuses and the database left; each excluded shape is pinned there as the
+     walk's. The next class (M5f) is the plain query programs; the metamodel reads move with M4, the rest with the
+     step that plans their kind; every assert-free body is in a class by M9.
 - **B2, the runner (M3, M9).** One plan per body (R14). New: `ExpectFailure(sub-plan)` for `assertError` (the
   error its body raises at run time handed to the comparison, N3); a raising step where an early-detected run-time
   error stands as a statement of its own (R14; inside an expression it is `PureSql.raise`); `Setup` per from() (D35; established
@@ -585,6 +603,25 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   sources before it lands. If ruled out: a `docs/SEMANTICS_REGISTER.md` row for the product's answer. No corpus or
   channel B case reaches it (M0).
 
+- **A test body's answer facts, and the product's no-value answer -- OPEN (posted at M5, 2026-11-01).** Two
+  cases, each kept as today until ruled:
+  1. *The product's answer for a query ending on `print`.* The expression `|print('x', 1)`, run as a product query
+     (`Execution.run`, the JSON rows writer). Today: `[{"value":null}]` (one row, a null cell: the no-value
+     constant of M2's R18). The test road answers no row (the walk's `TypedSide.Scalar(null)`, Pure's `[]`, which
+     `print`'s `Nothing[0]` returns); after, if ruled: `[]`. R18 said its value is "as the test road's"; M2's
+     constant did not match it.
+  2. *A test body's literal answer.* The expression `{|...; true}` (a test body ending on a literal) answered to a
+     caller's sink (`Execution.runProgram`). Today, on both roads since M5: a `[0..1]` Boolean column, one row (the
+     walk's facts, kept for moved bodies by `ProductStatements.asTheWalkAnswers`). The product answers `|true` with a
+     `[1..1]` column (`true` is `Boolean[1]`). After, if ruled (MV6, D27's convergence): moved bodies take the
+     product's `[1..1]`. Visible only in an answer's column facts (Arrow's `legend.multiplicity`); no test, corpus or
+     channel B outcome reads them (measured at M5).
+- **A moved body that fails to plan fails before any statement runs (the M5 audit's S6) -- POSTED, inherent in R16.**
+  R16: "a body of a moved class the test door refuses fails (R14)". The walk ran a failing body's statements up to the
+  failing one (its seeds, value statements and closed scripts); a moved body runs none, so the database and the ledger
+  a later body on the same session finds can differ. The outcome and message are the same. Measured: 0 such bodies in
+  core, both corpora and channel B. MV8 (M10) generalizes it to every class.
+
 ## 10. Status
 
 - 2026-10-31: v1 drafted after the code inventory (A); the user's rulings R1-R12; the independent audit (B) found six
@@ -730,3 +767,27 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   too); channel B none (every body asserts); core 162 assert-free bodies planned whole, 8 refused, each a kind a later
   step plans. M5's detail written under B1 (the class by a named rule, the raw-SQL ledger the referee mirrors).
   Measured: every core package's statements byte-identical through MRa-MRf (17,377); the chain (on the fold): both corpora uncached, each pass's statement-origins census and pass/fail counts identical to M2's and M3's; channel B 5 of 5; `//gates:local` 448 pass and 1 skipped (the 9 Postgres targets refusing root, 9 of 9 unprivileged).
+- 2026-11-01: **M5b-M5e: the body router; the first class, the effect setup programs, runs whole** (D105). M5b the
+  class rule (`testplan/BodyClass`, a closed list that only grows, `BodyClassTest`); M5c the raw-SQL ledger's texts
+  beside the plan (`TestDoor.Planned`) and the runner's program sink told when an effect ran or failed and when a seed
+  step ran; M5d the router (`driver/BodyRouter`, `Execution.runProgram`'s one call): a body of a moved class planned
+  whole by the test door and run as one plan, every other walked. A first cut marked the whole program BODY and moved
+  3,573 census labels per DuckDB database pass from seed to body; fixed to the walk's (an effect's script BODY around
+  its send alone). The independent audit (R15) found three blockers and six should-fix, none in a shape the corpora or
+  core run, all folded: B1 a seeded runtime (the two roads key the seed memo and order seeds against an open script
+  differently) -- the class admits no body that names test data; B2 a no-value answer (one null row where the walk
+  answers none) and a literal's column facts -- the test door answers as the walk (`asTheWalkAnswers`, §9's question);
+  B3 a failing script's message -- named as the walk names it (`testplan/EffectSegment`, one spelling); S1 a seed
+  failing midway records the statements before it; S2 store writes and staged rows, S3 computed values, S4 a print of
+  an effect -- refused by the class; S5 the one-caller rule (`theDriverHasOneCaller`: the walk the router's alone, the
+  router the door's) and the stale docs; S6 posted (§9); the nits (one answer-shape rule, one list for the open
+  script, seeds' texts apart from effects', a size check, the effects census counted on the program road). Found on
+  the way: the mutable-field guard read no annotated type (47 fields were outside it, 46 of them older than M5) --
+  widened, the found fields registered with what each is (dated); `H2.failingStatement` looks for
+  `"SQL statement: "` where H2 2.1.214 writes `"SQL statement:\n"`, so on H2 neither road records a partly applied
+  script's prefix (pre-existing, both roads alike; named, not fixed here: the fix moves the H2 corpus's referee
+  mirror). `BodyRouterParityTest` (new) holds the two roads equal on each admitted shape. Measured: the corpora's
+  four passes' censuses and pass/fail counts identical to MR's, 600 bodies moved per pass; every core package's
+  statements identical but labels (the program road's own exec and testplan tests: an effect's script is labelled body,
+  as the walk labels it) and the parity test's own; channel B 5 of 5; `//gates:local` green but the 9 Postgres
+  targets refusing root (9 of 9 unprivileged).

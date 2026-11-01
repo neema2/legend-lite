@@ -397,16 +397,18 @@ public final class PlanMaker {
                 state.features(), state.frames());
         ExecutionPlan.Constant constant = ProductStatements.constant(st);
         if (constant != null) {
-            // a value the program wrote: the answer where it is the last statement; before it, nothing to run
+            // a value the program wrote: the answer where it is the last statement (a test's as the walk answers
+            // it, M5); before it, nothing to run
             if (last) {
-                state.add(constant);
+                state.add(door == ProgramState.Door.TEST ? ProductStatements.asTheWalkAnswers(constant) : constant);
             }
             return;
         }
         if (last && door == ProgramState.Door.TEST && ProductStatements.handle(st)) {
             // a test's program ending on a handle (a setup that returns its runtime): answered as the walk answers
             // it, no value, which no judge compares; the query door refuses a handle as an answer (planned())
-            state.add(ProductStatements.scalar(ProductStatements.handleType(st), null));
+            state.add(ProductStatements.asTheWalkAnswers(ProductStatements.scalar(ProductStatements.handleType(st),
+                    null)));
             return;
         }
         if (!last && ProductStatements.handle(st)) {

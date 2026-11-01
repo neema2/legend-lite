@@ -196,7 +196,9 @@ class TestDoorTest {
         assertEquals(2, seq.steps().size(), seq.steps().toString());
         assertInstanceOf(ExecutionPlan.Effect.class, seq.steps().get(0));
         ExecutionPlan.Constant answer = assertInstanceOf(ExecutionPlan.Constant.class, seq.steps().get(1));
-        assertNull(answer.cells().get(0).get(0));
+        // no value, as the walk answers it (M5's audit B2): a [0..1] column and no row
+        assertEquals(List.of(), answer.cells());
+        assertEquals(new ExecutionPlan.Multiplicity(0, 1), answer.columns().get(0).multiplicity());
         try (Connection c = TestBackends.platform().open()) {
             run(plan, c);
             assertEquals(0, count(c, "m3d_b"));
@@ -234,7 +236,7 @@ class TestDoorTest {
         String handle = CONN + "$c;}";
         ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, storeless(handle).root());
         ExecutionPlan.Constant none = assertInstanceOf(ExecutionPlan.Constant.class, seq.steps().get(0));
-        assertNull(none.cells().get(0).get(0));
+        assertEquals(List.of(), none.cells());
         assertThrows(NotImplementedException.class, () -> Compiler.query(Compiler.compileModel(
                 StorelessRuntime.with("", Databases.PLATFORM)), handle).executionPlan(StorelessRuntime.RUNTIME));
     }

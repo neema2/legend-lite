@@ -50,6 +50,39 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // 2026-11-01, the test-is-the-product plan's M5 audit: until then a field whose TYPE carried an annotation
+            // (@Nullable, Outer.@Nullable Inner, Object @Nullable []) was outside this scan; the scan learned them and
+            // found these, each listed with what it is. LAZY, set once from the instance's own inputs and read back
+            // (a memo of a pure derivation): the typed body; the model builder's indexes; the context's two tables;
+            // the C3 linearizer; a substitution's read and mentioned sets; the lexer's line and token positions
+            // (benign-racy, documented at the field); the parser's non-Pure ranges; the resolver's element
+            // references and association navigators; the runner's fixtures-by-store; a mapping closure's sets
+            "TypedQuery.body", "ModelBuilder.legacySetsById", "ModelBuilder.directSubclasses", "ModelBuilder.knowledge",
+            "PureModelContext.declarations", "PureModelContext.implementations", "InferenceKernel.linearizer",
+            "SourceSubst.reads", "SourceSubst.mentioned", "TokenStream.lineStarts", "TokenStream.tokenPositions",
+            "ElementParser.nonPureRanges", "StoreResolver.elementsRef", "AssociationJoins.navMaterializer",
+            "AssociationJoins.unionHeads", "PureTestRunner.fixturesByStore", "MappingClosures.mappings",
+            "MappingClosures.sets", "MappingClosures.unions", "MappingClosures.inheritances", "MappingClosures.roots",
+            "MappingClosures.enums", "MappingClosures.relationalSets",
+            // (same date) A SESSION'S facts, learned once from its database: the decoding its driver needs (known at
+            // check), its server's version, the next query's minted stamp (one statement's); the test runner's shared
+            // session and the package it holds
+            "JdbcStatements.driver", "JdbcStatements.reserved", "ExecutionTrace.reserved", "Sessions.version",
+            "PureTestRunner.sessionConn", "PureTestRunner.sessionPkg",
+            // (same date) A FRAME'S cursor, one instance per pass and never shared: the verdict batch's open root, the
+            // canon rider's wrap and its decline, the lowerer's connection time zone and id minter (set at
+            // configuration), the temporal frame's sweep column, the database parser's schema spans, the Cypher
+            // translator's leading USE, a select item's taken name, a vector's lazily allocated nulls, the PURE v1
+            // writer's first object, the walk's segment state (deleted at M10), a statement's own stamp in its
+            // frames' recorder (frozen into its reads), the body router's opened answer sink (opened only to answer,
+            // as the walk opens it)
+            "VerdictBatch.current", "CanonRider.wrap", "CanonRider.declined", "Lowerer.dbTimeZone",
+            "Lowerer.instanceIdOf", "TemporalFrame.forEachDateColumn", "DatabaseProtocolParser.currentSchemaDeclSpan",
+            "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
+            "PureV1Writer.firstObject", "BodyCompiler.last", "BodyCompiler.pendingVerdict", "BodyCompiler.answers",
+            "ProgramFrames.ownStamp", "BodyRouter.opened",
+            // (same date) regex artifact, NOT mutable: an interface's field, implicitly static final
+            "DecisionProbe.INSTALLED",
             // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON
             // with its non-finite tokens moved here from the parity harnesses' test sources): one parse's position,
             // the instance one parse's and never shared
@@ -315,19 +348,23 @@ class CodeShapeGuardrailTest {
     /** Class-level non-final instance fields, ANY visibility — package-
      * private has no keyword, so the visibility group is optional (audit 15:
      * the private-only pattern let two refactors widen mutable fields out
-     * of the scan unaudited). */
+     * of the scan unaudited). A type may carry annotations ({@code @Nullable},
+     * {@code Outer.@Nullable Inner}, {@code Object @Nullable []}): until
+     * 2026-11-01 the type's characters held no {@code @}, and every annotated
+     * mutable field was outside the scan (the test-is-the-product plan's M5
+     * audit). */
     private static final Pattern MUTABLE_FIELD = Pattern.compile(
             "^    (?! )(?:(?:private|protected|public) )?"
             + "(?!static |final |private |protected |public |record |class"
             + " |interface |enum |abstract |sealed |non-sealed )(?! )"
-            + "[\\w.<>\\[\\], ?]+ (\\w+)( =.*)?;");
+            + "[\\w.@<>\\[\\], ?]+ (\\w+)( =.*)?;");
 
     /** Nested-class fields (8-space indent). A visibility modifier is
      * REQUIRED here to distinguish fields from method locals — declare
      * nested-class fields private/protected/public, never package-private. */
     private static final Pattern NESTED_MUTABLE_FIELD = Pattern.compile(
             "^        (?! )(?:private|protected|public) (?!static |final )(?! )"
-            + "[\\w.<>\\[\\], ?]+ (\\w+)( =.*)?;");
+            + "[\\w.@<>\\[\\], ?]+ (\\w+)( =.*)?;");
 
     /** Static mutable state is banned outright — NO allowlist. */
 

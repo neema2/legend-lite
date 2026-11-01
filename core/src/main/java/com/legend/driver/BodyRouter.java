@@ -8,6 +8,7 @@ import com.legend.ExecuteOptions;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.error.DataError;
+import com.legend.exec.Census;
 import com.legend.exec.PlanRunner;
 import com.legend.exec.PlanSessions;
 import com.legend.exec.Sessions;
@@ -19,12 +20,14 @@ import com.legend.result.ResultSink;
 import com.legend.sql.dialect.RawSqlBoundary;
 import com.legend.sql.dialect.SqlDialect;
 import com.legend.testplan.BodyClass;
+import com.legend.testplan.EffectSegment;
 import com.legend.testplan.TestDoor;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 
 /**
  * THE BODY ROUTER at the test door (the test-is-the-product plan's R16, brief B1, M5): a body of a class that moves
@@ -41,12 +44,12 @@ public final class BodyRouter {
     public static void execute(TypedQuery typed, @Nullable String runtimeFqn, SqlDialect dialect,
             Sessions.Session session, @Nullable AssertListener listener, @Nullable SqlReplayReferee referee,
             ExecuteOptions options, Execution.@Nullable Answer answer) {
-        BodyClass moved = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn);
-        if (moved == null || runtimeFqn == null) {
+        if (runtimeFqn == null || BodyClass.of(typed, runtimeFqn) == null) {
             BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
             return;
         }
         TestDoor.Planned planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version());
+        Census.inc(Census.Key.BODIES_MOVED);
         try {
             PlanRunner.program(planned.plan(), Map.of(), PlanSessions.of(session), PlanRunner.Judging.HOST,
                     new Moved(planned, dialect, options.recorder(), answer));
@@ -57,12 +60,14 @@ public final class BodyRouter {
 
     /** A moved body's sink: its answer to the caller's, by the shape of the plan's answer; its effect and seed
      *  statements to the raw-SQL ledger as each runs, the texts the walk records (the referee mirrors the ledger to
-     *  replay the golden SQL of later bodies). No verdict: no moved class holds an assert yet. */
+     *  replay the golden SQL of later bodies), and an effect's failure named as the walk names it. No verdict: no
+     *  moved class holds an assert yet. */
     private static final class Moved implements PlanRunner.ProgramSink {
         private final TestDoor.Planned planned;
         private final SqlDialect dialect;
         private final RawSqlBoundary.@Nullable Recorder recorder;
         private final Execution.@Nullable Answer answer;
+        /** The caller's sink, opened when the answer's columns arrive (as the walk opens it: only to answer). */
         private @Nullable ResultSink opened;
 
         Moved(TestDoor.Planned planned, SqlDialect dialect, RawSqlBoundary.@Nullable Recorder recorder,
@@ -91,8 +96,9 @@ public final class BodyRouter {
         @Override
         public void columns(List<ExecutionPlan.Column> columns) throws IOException {
             if (answer != null) {
-                opened = answer.of(answerShape(planned.plan()));
-                opened.columns(columns);
+                ResultSink sink = answer.of(planned.plan().answerShape());
+                opened = sink;
+                sink.columns(columns);
             }
         }
 
@@ -112,41 +118,43 @@ public final class BodyRouter {
 
         @Override
         public void seeded(int step, List<Boolean> answeredRows) {
-            List<TestDoor.Recorded> texts = recorded(step);
-            for (int i = 0; i < texts.size(); i++) {
-                record(texts.get(i).text(), answeredRows.get(i));
+            List<String> texts = planned.seeds().get(step);
+            if (texts == null || answeredRows.size() > texts.size()) {
+                throw new IllegalStateException("seed step " + step + " of a moved body ran "
+                        + answeredRows.size() + " statement(s) with " + (texts == null ? "no" : texts.size())
+                        + " ledger text(s) beside it");
+            }
+            for (int i = 0; i < answeredRows.size(); i++) {
+                record(texts.get(i), answeredRows.get(i));
             }
         }
 
         @Override
         public void effectRan(int step) {
-            for (TestDoor.Recorded r : recorded(step)) {
+            for (TestDoor.Recorded r : effect(step).statements()) {
+                Census.inc(Census.Key.EFFECTS_IN_SCRIPT);
                 record(r.text(), r.query());
             }
         }
 
         @Override
-        public void effectFailed(int step, DataError failure) {
+        public DataError effectFailed(int step, DataError failure) {
             // what the database applied before the failing statement (H2 names it), or nothing when the script rolled
-            // back as a unit (DuckDB): the walk's ledger rule (BodyDriver.sendScript)
-            List<String> statements = effectStatements(step);
-            int applied = dialect.failingStatement(String.valueOf(failure.getMessage()), statements).orElse(0);
-            List<TestDoor.Recorded> texts = recorded(step);
-            for (int i = 0; i < applied; i++) {
+            // back as a unit (DuckDB): the walk's ledger rule and message (BodyDriver.sendScript)
+            TestDoor.Effect effect = effect(step);
+            List<TestDoor.Recorded> texts = effect.statements();
+            texts.forEach(r -> Census.inc(Census.Key.EFFECTS_IN_SCRIPT));
+            OptionalInt failing = dialect.failingStatement(String.valueOf(failure.getMessage()), executed(step));
+            for (int i = 0; i < failing.orElse(0); i++) {
                 record(texts.get(i).text(), texts.get(i).query());
             }
+            return EffectSegment.failed(failure, effect.where(), failing, texts.size());
         }
 
-        private List<TestDoor.Recorded> recorded(int step) {
-            List<TestDoor.Recorded> texts = planned.recorded().get(step);
-            if (texts == null) {
-                throw new IllegalStateException("step " + step + " of a moved body ran with no ledger texts beside it");
-            }
-            return texts;
-        }
-
-        private List<String> effectStatements(int step) {
-            ExecutionPlan.Node node = steps(planned.plan()).get(step);
+        /** The statements effect step {@code step} sent, as executed (the dialect names a failing one by them). */
+        private List<String> executed(int step) {
+            ExecutionPlan.Node node = planned.plan().root() instanceof ExecutionPlan.Sequence s ? s.steps().get(step)
+                    : planned.plan().root();
             if (!(node instanceof ExecutionPlan.Effect e) || e.script() == null) {
                 throw new IllegalStateException("step " + step + " of a moved body failed as an effect, and is a "
                         + node.getClass().getSimpleName());
@@ -154,33 +162,19 @@ public final class BodyRouter {
             return e.script().statements();
         }
 
+        private TestDoor.Effect effect(int step) {
+            TestDoor.Effect effect = planned.effects().get(step);
+            if (effect == null) {
+                throw new IllegalStateException("effect step " + step + " of a moved body ran with no ledger texts"
+                        + " beside it");
+            }
+            return effect;
+        }
+
         private void record(String text, boolean query) {
             if (recorder != null) {
                 recorder.recordExecuted(text, query);
             }
         }
-    }
-
-    private static List<ExecutionPlan.Node> steps(ExecutionPlan plan) {
-        return plan.root() instanceof ExecutionPlan.Sequence s ? s.steps() : List.of(plan.root());
-    }
-
-    /** The shape of the plan's answer: its answering step's (a constant answers a value). */
-    private static ExecutionPlan.TdsResult.Shape answerShape(ExecutionPlan plan) {
-        ExecutionPlan.TdsResult.Shape shape = null;
-        for (ExecutionPlan.Node step : steps(plan)) {
-            switch (step) {
-                case ExecutionPlan.TdsResult t -> shape = t.shape();
-                case ExecutionPlan.Keyed k -> shape = k.shape();
-                case ExecutionPlan.Constant c -> shape = ExecutionPlan.TdsResult.Shape.VALUE;
-                default -> {
-                    // a step that answers nothing
-                }
-            }
-        }
-        if (shape == null) {
-            throw new IllegalStateException("a moved body's answer streamed with no answering step in its plan");
-        }
-        return shape;
     }
 }

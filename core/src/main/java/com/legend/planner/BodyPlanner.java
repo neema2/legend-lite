@@ -337,7 +337,7 @@ public final class BodyPlanner {
                 && NativeFn.DdlStatement.of(ds.callee().id()).isPresent()) {
             return new Prepared.DdlText(EnginePlans.ddlText(ds, env), ds.info().type());
         }
-        com.legend.compiler.element.type.@Nullable Type handle = handleType(root, env);
+        com.legend.compiler.element.type.@Nullable Type handle = handleType(root, env.ctx());
         if (handle != null) {
             return new Prepared.Handle(handle);
         }
@@ -375,9 +375,10 @@ public final class BodyPlanner {
     }
 
     /** The type of an ORCHESTRATION HANDLE (a connection, a runtime, a connection store): a value the program
-     *  passes around and never lowers; null when {@code root} is not one. */
-    private static com.legend.compiler.element.type.@Nullable Type handleType(
-            TypedSpec root, PlanEnv env) {
+     *  passes around and never lowers; null when {@code root} is not one. One rule for the planner and the test
+     *  door's body classes ({@code testplan/BodyClass}). */
+    public static com.legend.compiler.element.type.@Nullable Type handleType(
+            TypedSpec root, ModelContext ctx) {
         if (root instanceof TypedCast castC
                 && castC.source()
                         instanceof TypedNativeCall cbe2
@@ -414,7 +415,7 @@ public final class BodyPlanner {
                 && !PlatformTypes.isNil(hct)
                 && ("meta::core::runtime::Runtime".equals(hct.fqn())
                         || "meta::core::runtime::ConnectionStore".equals(hct.fqn())
-                        || env.ctx().isSubtype(hct.fqn(),
+                        || ctx.isSubtype(hct.fqn(),
                                 "meta::core::runtime::Connection"))) {
             if (containsEffectfulNode(List.of(root))) {
                 throw new IllegalStateException("a connection-typed value"

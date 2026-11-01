@@ -174,7 +174,7 @@ user-visible error carries one of these eight.
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
 | `Execution.run(...)` | A→K: the query's plan run by the plan's runner, its rows to the caller's sink (a writer at the boundary) | STRICT — **the production seam** |
-| `Execution.runProgram(...)` | a TEST BODY: G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
+| `Execution.runProgram(...)` | a TEST BODY through the body router: a body of a moved class (`testplan/BodyClass`) planned whole by the test door and run as one plan, every other G½→K statement by statement through the body driver and its judges; the verdicts to a listener, the last statement's answer streamed to the sink the caller hands for its shape (`Execution.Answer`, a writer at the boundary; door 1, 2026-10-29) | STRICT |
 
 The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
 `ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
@@ -187,7 +187,9 @@ and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 error rather than the first, you want `buildModule`.
 
 `BodyDriver` (the body driver; `StatementExecutor` until 2026-10-29) is the driver's (`com.legend.driver`, step C,
-D73, 2026-10-30) and **has one caller by design**, `Execution.runProgram` (`ArchitectureTest.theDriverHasOneCaller`;
+D73, 2026-10-30) and **has one caller by design**, the body router `driver/BodyRouter`, which `Execution.runProgram`
+alone calls; the router runs a body of a moved class whole on the program road and walks every other body with the
+body driver (the test-is-the-product plan's M5, 2026-11-01, until M10 deletes both; `ArchitectureTest.theDriverHasOneCaller`;
 package-private while it shared the root package with the door). The root package holds the five public doors alone:
 `Compiler`, `TypedQuery`, `HeldModels` (the plan side) and `Execution`, `ExecuteOptions` (the execution side); the
 machinery is `planner/` and `driver/`, and the planner depends on no execution class (`plannerIsExecutionFree`). The driver never re-implements a step; the body driver never decides pipeline

@@ -551,18 +551,25 @@ final class ArchitectureTest {
     }
 
     /**
-     * <strong>The driver has one caller (step C, D73, 2026-10-30).</strong> {@code BodyDriver} was package-private by
-     * design while it shared the root package with the execution door; the driver's machinery is its own package now
-     * ({@code com.legend.driver}), so the class is public for exactly the caller the design named,
-     * {@code Execution.runProgram}: no other class outside the driver depends on it.
+     * <strong>The driver has one caller (step C, D73, 2026-10-30; the router between them since the
+     * test-is-the-product plan's M5, 2026-11-01, the M5 audit's S5).</strong> {@code BodyDriver} was package-private
+     * by design while it shared the root package with the execution door; the driver's machinery is its own package
+     * now ({@code com.legend.driver}). The execution door ({@code Execution.runProgram}) calls the body router
+     * ({@code BodyRouter}), which runs a body of a moved class on the program road and walks every other with the
+     * body driver: the walk is reached from the driver package alone, and the router from the door alone.
      */
     @Test
     void theDriverHasOneCaller() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend.driver")
-            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
             .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyDriver(\\$.*)?")
-            .as("step C: the body driver is the execution door's alone (Execution.runProgram)")
+            .as("step C, M5: the body driver (the walk) is the body router's alone")
+            .check(CORE_PROD_CLASSES);
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.driver")
+            .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            .should().dependOnClassesThat().haveNameMatching("com\\.legend\\.driver\\.BodyRouter(\\$.*)?")
+            .as("M5: the body router is the execution door's alone (Execution.runProgram)")
             .check(CORE_PROD_CLASSES);
     }
 

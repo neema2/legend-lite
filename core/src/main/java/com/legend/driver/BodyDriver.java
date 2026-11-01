@@ -28,7 +28,11 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * session's statements), one dialect, one optional raw-SQL failure sink ({@link ExecEnv}) — connection-valued
  * expressions are never evaluated.
  *
- * <p>Public since step C (D73, 2026-10-30), for ONE caller: the execution door (Execution.runProgram) -- the class was package-private by design while it shared the root package with the door; ArchitectureTest.theDriverHasOneCaller keeps the design across the package line.
+ * <p>Public since step C (D73, 2026-10-30), for ONE caller: the body router ({@link BodyRouter}, since the
+ * test-is-the-product plan's M5, 2026-11-01), which walks here every body of a class not yet moved onto the program
+ * road; the execution door (Execution.runProgram) calls the router. The class was package-private by design while it
+ * shared the root package with the door; ArchitectureTest.theDriverHasOneCaller keeps the design across the package
+ * line.
  */
 public final class BodyDriver {
 
@@ -37,8 +41,9 @@ public final class BodyDriver {
 
     /** The G½→H→I→J→K back half over a query TYPED ONCE ({@link TypedQuery}: its statements typed as a query body,
      * by the spec compiler the driver then compiles every helper through), on {@code session} -- the one entry for a
-     * program hands it here ({@link Execution#runProgram}; track B's B2, 2026-10-29: until then the driver typed the
-     * resolved AST itself for each of three entries). {@code assertListener} observes every statement-root assert
+     * program hands it here through the body router when no moved class holds it ({@link Execution#runProgram},
+     * {@link BodyRouter}; track B's B2, 2026-10-29: until then the driver typed the resolved AST itself for each of
+     * three entries). {@code assertListener} observes every statement-root assert
      * verdict (the runner's scoring seam — judging stays here, in one place); {@code replayReferee} is the registered
      * SQL-replay referee (SQLTEXT charter §2 — same registration seam, same nullable carriage; production passes
      * neither); the execute OPTIONS ride the environment and the result — no static slot. {@code answer}, when
@@ -1319,9 +1324,7 @@ public final class BodyDriver {
                     record(env, rec, entries.get(i).query());
                 }
             }
-            throw new com.legend.error.DataError(e.getMessage() + " — in the effect segment " + where
-                    + (failing.isPresent() ? " (statement " + (failing.getAsInt() + 1) + " of " + texts.size() + ")"
-                            : " (" + texts.size() + " statement(s), applied as a unit)"), e);
+            throw com.legend.testplan.EffectSegment.failed(e, where, failing, texts.size());
         }
         for (com.legend.exec.EffectSink.Entry en : entries) {
             String rec = en.recorded();

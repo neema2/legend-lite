@@ -37,6 +37,8 @@ public final class Census {
         BULK_LOADS("sql.bulk-loads"),
         ULP_FIRINGS("host.ulp-firings"),
         EFFECTS_IN_SCRIPT("effects.in-script"),
+        /** Test bodies the body router moved whole onto the program road (the test-is-the-product plan's M5, R16). */
+        BODIES_MOVED("bodies.moved"),
         DIVERGENCE_AGREE("divergence.agree"),
         DIVERGENCE_DISAGREE("divergence.disagree"),
         DIVERGENCE_RESIDUE("divergence.residue"),

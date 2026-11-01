@@ -16583,6 +16583,45 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's M5 (first class): the body router; the effect setup programs run whole
+
+The plan's §6 B1 ("M5's detail", item 5 the classes as built), R16; the decisions log D105.
+
+1. **Built (M5b-M5d, two commits; the audit's fold its own):** `testplan/BodyClass` (a closed list that only grows:
+   `EFFECT_PROGRAM`); `driver/BodyRouter` (`Execution.runProgram`'s one call: a moved body planned whole by the test
+   door and run as one plan by `PlanRunner.program`, every other body walked); the raw-SQL ledger's texts beside the
+   plan (`TestDoor.Planned`) and the program sink's step events (`effectRan`, `effectFailed` returning the error to
+   raise, `seeded` with the statements that ran); an effect's script marked BODY around its send alone, as the walk
+   marks it.
+2. **The audit** (independent, R15): three blockers and six should-fix, none in a shape the corpora or core run, all
+   folded (the plan's §10 M5 line): a seeded runtime, a no-value answer and a failing script's message (B1-B3); a seed
+   failing midway, store writes, computed values, a print of an effect, the one-caller rule (S1-S5); S6 posted (§9).
+   Found on the way: the mutable-field guard read no annotated type -- widened, 47 found fields registered with what
+   each is; `H2.failingStatement` never matches H2 2.1.214's message (pre-existing, both roads; named). The audit's
+   probes are `docs/test-is-product-homework/probes/m5e-audit-*.txt`; the product's `print` answer was read by
+   `probes/m5e-print-answer.java.txt` (§9's question).
+3. **Measured:** both corpora uncached, every pass's statement-origins census and pass/fail counts identical to
+   MR's (DuckDB database pass: body 6,553, seed 100, session 6,335; 2,473 pass, 108 fail); `body-router moved=600`
+   per pass; every core package's statements identical but labels (the program road's own exec and testplan tests,
+   an effect's script labelled body as the walk labels it) and the new parity test's own (17,377 -> 17,413);
+   `pct_channel_b` 5 of 5; `//gates:local` 447 pass, 1 skipped, the 9 Postgres targets refusing root here (9 of 9
+   unprivileged) and `//core:census` red on the parity test's first form (it named its databases; rewritten over
+   the test backends, and BodyDriver's ledger pin moved 939 -> 937, dated) -- then `//core:census`,
+   `//core:guardrails` and `//core:core_tests_driver` green (the parity test 35 of 35 on DuckDB and H2).
+4. **Guards, dated:** `ArchitectureTest.theDriverHasOneCaller` (the walk the router's alone, the router the door's);
+   `CodeShapeGuardrailTest` (annotated types scanned; the found fields registered); `JavaEvalLedgerTest` (BodyRouter
+   in the driver's register, BodyClass and EffectSegment in the test library's, BodyDriver 939 -> 937).
+
+## 2026-11-01 — The test-is-the-product plan's MR checkpoint: CI and the lane sessions' round 10
+
+CI on 9a0fe445: the `gates` and `diagnostics` workflows green on Linux, Windows, macOS and arm. The lane sessions'
+round 10 (9a0fe445 against round 9's 90ea4e5c): zero movement on every lane -- every test's outcome and message
+identical on both channels; every statement byte-identical and in the same order (session, system, seed and effect
+statements and '__id' literals included); no NotImplementedException or IllegalStateException in any log; no new
+keyword-scan line. The seed memo's fix (MRe's defect 4) added no re-seed on any lane: Trino A and B and Postgres B
+(Postgres channel B grammar's 45 system-store writes in place); SQLite, MariaDB, MySQL and ClickHouse (89,322
+statements, the 4 seed records identical); Snowflake (the 46 system statements identical); Databricks; BigQuery.
+
 ## 2026-11-01 — The test-is-the-product plan's MR: mutable state out, split by concern (the user's ruling R20)
 
 The plan's §6 B14 (from an independent inventory, `docs/test-is-product-homework/E_MR_INVENTORY.md`); the decisions

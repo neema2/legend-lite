@@ -29,6 +29,7 @@ import com.legend.sql.RawSql;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -61,12 +62,14 @@ final class TestKinds implements ProgramKinds {
 
     private final QueryDoor.Scan scan;
     /** The open script: the effect statements since the last statement of another kind. */
-    private final List<String> script = new ArrayList<>();
-    /** The raw-SQL ledger's texts of the open script's statements, the walk's (M5). */
-    private final List<TestDoor.Recorded> scriptRecorded = new ArrayList<>();
-    /** The raw-SQL ledger's texts of each effect and seed step this program planned, by the step (M5): beside the
-     *  plan, never in it. */
-    private final Map<ExecutionPlan.Node, List<TestDoor.Recorded>> recorded = new IdentityHashMap<>();
+    private final List<EffectPlanner.Statement> script = new ArrayList<>();
+    /** The places (0-based) in the body of the statements the open script holds. */
+    private final List<Integer> scriptStatements = new ArrayList<>();
+    /** Each effect step this program planned, its segment and ledger texts beside it (M5): beside the plan, never in
+     *  it. */
+    private final Map<ExecutionPlan.Node, TestDoor.Effect> effects = new IdentityHashMap<>();
+    /** Each seed step this program planned, its statements' ledger texts beside it (M5). */
+    private final Map<ExecutionPlan.Node, List<String>> seeds = new IdentityHashMap<>();
     /** The seed sources placed since the program's last write. */
     private final Set<Seeds.Sources> established = new HashSet<>();
     /** The seeds' steps, generated once per sources value. */
@@ -190,7 +193,7 @@ final class TestKinds implements ProgramKinds {
         List<ExecutionPlan.SetupStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
         ExecutionPlan.Setup setup = new ExecutionPlan.Setup(Seeds.key(steps), steps, program.target());
         program.add(setup);
-        recorded.put(setup, planned.stream().map(p -> new TestDoor.Recorded(p.text(), false)).toList());
+        seeds.put(setup, planned.stream().map(CsvSeed.Planned::text).toList());
     }
 
     /** The effect {@code statement}'s statements added to the open script; the script closed and the effect's answer
@@ -232,38 +235,45 @@ final class TestKinds implements ProgramKinds {
             }
             values.add(folded);
         }
-        for (EffectPlanner.Statement s : EffectPlanner.statements(e.call(), values, e.body(),
-                e.env().withDialect(program.dialect()))) {
-            script.add(s.executed());
-            scriptRecorded.add(new TestDoor.Recorded(s.recorded(), RawSql.isSingleQuery(s.executed())));
-        }
+        script.addAll(EffectPlanner.statements(e.call(), values, e.body(), e.env().withDialect(program.dialect())));
+        scriptStatements.add(index);
         if (last) {
             close(program);
             // the walk's arms' value: the DDL that drops and creates answers true, the others no value
             boolean dropsAndCreates = effect == NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB
                     || effect == NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB;
-            program.add(dropsAndCreates ? ProductStatements.scalar("Boolean", "true")
-                    : ProductStatements.scalar(e.call().info().type().typeName(), null));
+            program.add(ProductStatements.asTheWalkAnswers(dropsAndCreates ? ProductStatements.scalar("Boolean", "true")
+                    : ProductStatements.scalar(e.call().info().type().typeName(), null)));
         }
     }
 
-    /** The ledger texts of the steps this program planned, by step. */
-    Map<ExecutionPlan.Node, List<TestDoor.Recorded>> recorded() {
-        return recorded;
+    /** The effect steps this program planned, each with its segment and ledger texts. */
+    Map<ExecutionPlan.Node, TestDoor.Effect> effects() {
+        return Collections.unmodifiableMap(effects);
     }
 
-    /** The open script, if any, placed as one effect step. */
+    /** The seed steps this program planned, each with its statements' ledger texts. */
+    Map<ExecutionPlan.Node, List<String>> seeds() {
+        return Collections.unmodifiableMap(seeds);
+    }
+
+    /** The open script, if any, placed as one effect step, its segment (the walk's: the body's statements it holds)
+     *  and ledger texts beside it. */
     private void close(ProgramState program) {
         if (script.isEmpty()) {
             return;
         }
         SqlDialect dialect = program.dialect();
-        ExecutionPlan.Effect effect = new ExecutionPlan.Effect(new ExecutionPlan.Sql(String.join(";\n", script) + ";",
-                List.of(), program.target(), null, List.of()), new ExecutionPlan.Effect.Script(script,
-                dialect.script(script), dialect.scriptAbort()));
+        List<String> executed = script.stream().map(EffectPlanner.Statement::executed).toList();
+        ExecutionPlan.Effect effect = new ExecutionPlan.Effect(new ExecutionPlan.Sql(String.join(";\n", executed)
+                + ";", List.of(), program.target(), null, List.of()), new ExecutionPlan.Effect.Script(executed,
+                dialect.script(executed), dialect.scriptAbort()));
         program.add(effect);
-        recorded.put(effect, List.copyOf(scriptRecorded));
+        String where = EffectSegment.where(scriptStatements.get(0) + 1,
+                scriptStatements.get(scriptStatements.size() - 1) + 1);
+        effects.put(effect, new TestDoor.Effect(where, script.stream()
+                .map(s -> new TestDoor.Recorded(s.recorded(), RawSql.isSingleQuery(s.executed()))).toList()));
         script.clear();
-        scriptRecorded.clear();
+        scriptStatements.clear();
     }
 }

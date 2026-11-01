@@ -2969,7 +2969,14 @@ the M3 checkpoint, then M4 (brief B13). **MR built 2026-11-01 (D104; the user's 
 `ProductStatements.java`, `BodyPlanner.java`, `FramePlanner.java`, `PlanAllocations.java`, `QueryDoor.java`,
 `LetPlanner.java`, `SidePlanner.java`, `PlanEnv.java`; `testplan/TestKinds.java`, `TestDoor.java`, `Seeds.java`,
 `EffectPlanner.java`; `compiler/spec/ResultEnvelopeSplice.java`; `exec/SessionStateTest.java` (new),
-`testplan/TestDoorTest.java`; `JavaEvalLedgerTest`. Next (R19): M5, then M4.
+`testplan/TestDoorTest.java`; `JavaEvalLedgerTest`. Next (R19): M5, then M4. **M5's first class built 2026-11-01
+(D105; R16, B1)**: `driver/BodyRouter.java` (new), `Execution.java`; `testplan/BodyClass.java`, `EffectSegment.java`
+(new), `TestDoor.java`, `TestKinds.java`; `exec/PlanRunner.java`, `Census.java`; `planner/BodyPlanner.java`
+(`handleType` shared), `QueryDoor.java` (`declaresTestData` shared), `ProductStatements.java` (`asTheWalkAnswers`),
+`PlanMaker.java`; `driver/BodyDriver.java`, `BodyCompiler.java` (the segment's spelling shared); spec's
+`MinimalCorpusTest.java` (the moved count); `driver/BodyRouterParityTest.java` (new), `testplan/BodyClassTest.java`
+(new), `TestDoorTest.java`; the guards (`ArchitectureTest`, `CodeShapeGuardrailTest`, `JavaEvalLedgerTest`);
+AGENTS.md (the one-caller sentence). Next: the M5 checkpoint, then M5f (the plain query programs), then M4.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

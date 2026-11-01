@@ -41,34 +41,50 @@ public final class TestDoor {
     public record Recorded(String text, boolean query) {
     }
 
-    /** A body's plan and, beside it, the ledger texts of its effect and seed steps, by the step's place in the
-     *  plan's sequence (the test door's own index: the product plan carries no referee text). */
-    public record Planned(ExecutionPlan plan, Map<Integer, List<Recorded>> recorded) {
-        public Planned {
-            recorded = Collections.unmodifiableMap(new LinkedHashMap<>(recorded));
+    /** An effect step beside the plan: the walk's name for its segment ({@link EffectSegment#where}), which a
+     *  failure is named by, and its statements' ledger texts in order. */
+    public record Effect(String where, List<Recorded> statements) {
+        public Effect {
+            statements = List.copyOf(statements);
         }
     }
 
-    /** {@link #plan} with the ledger texts beside it. */
+    /** A body's plan and, beside it, its effect steps' segments and ledger texts and its seed steps' ledger texts
+     *  (whether a seed answered rows is the run's to say), each by the step's place in the plan's sequence (the test
+     *  door's own index: the product plan carries no referee text). */
+    public record Planned(ExecutionPlan plan, Map<Integer, Effect> effects, Map<Integer, List<String>> seeds) {
+        public Planned {
+            effects = Collections.unmodifiableMap(new LinkedHashMap<>(effects));
+            seeds = Collections.unmodifiableMap(new LinkedHashMap<>(seeds));
+        }
+    }
+
+    /** {@link #plan} with the effects' and seeds' ledger texts beside it. */
     public static Planned planned(TypedQuery body, String runtime, Set<Feature> features,
             @Nullable String serverVersion) {
         TestKinds kinds = new TestKinds(body, runtime);
         ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, serverVersion, kinds);
         List<ExecutionPlan.Node> steps = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
                 : List.of(plan.root());
-        Map<Integer, List<Recorded>> byIndex = new LinkedHashMap<>();
+        Map<Integer, Effect> effects = byStep(steps, kinds.effects());
+        Map<Integer, List<String>> seeds = byStep(steps, kinds.seeds());
+        return new Planned(plan, effects, seeds);
+    }
+
+    /** {@code beside}, keyed by the step it rides, re-keyed by the step's place in {@code steps}; a step the library
+     *  planned that is not one of them is refused by name (its texts would never reach the ledger). */
+    private static <T> Map<Integer, T> byStep(List<ExecutionPlan.Node> steps, Map<ExecutionPlan.Node, T> beside) {
+        Map<Integer, T> byIndex = new LinkedHashMap<>();
         for (int i = 0; i < steps.size(); i++) {
-            List<Recorded> texts = kinds.recorded().get(steps.get(i));
+            T texts = beside.get(steps.get(i));
             if (texts != null) {
                 byIndex.put(i, texts);
             }
         }
-        if (byIndex.size() != kinds.recorded().size()) {
-            // a step the library planned that is not one of the plan's top-level steps: its texts would never reach
-            // the ledger
-            throw new IllegalStateException(kinds.recorded().size() - byIndex.size() + " effect or seed step(s) of the"
-                    + " test door's plan are not in its sequence: their ledger texts have no step to ride");
+        if (byIndex.size() != beside.size()) {
+            throw new IllegalStateException(beside.size() - byIndex.size() + " effect or seed step(s) of the test"
+                    + " door's plan are not in its sequence: their ledger texts have no step to ride");
         }
-        return new Planned(plan, byIndex);
+        return byIndex;
     }
 }

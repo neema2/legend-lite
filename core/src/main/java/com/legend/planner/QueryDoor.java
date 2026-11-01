@@ -138,8 +138,8 @@ public final class QueryDoor {
                 && Pure.AT_ASSERTS_FAIL.contains(nc.callee().id()));
     }
 
-    /** Whether the runtime {@code fqn} binds a connection that declares test data. */
-    private static boolean declaresTestData(String fqn, ModelContext ctx) {
+    /** Whether the runtime {@code fqn} binds a connection that declares test data (its connection's seeds). */
+    public static boolean declaresTestData(String fqn, ModelContext ctx) {
         var rt = ctx.findRuntime(fqn).orElseThrow(() -> new IllegalStateException("a from() names the runtime '"
                 + fqn + "', which the model does not hold"));
         for (var binding : rt.connectionBindings().entrySet()) {

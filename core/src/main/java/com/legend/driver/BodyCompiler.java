@@ -325,8 +325,7 @@ public final class BodyCompiler {
             if (sink.isEmpty()) {
                 return;
             }
-            String where = effectFrom == effectTo ? "(statement " + effectFrom + ")"
-                    : "(statements " + effectFrom + "–" + effectTo + ")";
+            String where = com.legend.testplan.EffectSegment.where(effectFrom, effectTo);
             fragments.put("effects:" + effectFrom + "-" + effectTo, "effects " + where);
             BodyDriver.sendScript(env0, sink, where);
             sink = new com.legend.exec.EffectSink();

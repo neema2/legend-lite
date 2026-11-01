@@ -209,6 +209,27 @@ public final class ProductStatements {
         return constant(type, Collections.singletonList(text), true);
     }
 
+    /** A test program's answer of one value as the walk answers it (the test-is-the-product plan's M5; the M5
+     *  audit's B2): a {@code [0..1]} column, and no row for no value (Pure's {@code []}; the walk's
+     *  {@code JudgePlans.host} of its {@code TypedSide.Scalar}), where the product's constant writes a one-valued
+     *  column a row (a null cell for no value). Kept for the test door until the user rules the convergence of a
+     *  test body's answer facts on the product's (MV6, D27). */
+    public static ExecutionPlan.Constant asTheWalkAnswers(ExecutionPlan.Constant constant) {
+        if (constant.columns().size() != 1 || !Integer.valueOf(1).equals(constant.columns().get(0).multiplicity()
+                .upper())) {
+            return constant;
+        }
+        ExecutionPlan.Column c = constant.columns().get(0);
+        List<List<String>> cells = new ArrayList<>();
+        for (List<String> row : constant.cells()) {
+            if (row.get(0) != null) {
+                cells.add(row);
+            }
+        }
+        return new ExecutionPlan.Constant(List.of(new ExecutionPlan.Column(c.name(), c.type(),
+                new ExecutionPlan.Multiplicity(0, 1), c.slot(), c.store(), c.precision())), cells);
+    }
+
     /** Whether {@code s} is an orchestration handle -- a connection, a runtime, {@code connectionByElement}'s
      *  connection -- a value a program passes around, which plans no step before its last statement and has no
      *  value to answer as its last (B12 item 4). */
