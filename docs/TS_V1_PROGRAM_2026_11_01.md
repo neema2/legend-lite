@@ -1,8 +1,15 @@
 # Timeseries v1: the program, fixes first, then the features (2026-11-01)
 
-**Status: proposed, not ratified.** Written 2026-11-01 because the user asked: "Create a roadmap for all the fixes first
-and then all of these awesome features - write it down so we can run the program". The user decides the v1 cut (§2)
-and the open rulings (§5). The design that governs the language is still `docs/TS_ONE_TREE_PLAN_2026_10_31.md`: its
+**Status: the cut is ratified, except for intraday** (the user, 2026-11-01: "Looks great for v1 and v1.1!"). Written
+2026-11-01 because the user asked: "Create a roadmap for all the fixes first and then all of these awesome features -
+write it down so we can run the program". Ruled the same day:
+
+- **P3.** The pull request is stacked on #81 ("stack").
+- **P4.** The databases are DuckDB, Postgres and Snowflake ("Duckdb, postgres and snowflake is enough for now").
+- **P6.** The holiday calendar is built in the platform, in v1.1 ("We should build holiday calendar in platform that
+  can be part of v1.1").
+
+Still open (§5): whether intraday is in v1 (P1b) and the page period (P2). The design that governs the language is still `docs/TS_ONE_TREE_PLAN_2026_10_31.md`: its
 decisions D1 to D13, and its rulings in §9. That plan's §6a is the state this program starts from. This document is
 the order of the work from that point on, and covers everything past it as well.
 
@@ -37,10 +44,10 @@ v1 is done when every one of the following holds, each proved by a test rather t
 |---|---|---|
 | V1 | **The language is the library's.** Every word means what gs-quant means, or is a ruled departure written in `docs/SEMANTICS_REGISTER.md` and the oracle's register. No rule of the language lives in Java. Core's parser is the only reader, on every surface | `TsTranslatorGuardrailTest`, extended (A1); the oracle; a guard that `datacube/src` holds no timeseries grammar (A3) |
 | V2 | **The surfaces are one.** `#TS`, the Python DSL and the tile read and print one another. Show #TS and Show Python cover every series of every example page exactly (the text reaches a fixpoint and the rows are equal), with no refusals left | the parity tests' counts, pinned at zero |
-| V3 | **It runs on real warehouses.** The frozen answers hold on DuckDB, H2, Postgres and one cloud warehouse | the warehouse lanes (B1) |
+| V3 | **It runs on real warehouses.** The frozen answers hold on DuckDB, Postgres and Snowflake (P4) | the warehouse lanes (B1) |
 | V4 | **It holds at real size.** The scale benchmarks stay within their budgets | the measure targets (B2) |
 | V5 | **Every word has a second opinion.** Each word has an outside oracle (gs-quant, TA-Lib, statsmodels or pandas), or is named as having none | the oracle's report (B5) |
-| V6 | **Calendars and clocks.** A business calendar, its holidays, time zones, and `SAMPLE BY` under a day | B6's tests |
+| V6 | **Clocks, if P1b puts intraday in v1.** Time zones, trading sessions and `SAMPLE BY` under a day. The holiday calendar is v1.1 (P6), and intraday is recommended to go with it | B6's tests |
 | V7 | **The page is a dashboard.** The page period, cross-filtering, slicers, drill-through and bookmarks; text, title, image and filter tiles | B7's and B8's tests |
 | V8 | **The gate.** `//gates:local`, the Postgres lanes and the Python suites are green, and CI is green on every OS on the pull request that lands v1 | §8 |
 
@@ -99,9 +106,9 @@ plus 53 more commits, and is behind `main` by none. The commits are listed in th
 
 | | In | Why |
 |---|---|---|
-| **Part A, the fixes** | A1 to A10 (§3) | finish what the one-tree plan set out to do before anything is built on it |
-| **Part B, v1** | B1 to B8 (§4) | without these it is not a timeseries product a desk would adopt |
-| **Part C, v1.1** | trend lines, forecasts and annotations on the general charts; units and currency (C2 of the parity note); time intelligence and the time spine (C3); live data; a crosshair linked across tiles; the service: share, permissions, versions, schedules, alerts | real value, but none of it blocks a quant's first week |
+| **Part A, the fixes** | A1 to A10 (§3), except A7 | finish what the one-tree plan set out to do before anything is built on it |
+| **Part B, v1** | B1 to B8 (§4), except B6a; B6b unless P1b moves it | without these it is not a timeseries product a desk would adopt |
+| **Part C, v1.1** | the platform's holiday calendar (B6a, P6); intraday with it, if P1b rules so (B6b); trend lines, forecasts and annotations on the general charts; units and currency (C2 of the parity note); time intelligence and the time spine (C3); live data; a crosshair linked across tiles; the service: share, permissions, versions, schedules, alerts; H2's deep plans (A7: H2 is not a v1 target, P4) | real value, but none of it blocks a quant's first week |
 | **Part D, not v1** | AI and augmented analytics; maps; storytelling | the gap analysis's tier 5, and nothing timeseries-specific |
 
 Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tiers 2 to 4) and
@@ -228,8 +235,9 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
   - a test page with calculated columns prints exactly.
 - **Size.** Medium, and it grows with the number of natives.
 
-### A7. H2's deep plans
+### A7. H2's deep plans (moved to v1.1)
 
+- **Moved.** H2 is not a v1 database (P4: DuckDB, Postgres and Snowflake), so this waits for v1.1.
 - **Why.** H2 plans nested derived tables exponentially. As a result, `SAMPLE BY` queries with several items run out
   of memory, and those tests run only on DuckDB. That leaves the engine-style printer path untested on them.
 - **What:**
@@ -279,11 +287,11 @@ The order rests on two points:
 ### B1. The warehouses
 
 - **Why.** Today `#TS` is tested only on in-process engines (`TestBackends.inProcess()`).
-- **What.** A lane that runs the frozen answers and `//core:ts_island_test`'s cases on three databases:
+- **What.** A lane that runs the frozen answers and `//core:ts_island_test`'s cases on two more databases, chosen by
+  P4 (DuckDB already runs them):
   - Postgres, embedded, through `tools/postgres/as_unprivileged.sh`;
-  - MariaDB, which refuses a computed frame offset (register row S129); each such refusal must be named;
-  - one cloud warehouse (ruling P4), from `docs/CLOUD_BACKENDS_PCT_2026_10_11.md`. Its credentials are an
-    environment secret.
+  - Snowflake, on the account `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` uses. Its dialect is done and its PCT lanes
+    are green there (`//pct:pct_snowflake_<suite>`). The account's properties are an environment secret.
 - **Done when** each lane is green, or every difference is a register row.
 - **Size.** Medium.
 
@@ -348,17 +356,29 @@ The order rests on two points:
 
 Split in two:
 
-- **B6a, calendars and holidays.**
-  - A business calendar is model data: an exchange's trading days and its holidays.
+- **B6a, the holiday calendar: v1.1, built in the platform** (P6, ruled 2026-11-01).
+  - The platform ships each exchange's calendar as model data: its trading days, holidays, trading hours and time
+    zone. A user's model can add to it or override it.
   - Windows and `SAMPLE BY` periods can be counted in business days (gs-quant's `b` tenors).
-  - Ruling P6: where holidays come from (data the user supplies, or a shipped calendar).
-- **B6b, time zones and intraday.**
-  - A date-time source carries a zone, and a line's day is its exchange's day.
-  - `SAMPLE BY` takes `h` and `min`.
-  - gs-quant refuses to annualize several points a day (`econometrics.py:497`). `#TS` either refuses the same way or
-    uses a ruled rule.
+- **B6b, intraday: open (P1b), recommended for v1.1 with the calendar.** Intraday is not just more rows. Today a
+  date-time source can already be read, windows already take `h`, `min` and `s`, and a rate already accrues over the
+  hours between ticks. What intraday adds:
+  - **`SAMPLE BY` under a day.** Today it takes `d`, `w`, `mo`, `q` and `y` only (`TsParser.PERIODS`). Intraday adds
+    `5min` and `1h` bars. Each bar is labelled by its start or its end, aligned to the session's open (the first
+    hourly bar runs 9:30 to 10:30, not 9:00 to 10:00), and a partial bar needs a rule.
+  - **Sessions and gaps.** A lag across the close compares the day's last bar with the next morning's first. Words
+    such as VWAP and "since the open" reset each session. Overnight and intraday returns are different series.
+  - **Time zones.** A tick stamped in UTC belongs to its exchange's day. FX rolls at 5pm New York, and daylight saving
+    moves the boundary. The model has no time zones today.
+  - **Annualization.** For 5-minute returns this would be √(252 × 78), but gs-quant refuses to annualize several points
+    a day (`econometrics.py:497`). `#TS` either refuses the same way or uses a ruled rule.
+  - **The axis.** Charts like TradingView's skip the hours the market is closed. A plain time axis draws nights and
+    weekends as empty gaps. The tile's drawing and its Draw tool are by the day today (`timeseries-view.ts`).
+  - **Volume.** A year of minute bars is about 100,000 points per instrument, so the database must sample to the
+    screen. A zoom then asks again at a finer bar, as TradingView loads a finer interval when you zoom in.
 
-  The one-tree plan's §6 called intraday a later program. Putting it in v1 is part of ruling P1.
+  The trading hours and the zone are the same platform data as B6a's calendar, which is why intraday is recommended to
+  move with it.
 - **Size.** Large.
 
 ### B7. The page as a dashboard
@@ -369,7 +389,12 @@ Split in two:
     1. a linked window that every timeseries tile shows;
     2. grids and charts that opt in through a date column they are given.
 
-    The gesture is the Measure box's "Show this period everywhere".
+    The gestures (P2's research, §5) are these:
+    - a drag across any linked tile sets the period, and every linked tile zooms;
+    - a double-click zooms back out;
+    - range buttons on the page (1M 3M 6M YTD 1Y 5Y Max);
+    - the Measure box's "Show this period everywhere";
+    - a tile can be unlinked, and then keeps its own range.
   - **Cross-filter.** A click on a series' instrument, or on a bar's category, filters the page's grids.
   - **Slicers.** These are B8's filter tile.
   - **Drill-through.** A point opens the rows behind it: its grid, filtered to that date and instrument.
@@ -390,14 +415,38 @@ Split in two:
 
 | # | Question | Recommended | Needed by |
 |---|---|---|---|
-| P1 | The v1 cut (§2), including intraday in v1 (B6b) | as written | now |
-| P2 | The page period: options A to E, and whether the brushed tile zooms or keeps its whole view with the period shaded | D, shaded | B7 |
-| P3 | A pull request for this branch, so CI runs on every OS, and its base | against `main` once #81 lands; stacked on #81 until then | A2 |
-| P4 | Which cloud warehouse, and its credentials as an environment secret | Snowflake or BigQuery: whichever has an account | B1 |
+| P1 | The v1 cut (§2) | **ruled 2026-11-01**: "Looks great for v1 and v1.1!" | -- |
+| P1b | Intraday (B6b) in v1, or in v1.1 with the platform's calendar | v1.1, with the calendar: trading hours and zones are the calendar's data | B6 |
+| P2 | The page period: options A to E, and whether the brushed tile zooms too | D, every tile zooms (below) | B7 |
+| P3 | A pull request for this branch, so CI runs on every OS, and its base | **ruled 2026-11-01**: stacked on #81 ("stack") | -- |
+| P4 | The databases | **ruled 2026-11-01**: DuckDB, Postgres and Snowflake ("enough for now") | -- |
 | P5 | The scale budgets | proposed from the first measurement | B2 |
-| P6 | Where holidays come from, and the time-zone rule | data the user supplies, the exchange's zone | B6 |
+| P6 | Where holidays come from | **ruled 2026-11-01**: built in the platform, v1.1 | -- |
 | P7 | The 12-column cap: lift it or keep it | lift it, if A1 shows the compiler can read a row through a `ColSpecArray` | A1 |
 | R1, R7, R9 | The one-tree plan's §9: §4's rows, D2 as narrowed, and two lines meeting | as that plan recommends | A4 |
+
+**P2: what other charts do** (the user asked, 2026-11-01: "what do other great charts do like Yahoo finance or trading
+view?").
+
+| Product | What it does |
+|---|---|
+| Yahoo Finance | Each chart has its own range buttons (1D 5D 1M 6M YTD 1Y 5Y Max) and comparisons drawn on that one chart. Nothing links one chart to another |
+| TradingView | A layout of several charts can sync five things: the symbol, the interval, the crosshair, the time and the date range. Each is a switch, and symbol and interval can sync within groups of charts. Indicators are computed over the whole history; the range only changes what is shown |
+| Grafana (the dashboard precedent) | One time picker for the dashboard. Dragging across any time-series panel sets it, so every panel zooms, and a double-click zooms out. A panel can override it with its own relative time, and each panel's query reads the dashboard's range to filter |
+
+Option D is this combination:
+
+- a page period that every timeseries tile shows, with the data kept whole so rolling windows keep their history;
+- the brushed tile zooms too, as in TradingView's date-range sync and Grafana;
+- a tile can be unlinked;
+- range buttons on the page;
+- in step 2, grids and charts filter by it through a date column they are given, as Grafana's queries read its range.
+
+So the recommendation changes from "shaded" to "every tile zooms".
+
+Sources: TradingView, "How to sync the charts of my layout?" (https://in.tradingview.com/support/solutions/43000629992);
+Grafana, time range controls (https://docs.aws.amazon.com/grafana/latest/userguide/dashboard-time-range-controls.html,
+https://grafana.com/docs/grafana/latest/dashboards/shortcuts/).
 
 ## 6. Status
 
@@ -406,16 +455,16 @@ Update this table in the same commit as the work.
 | Item | State | Last commit |
 |---|---|---|
 | A1 the last rules out of Java | next | |
-| A2 review and gate | waiting on A1; P3 for CI | |
+| A2 review and gate | waiting on A1; the PR stacked on #81 is open, so CI runs on each push | |
 | A3 one reader | | |
 | A4 the words' remainder | waiting on R1, R7, R9 | |
 | A5 the library's text off the wire | | |
 | A6 Show #TS complete | | |
-| A7 H2's deep plans | | |
+| A7 H2's deep plans | moved to v1.1 (P4) | |
 | A8 the ratchets | | |
 | A9 the documents | | |
 | A10 close Part A | | |
-| B1 to B8 | after Part A | |
+| B1 to B8 | after Part A; B6a in v1.1 (P6); B6b waiting on P1b | |
 
 ## 7. The rules (the user's, each learned the hard way)
 
