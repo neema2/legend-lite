@@ -163,11 +163,10 @@ public final class TsIslands {
             List<TsToPure.Overload> out = new ArrayList<>();
             for (com.legend.compiler.element.TypedFunction f : model.findFunction(fqn)) {
                 List<TsToPure.Parameter> ps = new ArrayList<>();
-                for (com.legend.compiler.element.TypedParameter p : f.parameters().subList(Math.min(1,
-                        f.parameters().size()), f.parameters().size())) {
+                for (com.legend.compiler.element.TypedParameter p : f.parameters()) {
                     boolean optional = p.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
                             && b.lower() == 0 && Integer.valueOf(1).equals(b.upper());
-                    ps.add(new TsToPure.Parameter(p.name(), p.type().typeName(), optional));
+                    ps.add(new TsToPure.Parameter(p.name(), typeOf(p.type()), optional));
                 }
                 List<String> gives = new ArrayList<>();
                 if (f.returnType() instanceof Type.GenericType g && !g.arguments().isEmpty()
@@ -181,6 +180,23 @@ public final class TsIslands {
                 out.add(new TsToPure.Overload(ps, gives, doc));
             }
             return out;
+        }
+
+        /** A parameter's type as the words read it: a line ({@link TsToPure#LINE}), a long relation of weighted members
+         *  ({@link TsToPure#MEMBERS}), else its type's path. */
+        private static String typeOf(Type t) {
+            if (t instanceof Type.GenericType g && !g.arguments().isEmpty()
+                    && g.arguments().get(0) instanceof Type.RelationType r) {
+                java.util.Set<String> columns = new java.util.TreeSet<>(r.columns().stream().map(Type.Column::name)
+                        .toList());
+                if (columns.equals(java.util.Set.of("key", "date", "value"))) {
+                    return TsToPure.LINE;
+                }
+                if (columns.equals(java.util.Set.of("key", "date", "member", "weight", "value"))) {
+                    return TsToPure.MEMBERS;
+                }
+            }
+            return t.typeName();
         }
 
         @Override

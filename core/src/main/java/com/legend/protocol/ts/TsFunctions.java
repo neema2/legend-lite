@@ -69,24 +69,6 @@ final class TsFunctions {
     /** THE FUNCTIONS STILL WRITTEN HERE (§6), each by its language name: those over several lines, and the
      *  decomposition. A word over one line is the library's ({@link TsWords}, {@link TsCatalog}): it has no entry here. */
     enum Fn {
-        CORRELATION("correlation"),
-        BETA("beta"),
-        COV("cov"),
-        ALPHA("alpha"),
-        R_SQUARED("r_squared"),
-        HEDGE_RATIO("hedge_ratio"),
-        RESIDUAL("residual"),
-        TRACKING_ERROR("tracking_error"),
-        INFORMATION_RATIO("information_ratio"),
-        UP_CAPTURE("up_capture"),
-        DOWN_CAPTURE("down_capture"),
-        LEAD_LAG("lead_lag"),
-        ATR("atr"),
-        STOCHASTIC("stochastic"),
-        KELTNER_CHANNELS("keltner_channels"),
-        DONCHIAN_CHANNELS("donchian_channels"),
-        OBV("obv"),
-        VWAP("vwap"),
         TOTAL_RETURN("total_return"),
         EXCESS_RETURNS("excess_returns"),
         COMPARE("compare"),
@@ -129,17 +111,6 @@ final class TsFunctions {
 
     static {
         Map<Fn, Signature> s = new java.util.EnumMap<>(Fn.class);
-        for (String pair : List.of("correlation", "beta", "cov", "alpha", "r_squared", "hedge_ratio", "residual",
-                "tracking_error", "information_ratio", "up_capture", "down_capture")) {
-            s.put(java.util.Objects.requireNonNull(Fn.of(pair)), new Signature(2, List.of(span("w", 63))));
-        }
-        s.put(Fn.LEAD_LAG, new Signature(2, List.of(whole("lag", 1), span("w", 63))));
-        s.put(Fn.ATR, new Signature(3, List.of(whole("w", 14))));
-        s.put(Fn.STOCHASTIC, new Signature(3, List.of(whole("w", 14))));
-        s.put(Fn.KELTNER_CHANNELS, new Signature(3, List.of(whole("w", 20), whole("a", 10), number("k", 2))));
-        s.put(Fn.DONCHIAN_CHANNELS, new Signature(2, List.of(span("w", 20))));
-        s.put(Fn.OBV, new Signature(2, List.of()));
-        s.put(Fn.VWAP, new Signature(2, List.of(span("w", 20))));
         s.put(Fn.TOTAL_RETURN, new Signature(2, List.of()));
         s.put(Fn.EXCESS_RETURNS, new Signature(2, List.of()));
         s.put(Fn.COMPARE, new Signature(2, List.of()));
@@ -368,14 +339,37 @@ final class TsFunctions {
             Map<String, SqlAst.Expr> named) {
         String fn = java.util.Objects.requireNonNull(TsToPure.name(fc));
         if (TsWords.defines(c, fn)) {
-            // the library's word over lines (TsWords): its parameters read from its overloads (TsCatalog), the
-            // arguments as given, its defaults its own
+            // the library's word over lines (TsWords): its lines and its parameters read from its overloads
+            // (TsCatalog), the arguments as given, its defaults its own
             Signature sig = TsCatalog.signature(c.model(), fn);
-            if (positional.isEmpty()) {
-                throw invalid(fn + " reads a line: " + fn + "(x, ...)", fc.pos());
+            List<TsWords.Arg> args = new ArrayList<>();
+            if (sig.lines() < 0) {
+                // weighted members: each line and its weight, in pairs; its parameters by name alone
+                List<TsLines.Valued> members = new ArrayList<>();
+                List<Double> weights = new ArrayList<>();
+                for (int i = 0; i < positional.size(); i += 2) {
+                    members.add(line(c, fn, positional.get(i), i));
+                    Double weight = i + 1 < positional.size() ? constant(positional.get(i + 1)) : null;
+                    if (weight == null) {
+                        throw invalid(fn + " reads each line and its weight: " + fn + "(x, 0.6, y, 0.4)",
+                                i + 1 < positional.size() ? positional.get(i + 1).pos() : fc.pos());
+                    }
+                    weights.add(weight);
+                }
+                args.add(new TsWords.MembersArg(List.copyOf(members), List.copyOf(weights)));
+            } else {
+                if (positional.size() < sig.lines()) {
+                    throw invalid(fn + " reads " + sig.lines() + " line" + (sig.lines() == 1 ? "" : "s") + ": " + fn
+                            + "(x" + (sig.lines() > 1 ? ", y" : "") + (sig.lines() > 2 ? ", z" : "") + ", ...)",
+                            fc.pos());
+                }
+                for (int i = 0; i < sig.lines(); i++) {
+                    args.add(arg(c, fn, positional.get(i), i));
+                }
             }
-            Map<String, TsWords.Given> given = given(c, fc, fn, sig, positional, named);
-            return TsWords.call(c, fn, line(c, fn, positional.get(0), 0), given, fc.pos());
+            Map<String, TsWords.Given> given = given(c, fc, fn, sig, sig.lines() < 0 ? List.of() : positional,
+                    named);
+            return TsWords.call(c, fn, args, given, fc.pos());
         }
         Fn f = java.util.Objects.requireNonNull(Fn.of(fn));
         Signature sig = java.util.Objects.requireNonNull(SIGNATURES.get(f));
@@ -398,14 +392,6 @@ final class TsFunctions {
         };
     }
 
-    /** Each pair's function of the library (the tile's PAIRWISE): a hedge ratio a beta of levels. */
-    private static final Map<String, String> PAIRWISE = Map.of("correlation", "correlation", "r_squared", "rSquared",
-            "cov", "covariance", "beta", "beta", "hedge_ratio", "beta", "alpha", "alpha", "residual", "residual");
-
-    /** Each benchmark-relative statistic's (the tile's BENCHMARKED). */
-    private static final Map<String, String> BENCHMARKED = Map.of("tracking_error", "trackingError",
-            "information_ratio", "informationRatio", "up_capture", "upCapture", "down_capture", "downCapture");
-
     /**
      * THE FUNCTIONS OF SEVERAL LINES (the tile's pairs, otherCalls and analystCalls): each line on its own rows first
      * (a pair's returns each on its own), then met on the dates all have -- or, where a function reads which has a
@@ -415,114 +401,7 @@ final class TsFunctions {
             Bound p, List<SqlAst.Expr> args) {
         String fn = f.text;
         SqlAst.Pos pos = fc.pos();
-        if (PAIRWISE.containsKey(fn)) {
-            TsLines.Valued a = line(c, fn, args.get(0), 0);
-            TsLines.Valued b = line(c, fn, args.get(1), 1);
-            boolean levels = "cov".equals(fn) || "hedge_ratio".equals(fn) || "residual".equals(fn);
-            TsLines.Valued ra = levels ? a : simple(c, a);
-            TsLines.Valued rb = levels ? b : simple(c, b);
-            Lib w = new Lib(c, TsLines.joined(c, List.of(ra, rb), pos, null));
-            Span s = p.span("w");
-            List<ValueSpecification> perYear = "alpha".equals(fn) ? List.of(new ColSpec(w.perYear())) : List.of();
-            String of = java.util.Objects.requireNonNull(PAIRWISE.get(fn));
-            List<ValueSpecification> all = new ArrayList<>();
-            if (s.period() == null) {
-                all.addAll(List.of(w.window(frame(s.obs())), new ColSpec(ra.value()), new ColSpec(rb.value()),
-                        new CInteger((long) Math.max(s.obs(), 2))));
-                all.addAll(perYear);
-                return w.done(w.ofRow(of, fn, all.toArray(new ValueSpecification[0])));
-            }
-            Period q = period(s.period());
-            all.addAll(List.of(new ColSpec(w.line.part()), new ColSpec(w.line.at()), new ColSpec(ra.value()),
-                    new ColSpec(rb.value()), new CInteger((long) q.n()), new EnumValue(DURATION, q.unit())));
-            all.addAll(perYear);
-            return w.done(w.ofRow(of + "Period", fn, all.toArray(new ValueSpecification[0])));
-        }
-        if (BENCHMARKED.containsKey(fn) || "lead_lag".equals(fn)) {
-            int k = "lead_lag".equals(fn) ? p.whole("lag") : 0;
-            TsLines.Valued ra = simple(c, line(c, fn, args.get(0), 0));
-            TsLines.Valued rb = simple(c, line(c, fn, args.get(1), 1));
-            if (k != 0) {
-                // the second's k observations before (a lag), or after (a lead), on its own dates (the tile's)
-                Lib l = new Lib(c, rb.line());
-                rb = l.done(k > 0 ? l.library("lag", "lag", rb.value(), null, new CInteger((long) k))
-                        : l.lead(rb.value(), -k));
-            }
-            Lib w = new Lib(c, TsLines.joined(c, List.of(ra, rb), pos, null));
-            List<String> ab = w.many("pairs", List.of("pa", "pb"), new ColSpec(ra.value()), new ColSpec(rb.value()));
-            Span s = p.span("w");
-            boolean capture = "up_capture".equals(fn) || "down_capture".equals(fn);
-            String of = "lead_lag".equals(fn) ? "leadLag" : java.util.Objects.requireNonNull(BENCHMARKED.get(fn));
-            List<ValueSpecification> perYear = capture || "lead_lag".equals(fn) ? List.of()
-                    : List.of(new ColSpec(w.perYear()));
-            List<ValueSpecification> all = new ArrayList<>();
-            if (s.period() == null) {
-                all.addAll(List.of(w.window(frame(s.obs())), new ColSpec(ab.get(0)), new ColSpec(ab.get(1)),
-                        new CInteger((long) (capture ? s.obs() : Math.max(s.obs(), 2)))));
-                all.addAll(perYear);
-                return w.done(w.ofRow(of, fn, all.toArray(new ValueSpecification[0])));
-            }
-            Period q = period(s.period());
-            all.addAll(List.of(new ColSpec(w.line.part()), new ColSpec(w.line.at()), new ColSpec(ab.get(0)),
-                    new ColSpec(ab.get(1)), new CInteger((long) q.n()), new EnumValue(DURATION, q.unit())));
-            all.addAll(perYear);
-            return w.done(w.ofRow(of + "Period", fn, all.toArray(new ValueSpecification[0])));
-        }
         switch (f) {
-            case ATR, STOCHASTIC, KELTNER_CHANNELS -> {
-                List<TsLines.Valued> hlc = List.of(line(c, fn, args.get(0), 0), line(c, fn, args.get(1), 1),
-                        line(c, fn, args.get(2), 2));
-                Lib w = new Lib(c, TsLines.joined(c, hlc, pos, null));
-                List<ValueSpecification> roles = new ArrayList<>(List.of(new ColSpec(w.line.part()),
-                        new ColSpec(w.line.at())));
-                hlc.forEach(v -> roles.add(new ColSpec(v.value())));
-                if ("atr".equals(fn)) {
-                    roles.add(new CInteger((long) Math.max(p.whole("w"), 1)));
-                    return w.done(w.ofRow("atr", "atr", roles.toArray(new ValueSpecification[0])));
-                }
-                if ("stochastic".equals(fn)) {
-                    roles.add(new CInteger((long) p.whole("w")));
-                    return w.done(w.ofRow("stochastic", "stoch", roles.toArray(new ValueSpecification[0])));
-                }
-                roles.addAll(List.of(new CInteger((long) Math.max(p.whole("w"), 1)),
-                        new CInteger((long) Math.max(p.whole("a"), 1)), new CFloat(p.num("k"))));
-                return w.band(w.many("keltnerChannels", List.of("lower", "upper", "width"),
-                        roles.toArray(new ValueSpecification[0])));
-            }
-            case DONCHIAN_CHANNELS -> {
-                TsLines.Valued hi = line(c, fn, args.get(0), 0);
-                TsLines.Valued lo = line(c, fn, args.get(1), 1);
-                Lib w = new Lib(c, TsLines.joined(c, List.of(hi, lo), pos, null));
-                Span s = p.span("w");
-                return w.band(s.period() == null
-                        ? w.many("donchianChannels", List.of("lower", "upper", "width"), w.window(frame(s.obs())),
-                                new ColSpec(hi.value()), new ColSpec(lo.value()), new CInteger((long) s.obs()))
-                        : w.many("donchianChannelsPeriod", List.of("lower", "upper", "width"),
-                                new ColSpec(w.line.part()), new ColSpec(w.line.at()), new ColSpec(hi.value()),
-                                new ColSpec(lo.value()), new CInteger((long) period(s.period()).n()),
-                                new EnumValue(DURATION, period(s.period()).unit())));
-            }
-            case OBV -> {
-                TsLines.Valued cl = line(c, fn, args.get(0), 0);
-                TsLines.Valued vol = line(c, fn, args.get(1), 1);
-                Lib w = new Lib(c, TsLines.joined(c, List.of(cl, vol), pos, null));
-                return w.done(w.ofRow("obv", "obv", new ColSpec(w.line.part()), new ColSpec(w.line.at()),
-                        new ColSpec(cl.value()), new ColSpec(vol.value())));
-            }
-            case VWAP -> {
-                TsLines.Valued px = line(c, fn, args.get(0), 0);
-                TsLines.Valued vol = line(c, fn, args.get(1), 1);
-                Lib w = new Lib(c, TsLines.joined(c, List.of(px, vol), pos, null));
-                String traded = w.ofRow("tradedValue", "rs", new ColSpec(px.value()), new ColSpec(vol.value()));
-                Span s = p.span("w");
-                if (s.period() == null) {
-                    return w.done(w.ofRow("vwap", "vwap", w.window(frame(s.obs())), new ColSpec(px.value()),
-                            new ColSpec(traded), new ColSpec(vol.value()), new CInteger((long) s.obs())));
-                }
-                Period q = period(s.period());
-                return w.done(w.ofLine("vwapPeriod", "vwap", px.value(), new ColSpec(traded),
-                        new ColSpec(vol.value()), new CInteger((long) q.n()), new EnumValue(DURATION, q.unit())));
-            }
             case TOTAL_RETURN, EXCESS_RETURNS -> {
                 TsLines.Valued x = line(c, fn, args.get(0), 0);
                 TsLines.Node second = c.node(args.get(1));
@@ -652,6 +531,25 @@ final class TsFunctions {
     private static TsLines.Valued simple(Ctx c, TsLines.Valued v) {
         Lib l = new Lib(c, v.line());
         return l.done(l.returns(v.value(), new Span(1, null), "simple"));
+    }
+
+    /** {@code fn}'s {@code i}-th argument in a line's place: a line, a condition's flags (1 where it holds, 0 where it
+     *  does not, none where it is none), or a number. */
+    private static TsWords.Arg arg(Ctx c, String fn, SqlAst.Expr e, int i) {
+        SqlAst.Expr read = truth(e) ? new SqlAst.Case(null, List.of(
+                new SqlAst.When(e, new SqlAst.IntegerLit(java.math.BigInteger.ONE, e.pos())),
+                new SqlAst.When(new SqlAst.Unary(SqlAst.UnaryOp.NOT, e, e.pos()),
+                        new SqlAst.IntegerLit(java.math.BigInteger.ZERO, e.pos()))), null, e.pos()) : e;
+        TsLines.Node n = c.node(read);
+        if (n instanceof TsLines.Valued v) {
+            return new TsWords.LineArg(v);
+        }
+        Double k = constant(((TsLines.Constant) n).expr());
+        if (k == null) {
+            throw invalid(fn + "'s " + (i == 0 ? "first" : i == 1 ? "second" : i == 2 ? "third" : (i + 1) + "th")
+                    + " argument is a line or a number", e.pos());
+        }
+        return new TsWords.NumArg(k);
     }
 
     /** {@code fn}'s {@code i}-th line: a node of a line, never a number alone. */

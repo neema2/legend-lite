@@ -2863,7 +2863,7 @@ public final class Lowerer {
                 // an ALIAS whose defining expression must substitute (a raw
                 // FROM-qualified ref binds to nothing).
                 args.add(resolveOrThrow(base, p.property()));
-                trailingIntArgs(call, args);
+                trailingIntArgs(call, args, base);
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
                         over.partitionBy(), over.orderBy(), fn.readsFrame() ? over.frame() : null);
             }
@@ -2927,7 +2927,7 @@ public final class Lowerer {
                             + "' needs a property access naming its column");
                 }
                 List<SqlExpr> args = new ArrayList<>();
-                trailingIntArgs(call, args);
+                trailingIntArgs(call, args, base);
                 // a ranking reads the partition, never a frame (WindowFn.readsFrame)
                 return new SqlExpr.WindowCall(new SqlAgg.RankingFn(fn.sqlName(), args),
                         over.partitionBy(), over.orderBy(), null);
@@ -3006,12 +3006,18 @@ public final class Lowerer {
 
     /**
      * Literal Integer args (ntile n, lag/lead offset) ride along; variable
-     * refs are the window params; anything else is LOUD, never dropped.
+     * refs are the window params; a value that reads no row (a library word's
+     * parameter, arithmetic over one: the frame offset's rule,
+     * docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md C1, S1d) lowered as
+     * any scalar, the database's to compute; anything else is LOUD, never
+     * dropped.
      */
-    private static void trailingIntArgs(TypedNativeCall call, List<SqlExpr> args) {
+    private void trailingIntArgs(TypedNativeCall call, List<SqlExpr> args, SqlSelect base) {
         for (TypedSpec a : call.args()) {
             if (a instanceof TypedCInteger c) {
                 args.add(new SqlExpr.IntLit(c.value().longValue()));
+            } else if (a instanceof TypedNativeCall && rowFree(a)) {
+                args.add(scalar(a, scopedResolver(base, null)));
             } else if (!(a instanceof TypedVariable)) {
                 throw new IllegalStateException("window function argument of kind "
                         + a.getClass().getSimpleName() + " is not supported (literals only)");

@@ -964,22 +964,23 @@ class TsIslandTest {
                 Compiler.compileModel(library()));
         Map<String, com.legend.protocol.ts.TsCatalog.Word> byName = new LinkedHashMap<>();
         words.forEach(w -> byName.put(w.name(), w));
-        assertEquals(50, words.size(), "the words over one line: " + byName.keySet());
+        assertEquals(68, words.size(), "the words: " + byName.keySet());
         assertTrue(byName.keySet().stream().noneMatch(n -> n.contains("::")), "the helpers are not words");
         for (com.legend.protocol.ts.TsCatalog.Word w : words) {
             assertNotNull(w.doc(), w.name() + " is documented");
             assertTrue(!w.forms().isEmpty(), w.name() + " has forms");
         }
         com.legend.protocol.ts.TsCatalog.Word vol = java.util.Objects.requireNonNull(byName.get("volatility"));
-        assertEquals("w span [observations, period, all] [] optional; type word [] [simple, log, absolute] optional;"
-                + " annualization_factor whole [] [] optional", params(vol));
+        assertEquals("x line [] [] required; w span [observations, period, all] [] optional; type word [] [simple, log,"
+                + " absolute] optional; annualization_factor whole [] [] optional", params(vol));
         assertEquals(4, vol.forms().size(), vol.forms().toString());
-        assertEquals("w span [observations, period, all, date] [] required", params(java.util.Objects.requireNonNull(
+        assertEquals("x line [] [] required; w span [observations, period, all, date] [] required", params(java.util.Objects.requireNonNull(
                 byName.get("mean"))));
-        assertEquals("date date [] [] required", params(java.util.Objects.requireNonNull(byName.get("value_at"))));
-        assertEquals("initial number [] [] optional; from since [] [] optional", params(java.util.Objects
+        assertEquals("x line [] [] required; date date [] [] required", params(java.util.Objects.requireNonNull(byName.get("value_at"))));
+        assertEquals("x line [] [] required; initial number [] [] optional; from since [] [] optional", params(java.util.Objects
                 .requireNonNull(byName.get("index"))));
-        assertEquals("obs span [observations, period] [] optional; type word [] [simple, log, absolute] optional",
+        assertEquals("x line [] [] required; obs span [observations, period] [] optional; type word [] [simple, log,"
+                + " absolute] optional",
                 params(java.util.Objects.requireNonNull(byName.get("returns"))));
     }
 

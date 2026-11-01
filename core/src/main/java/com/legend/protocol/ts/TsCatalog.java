@@ -9,75 +9,117 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * THE CATALOG IS THE LIBRARY (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, M3): {@code #TS}'s words over one line
- * are the {@code timeseries::line::} functions of the model, and what a call may give a word -- its parameters by
+ * THE CATALOG IS THE LIBRARY (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, M3): {@code #TS}'s words are the
+ * {@code timeseries::line::} functions of the model, and what a call may give a word -- its lines, its parameters by
  * place and by name, each one's kind, an option's words -- is read from the word's overloads; its documentation is its
  * {@code doc.doc}. No table of words is kept here: the binder ({@link TsFunctions#given}), the generic rule
  * ({@link TsWords}) and every reader of the catalog (a formula box's completions, the Python DSL's stubs, the guide's
  * pages) read the same overloads.
  *
- * <p>A parameter's kind from its overloads: {@code w} or {@code obs} a span where an overload pairs it with a
- * {@code unit} (a calendar period) or takes it as {@code timeseries::Scope} ({@code all}) -- else an Integer is a whole
- * number; a Float or a Number a number; an enumeration's a word of its values; a StrictDate a date (one some overloads
- * go without: a date a base is taken as of). Its place: the order of the overload that takes most.
+ * <p>A word's lines are its leading parameters a line ({@code Relation<(key:K, date:D, value:Number)>}) is given to in
+ * some overload -- one where another overload takes a number ({@code compare(x, 0)}) -- or weighted members, a basket's
+ * (its lines and weights given in pairs: {@code weighted_sum(x, 0.6, y, 0.4)}). A parameter's kind from its overloads:
+ * {@code w} or {@code obs} a span where an overload pairs it with a {@code unit} (a calendar period) or takes it as
+ * {@code timeseries::Scope} ({@code all}) -- else an Integer is a whole number; a Float or a Number a number; an
+ * enumeration's a word of its values; a StrictDate a date (one some overloads go without: a date a base is taken as of).
+ * A {@code timeseries::Sample} is the query's SAMPLE BY, never given. Its place: the order of the overload that takes
+ * most.
  */
 public final class TsCatalog {
 
     private TsCatalog() {
     }
 
-    /** A word of the catalog: its name, its parameters by place, its forms (each overload as written: {@code
-     *  volatility(x, w: Integer, type: Returns (optional), ...)}), and its documentation (none: null). */
+    /** A word of the catalog: its name, its parameters by place (its lines first), its forms (each overload as
+     *  written: {@code volatility(x: Line, w: Integer, type: Returns (optional), ...)}), and its documentation (none:
+     *  null). */
     public record Word(String name, List<Param> params, List<String> forms, @com.legend.base.Nullable String doc) {
     }
 
-    /** A word's parameter: its name; its kind ({@code span}: a window or a lag; {@code whole}; {@code number};
-     *  {@code word}: one of {@code words}; {@code date}; {@code since}: a date a base is taken as of); what a span takes
-     *  ({@code observations}, {@code period} -- a calendar span, {@code 3mo} --, {@code all}, {@code date} -- a date on);
-     *  an option's words; and whether every call gives it (a parameter some overload goes without, or takes as
-     *  {@code [0..1]}, has a default: the library's). */
+    /** A word's parameter: its name; its kind ({@code line}; {@code line_or_number}; {@code members}: lines with their
+     *  weights; {@code span}: a window or a lag; {@code whole}; {@code number}; {@code word}: one of {@code words};
+     *  {@code date}; {@code since}: a date a base is taken as of); what a span takes ({@code observations},
+     *  {@code period} -- a calendar span, {@code 3mo} --, {@code all}, {@code date} -- a date on); an option's words; and
+     *  whether every call gives it (a parameter some overload goes without, or takes as {@code [0..1]}, has a default:
+     *  the library's). */
     public record Param(String name, String kind, List<String> takes, List<String> words, boolean required) {
     }
 
-    /** Every word over one line the model's library defines, by name. */
+    /** The type of the parameter a word's SAMPLE BY is: never given, the query's. */
+    static final String SAMPLE = TsToPure.LIBRARY + "Sample";
+
+    /** Every word the model's library defines, by name. */
     public static List<Word> words(TsToPure.Model model) {
         List<Word> out = new ArrayList<>();
         for (String name : model.functionsIn(TsWords.PACKAGE.substring(0, TsWords.PACKAGE.length() - 2))) {
             List<TsToPure.Overload> overloads = model.overloads(TsWords.PACKAGE + name);
-            List<Param> params = signature(model, overloads).params().stream().map(p -> new Param(p.name(),
+            List<Param> params = new ArrayList<>();
+            for (String line : lines(overloads)) {
+                params.add(new Param(line, lineKind(overloads, line), List.of(), List.of(), required(overloads, line)));
+            }
+            signature(model, overloads).params().forEach(p -> params.add(new Param(p.name(),
                     p.kind().name().toLowerCase(java.util.Locale.ROOT), takes(overloads, p), p.words(),
-                    required(overloads, p.name()))).toList();
-            out.add(new Word(name, params, overloads.stream().map(o -> TsWords.form(name, o.params())).toList(),
-                    overloads.stream().map(TsToPure.Overload::doc).filter(java.util.Objects::nonNull).findFirst()
-                            .orElse(null)));
+                    required(overloads, p.name()))));
+            out.add(new Word(name, List.copyOf(params), overloads.stream().map(o -> TsWords.form(name, o.params()))
+                    .toList(), overloads.stream().map(TsToPure.Overload::doc).filter(java.util.Objects::nonNull)
+                    .findFirst().orElse(null)));
         }
         return out;
     }
 
-    /** {@code word}'s signature, read from its overloads in {@code model}. */
+    /** {@code word}'s signature, read from its overloads in {@code model}: its lines' count (-1: weighted members, any
+     *  number), its other parameters. */
     static TsFunctions.Signature signature(TsToPure.Model model, String word) {
         return signature(model, model.overloads(TsWords.PACKAGE + word));
     }
 
     private static TsFunctions.Signature signature(TsToPure.Model model, List<TsToPure.Overload> overloads) {
-        // the order of the overload that takes most; a calendar span's unit rides its count's parameter
-        List<TsToPure.Parameter> widest = overloads.stream().map(TsToPure.Overload::params)
-                .max(java.util.Comparator.comparingInt(List::size)).orElse(List.of());
+        List<String> lines = lines(overloads);
+        boolean members = overloads.stream().anyMatch(o -> !o.params().isEmpty()
+                && TsToPure.MEMBERS.equals(o.params().get(0).type()));
+        // the order of the overload that takes most, then any another names; a calendar span's unit rides its count's
+        // parameter; SAMPLE BY's the query's
+        List<List<TsToPure.Parameter>> orders = new ArrayList<>();
+        overloads.stream().map(TsToPure.Overload::params).max(java.util.Comparator.comparingInt(List::size))
+                .ifPresent(orders::add);
+        overloads.forEach(o -> orders.add(o.params()));
         Map<String, TsFunctions.Param> params = new LinkedHashMap<>();
-        for (TsToPure.Parameter p : widest) {
-            if (!"unit".equals(p.name())) {
-                params.put(p.name(), param(model, overloads, p));
-            }
-        }
-        // a parameter only another overload names (a window's date form under its own name) after them
-        for (TsToPure.Overload o : overloads) {
-            for (TsToPure.Parameter p : o.params()) {
-                if (!"unit".equals(p.name()) && !params.containsKey(p.name())) {
+        for (List<TsToPure.Parameter> ps : orders) {
+            for (TsToPure.Parameter p : ps) {
+                if (!"unit".equals(p.name()) && !SAMPLE.equals(p.type()) && !lines.contains(p.name())
+                        && !params.containsKey(p.name())) {
                     params.put(p.name(), param(model, overloads, p));
                 }
             }
         }
-        return new TsFunctions.Signature(1, List.copyOf(params.values()));
+        return new TsFunctions.Signature(members ? -1 : lines.size(), List.copyOf(params.values()));
+    }
+
+    /** A word's lines: its leading parameters some overload gives a line (or weighted members). */
+    private static List<String> lines(List<TsToPure.Overload> overloads) {
+        List<TsToPure.Parameter> widest = overloads.stream().map(TsToPure.Overload::params)
+                .max(java.util.Comparator.comparingInt(List::size)).orElse(List.of());
+        List<String> out = new ArrayList<>();
+        for (TsToPure.Parameter p : widest) {
+            boolean line = overloads.stream().anyMatch(o -> o.params().stream().anyMatch(q -> q.name().equals(p.name())
+                    && (TsToPure.LINE.equals(q.type()) || TsToPure.MEMBERS.equals(q.type()))));
+            if (!line) {
+                break;
+            }
+            out.add(p.name());
+        }
+        return out;
+    }
+
+    private static String lineKind(List<TsToPure.Overload> overloads, String name) {
+        boolean members = overloads.stream().anyMatch(o -> o.params().stream().anyMatch(q -> q.name().equals(name)
+                && TsToPure.MEMBERS.equals(q.type())));
+        if (members) {
+            return "members";
+        }
+        boolean number = overloads.stream().anyMatch(o -> o.params().stream().anyMatch(q -> q.name().equals(name)
+                && !TsToPure.LINE.equals(q.type())));
+        return number ? "line_or_number" : "line";
     }
 
     private static TsFunctions.Param param(TsToPure.Model model, List<TsToPure.Overload> overloads,

@@ -78,24 +78,49 @@ final class TsWords {
     record Word(String word) implements Given {
     }
 
+    /** What a call gives a word in a line's place: a line, a number (a word some overload of which takes one there:
+     *  {@code compare(x, 0)}), or lines with their weights (a basket's members). */
+    sealed interface Arg permits LineArg, NumArg, MembersArg {
+    }
+
+    /** A line. */
+    record LineArg(TsLines.Valued line) implements Arg {
+    }
+
+    /** A number. */
+    record NumArg(double value) implements Arg {
+    }
+
+    /** Lines, each with its weight. */
+    record MembersArg(List<TsLines.Valued> lines, List<Double> weights) implements Arg {
+    }
+
     /** Whether the library defines {@code word} over lines. */
     static boolean defines(TsFunctions.Ctx c, String word) {
         return !c.model().overloads(PACKAGE + word).isEmpty();
     }
 
-    /**
-     * {@code word} of {@code x}, each of {@code given} (by parameter name; a window under {@code w}) bound to the
-     * overload it fits: the word's line, its period and its number in time as the language's lines are.
-     */
+    /** {@code word} of the one line {@code x}, each of {@code given} bound to the overload it fits ({@link #call}). */
     static TsLines.Valued call(TsFunctions.Ctx c, String word, TsLines.Valued x, Map<String, Given> given,
             SqlAst.Pos pos) {
+        return call(c, word, List.of(new LineArg(x)), given, pos);
+    }
+
+    /**
+     * {@code word} of {@code args} (its lines, in place), each of {@code given} (by parameter name; a window under
+     * {@code w}) bound to the overload it fits: the word's line, its period and its number in time as the language's
+     * lines are. A line of no instrument given with lines per instrument is every instrument's (R2: the library's each).
+     */
+    static TsLines.Valued call(TsFunctions.Ctx c, String word, List<Arg> args, Map<String, Given> given,
+            SqlAst.Pos pos) {
         List<TsToPure.Overload> overloads = c.model().overloads(PACKAGE + word);
+        TsLines.Line key = keyLine(args, word, pos);
         List<List<ValueSpecification>> fits = new ArrayList<>();
         List<TsToPure.Overload> fitting = new ArrayList<>();
         for (TsToPure.Overload o : overloads) {
-            List<ValueSpecification> args = bind(c, o.params(), given);
-            if (args != null) {
-                fits.add(args);
+            List<ValueSpecification> bound = bind(c, o.params(), args, key, given, pos);
+            if (bound != null) {
+                fits.add(bound);
                 fitting.add(o);
             }
         }
@@ -107,18 +132,14 @@ final class TsWords {
             throw new IllegalStateException("the library's " + PACKAGE + word + " has " + fits.size()
                     + " overloads a call fits: " + given.keySet());
         }
-        TsLines.Line l = x.line();
-        List<ValueSpecification> args = new ArrayList<>();
-        args.add(in(l, x.value(), pos));
-        args.addAll(fits.get(0));
         // the answer's value columns: a word's value, or a struct's fields (R10), each under a fresh name
         List<String> gives = fitting.get(0).gives();
         Map<String, String> outs = new LinkedHashMap<>();
         for (String g : gives) {
             outs.put(g, c.fresh("value".equals(g) ? word : word + "_" + g));
         }
-        ValueSpecification rel = back(c, TsLines.call(PACKAGE + word, args), l, outs);
-        TsLines.Line line = new TsLines.Line(rel, l.part(), l.byInstrument(), l.at(), l.seconds());
+        ValueSpecification rel = back(c, TsLines.call(PACKAGE + word, fits.get(0)), key, outs);
+        TsLines.Line line = new TsLines.Line(rel, key.part(), key.byInstrument(), key.at(), key.seconds());
         String first = outs.values().iterator().next();
         if (!gives.equals(List.of("value"))) {
             c.struct(first, java.util.Collections.unmodifiableMap(new LinkedHashMap<>(outs)));
@@ -126,18 +147,49 @@ final class TsWords {
         return new TsLines.Valued(line, first);
     }
 
-    /** {@code o}'s arguments from {@code given}, or null where {@code o} does not fit: every given value taken, every
-     *  parameter given or defaulted. */
+    /** The line whose key and date the answer takes: the first line per instrument among {@code args}, else the first
+     *  line. Refused (R2): lines by two instrument columns. */
+    private static TsLines.Line keyLine(List<Arg> args, String word, SqlAst.Pos pos) {
+        List<TsLines.Line> lines = new ArrayList<>();
+        for (Arg a : args) {
+            switch (a) {
+                case LineArg l -> lines.add(l.line().line());
+                case MembersArg m -> m.lines().forEach(v -> lines.add(v.line()));
+                case NumArg n -> {
+                }
+            }
+        }
+        if (lines.isEmpty()) {
+            throw SqlTranslationException.invalid(word + " reads a line: its arguments are numbers", pos);
+        }
+        TsLines.Line key = lines.stream().filter(TsLines.Line::byInstrument).findFirst().orElse(lines.get(0));
+        for (TsLines.Line l : lines) {
+            if (l.byInstrument() && !l.part().equals(key.part())) {
+                throw SqlTranslationException.invalid("lines by " + key.part() + " and lines by " + l.part()
+                        + " meet on no instrument: pick one line of one with a subscript (R2)", pos);
+            }
+        }
+        return key;
+    }
+
+    /** {@code o}'s arguments from {@code args} (in its leading parameters' places) and {@code given}, or null where
+     *  {@code o} does not fit: every argument taken, every parameter given or defaulted. */
     private static @com.legend.base.Nullable List<ValueSpecification> bind(TsFunctions.Ctx c,
-            List<TsToPure.Parameter> o, Map<String, Given> given) {
+            List<TsToPure.Parameter> o, List<Arg> args, TsLines.Line key, Map<String, Given> given, SqlAst.Pos pos) {
+        if (o.size() < args.size()) {
+            return null;
+        }
         Set<String> taken = new LinkedHashSet<>();
-        List<ValueSpecification> args = new ArrayList<>();
+        List<ValueSpecification> out = new ArrayList<>();
         // a calendar span (a window w, a lag's obs) takes the unit parameter beside its count's
         Calendar span = given.values().stream().filter(g -> g instanceof Calendar).map(g -> (Calendar) g).findFirst()
                 .orElse(null);
-        for (TsToPure.Parameter p : o) {
+        for (int i = 0; i < o.size(); i++) {
+            TsToPure.Parameter p = o.get(i);
             ValueSpecification v;
-            if ("unit".equals(p.name()) && span != null) {
+            if (i < args.size()) {
+                v = argument(c, args.get(i), p, key, pos);
+            } else if ("unit".equals(p.name()) && span != null) {
                 Calendar cal = span;
                 v = DURATION.equals(p.type()) ? new EnumValue(DURATION, cal.unit()) : null;
             } else if (given.containsKey(p.name())) {
@@ -145,19 +197,64 @@ final class TsWords {
                 taken.add(p.name());
             } else if ("annualization_factor".equals(p.name()) && sampledPerYear(c) != null) {
                 v = new CInteger(java.util.Objects.requireNonNull(sampledPerYear(c)));
+            } else if (TsCatalog.SAMPLE.equals(p.type()) && c.query().sample() != null) {
+                // the lines meet on SAMPLE BY's periods
+                v = TsLines.sample(java.util.Objects.requireNonNull(c.query().sample()).unit());
             } else {
                 v = p.optional() ? new PureCollection(List.of()) : null;
             }
             if (v == null) {
                 return null;
             }
-            args.add(v);
+            out.add(v);
         }
         // a calendar span takes its unit's parameter too: an overload without one does not fit it
         if (span != null && o.stream().noneMatch(p -> "unit".equals(p.name()))) {
             return null;
         }
-        return taken.equals(given.keySet()) ? args : null;
+        return taken.equals(given.keySet()) ? out : null;
+    }
+
+    /** {@code a}, given in {@code p}'s place, as its value: a line as a word takes it (every instrument's of
+     *  {@code key}'s, where it is of none and {@code key} per instrument); a number; members as their long relation.
+     *  Null where {@code p} takes another kind. */
+    private static @com.legend.base.Nullable ValueSpecification argument(TsFunctions.Ctx c, Arg a,
+            TsToPure.Parameter p, TsLines.Line key, SqlAst.Pos pos) {
+        return switch (a) {
+            case LineArg l -> TsToPure.LINE.equals(p.type()) ? each(l.line(), key, pos) : null;
+            case NumArg n -> "Float".equals(p.type()) || "Number".equals(p.type()) ? new CFloat(n.value()) : null;
+            case MembersArg m -> TsToPure.MEMBERS.equals(p.type()) ? members(m, key, pos) : null;
+        };
+    }
+
+    /** {@code v} as a word takes it, every instrument's of {@code key}'s where it is of none and {@code key} per
+     *  instrument (R2, the library's each). */
+    private static ValueSpecification each(TsLines.Valued v, TsLines.Line key, SqlAst.Pos pos) {
+        ValueSpecification line = in(v.line(), v.value(), pos);
+        if (key.byInstrument() && !v.line().byInstrument()) {
+            return TsLines.call(PACKAGE + "helpers::each", line, in(key, keyValue(key), pos));
+        }
+        return line;
+    }
+
+    /** A value column of {@code key}'s, for its keys alone (each). */
+    private static String keyValue(TsLines.Line key) {
+        return TsLines.ORD;
+    }
+
+    /** Members as the long relation a basket reads: each line (every instrument's, as {@link #each}), its number from
+     *  0 and its weight, concatenated. */
+    private static ValueSpecification members(MembersArg m, TsLines.Line key, SqlAst.Pos pos) {
+        ValueSpecification all = null;
+        for (int i = 0; i < m.lines().size(); i++) {
+            ValueSpecification one = TsLines.call("extend", each(m.lines().get(i), key, pos), new ColSpecArray(List.of(
+                    new ColSpec("member", TsLines.lambda("x", new CInteger((long) i))),
+                    new ColSpec("weight", TsLines.lambda("x", new CFloat(m.weights().get(i)))))));
+            one = TsLines.call("select", one, new ColSpecArray(List.of(new ColSpec("key"), new ColSpec("date"),
+                    new ColSpec("member"), new ColSpec("weight"), new ColSpec("value"))));
+            all = all == null ? one : TsLines.call("concatenate", all, one);
+        }
+        return java.util.Objects.requireNonNull(all, "members");
     }
 
     /** {@code g} as the value of {@code p}, or null where it is of another kind. */
@@ -202,8 +299,11 @@ final class TsWords {
 
     /** {@code word(x, ...)} as written: an overload's parameters, a refusal's words. */
     static String form(String word, List<TsToPure.Parameter> o) {
-        List<String> ps = new ArrayList<>(List.of("x"));
+        List<String> ps = new ArrayList<>();
         for (TsToPure.Parameter p : o) {
+            if (TsCatalog.SAMPLE.equals(p.type())) {
+                continue;
+            }
             String type = p.type().substring(p.type().lastIndexOf(':') + 1);
             ps.add(p.name() + ": " + type + (p.optional() ? " (optional)" : ""));
         }

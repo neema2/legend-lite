@@ -97,16 +97,24 @@ public final class TsToPure {
         List<String> functionsIn(String pkg);
     }
 
-    /** A function's overload as {@link Model#overloads} reports it: its parameters after its first (a word's line), in
-     *  order, the columns of the relation it answers after its key and its date (a word's value, or a struct's fields: a
-     *  band's lower, upper and width), and its documentation ({@code doc.doc}; none: null). */
+    /** A function's overload as {@link Model#overloads} reports it: its parameters in order (a word's lines first), the
+     *  columns of the relation it answers after its key and its date (a word's value, or a struct's fields: a band's
+     *  lower, upper and width), and its documentation ({@code doc.doc}; none: null). */
     public record Overload(List<Parameter> params, List<String> gives, @com.legend.base.Nullable String doc) {
     }
 
     /** A function's parameter as {@link Model#overloads} reports it: its name, its type's path ({@code Integer},
-     *  {@code timeseries::Returns}), and whether it may be given none (multiplicity {@code [0..1]}). */
+     *  {@code timeseries::Returns}; a line {@link #LINE}, weighted members {@link #MEMBERS}), and whether it may be given
+     *  none (multiplicity {@code [0..1]}). */
     public record Parameter(String name, String type, boolean optional) {
     }
+
+    /** A parameter's type where it is a line, {@code Relation<(key:K, date:D, value:Number)>}. */
+    public static final String LINE = "Line";
+
+    /** A parameter's type where it is lines with their weights, a long relation {@code Relation<(key:K, date:D,
+     *  member:Integer, weight:Float, value:Number)>}: a basket's members. */
+    public static final String MEMBERS = "Members";
 
     /** A class's property, as {@link Model#property} reports it: its name, its type's name, the class it holds
      *  (none: null), whether it holds one value at most, whether it takes parameters (a qualified property). */
