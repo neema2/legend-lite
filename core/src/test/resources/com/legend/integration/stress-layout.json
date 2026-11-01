@@ -16,6 +16,7 @@
     "99-intraday-services.pure": "stress",
     "99-m2m-services.pure": "stress",
     "99-mapping-tests.pure": "stress",
+    "99-outer-services.pure": "stress",
     "99-relmap-services.pure": "stress",
     "99-semi-services.pure": "stress",
     "99-typed-services.pure": "stress",

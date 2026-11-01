@@ -21349,16 +21349,45 @@ SEMI_HOP = [
     dict(HOP_ID="HP-7", LABEL="unused route"),           # no leg names it
 ]
 
+# ---- outer::OuterDB (8119-outer.pure; Phase 9) ----
+#
+# An order allocated, an allocation booked to an account, with rows on ONE side only at each hop, so a join type read
+# wrongly changes which rows a ~filter's class has (scripts/corpus/outer.py): an order whose allocation does not exist
+# (OR-3), one with none (OR-4); an allocation whose account does not exist (AL-2's AC-9), one with none (AL-5), and one
+# no order reaches (AL-3); an account no allocation reaches (AC-4), and one with no label (AC-6).
+OJ_ORDER = [
+    dict(ORDER_ID="OR-1", ALLOC_ID="AL-1"),
+    dict(ORDER_ID="OR-2", ALLOC_ID="AL-2"),
+    dict(ORDER_ID="OR-3", ALLOC_ID="AL-9"),
+    dict(ORDER_ID="OR-4", ALLOC_ID=None),
+    dict(ORDER_ID="OR-5", ALLOC_ID="AL-5"),
+    dict(ORDER_ID="OR-6", ALLOC_ID="AL-6"),
+]
+OJ_ALLOC = [
+    dict(ALLOC_ID="AL-1", ACCOUNT_ID="AC-1"),
+    dict(ALLOC_ID="AL-2", ACCOUNT_ID="AC-9"),
+    dict(ALLOC_ID="AL-3", ACCOUNT_ID="AC-3"),
+    dict(ALLOC_ID="AL-5", ACCOUNT_ID=None),
+    dict(ALLOC_ID="AL-6", ACCOUNT_ID="AC-6"),
+]
+OJ_ACCOUNT = [
+    dict(ACCOUNT_ID="AC-1", LABEL="Prime brokerage"),
+    dict(ACCOUNT_ID="AC-3", LABEL="Custody"),
+    dict(ACCOUNT_ID="AC-4", LABEL="Dormant"),
+    dict(ACCOUNT_ID="AC-6", LABEL=None),
+]
+
 # The tables a Phase 7 pack writes by hand, apart from the expansion (expand.candidates, expand._reserved) and joined to
 # the seed after it (flat.all_tables). A hand-written table joins the expansion's base, so J1's joins made it reach J2
 # and LEG from J1 in its first ring, rings earlier than before, which moved every later table's generated values.
-# Phase 8's CK_ tables are apart for the same reason, and Phase 9's: SEMI_DOC and SEMI_HOP have single keys the
-# expansion would otherwise fill, and SURFACE_TYPES, whose composite key the expansion never fills, is apart so the
-# rule names every hand-seeded table.
+# Phase 8's CK_ tables are apart for the same reason, and Phase 9's: SEMI_DOC, SEMI_HOP and the OJ_ tables have single
+# keys the expansion would otherwise fill, and SURFACE_TYPES, whose composite key the expansion never fills, is apart so
+# the rule names every hand-seeded table.
 PACK_TABLES: dict[str, list[dict]] = {"OP_CAR": OP_CAR, "OP_TRUCK": OP_TRUCK, "J1": J1,
                                       "CK_DESK": CK_DESK, "CK_DEAL": CK_DEAL, "CK_BASKET": CK_BASKET,
                                       "CK_LINE": CK_LINE,
-                                      "SURFACE_TYPES": SURFACE_TYPES, "SEMI_DOC": SEMI_DOC, "SEMI_HOP": SEMI_HOP}
+                                      "SURFACE_TYPES": SURFACE_TYPES, "SEMI_DOC": SEMI_DOC, "SEMI_HOP": SEMI_HOP,
+                                      "OJ_ORDER": OJ_ORDER, "OJ_ALLOC": OJ_ALLOC, "OJ_ACCOUNT": OJ_ACCOUNT}
 
 TABLES: dict[str, list[dict]] = {
     "PROJECTLINK_TRADE_FX": PROJECTLINK_TRADE_FX,

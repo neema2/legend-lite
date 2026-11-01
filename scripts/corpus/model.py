@@ -510,6 +510,10 @@ class Corpus:
     # on, so a row whose chain breaks is excluded -- unlike a to-one projection, where a
     # broken chain yields NULL and the row survives.
     class_filter_chain: dict[str, tuple[list[str], str]] = field(default_factory=dict)
+    # class -> each hop's join type in its ~filter chain, 'INNER', 'OUTER' or None (untyped), hop by hop (Phase 9):
+    # an untyped hop and an OUTER one leave the row with NULL columns where they land on nothing, an INNER one drops
+    # it (probed on legend-engine 4.145.0; oracle._filter_over_chain).
+    filter_chain_types: dict[str, list] = field(default_factory=dict)
 
     # (class, property) pairs declared in a MAPPING with `+` rather than on the class.
     local_props: set = field(default_factory=set)
@@ -743,9 +747,12 @@ _CLS_FILTER = re.compile(r"^\s*~filter\s*\[[\w:]+\]\s*(\w+)\s*$")
 # the leading pointer and before any later hop. The pattern admitted neither, so a filter
 # using one raised rather than being read; the kind changes which rows survive the hop, so
 # reading past it silently would be worse than the raise.
+# One hop of a ~filter chain with its join type, wherever the type is written: before the [db] pointer of a later hop,
+# or between the pointer and `@` of the leading one.
+_TYPED_HOP = re.compile(r"(?:\(\s*(\w+)\s*\)\s*)?(?:\[[\w:]+\]\s*)?(?:\(\s*(\w+)\s*\)\s*)?@(\w+)")
 _CLS_FILTER_CHAIN = re.compile(
     r"^\s*~filter\s*(?:\[[\w:]+\]\s*)?(?:\(\s*\w+\s*\)\s*)?"
-    r"((?:@\w+\s*(?:>\s*(?:\[[\w:]+\]\s*)?(?:\(\s*\w+\s*\)\s*)?)?)+)"
+    r"((?:@\w+\s*(?:>\s*(?:\(\s*\w+\s*\)\s*)?(?:\[[\w:]+\]\s*)?(?:\(\s*\w+\s*\)\s*)?)?)+)"
     r"\|\s*(?:\[[\w:]+\]\s*)?(\w+)\s*$")
 # Stereotypes carry the temporal marker: `Class <<temporal.businesstemporal>> pkg::Name`
 # The trailing `\s*$` used to be unconditional, which meant `Class X extends Y` did not
@@ -856,7 +863,7 @@ _CHAIN_CALL_START = re.compile(r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:]*?
 # trailing `T.COL` and record the property as a plain column of the MAIN table -- turning a
 # navigation into a copy, silently and wrongly.
 _CHAINMAP = re.compile(
-    r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:.]*?)\|\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
+    r"(\w+)\s*:\s*((?:\[[\w:]+\]\s*)?@[\w@\s>\[\]:.()]*?)\|\s*(?:\[[\w:]+\]\s*)?(\w+)\.(\w+)")
 _CHAINJOIN = re.compile(r"@(\w+)")
 
 # `prop[targetSetId]: [db]@Join` -- a CLASS-TYPED property mapped over a join, with no
@@ -1739,6 +1746,9 @@ def _parse_mapping(text: str, c: Corpus, mapping_name: str | None = None) -> Non
         m = _CLS_FILTER_CHAIN.match(line)
         if m and cur:
             c.class_filter_chain[cur] = (_CHAINJOIN.findall(m.group(1)), m.group(2))
+            # Each hop's join type, typed or not (Phase 9): the leading hop's written `[db] (TYPE) @J`, a later one's
+            # `> (TYPE) [db]@J`.
+            c.filter_chain_types[cur] = [a or b or None for a, b, _j in _TYPED_HOP.findall(line.split("|")[0])]
             continue
         # A ~filter this reader cannot model changes what the class MEANS -- all() returns a
         # different row set -- so every expectation for that class would be silently wrong.

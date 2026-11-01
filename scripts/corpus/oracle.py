@@ -2835,8 +2835,28 @@ def _mapping_filtered(c: Corpus, root: str, rows: list[dict],
             raise Unsupported(
                 f"~filter chain on {root} ends at {landed_table}, but filter {fname} tests "
                 f"{ftable}")
-        rows = [r for r in rows if _filter_holds(c, fname, walk(c, data, r, hops))]
+        kinds = c.filter_chain_types.get(root) or [None] * len(hops)
+        rows = [r for r in rows if _filter_over_chain(c, data, r, hops, kinds, fname)]
     return rows
+
+
+def _filter_over_chain(c: Corpus, data, row: dict, hops, kinds, fname: str) -> bool:
+    """A ~filter through a join chain, as legend-engine 4.145.0 joins it (probed by the improvement plan's Phase 9 on
+    H2 and DuckDB): each hop is an OUTER join unless it is typed (INNER). A hop that lands on nothing leaves the row
+    with NULL columns on its far side, and the filter is tested over them -- `T.X is null` holds there, a comparison
+    does not -- while an INNER hop that lands on nothing drops the row. Before Phase 9 every hop was read as INNER, which
+    answers the same for every filter that a NULL fails, and every chain filter the corpus had was one."""
+    if len(kinds) != len(hops):
+        raise Unsupported(f"~filter chain of {len(hops)} hops read with {len(kinds)} join types")
+    cur = row
+    for hop, kind in zip(hops, kinds):
+        if kind not in (None, "INNER", "OUTER"):
+            raise Unsupported(f"~filter chain hop typed {kind!r}")
+        nxt = None if cur is None else walk(c, data, cur, [hop])
+        if nxt is None and kind == "INNER":
+            return False
+        cur = nxt
+    return _filter_holds(c, fname, cur if cur is not None else {})
 
 
 # The milestoning dimensions a temporal stereotype carries, in the order all() and a milestoned

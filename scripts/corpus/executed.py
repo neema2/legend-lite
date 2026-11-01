@@ -357,7 +357,23 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     _checks_features(specs, quarantined, add)
     _test_form_features(specs, quarantined, add)
     _semi_features(specs, quarantined, add)
+    _outer_features(specs, quarantined, add)
     return out
+
+
+def _outer_features(specs, quarantined: set[str], add) -> None:
+    """Explicit join types (the improvement plan's Phase 9, outer.py), each executed when a passing service over a
+    class of that typing runs, on either database (OJT_ on H2, OJR_ on DuckDB)."""
+    live = {s.short[4:] for s in specs if s.name not in quarantined and s.name.startswith(("stress::OJT_",
+                                                                                           "stress::OJR_"))}
+
+    def of(*names):
+        return sorted(n for n in live if n in names)
+
+    add("O9  typed hop in a property chain", of("Booked", "BookedIn"))
+    add("O9  ~filter through an OUTER join", of("NoAccOuter", "NoLabelOuter", "NoLabelMixed"))
+    add("O9  ~filter through an INNER join", of("NoAccInner", "NoLabelInner", "NoLabelMixed"))
+    add("O9  ~filter through an untyped join", of("NoAccPlain", "NoLabelPlain"))
 
 
 def _semi_features(specs, quarantined: set[str], add) -> None:
@@ -753,10 +769,12 @@ def all_specs(c: model.Corpus):
     # The typed and intraday services after spread's, which must not see them: spread measures what
     # the walking generators leave uncovered (literals.FIXTURE_TABLES says why the packs are apart).
     import checks
+    import outer
     import semi
 
     return (base + spread.build(c, seeded, base) + literals.build() + intraday.build()
-            + vocab.build(c, tables) + unreached.build(c, tables) + checks.specs(c) + semi.specs(c))
+            + vocab.build(c, tables) + unreached.build(c, tables) + checks.specs(c) + semi.specs(c)
+            + outer.specs(c))
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.
@@ -841,6 +859,10 @@ BASELINE = {
     "S9  semi-structured filter", "S9  semi-structured store filter", "S9  Binding over a semi-structured column",
     "S9  semi-structured flatten", "S9  semi-structured explode", "S9  semi-structured wildcard path",
     "S9  semi-structured array function",
+    # 2026-10-31, the improvement plan's Phase 9, stage 2 (outer.py): explicit join types in a mapping's join chains,
+    # each executed by passing services on legend-engine 4.145.0, on H2 and on DuckDB.
+    "O9  typed hop in a property chain", "O9  ~filter through an OUTER join", "O9  ~filter through an INNER join",
+    "O9  ~filter through an untyped join",
 }
 
 
