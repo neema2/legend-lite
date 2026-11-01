@@ -341,6 +341,11 @@ test_suite(
         # manual, its numbers printed
         "//datacube:timeseries_sql_measure",
         "//datacube:ts_examples_measure",
+        # the library-defines-the-language spike and C1's frame-offset probe (2026-10-31,
+        # docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3 and §3a): manual evidence, run by hand; found in no lane
+        # by the lane guard on PR #86 (2026-11-01)
+        "//core:ts_line_spike_test",
+        "//core:frame_offset_probe_test",
         # the DataCube screenshot tour (docs/DATACUBE_TOUR.md, 2026-10-17): manual, run from time to time; its gallery
         # in the test's outputs
         "//datacube:tour_test",

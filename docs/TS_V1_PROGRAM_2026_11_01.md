@@ -9,7 +9,9 @@ write it down so we can run the program". Ruled the same day:
 - **P6.** The holiday calendar is built in the platform, in v1.1 ("We should build holiday calendar in platform that
   can be part of v1.1").
 
-Still open (§5): whether intraday is in v1 (P1b) and the page period (P2). The design that governs the language is still `docs/TS_ONE_TREE_PLAN_2026_10_31.md`: its
+- **P1b.** Intraday moves to v1.1 with the calendar ("agreed intraday can also move to 1.1").
+- **P2.** Option D, with every tile zooming. This was read from "Yes do it", the answer to that question and to
+  watching #86, so it is to be confirmed before B7. The design that governs the language is still `docs/TS_ONE_TREE_PLAN_2026_10_31.md`: its
 decisions D1 to D13, and its rulings in §9. That plan's §6a is the state this program starts from. This document is
 the order of the work from that point on, and covers everything past it as well.
 
@@ -47,7 +49,7 @@ v1 is done when every one of the following holds, each proved by a test rather t
 | V3 | **It runs on real warehouses.** The frozen answers hold on DuckDB, Postgres and Snowflake (P4) | the warehouse lanes (B1) |
 | V4 | **It holds at real size.** The scale benchmarks stay within their budgets | the measure targets (B2) |
 | V5 | **Every word has a second opinion.** Each word has an outside oracle (gs-quant, TA-Lib, statsmodels or pandas), or is named as having none | the oracle's report (B5) |
-| V6 | **Clocks, if P1b puts intraday in v1.** Time zones, trading sessions and `SAMPLE BY` under a day. The holiday calendar is v1.1 (P6), and intraday is recommended to go with it | B6's tests |
+| V6 | **Calendars and clocks: v1.1, not v1** (P6, P1b). The platform's holiday calendar, time zones, trading sessions and `SAMPLE BY` under a day | B6's tests, in v1.1 |
 | V7 | **The page is a dashboard.** The page period, cross-filtering, slicers, drill-through and bookmarks; text, title, image and filter tiles | B7's and B8's tests |
 | V8 | **The gate.** `//gates:local`, the Postgres lanes and the Python suites are green, and CI is green on every OS on the pull request that lands v1 | §8 |
 
@@ -107,8 +109,8 @@ plus 53 more commits, and is behind `main` by none. The commits are listed in th
 | | In | Why |
 |---|---|---|
 | **Part A, the fixes** | A1 to A10 (§3), except A7 | finish what the one-tree plan set out to do before anything is built on it |
-| **Part B, v1** | B1 to B8 (§4), except B6a; B6b unless P1b moves it | without these it is not a timeseries product a desk would adopt |
-| **Part C, v1.1** | the platform's holiday calendar (B6a, P6); intraday with it, if P1b rules so (B6b); trend lines, forecasts and annotations on the general charts; units and currency (C2 of the parity note); time intelligence and the time spine (C3); live data; a crosshair linked across tiles; the service: share, permissions, versions, schedules, alerts; H2's deep plans (A7: H2 is not a v1 target, P4) | real value, but none of it blocks a quant's first week |
+| **Part B, v1** | B1 to B8 (§4), except B6 | without these it is not a timeseries product a desk would adopt |
+| **Part C, v1.1** | the platform's holiday calendar (B6a, P6) and intraday with it (B6b, P1b); trend lines, forecasts and annotations on the general charts; units and currency (C2 of the parity note); time intelligence and the time spine (C3); live data; a crosshair linked across tiles; the service: share, permissions, versions, schedules, alerts; H2's deep plans (A7: H2 is not a v1 target, P4) | real value, but none of it blocks a quant's first week |
 | **Part D, not v1** | AI and augmented analytics; maps; storytelling | the gap analysis's tier 5, and nothing timeseries-specific |
 
 Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tiers 2 to 4) and
@@ -360,7 +362,7 @@ Split in two:
   - The platform ships each exchange's calendar as model data: its trading days, holidays, trading hours and time
     zone. A user's model can add to it or override it.
   - Windows and `SAMPLE BY` periods can be counted in business days (gs-quant's `b` tenors).
-- **B6b, intraday: open (P1b), recommended for v1.1 with the calendar.** Intraday is not just more rows. Today a
+- **B6b, intraday: v1.1, with the calendar** (P1b, ruled 2026-11-01). Intraday is not just more rows. Today a
   date-time source can already be read, windows already take `h`, `min` and `s`, and a rate already accrues over the
   hours between ticks. What intraday adds:
   - **`SAMPLE BY` under a day.** Today it takes `d`, `w`, `mo`, `q` and `y` only (`TsParser.PERIODS`). Intraday adds
@@ -416,8 +418,8 @@ Split in two:
 | # | Question | Recommended | Needed by |
 |---|---|---|---|
 | P1 | The v1 cut (§2) | **ruled 2026-11-01**: "Looks great for v1 and v1.1!" | -- |
-| P1b | Intraday (B6b) in v1, or in v1.1 with the platform's calendar | v1.1, with the calendar: trading hours and zones are the calendar's data | B6 |
-| P2 | The page period: options A to E, and whether the brushed tile zooms too | D, every tile zooms (below) | B7 |
+| P1b | Intraday (B6b) in v1, or in v1.1 with the platform's calendar | **ruled 2026-11-01**: v1.1 ("agreed intraday can also move to 1.1") | -- |
+| P2 | The page period: options A to E, and whether the brushed tile zooms too | D, every tile zooms (below); read as agreed from "Yes do it" (2026-11-01), to be confirmed | B7 |
 | P3 | A pull request for this branch, so CI runs on every OS, and its base | **ruled 2026-11-01**: stacked on #81 ("stack") | -- |
 | P4 | The databases | **ruled 2026-11-01**: DuckDB, Postgres and Snowflake ("enough for now") | -- |
 | P5 | The scale budgets | proposed from the first measurement | B2 |
@@ -455,7 +457,7 @@ Update this table in the same commit as the work.
 | Item | State | Last commit |
 |---|---|---|
 | A1 the last rules out of Java | next | |
-| A2 review and gate | waiting on A1; the PR stacked on #81 is open, so CI runs on each push | |
+| A2 review and gate | waiting on A1. PR #86, a draft stacked on #81, is open, so CI runs on each push. Its first run found two manual tests in no lane, now in `//gates:heavy`. macOS was cancelled and Linux pct_h2 ran out of runner disk, as on every PR that day | |
 | A3 one reader | | |
 | A4 the words' remainder | waiting on R1, R7, R9 | |
 | A5 the library's text off the wire | | |
@@ -464,7 +466,7 @@ Update this table in the same commit as the work.
 | A8 the ratchets | | |
 | A9 the documents | | |
 | A10 close Part A | | |
-| B1 to B8 | after Part A; B6a in v1.1 (P6); B6b waiting on P1b | |
+| B1 to B8 | after Part A; B6 in v1.1 (P6, P1b) | |
 
 ## 7. The rules (the user's, each learned the hard way)
 
