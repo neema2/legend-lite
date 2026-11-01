@@ -2523,4 +2523,27 @@ function timeseries::line::weekday_of<K,D>(x: Relation<(key:K, date:D, value:Num
 {
   $x->timeseries::weekday(~date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
+
+// Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band's
+// width -- w observations to date (a value once it holds w), a calendar period back, the line's start to date; 20
+// observations unless given. A struct (R10): its lower, upper and width.
+function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
+{
+  $x->timeseries::line::bollinger_bands(20, $k)
+}
+
+function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
+{
+  $x->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)->select(~[key, date, lower, upper, width])
+}
+
+function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
+{
+  $x->timeseries::bollingerBands(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)->select(~[key, date, lower, upper, width])
+}
+
+function timeseries::line::bollinger_bands<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1], k: Float[0..1]): Relation<(key:K, date:D, lower:Number, upper:Number, width:Number)>[1]
+{
+  $x->timeseries::bollingerBandsPeriod(~key, ~date, ~value, $w, $unit, if($k->isEmpty(), |2.0, |$k->toOne()), ~lower, ~upper, ~width)->select(~[key, date, lower, upper, width])
+}
 `;

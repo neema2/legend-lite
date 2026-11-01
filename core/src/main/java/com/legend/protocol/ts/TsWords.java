@@ -89,17 +89,19 @@ final class TsWords {
      */
     static TsLines.Valued call(TsFunctions.Ctx c, String word, TsLines.Valued x, Map<String, Given> given,
             SqlAst.Pos pos) {
-        List<List<TsToPure.Parameter>> overloads = c.model().overloads(PACKAGE + word);
+        List<TsToPure.Overload> overloads = c.model().overloads(PACKAGE + word);
         List<List<ValueSpecification>> fits = new ArrayList<>();
-        for (List<TsToPure.Parameter> o : overloads) {
-            List<ValueSpecification> args = bind(c, o, given);
+        List<TsToPure.Overload> fitting = new ArrayList<>();
+        for (TsToPure.Overload o : overloads) {
+            List<ValueSpecification> args = bind(c, o.params(), given);
             if (args != null) {
                 fits.add(args);
+                fitting.add(o);
             }
         }
         if (fits.isEmpty()) {
             throw SqlTranslationException.invalid(word + " is not called so: its forms are "
-                    + String.join(", ", overloads.stream().map(o -> form(word, o)).toList()), pos);
+                    + String.join(", ", overloads.stream().map(o -> form(word, o.params())).toList()), pos);
         }
         if (fits.size() > 1) {
             throw new IllegalStateException("the library's " + PACKAGE + word + " has " + fits.size()
@@ -109,9 +111,19 @@ final class TsWords {
         List<ValueSpecification> args = new ArrayList<>();
         args.add(in(l, x.value(), pos));
         args.addAll(fits.get(0));
-        String out = c.fresh(word);
-        ValueSpecification rel = back(c, TsLines.call(PACKAGE + word, args), l, out);
-        return new TsLines.Valued(new TsLines.Line(rel, l.part(), l.byInstrument(), l.at(), l.seconds()), out);
+        // the answer's value columns: a word's value, or a struct's fields (R10), each under a fresh name
+        List<String> gives = fitting.get(0).gives();
+        Map<String, String> outs = new LinkedHashMap<>();
+        for (String g : gives) {
+            outs.put(g, c.fresh("value".equals(g) ? word : word + "_" + g));
+        }
+        ValueSpecification rel = back(c, TsLines.call(PACKAGE + word, args), l, outs);
+        TsLines.Line line = new TsLines.Line(rel, l.part(), l.byInstrument(), l.at(), l.seconds());
+        String first = outs.values().iterator().next();
+        if (!gives.equals(List.of("value"))) {
+            c.struct(first, java.util.Collections.unmodifiableMap(new LinkedHashMap<>(outs)));
+        }
+        return new TsLines.Valued(line, first);
     }
 
     /** {@code o}'s arguments from {@code given}, or null where {@code o} does not fit: every given value taken, every
@@ -211,12 +223,15 @@ final class TsWords {
         return renamed(rel, value, "value");
     }
 
-    /** {@code rel}, a word's line, as the language's line {@code l} is: its key, date and value under {@code l}'s names
-     *  ({@code out} its value's), its period and its number in time of its date. */
-    private static ValueSpecification back(TsFunctions.Ctx c, ValueSpecification rel, TsLines.Line l, String out) {
+    /** {@code rel}, a word's line, as the language's line {@code l} is: its key and date under {@code l}'s names, each
+     *  value column under its name in {@code outs}, its period and its number in time of its date. */
+    private static ValueSpecification back(TsFunctions.Ctx c, ValueSpecification rel, TsLines.Line l,
+            Map<String, String> outs) {
         rel = renamed(rel, "key", l.part());
         rel = renamed(rel, "date", l.at());
-        rel = renamed(rel, "value", out);
+        for (Map.Entry<String, String> o : outs.entrySet()) {
+            rel = renamed(rel, o.getKey(), o.getValue());
+        }
         TsAst.Span sample = c.query().sample();
         return TsLines.call("extend", rel, new ColSpecArray(List.of(
                 new ColSpec(TsLines.PERIOD, TsLines.lambda("x", TsLines.periodOf(sample == null ? null : sample.unit(),

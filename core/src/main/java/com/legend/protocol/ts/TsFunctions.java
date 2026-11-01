@@ -478,18 +478,6 @@ final class TsFunctions {
         return switch (f) {
             case TREND, SEASONALLY_ADJUSTED -> w.done(decomposed(c, w, fc, fn, a, p.word("method"),
                     p.word("freq")));
-            case BOLLINGER_BANDS -> {
-                Span s = p.span("w");
-                CFloat k = new CFloat(p.num("k"));
-                List<String> out = s.period() == null
-                        ? w.many("bollingerBands", List.of("lower", "upper", "width"), w.window(frame(s.obs())),
-                                new ColSpec(a), new CInteger((long) s.obs()), k)
-                        : w.many("bollingerBandsPeriod", List.of("lower", "upper", "width"),
-                                new ColSpec(w.line.part()), new ColSpec(w.line.at()), new ColSpec(a),
-                                new CInteger((long) period(s.period()).n()),
-                                new EnumValue(DURATION, period(s.period()).unit()), k);
-                yield w.band(out);
-            }
             default -> throw new IllegalStateException("no writing of " + fn);
         };
     }

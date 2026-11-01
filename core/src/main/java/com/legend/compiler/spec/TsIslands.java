@@ -149,8 +149,8 @@ final class TsIslands {
         }
 
         @Override
-        public List<List<TsToPure.Parameter>> overloads(String fqn) {
-            List<List<TsToPure.Parameter>> out = new ArrayList<>();
+        public List<TsToPure.Overload> overloads(String fqn) {
+            List<TsToPure.Overload> out = new ArrayList<>();
             for (com.legend.compiler.element.TypedFunction f : model.findFunction(fqn)) {
                 List<TsToPure.Parameter> ps = new ArrayList<>();
                 for (com.legend.compiler.element.TypedParameter p : f.parameters().subList(Math.min(1,
@@ -159,7 +159,13 @@ final class TsIslands {
                             && b.lower() == 0 && Integer.valueOf(1).equals(b.upper());
                     ps.add(new TsToPure.Parameter(p.name(), p.type().typeName(), optional));
                 }
-                out.add(ps);
+                List<String> gives = new ArrayList<>();
+                if (f.returnType() instanceof Type.GenericType g && !g.arguments().isEmpty()
+                        && g.arguments().get(0) instanceof Type.RelationType r) {
+                    r.columns().stream().map(Type.Column::name).filter(n -> !n.equals("key") && !n.equals("date"))
+                            .forEach(gives::add);
+                }
+                out.add(new TsToPure.Overload(ps, gives));
             }
             return out;
         }

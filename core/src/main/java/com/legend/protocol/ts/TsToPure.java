@@ -89,9 +89,15 @@ public final class TsToPure {
         /** The values of the enumeration of path {@code type}, or null where it names none. */
         @com.legend.base.Nullable List<String> enumeration(String type);
 
-        /** The overloads of the function of path {@code fqn}, each its parameters after its first (a word's line,
-         *  {@link TsWords}), in order; none where the model defines no such function. */
-        List<List<Parameter>> overloads(String fqn);
+        /** The overloads of the function of path {@code fqn} ({@link TsWords}); none where the model defines no such
+         *  function. */
+        List<Overload> overloads(String fqn);
+    }
+
+    /** A function's overload as {@link Model#overloads} reports it: its parameters after its first (a word's line), in
+     *  order, and the columns of the relation it answers after its key and its date (a word's value, or a struct's
+     *  fields: a band's lower, upper and width). */
+    public record Overload(List<Parameter> params, List<String> gives) {
     }
 
     /** A function's parameter as {@link Model#overloads} reports it: its name, its type's path ({@code Integer},
