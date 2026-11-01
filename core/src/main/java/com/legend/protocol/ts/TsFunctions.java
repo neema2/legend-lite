@@ -480,21 +480,6 @@ final class TsFunctions {
             case REBASE -> w.done(w.based("index", "idx", a, p.word("from"), new CFloat(p.num("base"))));
             case CHANGE -> w.done(w.based("change", "chg", a, p.word("from")));
             case PERCENT_CHANGE -> w.done(w.based("percentChange", "pchg", a, p.word("from")));
-            case RANGE_OF -> {
-                Span s = p.span("w");
-                yield w.done(w.rolled("range", a, s, s.period() == null ? s.obs() : 0));
-            }
-            case WINSORIZE -> w.done(w.library("winsorize", "wins", a, "all", new CFloat(p.num("limit"))));
-            case DRAWDOWN -> {
-                Span s = p.span("w");
-                yield w.done(s.period() != null ? w.ofPeriod("drawdownPeriod", "dd", a, s.period())
-                        : w.library("drawdown", "dd", a, frame(s.obs()), new CInteger((long) s.obs())));
-            }
-            case MAX_DRAWDOWN -> {
-                Span s = p.span("w");
-                yield w.done(s.period() != null ? w.ofPeriod("maxDrawdownPeriod", "mdd", a, s.period())
-                        : w.library("maxDrawdown", "mdd", a, frame(s.obs()), new CInteger((long) s.obs())));
-            }
             case RSI -> w.done(w.ofLine("rsi", "rsi", a, new CInteger((long) p.whole("w"))));
             case SMOOTHED_MOVING_AVERAGE -> w.done(w.ofLine("smoothedMean", "smma", a,
                     new CInteger((long) Math.max(p.whole("w"), 1))));
@@ -507,41 +492,7 @@ final class TsFunctions {
                     new CFloat(p.num("beta")), new ColSpec(w.perYear())));
             case MACD -> w.done(w.ofLine("macd", "macd", a, new CInteger((long) p.whole("m")),
                     new CInteger((long) p.whole("n")), new CInteger((long) p.whole("s"))));
-            case PERCENTILES -> {
-                Span s = p.span("w");
-                yield w.done(s.period() != null ? w.ofPeriod("percentilesPeriod", "pr", a, s.period())
-                        : w.ofLine("percentiles", "pr", a, new CInteger((long) s.obs())));
-            }
-            case MEDIAN, PERCENTILE -> {
-                Span s = p.span("w");
-                CFloat q = new CFloat("median".equals(fn) ? 0.5 : p.num("n") / 100);
-                if ("percentile".equals(fn) && s.period() == null && s.obs() == 0) {
-                    yield w.done(w.ofRow("quantileOfLine", "pct", new ColSpec(w.line.part()), new ColSpec(a), q));
-                }
-                yield w.done(s.period() != null ? w.ofPeriod("quantilePeriod", "pct", a, s.period(), q)
-                        : w.ofLine("quantile", "pct", a, new CInteger((long) s.obs()), q));
-            }
-            case DICKEY_FULLER, HALF_LIFE -> {
-                Span s = p.span("w");
-                if (s.period() == null && s.obs() > 0 && s.obs() < 3) {
-                    throw invalid(fn + " over " + s.obs() + " differences has no deviation left: w is all (every one"
-                            + " to date) or at least 3", fc.pos());
-                }
-                String of = "half_life".equals(fn) ? "halfLife" : "dickeyFuller";
-                yield w.done(s.period() != null ? w.ofPeriod(of + "Period", fn, a, s.period())
-                        : w.library(of, fn, a, frame(s.obs()), new CInteger((long) Math.max(s.obs(), 3))));
-            }
-            case PRODUCT -> {
-                Span s = p.span("w");
-                yield w.done(s.period() != null ? w.ofPeriod("productPeriod", "prod", a, s.period())
-                        : w.library("product", "prod", a, frame(s.obs()), new CInteger((long) s.obs())));
-            }
             case GEOMETRICALLY_AGGREGATE -> w.done(w.ofLine("geometricallyAggregate", "geo", a));
-            case VOL_SWAP_VOLATILITY -> {
-                Span s = p.span("w");
-                yield w.done(s.period() != null ? w.ofPeriod("volSwapVolatilityPeriod", "vs", a, s.period())
-                        : w.library("volSwapVolatility", "vs", a, frame(s.obs()), new CInteger((long) s.obs())));
-            }
             case SMOOTH_SPIKES -> w.done(w.ofLine("smoothSpikes", "smooth", a, new CFloat(p.num("threshold")),
                     option("ThresholdType", p.word("type"))));
             case CONSECUTIVE -> w.done(w.ofLine("consecutive", "cs", a, option("Direction",

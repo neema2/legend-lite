@@ -1608,6 +1608,10 @@ public final class Lowerer {
                                     || neg.args().get(0) instanceof TypedCFloat
                                     || neg.args().get(0) instanceof TypedCDecimal)) {
                 extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
+            } else if (argSpec instanceof TypedNativeCall && rowFree(argSpec)) {
+                // a constant the database computes (a library word's parameter made into one, 90 / 100: the frame
+                // offset's rule, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md C1) -- it reads no row
+                extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
             } else if (argSpec instanceof TypedCast vc
                     && vc.source() instanceof TypedVariable) {
                 // $x->cast(@T)->plus(): the grouped VALUES cast before
@@ -2986,6 +2990,18 @@ public final class Lowerer {
             return new SqlExpr.Case(whens, inner.otherwise());
         }
         return e;
+    }
+
+    /** Whether {@code spec} reads no row: literals, and functions of them (a lambda of no parameter among them, an
+     *  {@code if}'s branch) -- a value the database computes once for every row. */
+    private static boolean rowFree(TypedSpec spec) {
+        return switch (spec) {
+            case TypedVariable ignored -> false;
+            case com.legend.compiler.spec.typed.TypedLambda l -> l.parameters().isEmpty()
+                    && l.children().stream().allMatch(Lowerer::rowFree);
+            case com.legend.compiler.spec.typed.TypedPropertyAccess ignored -> false;
+            default -> spec.children().stream().allMatch(Lowerer::rowFree);
+        };
     }
 
     /**
