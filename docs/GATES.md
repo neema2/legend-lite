@@ -16635,7 +16635,14 @@ verdict groups send their savepoint (F11's rung, below); every other test-road s
    172 -> 176, `BodyPlanner` 294, `LetPlanner` 110 -> 107 (the frame test is `NativeFn.Handle.runsAFrame`); the funnel
    registers gain the library and the program state; `TypedSpecChildrenTest`'s rule for the parameter cell; one
    `NAME_COMPARE` pin moved with its reason.
-5. **The chain:** run on this commit before the checkpoint; recorded with it.
+5. **The chain** (on 01141e17's code): `corpus_duckdb` and `corpus_h2` uncached 6 of 6 each, each pass's
+   statement-origins census and pass/fail counts identical to M2's (DuckDB host 2,471/108, database 2,473/108; H2
+   host 2,289/295, database 2,233/353; `probe=0`); `pct_channel_b` 5 of 5; the nine targets that start a Postgres 9 of
+   9 unprivileged; `//gates:local` with `--lockfile_mode=error` red on TWO generated files M3 had left stale, both
+   regenerated: the claims ledger (`native-claims.tsv`: `QueryDoor` names `fail`'s two overloads since M3c, to exempt
+   them from the asserts) and the parser-equivalence ratchet `own_corpus.matched` 3,021 -> 3,036 (M3's new tests'
+   models joined the own corpus, their fifteen elements matching the reference parser); re-run, 448 pass and 1
+   skipped, the 9 that start a Postgres refusing root here (9 of 9 unprivileged above).
 
 ## 2026-10-31 — The test-is-the-product plan's M2: the product's statement road
 
