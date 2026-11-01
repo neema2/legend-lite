@@ -65,7 +65,9 @@ public final class PlanMaker {
                             NO_TEST_KINDS));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
-        ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, features);
+        // a query's inline execute(...) reads are frames too (D15, M3f): their activities' stamps the statement's own
+        ProgramFrames frames = new ProgramFrames();
+        ProductStatements.Statement st = ProductStatements.prepare(query, query.body(), runtime, null, features, frames);
         ExecutionPlan.Constant constant = ProductStatements.constant(st);
         if (constant != null) {
             return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(), constant);
@@ -73,8 +75,8 @@ public final class PlanMaker {
         // a typed plan answers a graph fetch's objects one per row: the streaming graph root
         Prepared.Planned planned = ProductStatements.planned(st);
         Compiler.LoweredQuery l = new Compiler.LoweredQuery(ProductStatements.lower(query, planned, st.temporal(), true,
-                slots, new com.legend.lowering.ObjectSites()), planned.body().get(planned.body().size() - 1),
-                query.context());
+                withStamps(slots, frames), new com.legend.lowering.ObjectSites()),
+                planned.body().get(planned.body().size() - 1), query.context());
         // the runtime decided: a null one is refused there, by name
         com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
@@ -89,7 +91,46 @@ public final class PlanMaker {
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
-                typed(l.root(), lowered, dialect, target));
+                stampedIfRead(typed(l.root(), lowered, dialect, target), frames.ownStamp()));
+    }
+
+    /** {@code slots} and the stamp parameters of {@code frames}, which every statement's lowering binds. */
+    static List<com.legend.sql.SqlExpr.PlanParam> withStamps(List<com.legend.sql.SqlExpr.PlanParam> slots,
+            ProgramFrames frames) {
+        List<com.legend.sql.SqlExpr.PlanParam> out = new ArrayList<>(slots);
+        out.addAll(frames.stampSlots());
+        return out;
+    }
+
+    /**
+     * {@code step}, binding its own execution-trace stamp under {@code stamp} where its statement reads it (an inline
+     * frame's activity comment it records: the statement that runs the frame is this one, R17 C4); unchanged where
+     * {@code stamp} is null or nothing in it reads it. A keyed result reading it is refused by name: its two
+     * statements' stamps are not designed.
+     */
+    static ExecutionPlan.Node stampedIfRead(ExecutionPlan.Node step, @com.legend.base.Nullable String stamp) {
+        if (stamp == null) {
+            return step;
+        }
+        return switch (step) {
+            case ExecutionPlan.TdsResult t -> reads(t.sql(), stamp)
+                    ? new ExecutionPlan.TdsResult(t.shape(), t.columns(), t.sql().stamped(stamp)) : t;
+            case ExecutionPlan.Check c -> reads(c.sql(), stamp) ? new ExecutionPlan.Check(c.sql().stamped(stamp)) : c;
+            case ExecutionPlan.Keyed k -> {
+                if (reads(k.keys(), stamp) || reads(k.body(), stamp)) {
+                    throw new com.legend.error.NotImplementedException("a keyed result reading an inline execute(...)'s"
+                            + " activity comment: the stamp of a keyed plan's statements is not designed");
+                }
+                yield k;
+            }
+            default -> throw new IllegalStateException("a stamped " + step.getClass().getSimpleName()
+                    + ": only a query's or a check's statement reads its own stamp");
+        };
+    }
+
+    /** Whether {@code sql} binds the parameter {@code name}. */
+    private static boolean reads(ExecutionPlan.Sql sql, String name) {
+        return sql.slots().stream().anyMatch(slot -> slot.parameter().equals(name));
     }
 
     /**
@@ -151,6 +192,8 @@ public final class PlanMaker {
         // counter
         ProgramState state = new ProgramState(query, java.util.Objects.requireNonNull(runtime), door, dialect, target,
                 slots, features);
+        // the let kinds' effect scan, memoized over the program (LetPlanner.kind)
+        Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         List<com.legend.compiler.spec.typed.TypedSpec> lets = state.lets;
         List<ExecutionPlan.Node> steps = state.steps;
         List<String> staged = state.staged;
@@ -163,19 +206,38 @@ public final class PlanMaker {
                 continue;
             }
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
-                com.legend.compiler.spec.typed.TypedSpec rows = com.legend.resolver.StagedRows.rowsOf(let);
-                if (rows == null) {
-                    lets.add(let);
-                    continue;
+                // the let's KIND is the planner's (LetPlanner, the walk's own rule): where its rows live
+                switch (LetPlanner.kind(let, body, i, query.specs(), effectMemo, state.frames()::relationFrame)) {
+                    case ALIAS -> {
+                        // $r.values(->at(0)) over a relation frame: the same frame
+                        state.frames().alias(let.name(), java.util.Objects.requireNonNull(
+                                LetPlanner.aliasOf(let.value(), state.frames()::relationFrame)));
+                        continue;
+                    }
+                    case FRAME -> throw new IllegalStateException("a let-bound execute(...) reached the planner: the"
+                            + " query door refuses it, the test door's library plans it");
+                    case STAGED_GRID -> throw new com.legend.error.NotImplementedException("a raw read bound by a let"
+                            + " and read after a later effect: its rows held at the let's turn are the T12 kind the"
+                            + " test-is-the-product plan's M9 plans");
+                    case VALUE -> {
+                        lets.add(let);
+                        continue;
+                    }
+                    case STAGED -> {
+                        // planned below
+                    }
                 }
+                com.legend.compiler.spec.typed.TypedSpec rows = java.util.Objects.requireNonNull(
+                        com.legend.resolver.StagedRows.rowsOf(let));
                 // STAGED ROWS: computed at this statement's turn into a temporary table of the session, which the
                 // statements after read by name (the writes between read the rows as they were)
                 String table = com.legend.resolver.StagedRows.table(let.name());
                 // the product's statement road (M2, B11): the test road's front half, the product's lowering
-                ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, rows), runtime, i, features);
+                ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, rows), runtime, i, features,
+                        state.frames());
                 Prepared.Planned sp = ProductStatements.planned(st);
-                com.legend.lowering.Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false, slots,
-                        sites);
+                com.legend.lowering.Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
+                        withStamps(slots, state.frames()), sites);
                 SqlQuery q = com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(ProductStatements.postProcessed(
                         lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)), sp.env())));
                 TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
@@ -187,7 +249,8 @@ public final class PlanMaker {
                         com.legend.resolver.StagedRows.storeOf(sp.body(), ctx, runtime), let.info()));
                 continue;
             }
-            ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, stmt), runtime, i, features);
+            ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, stmt), runtime, i, features,
+                    state.frames());
             ExecutionPlan.Constant constant = ProductStatements.constant(st);
             if (constant != null) {
                 // a value the program wrote: the answer where it is the last statement; before it, nothing to run
@@ -216,11 +279,10 @@ public final class PlanMaker {
                 continue;
             }
             Prepared.Planned p = ProductStatements.planned(st);
-            SqlQuery q = com.legend.sql.EnumValueTables.apply(ProductStatements.lower(query, p, st.temporal(), last,
-                    slots, sites));
+            SqlQuery q = state.lowered(st, last);
             TypedSpec answer = p.body().get(p.body().size() - 1);
-            steps.add(last ? typed(answer, q, dialect, target)
-                    : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)));
+            steps.add(stampedIfRead(last ? typed(answer, q, dialect, target)
+                    : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), state.frames().ownStamp()));
         }
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : staged) {
             // (a failed program's transaction takes its tables back with its writes)
@@ -303,7 +365,7 @@ public final class PlanMaker {
     }
 
     /** A rendered statement as the plan's, on {@code target}. */
-    private static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
+    static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
             @com.legend.base.Nullable SqlQuery tree) {
         List<ExecutionPlan.Slot> slots = rendered.binds().stream()
                 .map(b -> new ExecutionPlan.Slot(b.parameter(), binding(b.binding()))).toList();

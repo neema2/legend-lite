@@ -26,9 +26,10 @@ import java.util.List;
  * and lowered with the PRODUCT's configuration ({@link TypedQuery#lowerer}: the object layout, the program's
  * minter, the exists-join form unless a temporal class is read, the streaming root where asked, the slots) plus the
  * frame's time zone and features and the seedable let prefix, then post-processed by the frame's CTE extraction and
- * nonExecutable pass. A {@code from()} frame's TABLE RENAMES are applied on neither road yet (the environment's
- * renames are an {@code execute(...)} frame's, M3's B10; a {@code toSQLString} call applies its own runtime's,
- * {@code EnginePlans}). The test road's own factors (the identity layout, declared egress, the canon) are not here:
+ * nonExecutable pass. A statement that reads an {@code execute(...)}'s result splices its chain (the program's
+ * {@link ProgramFrames}, M3f) and runs under that frame's table renames ({@link FramePlanner#renames}); a
+ * {@code from()} frame's own renames are M3h's; a {@code toSQLString} call applies its own runtime's
+ * ({@code EnginePlans}). The test road's own factors (the identity layout, declared egress, the canon) are not here:
  * they are the judges'. No dialect: nothing on this road writes a statement, its caller renders in the runtime's.
  */
 public final class ProductStatements {
@@ -52,12 +53,26 @@ public final class ProductStatements {
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @com.legend.base.Nullable String runtime, @com.legend.base.Nullable Integer mark,
             java.util.Set<com.legend.platform.Feature> features) {
+        return prepare(query, statements, runtime, mark, features, new ProgramFrames());
+    }
+
+    /** {@link #prepare} for a statement of a program whose frames are {@code frames} (the test-is-the-product plan's
+     *  M3f): the statement's reads of a frame and of an inline {@code execute(...)}'s result splice their chains
+     *  (the splice hook), its plan rows are the program's, and its environment is widened with the renames of the
+     *  frames it reads ({@link FramePlanner#renames}, after the resolver, as the walk widens it). */
+    public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
+            @com.legend.base.Nullable String runtime, @com.legend.base.Nullable Integer mark,
+            java.util.Set<com.legend.platform.Feature> features, ProgramFrames frames) {
         ModelContext ctx = query.context();
         com.legend.compiler.spec.SpecCompiler specs = query.specs();
+        frames.startStatement();
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
-        PlanEnv env = PlanEnv.of(ctx, runtime, null, features, ProductStatements::noGenerator);
-        com.legend.compiler.spec.UserCallInliner inliner = new com.legend.compiler.spec.UserCallInliner(specs);
+        PlanEnv env = PlanEnv.of(ctx, runtime, null, features, ProductStatements::noGenerator)
+                .withPlanRows(frames.planRows());
+        List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
+        com.legend.compiler.spec.UserCallInliner inliner = new com.legend.compiler.spec.UserCallInliner(specs,
+                com.legend.compiler.spec.ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
         List<TypedSpec> body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));   // Phase G½
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
@@ -77,7 +92,11 @@ public final class ProductStatements {
         // then every store the statement touches must be bound to it (C3b)
         com.legend.Compiler.executesOn(ctx, runtime);
         CrossStoreGuard.check(body, ctx, runtime);
-        return new Statement(BodyPlanner.prepare(body, env), temporal);
+        // widened LAST, after resolution: the renames of the frames the statement reads (the walk's order)
+        java.util.Map<String, String> renames = FramePlanner.renames(statements.get(statements.size() - 1),
+                frames.renames(), env.tableReplace(), lets, specs);
+        PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
+        return new Statement(BodyPlanner.prepare(body, widened), temporal);
     }
 
     /** {@code s}'s answer as a value the program wrote, answered with nothing sent (MV12), or null: a DDL text the
@@ -246,7 +265,7 @@ public final class ProductStatements {
     }
 
     /** The product plans no test-data generator: its plan text is a test's ({@code PlanEnv}'s generator hook). */
-    private static String noGenerator(com.legend.compiler.spec.typed.TypedTestDataGen generator) {
+    public static String noGenerator(com.legend.compiler.spec.typed.TypedTestDataGen generator) {
         throw new com.legend.error.NotImplementedException("a test-data generator in a query: the generator runs in"
                 + " a test's program, and the product's query door plans none");
     }

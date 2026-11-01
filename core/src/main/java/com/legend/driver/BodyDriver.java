@@ -404,36 +404,11 @@ public final class BodyDriver {
             java.util.Map<String, ExecFrame> execFrames, ExecEnv env,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs) {
-        java.util.Map<String, String> union = null;
-        // execute() calls the statement REACHES inline or through ordinary
-        // lets (batch 80: `let result = execute(...).values` is no frame)
-        java.util.Map<String, String> reached = com.legend.lowering.SqlPostProcessors
-                .reachableRenames(stmt, v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix), v -> v instanceof
-                        com.legend.compiler.spec.typed.TypedUserCall
-                        ? new com.legend.compiler.spec.UserCallInliner(specs)
-                                .inlineBody(java.util.List.of(v)).get(0) : v);
-        if (!reached.isEmpty()) {
-            union = new java.util.LinkedHashMap<>(env.tableReplace());
-            union.putAll(reached);
-        }
-        for (var e : execFrames.entrySet()) {
-            if (e.getValue().tableReplace().isEmpty()
-                    || !com.legend.compiler.spec.UserCallInliner
-                            .referencesVar(stmt, e.getKey())) {
-                continue;
-            }
-            if (union == null) {
-                union = new java.util.LinkedHashMap<>(env.tableReplace());
-            }
-            for (var r : e.getValue().tableReplace().entrySet()) {
-                String prev = union.putIfAbsent(r.getKey(), r.getValue());
-                if (prev != null && !prev.equals(r.getValue())) {
-                    throw new IllegalStateException("conflicting table"
-                            + " renames for '" + r.getKey() + "': '" + prev
-                            + "' vs '" + r.getValue() + "'");
-                }
-            }
-        }
+        // the union is the planner's (FramePlanner.renames, the test-is-the-product plan's M3f)
+        java.util.Map<String, java.util.Map<String, String>> frames = new java.util.LinkedHashMap<>();
+        execFrames.forEach((name, f) -> frames.put(name, f.tableReplace()));
+        java.util.Map<String, String> union = com.legend.planner.FramePlanner.renames(stmt, frames, env.tableReplace(),
+                letPrefix, specs);
         return union == null ? env : env.withTableReplace(union);
     }
 

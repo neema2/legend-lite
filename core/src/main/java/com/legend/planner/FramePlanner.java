@@ -224,4 +224,45 @@ public final class FramePlanner {
         }
         return Cte.NONE;
     }
+
+    /**
+     * The renames a statement runs under: {@code base}, widened with the table renames of every {@code execute(...)}
+     * the statement REACHES inline or through ordinary lets ({@code let result = execute(...).values} is no frame,
+     * batch 80) and of every frame it READS by name ({@code frames}: a frame's name to its renames); null where it
+     * reads none. Conflicting renames are refused, never a silent pick (ledger cluster 59). Moved from the body
+     * driver's {@code frameReplaceEnv} (the test-is-the-product plan's M3f, B12 item 8): the product's program road
+     * widens a statement's environment by it too.
+     */
+    public static java.util.@com.legend.base.Nullable Map<String, String> renames(TypedSpec stmt,
+            java.util.Map<String, java.util.Map<String, String>> frames, java.util.Map<String, String> base,
+            java.util.List<TypedSpec> letPrefix, SpecCompiler specs) {
+        java.util.Map<String, String> union = null;
+        java.util.Map<String, String> reached = com.legend.lowering.SqlPostProcessors
+                .reachableRenames(stmt, v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix), v -> v instanceof
+                        com.legend.compiler.spec.typed.TypedUserCall
+                        ? new com.legend.compiler.spec.UserCallInliner(specs)
+                                .inlineBody(java.util.List.of(v)).get(0) : v);
+        if (!reached.isEmpty()) {
+            union = new java.util.LinkedHashMap<>(base);
+            union.putAll(reached);
+        }
+        for (var e : frames.entrySet()) {
+            if (e.getValue().isEmpty()
+                    || !com.legend.compiler.spec.UserCallInliner.referencesVar(stmt, e.getKey())) {
+                continue;
+            }
+            if (union == null) {
+                union = new java.util.LinkedHashMap<>(base);
+            }
+            for (var r : e.getValue().entrySet()) {
+                String prev = union.putIfAbsent(r.getKey(), r.getValue());
+                if (prev != null && !prev.equals(r.getValue())) {
+                    throw new IllegalStateException("conflicting table"
+                            + " renames for '" + r.getKey() + "': '" + prev
+                            + "' vs '" + r.getValue() + "'");
+                }
+            }
+        }
+        return union;
+    }
 }

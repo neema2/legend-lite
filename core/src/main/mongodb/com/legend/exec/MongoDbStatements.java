@@ -52,6 +52,12 @@ final class MongoDbStatements implements Statements {
     }
 
     @Override
+    public String nextStamp() {
+        throw new com.legend.error.NotImplementedException("an execution-trace stamp on a MongoDB session: its"
+                + " pipelines carry no comment");
+    }
+
+    @Override
     public void check(ExecutionPlan.Target target) {
         if (!(target.database() instanceof ExecutionPlan.Database.Declared d)
                 || d.connection().databaseType() != ConnectionDefinition.DatabaseType.MongoDB) {

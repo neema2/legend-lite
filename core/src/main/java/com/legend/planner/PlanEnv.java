@@ -47,6 +47,13 @@ public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtime
                 generatorPlanText);
     }
 
+    /** This environment reading and registering the plan rows {@code rows} (a program's, shared by its statements:
+     *  the test-is-the-product plan's M3f). */
+    public PlanEnv withPlanRows(java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>> rows) {
+        return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, rows, protocolBody, frame,
+                features, generatorPlanText);
+    }
+
     /** This environment writing its statements in {@code d}: a test's program on the product's road, its runtime
      *  decided (the test door's effects, the test-is-the-product plan's M3d). */
     public PlanEnv withDialect(com.legend.sql.dialect.SqlDialect d) {

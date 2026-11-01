@@ -2571,9 +2571,21 @@ public final class Lowerer {
                     new SqlExpr.IntLit(1), new SqlExpr.IntLit(0)));
         }
         List<List<SqlExpr>> rows = new ArrayList<>(tds.rows().size());
-        for (List<String> row : tds.rows()) {
+        for (int r = 0; r < tds.rows().size(); r++) {
+            List<String> row = tds.rows().get(r);
             List<SqlExpr> cells = new ArrayList<>(row.size());
             for (int i = 0; i < row.size(); i++) {
+                String parameter = tds.parameterAt(r, i);
+                if (parameter != null) {
+                    // a cell bound when the plan runs (an activity's trace stamp, M3f): the statement's own parameter
+                    SqlExpr bound = letBindings.get(parameter);
+                    if (bound == null) {
+                        throw new IllegalStateException("a TDS cell is the plan parameter '" + parameter + "', which"
+                                + " the statement's lowering does not bind (bindPlanParam)");
+                    }
+                    cells.add(bound);
+                    continue;
+                }
                 cells.add(Scalars.tdsCell(row.get(i), schema.columns().get(i).type()));
             }
             rows.add(cells);

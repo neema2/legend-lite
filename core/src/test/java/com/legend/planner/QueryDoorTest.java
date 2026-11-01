@@ -107,4 +107,21 @@ class QueryDoorTest {
         assertInstanceOf(ExecutionPlan.TdsResult.class, own.root());
         assertFalse(own.answerSql().target().setup().isEmpty(), "the declared rows, the target's setup");
     }
+
+    /** M3f, D15: an inline execute(...)'s result read lazily is the product's: planned as its chain, its activity's
+     *  comment the reading statement's own stamp. */
+    @Test
+    void anInlineLazyExecuteReadIsPlanned() {
+        String model = SEEDED.replace("type: H2;", "type: DuckDB;");
+        String run = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']), x::M,"
+                + " x::Seeded.runtimeValue, [])";
+        ExecutionPlan values = Compiler.query(Compiler.compileModel(model), "|" + run + ".values")
+                .executionPlan("x::Seeded");
+        assertInstanceOf(ExecutionPlan.TdsResult.class, values.root());
+        assertNull(values.answerSql().stamp(), "no activity read, no stamp");
+        ExecutionPlan comment = Compiler.query(Compiler.compileModel(model), "|" + run
+                + ".activities->at(0)->cast(@meta::relational::mapping::RelationalActivity).comment")
+                .executionPlan("x::Seeded");
+        assertEquals("#stamp0", comment.answerSql().stamp(), "the reader runs the frame: its own stamp");
+    }
 }

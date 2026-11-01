@@ -32,7 +32,7 @@ export interface PlanSession {
 }
 
 interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly typeHole?: unknown } }
-interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown }
+interface Sql { readonly statement: string; readonly slots: readonly Slot[]; readonly regions?: readonly unknown[]; readonly target: unknown; readonly stamp?: string }
 
 /** The execution plan's format this runner reads (core/.../executionplan/PlanJson.java VERSION): 18 since 2026-10-29
  *  (the result boundary program: a plan's answer is a `tdsResult` of typed columns, never a text result of a format;
@@ -124,6 +124,9 @@ export async function runPlan(plan: string, session: PlanSession, o: { readonly 
   }
   for (const s of sqls) {
     if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
+    // a statement's own execution-trace stamp (an activity's comment, the test-is-the-product plan's M3f): a host's
+    // session sends no trace comment, so a plan that reads one is not run here
+    if (s.stamp !== undefined) throw new PlanRefusal(`a statement binding its own execution-trace stamp ('${s.stamp}') is not run here: a host's session sends no trace comment`);
     for (const slot of s.slots) {
       if (slot.binding._type !== 'one') {
         throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : 'a list'}, which is not run here`);

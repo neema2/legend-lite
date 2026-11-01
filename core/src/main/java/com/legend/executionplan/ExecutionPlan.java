@@ -608,9 +608,14 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * has no type at the hole's place, and the runner writes the value's there before it prepares the statement.
      * {@code tree} is the typed SQL tree it was rendered from — metadata for lineage and explanation, never read by the
      * executor; it is not written to the lite JSON yet (a later step), so a plan read back from JSON has none.
+     * {@code stamp}, where given, is the parameter the statement's own execution-trace stamp binds (the
+     * test-is-the-product plan's M3f, R17 C4): the runner mints the comment the statement is sent under before it sends
+     * it and binds it under that name, for the statement's own slots and the steps after (an activity row records the
+     * comment of the statement that ran its frame, minted per execution as legend-engine mints it).
      */
     public record Sql(String statement, List<Slot> slots, Target target,
-            com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions) {
+            com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
+            @com.legend.base.Nullable String stamp) {
         public Sql {
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
@@ -631,10 +636,21 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
             }
         }
 
+        /** A statement whose stamp nothing reads. */
+        public Sql(String statement, List<Slot> slots, Target target,
+                com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions) {
+            this(statement, slots, target, tree, regions, null);
+        }
+
         /** A statement with no per-key region. */
         public Sql(String statement, List<Slot> slots, Target target,
                 com.legend.sql.@com.legend.base.Nullable SqlQuery tree) {
             this(statement, slots, target, tree, List.of());
+        }
+
+        /** This statement, its own execution-trace stamp bound under {@code name}. */
+        public Sql stamped(String name) {
+            return new Sql(statement, slots, target, tree, regions, name);
         }
 
         /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session

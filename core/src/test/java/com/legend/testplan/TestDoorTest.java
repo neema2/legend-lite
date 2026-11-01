@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.Compiler;
 import com.legend.TypedQuery;
@@ -236,5 +237,47 @@ class TestDoorTest {
         assertNull(none.cells().get(0).get(0));
         assertThrows(NotImplementedException.class, () -> Compiler.query(Compiler.compileModel(
                 StorelessRuntime.with("", Databases.PLATFORM)), handle).executionPlan(StorelessRuntime.RUNTIME));
+    }
+
+    private static final String DUCK = SEEDED.replace("type: H2;", "type: DuckDB;");
+    private static final String RUN = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']),"
+            + " x::M, x::RT.runtimeValue, [])";
+
+    /** M3f: a frame bound by a let is run at the let as a check (decision 1, MV7), its readers paste its chain. */
+    @Test
+    void aFrameLetIsRunAtTheLetAndReadAfter() throws Exception {
+        TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.values->filter(x|$x.name == 'Acme');}");
+        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of(), null);
+        PlanRoundTrip.assertRoundTrips(plan, "a frame let");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
+        assertEquals(List.of("Setup", "Check", "TdsResult"),
+                steps.stream().map(n -> n.getClass().getSimpleName()).toList());
+        assertEquals("#stamp0", ((ExecutionPlan.Check) steps.get(1)).sql().stamp(), "the frame's run binds its stamp");
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("Acme")), run(plan, c));
+        }
+    }
+
+    /** M3f, R17 C4: an activity's comment is the execution-trace stamp of the statement that ran its frame, bound
+     *  when the plan runs -- the plan names it, never writes it. */
+    @Test
+    void anActivitysCommentIsTheStampOfTheRunBoundWhenThePlanRuns() throws Exception {
+        TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity).comment;}");
+        ExecutionPlan plan = TestDoor.plan(body, "x::RT", Set.of(), null);
+        PlanRoundTrip.assertRoundTrips(plan, "an activity's comment");
+        ExecutionPlan.TdsResult answer = assertInstanceOf(ExecutionPlan.TdsResult.class,
+                assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps().get(2));
+        assertEquals(Set.of("#stamp0"), answer.sql().slots().stream().map(ExecutionPlan.Slot::parameter)
+                .collect(java.util.stream.Collectors.toSet()), "the reader binds the let's run's stamp");
+        assertEquals(null, answer.sql().stamp(), "the stamp is the let's run's, not the reader's");
+        try (Connection c = TestBackends.platform().open()) {
+            List<List<Object>> rows = run(plan, c);
+            assertEquals(1, rows.size());
+            assertTrue(String.valueOf(rows.get(0).get(0)).matches(
+                    "-- \"executionTraceID\" : \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\""),
+                    String.valueOf(rows.get(0).get(0)));
+        }
     }
 }

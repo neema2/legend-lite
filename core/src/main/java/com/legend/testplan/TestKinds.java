@@ -60,6 +60,10 @@ final class TestKinds implements ProgramKinds {
         if (kinds.isEmpty()) {
             return false;
         }
+        if (kinds.equals(java.util.EnumSet.of(QueryDoor.TestOnly.LET_EXECUTE)) && !last) {
+            frame(program, index, (com.legend.compiler.spec.typed.TypedLet) statement);
+            return true;
+        }
         if (kinds.equals(java.util.EnumSet.of(QueryDoor.TestOnly.EFFECT))) {
             effect(program, index, statement, last);
             // the effect writes: the next statement's seeds are established again (the walk's markWriting)
@@ -70,12 +74,39 @@ final class TestKinds implements ProgramKinds {
         QueryDoor.TestOnly kind = kinds.iterator().next();
         String step = switch (kind) {
             case EFFECT, INLINE_SEEDS, RUNTIME_SEEDS -> throw new IllegalStateException("planned above");
-            case LET_EXECUTE -> "M3f";
+            // a let-bound execute(...) as the program's last statement, or with another kind in its binding
+            case LET_EXECUTE -> "M9 (an execute(...) whose result is the value asked for)";
             case ASSERT -> "M6, the verdict record";
             case ASSERT_ERROR -> "M9, T10";
         };
         throw new com.legend.error.NotImplementedException(kind.what() + " on the test door's program road: not"
                 + " planned yet (the test-is-the-product plan's " + step + ")");
+    }
+
+    /**
+     * A FRAME bound by a let (D15, B10, decision 1; the test-is-the-product plan's M3f): {@code let r =
+     * execute(...)}. Pure runs it AT the let, so it is run there as a {@link ExecutionPlan.Check} step -- on every
+     * pass alike (MV7) -- and its activity's comment is that step's execution-trace stamp, a parameter the runner
+     * binds when the plan runs (R17 C4); its readers after paste its chain ({@code ProgramFrames}).
+     */
+    private void frame(ProgramState program, int index, com.legend.compiler.spec.typed.TypedLet let) {
+        com.legend.compiler.spec.typed.TypedNativeCall ec =
+                (com.legend.compiler.spec.typed.TypedNativeCall) com.legend.planner.LetPlanner.rhs(let);
+        com.legend.planner.ProgramFrames frames = program.frames();
+        TypedQuery query = program.query();
+        com.legend.planner.PlanEnv env = com.legend.planner.PlanEnv.of(query.context(), program.runtime(), null,
+                program.features(), ProductStatements::noGenerator).withPlanRows(frames.planRows());
+        com.legend.planner.FramePlanner.FrameChain fc = com.legend.planner.FramePlanner.chain(ec, program.lets(),
+                query.specs(), env);
+        String stamp = frames.newStamp();
+        com.legend.planner.PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(),
+                null, stamp, env);
+        // the eager run: the frame's query, run at the let, its rows dropped
+        ProductStatements.Statement run = ProductStatements.prepare(query, List.of(fc.runChain()), program.runtime(),
+                index, program.features(), frames);
+        program.add(new ExecutionPlan.Check(program.statement(program.lowered(run, false)).stamped(stamp)));
+        frames.let(let.name(), new com.legend.planner.ProgramFrames.Frame(fc.chain(),
+                !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace()));
     }
 
     /**

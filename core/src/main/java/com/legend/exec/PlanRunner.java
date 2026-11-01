@@ -770,6 +770,7 @@ public final class PlanRunner {
     /** A change's statement on {@code st}, its count bound under its name for the slots after it. */
     private static void update(ExecutionPlan.Update u, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
+        stamp(u.sql(), values, st);
         String statement = statement(u.sql(), values);
         StatementOrigin.sent(statement);
         long count = st.update(statement, u.sql().slots(), valuesOf(u.sql(), values));
@@ -782,6 +783,7 @@ public final class PlanRunner {
     /** A check's rows read and dropped (the database computes what it may raise). */
     private static void check(ExecutionPlan.Check k, Map<String, PlanParameters.Checked> values, Statements st)
             throws IOException {
+        stamp(k.sql(), values, st);
         String statement = statement(k.sql(), values);
         StatementOrigin.sent(statement);
         st.query(statement, k.sql().slots(), valuesOf(k.sql(), values), row -> { });
@@ -789,6 +791,7 @@ public final class PlanRunner {
 
     /** An effect sent for what it does. */
     private static void effect(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st) {
+        unstamped(e.sql());
         String statement = statement(e.sql(), values);
         StatementOrigin.sent(statement);
         st.execute(statement);
@@ -799,6 +802,7 @@ public final class PlanRunner {
      *  statements bare otherwise; a single statement as {@link #effect}. */
     private static void script(ExecutionPlan.Effect e, Map<String, PlanParameters.Checked> values, Statements st,
             boolean inTransaction) {
+        unstamped(e.sql());
         ExecutionPlan.Effect.Script script = e.script();
         if (script == null || inTransaction) {
             effect(e, values, st);
@@ -882,6 +886,7 @@ public final class PlanRunner {
     /** A typed result's rows into {@code held}. */
     private static void result(ExecutionPlan.TdsResult t, Map<String, PlanParameters.Checked> values, Statements st,
             Held held) throws IOException {
+        stamp(t.sql(), values, st);
         String statement = statement(t.sql(), values);
         StatementOrigin.sent(statement);
         if (reported(t)) {
@@ -904,6 +909,23 @@ public final class PlanRunner {
             if (slot.binding() instanceof ExecutionPlan.Binding.One one) {
                 JdbcStatements.nullType(one, slot);
             }
+        }
+    }
+
+    /** A statement whose own stamp the runner does not bind (a keyed plan's, an effect's): one that binds it is a
+     *  planner defect, refused by name. */
+    private static void unstamped(ExecutionPlan.Sql sql) {
+        if (sql.stamp() != null) {
+            throw new IllegalStateException("a keyed or effect statement binds its own execution-trace stamp ('"
+                    + sql.stamp() + "'): only a query, a check or a write binds one (the planner's)");
+        }
+    }
+
+    /** {@code sql}'s own execution-trace stamp, where the plan reads it ({@link ExecutionPlan.Sql#stamp}): the comment
+     *  the session will send it under, minted now and bound under its name (R17 C4). */
+    private static void stamp(ExecutionPlan.Sql sql, Map<String, PlanParameters.Checked> values, Statements st) {
+        if (sql.stamp() != null) {
+            values.put(sql.stamp(), new PlanParameters.One(st.nextStamp()));
         }
     }
 
@@ -950,6 +972,8 @@ public final class PlanRunner {
                     new ExecutionPlan.Multiplicity(1, 1), "VARCHAR", null, null));
         }
         List<List<Object>> keys = new java.util.ArrayList<>();
+        unstamped(keyed.keys());
+        unstamped(keyed.body());
         ExecutionPlan.Sql probe = keyed.keys();
         if (keyed.keysOf() == ExecutionPlan.Keyed.KeysOf.COLUMNS) {
             // a raw grid's: each column its result reports a key, its label the key's one cell (the seam program's
@@ -1148,15 +1172,20 @@ public final class PlanRunner {
                 JdbcStatements.nullType(one, slot);
             }
         }
-        List<PlanParameters.Checked> values = new java.util.ArrayList<>(sql.slots().size());
-        for (int i = 0; i < sql.slots().size(); i++) {
-            values.add(value(checked, sql.slots().get(i), i + 1));
-        }
         // the session's own statements (JDBC's, or a connector's: Statements), 2026-10-17, docs/MONGODB_PLAN_2026_10_16.md
         // D12: the runner holds the plan and the punctuation; the session carries text in and text out
         try (Sessions.Session session = sessions.open(sql.target())) {
             Statements st = opened(session, sql.target());
-            String statement = statement(sql, checked);
+            Map<String, PlanParameters.Checked> bound = checked;
+            if (sql.stamp() != null) {
+                bound = new java.util.HashMap<>(checked);
+                stamp(sql, bound, st);
+            }
+            List<PlanParameters.Checked> values = new java.util.ArrayList<>(sql.slots().size());
+            for (int i = 0; i < sql.slots().size(); i++) {
+                values.add(value(bound, sql.slots().get(i), i + 1));
+            }
+            String statement = statement(sql, bound);
             // counted here alone, for every session kind (a session sends, the runner counts: JdbcStatements counted
             // each statement a second time, 2026-10-21)
             StatementOrigin.sent(statement);

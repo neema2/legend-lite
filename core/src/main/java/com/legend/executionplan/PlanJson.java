@@ -318,6 +318,9 @@ public final class PlanJson {
             o.put("regions", regions);
         }
         o.put("target", target(s.target()));
+        if (s.stamp() != null) {
+            o.put("stamp", s.stamp());
+        }
         // the typed SQL tree (MirJson; the plan path program's step 1b): a plan read back is as typed as the planner's
         o.put("tree", s.tree() == null ? null : MirJson.query(s.tree()));
         return o;
@@ -668,7 +671,7 @@ public final class PlanJson {
         }
         return new Sql(o.getString("statement"), slots, new Target(readDatabase(t.getObj("database")),
                 readServers(t.getObj("servers")), t.getStringArray("session"), setup),
-                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions);
+                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null));
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {

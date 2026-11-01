@@ -566,3 +566,12 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   seed-naming bodies hold asserts, M6); M3d's scripts re-run with the handle fold: 616 effect bodies per pass, all
   identical. Core's statements unchanged but the test door's own tests (now run through the program runner). Next:
   M3f.
+- 2026-11-01: **M3f built**: frames, the eager run and the trace stamp (`docs/test-is-product-homework/C_M3F_FRAMES.md`).
+  `planner/ProgramFrames` holds a program's frames, plan rows and stamp names; every product statement is inlined with
+  the splice hook over them and runs under the renames of the frames it reads (`FramePlanner.renames`, moved from the
+  driver). An inline lazy `execute(...)` read is the product's on both doors (D15); a frame let on the test door is
+  run at the let as a stamped `Check` (decision 1, MV7). The let kinds are `LetPlanner`'s (STAGED_GRID refused, T12).
+  The activity comment is a plan parameter (R17 C4): a typed cell from the activity rows to the TDS literal's `?`,
+  `ExecutionPlan.Sql.stamp` minted by the session (`Statements.nextStamp`) and bound by the runner; the user, asked
+  whether its cost (15 files, +217/-37) is worth it, kept it (2026-11-01). Core's statements unchanged but the test
+  door's own tests. Next: M3g.

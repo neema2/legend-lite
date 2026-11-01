@@ -130,7 +130,7 @@ public final class StoreResolver {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.sources = new ClassSources(ctx, specs);
         this.constructed = new ConstructedInstances(ctx, sources);
-        sources.setConstructedRows(constructed::rowsFor);
+        sources.setConstructedRows(constructed::rowsFor, constructed::parametersFor);
         this.synthetics = new SyntheticHeads(ctx);
         // an EMPTY frame until the op-chain phase constructs the real one —
         // pre-resolution consumers (lift walkers, resolveNode shape checks)

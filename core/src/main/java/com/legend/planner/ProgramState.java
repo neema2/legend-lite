@@ -15,9 +15,9 @@ import java.util.List;
  * ONE PROGRAM'S PLANNING STATE (the test-is-the-product plan's M3, brief B12 item 2): what {@code PlanMaker.program}
  * holds across a program's statements, where each statement on the product's road was prepared alone -- the door it
  * came through, the runtime decided once and its target, the one object-id minter (B9), the lets the statements after
- * read, the steps planned so far, the staged tables to drop. M3's later sub-steps add the frames and the plan rows a
- * frame needs across statements, the last seed key emitted, and the steps waiting to be placed before a statement.
- * The test-planning library reads it and adds its steps through {@link ProgramKinds}.
+ * read, the steps planned so far, the staged tables to drop, the frames its statements read with their plan rows and
+ * stamps ({@link ProgramFrames}, M3f). The test-planning library reads it and adds its steps through
+ * {@link ProgramKinds} (its own memo of the seeds placed and the open script is its own, M3d-M3e).
  */
 public final class ProgramState {
 
@@ -37,6 +37,8 @@ public final class ProgramState {
     final List<TypedSpec> lets = new ArrayList<>();
     final List<ExecutionPlan.Node> steps = new ArrayList<>();
     final List<String> staged = new ArrayList<>();
+    /** The program's frames (M3f): the execute(...) results its statements read, their plan rows and stamps. */
+    private final ProgramFrames frames = new ProgramFrames();
 
     ProgramState(TypedQuery query, String runtime, Door door, SqlDialect dialect, ExecutionPlan.Target target,
             List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
@@ -82,6 +84,24 @@ public final class ProgramState {
     /** The program's feature flags. */
     public java.util.Set<com.legend.platform.Feature> features() {
         return features;
+    }
+
+    /** The program's frames. */
+    public ProgramFrames frames() {
+        return frames;
+    }
+
+    /** {@code st}, prepared on the product's road, lowered with the product's configuration: the declared parameters'
+     *  slots and the frames' stamps bound, the program's minter; {@code last} the program's last statement (the
+     *  streaming graph root). */
+    public com.legend.sql.SqlQuery lowered(ProductStatements.Statement st, boolean last) {
+        return com.legend.sql.EnumValueTables.apply(ProductStatements.lower(query, ProductStatements.planned(st),
+                st.temporal(), last, PlanMaker.withStamps(slots, frames), sites));
+    }
+
+    /** {@code q} written in the program's dialect for its target. */
+    public ExecutionPlan.Sql statement(com.legend.sql.SqlQuery q) {
+        return PlanMaker.sql(dialect.renderStatement(q), target, q);
     }
 
     /** Places {@code step} after the steps planned so far. */

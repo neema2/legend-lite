@@ -283,6 +283,18 @@ public final class PlanAllocations {
             com.legend.compiler.spec.SpecCompiler specs,
             @com.legend.base.Nullable String comment,
             PlanEnv env) {
+        registerActivityRows(ec, chain, letPrefix, specs, comment, null, env);
+    }
+
+    /** {@link #registerActivityRows} where the activity's comment is {@code commentParameter}'s value, a plan
+     *  parameter bound when the plan runs (the test-is-the-product plan's M3f, R17 C4: the trace stamp of the
+     *  statement that runs the frame, minted per execution as upstream mints it), when it is given. */
+    public static void registerActivityRows(com.legend.compiler.spec.typed.TypedNativeCall ec,
+            com.legend.compiler.spec.typed.TypedSpec chain,
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs,
+            @com.legend.base.Nullable String comment, @com.legend.base.Nullable String commentParameter,
+            PlanEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(ec);
         if (env.planRows().containsKey(scope)) {
             return;
@@ -291,12 +303,15 @@ public final class PlanAllocations {
         // program reads the result's activities (no SQL = no rows, as ever)
         env.planRows().put(scope, new com.legend.plan.LazyRows(
                 () -> activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
-                        AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment)));
+                        AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment, commentParameter)));
     }
 
-    private static java.util.@com.legend.base.Nullable Map<String, java.util.List<java.util.List<String>>>
-            activityRows(String scope, @com.legend.base.Nullable String sql,
-                    @com.legend.base.Nullable String rewrittenQuery, @com.legend.base.Nullable String comment) {
+    /** The activity row's comment column (results scope, activity id, scope, index, kind, sql, comment, rewritten). */
+    private static final int COMMENT = 5;
+
+    private static com.legend.plan.LazyRows.@com.legend.base.Nullable Computed activityRows(String scope,
+            @com.legend.base.Nullable String sql, @com.legend.base.Nullable String rewrittenQuery,
+            @com.legend.base.Nullable String comment, @com.legend.base.Nullable String commentParameter) {
         if (sql == null) {
             return null;
         }
@@ -315,7 +330,9 @@ public final class PlanAllocations {
         acts.add(java.util.List.of(scope + "/" + k, scope, Integer.toString(k),
                 "RelationalActivity", sql, comment == null ? "" : comment, ""));
         rows.put("activities", acts);
-        return rows;
+        return new com.legend.plan.LazyRows.Computed(rows, commentParameter == null ? java.util.List.of()
+                : java.util.List.of(new com.legend.plan.LazyRows.Parameter("activities", k, COMMENT,
+                        commentParameter)));
     }
 
     /** Every HANDLE native call inside a let's binding registers its rows

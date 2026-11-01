@@ -29,7 +29,7 @@ final class JdbcStatements implements Statements {
     private final SessionState state;
 
     /** The execution trace a query's stamp is published to (the body driver's, whose activity rows record the comment
-     *  the statement carried); null for a session no trace reads ({@link ExecutionTrace#stampOnly}). */
+     *  the statement carried); null for a session no trace reads, whose own stamps are its own ({@link #nextStamp}). */
     private final @com.legend.base.Nullable ExecutionTrace trace;
 
     /** The session's driver facts the typed rows are read by (its database's: a timestamp re-read as
@@ -101,7 +101,26 @@ final class JdbcStatements implements Statements {
      *  result boundary program's phase 5: with the old executor deleted no query carried it, and the corpus's
      *  testSQLComments read an activity comment no statement had). */
     private String stamped(String statement) {
-        return trace != null ? trace.stamp(statement) : ExecutionTrace.stampOnly(statement);
+        if (trace != null) {
+            return trace.stamp(statement);
+        }
+        String comment = reserved != null ? reserved : ExecutionTrace.comment();
+        reserved = null;
+        return comment + "\n" + statement;
+    }
+
+    /** With no trace: the comment the next query carries, minted by {@link #nextStamp} (null: minted when sent). */
+    private @com.legend.base.Nullable String reserved;
+
+    @Override
+    public String nextStamp() {
+        if (trace != null) {
+            return trace.reserve();
+        }
+        if (reserved == null) {
+            reserved = ExecutionTrace.comment();
+        }
+        return reserved;
     }
 
     @Override
