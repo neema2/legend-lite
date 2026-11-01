@@ -11,7 +11,7 @@ of observations (`20`), a calendar period (`3mo`), `all` (the line's start to da
 
 ## `alpha`
 
-The annualized alpha of x's simple returns over y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor) or the dates infer.
+The annualized alpha of x's simple returns over y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -24,7 +24,7 @@ Forms: `alpha(x: Line, y: Line, annualization_factor: Integer (optional))`, `alp
 
 ## `annualize`
 
-Each of x's values annualized by the periods a year given (annualization_factor) or the line's dates infer.
+Each of x's values annualized by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -66,7 +66,7 @@ A basket of the members in their weights from 100, rebalanced daily unless told 
 | `members` | members |  | yes |
 | `rebalance` | word | daily, weekly, monthly | no |
 
-Forms: `basket(members: TimedMembers, n: Integer, timeUnit: DurationUnit)`, `basket(members: TimedMembers, n: Integer, rebalance: Rebalance, timeUnit: DurationUnit)`.
+Forms: `basket(members: TimedMembers)`, `basket(members: TimedMembers, rebalance: Rebalance)`.
 
 ## `beta`
 
@@ -237,7 +237,7 @@ The excess returns of x over a cash index y (on the dates both have), or over a 
 | `x` | line |  | yes |
 | `y` | line_or_number |  | yes |
 
-Forms: `excess_returns(x: Line, y: Line)`, `excess_returns(x: TimedLine, y: Float, timeUnit: DurationUnit)`.
+Forms: `excess_returns(x: Line, y: Line)`, `excess_returns(x: TimedLine, y: Float)`.
 
 ## `exponential_moving_average`
 
@@ -275,7 +275,7 @@ Forms: `exponential_std(x: Line, beta: Float (optional))`.
 
 ## `exponential_volatility`
 
-The exponentially weighted volatility of x's returns (beta 0.75 unless given), annualized by the periods a year given or the line's dates infer.
+The exponentially weighted volatility of x's returns (beta 0.75 unless given), annualized by the periods a year given, SAMPLE BY's, or the line's dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -367,7 +367,7 @@ Forms: `index(x: Line, initial: Float (optional))`, `index(x: Line, initial: Flo
 
 ## `information_ratio`
 
-The annualized information ratio of x's simple returns against y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor) or the dates infer.
+The annualized information ratio of x's simple returns against y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -704,7 +704,7 @@ Forms: `seasonally_adjusted(x: Line)`, `seasonally_adjusted(x: Line, method: Sea
 
 ## `sharpe_ratio`
 
-The annualized Sharpe ratio of x's simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 252 observations unless given -- by the periods a year given (annualization_factor) or the line's dates infer.
+The annualized Sharpe ratio of x's simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 252 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -781,11 +781,11 @@ The total return of a price x: over a dividend line y (on every date either has)
 | `x` | line |  | yes |
 | `y` | line_or_number |  | yes |
 
-Forms: `total_return(x: Line, y: Line)`, `total_return(x: TimedLine, y: Float, timeUnit: DurationUnit)`.
+Forms: `total_return(x: Line, y: Line)`, `total_return(x: TimedLine, y: Float)`.
 
 ## `tracking_error`
 
-The annualized tracking error of x's simple returns against y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor) or the dates infer.
+The annualized tracking error of x's simple returns against y's over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY's, or the dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -866,7 +866,7 @@ Forms: `vol_swap_volatility(x: Line)`, `vol_swap_volatility(x: Line, w: Integer)
 
 ## `volatility`
 
-The annualized volatility of x's returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 22 observations unless given -- in percent, by the periods a year given (annualization_factor) or the line's dates infer.
+The annualized volatility of x's returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line's start to date; 22 observations unless given -- in percent, by the periods a year given (annualization_factor), SAMPLE BY's, or the line's dates infer.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
@@ -901,13 +901,13 @@ Forms: `weekday(x: Line)`.
 
 ## `weighted_sum`
 
-The weighted sum of the members (each line and its weight: weighted_sum(x, 0.6, y, 0.4)) over their weights' sum, on the dates all have (gs-quant's weighted_sum); n their count.
+The weighted sum of the members (each line and its weight: weighted_sum(x, 0.6, y, 0.4)) over their weights' sum, on the dates all have (gs-quant's weighted_sum).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `members` | members |  | yes |
 
-Forms: `weighted_sum(members: Members, n: Integer)`.
+Forms: `weighted_sum(members: Members)`.
 
 ## `winsorize`
 

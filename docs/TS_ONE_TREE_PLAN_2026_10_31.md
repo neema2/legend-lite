@@ -324,6 +324,19 @@ words of `#TS` are `timeseries::line::` functions in `projects/timeseries/model.
 SAMPLE BY, meeting, FILL) are `timeseries::lines::` functions. Core's `#TS` Java names no word: it is the parser, the
 sources and columns, the per-point SQL, the answer's assembly, and the plumbing that names columns.
 
+- **No rule in the translator** (the user, 2026-11-01: "get all the logic out of java"). The lines' spine (the GROUP BY
+  of N lines' periods), the answer's some-value filter (R6), its latest date and its order are `timeseries::lines::`
+  functions (`periodsOf`, `spine`, `someValued`, `latest`, `ordered`); a word's parameters are bound by type and place,
+  never by name: a calendar span's unit is the `DurationUnit` after its count, SAMPLE BY's periods a year are the
+  library's (`lines::perYear`, through each annualizing word's `sample`), a basket's count is a column of its members
+  (`members`), and a line's number in time is always seconds since 1970 (only ever ordered; a rate accrues it over a
+  day's seconds in the library), so no word takes a `timeUnit` and the translator chooses no unit by a date's type.
+  Two guards hold it (`TsTranslatorGuardrailTest`): every call the translator writes is a library function or
+  bookkeeping (select, rename, concatenate; extend and filter over the user's own lambdas; project and getAll), and no
+  parameter is compared with a name. Every answer unchanged: the frozen answers, and 72 calls (each annualizing word,
+  the baskets, the rates, under SAMPLE BY 1d, 1w, 1mo, and every third day, where only SAMPLE BY's periods a year give
+  a value) compared before and after.
+
 - **Step 1** (frozen answers): done.
 - **Step 2** (the gs-quant oracle): done (docs/TS_GSQUANT_ORACLE_2026_11_01.md). First run 119 of 210 agree; O1 (a
   window's first value) and O2 (compare) then matched to gs-quant (the user, 2026-11-01: "Why would we not match

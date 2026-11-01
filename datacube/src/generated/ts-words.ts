@@ -32,7 +32,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
     forms: ['alpha(x: Line, y: Line, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
-    doc: 'The annualized alpha of x\'s simple returns over y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor) or the dates infer.',
+    doc: 'The annualized alpha of x\'s simple returns over y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
   },
   annualize: {
     params: [
@@ -40,7 +40,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
     forms: ['annualize(x: Line, annualization_factor: Integer (optional))'],
-    doc: 'Each of x\'s values annualized by the periods a year given (annualization_factor) or the line\'s dates infer.',
+    doc: 'Each of x\'s values annualized by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
   },
   append: {
     params: [
@@ -65,7 +65,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'members', kind: 'members', takes: [], words: [], required: true },
       { name: 'rebalance', kind: 'word', takes: [], words: ['daily', 'weekly', 'monthly'], required: false },
     ],
-    forms: ['basket(members: TimedMembers, n: Integer, timeUnit: DurationUnit)', 'basket(members: TimedMembers, n: Integer, rebalance: Rebalance, timeUnit: DurationUnit)'],
+    forms: ['basket(members: TimedMembers)', 'basket(members: TimedMembers, rebalance: Rebalance)'],
     doc: 'A basket of the members in their weights from 100, rebalanced daily unless told weekly or monthly (gs-quant\'s basket_series, its costs none): units fixed between rebalances.',
   },
   beta: {
@@ -191,7 +191,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
       { name: 'y', kind: 'line_or_number', takes: [], words: [], required: true },
     ],
-    forms: ['excess_returns(x: Line, y: Line)', 'excess_returns(x: TimedLine, y: Float, timeUnit: DurationUnit)'],
+    forms: ['excess_returns(x: Line, y: Line)', 'excess_returns(x: TimedLine, y: Float)'],
     doc: 'The excess returns of x over a cash index y (on the dates both have), or over a rate accrued actual/360 (gs-quant\'s excess_returns).',
   },
   exponential_moving_average: {
@@ -226,7 +226,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
     forms: ['exponential_volatility(x: Line, beta: Float (optional), annualization_factor: Integer (optional))'],
-    doc: 'The exponentially weighted volatility of x\'s returns (beta 0.75 unless given), annualized by the periods a year given or the line\'s dates infer.',
+    doc: 'The exponentially weighted volatility of x\'s returns (beta 0.75 unless given), annualized by the periods a year given, SAMPLE BY\'s, or the line\'s dates infer.',
   },
   filter: {
     params: [
@@ -295,7 +295,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
     forms: ['information_ratio(x: Line, y: Line, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
-    doc: 'The annualized information ratio of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor) or the dates infer.',
+    doc: 'The annualized information ratio of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
   },
   interpolate: {
     params: [
@@ -544,7 +544,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
     forms: ['sharpe_ratio(x: Line, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Integer, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Scope, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
-    doc: 'The annualized Sharpe ratio of x\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 252 observations unless given -- by the periods a year given (annualization_factor) or the line\'s dates infer.',
+    doc: 'The annualized Sharpe ratio of x\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 252 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
   },
   smooth_spikes: {
     params: [
@@ -594,7 +594,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'x', kind: 'line', takes: [], words: [], required: true },
       { name: 'y', kind: 'line_or_number', takes: [], words: [], required: true },
     ],
-    forms: ['total_return(x: Line, y: Line)', 'total_return(x: TimedLine, y: Float, timeUnit: DurationUnit)'],
+    forms: ['total_return(x: Line, y: Line)', 'total_return(x: TimedLine, y: Float)'],
     doc: 'The total return of a price x: over a dividend line y (on every date either has), or a yield accrued actual/365 (gs-quant\'s total_return).',
   },
   tracking_error: {
@@ -605,7 +605,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
     forms: ['tracking_error(x: Line, y: Line, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
-    doc: 'The annualized tracking error of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor) or the dates infer.',
+    doc: 'The annualized tracking error of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
   },
   trend: {
     params: [
@@ -665,7 +665,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
       { name: 'annualization_factor', kind: 'whole', takes: [], words: [], required: false },
     ],
     forms: ['volatility(x: Line, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Integer, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Scope, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Integer, unit: DurationUnit, type: Returns (optional), annualization_factor: Integer (optional))'],
-    doc: 'The annualized volatility of x\'s returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 22 observations unless given -- in percent, by the periods a year given (annualization_factor) or the line\'s dates infer.',
+    doc: 'The annualized volatility of x\'s returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 22 observations unless given -- in percent, by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
   },
   vwap: {
     params: [
@@ -687,8 +687,8 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     params: [
       { name: 'members', kind: 'members', takes: [], words: [], required: true },
     ],
-    forms: ['weighted_sum(members: Members, n: Integer)'],
-    doc: 'The weighted sum of the members (each line and its weight: weighted_sum(x, 0.6, y, 0.4)) over their weights\' sum, on the dates all have (gs-quant\'s weighted_sum); n their count.',
+    forms: ['weighted_sum(members: Members)'],
+    doc: 'The weighted sum of the members (each line and its weight: weighted_sum(x, 0.6, y, 0.4)) over their weights\' sum, on the dates all have (gs-quant\'s weighted_sum).',
   },
   winsorize: {
     params: [

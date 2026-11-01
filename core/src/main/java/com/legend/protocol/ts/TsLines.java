@@ -37,7 +37,7 @@ final class TsLines {
     /** A line's period: every window's order, the column lines meet on. */
     static final String PERIOD = "__ts_p0";
 
-    /** A line's period's number in time (days since 1970, or seconds for a date-time): its last row's. */
+    /** A line's period's number in time, in seconds since 1970 (its moment; only ever ordered): its last row's. */
     static final String ORD = "__ts_ord";
 
     /** A line's period's date: its last row's, the date its value is of. */
@@ -46,15 +46,12 @@ final class TsLines {
     /** The line column of a line of no instrument (a subscripted one, or a source with no {@code BY}): one value. */
     static final String ONE_LINE = "__ts_line";
 
-    private static final String DURATION = "meta::pure::functions::date::DurationUnit";
-
     /** A relation of one row per line and period: its line column ({@link #ONE_LINE}, or the instrument column of a
-     *  line per instrument), whether it is a line per instrument, its period's date column, and whether its number in
-     *  time ({@link #ORD}) counts seconds (a date-time source's) rather than days. */
-    record Line(ValueSpecification rel, String part, boolean byInstrument, String at, boolean seconds) {
+     *  line per instrument), whether it is a line per instrument, and its period's date column. */
+    record Line(ValueSpecification rel, String part, boolean byInstrument, String at) {
 
         Line with(ValueSpecification other) {
-            return new Line(other, part, byInstrument, at, seconds);
+            return new Line(other, part, byInstrument, at);
         }
     }
 
@@ -100,13 +97,11 @@ final class TsLines {
             rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
         }
         String value = w.fresh("base");
-        boolean seconds = !"StrictDate".equals(s.dateType()) && !"Date".equals(s.dateType());
         // the library's line (timeseries::lines::line): its rows with a date and a value, its period, its number in
         // time, its date and its value
         rel = call(LINES + "line", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(column),
-                new EnumValue(DURATION, seconds ? "SECONDS" : "DAYS"), new ColSpec(instrument), new ColSpec(PERIOD),
-                new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));
-        return new Valued(new Line(rel, instrument, split, AT, seconds), value);
+                new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));
+        return new Valued(new Line(rel, instrument, split, AT), value);
     }
 
     /** The package of the language's lines' rules (projects/timeseries/model.pure, THE LANGUAGE'S LINES). */
@@ -155,11 +150,11 @@ final class TsLines {
         String value = w.fresh("base");
         // the library's line by period (timeseries::lines::sample)
         rel = call(LINES + "sample", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(dayColumn),
-                new ColSpec(column), new EnumValue(DURATION, day ? "DAYS" : "SECONDS"), sample(unit),
+                new ColSpec(column), sample(unit),
                 new EnumValue(TsToPure.LIBRARY + "Taken", java.util.Objects.requireNonNull(TAKEN.get(taken))),
                 new EnumValue(TsToPure.LIBRARY + "Dated", dated.toLowerCase(java.util.Locale.ROOT)),
                 new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));
-        return new Valued(new Line(rel, instrument, split, AT, !day), value);
+        return new Valued(new Line(rel, instrument, split, AT), value);
     }
 
     /** Lines spread onto every period any of them has ({@link #spread}): the line, and each line's own number in
@@ -248,7 +243,7 @@ final class TsLines {
         }
         spine = call("rename", spine, new ColSpec(ord), new ColSpec(ORD));
         List<String> ords = nodes.stream().map(n -> owns.get(indexOf(distinct, n.line()))).toList();
-        return new Spread(new Line(spine, part, instruments != null, at, nodes.get(0).line().seconds()), ords);
+        return new Spread(new Line(spine, part, instruments != null, at), ords);
     }
 
     /**
@@ -374,7 +369,7 @@ final class TsLines {
                             new ColSpec(left.at()), rel, new ColSpec(l), new ColSpec(p), new ColSpec(a), new ColSpec(at))
                     : call(LINES + "meetOne", left.rel(), new ColSpec(PERIOD), new ColSpec(left.at()), rel,
                             new ColSpec(p), new ColSpec(a), new ColSpec(at));
-            left = new Line(met, left.part(), left.byInstrument(), at, left.seconds());
+            left = new Line(met, left.part(), left.byInstrument(), at);
         }
         return left;
     }

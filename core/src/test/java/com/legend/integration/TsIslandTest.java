@@ -827,6 +827,25 @@ class TsIslandTest {
     }
 
     @Test
+    void aSampleBysPeriodsAYearAreTheLibrarys() throws Exception {
+        // an annualization under SAMPLE BY counts the sample's periods a year (timeseries::lines::perYear: a day's 252,
+        // a week's 52), passed to the word as its sample -- the translator binds no parameter by its name (2026-11-01).
+        // Every third day: their gaps infer no periods a year (gs-quant's buckets), so a value at all is the sample's.
+        String thin = " FROM (PRICES WHERE DAY = DATE '2024-01-20' OR DAY = DATE '2024-01-23' OR DAY = DATE '2024-01-26'"
+                + " OR DAY = DATE '2024-01-29') ON DAY BY SYMBOL";
+        Double[] days = each(4, i -> AAA[3 * i] * Math.sqrt(252));
+        for (TestBackend backend : deep()) {
+            assertClose(days, column(rows(backend, "|#TS{SELECT annualize(last(CLOSE['AAA'])) AS a" + thin
+                    + " SAMPLE BY 1d}#"), null, null, "a"), backend + ": SAMPLE BY 1d's 252 a year");
+            assertEquals(List.of(), rows(backend, "|#TS{SELECT annualize(CLOSE['AAA']) AS a" + thin + "}#"),
+                    backend + ": three days apart, the dates infer none");
+            assertClose(each(4, i -> AAA[3 * i] * Math.sqrt(12)), column(rows(backend, "|#TS{SELECT annualize("
+                    + "last(CLOSE['AAA']), annualization_factor => 12) AS a" + thin + " SAMPLE BY 1d}#"), null, null,
+                    "a"), backend + ": a factor given is the factor");
+        }
+    }
+
+    @Test
     void stepIsPrevAndNeitherFillsALinesStart() throws Exception {
         // FILL(STEP) is FILL(PREV) (R12, ruled 2026-10-31: gs-quant's step also gives a line's first value before it
         // starts, the future read; docs/SEMANTICS_REGISTER.md S130): none before BBB's first value either way

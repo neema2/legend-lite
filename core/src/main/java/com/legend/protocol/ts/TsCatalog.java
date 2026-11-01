@@ -79,8 +79,8 @@ public final class TsCatalog {
         boolean members = overloads.stream().anyMatch(o -> !o.params().isEmpty()
                 && (TsToPure.MEMBERS.equals(o.params().get(0).type())
                         || TsToPure.TIMED_MEMBERS.equals(o.params().get(0).type())));
-        // the order of the overload that takes most, then any another names; a calendar span's unit rides its count's
-        // parameter; SAMPLE BY's the query's
+        // the order of the overload that takes most, then any another names; a calendar span's unit (a DurationUnit)
+        // rides its count's parameter; SAMPLE BY's and FILL's are the query's
         List<List<TsToPure.Parameter>> orders = new ArrayList<>();
         overloads.stream().map(TsToPure.Overload::params).max(java.util.Comparator.comparingInt(List::size))
                 .ifPresent(orders::add);
@@ -88,9 +88,9 @@ public final class TsCatalog {
         Map<String, TsFunctions.Param> params = new LinkedHashMap<>();
         for (List<TsToPure.Parameter> ps : orders) {
             for (TsToPure.Parameter p : ps) {
-                // a calendar span's unit, SAMPLE BY's, FILL's and a basket's count are the query's, never given
-                boolean language = "unit".equals(p.name()) || SAMPLE.equals(p.type()) || TsWords.FILL.equals(p.type())
-                        || members && "n".equals(p.name()) || "timeUnit".equals(p.name());
+                // a calendar span's unit is its count's, SAMPLE BY's and FILL's the query's: never given (by type)
+                boolean language = TsWords.DURATION.equals(p.type()) || SAMPLE.equals(p.type())
+                        || TsWords.FILL.equals(p.type());
                 if (!language && !lines.contains(p.name()) && !params.containsKey(p.name())) {
                     params.put(p.name(), param(model, overloads, p));
                 }
@@ -168,7 +168,7 @@ public final class TsCatalog {
                 if (!q.name().equals(p.name())) {
                     continue;
                 }
-                boolean unit = i + 1 < ps.size() && "unit".equals(ps.get(i + 1).name());
+                boolean unit = i + 1 < ps.size() && TsWords.DURATION.equals(ps.get(i + 1).type());
                 switch (q.type()) {
                     case "Integer" -> out.add(unit ? "period" : "observations");
                     case "StrictDate" -> out.add("date");
@@ -202,7 +202,8 @@ public final class TsCatalog {
         return (TsToPure.LIBRARY + "Scope").equals(type) || (TsToPure.LIBRARY + "Whole").equals(type);
     }
 
-    /** Whether {@code name} is a span in {@code ps}: an Integer a {@code unit} follows, or a span's word ({@link #scope}). */
+    /** Whether {@code name} is a span in {@code ps}: an Integer a DurationUnit follows (a calendar span's count and
+     *  unit), or a span's word ({@link #scope}). */
     private static boolean spanIn(List<TsToPure.Parameter> ps, String name) {
         for (int i = 0; i < ps.size(); i++) {
             TsToPure.Parameter p = ps.get(i);
@@ -212,7 +213,7 @@ public final class TsCatalog {
             if (scope(p.type())) {
                 return true;
             }
-            if ("Integer".equals(p.type()) && i + 1 < ps.size() && "unit".equals(ps.get(i + 1).name())) {
+            if ("Integer".equals(p.type()) && i + 1 < ps.size() && TsWords.DURATION.equals(ps.get(i + 1).type())) {
                 return true;
             }
         }

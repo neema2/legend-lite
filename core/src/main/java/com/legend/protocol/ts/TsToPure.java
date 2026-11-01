@@ -92,16 +92,17 @@ public final class TsToPure {
     public static final String LINE = "Line";
 
     /** A parameter's type where it is a line with each value's number in time, in seconds since 1970 -- its moment,
-     *  a date-time line's under SAMPLE BY its period's last tick's: {@code Relation<(key:K, date:D, time:Integer,
-     *  value:Number)>}, a word that accrues over time (a rate's). */
+     *  under SAMPLE BY its period's last tick's: {@code Relation<(key:K, date:D, time:Integer, value:Number)>}, a word
+     *  that accrues over time (a rate's). */
     public static final String TIMED_LINE = "TimedLine";
 
     /** A parameter's type where it is lines with their weights, a long relation {@code Relation<(key:K, date:D,
-     *  member:Integer, weight:Float, value:Number)>}: a basket's members. */
+     *  member:Integer, weight:Float, members:Integer, value:Number)>}: a basket's members, each row its member's number
+     *  from 0, its weight and how many members were written. */
     public static final String MEMBERS = "Members";
 
     /** A parameter's type where it is weighted members with each value's number in time ({@link #TIMED_LINE}'s):
-     *  {@code Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number)>}. */
+     *  {@code Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, members:Integer, value:Number)>}. */
     public static final String TIMED_MEMBERS = "TimedMembers";
 
     /** A class's property, as {@link Model#property} reports it: its name, its type's name, the class it holds

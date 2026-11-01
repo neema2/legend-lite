@@ -27,11 +27,13 @@ import java.util.Set;
  * over lines -- {@code timeseries::line::<word>}, of a line {@code Relation<(key, date, value)>} to a line -- is called by
  * its name, each argument the call gives bound to the parameter of its name and kind, read from the word's own
  * overloads in the model: a window of {@code w} observations to the {@code w: Integer} one, a span ({@code 3mo}) to
- * {@code w: Integer, unit: DurationUnit} (a lag's {@code obs} likewise), {@code all} to {@code w: timeseries::Scope}, a date to {@code w: StrictDate};
- * a word to the value of the parameter's enumeration; a number to an Integer or a Float. A parameter the call does not
- * give takes its default: none ({@code []}) where it may ({@code [0..1]}, its default in the body), else the overload
- * without it -- and {@code annualization_factor}, under SAMPLE BY, the sample's periods a year (gs-quant's parameter, the
- * language's rule). The rule knows no word: what a word means, its forms and its defaults are the library's.
+ * {@code w: Integer} and the {@code DurationUnit} parameter after it (a lag's {@code obs} likewise), {@code all} to
+ * {@code w: timeseries::Scope}, a date to {@code w: StrictDate}; a word to the value of the parameter's enumeration; a
+ * number to an Integer or a Float. The query's SAMPLE BY and FILL go to a parameter of their types
+ * ({@code timeseries::Sample}, {@code timeseries::Fill}). A parameter the call does not give takes its default: none
+ * ({@code []}) where it may ({@code [0..1]}, its default in the body), else the overload without it. The rule knows no
+ * word and no parameter by its name: what a word means, its forms and its defaults -- an annualization's periods a year
+ * under SAMPLE BY, a rate's time, a basket's count -- are the library's.
  *
  * <p>A line goes in as its key, its date (the date its value is of) and its value, and comes back as a line of the
  * language's own ({@link TsLines.Line}): its period the date's (SAMPLE BY's period of it), its number in time the date's.
@@ -44,7 +46,8 @@ final class TsWords {
     /** The package of the words over lines. */
     static final String PACKAGE = TsToPure.LIBRARY + "line::";
 
-    private static final String DURATION = "meta::pure::functions::date::DurationUnit";
+    /** The type of a calendar span's unit: a word's parameter after its count's ({@code w}, {@code obs}). */
+    static final String DURATION = "meta::pure::functions::date::DurationUnit";
 
     /** What a call gives a parameter: a window (observations, all, a calendar span, a date on), or a value. */
     sealed interface Given permits Observations, All, Calendar, Day, Num, Whole, Word {
@@ -167,7 +170,7 @@ final class TsWords {
             outs.put(g, c.fresh("value".equals(g) ? word : word + "_" + g));
         }
         ValueSpecification rel = back(c, TsLines.call(fqn(word), fits.get(0)), key, outs);
-        TsLines.Line line = new TsLines.Line(rel, key.part(), key.byInstrument(), key.at(), key.seconds());
+        TsLines.Line line = new TsLines.Line(rel, key.part(), key.byInstrument(), key.at());
         String first = outs.values().iterator().next();
         if (!gives.equals(List.of("value"))) {
             c.struct(first, java.util.Collections.unmodifiableMap(new LinkedHashMap<>(outs)));
@@ -209,22 +212,24 @@ final class TsWords {
         }
         Set<String> taken = new LinkedHashSet<>();
         List<ValueSpecification> out = new ArrayList<>();
-        // a calendar span (a window w, a lag's obs) takes the unit parameter beside its count's
-        Calendar span = given.values().stream().filter(g -> g instanceof Calendar).map(g -> (Calendar) g).findFirst()
-                .orElse(null);
         for (int i = 0; i < o.size(); i++) {
             TsToPure.Parameter p = o.get(i);
             ValueSpecification v;
             if (i < args.size()) {
                 v = argument(c, args.get(i), p, key, pos);
-            } else if ("unit".equals(p.name()) && span != null) {
-                Calendar cal = span;
-                v = DURATION.equals(p.type()) ? new EnumValue(DURATION, cal.unit()) : null;
+            } else if (given.get(p.name()) instanceof Calendar cal) {
+                // a calendar span (a window w, a lag's obs): its count this parameter, its unit the DurationUnit one
+                // after it -- an overload without one does not fit it
+                if (!"Integer".equals(p.type()) || i + 1 >= o.size() || !DURATION.equals(o.get(i + 1).type())) {
+                    return null;
+                }
+                out.add(new CInteger((long) cal.n()));
+                v = new EnumValue(DURATION, cal.unit());
+                taken.add(p.name());
+                i++;
             } else if (given.containsKey(p.name())) {
                 v = value(c, given.get(p.name()), p);
                 taken.add(p.name());
-            } else if ("annualization_factor".equals(p.name()) && sampledPerYear(c) != null) {
-                v = new CInteger(java.util.Objects.requireNonNull(sampledPerYear(c)));
             } else if (TsCatalog.SAMPLE.equals(p.type()) && c.query().sample() != null) {
                 // the lines meet on SAMPLE BY's periods
                 v = TsLines.sample(java.util.Objects.requireNonNull(c.query().sample()).unit());
@@ -232,13 +237,6 @@ final class TsWords {
                 // the lines meet under FILL, filled
                 String how = java.util.Objects.requireNonNull(c.query().fill()).how().toLowerCase(java.util.Locale.ROOT);
                 v = new EnumValue(FILL, "null".equals(how) ? "none" : how);
-            } else if ("timeUnit".equals(p.name()) && DURATION.equals(p.type()) && timedLine(o, args) != null) {
-                // a timed line's number in time, counted as its own: a date line's days, a date-time line's seconds
-                v = new EnumValue(DURATION, java.util.Objects.requireNonNull(timedLine(o, args)).seconds() ? "SECONDS"
-                        : "DAYS");
-            } else if ("n".equals(p.name()) && "Integer".equals(p.type()) && members(args) != null) {
-                // the members' count
-                v = new CInteger((long) java.util.Objects.requireNonNull(members(args)).lines().size());
             } else {
                 v = p.optional() ? new PureCollection(List.of()) : null;
             }
@@ -247,30 +245,7 @@ final class TsWords {
             }
             out.add(v);
         }
-        // a calendar span takes its unit's parameter too: an overload without one does not fit it
-        if (span != null && o.stream().noneMatch(p -> "unit".equals(p.name()))) {
-            return null;
-        }
         return taken.equals(given.keySet()) ? out : null;
-    }
-
-    /** The line {@code o} takes timed, among {@code args} in its places, or null. */
-    private static TsLines.@com.legend.base.Nullable Line timedLine(List<TsToPure.Parameter> o, List<Arg> args) {
-        for (int i = 0; i < args.size() && i < o.size(); i++) {
-            if (TsToPure.TIMED_LINE.equals(o.get(i).type()) && args.get(i) instanceof LineArg l) {
-                return l.line().line();
-            }
-            if (TsToPure.TIMED_MEMBERS.equals(o.get(i).type()) && args.get(i) instanceof MembersArg m
-                    && !m.lines().isEmpty()) {
-                return m.lines().get(0).line();
-            }
-        }
-        return null;
-    }
-
-    /** The weighted members among {@code args}, or null. */
-    private static @com.legend.base.Nullable MembersArg members(List<Arg> args) {
-        return args.stream().filter(a -> a instanceof MembersArg).map(a -> (MembersArg) a).findFirst().orElse(null);
     }
 
     /** {@code a}, given in {@code p}'s place, as its value: a line as a word takes it (every instrument's of
@@ -297,8 +272,8 @@ final class TsWords {
         return line;
     }
 
-    /** {@code v} as a word that accrues over time takes it: its key, its date, its number in time (counted as the
-     *  line's: days or seconds, a {@code timeUnit} parameter's), its value. Refused (R2): one of no instrument with
+    /** {@code v} as a word that accrues over time takes it: its key, its date, its number in time (the line's own, in
+     *  seconds since 1970: under SAMPLE BY its period's last tick's), its value. Refused (R2): one of no instrument with
      *  lines per instrument. */
     private static ValueSpecification timed(TsLines.Valued v, TsLines.Line key, SqlAst.Pos pos) {
         if (key.byInstrument() && !v.line().byInstrument()) {
@@ -319,20 +294,22 @@ final class TsWords {
         return TsLines.ORD;
     }
 
-    /** Members as the long relation a basket reads: each line (every instrument's, as {@link #each}), its number from
-     *  0 and its weight, concatenated. */
+    /** Members as the long relation a basket reads, as written: each line (every instrument's, as {@link #each}; with
+     *  its time, {@code timed}, as {@link #timed}), its number from 0, its weight and how many they are, concatenated. */
     private static ValueSpecification members(MembersArg m, TsLines.Line key, SqlAst.Pos pos, boolean timed) {
         ValueSpecification all = null;
         for (int i = 0; i < m.lines().size(); i++) {
             ValueSpecification line = timed ? timed(m.lines().get(i), key, pos) : each(m.lines().get(i), key, pos);
             ValueSpecification one = TsLines.call("extend", line, new ColSpecArray(List.of(
                     new ColSpec("member", TsLines.lambda("x", new CInteger((long) i))),
-                    new ColSpec("weight", TsLines.lambda("x", new CFloat(m.weights().get(i)))))));
+                    new ColSpec("weight", TsLines.lambda("x", new CFloat(m.weights().get(i)))),
+                    new ColSpec("members", TsLines.lambda("x", new CInteger((long) m.lines().size()))))));
             List<ColSpec> columns = new ArrayList<>(List.of(new ColSpec("key"), new ColSpec("date")));
             if (timed) {
                 columns.add(new ColSpec("time"));
             }
-            columns.addAll(List.of(new ColSpec("member"), new ColSpec("weight"), new ColSpec("value")));
+            columns.addAll(List.of(new ColSpec("member"), new ColSpec("weight"), new ColSpec("members"),
+                    new ColSpec("value")));
             one = TsLines.call("select", one, new ColSpecArray(List.copyOf(columns)));
             all = all == null ? one : TsLines.call("concatenate", all, one);
         }
@@ -361,22 +338,6 @@ final class TsWords {
     private static boolean enumerationHas(TsFunctions.Ctx c, String type, String value) {
         List<String> values = c.model().enumeration(type);
         return values != null && values.contains(value);
-    }
-
-    /** SAMPLE BY's periods a year (a figure annualized over a sample's periods), or null without one. */
-    private static @com.legend.base.Nullable Long sampledPerYear(TsFunctions.Ctx c) {
-        TsAst.Span sample = c.query().sample();
-        if (sample == null) {
-            return null;
-        }
-        return switch (sample.unit()) {
-            case "d" -> 252L;
-            case "w" -> 52L;
-            case "mo" -> 12L;
-            case "q" -> 4L;
-            case "y" -> 1L;
-            default -> throw new IllegalStateException("SAMPLE BY " + sample.unit());
-        };
     }
 
     /** {@code word(x, ...)} as written: an overload's parameters, a refusal's words. */
@@ -416,11 +377,10 @@ final class TsWords {
         }
         // its period and its number in time, of its date (the library's timed)
         TsAst.Span sample = c.query().sample();
-        EnumValue unit = new EnumValue(DURATION, l.seconds() ? "SECONDS" : "DAYS");
         return sample == null
-                ? TsLines.call(TsLines.LINES + "timed", rel, new ColSpec(l.at()), unit, new ColSpec(TsLines.PERIOD),
+                ? TsLines.call(TsLines.LINES + "timed", rel, new ColSpec(l.at()), new ColSpec(TsLines.PERIOD),
                         new ColSpec(TsLines.ORD))
-                : TsLines.call(TsLines.LINES + "timed", rel, new ColSpec(l.at()), TsLines.sample(sample.unit()), unit,
+                : TsLines.call(TsLines.LINES + "timed", rel, new ColSpec(l.at()), TsLines.sample(sample.unit()),
                         new ColSpec(TsLines.PERIOD), new ColSpec(TsLines.ORD));
     }
 

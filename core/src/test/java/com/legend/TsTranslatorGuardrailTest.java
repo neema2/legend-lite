@@ -81,4 +81,28 @@ class TsTranslatorGuardrailTest {
         assertEquals(Map.of(), rules, "relation operations the #TS translator writes that state a rule -- the"
                 + " library's to write (a timeseries::lines:: function or a word), never the translator's");
     }
+
+    /** A parameter compared with a name written here: {@code "unit".equals(p.name())}, {@code p.name().equals("n")}. */
+    private static final Pattern BY_NAME = Pattern.compile("\"[A-Za-z_]+\"\\.equals\\([^;\"]*\\bname\\(\\)\\)"
+            + "|\\.name\\(\\)\\.equals\\(\"");
+
+    @Test
+    void theTranslatorBindsNoParameterByItsName() throws IOException {
+        // what a word's parameter is given is read from its type and its place (a span's unit: the DurationUnit after
+        // its count; SAMPLE BY's: a timeseries::Sample), never from its name: a word's names are the library's own
+        // (2026-11-01: annualization_factor, timeUnit, n and unit were bound by name, and moved into the library)
+        java.util.List<String> sites = new java.util.ArrayList<>();
+        for (Path p : SourceFiles.under("core/src/main/java/com/legend/protocol/ts")) {
+            if (!p.toString().endsWith(".java")) {
+                continue;
+            }
+            String[] lines = Files.readString(p).split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                if (BY_NAME.matcher(lines[i]).find()) {
+                    sites.add(SourceFiles.path(p) + ":" + (i + 1) + ": " + lines[i].strip());
+                }
+            }
+        }
+        assertEquals(java.util.List.of(), sites, "a parameter bound by its name");
+    }
 }
