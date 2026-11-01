@@ -211,6 +211,48 @@ public final class CellText {
         };
     }
 
+    /**
+     * {@link #pureJson}'s token of a cell written straight into {@code w} (the tier 1 of the product path's payoff,
+     * 2026-11-01: a node made per cell and copied was a third of the JSON rows writer's time): the same choices, the
+     * same text -- a number's token where the node would carry one ({@link #token}'s rule writes a whole number's
+     * {@code long}, whose digits are the token's own), a structure through its node as before.
+     * {@code CellTextDirectTest} holds the two forms equal.
+     */
+    public static void writePureJson(Json.Writer w, @com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
+        switch (cell) {
+            case null -> w.writeNull();
+            // a Float's spelling decided in one place: its node's ({@link #pureJson})
+            case Double d -> Json.write(w, pureJson(d, c));
+            case BigDecimal d -> w.writeToken(isFloat(c) ? pureFloat(d) : d.toPlainString());
+            case PureDateLiteral d -> w.writeString(pureDate(d, c.type(), c));
+            case Map<?, ?> m -> Json.write(w, structure(declared(m), true, c));
+            case List<?> l -> Json.write(w, structure(declared(l), true, c));
+            default -> writeEngine(w, cell, c);
+        }
+    }
+
+    /** {@link #engine}'s token of a cell written straight into {@code w}: the same choices and text as the node
+     *  ({@link #writePureJson}'s note). */
+    public static void writeEngine(Json.Writer w, @com.legend.base.Nullable Object cell, ExecutionPlan.Column c) {
+        switch (cell) {
+            case null -> w.writeNull();
+            case Long l -> w.writeLong(l);
+            case BigInteger b -> w.writeToken(b.toString());
+            // a Float's spelling decided in one place, its node's ({@link #engine}): a double, and a decimal the
+            // database holds under a Float column
+            case Double d -> Json.write(w, engine(d, c));
+            case BigDecimal d when isFloat(c) -> Json.write(w, engine(d, c));
+            case BigDecimal d -> w.writeToken(d.toPlainString());
+            case Boolean b -> w.writeBool(b);
+            case String s -> w.writeString(s);
+            case PureDateLiteral d -> w.writeString(engineDay(d, c) ? day(d) : d.toEngineJson());
+            case PureTimeLiteral t -> w.writeString(t.toEngineString());
+            case Map<?, ?> m -> Json.write(w, structure(declared(m), false, c));
+            case List<?> l -> Json.write(w, structure(declared(l), false, c));
+            default -> throw refused(cell, c, "legend-engine's JSON token");
+        }
+    }
+
     /** {@code name} as legend-engine labels a column (its {@code mayQuotePivotColNames}, pureToSQLQuery.pure:2985;
      *  the compiler's {@code Type.RelationType.presentPivotName}): a name holding the pivot separator {@code __|__}
      *  that is not already quote-wrapped carries literal single quotes as part of the NAME. */

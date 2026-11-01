@@ -114,7 +114,7 @@ public final class PureV1Writer implements ResultSink {
             b.append(rows == 0 ? "" : ",").append("{\"values\": ");
             values.beginArray();
             for (int i : order) {
-                Json.write(values, CellText.engine(batch.get(r, i), columns.get(i)));
+                CellText.writeEngine(values, batch.get(r, i), columns.get(i));
             }
             values.endArray();
             b.append('}');

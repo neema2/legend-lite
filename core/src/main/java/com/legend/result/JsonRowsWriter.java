@@ -69,7 +69,7 @@ public final class JsonRowsWriter implements ResultSink {
             for (int i = 0; i < columns.size(); i++) {
                 Named c = columns.get(i);
                 b.append(i == 0 ? "" : ",").append(c.key());
-                Json.write(tokens, CellText.pureJson(batch.get(r, i), c.column()));
+                CellText.writePureJson(tokens, batch.get(r, i), c.column());
             }
             b.append('}');
         }

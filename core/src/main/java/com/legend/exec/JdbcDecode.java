@@ -65,8 +65,10 @@ final class JdbcDecode {
     static final class Reader {
         private final List<ExecutionPlan.Column> columns;
         private final DatabaseConnector.Decoding driver;
-        /** Each column's slot kind ({@link com.legend.result.RowDecode#slotWord}). */
-        private final String[] kinds;
+        /** Each column's decode kind, from its slot ({@link Kind#of}). */
+        private final Kind[] kinds;
+        /** Whether each column's slot is TIMESTAMP (the one slot whose cells may be read as java.time at once). */
+        private final boolean[] timestampSlot;
         /** Each column's timestamp read: {@link #UNSEEN} until its first non-null cell, then {@link #DIRECT} where
          *  its slot is TIMESTAMP and the driver answered a {@code java.sql.Timestamp} the read re-reads, else
          *  {@link #AS_ANSWERED}. */
@@ -79,9 +81,12 @@ final class JdbcDecode {
         Reader(List<ExecutionPlan.Column> columns, DatabaseConnector.Decoding driver) {
             this.columns = List.copyOf(columns);
             this.driver = driver;
-            this.kinds = new String[columns.size()];
+            this.kinds = new Kind[columns.size()];
+            this.timestampSlot = new boolean[columns.size()];
             for (int i = 0; i < kinds.length; i++) {
-                kinds[i] = com.legend.result.RowDecode.slotWord(columns.get(i).slot());
+                String word = com.legend.result.RowDecode.slotWord(columns.get(i).slot());
+                kinds[i] = Kind.of(word);
+                timestampSlot[i] = word.equals("TIMESTAMP");
             }
             this.timestamps = new byte[columns.size()];
         }
@@ -92,7 +97,7 @@ final class JdbcDecode {
             List<Object> out = new ArrayList<>(columns.size());
             for (int i = 0; i < kinds.length; i++) {
                 ExecutionPlan.Column c = columns.get(i);
-                if (kinds[i].equals("TAGGED")) {
+                if (kinds[i] == Kind.TAGGED) {
                     out.add(tagged(rs, i, c, driver));
                 } else if (timestamps[i] == DIRECT) {
                     Object t = rs.getObject(i + 1, LocalDateTime.class);
@@ -103,7 +108,7 @@ final class JdbcDecode {
                 } else {
                     Object answered = answered(rs, i + 1, kinds[i]);
                     if (timestamps[i] == UNSEEN && answered != null) {
-                        timestamps[i] = kinds[i].equals("TIMESTAMP") && answered instanceof java.sql.Timestamp
+                        timestamps[i] = timestampSlot[i] && answered instanceof java.sql.Timestamp
                                 && driver.javaTime() ? DIRECT : AS_ANSWERED;
                     }
                     out.add(decode(reread(rs, i + 1, c, answered, driver), c, kinds[i], driver));
@@ -113,12 +118,43 @@ final class JdbcDecode {
         }
     }
 
-    /** Whether a column of slot kind {@code kind} reads the driver's object ({@link #answered}), not its text. */
-    private static boolean kindRead(String kind) {
-        return switch (kind) {
-            case "DECIMAL_TEXT", "TEMPORAL_TEXT", "VARCHAR", "CHAR", "TEXT" -> false;
-            default -> true;
-        };
+    /**
+     * A column's decode kind, read once from its slot's word ({@link com.legend.result.RowDecode#slotWord}): the slot
+     * labels that ARE the decode instruction, the SQL kinds grouped by the carrier they decode to, and a column with
+     * no slot (a late-bound grid's column, a pivot's generated column), which its Pure type decides. A cell's decode
+     * switches on it ({@link #decode}), never on the word (the review of PR #85's tier 1, 2026-11-01: a string
+     * compared per cell).
+     */
+    enum Kind {
+        TAGGED, DECIMAL_TEXT, TEMPORAL_TEXT, TEMPORAL, TIME, INTEGRAL, FLOATING, DECIMAL, BOOLEAN, TEXT, JSON, ARRAY,
+        STRUCT, MAP, BY_PURE_TYPE;
+
+        static Kind of(String slotWord) {
+            return switch (slotWord) {
+                case "TAGGED" -> TAGGED;
+                case "DECIMAL_TEXT" -> DECIMAL_TEXT;
+                case "TEMPORAL_TEXT" -> TEMPORAL_TEXT;
+                case "DATE", "TIMESTAMP", "TIMESTAMPTZ" -> TEMPORAL;
+                case "TIME" -> TIME;
+                case "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "HUGEINT" -> INTEGRAL;
+                case "DOUBLE", "FLOAT", "REAL" -> FLOATING;
+                case "DECIMAL", "NUMERIC" -> DECIMAL;
+                case "BOOLEAN" -> BOOLEAN;
+                case "VARCHAR", "CHAR", "TEXT" -> TEXT;
+                case "JSON" -> JSON;
+                case "ARRAY" -> ARRAY;
+                case "STRUCT" -> STRUCT;
+                case "MAP" -> MAP;
+                // no slot word this decode names: the Pure type decides (a late-bound grid's column, a pivot's
+                // generated column), as the word switch's default did
+                default -> BY_PURE_TYPE;
+            };
+        }
+
+        /** Whether its cells read the driver's object ({@link #answered}), not its text. */
+        boolean readsObject() {
+            return this != DECIMAL_TEXT && this != TEMPORAL_TEXT && this != TEXT;
+        }
     }
 
     /** The cells of the one row {@code rs} stands on, read as a statement's {@link Reader} reads a row (one read
@@ -151,15 +187,15 @@ final class JdbcDecode {
     /** Result column {@code i} as the cell of {@code c}. */
     static @com.legend.base.Nullable Object cell(ResultSet rs, int i, ExecutionPlan.Column c, DatabaseConnector.Decoding driver)
             throws SQLException {
-        String kind = com.legend.result.RowDecode.slotWord(c.slot());
+        Kind kind = Kind.of(com.legend.result.RowDecode.slotWord(c.slot()));
         return decode(reread(rs, i, c, answered(rs, i, kind), driver), c, kind, driver);
     }
 
     /** Result column {@code i}'s object as the driver answers it for a column of slot kind {@code kind}: the text of
      *  a text slot (a label whose text carries its own kind, and a text slot: a number the database holds under a
      *  text slot keeps its digits, as its JSON token did), else the driver's object. */
-    private static @com.legend.base.Nullable Object answered(ResultSet rs, int i, String kind) throws SQLException {
-        return kindRead(kind) ? rs.getObject(i) : rs.getString(i);
+    private static @com.legend.base.Nullable Object answered(ResultSet rs, int i, Kind kind) throws SQLException {
+        return kind.readsObject() ? rs.getObject(i) : rs.getString(i);
     }
 
     /** {@code v}, result column {@code i}'s answered object, re-read where the driver's object loses what java.time
@@ -202,13 +238,13 @@ final class JdbcDecode {
      *  then by the Pure type. */
     static @com.legend.base.Nullable Object decode(@com.legend.base.Nullable Object v, ExecutionPlan.Column c,
             DatabaseConnector.Decoding driver) throws SQLException {
-        return decode(v, c, com.legend.result.RowDecode.slotWord(c.slot()), driver);
+        return decode(v, c, Kind.of(com.legend.result.RowDecode.slotWord(c.slot())), driver);
     }
 
     /** {@link #decode(Object, ExecutionPlan.Column, DatabaseConnector.Decoding)} with {@code c}'s slot kind
      *  {@code kind} already read. */
     private static @com.legend.base.Nullable Object decode(@com.legend.base.Nullable Object v, ExecutionPlan.Column c,
-            String kind, DatabaseConnector.Decoding driver) throws SQLException {
+            Kind kind, DatabaseConnector.Decoding driver) throws SQLException {
         if (v == null) {
             return null;
         }
@@ -217,29 +253,29 @@ final class JdbcDecode {
             // the slot labels that ARE the decode instruction: a text-carried temporal or decimal parses (the
             // LITERAL spelling carrier's arm, a cell parsed by its Pure-literal text, left with track L's L2,
             // 2026-10-29: a mixed value is a tagged value, read in its slot)
-            case "TAGGED" -> throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with"
+            case TAGGED -> throw new IllegalStateException("column '" + c.name() + "': a tagged cell is read with"
                     + " its row (its slot columns stand beside it), never alone");
-            case "DECIMAL_TEXT" -> {
+            case DECIMAL_TEXT -> {
                 return com.legend.result.RowDecode.decimalText(text(v, c));
             }
-            case "TEMPORAL_TEXT" -> {
+            case TEMPORAL_TEXT -> {
                 return com.legend.result.RowDecode.temporalText(text(v, c), c);
             }
             // the SQL kinds: the carrier is the slot's -- but a text the database holds is the column's own text
             // unless the Pure type is numeric (RowDecode's rule, the step-6 finding)
-            case "DATE", "TIMESTAMP", "TIMESTAMPTZ" -> {
+            case TEMPORAL -> {
                 return temporal(v, c);
             }
-            case "TIME" -> {
+            case TIME -> {
                 return time(v, c);
             }
-            case "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "HUGEINT" -> {
+            case INTEGRAL -> {
                 return v instanceof String s && !com.legend.result.RowDecode.numericPure(type) ? s : integral(v, c);
             }
-            case "DOUBLE", "FLOAT", "REAL" -> {
+            case FLOATING -> {
                 return v instanceof String s && !com.legend.result.RowDecode.numericPure(type) ? s : floating(v, c);
             }
-            case "DECIMAL", "NUMERIC" -> {
+            case DECIMAL -> {
                 if (v instanceof String s && !com.legend.result.RowDecode.numericPure(type)) {
                     return s;
                 }
@@ -249,30 +285,30 @@ final class JdbcDecode {
                 int scale = driver.dropsDecimalZeros() ? declaredScale(c) : -1;
                 return scale > d.scale() ? d.setScale(scale) : d;
             }
-            case "BOOLEAN" -> {
+            case BOOLEAN -> {
                 return bool(v, c);
             }
-            case "VARCHAR", "CHAR", "TEXT" -> {
+            case TEXT -> {
                 return text(v, c);
             }
             // a JSON cell: its text, read by the Pure type as a document's cell is
-            case "JSON" -> {
+            case JSON -> {
                 String json = jsonText(v, c);
                 Json.Node node = driver.nonFiniteJson() ? NonFiniteJson.parse(json) : Json.parse(json);
                 // a Variant's cell is its JSON text, a JSON null included: the SQL cell is not NULL, so the null is
                 // the Variant's value (toJSON of it is 'null'), never an absent one
                 return type.equals(com.legend.result.RowDecode.VARIANT) ? Json.toCompact(node) : com.legend.result.RowDecode.cell(node, c);
             }
-            case "ARRAY" -> {
+            case ARRAY -> {
                 return array(v, c, driver);
             }
-            case "STRUCT" -> {
+            case STRUCT -> {
                 return struct(v, c, driver);
             }
-            case "MAP" -> {
+            case MAP -> {
                 return map(v, c, driver);
             }
-            default -> {
+            case BY_PURE_TYPE -> {
                 // no slot (a late-bound grid's column, a pivot's generated column): the Pure type decides
             }
         }

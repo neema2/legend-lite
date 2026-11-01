@@ -16765,3 +16765,23 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
    channel B's 11 suites identical line for line to main's own run (the one red, SQLite essential 332 < 333, red on
    main too); the corpus verdicts green; Postgres and `//datacube:verify_app_test` unprivileged 19 of 19, channel B's
    five Postgres suites identical per test.
+10. **Tier 1 of the remaining overhead** (the user, 2026-11-01: "Let's do tier 1", after a profile of the branch at
+    10,000,000 rows put two thirds of the runner in the DuckDB driver itself, and of what is ours: a timestamp's date
+    carrier 14%, the decode's dispatch on the slot's WORD about 10% -- a string compared per cell -- the batches 7-10%;
+    the JSON writer's node made per cell a third of its time):
+    - `exec/JdbcDecode.Kind`: a column's decode kind read once from its slot's word, the cell's decode a switch on it
+      (no word compared per cell; a column with no slot the Pure type's, as before).
+    - `result/CellText.writePureJson`, `writeEngine`: a cell's token written straight into the batch's writer, the
+      same choices as `pureJson`/`engine`; a structure, a double and a decimal under a Float column through their node
+      as before (the Float spellings decided in one place; the writer guard's counts unchanged, no pin moved).
+      `CellTextDirectTest`: the two forms equal for every carrier under every column kind and written-precision fact,
+      alone and back to back, a refused cell refused alike.
+    - Byte-identical: every writer's CRC32 at 1,000,000 rows and all 48 small-fetch outputs the same as main's.
+    - 10,000,000 rows, two runs (the PR's previous head -> tier 1): the runner with no writer 5.9-6.0 -> 5.7-6.0 s (raw
+      4.84-4.87 s), JSON rows 8.9 -> 8.2 s, PureV1 8.9 -> 7.7-8.0 s, CSV 8.3 -> 8.0-8.1 s, Arrow 7.3 -> 7.0-7.1 s.
+    - The chain on tier 1: 75 of 75 (core, `//json:tests`, `//pct:pct_discipline`); PCT channel A 16 of 16 exact;
+      channel B's 11 suites identical line for line to main's own run (SQLite essential's 332 < 333 red on main too);
+      the corpus verdicts green on both databases, the DuckDB judges run fresh; Postgres and
+      `//datacube:verify_app_test` unprivileged 19 of 19. A first attempt filled the container's disk: its
+      failures were "No space left on device", and the DuckDB database judge's pass, which could not unpack DuckDB's
+      native library, was cached as UNMEASURED; its outputs deleted and the pass run again, the rosters are unchanged.
