@@ -16666,7 +16666,7 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
    `Json.escapeTo` appended one character at a time (a tenth of the JSON writer); the PureV1 writer made a list and a
    text per row; the Arrow writer counted a decimal's digits through its text (a sixth of its time) and parsed a padded
    string per timestamp.
-3. **Built** (no plan, SQL or output change; one allowlist row, dated):
+3. **Built** (no plan, SQL or output change; no guard moved):
    - `exec/JdbcDecode.Reader`, one per statement (`JdbcStatements.rows`): each column's slot kind read once; a column of
      a TIMESTAMP slot whose driver answers `java.sql.Timestamp` (which the read re-reads as `java.time`) is read as
      `java.time` at once from its second non-null cell on -- one SQL type, one class on every row; the re-read is the
@@ -16676,9 +16676,8 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
      `twoDigits`, `nineDigits`; a nano-of-second only, anything else refused).
    - `json/Json.escapeTo`: the leading run that needs no escape appended whole (the escape set unchanged: a control,
      `"`, `\`).
-   - `result/JsonRowsWriter`: the member names made once with the columns (`CodeShapeGuardrailTest`'s allowlist row
-     `JsonRowsWriter.keys`, dated: the same per-stream state as its columns); each cell's token written into the batch's
-     text by a compact writer. `result/PureV1Writer`: each row's values written in place the same way.
+   - `result/JsonRowsWriter`: the member names made once with the columns (held beside each column in its `columns`
+     field, item 9); each cell's token written into the batch's text by a compact writer. `result/PureV1Writer`: each row's values written in place the same way.
    - `result/ArrowWriter`: a decimal's digit count from `BigDecimal.precision()` (the unscaled value's digits); a
      subsecond's nanoseconds read in place (more than nine digits refused by name as before; `Long.parseLong` kept to its
      two registered uses, the R3 guard).
@@ -16741,3 +16740,28 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
    already holds its databases that way (`ConnectionResolver`: a held database's requests run on views of one
    session, sharing its state, so its session statements go once); a URL connection opens a connection per request,
    which costs more than this. Nothing built for it.
+9. **The independent review** (an agent that wrote none of it, given the diff and the code, not these conclusions;
+   PR #85): no blocker. It found no input on any supported driver where an output or a behaviour differs from main --
+   about 4,000,000 randomized differential checks of main's and this branch's date spellings, `escapeTo`, both JSON
+   writers' layouts and the Arrow digit and nanosecond arithmetic, 0 differences; each driver's null and typed-getter
+   behaviour read from its bytecode (DuckDB, H2 2.1 and 2.4, pgjdbc, MariaDB, ClickHouse, Trino, BigQuery; SQLite
+   never answers a `Timestamp`; Snowflake and Databricks never take the direct read). Its findings, folded here:
+   - **No test drove the reader with a driver that re-reads no timestamp** (Snowflake's, Databricks'): deleting the
+     `javaTime` condition left every core test green. Now `JdbcDecodeH2Test.aStatementsReadReadsATimestampAsItsDriverDecides`
+     records the getters the reader calls on H2's own result set over five rows (nulls first and between): with
+     `javaTime` off no cell is read as `java.time`; with it on the reader switches after the first non-null cell, a
+     null after the switch told by `wasNull` alone. Mutation-checked: with the condition deleted the test fails.
+   - **Two row readers to keep in step**: the static `JdbcDecode.row` (tests only) now reads through a `Reader`, so
+     the single-row tests test the product's path.
+   - **A null after the switch cost two driver reads**: now `wasNull`, which every supported driver sets for
+     `getObject(int, Class)`; a re-read answering nothing for a non-null cell is still refused.
+   - **The guard allowlist grew a row** (`JsonRowsWriter.keys`): the member names now ride in the writer's existing
+     `columns` field (a column and its name), and the allowlist is main's again.
+   - Not changed (nits): the reader's "one SQL type, one class on every row" stays a documented assumption (true of
+     every supported driver; only TIMESTAMP slots take the direct read); `nineDigits` keeps its refusal of anything
+     but a nano-of-second; `spelled`'s part count stays a number.
+   After the fold: every output's CRC32 the same as main's again (1,000,000 rows and all 48 small fetches); the
+   chain re-run on the fold: 75 of 75 (core, `//json:tests`, `//pct:pct_discipline`); PCT channel A 16 of 16 exact;
+   channel B's 11 suites identical line for line to main's own run (the one red, SQLite essential 332 < 333, red on
+   main too); the corpus verdicts green; Postgres and `//datacube:verify_app_test` unprivileged 19 of 19, channel B's
+   five Postgres suites identical per test.

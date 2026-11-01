@@ -57,7 +57,10 @@ final class JdbcDecode {
      * ({@link #cell}), is read as {@code java.time} at once from its second cell on: its first non-null cell shows
      * the class the driver answers for it (one SQL type, one class on every row of a result), and the re-read is the
      * value either way -- the driver's own conversion, done once instead of twice per cell. A re-read that answers
-     * nothing for a cell that is not SQL's null is refused, as {@link #cell} refuses it.
+     * nothing for a cell that is not SQL's null ({@code wasNull}, which every driver sets for the getter it last
+     * answered, {@code getObject(int, Class)} among them; checked against each supported driver, PR #85's review) is
+     * refused, as {@link #cell} refuses it. A driver that re-reads no timestamp ({@code Decoding.javaTime} false:
+     * Snowflake, Databricks) keeps its own object on every row.
      */
     static final class Reader {
         private final List<ExecutionPlan.Column> columns;
@@ -83,7 +86,8 @@ final class JdbcDecode {
             this.timestamps = new byte[columns.size()];
         }
 
-        /** The cells of the row {@code rs} stands on: {@link JdbcDecode#row}'s, each column's kind read once. */
+        /** The cells of the row {@code rs} stands on, one per column, the i-th column read from the i-th result
+         *  column (a typed-rows statement answers the plan's columns in their order); each column's kind read once. */
         List<Object> row(ResultSet rs) throws SQLException {
             List<Object> out = new ArrayList<>(columns.size());
             for (int i = 0; i < kinds.length; i++) {
@@ -92,7 +96,7 @@ final class JdbcDecode {
                     out.add(tagged(rs, i, c, driver));
                 } else if (timestamps[i] == DIRECT) {
                     Object t = rs.getObject(i + 1, LocalDateTime.class);
-                    if (t == null && rs.getObject(i + 1) != null) {
+                    if (t == null && !rs.wasNull()) {
                         throw refused(c, LocalDateTime.class);
                     }
                     out.add(decode(t, c, kinds[i], driver));
@@ -117,19 +121,10 @@ final class JdbcDecode {
         };
     }
 
-    /** The cells of the row {@code rs} stands on, one per column of {@code columns}, the i-th column read from the
-     *  i-th result column: a typed-rows statement answers the plan's columns in their order. */
+    /** The cells of the one row {@code rs} stands on, read as a statement's {@link Reader} reads a row (one read
+     *  path: a test of a single row tests the product's). */
     static List<Object> row(ResultSet rs, List<ExecutionPlan.Column> columns, DatabaseConnector.Decoding driver) throws SQLException {
-        List<Object> out = new ArrayList<>(columns.size());
-        for (int i = 0; i < columns.size(); i++) {
-            ExecutionPlan.Column c = columns.get(i);
-            if (com.legend.result.RowDecode.slotWord(c.slot()).equals("TAGGED")) {
-                out.add(tagged(rs, i, c, driver));
-                continue;
-            }
-            out.add(cell(rs, i + 1, c, driver));
-        }
-        return out;
+        return new Reader(columns, driver).row(rs);
     }
 
     /** A tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) at result column {@code i + 1}: its cell is the
