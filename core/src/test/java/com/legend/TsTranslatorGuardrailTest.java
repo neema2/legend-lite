@@ -83,6 +83,32 @@ class TsTranslatorGuardrailTest {
                 + " library's to write (a timeseries::lines:: function or a word), never the translator's");
     }
 
+    @Test
+    void linesMeetByOneLibraryFunctionEachTheirKindItsArgument() throws IOException {
+        // R2, R6 (2026-11-01, docs/TS_V1_PROGRAM_2026_11_01.md A1, the census's move 4): a line's kind -- per
+        // instrument, or every instrument's -- reaches the library as data (timeseries::Keyed), and the library says
+        // what each kind means; the translator never picks between two meeting functions by a line's kind (it chose
+        // meet or meetOne, periodsOf or periodsOfOne, onto or ontoOne before)
+        String lines = Files.readString(SourceFiles.file("core/src/main/java/com/legend/protocol/ts/TsLines.java"));
+        for (String fn : java.util.List.of("meet", "periodsOf", "onto")) {
+            Matcher m = Pattern.compile("LINES \\+ \"" + fn + "\"").matcher(lines);
+            int n = 0;
+            while (m.find()) {
+                n++;
+            }
+            assertEquals(1, n, "TsLines calls timeseries::lines::" + fn + " from one place, the line's kind its argument");
+        }
+        java.util.List<String> variants = new java.util.ArrayList<>();
+        for (Path p : SourceFiles.under("core/src/main/java/com/legend/protocol/ts")) {
+            Matcher v = Pattern.compile("LINES \\+ \"(meet|periodsOf|onto)[A-Z][A-Za-z]*\"").matcher(Files.readString(p));
+            while (v.find()) {
+                variants.add(SourceFiles.path(p) + ": " + v.group());
+            }
+        }
+        assertEquals(java.util.List.of(), variants, "a meeting function's variant by a line's kind, chosen by the"
+                + " translator");
+    }
+
     /** A parameter compared with a name written here: {@code "unit".equals(p.name())}, {@code p.name().equals("n")};
      *  or a word's arguments keyed by a name written here: {@code given.put("w", ...)} (2026-11-01, the census of
      *  docs/TS_V1_PROGRAM_2026_11_01.md A1: a dead {@code TsWords.window} bound {@code w} so, unseen by the first two). */

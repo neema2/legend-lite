@@ -178,50 +178,38 @@ final class TsLines {
                 instruments = instruments == null ? own : call("concatenate", instruments, own);
             }
         }
-        // the periods each line has, keyed alike: a line of no instrument's under every instrument (the library's
-        // periodsOf, periodsOfOne); the answer's periods, each dated at its latest line's date and number in time (R5:
-        // one date for every line), the library's spine
+        // the periods each line has, keyed alike: each line's kind beside the others the library's to read (periodsOf:
+        // a line of no instrument beside lines per instrument is every instrument's, under the instruments they have);
+        // the answer's periods, each dated at its latest line's date and number in time (R5: one date for every line),
+        // the library's spine
         ValueSpecification keys = null;
         for (Line l : distinct) {
-            ValueSpecification k = instruments != null && !l.byInstrument()
-                    ? call(LINES + "periodsOfOne", l.rel(), new ColSpec(PERIOD), new ColSpec(l.at()), new ColSpec(ORD),
-                            instruments, new ColSpec(part), new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
-                            new ColSpec(ord))
-                    : call(LINES + "periodsOf", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at()),
-                            new ColSpec(ORD), new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
+            ValueSpecification k = call(LINES + "periodsOf", l.rel(), keyed(l, instruments != null),
+                    new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at()), new ColSpec(ORD),
+                    instruments != null ? instruments : l.rel(), new ColSpec(instruments != null ? part : l.part()),
+                    new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
             keys = keys == null ? k : call("concatenate", keys, k);
         }
         ValueSpecification spine = call(LINES + "spine", java.util.Objects.requireNonNull(keys, "lines to spread"),
                 new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord), new ColSpec(part),
                 new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord));
-        // each line's values onto them (the library's onto; a line of no instrument's among lines per instrument,
-        // ontoOne)
+        // each line's values onto them (the library's onto, by the line's kind beside the others)
         List<String> owns = new ArrayList<>();
         List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
                 new ColSpec(ord)));
         for (int d = 0; d < distinct.size(); d++) {
             Line l = distinct.get(d);
-            boolean byLine = l.byInstrument() || instruments == null;
             String p = w.fresh("sp_p");
             String per = w.fresh("sp_per");
             String own = w.fresh("sp_ord");
-            List<ColSpec> cols = new ArrayList<>();
-            if (byLine) {
-                cols.add(new ColSpec(l.part()));
-            }
-            cols.add(new ColSpec(PERIOD));
-            cols.add(new ColSpec(ORD));
+            List<ColSpec> cols = new ArrayList<>(List.of(new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(ORD)));
             values.get(d).forEach(v -> cols.add(new ColSpec(v)));
-            ValueSpecification r = call("select", l.rel(), new ColSpecArray(cols));
-            if (byLine) {
-                r = call("rename", r, new ColSpec(l.part()), new ColSpec(p));
-            }
+            ValueSpecification r = call("rename", call("select", l.rel(), new ColSpecArray(cols)),
+                    new ColSpec(l.part()), new ColSpec(p));
             r = call("rename", call("rename", r, new ColSpec(PERIOD), new ColSpec(per)), new ColSpec(ORD),
                     new ColSpec(own));
-            spine = byLine
-                    ? call(LINES + "onto", spine, new ColSpec(part), new ColSpec(PERIOD), r, new ColSpec(p),
-                            new ColSpec(per))
-                    : call(LINES + "ontoOne", spine, new ColSpec(PERIOD), r, new ColSpec(per));
+            spine = call(LINES + "onto", spine, new ColSpec(part), new ColSpec(PERIOD), r,
+                    keyed(l, instruments != null), new ColSpec(p), new ColSpec(per));
             kept.add(new ColSpec(own));
             values.get(d).forEach(v -> kept.add(new ColSpec(v)));
             spine = call("select", spine, new ColSpecArray(List.copyOf(kept)));
@@ -313,6 +301,14 @@ final class TsLines {
         return new EnumValue(TsToPure.LIBRARY + "Fill", "null".equals(value) ? "none" : value);
     }
 
+    /** {@code l}'s kind among the lines it meets, as the library's {@code timeseries::Keyed}: every instrument's where
+     *  it is of none and {@code byInstrument} (the answer is by instrument: R2's broadcast), else keyed by its own. The
+     *  kind is a fact of its source (a BY, a subscript); what each means is the library's (lines::meet, periodsOf,
+     *  onto). */
+    static EnumValue keyed(Line l, boolean byInstrument) {
+        return new EnumValue(TsToPure.LIBRARY + "Keyed", !l.byInstrument() && byInstrument ? "every" : "own");
+    }
+
     /** The line whose key lines meet by: the first line per instrument, else the first. Refused (R2): lines per
      *  instrument by two instrument columns. */
     static Line keyOf(List<Line> lines, SqlAst.Pos pos) {
@@ -350,27 +346,21 @@ final class TsLines {
         Line left = distinct.get(0);
         for (int d = 1; d < distinct.size(); d++) {
             Line r = distinct.get(d);
-            boolean both = left.byInstrument() && r.byInstrument();
             String p = w.fresh("jp");
             String a = w.fresh("ja");
-            String l = both ? w.fresh("jl") : null;
+            String l = w.fresh("jl");
             ValueSpecification rel = call("rename", r.rel(), new ColSpec(PERIOD), new ColSpec(p));
             rel = call("rename", rel, new ColSpec(r.at()), new ColSpec(a));
-            List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(p), new ColSpec(a)));
-            if (l != null) {
-                rel = call("rename", rel, new ColSpec(r.part()), new ColSpec(l));
-                kept.add(new ColSpec(l));
-            }
+            rel = call("rename", rel, new ColSpec(r.part()), new ColSpec(l));
+            List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(p), new ColSpec(a), new ColSpec(l)));
             values.get(d).forEach(v -> kept.add(new ColSpec(v)));
             rel = call("select", rel, new ColSpecArray(kept));
-            // the library's meeting (timeseries::lines::meet; a line of no instrument, meetOne): on the period, and the
-            // instrument where both are lines per instrument; dated at the later date
+            // the library's meeting (timeseries::lines::meet, by the line's kind beside the first): on the period, and
+            // the instrument where both are lines per instrument; dated at the later date
             String at = w.fresh("at");
-            ValueSpecification met = l != null
-                    ? call(LINES + "meet", left.rel(), new ColSpec(left.part()), new ColSpec(PERIOD),
-                            new ColSpec(left.at()), rel, new ColSpec(l), new ColSpec(p), new ColSpec(a), new ColSpec(at))
-                    : call(LINES + "meetOne", left.rel(), new ColSpec(PERIOD), new ColSpec(left.at()), rel,
-                            new ColSpec(p), new ColSpec(a), new ColSpec(at));
+            ValueSpecification met = call(LINES + "meet", left.rel(), new ColSpec(left.part()), new ColSpec(PERIOD),
+                    new ColSpec(left.at()), rel, keyed(r, left.byInstrument()), new ColSpec(l), new ColSpec(p),
+                    new ColSpec(a), new ColSpec(at));
             left = new Line(met, left.part(), left.byInstrument(), at);
         }
         return left;

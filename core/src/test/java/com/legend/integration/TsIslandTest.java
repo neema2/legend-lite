@@ -574,6 +574,24 @@ class TsIslandTest {
     }
 
     @Test
+    void aLineOfNoInstrumentIsEveryInstrumentsWhateverTheKeysType() throws Exception {
+        // R2's broadcast over lines keyed by an enumeration (the instrument's sector: AAA TECH, BBB ENERGY), the lines
+        // meeting without FILL and spread under it: the key of a line of no instrument is no sector, the line every
+        // sector's (2026-11-01, docs/TS_V1_PROGRAM_2026_11_01.md A1: pinned before the meeting's variants become one)
+        for (TestBackend backend : deep()) {
+            for (String fill : List.of("", " FILL(PREV)")) {
+                List<Map<String, String>> got = rows(backend, "|#TS{SELECT close - close['TECH'] AS rel"
+                        + " FROM Quote ON day BY instrument.sector" + fill + "}#");
+                String of = backend + (fill.isEmpty() ? " met" : fill) + ": ";
+                assertClose(each(AAA.length, i -> 0.0), column(got, "sector", "TECH", "rel"),
+                        of + "TECH's line less the TECH line");
+                assertClose(each(BBB.length, i -> BBB[i] - AAA[i]), column(got, "sector", "ENERGY", "rel"),
+                        of + "ENERGY's line less the TECH line, on every date both have");
+            }
+        }
+    }
+
+    @Test
     void aSpansWindowIsTheDatesAfterTheOneThatFarBack() throws Exception {
         // R4: 3d is the dates after the one three days back, from the line's first date three days on; 3 is three
         // observations. AAA has no row on the 25th: the 26th's three days hold two of its values, its three

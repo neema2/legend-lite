@@ -13,6 +13,7 @@ export const LIBRARY_ENUMS = {
   FilterOperator: ['empty', 'less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals'],
   Grain: ['day', 'week', 'month', 'quarter'],
   Interpolation: ['intersect', 'nan', 'zero', 'step'],
+  Keyed: ['own', 'every'],
   PairStatistic: ['corr', 'cov'],
   Rebalance: ['daily', 'weekly', 'monthly'],
   Returns: ['simple', 'log', 'absolute'],

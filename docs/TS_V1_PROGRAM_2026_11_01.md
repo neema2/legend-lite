@@ -164,7 +164,16 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
     3. FILL's spelling in one place, and the library's `fill` always called (its `none` leaves a line as it is).
        **Done.**
     4. The meeting variants (`meet` or `meetOne`, `periodsOf` or `periodsOfOne`, `onto` or `ontoOne`) as one function
-       each, taking `timeseries::Keyed`.
+       each, taking `timeseries::Keyed`. **Done.**
+       - The library now says what each kind means. A line is every instrument's exactly when it has no instrument
+         and the answer is by instrument. Two lines of no instrument now meet on their key `'all'` as well, with the
+         same rows.
+       - The translator passes the kind as data and calls each function from one place. A guard holds this:
+         `linesMeetByOneLibraryFunctionEachTheirKindItsArgument`.
+       - It was pinned first by a broadcast over lines keyed by an enumeration, met and under FILL
+         (`TsIslandTest.aLineOfNoInstrumentIsEveryInstrumentsWhateverTheKeysType`).
+       - Left for move 7: a word's own broadcast, `TsWords.each`, which calls `helpers::each`. A Pure `if` there would
+         need the two keys of one type, and a line of no instrument is keyed by a String.
     5. The 12-column cap (P7).
     6. The period aggregates' vocabulary (`TAKEN`) read from `timeseries::Taken`.
     7. A condition in a line's place, and a timed line's broadcast, written in the library.

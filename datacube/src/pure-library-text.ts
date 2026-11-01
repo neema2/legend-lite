@@ -1901,12 +1901,22 @@ function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColS
     ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
 }
 
-// A LINE OF NO INSTRUMENT MEETING ANOTHER (R2's broadcast, R6): x's rows met by y's on their period alone -- y one line,
-// every instrument's -- each dated at the later of their dates.
-function timeseries::lines::meetOne<T,U,P,A,Q,B,O>(x: Relation<T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
+// How a line is keyed among the lines it meets (R2): by its own key -- a line per instrument; a line of no instrument
+// among lines of none -- or every instrument's -- a line of no instrument beside lines per instrument, the broadcast.
+// The translator says which a line is (a fact of its source: a BY, a subscript); what each means is here.
+Enum timeseries::Keyed
 {
-  $x->join($y, meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($period) == $b->read($yPeriod)})
-    ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
+  own, every
+}
+
+// LINES MEETING BY THE LANGUAGE'S KEYS (R2, R6): x's rows met by y's on their period, and on their key where y is
+// keyed by its own; on their period alone where y is every instrument's (one line of no instrument, R2's broadcast).
+function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], keyed: timeseries::Keyed[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
+{
+  if($keyed == timeseries::Keyed.every,
+    |$x->join($y, meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($period) == $b->read($yPeriod)})
+      ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out),
+    |timeseries::lines::meet($x, $key, $period, $at, $y, $yKey, $yPeriod, $yAt, $out))
 }
 
 // How a line's values are put onto the periods of another's it has none at (R6, FILL): its last value at or before
@@ -2005,21 +2015,17 @@ function timeseries::lines::ordered<T,D,K>(t: Relation<T>[1], date: ColSpec<D⊆
   $t->sort([$date->ascending(), $key->ascending()])
 }
 
-// A LINE'S PERIODS (R5, R6): each of its rows' key, period, date and number in time, under the caller's names -- what
-// the answer's periods are made of (spine).
-function timeseries::lines::periodsOf<T,K,P,A,O,OK,OP,OA,OO>(line: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], ord: ColSpec<O⊆T>[1], outKey: ColSpec<OK>[1], outPeriod: ColSpec<OP>[1], outAt: ColSpec<OA>[1], outOrd: ColSpec<OO>[1]): Relation<OK+OP+OA+OO>[1]
+// A LINE'S PERIODS (R5, R6): each of its rows' period, date and number in time, keyed by its own key, or under each
+// instrument of instruments where it is every instrument's (R2's broadcast: a line of no instrument beside lines per
+// instrument) -- under the caller's names, what the answer's periods are made of (spine).
+function timeseries::lines::periodsOf<T,I,K,P,A,O,J,OK,OP,OA,OO>(line: Relation<T>[1], keyed: timeseries::Keyed[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], ord: ColSpec<O⊆T>[1], instruments: Relation<I>[1], instrument: ColSpec<J⊆I>[1], outKey: ColSpec<OK>[1], outPeriod: ColSpec<OP>[1], outAt: ColSpec<OA>[1], outOrd: ColSpec<OO>[1]): Relation<OK+OP+OA+OO>[1]
 {
-  $line->extend(~[pk:r|$r->read($key), pp:r|$r->read($period), pa:r|$r->read($at), po:r|$r->read($ord)])->select(~[pk, pp, pa, po])
-    ->rename(~pk, $outKey)->rename(~pp, $outPeriod)->rename(~pa, $outAt)->rename(~po, $outOrd)
-}
-
-// A line of no instrument's periods under each instrument of instruments (R2's broadcast: a line of one instrument
-// beside lines per instrument is every instrument's).
-function timeseries::lines::periodsOfOne<T,I,P,A,O,J,OK,OP,OA,OO>(line: Relation<T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], ord: ColSpec<O⊆T>[1], instruments: Relation<I>[1], instrument: ColSpec<J⊆I>[1], outKey: ColSpec<OK>[1], outPeriod: ColSpec<OP>[1], outAt: ColSpec<OA>[1], outOrd: ColSpec<OO>[1]): Relation<OK+OP+OA+OO>[1]
-{
-  $instruments->extend(~ik:r|$r->read($instrument))->select(~[ik])->distinct()
-    ->timeseries::lines::each($line->extend(~[pp:r|$r->read($period), pa:r|$r->read($at), po:r|$r->read($ord)])->select(~[pp, pa, po]))
-    ->rename(~ik, $outKey)->rename(~pp, $outPeriod)->rename(~pa, $outAt)->rename(~po, $outOrd)
+  if($keyed == timeseries::Keyed.every,
+    |$instruments->extend(~ik:r|$r->read($instrument))->select(~[ik])->distinct()
+      ->timeseries::lines::each($line->extend(~[pp:r|$r->read($period), pa:r|$r->read($at), po:r|$r->read($ord)])->select(~[pp, pa, po]))
+      ->rename(~ik, $outKey)->rename(~pp, $outPeriod)->rename(~pa, $outAt)->rename(~po, $outOrd),
+    |$line->extend(~[pk:r|$r->read($key), pp:r|$r->read($period), pa:r|$r->read($at), po:r|$r->read($ord)])->select(~[pk, pp, pa, po])
+      ->rename(~pk, $outKey)->rename(~pp, $outPeriod)->rename(~pa, $outAt)->rename(~po, $outOrd))
 }
 
 // THE ANSWER'S PERIODS (R5: one date for every line; R6: every period any line has): each key and period of periods,
@@ -2031,17 +2037,13 @@ function timeseries::lines::spine<T,K,P,A,O,OK,OP,OA,OO>(periods: Relation<T>[1]
     ->rename(~sk, $outKey)->rename(~sp, $outPeriod)->rename(~ga, $outAt)->rename(~go, $outOrd)
 }
 
-// A LINE'S VALUES ONTO THE ANSWER'S PERIODS (R6): each of spine's rows, the line's row of its period and its key where it
-// has one.
-function timeseries::lines::onto<T,U,K,P,L,Q>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<Q⊆U>[1]): Relation<T+U>[1]
+// A LINE'S VALUES ONTO THE ANSWER'S PERIODS (R6): each of spine's rows, the line's row of its period -- and of its key,
+// where the line is keyed by its own; whatever the instrument, where it is every instrument's (R2).
+function timeseries::lines::onto<T,U,K,P,L,Q>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], keyed: timeseries::Keyed[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<Q⊆U>[1]): Relation<T+U>[1]
 {
-  $spine->join($line, meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a->read($period) == $b->read($linePeriod)) && ($a->read($key) == $b->read($lineKey))})
-}
-
-// A line of no instrument's values onto the answer's periods: its row of each period, whatever its instrument (R2).
-function timeseries::lines::ontoOne<T,U,P,Q>(spine: Relation<T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], linePeriod: ColSpec<Q⊆U>[1]): Relation<T+U>[1]
-{
-  $spine->join($line, meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($period) == $b->read($linePeriod)})
+  if($keyed == timeseries::Keyed.every,
+    |$spine->join($line, meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($period) == $b->read($linePeriod)}),
+    |$spine->join($line, meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a->read($period) == $b->read($linePeriod)) && ($a->read($key) == $b->read($lineKey))}))
 }
 
 // A LINE'S VALUE ONTO EVERY PERIOD OF THE ANSWER (R6, FILL) -- the library's alignment: prev, its last value at or before
