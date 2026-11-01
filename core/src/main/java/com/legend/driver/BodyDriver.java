@@ -1250,10 +1250,7 @@ public final class BodyDriver {
     /** Whether {@code root} is {@code toOne()} over a relation: its answer is exactly one row (engine reader
      *  semantics), held on a collected side ({@link #enforceToOneReader}) and on a streamed one alike. */
     static boolean toOneReader(TypedSpec root) {
-        return root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
-                && com.legend.builtin.Pure.isToOneCall(tw.callee().qualifiedName())
-                && !tw.args().isEmpty()
-                && com.legend.compiler.element.type.Type.isRelation(tw.args().get(0).info().type());
+        return com.legend.planner.ProductStatements.toOneReader(root);
     }
 
     /**

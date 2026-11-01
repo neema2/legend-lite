@@ -230,6 +230,16 @@ public final class ProductStatements {
                 new ExecutionPlan.Multiplicity(0, 1), c.slot(), c.store(), c.precision())), cells);
     }
 
+    /** Whether {@code root} is a TO-ONE READER: {@code toOne()} over a relation, which the walk answers holding the
+     *  exactly-one contract (the test road's reader semantics; the product plan carries no such fact yet, the
+     *  test-is-the-product plan's §9, D30). One rule for the walk, the test door's body classes and its router. */
+    public static boolean toOneReader(TypedSpec root) {
+        return root instanceof TypedNativeCall call
+                && com.legend.builtin.Pure.isToOneCall(call.callee().qualifiedName())
+                && !call.args().isEmpty()
+                && com.legend.compiler.element.type.Type.isRelation(call.args().get(0).info().type());
+    }
+
     /** Whether {@code s} is an orchestration handle -- a connection, a runtime, {@code connectionByElement}'s
      *  connection -- a value a program passes around, which plans no step before its last statement and has no
      *  value to answer as its last (B12 item 4). */

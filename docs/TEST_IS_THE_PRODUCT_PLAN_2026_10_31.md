@@ -270,8 +270,15 @@ posted the same way (R7 decision 12).
      (`testplan/EffectSegment`, one spelling for both roads). `BodyRouterParityTest` runs each admitted shape both
      ways on every in-process database Pure's `DatabaseType` names and compares the outcome and message, the
      raw-SQL ledger, the answer, both censuses and the database left; each excluded shape is pinned there as the
-     walk's. The next class (M5f) is the plain query programs; the metamodel reads move with M4, the rest with the
-     step that plans their kind; every assert-free body is in a class by M9.
+     walk's. `QUERY_PROGRAM` (M5f, narrowed by its audit): a body whose one statement that runs is its last, a query the
+     product's query door plans -- before it only lets of literals or handles, String or Boolean literals, prints,
+     handles; no test kind; no `execute(...)`, staged rows, raw grid, store write, test-data generation, system-store
+     read, object built, graph or temporal read; an answer that is a relation or a value reading no class's extent,
+     not an object; a to-one reader only as the answer's root. The router holds the walk's answer contract (at most
+     one row, at least one, exactly one for a to-one reader: the D30 residue) and asks for the caller's sink before
+     anything is sent, as the walk does. The excluded shapes are each pinned in `BodyRouterParityTest` and move with the
+     step that rules or plans them (MV6's facts and ids, D5, D30, M4, M9); every assert-free body is in a class by
+     M9.
 - **B2, the runner (M3, M9).** One plan per body (R14). New: `ExpectFailure(sub-plan)` for `assertError` (the
   error its body raises at run time handed to the comparison, N3); a raising step where an early-detected run-time
   error stands as a statement of its own (R14; inside an expression it is `PureSql.raise`); `Setup` per from() (D35; established
@@ -616,6 +623,12 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
      `[1..1]` column (`true` is `Boolean[1]`). After, if ruled (MV6, D27's convergence): moved bodies take the
      product's `[1..1]`. Visible only in an answer's column facts (Arrow's `legend.multiplicity`); no test, corpus or
      channel B outcome reads them (measured at M5).
+  3. *A product value through a class's chain (found by M5f's audit).* The expression `|my::P.all()->map(p|$p.name)`
+     (three rows), run as a product query. Today the product answers the column `u_map__name:String[1..1]` with three
+     rows -- the map binder's cell, not the value's -- and the service runner's writer (`TdsObjectsWriter`) refuses it
+     ("a to-one value answered more than one row"); the test road answers `value:String[0..*]`. After, if ruled:
+     `PlanMaker.typed` names the value column `value` with the root's multiplicity (`ResultShape.valueInfo`), as the
+     test road does. Until then such bodies stay on the walk.
 - **A moved body that fails to plan fails before any statement runs (the M5 audit's S6) -- POSTED, inherent in R16.**
   R16: "a body of a moved class the test door refuses fails (R14)". The walk ran a failing body's statements up to the
   failing one (its seeds, value statements and closed scripts); a moved body runs none, so the database and the ledger
@@ -791,3 +804,24 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   statements identical but labels (the program road's own exec and testplan tests: an effect's script is labelled body,
   as the walk labels it) and the parity test's own; channel B 5 of 5; `//gates:local` green but the 9 Postgres
   targets refusing root (9 of 9 unprivileged).
+- 2026-11-01: M5's first-class checkpoint (98e3e388): CI green on every OS; the lane sessions' round 11 zero movement on
+  every lane (`bodies.moved` absent from every PCT log: every PCT body asserts). **M5f: the second class, the plain
+  query programs** (D106). `BodyClass.QUERY_PROGRAM` (B1 item 5); the router holds the walk's answer contract (at most
+  one row, at least one, exactly one for a to-one reader -- the D30 residue, `JudgePlans.holding`) and asks for the
+  caller's sink before anything is sent, as the walk does; a program's answering statement is labelled as the walk
+  labels a body's (STATEMENT, where no mark is in force). Its first cut admitted shapes the product answers otherwise;
+  the measurement (both corpora, core, channel B) saw none of them, the independent audit (R15) found four blockers
+  and four should-fix by probing both roads: a value through a class's chain (the product's value column is the
+  cell's, `u_map__name:String[1]`, where the walk answers `value:String[0..*]` -- a product defect too: the service
+  runner's writer refuses its 3 rows), an object answered (a graph on the product's road), a value statement before the
+  last (a check the walk holds and labels, planned unmarked and unchecked), a to-one reader through a let or a user
+  function; the caller's sink asked for late (a caller that refuses the shape: SKIPPED became FAIL), a temporal read's
+  exists-join form (D5), the parity test comparing no statement text (it now compares every statement sent, origin and
+  text, through the census's new observer `StatementOrigin.observing`), missing pins. All folded by narrowing the class
+  and holding the walk's timing; each excluded shape pinned; `ProductStatements.toOneReader` the one to-one rule. Named,
+  for the user's §9 and MV6: the product's value column through a class's chain (`PlanMaker.typed` without
+  `ResultShape.valueInfo`). Measured: the corpora's four passes' censuses and pass/fail counts identical to MR's, 604
+  bodies moved per pass (the 600 setup programs and 4 query programs); every core package's statements identical but
+  labels (the program road's own tests) and the parity test's own (17,471); core 28 of 28; channel B 5 of 5;
+  `//gates:local` green but the 9 Postgres targets refusing root (9 of 9 unprivileged) after the parser-equivalence
+  ratchet regenerated (3,036 -> 3,038: the parity test's model joined the own corpus, both elements matching).

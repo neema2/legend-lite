@@ -9,7 +9,11 @@ import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
 import com.legend.builtin.SystemMetamodel;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.Temporal;
+import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.StatementEffects;
+import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.Literals;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCString;
@@ -31,6 +35,7 @@ import com.legend.model.FunctionId;
 import com.legend.model.MappingDefinition;
 import com.legend.planner.BodyPlanner;
 import com.legend.planner.ConnectionLets;
+import com.legend.planner.ProductStatements;
 import com.legend.planner.QueryDoor;
 
 import java.util.EnumSet;
@@ -67,52 +72,97 @@ public enum BodyClass {
     EFFECT_PROGRAM,
 
     /**
-     * A QUERY PROGRAM (M5f): every statement is one the product's query door plans -- it holds no test kind (no
-     * effect, no seeds, no let-bound {@code execute(...)}, no assert) -- and none is a kind the program road plans
-     * another way yet: no {@code execute(...)} read where it stands (M9), no staged rows, no store write, no
-     * test-data generation, no read of the system metamodel store (M4); the runtime declares no test data (M5's
-     * audit B1). The body is a product program the test door plans as the query door would.
+     * A QUERY PROGRAM (M5f, narrowed by its audit): a body whose one statement that runs is its last, a query the
+     * product's query door plans, answered as the walk answers it. Before the last, a statement plans no step: a let of
+     * a literal or of a handle, a String or Boolean literal, an inert {@code print}, a handle. No statement holds a
+     * test kind (no effect, no seeds, no let-bound {@code execute(...)}, no assert) or a kind the program road plans
+     * another way, or with a movement not yet ruled: an {@code execute(...)} read where it stands (M9), staged rows, a
+     * raw grid (T8, T12), a store write, test-data generation, a read of the system metamodel store (M4), an object
+     * built or a graph answered (their ids and layouts, MV6), a temporal class read (the exists-join form, D5, MV6).
+     * The answer is a relation or a value that reads no class's extent (a value through a class's chain is answered
+     * in the product's column facts, D27, MV6); not an object (a class-typed answer is a graph on the product's road);
+     * a to-one reader ({@code toOne()} over a relation) only as the answer's own root, where the router holds the
+     * walk's exactly-one contract. The runtime declares no test data (M5's audit B1).
      */
     QUERY_PROGRAM;
 
     /** {@code body}'s class on {@code runtime}, or null when the walk runs it. */
     public static @Nullable BodyClass of(TypedQuery body, String runtime) {
-        if (effectProgram(body, runtime)) {
+        if (QueryDoor.declaresTestData(runtime, body.context())) {
+            return null;
+        }
+        QueryDoor.Scan scan = new QueryDoor.Scan(body, runtime);
+        if (effectProgram(body, scan)) {
             return EFFECT_PROGRAM;
         }
-        return queryProgram(body, runtime) ? QUERY_PROGRAM : null;
+        return queryProgram(body, scan) ? QUERY_PROGRAM : null;
     }
 
-    private static boolean queryProgram(TypedQuery query, String runtime) {
-        if (QueryDoor.declaresTestData(runtime, query.context())) {
+    private static boolean queryProgram(TypedQuery query, QueryDoor.Scan scan) {
+        ModelContext ctx = query.context();
+        Set<String> systemClasses = systemClasses(ctx);
+        Map<FunctionId, Boolean> memo = new HashMap<>();
+        List<TypedSpec> body = query.body();
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec statement = body.get(i);
+            if (!scan.kinds(statement).isEmpty() || StatementEffects.containsTdgGenerator(statement)
+                    || StatementEffects.reaches(statement, n -> plannedAnotherWay(n, systemClasses, ctx),
+                            query.specs(), memo)) {
+                return false;
+            }
+            if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)) {
+                return false;
+            }
+        }
+        if (body.isEmpty()) {
             return false;
         }
-        QueryDoor.Scan scan = new QueryDoor.Scan(query, runtime);
-        Set<String> systemClasses = systemClasses(query.context());
-        Map<FunctionId, Boolean> memo = new HashMap<>();
-        for (TypedSpec statement : query.body()) {
-            if (!scan.kinds(statement).isEmpty() || StatementEffects.containsTdgGenerator(statement)
-                    || StatementEffects.reaches(statement, n -> plannedAnotherWay(n, systemClasses), query.specs(),
-                            memo)) {
+        TypedSpec answer = Lets.bare(body.get(body.size() - 1));
+        Type type = answer.info().type();
+        if (type instanceof Type.ClassType ct && !PlatformTypes.isVariant(ct) && !PlatformTypes.isNil(ct)) {
+            return false;
+        }
+        if (!Type.isRelation(type) && StatementEffects.reaches(answer, n -> n instanceof TypedGetAll, query.specs(),
+                new HashMap<>())) {
+            return false;
+        }
+        // a to-one reader only as the answer's root: one reached through a let or a user function is not the walk's
+        // planned root the router reads (M5f's audit B4)
+        List<TypedSpec> below = ProductStatements.toOneReader(answer) ? answer.children() : List.of(answer);
+        Map<FunctionId, Boolean> readers = new HashMap<>();
+        for (TypedSpec n : below) {
+            if (StatementEffects.reaches(n, ProductStatements::toOneReader, query.specs(), readers)) {
                 return false;
             }
         }
         return true;
     }
 
+    /** Whether {@code statement}, before a body's last, plans no step on the program road and sends nothing on the
+     *  walk: a let of a literal (folded over {@code lets}) or of a handle, a String or Boolean literal, an inert
+     *  {@code print}, a handle (M5f's audit B3: any other value statement is a check the walk holds and labels). */
+    private static boolean plansNoStep(TypedSpec statement, List<TypedSpec> lets, ModelContext ctx) {
+        if (statement instanceof TypedLet let) {
+            return Literals.fold(let.value(), lets) != null || BodyPlanner.handleType(let.value(), ctx) != null;
+        }
+        return literal(statement) || BodyPlanner.handleType(statement, ctx) != null
+                || statement instanceof TypedNativeCall call && NativeFn.Effect.isInertDiagnostic(call.callee().id());
+    }
+
     /** Whether {@code n} is a kind the program road plans another way than the walk yet: an {@code execute(...)},
      *  staged rows, a raw grid ({@code executeInDb}'s rows, typed as a raw-SQL relation: T8, T12), a store write; a
      *  read of the system metamodel store (M4) -- the extent of a class its mapping binds ({@code systemClasses}), a
      *  table of it, one of its functions, an element used as a value (a mapping, a store: its instance is the
-     *  store's row); an object built or a graph answered (their ids and their answer's layout converge on the
-     *  product's with MV6). */
-    private static boolean plannedAnotherWay(TypedSpec n, Set<String> systemClasses) {
+     *  store's row); an object built, a graph answered, a temporal class read (their ids, layouts and the
+     *  exists-join form converge on the product's with MV6). */
+    private static boolean plannedAnotherWay(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
         return n instanceof TypedNativeCall call && (NativeFn.Handle.runsAFrame(call.callee().id())
                         || Pure.Lite.STAGE.equals(call.callee().qualifiedName()))
                 || n instanceof TypedRawSqlRelation
                 || StatementEffects.isStoreWrite(n)
                 || n instanceof TypedGetAll all && (systemClasses.contains(all.classFqn())
-                        || SystemMetamodel.isSystemElement(all.classFqn()))
+                        || SystemMetamodel.isSystemElement(all.classFqn())
+                        || Temporal.strategyOf(ctx, all.classFqn()) != null)
                 || n instanceof TypedTableReference table && SystemMetamodel.STORE_FQN.equals(table.store())
                 || n instanceof TypedUserCall call && SystemMetamodel.functionIds().contains(call.callee().id())
                 || n instanceof TypedPackageableRef
@@ -132,12 +182,8 @@ public enum BodyClass {
         return classes;
     }
 
-    private static boolean effectProgram(TypedQuery query, String runtime) {
+    private static boolean effectProgram(TypedQuery query, QueryDoor.Scan scan) {
         ModelContext ctx = query.context();
-        if (QueryDoor.declaresTestData(runtime, ctx)) {
-            return false;
-        }
-        QueryDoor.Scan scan = new QueryDoor.Scan(query, runtime);
         List<TypedSpec> body = query.body();
         Map<FunctionId, Boolean> storeMemo = new HashMap<>();
         boolean anEffect = false;

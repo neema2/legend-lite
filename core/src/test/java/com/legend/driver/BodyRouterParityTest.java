@@ -121,12 +121,46 @@ class BodyRouterParityTest {
         for (String body : List.of("{| true;}", "{| let x = 1; $x + 1;}", "{| 'abc'->toUpper();}",
                 "{| [1, 2, 3]->map(x|$x * 2);}", "{| print('x', 1); 1;}",
                 "{| #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1);}",
-                "{| let t = #TDS\na,b\n1,x\n2,y\n#; $t->filter(r|$r.a > 1)->select(~b);}",
+                "{| let n = 1; #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > $n)->select(~b);}",
                 // the walk's answer contract, held by the router (§9, D30, D46): a required root of no row, a
                 // to-one reader of two
                 "{| #TDS\n  x:Integer\n  1\n#->filter(r|$r.x > 5)->map(r|$r.x)->toOneMany();}",
                 "{| #TDS\na,b\n1,x\n2,y\n#->toOne();}")) {
             assertParity(backend, body, "select 1");
+        }
+    }
+
+    /** A model of a class, a temporal class and a function, for the shapes the query-program rule keeps on the walk
+     *  (classified only: none runs). */
+    private static final String CLASSES = """
+            ###Pure
+            Class my::P { name: String[1]; age: Integer[0..1]; }
+            Class <<meta::pure::profiles::temporal.businesstemporal>> my::T { name: String[1]; }
+            """;
+
+    @Test
+    void theQueryShapesTheRuleKeepsOnTheWalk() {
+        TestBackend backend = TestBackends.platform();
+        ModelContext ctx = Compiler.compileModel(backend.withStorelessRuntime(CLASSES));
+        for (String body : List.of(
+                // an object answered (M5f's audit B2): a graph on the product's road
+                "{| my::P.all();}",
+                // a value through a class's chain (B1): the product's column facts
+                "{| my::P.all()->map(p|$p.name);}",
+                // a value statement before the last (B3): a check the walk holds and labels
+                "{| 'abc'->toUpper(); 'end';}",
+                // a relation let before the last (S3): the walk spends an alias on it
+                "{| let t = #TDS\na\n1\n2\n#; $t->filter(r|$r.a > 1);}",
+                // a to-one reader through a let (B4)
+                "{| let t = #TDS\na\n1\n2\n#->toOne(); $t;}",
+                // a temporal class read (S2): the exists-join form
+                "{| my::T.all(%2020-01-01)->project(~[n:t|$t.name]);}",
+                // a read of the system metamodel store (M4)
+                "{| meta::pure::mapping::Mapping.all()->project(~[n:m|$m.name]);}",
+                // an object built and answered (MV6's ids; a construction the compiler folds away, as
+                // ^Pair(...).first, leaves none)
+                "{| ^my::P(name='x');}")) {
+            assertNull(BodyClass.of(typed(ctx, body), RT), body);
         }
     }
 
@@ -183,11 +217,12 @@ class BodyRouterParityTest {
         assertEquals(walked.origins, moved.origins, "the statement-origin census: " + body);
         assertEquals(walked.effects, moved.effects, "the effects census: " + body);
         assertEquals(walked.database, moved.database, "the database left: " + body);
+        assertEquals(walked.statements, moved.statements, "the statements sent (origin and text, in order): " + body);
         assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
     }
 
     private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,
-            String database, long moved) {
+            String database, long moved, List<String> statements) {
     }
 
     private static Run run(TestBackend backend, ModelContext ctx, String body, boolean router, String check)
@@ -202,7 +237,8 @@ class BodyRouterParityTest {
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
             String outcome = "ok";
-            try {
+            List<String> statements = new ArrayList<>();
+            try (var observing = StatementOrigin.observing(statements)) {
                 if (router) {
                     Execution.runProgram(q, RT, Execution.Source.given(session), null, null, options, capture::of);
                 } else {
@@ -221,7 +257,7 @@ class BodyRouterParityTest {
             recorder.entries().forEach(e -> ledger.add(String.valueOf(e)));
             return new Run(outcome, ledger, capture.toString(), Arrays.toString(delta),
                     Census.count(Census.Key.EFFECTS_IN_SCRIPT) - effectsBefore, database(c, check),
-                    Census.count(Census.Key.BODIES_MOVED) - movedBefore);
+                    Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements);
         }
     }
 

@@ -16583,6 +16583,39 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's M5f: the second class, the plain query programs
+
+The plan's §6 B1 item 5, §9 (item 3 added), §10; the decisions log D106.
+
+1. **Built:** `BodyClass.QUERY_PROGRAM` -- a body whose one statement that runs is its last, a query the product's
+   query door plans (the rule and every exclusion in the plan's B1 item 5); the router holds the walk's answer contract
+   (`JudgePlans.holding`: the D30 residue) and asks for the caller's sink before anything is sent; a program's
+   answering statement labelled STATEMENT where no mark is in force; `ProductStatements.toOneReader` the one to-one rule
+   (BodyDriver's delegates); the census's statement observer (`StatementOrigin.observing`) for the parity test.
+2. **The audit** (independent, R15): four blockers and four should-fix, none in a shape the corpora, core or channel B
+   run, all folded by narrowing the class and holding the walk's timing (the plan's §10 M5f line); its probes are in
+   the session's scratch (`m5faudit`), the cases pinned in `BodyRouterParityTest.theQueryShapesTheRuleKeepsOnTheWalk`.
+   A product defect named and posted (§9 item 3): a value through a class's chain answered in the map binder's cell.
+3. **Measured:** both corpora uncached, every pass's statement-origins census and pass/fail counts identical to MR's,
+   `body-router moved=604` per pass; every core package's statements identical but labels (`ProgramRunnerTest`,
+   `TestDoorTest`: their answering statements labelled statement) and the parity test's own (17,471); core 28 of 28;
+   `pct_channel_b` 5 of 5; `//gates:local` 448 pass and 1 skipped after `//parser-equivalence:update_ratchets`
+   (own_corpus.matched 3,036 -> 3,038: the parity test's two classes joined the own corpus, both matching the reference
+   parser), the 9 Postgres targets refusing root here and passing 9 of 9 unprivileged.
+4. **Guards, dated:** `JavaEvalLedgerTest` -- BodyDriver 937 -> 934 (the to-one rule spelled once), BodyRouter's note
+   restated (it holds the walk's row-count contract, counting rows, computing no cell); `BodyClassTest.MOVED` grows by
+   `QUERY_PROGRAM`.
+
+## 2026-11-01 — The test-is-the-product plan's M5 checkpoint: CI and the lane sessions' round 11
+
+CI on 98e3e388: the `gates` and `diagnostics` workflows green on Linux, Windows, macOS and arm. The lane sessions'
+round 11 (98e3e388 against round 10's 9a0fe445): zero movement on every lane -- every outcome and message identical on
+both channels, every statement byte-identical and in the same order (the one exception SQLite's run-to-run anonymous id
+inside the startsWith('Anonymous_') test's own literal, which flips both ways between runs since D81); the census key
+`bodies.moved` absent from every lane's logs (every PCT body asserts); no NotImplementedException or
+IllegalStateException. Trino A and B and Postgres B; SQLite, MariaDB, MySQL and ClickHouse (89,322 statements);
+Snowflake; Databricks; BigQuery.
+
 ## 2026-11-01 — The test-is-the-product plan's M5 (first class): the body router; the effect setup programs run whole
 
 The plan's §6 B1 ("M5's detail", item 5 the classes as built), R16; the decisions log D105.

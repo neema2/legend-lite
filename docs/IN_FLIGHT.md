@@ -2976,7 +2976,11 @@ the M3 checkpoint, then M4 (brief B13). **MR built 2026-11-01 (D104; the user's 
 `PlanMaker.java`; `driver/BodyDriver.java`, `BodyCompiler.java` (the segment's spelling shared); spec's
 `MinimalCorpusTest.java` (the moved count); `driver/BodyRouterParityTest.java` (new), `testplan/BodyClassTest.java`
 (new), `TestDoorTest.java`; the guards (`ArchitectureTest`, `CodeShapeGuardrailTest`, `JavaEvalLedgerTest`);
-AGENTS.md (the one-caller sentence). Next: the M5 checkpoint, then M5f (the plain query programs), then M4.
+AGENTS.md (the one-caller sentence). **M5f built 2026-11-01 (D106)**: `testplan/BodyClass.java` (`QUERY_PROGRAM`),
+`driver/BodyRouter.java` (the walk's answer contract and timing), `JudgePlans.java` (`holding`), `BodyDriver.java`
+(the to-one rule delegated), `planner/ProductStatements.java` (`toOneReader`), `exec/PlanRunner.java` (the answering
+statement's label), `StatementOrigin.java` (`observing`); the tests (`BodyRouterParityTest`, `BodyClassTest`); the
+ledger; `parser-equivalence`'s `ratchets.tsv`. Next: the checkpoint, then M4 (the user's one-line choice) or M6.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

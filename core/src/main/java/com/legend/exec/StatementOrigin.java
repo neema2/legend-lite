@@ -88,10 +88,33 @@ public enum StatementOrigin {
         }
     }
 
+    private static final ThreadLocal<java.util.@com.legend.base.Nullable List<String>> OBSERVED =
+            new ThreadLocal<>();
+
+    /** Every statement this thread sends until the scope closes, each as {@code [origin] text}, appended to
+     *  {@code into}: what a parity test compares between two roads (measurement only, as the census). */
+    public static Observing observing(java.util.List<String> into) {
+        java.util.List<String> previous = OBSERVED.get();
+        OBSERVED.set(into);
+        return new Observing(previous);
+    }
+
+    /** An observing scope; closing restores the observer before it. */
+    public record Observing(java.util.@com.legend.base.Nullable List<String> previous) implements AutoCloseable {
+        @Override
+        public void close() {
+            OBSERVED.set(previous);
+        }
+    }
+
     /** {@code sql} sent to a database under the mark in force: one round trip, its characters and its origin counted
      *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. */
     public static void sent(String sql) {
         Census.inc(Census.Key.SQL_ROUND_TRIPS);
+        java.util.List<String> observed = OBSERVED.get();
+        if (observed != null) {
+            observed.add("[" + current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
+        }
         count();
         Census.add(Census.Key.SQL_CHARS, sql.length());
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
