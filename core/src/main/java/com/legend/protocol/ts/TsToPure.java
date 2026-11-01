@@ -88,6 +88,15 @@ public final class TsToPure {
 
         /** The values of the enumeration of path {@code type}, or null where it names none. */
         @com.legend.base.Nullable List<String> enumeration(String type);
+
+        /** The overloads of the function of path {@code fqn}, each its parameters after its first (a word's line,
+         *  {@link TsWords}), in order; none where the model defines no such function. */
+        List<List<Parameter>> overloads(String fqn);
+    }
+
+    /** A function's parameter as {@link Model#overloads} reports it: its name, its type's path ({@code Integer},
+     *  {@code timeseries::Returns}), and whether it may be given none (multiplicity {@code [0..1]}). */
+    public record Parameter(String name, String type, boolean optional) {
     }
 
     /** A class's property, as {@link Model#property} reports it: its name, its type's name, the class it holds
@@ -824,6 +833,11 @@ public final class TsToPure {
             }
 
             @Override
+            public Model model() {
+                return model;
+            }
+
+            @Override
             public void struct(String value, Map<String, String> of) {
                 structs.put(value, of);
             }
@@ -1068,45 +1082,9 @@ public final class TsToPure {
                         throw invalid(name + " takes a line and a window: " + name + "(x, 20), " + name
                                 + "(x, 3mo), " + name + "(x, all) or " + name + "(x, '2024-01-01') (R4)", fc.pos());
                     }
-                    SqlAst.Expr w = args.get(1);
-                    TsAst.Span span = w instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
-                    boolean all = w instanceof SqlAst.ColumnRef c && query.alls().contains(c.pos());
+                    // the library's word over lines (TsWords): its window's form the argument's
                     String stat = "count".equals(name) ? "count" : java.util.Objects.requireNonNull(WINDOWED.get(name));
-                    if (span != null) {
-                        // the dates after the one that far back (R4): the library's statistic of a calendar period
-                        Period p = calendar(span);
-                        rel = call(LIBRARY + "overPeriod", l.rel(), new ColSpec(l.part()), new ColSpec(l.at()),
-                                new ColSpec(v.value()), new CInteger((long) p.n()), new EnumValue(DURATION, p.unit()),
-                                new EnumValue(LIBRARY + "Statistic", stat), new ColSpec(out));
-                    } else if (all || w instanceof SqlAst.StringLit || w instanceof SqlAst.TypedLit) {
-                        String value = v.value();
-                        if (!all) {
-                            // the dates on or after the date (R4): the value from it on, none before, to date
-                            String since = fresh("since");
-                            SqlAst.Expr from = new SqlAst.Case(null, List.of(new SqlAst.When(new SqlAst.Binary(
-                                    SqlAst.BinaryOp.GE, TsToPure.column(l.at(), w.pos()), w, w.pos()),
-                                    TsToPure.column(value, w.pos()))), null, w.pos());
-                            l = l.with(call("extend", l.rel(), new ColSpec(since, rowLambda(from, l.rel(), false,
-                                    "SELECT"))));
-                            value = since;
-                        }
-                        rel = "count".equals(name)
-                                ? call(LIBRARY + "count", l.rel(), new ColSpec(l.part()), new ColSpec(TsLines.PERIOD),
-                                        new ColSpec(value), new ColSpec(out))
-                                // everything to date from its first value
-                                : call(LIBRARY + stat, l.rel(), TsLines.over(l, call("rows", call("unbounded"),
-                                        new CInteger(0L))), new ColSpec(value), new CInteger(1L), new ColSpec(out));
-                    } else {
-                        if ("count".equals(name)) {
-                            throw unsupported("count over a window of observations is the library's to add: count(x,"
-                                    + " 3mo) counts a span's, count(x, all) a line's to date", w.pos());
-                        }
-                        int n = observations(w, "a window", name + "(x, 20)");
-                        // a value once its window is full (R4): n of them -- a deviation's two at least (the tile's)
-                        int ramp = "std".equals(stat) || "var".equals(stat) ? Math.max(n, 2) : n;
-                        rel = call(LIBRARY + stat, l.rel(), TsLines.over(l, call("rows", new CInteger((long) -(n - 1)),
-                                new CInteger(0L))), new ColSpec(v.value()), new CInteger((long) ramp), new ColSpec(out));
-                    }
+                    return TsWords.call(this, stat, v, TsWords.window(windowOf(args.get(1), name)), fc.pos());
                 } else {
                     boolean returns = "returns".equals(name);
                     if (returns) {
@@ -1145,6 +1123,29 @@ public final class TsToPure {
                     }
                 }
                 return new TsLines.Valued(l.with(rel), out);
+            }
+
+            /** A window as written (R4): a span (3mo), all, a date on ('2024-01-01'), or a number of observations. */
+            private TsWords.Given windowOf(SqlAst.Expr w, String name) {
+                TsAst.Span span = w instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
+                if (span != null) {
+                    Period p = calendar(span);
+                    return new TsWords.Calendar(p.n(), p.unit());
+                }
+                if (w instanceof SqlAst.ColumnRef c && query.alls().contains(c.pos())) {
+                    return new TsWords.All();
+                }
+                String text = w instanceof SqlAst.StringLit sl ? sl.value() : w instanceof SqlAst.TypedLit t
+                        && "date".equalsIgnoreCase(t.type().name()) ? t.value() : null;
+                if (text != null) {
+                    try {
+                        return new TsWords.Day(java.time.LocalDate.parse(text).toString());
+                    } catch (java.time.format.DateTimeParseException bad) {
+                        throw invalid(name + "'s window from a date is a date: " + name + "(x, '2024-01-01') (R4)",
+                                w.pos());
+                    }
+                }
+                return new TsWords.Observations(observations(w, "a window", name + "(x, 20)"));
             }
 
             /** A whole number of observations, from 1. */

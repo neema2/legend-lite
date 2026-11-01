@@ -147,5 +147,21 @@ final class TsIslands {
         public java.util.@com.legend.base.Nullable List<String> enumeration(String type) {
             return model.findEnum(type).map(com.legend.compiler.element.TypedEnum::values).orElse(null);
         }
+
+        @Override
+        public List<List<TsToPure.Parameter>> overloads(String fqn) {
+            List<List<TsToPure.Parameter>> out = new ArrayList<>();
+            for (com.legend.compiler.element.TypedFunction f : model.findFunction(fqn)) {
+                List<TsToPure.Parameter> ps = new ArrayList<>();
+                for (com.legend.compiler.element.TypedParameter p : f.parameters().subList(Math.min(1,
+                        f.parameters().size()), f.parameters().size())) {
+                    boolean optional = p.multiplicity() instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                            && b.lower() == 0 && Integer.valueOf(1).equals(b.upper());
+                    ps.add(new TsToPure.Parameter(p.name(), p.type().typeName(), optional));
+                }
+                out.add(ps);
+            }
+            return out;
+        }
     }
 }

@@ -255,6 +255,9 @@ final class TsFunctions {
 
         TsAst.Query query();
 
+        /** The model the query is of: the library's words ({@link TsWords}) among its functions. */
+        TsToPure.Model model();
+
         /** Records that {@code value}, a function's answer, is a struct (R10): each field's column, in order. */
         void struct(String value, Map<String, String> fields);
     }
@@ -313,6 +316,51 @@ final class TsFunctions {
                 throw invalid(fn + " reads a date: " + fn + "(x, '2024-01-01') (R9)", fc.pos());
             }
             out.put(p.name(), e == null ? fallback(p) : value(c, fn, p, e));
+        }
+        for (String n : named.keySet()) {
+            if (sig.params().stream().noneMatch(p -> p.name().equals(n))) {
+                throw invalid(fn + " has no option " + n + (sig.params().isEmpty() ? "" : ": its parameters are "
+                        + String.join(", ", sig.params().stream().map(Param::name).toList())) + " (R10)", fc.pos());
+            }
+        }
+        return out;
+    }
+
+    /** {@code fc}'s parameters as given, by place after its line then by name, each as the generic rule takes it
+     *  ({@link TsWords}): none defaulted here -- a word's defaults are the library's. */
+    private static Map<String, TsWords.Given> given(Ctx c, SqlAst.FunctionCall fc, String fn, Signature sig,
+            List<SqlAst.Expr> positional, Map<String, SqlAst.Expr> named) {
+        List<SqlAst.Expr> at = positional.subList(Math.min(sig.lines(), positional.size()), positional.size());
+        if (at.size() > sig.params().size()) {
+            throw invalid(fn + " takes " + sig.lines() + " line" + (sig.lines() == 1 ? "" : "s")
+                    + " and its parameters " + String.join(", ", sig.params().stream().map(Param::name).toList())
+                    + " (R10)", fc.pos());
+        }
+        Map<String, TsWords.Given> out = new LinkedHashMap<>();
+        for (int i = 0; i < sig.params().size(); i++) {
+            Param p = sig.params().get(i);
+            SqlAst.Expr e = i < at.size() ? at.get(i) : named.get(p.name());
+            if (i < at.size() && named.containsKey(p.name())) {
+                throw invalid(fn + "'s " + p.name() + " is given twice (R10)", fc.pos());
+            }
+            if (e == null) {
+                continue;
+            }
+            Object v = value(c, fn, p, e);
+            out.put(p.name(), switch (p.kind()) {
+                case SPAN -> {
+                    Span s = (Span) v;
+                    if (s.period() != null) {
+                        Period q = period(s.period());
+                        yield new TsWords.Calendar(q.n(), q.unit());
+                    }
+                    yield s.obs() == 0 ? new TsWords.All() : new TsWords.Observations(s.obs());
+                }
+                case WHOLE -> new TsWords.Whole(((Number) v).longValue());
+                case NUMBER -> new TsWords.Num(((Number) v).doubleValue());
+                case WORD -> new TsWords.Word((String) v);
+                case DATE, SINCE -> new TsWords.Day((String) v);
+            });
         }
         for (String n : named.keySet()) {
             if (sig.params().stream().noneMatch(p -> p.name().equals(n))) {
@@ -411,6 +459,11 @@ final class TsFunctions {
             throw invalid(fn + " reads " + sig.lines() + " line" + (sig.lines() == 1 ? "" : "s") + ": " + fn + "(x"
                     + (sig.lines() > 1 ? ", y" : "") + ", ...)", fc.pos());
         }
+        if (sig.lines() == 1 && TsWords.defines(c, fn)) {
+            // the library's word over lines (TsWords): the arguments as given, its defaults its own
+            Map<String, TsWords.Given> given = given(c, fc, fn, sig, positional, named);
+            return TsWords.call(c, fn, line(c, fn, positional.get(0), 0), given, fc.pos());
+        }
         Bound p = new Bound(bind(c, fc, fn, sig, positional, named));
         TsLines.Valued many = several(c, fc, f, p, positional);
         if (many != null) {
@@ -431,24 +484,7 @@ final class TsFunctions {
                 Span s = p.span("w");
                 yield w.done(w.rolled("range", a, s, s.period() == null ? s.obs() : 0));
             }
-            case ZSCORES -> {
-                Span s = p.span("w");
-                yield w.done(s.period() != null ? w.ofPeriod("zscoresPeriod", "z", a, s.period())
-                        : w.library("zscores", "z", a, s.obs() == 0 ? "all" : s.obs(),
-                                new CInteger((long) s.obs())));
-            }
             case WINSORIZE -> w.done(w.library("winsorize", "wins", a, "all", new CFloat(p.num("limit"))));
-            case VOLATILITY -> {
-                String r = w.returns(a, new Span(1, null), p.word("type"));
-                Span s = p.span("w");
-                if (s.period() == null) {
-                    yield w.done(w.library("volatility", "vol", r, frame(s.obs()),
-                            new CInteger((long) Math.max(s.obs(), 2)), new ColSpec(w.perYear())));
-                }
-                Period q = period(s.period());
-                yield w.done(w.ofLine("volatilityPeriod", "vol", a, new ColSpec(r), new CInteger((long) q.n()),
-                        new EnumValue(DURATION, q.unit()), new ColSpec(w.perYear())));
-            }
             case DRAWDOWN -> {
                 Span s = p.span("w");
                 yield w.done(s.period() != null ? w.ofPeriod("drawdownPeriod", "dd", a, s.period())
@@ -458,17 +494,6 @@ final class TsFunctions {
                 Span s = p.span("w");
                 yield w.done(s.period() != null ? w.ofPeriod("maxDrawdownPeriod", "mdd", a, s.period())
                         : w.library("maxDrawdown", "mdd", a, frame(s.obs()), new CInteger((long) s.obs())));
-            }
-            case SHARPE_RATIO -> {
-                Span s = p.span("w");
-                String r = w.returns(a, new Span(1, null), "simple");
-                if (s.period() == null) {
-                    yield w.done(w.library("sharpeRatio", "sharpe", r, frame(s.obs()),
-                            new CInteger((long) Math.max(s.obs(), 2)), new ColSpec(w.perYear())));
-                }
-                Period q = period(s.period());
-                yield w.done(w.ofLine("sharpeRatioPeriod", "sharpe", a, new ColSpec(r), new CInteger((long) q.n()),
-                        new EnumValue(DURATION, q.unit()), new ColSpec(w.perYear())));
             }
             case RSI -> w.done(w.ofLine("rsi", "rsi", a, new CInteger((long) p.whole("w"))));
             case SMOOTHED_MOVING_AVERAGE -> w.done(w.ofLine("smoothedMean", "smma", a,

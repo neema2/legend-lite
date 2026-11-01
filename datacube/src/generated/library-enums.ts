@@ -15,6 +15,7 @@ export const LIBRARY_ENUMS = {
   Rebalance: ['daily', 'weekly', 'monthly'],
   Grain: ['day', 'week', 'month', 'quarter'],
   Compare: ['none', 'rebase', 'percent'],
+  Scope: ['all'],
 } as const;
 
 /** An enumeration of timeseries. */

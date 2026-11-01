@@ -574,4 +574,16 @@ final class TsLines {
     private static ValueSpecification epoch() {
         return new com.legend.protocol.spec.CDate(com.legend.values.PureDateLiteral.parse("1970-01-01"));
     }
+
+    /** The period a line's {@code date} is of: SAMPLE BY's {@code unit}'s that holds it ({@link #sampled}: the first
+     *  day of its week, month, quarter or year), else the date itself -- a word's line's period ({@link TsWords}). */
+    static ValueSpecification periodOf(@com.legend.base.Nullable String unit, ValueSpecification date) {
+        String start = unit == null ? null : PERIOD_START.get(unit);
+        return start == null ? date : call(start, call("toOne", date));
+    }
+
+    /** A line's number in time of its date column {@code at} ({@link #column}'s: days since 1970, or seconds). */
+    static ValueSpecification ordOf(String at, boolean seconds) {
+        return call("dateDiff", epoch(), one(at), new EnumValue(DURATION, seconds ? "SECONDS" : "DAYS"));
+    }
 }

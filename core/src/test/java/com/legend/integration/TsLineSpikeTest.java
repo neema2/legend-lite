@@ -53,7 +53,7 @@ class TsLineSpikeTest {
      *  parameter, {@code rows(-($w - 1), 0)}: refused before C1 (the note's G1), the database's to compute since. */
     private static final String LINES = """
             ###Pure
-            function timeseries::line::volatility(x: %1$s, w: Integer[1]): %1$s
+            function spike::line::volatility(x: %1$s, w: Integer[1]): %1$s
             {
               $x->extend(~ord:r|%%1970-01-01->dateDiff($r.date, meta::pure::functions::date::DurationUnit.DAYS))
                 ->timeseries::periodsPerYear(~key, ~ord, meta::pure::functions::date::DurationUnit.DAYS, ~py)
@@ -62,7 +62,7 @@ class TsLineSpikeTest {
                 ->select(~[date, key, v])->rename(~v, ~value)
             }
 
-            function timeseries::line::volatility(x: %1$s, n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): %1$s
+            function spike::line::volatility(x: %1$s, n: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): %1$s
             {
               $x->extend(~ord:r|%%1970-01-01->dateDiff($r.date, meta::pure::functions::date::DurationUnit.DAYS))
                 ->timeseries::periodsPerYear(~key, ~ord, meta::pure::functions::date::DurationUnit.DAYS, ~py)
@@ -71,7 +71,7 @@ class TsLineSpikeTest {
                 ->select(~[date, key, v])->rename(~v, ~value)
             }
 
-            function timeseries::line::beta(x: %1$s, y: %1$s, w: Integer[1]): %1$s
+            function spike::line::beta(x: %1$s, y: %1$s, w: Integer[1]): %1$s
             {
               let a = $x->timeseries::returns(over(~[key], [~date->ascending()]), ~value, 1, timeseries::Returns.simple, ~ra)
                 ->select(~[date, key, ra]);
@@ -82,7 +82,7 @@ class TsLineSpikeTest {
                 ->select(~[date, key, v])->rename(~v, ~value);
             }
 
-            function timeseries::line::vwap(price: %1$s, volume: %1$s, w: Integer[1]): %1$s
+            function spike::line::vwap(price: %1$s, volume: %1$s, w: Integer[1]): %1$s
             {
               $price->join($volume->rename(~date, ~vdate)->rename(~key, ~vkey)->rename(~value, ~vol),
                   meta::pure::functions::relation::JoinKind.INNER, {l, r|($l.date == $r.vdate) && ($l.key == $r.vkey)})
@@ -90,7 +90,7 @@ class TsLineSpikeTest {
                 ->timeseries::vwap(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, ~traded, ~vol, $w, ~v)
                 ->select(~[date, key, v])->rename(~v, ~value)
             }
-            function timeseries::line::mean<D>(x: Relation<(date:D, key:String, value:Number)>[1], w: Integer[1]): Relation<(date:D, key:String, value:Number)>[1]
+            function spike::line::mean<D>(x: Relation<(date:D, key:String, value:Number)>[1], w: Integer[1]): Relation<(date:D, key:String, value:Number)>[1]
             {
               $x->timeseries::mean(over(~[key], [~date->ascending()], rows(-2, 0)), ~value, $w, ~v)
                 ->select(~[date, key, v])->rename(~v, ~value)
@@ -109,17 +109,17 @@ class TsLineSpikeTest {
 
     private static final List<Case> CASES = List.of(
             new Case("volatility, 63 observations, one line", "SELECT volatility(CLOSE['AAA'], 63) AS v FROM PRICES ON DAY BY SYMBOL",
-                    "v", false, "|timeseries::line::volatility(" + line("CLOSE", "AAA") + ", 63)"),
+                    "v", false, "|spike::line::volatility(" + line("CLOSE", "AAA") + ", 63)"),
             new Case("volatility, 63 observations, every line", "SELECT volatility(CLOSE, 63) AS v FROM PRICES ON DAY BY SYMBOL",
-                    "v", true, "|timeseries::line::volatility(" + line("CLOSE", null) + ", 63)"),
+                    "v", true, "|spike::line::volatility(" + line("CLOSE", null) + ", 63)"),
             new Case("volatility, 3 months (calendar)", "SELECT volatility(CLOSE['AAA'], 3mo) AS v FROM PRICES ON DAY BY SYMBOL",
-                    "v", false, "|timeseries::line::volatility(" + line("CLOSE", "AAA") + ", 3, meta::pure::functions::date::DurationUnit.MONTHS)"),
+                    "v", false, "|spike::line::volatility(" + line("CLOSE", "AAA") + ", 3, meta::pure::functions::date::DurationUnit.MONTHS)"),
             new Case("beta of two instruments, 63", "SELECT beta(CLOSE['AAA'], CLOSE['BBB'], 63) AS b FROM PRICES ON DAY BY SYMBOL",
-                    "b", false, "|timeseries::line::beta(" + line("CLOSE", "AAA") + ", " + line("CLOSE", "BBB") + ", 63)"),
+                    "b", false, "|spike::line::beta(" + line("CLOSE", "AAA") + ", " + line("CLOSE", "BBB") + ", 63)"),
             new Case("vwap, one instrument's two columns, 20", "SELECT vwap(CLOSE['AAA'], VOLUME['AAA'], 20) AS vw FROM PRICES ON DAY BY SYMBOL",
-                    "vw", false, "|timeseries::line::vwap(" + line("CLOSE", "AAA") + ", " + line("VOLUME", "AAA") + ", 20)"),
+                    "vw", false, "|spike::line::vwap(" + line("CLOSE", "AAA") + ", " + line("VOLUME", "AAA") + ", 20)"),
             new Case("vwap, every line's two columns, 20", "SELECT vwap(CLOSE, VOLUME, 20) AS vw FROM PRICES ON DAY BY SYMBOL",
-                    "vw", true, "|timeseries::line::vwap(" + line("CLOSE", null) + ", " + line("VOLUME", null) + ", 20)"));
+                    "vw", true, "|spike::line::vwap(" + line("CLOSE", null) + ", " + line("VOLUME", null) + ", 20)"));
 
     private static String model(TestBackend backend) throws Exception {
         String library = Files.readString(Runfile.property("timeseries.library"), StandardCharsets.UTF_8);
@@ -248,7 +248,7 @@ class TsLineSpikeTest {
             }
         }
         // a line dated by date-times, given to a function of date-dated lines
-        String stamped = "|timeseries::line::volatility(#>{ts::DB.STAMPED}#->select(~[AT, SYMBOL, CLOSE])->rename(~AT, ~date)"
+        String stamped = "|spike::line::volatility(#>{ts::DB.STAMPED}#->select(~[AT, SYMBOL, CLOSE])->rename(~AT, ~date)"
                 + "->rename(~SYMBOL, ~key)->rename(~CLOSE, ~value), 63)";
         try {
             Compiler.query(ctx, stamped).plan("ts::RT");
@@ -257,8 +257,8 @@ class TsLineSpikeTest {
             report.append("date-time line: refused -- ").append(e.getMessage().split("\n")[0]).append('\n');
         }
         // a line generic in its date's type: one function for date-dated and date-time-dated lines
-        for (String g : List.of("|timeseries::line::mean(" + line("CLOSE", "AAA") + ", 3)",
-                "|timeseries::line::mean(#>{ts::DB.STAMPED}#->select(~[AT, SYMBOL, CLOSE])->rename(~AT, ~date)"
+        for (String g : List.of("|spike::line::mean(" + line("CLOSE", "AAA") + ", 3)",
+                "|spike::line::mean(#>{ts::DB.STAMPED}#->select(~[AT, SYMBOL, CLOSE])->rename(~AT, ~date)"
                         + "->rename(~SYMBOL, ~key)->rename(~CLOSE, ~value), 3)")) {
             try {
                 Compiler.query(ctx, g).plan("ts::RT");
