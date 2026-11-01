@@ -59,6 +59,32 @@ def _escape(text: str) -> str:
     return text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
 
 
+def _escape_property(text: str) -> str:
+    """A workflow command's property (the title): a comma ends a property and a colon the properties, so both are
+    escaped too. Unescaped, `title=engine verdict, linux: ERROR (497)` kept only `engine verdict` (2026-11-01)."""
+    return _escape(text).replace(":", "%3A").replace(",", "%2C")
+
+
+# GitHub keeps an annotation's message to 4 KB, so a long list of names is cut to what fits and says how many more
+# there are; the merged engine-verdicts.tsv, in the run's artifact, has them all
+_MESSAGE_LIMIT = 4000
+
+
+def _names(names: list[str]) -> str:
+    """The names, space-separated, cut to _MESSAGE_LIMIT with a count of the rest."""
+    whole = " ".join(names)
+    if len(whole) <= _MESSAGE_LIMIT:
+        return whole
+    out, size = [], 0
+    for i, n in enumerate(names):
+        rest = f" ... and {len(names) - i} more (the artifact's engine-verdicts.tsv)"
+        if size + len(n) + len(rest) > _MESSAGE_LIMIT:
+            return " ".join(out) + rest
+        out.append(n)
+        size += len(n) + 1
+    return whole
+
+
 def merge(dirs: list[Path], shards: int, out: Path, title: str = "engine verdict") -> int:
     """The shards' verdicts as one, into `out`; 0 when every shard is there and every testable landed as intended.
     Under GitHub Actions the outcome is also written as annotations, which the public API serves without signing in
@@ -104,14 +130,14 @@ def merge(dirs: list[Path], shards: int, out: Path, title: str = "engine verdict
         print(f"  {p}")
 
     if os.environ.get("GITHUB_ACTIONS") == "true":
-        print(f"::notice title={title}::{_escape(line)}")
+        print(f"::notice title={_escape_property(title)}::{_escape(line)}")
         # one annotation per kind, the names in it: a job keeps only a few error annotations
         kinds = sorted({v.split()[0] for _, v, _ in bad})
         for kind in kinds:
             these = [n for n, v, _ in bad if v.split()[0] == kind]
-            print(f"::error title={title}: {kind} ({len(these)})::{_escape(' '.join(these))}")
+            print(f"::error title={_escape_property(f'{title}: {kind} ({len(these)})')}::{_escape(_names(these))}")
         for p in problems:
-            print(f"::error title={title}: incomplete::{_escape(p)}")
+            print(f"::error title={_escape_property(f'{title}: incomplete')}::{_escape(p)}")
         if os.environ.get("GITHUB_STEP_SUMMARY"):
             with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
                 fh.write(f"### {title}\n\n{line}\n\n")

@@ -2058,6 +2058,17 @@ ulp must return. The roots are now whole numbers, and the three pass on Windows.
 its last bit. The upstream fact stands: a platform's `cbrt` may miss the last bit. Repro: `SELECT cbrt(CAST(325.0 AS
 DOUBLE))` in DuckDB on Windows x64 gives `6.8753443353707056`.
 
+**Reopened 2026-11-01 by the corpus's first engine run on Linux, and settled again:** a whole-number root is not
+enough, so D6 (a)'s premise was wrong. glibc's `cbrt` is not exact on perfect cubes. Measured in WSL (glibc 2.35, x86-64)
+it misses 83 of the integer roots 2 to 200: `cbrt(216.0)` is `6.000000000000001` and `cbrt(27.0)` is
+`3.0000000000000004`. On ubuntu-latest (`.github/workflows/engine-verdict.yml`, run 41322461475) seven cells failed:
+`stress::CB_C0`, `CB_C1`, `CB_C2`, `CB_C4`, `CB_C12`, `CB_C14` and `CB_C15`. Those are exactly the cells whose expected
+rows held one of the missed roots 6, 9, 12, 15, 17 or 18. The Windows CRT returns all 199 roots exactly, and glibc and
+the CRT both return every power of two exactly (2^1 to 2^29 measured), so `combos.seed_cubes` now writes the cubes of
+2^1 to 2^15 and its check requires them. Repro: `python3 -c "import ctypes; m = ctypes.CDLL('libm.so.6'); m.cbrt.restype =
+ctypes.c_double; m.cbrt.argtypes = [ctypes.c_double]; print(m.cbrt(216.0))"` on Linux x86-64 prints
+`6.000000000000001`; the root DuckDB's `cbrt` gives there is the C library's.
+
 ## F61 — A Decimal literal is rounded to 16 fractional digits in the SQL
 
 **A wrong answer, silently.** Found 2026-10-23 by the improvement plan's Phase 1 (typed constants), which seeds
@@ -2504,3 +2515,23 @@ The corpus keeps NULL documents out of the table its H2 services read (SURFACE_T
 DuckDB services read (SEMI_DOC, `SD-06`). Nothing is quarantined. Repro:
 `scripts/corpus/repro/semi-structured-flatten-null-h2/` (`model.pure`, one row NULL: `HopsTds` raises, `HopsRelation`
 passes; `control.pure`, no row NULL: both pass).
+
+## F94 — legend-engine compiles a plan's Java against a class path that loses its relative `../` entries
+
+**Not a wrong answer: an error from every plan compiled to Java, under a launcher that names jars by `../`.** Found
+2026-11-01 by the corpus's first engine run on Linux (the plan's Phase 0, `.github/workflows/engine-verdict.yml`, run
+41322461475). legend-engine 4.145.0 uses javac to compile the Java a plan carries, as it does for a graph fetch, and
+passes it the `-classpath` that ClassGraph reads (`EngineJavaCompiler.getClassPath`: `new ClassGraph().getClasspath()`).
+ClassGraph 4.8.25, the version legend-engine's dependencies resolve to, drops a relative entry that starts with `../`,
+though the JVM loads classes from it. A relative entry without `../` is kept, and so is an absolute one, even with
+`/../` inside it. When the class path is under 120,000 characters, Bazel's java stub on Linux and macOS passes it as it
+is, and names each external jar as `../<repository>/...` relative to the runfiles' `_main`. So javac saw none of the
+Maven jars, and all 497 testables whose plan compiles to Java failed with "package org.eclipse.collections.api.tuple
+does not exist". The desk's runs never met it, because Bazel's Windows launcher always writes a manifest jar. Measured in
+WSL with the pinned Linux JDK (Zulu 25.0.4): ClassGraph lists 43 of the runner's 661 entries, none of them external.
+With the entries absolute, all 497 pass, and so do three of them under the stub's manifest jar. The fault is
+ClassGraph's, at the version legend-engine pins. The corpus starts the runner with `--classpath_limit=0` everywhere
+but Windows (`run.py`'s `_LAUNCHER_FLAGS`), so the stub always writes its manifest jar, whose entries are absolute
+`file:` URLs. Nothing is quarantined. Repro, on any platform: a class that prints `new ClassGraph().getClasspath()`,
+run from a directory `d` with `-cp <classgraph-4.8.25.jar>`, `.` and `../e/eclipse-collections-api-10.2.0.jar`, lists
+no eclipse-collections jar. Make that entry absolute and it lists it.

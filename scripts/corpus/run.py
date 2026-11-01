@@ -153,6 +153,15 @@ def _launcher() -> tuple[str, dict[str, str]]:
     return launcher, dict(os.environ, **_RUNFILES.EnvVars())
 
 
+# The runner's class path as absolute paths off Windows (F94, 2026-11-01, the Linux engine verdict, run 41322461475):
+# legend-engine compiles a graph fetch's plan to Java with the -classpath ClassGraph 4.8.25 reads, and ClassGraph drops a
+# relative entry that starts with `../`, which is how Bazel's java stub on Linux and macOS names every external jar when
+# the class path is short enough to pass as it is. All 497 testables whose plan compiles to Java failed with "package
+# org.eclipse.collections.api.tuple does not exist". A limit of 0 makes the stub always write its manifest jar, whose
+# entries are absolute file: URLs. Windows' launcher always writes a manifest jar already.
+_LAUNCHER_FLAGS = [] if os.name == "nt" else ["--classpath_limit=0"]
+
+
 def _start(launcher: str, env: dict[str, str], heap: str, args: list[str], argfile: Path, log: Path,
            timeout: float) -> int | None:
     """One JVM of the runner over `args`, its output into `log`; its exit status, or None past `timeout`. The one
@@ -162,7 +171,7 @@ def _start(launcher: str, env: dict[str, str], heap: str, args: list[str], argfi
     argfile.write_text("".join(f"{a}\n" for a in args), encoding="utf-8")
     with open(log, "w", encoding="utf-8") as fh:
         try:
-            return subprocess.run([launcher, f"--jvm_flag=-Xmx{heap}", f"@{argfile}"],
+            return subprocess.run([launcher, *_LAUNCHER_FLAGS, f"--jvm_flag=-Xmx{heap}", f"@{argfile}"],
                                   stdout=fh, stderr=subprocess.STDOUT, env=env, timeout=timeout).returncode
         except subprocess.TimeoutExpired:
             return None

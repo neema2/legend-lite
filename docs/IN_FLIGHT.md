@@ -3428,3 +3428,11 @@ Status lives in the plan's Progress table (rule 0b.16).
     (the timeseries line's), for each new generated file.
   - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
     refuses a new construct when it builds the model; the options go to the user first.
+- **The first Linux run (2026-11-01, run 41322461475, at `79de7cb6a`): 504 unexpected, each put to the user.** It
+  agreed with Windows on every other testable. 497 ERRORs came from how the runner was launched (F94): Bazel's Linux stub
+  names external jars by `../`, and ClassGraph 4.8.25, which builds the classpath for the engine's Java compiler, drops
+  those entries. `run.py` now passes `--classpath_limit=0` everywhere but Windows, as the user chose. In WSL, with the
+  Linux JDK, all 497 pass. The other 7 were glibc's `cbrt`, which misses even on perfect cubes (F60, reopened):
+  `combos.seed_cubes` now writes cubes of powers of two, as the user chose, a seed change and so a whole engine run.
+  `verdicts.py`'s annotations now escape their titles, which GitHub cut at the comma, and cut a long list of names to
+  fit. All of these are owned files.

@@ -39,6 +39,8 @@ quietly absent.
 """
 from __future__ import annotations
 
+import math
+
 import emptiness
 import model
 from query import Proj, Spec
@@ -169,12 +171,15 @@ XFORM = {
 # boolean cell computed by `startsWith` reads a string; without this the generator would ask
 # for a BIT column and hand it to a string function.
 #
-# `cbrt` reads CUBE: a DOUBLE column whose every value is a perfect cube (seed_cubes), so the
-# true cube root is a double, which a C library's `cbrt` within an ulp returns. Over the ordinary
+# `cbrt` reads CUBE: a DOUBLE column whose every value is the cube of a power of two (seed_cubes),
+# so the true cube root is a double every measured C library returns exactly. Over the ordinary
 # float columns the oracle's correctly rounded root and the library's differed in the last
 # bit on Windows -- cbrt(325.0) came back one double up (F60) -- and the stress corpus plan's
-# D6 chose inputs with exact roots over per-platform verdicts. The cells still test `cbrt`,
-# though not its last bit. One column per nullability: `cbrt` takes one argument.
+# D6 chose inputs with exact roots over per-platform verdicts. A whole-number root is not
+# enough: glibc's `cbrt` misses 83 of the integer roots 2 to 200 (cbrt(216.0) is
+# 6.000000000000001), which failed seven cells on Linux (2026-11-01, F60), while it and the
+# Windows CRT return every power of two exactly (2^1 to 2^29 measured). The cells still test
+# `cbrt`, though not its last bit. One column per nullability: `cbrt` takes one argument.
 CUBE = "cube"
 READS = {"not": "bool", "isnull": "string", "isnotnull": "string",
          "starts": "string", "ends": "string", "has": "string", "alnum": "string",
@@ -442,8 +447,8 @@ def check_data(c: model.Corpus, tables: dict[str, list[dict]]) -> list[str]:
             if nulls == "nullable" and vals and not any(v is None for v in vals):
                 bad.append(f"{table}.{col} is a `nullable` source but carries no NULL")
             # seed_cubes, not the expansion's generic floats, must have written these
-            bad += [f"{table}.{col}: {v!r} is not a perfect cube, so its cbrt is platform-dependent (F60)"
-                    for v in vals if v is not None and round(v ** (1 / 3)) ** 3 != v]
+            bad += [f"{table}.{col}: {v!r} is not the cube of a power of two, so its cbrt is platform-dependent "
+                    f"(F60)" for v in vals if v is not None and not _power_of_two_cube(v)]
     return bad
 
 
@@ -1150,16 +1155,22 @@ def derive_alt(c: model.Corpus, tables: dict[str, list[dict]]) -> None:
     tables[ALT] = out
 
 
+def _power_of_two_cube(v: float) -> bool:
+    """v is (2^k)^3 for a whole k >= 1: its cube root 2^k, which every measured cbrt returns exactly (F60)."""
+    mantissa, exponent = math.frexp(v)
+    return mantissa == 0.5 and (exponent - 1) % 3 == 0 and exponent - 1 >= 3
+
+
 def seed_cubes(tables: dict[str, list[dict]]) -> None:
-    """Overwrite the CUBE columns' generic floats with perfect cubes: 6^3 up on COMBO_ROOT,
-    and on each later table five past the one before, so a reach that lands on the wrong
-    table returns a different root. The expansion's NULL is kept."""
+    """Overwrite the CUBE columns' generic floats with cubes of powers of two: roots 2^1 up on
+    COMBO_ROOT, and on each later table five powers past the one before, so a reach that lands
+    on the wrong table returns a different root. The expansion's NULL is kept."""
     for t, table in enumerate(_cube_tables()):
         for i, row in enumerate(tables.get(table) or []):
             for nulls in NULLS:
                 col = column(table, CUBE, nulls, 1)
                 if row.get(col) is not None:
-                    row[col] = float((6 + 5 * t + i) ** 3)
+                    row[col] = float((2 ** (1 + 5 * t + i)) ** 3)
 
 
 def runtime_text() -> str:

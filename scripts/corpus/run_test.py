@@ -1,5 +1,6 @@
 """run.py's batch loop over a stand-in for the engine's JVM: one that hangs, dies or reports nothing is started again
 on the testables after it, and every testable gets exactly one verdict."""
+import os
 import subprocess
 import tempfile
 import unittest
@@ -15,9 +16,10 @@ class Jvm:
     JVM was given."""
 
     def __init__(self, *script):
-        self.script, self.calls = list(script), []
+        self.script, self.calls, self.commands = list(script), [], []
 
     def __call__(self, cmd, stdout, stderr, env, timeout):
+        self.commands.append(cmd)
         args = Path(cmd[-1][1:]).read_text(encoding="utf-8").splitlines()
         self.calls.append([a[len("--testable="):] for a in args if a.startswith("--testable=")])
         report = Path(next(a for a in args if a.startswith("--report="))[len("--report="):])
@@ -76,6 +78,14 @@ class BatchTest(unittest.TestCase):
         jvm = Jvm(([line("PASS", "A")], 0))
         self.assertEqual({"A": "PASS", "B": "MISSING"}, self.batch(jvm, ["A", "B"])[0])
 
+    def test_off_windows_the_launcher_is_told_to_write_absolute_class_path_entries(self):
+        # F94: ClassGraph drops the stub's relative `../` entries, and the engine compiles graph fetches against them
+        self.assertEqual([] if os.name == "nt" else ["--classpath_limit=0"], run._LAUNCHER_FLAGS)
+        jvm = Jvm(([line("PASS", "A")], 0))
+        with mock.patch.object(run, "_LAUNCHER_FLAGS", ["--classpath_limit=0"]):
+            self.batch(jvm, ["A"])
+        self.assertEqual(["runner", "--classpath_limit=0", "--jvm_flag=-Xmx6g"], jvm.commands[0][:-1])
+
 
 class ShardTest(unittest.TestCase):
     """A run split across machines (.github/workflows/engine-verdict.yml): each takes engine_stress's slice, and the
@@ -129,6 +139,21 @@ class ShardTest(unittest.TestCase):
                          verdicts.fingerprint([("B", "KNOWN-FAIL F1", "/home/x"), ("A", "PASS", "")]))
         self.assertNotEqual(verdicts.fingerprint([("A", "PASS", "")]),
                             verdicts.fingerprint([("A", "REGRESSION", "")]))
+
+    def test_an_annotation_title_keeps_its_comma_and_colon(self):
+        # GitHub ends a workflow command's property at a comma: unescaped, run 41322461475's titles kept only
+        # "engine verdict" and lost the platform and the kind
+        self.assertEqual("engine verdict%2C linux%3A ERROR (497)",
+                         verdicts._escape_property("engine verdict, linux: ERROR (497)"))
+
+    def test_a_long_list_of_names_is_cut_to_fit_an_annotation_and_counts_the_rest(self):
+        names = [f"stress::DSTree_Service{i:03d}" for i in range(497)]
+        text = verdicts._names(names)
+        self.assertLessEqual(len(text), verdicts._MESSAGE_LIMIT)
+        shown = text.split(" ... and ")[0].split(" ")
+        self.assertEqual(names[:len(shown)], shown)
+        self.assertIn(f" ... and {497 - len(shown)} more", text)
+        self.assertEqual("stress::A stress::B", verdicts._names(["stress::A", "stress::B"]))
 
     def test_the_summary_counts_as_run_does(self):
         self.assertEqual("1 passed, 1 known-fail (quarantined), 1 not run (hangs), 2 unexpected, 5 total",
