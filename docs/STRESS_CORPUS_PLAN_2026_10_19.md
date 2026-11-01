@@ -7,7 +7,7 @@ and was done on 2026-10-29, in six stages (see its record). Phase 7 started on 2
 2026-10-30, in three stages (see its record). Phase 5 started and was done on 2026-10-30, in one stage (see its
 record). Phase 6 started on 2026-10-30 and was done on 2026-10-31, in one stage (see its record). Phase 8 started and
 was done on 2026-10-31, in three stages (see its record). Phase 9 started and was done on 2026-10-31, in two stages (see
-its record).
+its record). The plan-wide EMIT target was met on 2026-11-01 ([its record](#the-plan-wide-emit-target-2026-11-01)).
 This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
@@ -44,7 +44,7 @@ on 2026-10-21). Lite's results are reported beside them but are not a target.
 | Features in the model that no service reaches (○, §3) | 9 | at most 2 | 7 |
 | Constraints / constraints combining types or functions (§5) | 8 / 0 | at least 20 / at least 10 | 8 |
 | Mapping test suites (§6) | 0 | at least 50 | 8 |
-| EMIT features covered, judged on the engine (§3) | 43 of 109 at the pin (lite: 37), 2026-10-21 | at least 80 of 109 | all |
+| EMIT features covered, judged on the engine (§3) | 43 of 109 at the pin (lite: 37), 2026-10-21 | at least 80 of 109 | all; **done 2026-11-01: 81 of 109 on the engine, 63 in lite** ([the EMIT target](#the-plan-wide-emit-target-2026-11-01)) |
 
 The 80 sits below what can be reached. At the pin (D3) the EMIT taxonomy has 109 non-scaffolding features, not the
 report's 117, which were counted from a newer legend-engine checkout. 22 of the 109 are out of reach for this plan:
@@ -1906,6 +1906,81 @@ pass list.
   - F90 to F93, upstream;
   - the EMIT gap above.
 
+### The plan-wide EMIT target (2026-11-01)
+
+Phase 9 ended at 74 of 109 on the engine (58 in lite). The target was at least 80. It now stands at **81 on the engine
+and 63 in lite**, reached in two steps, each committed when green. `stress_test/corpus` was not rebased: no Phase 9
+PR had merged.
+
+**Step 1: the report's tools tag what the corpus already exercised** (`stress_test/report`, `9f6b917cf`). Each
+feature was read in the pinned `docs/emit/emit.md` and in the `*.emit.yaml` models that carry it, and `profile.py`
+tags a service only for the construct those models carry the tag for. Services passing on the engine with rows are
+in brackets.
+
+- `mapping:mapping` (5,363), "Generic mapping (legacy tag)". EMIT's models carry it for having a mapping: emit.md's
+  own `service-simple` example, whose mapping is empty, and the eight M2M models. Every corpus service executes
+  through one.
+- `mapping:mapping-include` (5,001). `relational-mapping-include` queries a class mapping declared in an included
+  mapping through the including one. It is tagged when a set the query reaches was declared in a mapping that the
+  service's mapping includes. A set of the service's own mapping is not tagged.
+- `execution:plan-generation` (5,363). The testable `ServiceTestRunner` (`legend-engine-test-runner-service`, the
+  runner `TestableMain` drives) generates each test's execution plan with `ServicePlanGenerator` before running it,
+  and a composite plan for a multi-execution service. EMIT tags its service models with it
+  (`service-shared-test-data`, `service-multi-execution`, `service-legacy-test`). It is tagged on every service with
+  a test suite.
+- `grammar:measure` (1, `MU0_MonetaryTrade`). This was a walk gap: a navigated unit-typed property was tagged, a
+  fetched one never was. The tree walk now checks a property's type as the path walk does. EMIT's `grammar-measure`
+  proves that units resolve from property signatures, and MU0 fetches `amount: Money~USD`.
+- `execution:external-format-binding` (14). EMIT's four semi-structured binding models (`-binding`,
+  `-binding-source`, `-collection`, `-array-operations`) tag it beside `store:relational-semistructured-binding`. It
+  is tagged on every Binding transformer: Phase 9's 12 and Phase 6's 2.
+- `mapping:relational-table-alias-column` (63). EMIT's only model of it, `relational-main-table-alias`, is a
+  `scope([db]T)( p: COL )` block tagged with both features, and the corpus's 63 DenseMapping services with scope
+  blocks already counted for main-table-alias. **This tag rests on EMIT's tagging alone:** no model writes an alias
+  column apart from a scope block, so the two features cannot be told apart in the corpus.
+
+That made 80. `profile.py` also learned two detections the corpus doesn't yet meet: joined-table inheritance in
+EMIT's form (a subclass's set over its own table reading an inherited property through a join to its superclass's
+table, with no `extends`), and the polymorphic query below.
+
+**Step 2: a polymorphic query** (`79de7cb6a`). EMIT's `relational-polymorphic-query` dispatches a root-class query
+through the inheritance operation and downcasts with `subType()`. Its root-class query alone is
+`relational-operation-mapping`'s, which carries `mapping:operation-mapping` alone, so the downcast is what the
+feature adds. Phase 7's inheritance operation (`71-operation-surface.pure`: OpVehicle mapped only through OpCar and
+OpTruck) gives it a definition.
+
+- **Probed** on 4.145.0 as a Relation (DuckDB), a TDS (H2), a filter and a subtype tree. The union selects a leaf's
+  column in that leaf's branch and NULL in the other's, and a filter over a downcast keeps that leaf's rows.
+- **The services:** `UO_Downcast` and `UO_DowncastTds` in `99-unreached-services.pure` (`unreached.downcasts`). Each
+  leaf's own property is read through a downcast, and so is a property every leaf maps, read through one leaf's.
+- **The oracle evaluates the downcast** (`oracle._downcast`, which is new). The subtype's path is read where the row
+  is one of the subtype's set's rows, and is absent otherwise. A row's leaf is the table it was read from, matched
+  by identity, and a copied row is refused. Without this the oracle read a `subType` as the identity, which would
+  have given every truck a car's door count. Its rows equal the engine's probe, computed independently.
+- No seed or model change, so `changed` plus `--only`: 2 passed, 0 unexpected. Lite passes both on both lanes
+  (`MIN_PASS` 5,614 to 5,616 and 5,517 to 5,519, dated). `executed.py` ratchets U9. The gate met the desk's 63 known
+  diff-test reds alone.
+
+**The measures** (the report's `tools/run.sh` at the pin, given Phase 9 stage 2's whole run merged with step 2's
+`--only` run): **EMIT 81 of 109 on the engine, 63 in lite.** Features in the model that no service reaches: 0. PCT
+164 of 321, unchanged (`subType` is not a PCT name). Lite: 5,616 tests pass on DuckDB and 5,519 on H2.
+
+**What stands between 81 and the 87 in reach.** 28 of the 109 are untested on the engine, 22 of them outside the
+plan. Of the 6 in reach:
+
+- **The pin runs two of them, probed 2026-11-01 but not written:**
+  - `mapping:relational-group-by`: a class mapping's `~groupBy (T.PERSON)` with `total: sum(AMOUNT)`. It answers
+    one row per group, an all-absent group's sum absent, and a filter over the aggregate goes into a subquery.
+  - `mapping:relational-joined-table-inheritance`, in EMIT's form: a subclass's set over its own table, with
+    `name: @PartyOrg | PARTY.NAME`. It answers as a left outer join to the parent's table, a subclass row with no
+    parent row answering `name` absent, as a Relation, a TDS and a graph.
+
+  Each needs a pack of its own (a model change, so a whole run). EMIT's `relational-aggregation-aware` model also
+  carries `mapping:relational-group-by` for the aggregate view's grouped query, a form the corpus has
+  (`mapping:aggregation-aware-mapping` is covered). The tag was left to the class mapping's `~groupBy`.
+- **Unreachable at the pin:** the full and right outer joins (no form, `repro/mapping-join-types/`),
+  `mapping:relational-literal-list` (F83), and `execution:post-validation` (its one service has no test suite).
+
 ## Not in this plan
 
 - **Persistence** (12 EMIT features): lite has no persistence runtime.
@@ -1968,12 +2043,13 @@ to gate 10's time and about 10 minutes to a full engine run.
 | Phase | Started | Landed | Services added | Quarantined on the engine | New lite failure buckets | Measures after |
 |---|---|---|---|---|---|---|
 | 0 | 2026-10-21 | — | 0 | none added; F27's entry removed (fixed upstream); F60's 3 unexpected settled by D6 (a) | none | EMIT 43 of 109 on the engine, 37 in lite; PCT 64 of 321 |
-| 1 | 2026-10-23 | — | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
-| 2 | 2026-10-27 | — | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
-| 3 | 2026-10-28 | — | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
+| 1 | 2026-10-23 | 2026-10-23, two commits (`63520dda4`, `4d6df8d6b`) | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
+| 2 | 2026-10-27 | 2026-10-27, one commit (`2b7c66177`) | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
+| 3 | 2026-10-28 | 2026-10-28, one commit (`0c801d662`; the trading model's leave-out, `b59c54f58`) | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
 | 4 | 2026-10-28 | 2026-10-29, six stages | stage 1 (`0bb5fca71`) 0; stage 2 (`b9f0d212c`) 258; stage 3 (`94c3f5a0c`) 77; stage 4 (`939d4c40b`) 40; stage 5 (`0496e6966`) 64; D8 reversed (`5cabca0a4`) 0; stage 6 (`880243bbb`) 49 | 25 vocabulary services under F35, F38, F68, F71-F74 (stage 2); 30 under F75 and F76, 24 of them deep-stack totals whose expectation moved to Pure's 0 (stage 3); 2 under F37 and F77 (stage 4); 5 under F78 and F79 (stage 5); F75 withdrawn with D8's reversal, its 28 services out (2026-10-29); 8 under F68, F80, F81 and F82 (stage 6); F37's property-mapping half withdrawn, `F37_SubstringSql` out (`12795b348`); F68-F82 found, each with a repro | 32-bit overflow (F71's shape), `indexOf` as `strpos` (F72's), `map` over an absent value (F68's), an aggregate over nothing as SQL's NULL (F76's; F75's withdrawn), `last` and `wavgRowMapper` in a groupBy, `substring(start)` one-based in an `extend`, `olapGroupBy`'s ranking `func`, `parseDecimal` as DECIMAL(5,2), `sum` over no trades as NULL (F82's); on H2 alone, functions the dialect lacks (`MAKE_DATE`, `greatest`/`least` over a list), a non-ISO `weekOfYear`, a Sunday-first `firstDayOfWeek`, `AVG` of integers to eleven digits, and `regexpReplace` refusing `replaceAll` or replacing every match for the first | platform functions in service queries 183 (178 on the engine, 165 in lite); PCT 161 of 321; EMIT 45 of 109 on the engine, 39 in lite |
 | 5 | 2026-10-30 | 2026-10-30, one stage | stage 1 (`fd92254d6`) 90: 49 M2M services and 41 relational twins; M1 and M2 moved where lite loads them | F84-F87 found, each with a repro (4 services: `MX_TradeRefTree`, `MX_TradeStampJoined`, `MX_PartyProfileTree`, `MX_PartyGrade`) | the test runtime losing the `ModelChainConnection`'s mapping (every M2M service lite loads, 36); refused at model build, so excluded with their file (the user's choice): an M2M enumeration transform and a complex property passthrough (`8115-m2m-gaps.pure`, 13 services) | M2M services lite runs 36, 32 of them passing on the engine; passing on the engine m2m-transform 47, m2m-chained-relational 47, m2m-derived-source-property 4, m2m-complex-property-passthrough 3, m2m-target-instantiation 1, m2m-local-property 2; features no service reaches 1 (relational-semistructured); EMIT 53 of 109 on the engine, 43 in lite; PCT 162 of 321 |
 | 6 | 2026-10-30 | 2026-10-31, one stage | stage 1 (`686196343`) 64: 41 relation-mapped services and 23 relational twins | F88 found, with a repro (1 service: `RM_BookTotalsRelation`) | lite's binding transformer, a JSON column read as its String (4 services: 2 relation-mapped and their 2 relational twins, the twins out of the differential at the user's choice) | relation-mapping features covered 13 of 13 on the engine, 12 in lite (1 before); EMIT 66 of 109 on the engine, 55 in lite; features no service reaches 1; PCT 162 of 321 |
 | 7 | 2026-10-29 | 2026-10-29, three stages | stage 1 (`3ab506f9a`) 120; stage 2 (`bdd36b575`) 12; stage 3 (`a9e19fe1f`) 31 | F83 found, with a repro: a literal list in a relational property mapping or a join fails at test setup (3 services: `UO_LiteralListCoalesce`, `UO_LiteralListIn`, `UJ_JoinArrayArg`) | a literal list over an optional column; the merge, a class mapped by several sets, read as an implicit union; a runtime holding two mappings that bind one class; a join's `!=` or `<>` over a NULL read as Pure's `not(equal(...))` | features no service reaches 2 (m2m-local-property, relational-semistructured); unused joins 0 of 386; EMIT 51 of 109 on the engine, 43 in lite; PCT 161 of 321 |
 | 8 | 2026-10-31 | 2026-10-31, three stages | stage 1 (`9582d30d2`) 35 constraint services; stage 2 (`346fd9bcf`) 60 mapping test suites in 9 test mappings; stage 3 (`9823f0701`) 0, 36 services given a second test | none; F89 found, with a repro (a braced lambda in a mapping test's function), worked around, nothing quarantined | a constraint reading another class's property (10), a Warn's external id (2), nested defects (2), H2's list encoding for a checked fetch (19 on H2), an unchecked fetch that checks no constraint; no mapping test runner (60 suites not run); EqualTo skipped (36) | constraints 28, 18 combining; on the engine 25 fetched (18 combining), 20 violations asserted; mapping test suites 60, all passing on the engine; EMIT 66 of 109 on the engine, 55 in lite; features no service reaches 1; PCT 164 of 321 |
 | 9 | 2026-10-31 | 2026-10-31, two stages | stage 1 (`411eece77`) 36 semi-structured services; stage 2 (`2a71bc502`) 18 services over explicit join types | `SJ_Fee` and `SD_Fee` under F90 (added); F91-F93 found, each with a repro, worked around, nothing quarantined; F53 gains OTHER | a dotted, indexed or quoted path answered null; an extraction to SEMISTRUCTURED or an array type fails the class mapping; explodeSemiStructured unknown; a Binding over a SEMISTRUCTURED column read as a Variant; on H2, navigation without JSON support and OTHER without a DDL spelling (every SJ_ service); a typed join in a `~filter` chain read as INNER (10) | semi-structured features on the engine: semistructured 34, navigation 34, binding 12, wildcard path 6, array functions 6, flatten 4, explode 4, array index 2; left outer join 8 (explicit); full and right outer joins have no form at the pin; EMIT 74 of 109 on the engine, 58 in lite; features no service reaches 0; PCT 164 of 321 |
+| EMIT target | 2026-11-01 | 2026-11-01, two steps: the report's tags (`stress_test/report` `9f6b917cf`), a polymorphic query (`79de7cb6a`) | 2 (`UO_Downcast`, `UO_DowncastTds`) | none | none (both pass in lite) | EMIT 81 of 109 on the engine, 63 in lite; features no service reaches 0; PCT 164 of 321 |
