@@ -37,6 +37,9 @@ final class TsFunctions {
      *  first). */
     enum Kind { SPAN, WHOLE, NUMBER, WORD, DATE, SINCE }
 
+    /** A span's count that is the whole line ({@code whole}: the future included, D3). */
+    private static final int WHOLE_LINE = -2;
+
     /** A parameter: its name, its kind, its default (none: a word the library defines, whose defaults are its own --
      *  TsCatalog), its words (a word's). */
     record Param(String name, Kind kind, @com.legend.base.Nullable Object fallback, List<String> words) {
@@ -107,7 +110,8 @@ final class TsFunctions {
                         Period q = period(s.period());
                         yield new TsWords.Calendar(q.n(), q.unit());
                     }
-                    yield s.obs() == 0 ? new TsWords.All() : new TsWords.Observations(s.obs());
+                    yield s.obs() == 0 ? new TsWords.All() : s.obs() == WHOLE_LINE ? new TsWords.Word("whole")
+                            : new TsWords.Observations(s.obs());
                 }
                 case WHOLE -> new TsWords.Whole(((Number) v).longValue());
                 case NUMBER -> new TsWords.Num(((Number) v).doubleValue());
@@ -129,7 +133,9 @@ final class TsFunctions {
         switch (p.kind()) {
             case SPAN -> {
                 if (e instanceof SqlAst.ColumnRef r && c.query().alls().contains(r.pos())) {
-                    return new Span(0, null);
+                    // all, the line's start to date; whole, the whole line, the future included (last(x, whole),
+                    // gs-quant's last: D3)
+                    return new Span(TsParser.WHOLE.equals(r.parts().get(0).text()) ? WHOLE_LINE : 0, null);
                 }
                 TsAst.Span s = e instanceof SqlAst.ColumnRef r ? c.query().spans().get(r.pos()) : null;
                 if (s != null) {

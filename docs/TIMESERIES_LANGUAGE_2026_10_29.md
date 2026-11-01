@@ -347,7 +347,7 @@ conventional 0 to 100 (§12, decision 5).
 **Along time (each with a window `w`)**
 - SQL's aggregates, rolling: `avg(x, w)` (also `mean`), `sum`, `min`, `max`, `count`, `median`, `stddev` (also
   `std`, sample), `variance` (also `var`, sample) — any kind.
-- `range_of(x, w)`: max − min. `product(x, w)`. `zscores(x, w)`: (x − mean) / sample deviation over the window.
+- `range(x, w)`: max − min. `product(x, w)`. `zscores(x, w)`: (x − mean) / sample deviation over the window.
 - `percentiles(x, w)`: x's rank among the window's values, 0 to 1 (equals counted half).
   `percentile(x, q, w)`: the window's q-quantile, q from 0 to 1.
 - `volatility(x [P], w, type => 'simple' | 'log')`: the annualized sample deviation of x's returns, a ratio.
@@ -377,7 +377,7 @@ conventional 0 to 100 (§12, decision 5).
   months is 12).
 
 **A whole line, on every date**
-- `first_of(x)`, `last_of(x)`: the line's first and last values. `winsorize(x, limit = 2.5)`: held within `limit`
+- `first(x, all)`, `last(x, whole)`: the line's first and last values on every date (gs-quant's; `whole` the future read, asked for by name -- D3). `first(x)` and `last(x)` are a period's, under `SAMPLE BY`. `winsorize(x, limit = 2.5)`: held within `limit`
   sample deviations of the line's mean.
 
 **Two lines (along time, each with a window `w`; both lines P; of their simple returns unless `type => 'levels'` (the
@@ -392,10 +392,10 @@ lines as they are) or `'changes'` (their differences, x − x[-1]: for yields an
 
 **Combining and choosing**
 - `if(condition, x, y)`, `CASE WHEN … THEN … ELSE … END`, `NOT`, `AND`, `OR`, `= <> < <= > >=`, `coalesce(x, y)`.
-- `compare(x, y)`: 1, −1 or 0. `union_of(x, y)`: every date either has, x where it has a value, else y.
+- `compare(x, y)`: 1, −1 or 0. `union(x, y)`: every date either has, x where it has a value, else y.
 - `append(x, y)`: x to its last date, then y. `prepend(x, y)`: x before y's first date, then y.
 - `interpolate(x, y, method => 'intersect' | 'nan' | 'zero' | 'step')`: x on y's dates.
-- `filter_values(x, operator => 'empty' | 'less_than' | 'greater_than' | 'l_equals' | 'g_equals' | 'equals' |
+- `filter(x, operator => 'empty' | 'less_than' | 'greater_than' | 'l_equals' | 'g_equals' | 'equals' |
   'not_equals', value = 0)`: x without the values the operator matches; later functions read the dates left.
 
 **Per point:** `ln`, `exp`, `sqrt`, `abs`, `power(x, y)`, `greatest(x, v)`, `least(x, v)`, `round(x, n)`.
@@ -413,12 +413,11 @@ an instrument with no value is not ranked.
 |---|---|---|
 | `log(x)` (natural) | `ln(x)` | SQL's `log` is base 10 |
 | `floor(x, 0)`, `ceil(x, 1)` (bounds) | `greatest(x, 0)`, `least(x, 1)` | SQL's `floor`/`ceil` round |
-| `first(x)`, `last(x)` (the whole line's) | `first_of(x)`, `last_of(x)` | SQL's `first`/`last` are aggregates, and its `last_value` is the current row |
+| `first(x)`, `last(x)` (the whole line's) | `first(x, all)`, `last(x, whole)` | a bare `first`/`last` is the period's (D3; the one-tree plan, 2026-10-31) |
 | `sum(x)` (running), `count(x)` (to date) | `sum(x, all)`, `count(x, all)` | a bare aggregate is the period's |
 | a default window (the tile's: a count per function, `mean(x)` 22 observations; gs-quant's own, read from its 2.2.3 source on 2026-10-31: `Window(None, 0)`, the whole series to date -- docs/TS_ONE_TREE_PLAN_2026_10_31.md §4.1) | the window is always written | a missing window is the period |
 | `w = 0` (from the start) | `all` | `0` reads as an empty window |
 | `drawdown(x)` (from the running peak) | `drawdown(x, all)` | the window is written |
-| `range`, `union`, `filter` | `range_of`, `union_of`, `filter_values` | SQL keywords |
 | `not(x)` | `NOT x` | SQL |
 | `==` | `=` | SQL |
 | `close[SPX]` | `close['SPX']` | a bare word is a column |
@@ -640,7 +639,7 @@ point limit. These stay in the tile spec, referring to the select items by name.
 6. Declaring a column's period aggregate once on the data (BI's semi-additive measures; a Pure profile on a class's
    properties), so `SAMPLE BY` needs no wrapping for such a source. Later, if wanted.
 7. Today's spellings (§7): read forever, or read with a deprecation warning until a date.
-8. The renames `range_of`, `union_of`, `filter_values`, `first_of`, `last_of` are provisional.
+8. ~~The renames `range_of`, `union_of`, `filter_values`, `first_of`, `last_of` are provisional.~~ Gone (2026-11-01): the language takes gs-quant's names (docs/TS_ONE_TREE_PLAN_2026_10_31.md D2, D3, R3); `union(`, a word SQL reserves, is read as the call where an expression starts.
 9. SQL's own window syntax (`OVER (…)`) as an escape hatch: not in the first version.
 10. Vetted functions for recipes that are easy to get wrong (a pairs trade's P&L, hedged returns, a portfolio's P&L).
 11. A rolling value starts one observation earlier than gs-quant's ramp (already recorded); a `ramp =>` option if

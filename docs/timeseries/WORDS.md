@@ -161,7 +161,7 @@ The sample covariance of x's and y's values over a window -- w observations to d
 
 Forms: `cov(x: Line, y: Line)`, `cov(x: Line, y: Line, w: Integer)`, `cov(x: Line, y: Line, w: Scope)`, `cov(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
 
-## `day_of`
+## `day`
 
 Each of x's dates' the day of month.
 
@@ -169,7 +169,7 @@ Each of x's dates' the day of month.
 |---|---|---|---|
 | `x` | line |  | yes |
 
-Forms: `day_of(x: Line)`.
+Forms: `day(x: Line)`.
 
 ## `dickey_fuller`
 
@@ -285,7 +285,7 @@ The exponentially weighted volatility of x's returns (beta 0.75 unless given), a
 
 Forms: `exponential_volatility(x: Line, beta: Float (optional), annualization_factor: Integer (optional))`.
 
-## `filter_values`
+## `filter`
 
 x's values that meet operator (empty unless given: none dropped but the empty) against value (0 unless given).
 
@@ -295,17 +295,18 @@ x's values that meet operator (empty unless given: none dropped but the empty) a
 | `operator` | word | empty, less_than, greater_than, l_equals, g_equals, equals, not_equals | no |
 | `value` | number |  | no |
 
-Forms: `filter_values(x: Line, operator: FilterOperator (optional), value: Float (optional))`.
+Forms: `filter(x: Line, operator: FilterOperator (optional), value: Float (optional))`.
 
-## `first_of`
+## `first`
 
-x's first value, on every date.
+x's first value, on every date (gs-quant's first): first(x, all), the line's start to date. Under SAMPLE BY, first(x) is each period's first (D3).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
+| `w` | span | all | yes |
 
-Forms: `first_of(x: Line)`.
+Forms: `first(x: Line, w: Scope)`.
 
 ## `geometrically_aggregate`
 
@@ -415,15 +416,16 @@ The value obs observations back (1 unless given), or as of a calendar period bac
 
 Forms: `lag(x: Line)`, `lag(x: Line, obs: Integer)`, `lag(x: Line, obs: Integer, unit: DurationUnit)`.
 
-## `last_of`
+## `last`
 
-x's last value, on every date.
+x's last value, on every date (gs-quant's last): last(x, whole), the whole line's -- the future read, so asked for by name (D3). Under SAMPLE BY, last(x) is each period's last (D3).
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
+| `w` | span | whole | yes |
 
-Forms: `last_of(x: Line)`.
+Forms: `last(x: Line, w: Whole)`.
 
 ## `lead_lag`
 
@@ -506,7 +508,7 @@ The least of x's values over a window: w observations to date (a value from the 
 
 Forms: `min(x: Line, w: Integer)`, `min(x: Line, w: Integer, unit: DurationUnit)`, `min(x: Line, w: Scope)`, `min(x: Line, w: StrictDate)`.
 
-## `month_of`
+## `month`
 
 Each of x's dates' month's number.
 
@@ -514,7 +516,7 @@ Each of x's dates' month's number.
 |---|---|---|---|
 | `x` | line |  | yes |
 
-Forms: `month_of(x: Line)`.
+Forms: `month(x: Line)`.
 
 ## `obv`
 
@@ -608,7 +610,7 @@ The product of x's values over a window -- w observations to date (a value from 
 
 Forms: `product(x: Line)`, `product(x: Line, w: Integer)`, `product(x: Line, w: Scope)`, `product(x: Line, w: Integer, unit: DurationUnit)`.
 
-## `quarter_of`
+## `quarter`
 
 Each of x's dates' quarter's number.
 
@@ -616,7 +618,7 @@ Each of x's dates' quarter's number.
 |---|---|---|---|
 | `x` | line |  | yes |
 
-Forms: `quarter_of(x: Line)`.
+Forms: `quarter(x: Line)`.
 
 ## `r_squared`
 
@@ -630,7 +632,7 @@ The R squared of x's simple returns regressed on y's over a window -- w observat
 
 Forms: `r_squared(x: Line, y: Line)`, `r_squared(x: Line, y: Line, w: Integer)`, `r_squared(x: Line, y: Line, w: Scope)`, `r_squared(x: Line, y: Line, w: Integer, unit: DurationUnit)`.
 
-## `range_of`
+## `range`
 
 The range of x's values (greatest less least) over a window -- w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date; 22 observations unless given.
 
@@ -639,7 +641,7 @@ The range of x's values (greatest less least) over a window -- w observations to
 | `x` | line |  | yes |
 | `w` | span | observations, period, all | no |
 
-Forms: `range_of(x: Line)`, `range_of(x: Line, w: Integer)`, `range_of(x: Line, w: Scope)`, `range_of(x: Line, w: Integer, unit: DurationUnit)`.
+Forms: `range(x: Line)`, `range(x: Line, w: Integer)`, `range(x: Line, w: Scope)`, `range(x: Line, w: Integer, unit: DurationUnit)`.
 
 ## `rebase`
 
@@ -806,7 +808,7 @@ The trend of a seasonal series (gs-quant's trend, statsmodels' classical decompo
 
 Forms: `trend(x: Line)`, `trend(x: Line, method: SeasonalModel)`, `trend(x: Line, freq: Cycle)`, `trend(x: Line, method: SeasonalModel, freq: Cycle)`.
 
-## `union_of`
+## `union`
 
 x where it has a value, else y (gs-quant's union): on every date either has.
 
@@ -815,7 +817,7 @@ x where it has a value, else y (gs-quant's union): on every date either has.
 | `x` | line |  | yes |
 | `y` | line |  | yes |
 
-Forms: `union_of(x: Line, y: Line)`.
+Forms: `union(x: Line, y: Line)`.
 
 ## `up_capture`
 
@@ -887,7 +889,7 @@ The volume-weighted average price over a window -- w observations to date (a val
 
 Forms: `vwap(price: Line, volume: Line)`, `vwap(price: Line, volume: Line, w: Integer)`, `vwap(price: Line, volume: Line, w: Scope)`, `vwap(price: Line, volume: Line, w: Integer, unit: DurationUnit)`.
 
-## `weekday_of`
+## `weekday`
 
 Each of x's dates' weekday's number.
 
@@ -895,7 +897,7 @@ Each of x's dates' weekday's number.
 |---|---|---|---|
 | `x` | line |  | yes |
 
-Forms: `weekday_of(x: Line)`.
+Forms: `weekday(x: Line)`.
 
 ## `weighted_sum`
 
@@ -918,7 +920,7 @@ x's values winsorized: each held within limit (2.5 unless given) sample deviatio
 
 Forms: `winsorize(x: Line, limit: Float (optional))`.
 
-## `year_of`
+## `year`
 
 Each of x's dates' year.
 
@@ -926,7 +928,7 @@ Each of x's dates' year.
 |---|---|---|---|
 | `x` | line |  | yes |
 
-Forms: `year_of(x: Line)`.
+Forms: `year(x: Line)`.
 
 ## `zscores`
 

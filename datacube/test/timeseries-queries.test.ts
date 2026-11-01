@@ -198,11 +198,10 @@ function islandText(q: Lambda): string {
   return text;
 }
 
-/** The language's name of a tile function where they differ (timeseries-ts.ts RENAMED). */
+/** The language's spelling of a tile function where it differs: SQL's per-point forms (timeseries-ts.ts); every word
+ *  is the language's own, gs-quant's (docs/TS_ONE_TREE_PLAN_2026_10_31.md D2, R3). */
 const TS_NAMES: Readonly<Record<string, string>> = {
-  range: 'range_of(', first: 'first_of(', last: 'last_of(', filter: 'filter_values(', union: 'union_of(',
-  day: 'day_of(', month: 'month_of(', year: 'year_of(', quarter: 'quarter_of(', weekday: 'weekday_of(', log: 'ln(',
-  floor: 'CASE WHEN', ceil: 'CASE WHEN', not: 'CASE WHEN',
+  log: 'ln(', floor: 'CASE WHEN', ceil: 'CASE WHEN', not: 'CASE WHEN',
 };
 
 function values(t: ResultTable, name: string): unknown[] {

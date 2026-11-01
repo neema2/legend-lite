@@ -979,8 +979,9 @@ class Document(Paged):
         # (sma is gs-quant's alias of mean: the screen writes the expression by the catalog's own name)
         self.assertEqual(list(both.columns), ['T close', 'mean(close[T], 2)'], "named as the screen's Data tab names its columns")
         self.assertEqual(list(both['T close']), [10.0, 11.0, 12.0, 13.0])
-        self.assertTrue(pd.isna(both['mean(close[T], 2)'].iloc[0]), 'a mean of two has none on the first date')
-        self.assertEqual(list(both['mean(close[T], 2)'].iloc[1:]), [10.5, 11.5, 12.5])
+        # gs-quant's mean of two: its first two points dropped (helper.apply_ramp; docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
+        self.assertTrue(pd.isna(both['mean(close[T], 2)'].iloc[:2]).all(), 'a mean of two has none on the first two dates')
+        self.assertEqual(list(both['mean(close[T], 2)'].iloc[2:]), [11.5, 12.5])
         self.assertEqual(len(tile.table(start='2024-01-03')), 2, "the dates kept as frame keeps them")
         # the Phase 2 review's 3: the screen's lines alone -- none hidden, no condition -- over the tile's range, an index's
         # base its first date shown; frame and query as the screen draws them, every date, that base

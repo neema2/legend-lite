@@ -383,17 +383,17 @@ The names are gs-quant's, except where SQL already uses a name differently. `w` 
 | Family | Functions |
 | --- | --- |
 | Returns and levels | `returns(x, obs, type)` P, `prices(r)`, `diff`, `lag`, `index(x, date)`, `rebase(x, date)`, `change`, `percent_change`, `annualize`, `excess_returns`, `total_return`, `geometrically_aggregate`, `basket(x, wx, y, wy, …, rebalance)`, `weighted_sum` |
-| Rolling (a window `w`) | `avg` (`mean`), `sum`, `min`, `max`, `count`, `median`, `stddev` (`std`), `variance` (`var`), `range_of`, `product`, `zscores`, `percentiles`, `percentile(x, q, w)` |
+| Rolling (a window `w`) | `avg` (`mean`), `sum`, `min`, `max`, `count`, `median`, `stddev` (`std`), `variance` (`var`), `range`, `product`, `zscores`, `percentiles`, `percentile(x, q, w)` |
 | Risk | `volatility` P, `drawdown` P, `max_drawdown` P, `sharpe_ratio` P, `vol_swap_volatility` P |
 | Exponential (from each line's first value) | `exponential_moving_average(x, beta)`, `exponential_std`, `exponential_volatility` P, `exponential_spread_volatility` |
 | Technicals | `rsi` (0 to 100), `macd`, `smoothed_moving_average`, `bollinger_bands`, `keltner_channels`, `donchian_channels` (bands: `lower`, `upper`, `width`), `atr`, `stochastic` (0 to 100), `obv`, `vwap` |
 | Two lines (of returns unless `type => 'levels'` or `'changes'`) | `correlation`, `cov`, `beta`, `r_squared`, `alpha`, `tracking_error`, `information_ratio`, `up_capture`, `down_capture`, `lead_lag` |
 | Regressions of levels | `hedge_ratio(x, y, w)` (the slope), `residual(x, y, w)` (the pairs spread) |
 | Mean reversion and seasonality | `dickey_fuller`, `half_life`, `trend`, `seasonally_adjusted`, `smooth_spikes`, `consecutive` |
-| Combining | `if`, `CASE`, `coalesce`, `compare`, `union_of`, `append`, `prepend`, `interpolate`, `filter_values` |
+| Combining | `if`, `CASE`, `coalesce`, `compare`, `union`, `append`, `prepend`, `interpolate`, `filter` |
 | Per point | `ln`, `exp`, `sqrt`, `abs`, `power`, `greatest`, `least`, `round` |
 | Within a period (`SAMPLE BY`) | `first`, `last`, `avg`, `sum`, `min`, `max`, `count`, `median` |
-| A whole line | `first_of`, `last_of`, `winsorize` |
+| A whole line | `first(x, all)`, `last(x, whole)`, `winsorize` |
 | Across instruments | `rank(x DESC)`: 1 is the first in that order, ties share a rank |
 | Dates | `latest`, `value_at(x, date)`, `date_trunc`, `year`, `quarter`, `month`, `day`, `isodow` |
 
@@ -412,7 +412,7 @@ The names are gs-quant's, except where SQL already uses a name differently. `w` 
 Also open:
 
 1. **RSI and stochastic** stay on their usual 0 to 100 while every other figure is a ratio. Agree?
-2. **Names that differ from gs-quant**, so SQL keeps its meanings: `ln` for `log`, `greatest`/`least` for `floor`/`ceil`, `first_of`/`last_of`, `range_of`, `union_of`, `filter_values`. Acceptable, or better names?
+2. **Names that differ from gs-quant**, so SQL keeps its meanings: `ln` for `log`, `greatest`/`least` for `floor`/`ceil`. (Ruled since: the words are gs-quant's -- `range`, `union`, `filter`, `first(x, all)`, `last(x, whole)`; docs/TS_ONE_TREE_PLAN_2026_10_31.md D3, R3.)
 3. **Totals across instruments**, such as the market's total volume each day, have no function yet. What would you call it, and what else do you do across instruments besides `rank`?
 4. **Vetted recipes.** Which calculations should be one trusted function rather than a formula everyone writes (pairs P&L, hedged returns, portfolio P&L)?
 5. **Warm-up.** A 20-day average first appears on day 20; gs-quant starts on day 21. Which do you expect?

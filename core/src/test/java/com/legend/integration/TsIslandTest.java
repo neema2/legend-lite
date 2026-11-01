@@ -683,7 +683,7 @@ class TsIslandTest {
         }
         for (TestBackend backend : TestBackends.inProcess()) {
             List<Map<String, String>> got = rows(backend, "|#TS{SELECT rebase(CLOSE['AAA']) AS rb,"
-                    + " change(CLOSE['AAA']) AS ch, percent_change(CLOSE['AAA']) AS pc, range_of(CLOSE['AAA'], 3) AS rg,"
+                    + " change(CLOSE['AAA']) AS ch, percent_change(CLOSE['AAA']) AS pc, range(CLOSE['AAA'], 3) AS rg,"
                     + " volatility(CLOSE['AAA'], 3) AS vol FROM PRICES ON DAY BY SYMBOL}#");
             String of = backend + ": ";
             assertClose(each(x.length, i -> x[i] / x[0] * 100), column(got, null, null, "rb"), of + "rebased to 100");
@@ -763,15 +763,16 @@ class TsIslandTest {
         List<String> calls = new ArrayList<>();
         for (String f : List.of("prices", "annualize", "index", "rebase", "change", "percent_change", "winsorize",
                 "drawdown", "max_drawdown", "exponential_moving_average", "exponential_std", "exponential_volatility",
-                "exponential_spread_volatility", "geometrically_aggregate", "smooth_spikes", "consecutive", "first_of",
-                "last_of", "day_of", "month_of", "year_of", "quarter_of", "weekday_of")) {
+                "exponential_spread_volatility", "geometrically_aggregate", "smooth_spikes", "consecutive", "day",
+                "month", "year", "quarter", "weekday")) {
             calls.add(f + "(" + x + ")");
         }
-        for (String f : List.of("range_of", "zscores", "volatility", "sharpe_ratio", "rsi", "smoothed_moving_average",
+        calls.addAll(List.of("first(" + x + ", all)", "last(" + x + ", whole)"));
+        for (String f : List.of("range", "zscores", "volatility", "sharpe_ratio", "rsi", "smoothed_moving_average",
                 "percentiles", "median", "product", "vol_swap_volatility")) {
             calls.add(f + "(" + x + ", 3)");
         }
-        for (String f : List.of("range_of", "zscores", "volatility", "sharpe_ratio", "median", "drawdown")) {
+        for (String f : List.of("range", "zscores", "volatility", "sharpe_ratio", "median", "drawdown")) {
             calls.add(f + "(" + x + ", 1w)");
         }
         for (String method : List.of("intersect", "nan", "zero", "step")) {
@@ -783,14 +784,14 @@ class TsIslandTest {
         calls.addAll(List.of("value_at(" + x + ", '2024-01-25')", "value_at(" + x + ", DATE '2024-01-01')",
                 "ohlc(" + x + ", " + y + ", " + x + ", " + y + ")", "ohlc(" + x + ", " + x + ", " + x + ", " + x + ")"));
         calls.addAll(List.of("macd(" + x + ", 2, 4, 1)", "percentile(" + x + ", 50, 3)", "dickey_fuller(" + x + ", 5)",
-                "half_life(" + x + ", 5)", "filter_values(" + x + ", 'less_than', 100)",
+                "half_life(" + x + ", 5)", "filter(" + x + ", 'less_than', 100)",
                 "volatility(" + x + ", 3, type => 'log')", "smooth_spikes(" + x + ", 0.5, 'absolute')"));
         for (String f : List.of("correlation", "beta", "cov", "alpha", "r_squared", "hedge_ratio", "residual",
                 "tracking_error", "information_ratio", "up_capture", "down_capture", "vwap", "donchian_channels")) {
             calls.add(f + "(" + x + ", " + y + ", 3)");
             calls.add(f + "(" + x + ", " + y + ", 1w)");
         }
-        for (String f : List.of("obv", "total_return", "excess_returns", "compare", "union_of", "append", "prepend")) {
+        for (String f : List.of("obv", "total_return", "excess_returns", "compare", "union", "append", "prepend")) {
             calls.add(f + "(" + x + ", " + y + ")");
         }
         calls.addAll(List.of("lead_lag(" + x + ", " + y + ", 1, 3)", "total_return(" + x + ", 0.01)",
@@ -894,6 +895,43 @@ class TsIslandTest {
     }
 
     @Test
+    void theWordsAreGsQuantsNames() throws Exception {
+        // the vocabulary as ruled (docs/TS_ONE_TREE_PLAN_2026_10_31.md: D2 and R10, gs-quant's names; D3, R3, R14, R15)
+        for (TestBackend backend : deep()) {
+            String of = backend + ": ";
+            // m is months, mo its alias (R14); avg is mean's alias (R15)
+            assertEquals(rows(backend, "|#TS{SELECT mean(CLOSE['AAA'], 1mo) AS a FROM PRICES ON DAY BY SYMBOL}#"),
+                    rows(backend, "|#TS{SELECT mean(CLOSE['AAA'], 1m) AS a FROM PRICES ON DAY BY SYMBOL}#"), of + "1m is 1mo");
+            assertEquals(rows(backend, "|#TS{SELECT mean(CLOSE['AAA'], 3) AS a FROM PRICES ON DAY BY SYMBOL}#"),
+                    rows(backend, "|#TS{SELECT avg(CLOSE['AAA'], 3) AS a FROM PRICES ON DAY BY SYMBOL}#"), of + "avg is mean");
+            // gs-quant's first and last: the line's first value on every date, and (the future read, by name) its last
+            List<Map<String, String>> ends = rows(backend, "|#TS{SELECT first(CLOSE['AAA'], all) AS f,"
+                    + " last(CLOSE['AAA'], whole) AS l FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length, i -> AAA[0]), column(ends, null, null, "f"), of + "first(x, all)");
+            assertClose(each(AAA.length, i -> AAA[AAA.length - 1]), column(ends, null, null, "l"), of + "last(x, whole)");
+            // union, a word SQL reserves, is gs-quant's call (R3): x where it has a value, else y
+            List<Map<String, String>> u = rows(backend, "|#TS{SELECT union(CLOSE['AAA'], CLOSE['BBB']) AS u FROM PRICES"
+                    + " ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length, i -> AAA[i]), column(u, null, null, "u"), of + "union");
+            // range, filter, weekday: gs-quant's names, the _of spellings gone
+            List<Map<String, String>> named = rows(backend, "|#TS{SELECT range(CLOSE['AAA'], 3) AS r, weekday(CLOSE['AAA'])"
+                    + " AS wd FROM PRICES ON DAY BY SYMBOL}#");
+            assertClose(each(AAA.length, i -> i < 3 ? null : Math.max(AAA[i], Math.max(AAA[i - 1], AAA[i - 2]))
+                    - Math.min(AAA[i], Math.min(AAA[i - 1], AAA[i - 2]))), column(named, null, null, "r"), of + "range");
+            assertClose(each(AAA.length, i -> (double) (FIRST.plusDays(i).getDayOfWeek().getValue() - 1)),
+                    column(named, null, null, "wd"), of + "weekday, 0 Monday");
+            assertTrue(rows(backend, "|#TS{SELECT filter(CLOSE['AAA'], 'greater_than', 102) AS f FROM PRICES ON DAY"
+                    + " BY SYMBOL}#").stream().allMatch(r -> Double.parseDouble(r.get("f")) <= 102), of + "filter");
+        }
+        for (String old : List.of("range_of(CLOSE['AAA'], 3)", "first_of(CLOSE['AAA'])", "union_of(CLOSE['AAA'], CLOSE['BBB'])",
+                "weekday_of(CLOSE['AAA'])", "filter_values(CLOSE['AAA'])")) {
+            assertNotNull(refused("SELECT " + old + " AS x FROM PRICES ON DAY BY SYMBOL", true), old + ": gone");
+        }
+        // whole is the whole line, a word no window to date takes (D3)
+        assertNotNull(refused("SELECT mean(CLOSE['AAA'], whole) AS m FROM PRICES ON DAY BY SYMBOL", true), "mean of whole");
+    }
+
+    @Test
     void whatV0RefusesSaysTheFix() throws Exception {
         Map<String, String> refusals = new LinkedHashMap<>();
         refusals.put("SELECT avg(CLOSE, 3) AS m FROM PRICES ON DAY BY SYMBOL WHERE SYMBOL = 'AAA'",
@@ -953,7 +991,6 @@ class TsIslandTest {
         refusals.put("SELECT CLOSE AS a FROM PRICES ON DAY BY SYMBOL FILL(LAST)", "FILL is FILL(PREV)");
         refusals.put("SELECT CLOSE AS a FROM PRICES ON DAY BY SYMBOL FILTER a > 0 SAMPLE BY 1w",
                 "then FILTER, each once");
-        refusals.put("SELECT avg(CLOSE, 3m) AS a FROM PRICES ON DAY BY SYMBOL", "m is minutes or months");
         refusals.put("SELECT avg(CLOSE, 3) AS a FROM PRICES ON DAY BY SYMBOL ORDER BY DAY", "#TS has no ORDER BY");
         refusals.put("SELECT CLOSE AS a FROM PRICES ON DAY BY SYMBOL, PRICES ON DAY", "two sources are called PRICES");
         refusals.put("SELECT CLOSE AS a FROM PRICES p ON DAY BY SYMBOL, PRICES r ON DAY", "CLOSE is a column of p and r");

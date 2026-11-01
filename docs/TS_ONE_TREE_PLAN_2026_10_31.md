@@ -334,9 +334,10 @@ sources and columns, the per-point SQL, the answer's assembly, and the plumbing 
   regex tool is gone.
 - **The vocabulary is ruled** -- D3 (`first(x, all)`, `last(x, whole)`; `first_of`/`last_of` deleted), gs-quant's names
   (D2, R10: "the functions take gs-quant's names", so R3's `range`, `filter`, `union`, `weekday`), R14 (`m` is months),
-  R15 (`mean` canonical, `avg` its alias) -- and is being built (an earlier version of this status said it waited on
-  rulings: wrong, the user, 2026-11-01). The tile then reads core's words in place of its TS_SIGNATURES, and the Python
-  DSL's stubs are made from them (steps 3, 4, 6).
+  R15 (`mean` canonical, `avg` its alias) -- and built, 2026-11-01 (an earlier version of this status said it waited on
+  rulings: wrong, the user, 2026-11-01): the library's words are gs-quant's names, the tile writes them as they are.
+  Next, the tile reads core's words in place of its TS_SIGNATURES, and the Python DSL's stubs are made from them
+  (steps 3, 4, 6).
 - **The library's text** (`datacube/src/pure-library-text.ts`, 279 KB, sent with each model the tile and the headless
   path plan): step S4, the planner resolving the timeseries project as any project's dependency, its clients sending
   their own model alone. No ruling: a platform library is the planner's, never a client's copy.
@@ -361,14 +362,16 @@ the user and written down, with gs-quant's answer beside lite's: the oracle's re
 
 ## 9. The rulings asked
 
-Still open, and when each is needed: R5 by step 2 (the oracle); R1, R3, R7 and R9 by step 4 (the words); R10 an
+Still open, and when each is needed: R5 by step 2 (the oracle); R1, R7 and R9 by step 4 (the words); R10 an
 acknowledgement. Step 1 needs none of them.
 
 - **R1.** §4.1 and §4.2, row by row.
 - **R2. Ruled 2026-10-31** (D3, the scope rule): a missing window is gs-quant's default for a function that is no
   aggregate; an aggregate word without one is the period's under `SAMPLE BY`, else refused.
-- **R3.** The names: `weekday` or `weekday_of`; `range`/`filter`/`union` or `range_of`/`filter_values`/`union_of`;
-  §4.3's printed forms.
+- **R3. Settled by D2 and R10** (the user, 2026-10-31: "the functions take gs-quant's names"; built 2026-11-01, the user:
+  "I thought we had already ruled on one vocab?"): `weekday`, `day`, `month`, `quarter`, `year`, `range`, `filter`,
+  `union` -- gs-quant's -- the `_of` spellings deleted; `union(`, a word SQL reserves, read as the call where an
+  expression starts; `first(x, all)` and `last(x, whole)` (D3); `m` months (R14); `mean`, `avg` its alias (R15).
 - **R4. Ruled 2026-10-31** ("let's print it and get started"): the order of §6, step 1 first.
 - **R5.** The oracle lane: gs-quant and its dependencies pinned in one test lane; the frozen answers for the rest.
 - **R6. Ruled 2026-10-31:** D1 as revised -- one reader, a `#TS` query as its text inside the protocol's tree, as

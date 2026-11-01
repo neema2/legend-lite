@@ -949,8 +949,13 @@ public final class TsToPure {
                     return false;
                 }
                 if (query.sample() == null) {
-                    throw invalid("last".equals(name) || "first".equals(name)
-                            ? name + "(x) is a period's " + name + " value: add SAMPLE BY 1w for each week's (R5)"
+                    throw invalid("first".equals(name)
+                            ? "first(x) is a period's first value: add SAMPLE BY 1w for each week's, or write first(x,"
+                                    + " all) for the line's first (gs-quant's first; R5, D3)"
+                            : "last".equals(name)
+                            ? "last(x) is a period's last value: add SAMPLE BY 1w for each week's, or write last(x,"
+                                    + " whole) for the line's last on every date (gs-quant's last, the future read; R5,"
+                                    + " D3)"
                             : "a " + name + " over what? add SAMPLE BY 1w for each week's, or write " + name
                                     + "(x, 20) for the last 20, or " + name + "(x, all) to date (R5)", fc.pos());
                 }

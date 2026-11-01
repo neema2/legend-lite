@@ -1964,6 +1964,13 @@ Enum timeseries::Scope
   all
 }
 
+// The whole line, the future included (D3: the one way to ask for it -- gs-quant's last(x), each date the line's last
+// value): a word of its own, so no window that reads to date takes it.
+Enum timeseries::Whole
+{
+  whole
+}
+
 // x's values from the date on, none before (a window's since-date form).
 function timeseries::line::helpers::since<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], from: StrictDate[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
@@ -2204,22 +2211,22 @@ function timeseries::line::sharpe_ratio<K,D>(x: Relation<(key:K, date:D, value:N
 // ---------------------------------------------------------------------------------------------------------------------
 // M2: the rest of the words over one line.
 
-function {meta::pure::profiles::doc.doc = 'The range of x\'s values (greatest less least) over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 22 observations unless given.'} timeseries::line::range_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The range of x\'s values (greatest less least) over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 22 observations unless given.'} timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
-  $x->timeseries::line::range_of(22)
+  $x->timeseries::line::range(22)
 }
 
-function timeseries::line::range_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::range(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
 
-function timeseries::line::range_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::range(over(~[key], [~date->ascending()], rows(unbounded(), 0)), ~value, 0, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function timeseries::line::range_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
+function timeseries::line::range<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1], unit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::overPeriod(~key, ~date, ~value, $w, $unit, timeseries::Statistic.range, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
@@ -2579,42 +2586,42 @@ function {meta::pure::profiles::doc.doc = 'x\'s value as of a date: its last on 
   $x->timeseries::valueAt(~key, ~date, ~value, $date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'x\'s first value, on every date.'} timeseries::line::first_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'x\'s first value, on every date (gs-quant\'s first): first(x, all), the line\'s start to date. Under SAMPLE BY, first(x) is each period\'s first (D3).'} timeseries::line::first<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Scope[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::first(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'x\'s last value, on every date.'} timeseries::line::last_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'x\'s last value, on every date (gs-quant\'s last): last(x, whole), the whole line\'s -- the future read, so asked for by name (D3). Under SAMPLE BY, last(x) is each period\'s last (D3).'} timeseries::line::last<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: timeseries::Whole[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::last(~key, ~date, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'x\'s values that meet operator (empty unless given: none dropped but the empty) against value (0 unless given).'} timeseries::line::filter_values<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], operator: timeseries::FilterOperator[0..1], value: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'x\'s values that meet operator (empty unless given: none dropped but the empty) against value (0 unless given).'} timeseries::line::filter<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], operator: timeseries::FilterOperator[0..1], value: Float[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::filterValues(~value, if($operator->isEmpty(), |timeseries::FilterOperator.empty, |$operator->toOne()), if($value->isEmpty(), |0.0, |$value->toOne()))
 }
 
-function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' the day of month.'} timeseries::line::day_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' the day of month.'} timeseries::line::day<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::day(~date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' month\'s number.'} timeseries::line::month_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' month\'s number.'} timeseries::line::month<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::month(~date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' year.'} timeseries::line::year_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' year.'} timeseries::line::year<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::year(~date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' quarter\'s number.'} timeseries::line::quarter_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' quarter\'s number.'} timeseries::line::quarter<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::quarter(~date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' weekday\'s number.'} timeseries::line::weekday_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'Each of x\'s dates\' weekday\'s number.'} timeseries::line::weekday<K,D>(x: Relation<(key:K, date:D, value:Number)>[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::weekday(~date, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
@@ -3210,7 +3217,7 @@ function timeseries::line::if_<K,D>(condition: Relation<(key:K, date:D, value:Nu
   $condition->extend(~[kx:r|$x, ky:r|$y])->timeseries::ifThen(~value, ~kx, ~ky, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
 
-function {meta::pure::profiles::doc.doc = 'x where it has a value, else y (gs-quant\'s union): on every date either has.'} timeseries::line::union_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'x where it has a value, else y (gs-quant\'s union): on every date either has.'} timeseries::line::union<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   timeseries::line::helpers::spread($x, $y, $sample)->timeseries::union(~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }

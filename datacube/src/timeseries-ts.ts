@@ -17,12 +17,10 @@ import type { TimeGrain } from './chart-spec.ts';
 /** The answer's column of a series' value; a struct's fields are `ts_value_<field>` (R10). */
 export const TS_ITEM = 'ts_value';
 
-/** The language's name of each of the tile's functions where they differ (§6: a name SQL reserves, a period's
- *  aggregate's). */
-const RENAMED: Readonly<Record<string, string>> = {
-  range: 'range_of', first: 'first_of', last: 'last_of', filter: 'filter_values', union: 'union_of',
-  day: 'day_of', month: 'month_of', year: 'year_of', quarter: 'quarter_of', weekday: 'weekday_of',
-};
+/** The language's form of each of the tile's functions where it differs: gs-quant's first and last, the whole line's
+ *  (the language's first(x) and last(x) are a period's, D3); every other word is the language's own (gs-quant's names:
+ *  docs/TS_ONE_TREE_PLAN_2026_10_31.md D2, R3). */
+const WHOLE_LINE: Readonly<Record<string, string>> = { first: 'all', last: 'whole' };
 
 /** The functions of a base -- the line's first value, or its value as of the first date shown (`from`, the tile's
  *  anchor). */
@@ -161,7 +159,7 @@ export function tsQueryText(ts: TimeseriesSpec, series: TsSeries, anchor?: strin
     } else {
       const roles = expr.fn === 'ohlc' ? CANDLE : TS_SIGNATURES[expr.fn].reads!;
       items = expr.args.map((a, i) => `${daily.text(a)} AS ts_a${i}`);
-      item = `${RENAMED[expr.fn] ?? expr.fn}(${[...roles.map((r, i) => `${TAKEN[ROLE[r]!]}(${own(i)})`), ...named(expr, anchor)].join(', ')})`;
+      item = `${expr.fn}(${[...roles.map((r, i) => `${TAKEN[ROLE[r]!]}(${own(i)})`), ...named(expr, anchor)].join(', ')})`;
     }
     return `WITH ${DAILY} AS TS (SELECT ${items.join(', ')} FROM ${daily.from}${filled}) SELECT ${item} AS ${TS_ITEM}${also}`
       + ` FROM ${DAILY} ON ${ident(at)}${split === undefined ? '' : ` BY ${ident(split)}`} SAMPLE BY ${SAMPLE[grain]}`;
@@ -286,7 +284,8 @@ function writer(ts: TimeseriesSpec, expr: TsExpr, split: string | undefined, gra
           case 'count': return `count(${args[0]}, all)`;
           default: break;
         }
-        return `${RENAMED[e.fn] ?? e.fn}(${[...args, ...named(e, anchor)].join(', ')})`;
+        const whole = WHOLE_LINE[e.fn];
+        return `${e.fn}(${[...args, ...(whole === undefined ? [] : [whole]), ...named(e, anchor)].join(', ')})`;
       }
     }
   };

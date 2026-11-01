@@ -22,6 +22,7 @@ export const LIBRARY_ENUMS = {
   Statistic: ['mean', 'sum', 'min', 'max', 'range', 'std', 'var', 'count'],
   Taken: ['last', 'first', 'max', 'min', 'sum', 'avg'],
   ThresholdType: ['percentage', 'absolute'],
+  Whole: ['whole'],
 } as const;
 
 /** An enumeration of timeseries. */

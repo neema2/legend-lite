@@ -33,6 +33,11 @@ public final class TsParser {
     /** The name {@code all} as a window is read as, at the positions {@link TsAst.Query#alls} holds. */
     public static final String ALL = "__ts_all";
 
+    /** The name {@code whole} as a window is read as (the whole line, D3: {@code last(x, whole)}), at the same
+     *  positions as {@link #ALL}'s ({@link TsAst.Query#alls}): a column of that name in a window's place is written
+     *  quoted, {@code "whole"}. */
+    public static final String WHOLE = "__ts_whole";
+
     /** The function a subscript is read as (R2): {@code close['SPX', venue = 'NYSE']} is
      *  {@code __ts_pick(close, 'SPX', venue = 'NYSE')}, its line first, then its matches. */
     public static final String PICK = "__ts_pick";
@@ -97,12 +102,20 @@ public final class TsParser {
         List<Token> tokens = new ArrayList<>(lexed.size());
         for (int i = 0; i < lexed.size(); i++) {
             Token t = lexed.get(i);
-            if (t.is("all") && i > 0 && (lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).isOp("=>"))
+            if ((t.is("all") || t.is("whole")) && i > 0
+                    && (lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).isOp("=>"))
                     && i + 1 < lexed.size()
                     && (lexed.get(i + 1).kind() == Kind.RPAREN || lexed.get(i + 1).kind() == Kind.COMMA)) {
-                // a window of everything to date (R4): read as a column the builder knows by its place
-                tokens.add(new Token(Kind.IDENT, ALL, t.pos()));
+                // a window of everything to date (R4), or of the whole line (D3): read as a column the builder knows
+                // by its place
+                tokens.add(new Token(Kind.IDENT, t.is("all") ? ALL : WHOLE, t.pos()));
                 alls.add(t.pos());
+            } else if (t.is("union") && i > 0 && i + 1 < lexed.size() && lexed.get(i + 1).kind() == Kind.LPAREN
+                    && (lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).kind() == Kind.LPAREN
+                            || lexed.get(i - 1).kind() == Kind.OP || lexed.get(i - 1).is("select"))) {
+                // gs-quant's union(x, y) (R3: the language takes gs-quant's names, D2), a word SQL reserves: read as a
+                // call where an expression starts, never a set operation's UNION (which follows a query)
+                tokens.add(new Token(Kind.QUOTED_IDENT, "union", t.pos()));
             } else {
                 tokens.add(t);
             }
@@ -158,9 +171,10 @@ public final class TsParser {
                 String unit = text.substring(j, k).toLowerCase(Locale.ROOT);
                 if (k > j && SPANS.contains(unit) && (k >= text.length() || !identPart(text.charAt(k)))) {
                     SqlAst.Pos at = new SqlAst.Pos(line, column);
+                    // m is months (R14, ruled 2026-10-31: gs-quant's tenors and RDates, 3m), mo its alias; minutes
+                    // are min
                     if ("m".equals(unit)) {
-                        throw invalid("m is minutes or months: write " + text.substring(i, j) + "min or "
-                                + text.substring(i, j) + "mo (§5)", at);
+                        unit = "mo";
                     }
                     String digits = text.substring(i, j).replace("_", "");
                     if (digits.length() > 6) {

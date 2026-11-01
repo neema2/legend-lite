@@ -59,7 +59,7 @@ public final class TsCatalog {
                 params.add(new Param(line, lineKind(overloads, line), List.of(), List.of(), required(overloads, line)));
             }
             signature(model, overloads).params().forEach(p -> params.add(new Param(p.name(),
-                    p.kind().name().toLowerCase(java.util.Locale.ROOT), takes(overloads, p), p.words(),
+                    p.kind().name().toLowerCase(java.util.Locale.ROOT), takes(model, overloads, p), p.words(),
                     required(overloads, p.name()))));
             out.add(new Word(name, List.copyOf(params), overloads.stream().map(o -> TsWords.form(name, o.params()))
                     .toList(), overloads.stream().map(TsToPure.Overload::doc).filter(java.util.Objects::nonNull)
@@ -156,7 +156,7 @@ public final class TsCatalog {
     }
 
     /** What a span {@code p} takes, of its overloads' forms: observations, a calendar period, all, a date on. */
-    private static List<String> takes(List<TsToPure.Overload> overloads, TsFunctions.Param p) {
+    private static List<String> takes(TsToPure.Model model, List<TsToPure.Overload> overloads, TsFunctions.Param p) {
         if (p.kind() != TsFunctions.Kind.SPAN) {
             return List.of();
         }
@@ -169,15 +169,20 @@ public final class TsCatalog {
                     continue;
                 }
                 boolean unit = i + 1 < ps.size() && "unit".equals(ps.get(i + 1).name());
-                out.add(switch (q.type()) {
-                    case "Integer" -> unit ? "period" : "observations";
-                    case "StrictDate" -> "date";
-                    default -> (TsToPure.LIBRARY + "Scope").equals(q.type()) ? "all" : unexpected(p.name(), q.type());
-                });
+                switch (q.type()) {
+                    case "Integer" -> out.add(unit ? "period" : "observations");
+                    case "StrictDate" -> out.add("date");
+                    default -> {
+                        if (!scope(q.type())) {
+                            unexpected(p.name(), q.type());
+                        }
+                        out.addAll(java.util.Objects.requireNonNull(model.enumeration(q.type())));
+                    }
+                }
             }
         }
         // in the order a reader meets them, whatever the overloads' order
-        return List.of("observations", "period", "all", "date").stream().filter(out::contains).toList();
+        return List.of("observations", "period", "all", "whole", "date").stream().filter(out::contains).toList();
     }
 
     private static String unexpected(String name, String type) {
@@ -191,14 +196,20 @@ public final class TsCatalog {
                 && !q.optional()));
     }
 
-    /** Whether {@code name} is a span in {@code ps}: an Integer a {@code unit} follows, or a {@code timeseries::Scope}. */
+    /** Whether {@code type} is a span's word: {@code timeseries::Scope} ({@code all}, the line's start to date) or
+     *  {@code timeseries::Whole} ({@code whole}, the whole line: D3). */
+    private static boolean scope(String type) {
+        return (TsToPure.LIBRARY + "Scope").equals(type) || (TsToPure.LIBRARY + "Whole").equals(type);
+    }
+
+    /** Whether {@code name} is a span in {@code ps}: an Integer a {@code unit} follows, or a span's word ({@link #scope}). */
     private static boolean spanIn(List<TsToPure.Parameter> ps, String name) {
         for (int i = 0; i < ps.size(); i++) {
             TsToPure.Parameter p = ps.get(i);
             if (!p.name().equals(name)) {
                 continue;
             }
-            if ((TsToPure.LIBRARY + "Scope").equals(p.type())) {
+            if (scope(p.type())) {
                 return true;
             }
             if ("Integer".equals(p.type()) && i + 1 < ps.size() && "unit".equals(ps.get(i + 1).name())) {
