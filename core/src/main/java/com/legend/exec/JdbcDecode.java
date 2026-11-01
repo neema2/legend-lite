@@ -49,6 +49,74 @@ final class JdbcDecode {
     private JdbcDecode() {
     }
 
+    /**
+     * ONE STATEMENT'S READ OF ITS ROWS (the payoff measurement, 2026-11-01): what each column's cells need is decided
+     * once, before the first row -- its slot's kind, read from the plan's column -- never per cell (a cell asked it
+     * three or four times: a fifth of the typed seam's time, measured on 10,000,000 rows). And a column of a
+     * TIMESTAMP slot whose driver answers {@code java.sql.Timestamp}, which the read re-reads as {@code java.time}
+     * ({@link #cell}), is read as {@code java.time} at once from its second cell on: its first non-null cell shows
+     * the class the driver answers for it (one SQL type, one class on every row of a result), and the re-read is the
+     * value either way -- the driver's own conversion, done once instead of twice per cell. A re-read that answers
+     * nothing for a cell that is not SQL's null is refused, as {@link #cell} refuses it.
+     */
+    static final class Reader {
+        private final List<ExecutionPlan.Column> columns;
+        private final DatabaseConnector.Decoding driver;
+        /** Each column's slot kind ({@link com.legend.result.RowDecode#slotWord}). */
+        private final String[] kinds;
+        /** Each column's timestamp read: {@link #UNSEEN} until its first non-null cell, then {@link #DIRECT} where
+         *  its slot is TIMESTAMP and the driver answered a {@code java.sql.Timestamp} the read re-reads, else
+         *  {@link #AS_ANSWERED}. */
+        private final byte[] timestamps;
+
+        private static final byte UNSEEN = 0;
+        private static final byte DIRECT = 1;
+        private static final byte AS_ANSWERED = 2;
+
+        Reader(List<ExecutionPlan.Column> columns, DatabaseConnector.Decoding driver) {
+            this.columns = List.copyOf(columns);
+            this.driver = driver;
+            this.kinds = new String[columns.size()];
+            for (int i = 0; i < kinds.length; i++) {
+                kinds[i] = com.legend.result.RowDecode.slotWord(columns.get(i).slot());
+            }
+            this.timestamps = new byte[columns.size()];
+        }
+
+        /** The cells of the row {@code rs} stands on: {@link JdbcDecode#row}'s, each column's kind read once. */
+        List<Object> row(ResultSet rs) throws SQLException {
+            List<Object> out = new ArrayList<>(columns.size());
+            for (int i = 0; i < kinds.length; i++) {
+                ExecutionPlan.Column c = columns.get(i);
+                if (kinds[i].equals("TAGGED")) {
+                    out.add(tagged(rs, i, c, driver));
+                } else if (timestamps[i] == DIRECT) {
+                    Object t = rs.getObject(i + 1, LocalDateTime.class);
+                    if (t == null && rs.getObject(i + 1) != null) {
+                        throw refused(c, LocalDateTime.class);
+                    }
+                    out.add(decode(t, c, kinds[i], driver));
+                } else {
+                    Object answered = answered(rs, i + 1, kinds[i]);
+                    if (timestamps[i] == UNSEEN && answered != null) {
+                        timestamps[i] = kinds[i].equals("TIMESTAMP") && answered instanceof java.sql.Timestamp
+                                && driver.javaTime() ? DIRECT : AS_ANSWERED;
+                    }
+                    out.add(decode(reread(rs, i + 1, c, answered, driver), c, kinds[i], driver));
+                }
+            }
+            return out;
+        }
+    }
+
+    /** Whether a column of slot kind {@code kind} reads the driver's object ({@link #answered}), not its text. */
+    private static boolean kindRead(String kind) {
+        return switch (kind) {
+            case "DECIMAL_TEXT", "TEMPORAL_TEXT", "VARCHAR", "CHAR", "TEXT" -> false;
+            default -> true;
+        };
+    }
+
     /** The cells of the row {@code rs} stands on, one per column of {@code columns}, the i-th column read from the
      *  i-th result column: a typed-rows statement answers the plan's columns in their order. */
     static List<Object> row(ResultSet rs, List<ExecutionPlan.Column> columns, DatabaseConnector.Decoding driver) throws SQLException {
@@ -56,24 +124,7 @@ final class JdbcDecode {
         for (int i = 0; i < columns.size(); i++) {
             ExecutionPlan.Column c = columns.get(i);
             if (com.legend.result.RowDecode.slotWord(c.slot()).equals("TAGGED")) {
-                // a tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its cell is the tag, the slot
-                // index, read as the integer it is; the value stands in that slot's column beside it, read with
-                // the slot's own type
-                Object tag = cell(rs, i + 1, com.legend.result.RowDecode.tagOf(c), driver);
-                if (tag == null) {
-                    out.add(null);
-                    continue;
-                }
-                int index = ((Number) tag).intValue();
-                ExecutionPlan.Column slot = com.legend.result.RowDecode.taggedSlot(c, index);
-                Object value = cell(rs, rs.findColumn(slot.name()), slot, driver);
-                if (value == null) {
-                    throw new IllegalStateException("the row's tagged column '" + c.name() + "' names slot "
-                            + slot.name() + ", and that slot's column is null");
-                }
-                // the tag rides into the batch beside the carrier (TaggedCell; track F, 2026-10-29)
-                out.add(new com.legend.result.TaggedCell(index, java.util.Objects.requireNonNull(
-                        com.legend.result.RowDecode.presented(value, slot))));
+                out.add(tagged(rs, i, c, driver));
                 continue;
             }
             out.add(cell(rs, i + 1, c, driver));
@@ -81,55 +132,93 @@ final class JdbcDecode {
         return out;
     }
 
+    /** A tagged column (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) at result column {@code i + 1}: its cell is the
+     *  tag, the slot index, read as the integer it is; the value stands in that slot's column beside it, read with
+     *  the slot's own type. */
+    private static @com.legend.base.Nullable Object tagged(ResultSet rs, int i, ExecutionPlan.Column c,
+            DatabaseConnector.Decoding driver) throws SQLException {
+        Object tag = cell(rs, i + 1, com.legend.result.RowDecode.tagOf(c), driver);
+        if (tag == null) {
+            return null;
+        }
+        int index = ((Number) tag).intValue();
+        ExecutionPlan.Column slot = com.legend.result.RowDecode.taggedSlot(c, index);
+        Object value = cell(rs, rs.findColumn(slot.name()), slot, driver);
+        if (value == null) {
+            throw new IllegalStateException("the row's tagged column '" + c.name() + "' names slot "
+                    + slot.name() + ", and that slot's column is null");
+        }
+        // the tag rides into the batch beside the carrier (TaggedCell; track F, 2026-10-29)
+        return new com.legend.result.TaggedCell(index, java.util.Objects.requireNonNull(
+                com.legend.result.RowDecode.presented(value, slot)));
+    }
+
     /** Result column {@code i} as the cell of {@code c}. */
     static @com.legend.base.Nullable Object cell(ResultSet rs, int i, ExecutionPlan.Column c, DatabaseConnector.Decoding driver)
             throws SQLException {
-        Object v;
-        switch (com.legend.result.RowDecode.slotWord(c.slot())) {
-            // the texts: a label whose text carries its own kind, and a text slot (a number the database holds
-            // under a text slot keeps its digits, as its JSON token did)
-            case "DECIMAL_TEXT", "TEMPORAL_TEXT", "VARCHAR", "CHAR", "TEXT" -> v = rs.getString(i);
-            default -> {
-                v = rs.getObject(i);
-                // a timestamp or a time re-read as java.time: BC-faithful, and a time with the microseconds its
-                // column holds (the legacy executor's fetch); a driver that answers the re-read with nothing is
-                // refused, never kept. A database whose driver re-reads no timestamp keeps the driver's Timestamp,
-                // as the legacy executor did (Snowflake's refuses the re-read and Databricks' answers it with text,
-                // both measured 2026-10-11; on the typed seam Snowflake's refusal failed 48 channel B tests,
-                // measured on its lane 2026-10-21)
-                if (v instanceof java.sql.Timestamp && driver.javaTime()) {
-                    v = reread(rs, i, LocalDateTime.class, c);
-                } else if (v instanceof java.sql.Date && driver.javaTime()) {
-                    // a date too (DatabaseConnector.decoding().javaTime): java.sql.Date drops a BC date's era, 44 BC
-                    // read as 44 AD (the legacy executor re-read it; PostgresArmTest, 2026-10-27)
-                    v = reread(rs, i, LocalDate.class, c);
-                } else if (v instanceof java.sql.Time) {
-                    v = reread(rs, i, LocalTime.class, c);
-                }
-            }
+        String kind = com.legend.result.RowDecode.slotWord(c.slot());
+        return decode(reread(rs, i, c, answered(rs, i, kind), driver), c, kind, driver);
+    }
+
+    /** Result column {@code i}'s object as the driver answers it for a column of slot kind {@code kind}: the text of
+     *  a text slot (a label whose text carries its own kind, and a text slot: a number the database holds under a
+     *  text slot keeps its digits, as its JSON token did), else the driver's object. */
+    private static @com.legend.base.Nullable Object answered(ResultSet rs, int i, String kind) throws SQLException {
+        return kindRead(kind) ? rs.getObject(i) : rs.getString(i);
+    }
+
+    /** {@code v}, result column {@code i}'s answered object, re-read where the driver's object loses what java.time
+     *  keeps: a timestamp or a time re-read as java.time -- BC-faithful, and a time with the microseconds its column
+     *  holds (the legacy executor's fetch); a driver that answers the re-read with nothing is refused, never kept. A
+     *  database whose driver re-reads no timestamp keeps the driver's Timestamp, as the legacy executor did
+     *  (Snowflake's refuses the re-read and Databricks' answers it with text, both measured 2026-10-11; on the typed
+     *  seam Snowflake's refusal failed 48 channel B tests, measured on its lane 2026-10-21). */
+    private static @com.legend.base.Nullable Object reread(ResultSet rs, int i, ExecutionPlan.Column c,
+            @com.legend.base.Nullable Object v, DatabaseConnector.Decoding driver) throws SQLException {
+        if (v instanceof java.sql.Timestamp && driver.javaTime()) {
+            return reread(rs, i, LocalDateTime.class, c);
         }
-        return decode(v, c, driver);
+        if (v instanceof java.sql.Date && driver.javaTime()) {
+            // a date too (DatabaseConnector.decoding().javaTime): java.sql.Date drops a BC date's era, 44 BC read as
+            // 44 AD (the legacy executor re-read it; PostgresArmTest, 2026-10-27)
+            return reread(rs, i, LocalDate.class, c);
+        }
+        if (v instanceof java.sql.Time) {
+            return reread(rs, i, LocalTime.class, c);
+        }
+        return v;
     }
 
     private static Object reread(ResultSet rs, int i, Class<? extends java.time.temporal.Temporal> as,
             ExecutionPlan.Column c) throws SQLException {
         Object t = rs.getObject(i, as);
         if (t == null) {
-            throw new IllegalStateException("column '" + c.name() + "': the driver answered the re-read of its cell as "
-                    + as.getSimpleName() + " with nothing");
+            throw refused(c, as);
         }
         return t;
+    }
+
+    private static IllegalStateException refused(ExecutionPlan.Column c, Class<?> as) {
+        return new IllegalStateException("column '" + c.name() + "': the driver answered the re-read of its cell as "
+                + as.getSimpleName() + " with nothing");
     }
 
     /** {@code v}, a driver's value (a cell, or a structure's element), as the cell of {@code c}: by the slot first,
      *  then by the Pure type. */
     static @com.legend.base.Nullable Object decode(@com.legend.base.Nullable Object v, ExecutionPlan.Column c,
             DatabaseConnector.Decoding driver) throws SQLException {
+        return decode(v, c, com.legend.result.RowDecode.slotWord(c.slot()), driver);
+    }
+
+    /** {@link #decode(Object, ExecutionPlan.Column, DatabaseConnector.Decoding)} with {@code c}'s slot kind
+     *  {@code kind} already read. */
+    private static @com.legend.base.Nullable Object decode(@com.legend.base.Nullable Object v, ExecutionPlan.Column c,
+            String kind, DatabaseConnector.Decoding driver) throws SQLException {
         if (v == null) {
             return null;
         }
         String type = c.type();
-        switch (com.legend.result.RowDecode.slotWord(c.slot())) {
+        switch (kind) {
             // the slot labels that ARE the decode instruction: a text-carried temporal or decimal parses (the
             // LITERAL spelling carrier's arm, a cell parsed by its Pure-literal text, left with track L's L2,
             // 2026-10-29: a mixed value is a tagged value, read in its slot)

@@ -8,7 +8,6 @@ import com.legend.json.Json;
 
 import java.io.IOException;
 import java.io.Writer;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -107,12 +106,18 @@ public final class PureV1Writer implements ResultSink {
             return;
         }
         StringBuilder b = new StringBuilder();
+        // each row's values written into the batch's text as they are made (the bytes of Json.toCompact over the
+        // row's list: a compact writer at the root writes its arrays back to back), not a list and a text per row
+        // (the payoff measurement, 2026-11-01)
+        Json.Writer values = Json.compactWriter(b);
         for (int r = 0; r < batch.size(); r++) {
-            List<Json.Node> values = new ArrayList<>(order.length);
+            b.append(rows == 0 ? "" : ",").append("{\"values\": ");
+            values.beginArray();
             for (int i : order) {
-                values.add(CellText.engine(batch.get(r, i), columns.get(i)));
+                Json.write(values, CellText.engine(batch.get(r, i), columns.get(i)));
             }
-            b.append(rows == 0 ? "" : ",").append("{\"values\": ").append(Json.toCompact(values)).append('}');
+            values.endArray();
+            b.append('}');
             rows++;
         }
         out.write(b.toString());

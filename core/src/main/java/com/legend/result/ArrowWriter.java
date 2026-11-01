@@ -352,7 +352,12 @@ public final class ArrowWriter implements ResultSink {
                 if (cell == null) {
                     continue;
                 }
-                BigInteger unscaled = switch (cell) {
+                // the unscaled value and its digit count: a BigDecimal at the column's scale knows its own
+                // (precision(), its unscaled value's digits, computed without a text: the payoff measurement,
+                // 2026-11-01, found the text a sixth of the Arrow writer's time)
+                BigInteger unscaled;
+                int digits;
+                switch (cell) {
                     case BigDecimal d -> {
                         if (d.scale() > scale) {
                             throw new IllegalStateException("column '" + column.name() + "' (" + column.type()
@@ -360,13 +365,21 @@ public final class ArrowWriter implements ResultSink {
                                     + scale + " decimal places, which decimal128(" + precision + ", " + scale
                                     + ") cannot hold: a value is never rounded");
                         }
-                        yield (d.scale() == scale ? d : d.setScale(scale)).unscaledValue();
+                        BigDecimal atScale = d.scale() == scale ? d : d.setScale(scale);
+                        unscaled = atScale.unscaledValue();
+                        digits = atScale.precision();
                     }
-                    case BigInteger b when scale == 0 -> b;
-                    case Long l when scale == 0 -> BigInteger.valueOf(l);
+                    case BigInteger b when scale == 0 -> {
+                        unscaled = b;
+                        digits = digitCount(b);
+                    }
+                    case Long l when scale == 0 -> {
+                        unscaled = BigInteger.valueOf(l);
+                        digits = digitCount(unscaled);
+                    }
                     default -> throw refused(column, cell, "a decimal128");
-                };
-                if (unscaled.bitLength() > 127 || digitCount(unscaled) > precision) {
+                }
+                if (unscaled.bitLength() > 127 || digits > precision) {
                     throw new IllegalStateException("column '" + column.name() + "' (" + column.type() + ", slot "
                             + column.slot() + "): the cell " + cell + " has more digits than decimal128(" + precision
                             + ", " + scale + ") holds");
@@ -439,6 +452,27 @@ public final class ArrowWriter implements ResultSink {
         return (subsecond + "000000000").substring(0, 9);
     }
 
+    /** A written subsecond as nanoseconds: its digits read in place (fewer than nine stand for zeros after them, the
+     *  same instant), more than nine refused by name ({@link #nanosDigits}); a text no digits spell takes the padded
+     *  digits' own parse and its own error (no record holds one). */
+    private static long nanos(ExecutionPlan.Column c, String subsecond) {
+        if (subsecond.length() <= 9) {
+            long value = 0;
+            int i = 0;
+            for (; i < 9; i++) {
+                int digit = i < subsecond.length() ? subsecond.charAt(i) - '0' : 0;
+                if (digit < 0 || digit > 9) {
+                    break;
+                }
+                value = value * 10 + digit;
+            }
+            if (i == 9) {
+                return value;
+            }
+        }
+        return Long.parseLong(nanosDigits(c, subsecond));
+    }
+
     /** date32: a day as days since 1970-01-01 (Arrow's representation of a day). */
     private static final class Date32 extends Enc {
         Date32(String name, Map<String, String> metadata, ExecutionPlan.Column c) {
@@ -504,7 +538,7 @@ public final class ArrowWriter implements ResultSink {
                         hour = s.hour();
                         minute = s.minute();
                         second = s.second();
-                        nanos = Long.parseLong(nanosDigits(column, s.subsecond()));
+                        nanos = nanos(column, s.subsecond());
                     }
                     default -> throw refused(column, cell, "a timestamp (a date with a time of day)");
                 }

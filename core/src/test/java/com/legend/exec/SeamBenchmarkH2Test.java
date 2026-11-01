@@ -44,5 +44,9 @@ final class SeamBenchmarkH2Test {
                 "CONCAT(CAST(id AS VARCHAR), ',', name, ',', CAST(amount AS VARCHAR), ',',"
                         + " FORMATDATETIME(ts, 'yyyy-MM-dd''T''HH:mm:ss'), ',', COALESCE(CAST(bucket AS VARCHAR), ''))",
                 "LISTAGG(line, CHAR(13) || CHAR(10))");
+        SeamBenchmark.product(db, c, DatabaseType.H2, H2_ROWS, mustDrain,
+                "CAST(JSON_OBJECT('id': id, 'name': name, 'amount': amount,"
+                        + " 'ts': FORMATDATETIME(ts, 'yyyy-MM-dd''T''HH:mm:ss'), 'bucket': bucket NULL ON NULL)"
+                        + " AS VARCHAR)", java.util.List.of());
     }
 }

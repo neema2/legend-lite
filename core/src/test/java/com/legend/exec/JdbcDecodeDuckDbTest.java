@@ -58,6 +58,34 @@ class JdbcDecodeDuckDbTest {
         }
     }
 
+    /** A statement's read decides each column once (JdbcDecode.Reader, the payoff measurement, 2026-11-01): a
+     *  timestamp column read as java.time from its first non-null cell on answers every row as the per-cell read does
+     *  -- its nulls, the precision each value holds, a value before the first one seen -- and so does a column whose
+     *  first rows are null. */
+    @Test
+    void aStatementsReadAnswersEveryRowAsTheCellReadDoes() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            String values = "SELECT ts, t FROM (VALUES (1, NULL, NULL), (2, TIMESTAMP '2024-01-02 10:30:00.123456',"
+                    + " NULL), (3, NULL, TIME '10:30:00'), (4, TIMESTAMP '1999-12-31 23:59:59', TIME '23:59:59.5'),"
+                    + " (5, TIMESTAMP '0044-03-15 12:00:00', NULL)) v(k, ts, t)";
+            List<ExecutionPlan.Column> columns = List.of(JdbcDecodeCases.opt("ts", "DateTime", "TIMESTAMP"),
+                    JdbcDecodeCases.opt("t", "Time", "TIME"));
+            List<List<Object>> rows = JdbcDecodeCases.rows(c, DUCKDB, values + " ORDER BY k", columns);
+            // each row read alone: its column's first cell, so the per-cell read
+            List<List<Object>> cellByCell = new ArrayList<>();
+            for (int k = 1; k <= 5; k++) {
+                cellByCell.add(JdbcDecodeCases.row(c, DUCKDB, values + " WHERE k = " + k, columns));
+            }
+            assertEquals(cellByCell, rows);
+            assertNull(rows.get(0).get(0));
+            assertEquals(PureDateLiteral.parse("2024-01-02T10:30:00.123456000"), rows.get(1).get(0));
+            assertNull(rows.get(2).get(0));
+            assertEquals(PureDateLiteral.parse("1999-12-31T23:59:59.000000000"), rows.get(3).get(0));
+            assertEquals(PureDateLiteral.parse("0044-03-15T12:00:00.000000000"), rows.get(4).get(0));
+            assertEquals(PureTimeLiteral.parse("10:30:00"), rows.get(2).get(1));
+        }
+    }
+
     /** A text the database holds under a numeric slot is the column's own text unless the Pure type is numeric (the
      *  engine's test store declares an INT over a VARCHAR column; step 6's finding), and a Float the store holds as
      *  an integer is the integer the database holds. */

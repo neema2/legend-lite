@@ -94,16 +94,77 @@ public sealed interface PureDateLiteral
             case Year y -> y.toEngineString();
             case YearMonth ym -> ym.toEngineString();
             case StrictDate d -> d.toEngineString();
-            case DateWithHour h -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:00:00.000000000+0000",
-                    h.year(), h.month(), h.day(), h.hour());
-            case DateWithMinute m -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:00.000000000+0000",
-                    m.year(), m.month(), m.day(), m.hour(), m.minute());
-            case DateWithSecond sec -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.000000000+0000",
-                    sec.year(), sec.month(), sec.day(), sec.hour(), sec.minute(), sec.second());
-            case DateWithSubsecond ss -> String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s+0000",
-                    ss.year(), ss.month(), ss.day(), ss.hour(), ss.minute(), ss.second(),
-                    (ss.subsecond() + "000000000").substring(0, 9));
+            case DateWithHour h -> engineJson(h.year(), h.month(), h.day(), h.hour(), 0, 0, "000000000");
+            case DateWithMinute m -> engineJson(m.year(), m.month(), m.day(), m.hour(), m.minute(), 0, "000000000");
+            case DateWithSecond sec -> engineJson(sec.year(), sec.month(), sec.day(), sec.hour(), sec.minute(),
+                    sec.second(), "000000000");
+            case DateWithSubsecond ss -> engineJson(ss.year(), ss.month(), ss.day(), ss.hour(), ss.minute(),
+                    ss.second(), (ss.subsecond() + "000000000").substring(0, 9));
         };
+    }
+
+    /** {@link #toEngineJson}'s spelling, {@code %d-%02d-%02dT%02d:%02d:%02d.%s+0000}, written by hand: a value of the
+     *  writers' every cell, where the formatter's parse of its pattern cost a fifth of a JSON or CSV writer's time
+     *  (the payoff measurement, 2026-11-01). The year as it is (a sign, any digits); the others two digits. */
+    private static String engineJson(int year, int month, int day, int hour, int minute, int second,
+            String nineDigits) {
+        StringBuilder b = new StringBuilder(32);
+        b.append(year).append('-');
+        twoDigits(b, month).append('-');
+        twoDigits(b, day).append('T');
+        twoDigits(b, hour).append(':');
+        twoDigits(b, minute).append(':');
+        twoDigits(b, second).append('.').append(nineDigits).append("+0000");
+        return b.toString();
+    }
+
+    /** A literal body, {@code %d-%02d[-%02d[T%02d[:%02d[:%02d[.%s]]]]]}, written by hand: the year as it is, the
+     *  others two digits; {@code parts} the parts after the year it has (2 a month, ..., 6 a second, 7 a
+     *  subsecond). */
+    private static String spelled(int parts, int year, int month, int day, int hour, int minute, int second,
+            @com.legend.base.Nullable String subsecond) {
+        StringBuilder b = new StringBuilder(32);
+        b.append(year).append('-');
+        twoDigits(b, month);
+        if (parts >= 3) {
+            twoDigits(b.append('-'), day);
+        }
+        if (parts >= 4) {
+            twoDigits(b.append('T'), hour);
+        }
+        if (parts >= 5) {
+            twoDigits(b.append(':'), minute);
+        }
+        if (parts >= 6) {
+            twoDigits(b.append(':'), second);
+        }
+        if (parts >= 7) {
+            b.append('.').append(subsecond);
+        }
+        return b.toString();
+    }
+
+    /** {@code v} as {@code %02d} writes it: zero-padded to two digits (a negative or a wider value as it is). */
+    private static StringBuilder twoDigits(StringBuilder b, int v) {
+        if (v >= 0 && v < 10) {
+            b.append('0');
+        }
+        return b.append(v);
+    }
+
+    /** A nano-of-second as {@code %09d} writes it: nine digits. Only a nano-of-second (0 to 999,999,999, as
+     *  java.time holds one) is one. */
+    private static String nineDigits(int nanos) {
+        if (nanos < 0 || nanos > 999_999_999) {
+            throw new IllegalArgumentException("not a nano-of-second: " + nanos);
+        }
+        char[] d = new char[9];
+        int v = nanos;
+        for (int i = 8; i >= 0; i--) {
+            d[i] = (char) ('0' + v % 10);
+            v /= 10;
+        }
+        return new String(d);
     }
 
     /**
@@ -247,8 +308,7 @@ public sealed interface PureDateLiteral
                     t.getDayOfMonth(), t.getHour(), t.getMinute(),
                     t.getSecond());
         }
-        String frac = String.format(java.util.Locale.ROOT, "%09d", t.getNano())
-                .replaceFirst("0+$", "");
+        String frac = nineDigits(t.getNano()).replaceFirst("0+$", "");
         return new DateWithSubsecond(t.getYear(), t.getMonthValue(),
                 t.getDayOfMonth(), t.getHour(), t.getMinute(),
                 t.getSecond(), frac);
@@ -264,7 +324,7 @@ public sealed interface PureDateLiteral
      */
     static PureDateLiteral fromDatabaseTimestamp(java.time.LocalDateTime t) {
         return new DateWithSubsecond(t.getYear(), t.getMonthValue(), t.getDayOfMonth(), t.getHour(), t.getMinute(),
-                t.getSecond(), String.format(java.util.Locale.ROOT, "%09d", t.getNano()));
+                t.getSecond(), nineDigits(t.getNano()));
     }
 
     /**
@@ -350,7 +410,7 @@ public sealed interface PureDateLiteral
 
     record YearMonth(int year, int month) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format(java.util.Locale.ROOT, "%d-%02d", year, month);
+            return spelled(2, year, month, 0, 0, 0, 0, null);
         }
 
         @Override public String toString() { return toEngineString(); }
@@ -358,7 +418,7 @@ public sealed interface PureDateLiteral
 
     record StrictDate(int year, int month, int day) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02d", year, month, day);
+            return spelled(3, year, month, day, 0, 0, 0, null);
         }
 
         @Override public String toString() { return toEngineString(); }
@@ -366,7 +426,7 @@ public sealed interface PureDateLiteral
 
     record DateWithHour(int year, int month, int day, int hour) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d", year, month, day, hour);
+            return spelled(4, year, month, day, hour, 0, 0, null);
         }
 
         /** Pure's print form: an hour-only date prints WITHOUT a zone -- legend-pure's {@code DateFormat.append}
@@ -378,7 +438,7 @@ public sealed interface PureDateLiteral
 
     record DateWithMinute(int year, int month, int day, int hour, int minute) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d", year, month, day, hour, minute);
+            return spelled(5, year, month, day, hour, minute, 0, null);
         }
 
         /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
@@ -389,8 +449,7 @@ public sealed interface PureDateLiteral
 
     record DateWithSecond(int year, int month, int day, int hour, int minute, int second) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d",
-                    year, month, day, hour, minute, second);
+            return spelled(6, year, month, day, hour, minute, second, null);
         }
 
         /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's
@@ -403,8 +462,7 @@ public sealed interface PureDateLiteral
                              int hour, int minute, int second,
                              String subsecond) implements PureDateLiteral {
         @Override public String toEngineString() {
-            return String.format(java.util.Locale.ROOT, "%d-%02d-%02dT%02d:%02d:%02d.%s",
-                    year, month, day, hour, minute, second, subsecond);
+            return spelled(7, year, month, day, hour, minute, second, subsecond);
         }
 
         /** Pure's print form: a value with a minute carries the {@code +0000} zone -- legend-pure's

@@ -12727,7 +12727,8 @@ statements): a median of 662 characters, a p90 of 2.2 KB, a p99 of 15 KB, a maxi
 - **An H2 session takes lazy execution** (D2, new): as our sessions open H2 it buffers each result whole in the
   JVM's heap, and under 256 MB no path drains 2,000,000 rows; with `LAZY_QUERY_EXECUTION` every streaming path
   drains at 77 MB. The plan's target for an H2 database carries `SET LAZY_QUERY_EXECUTION 1` among its session
-  statements; landed with step 7's typed seam.
+  statements; landed with step 7's typed seam. (**Corrected 2026-11-01: it never landed** -- no dialect, connector or
+  session sets it; the 2026-11-01 entry "The product path's payoff measured" measures the gap. Open.)
 - **P3 confirmed with a number**: the wire plan carries no tree; that alone takes a typical plan from 27 KB to 4 KB.
 - **No compression, no binary format** (P4 stands): the corpus never makes a statement over 74 KB; the megabyte
   plans are two MongoDB lowerings whose size is the lowering's to shrink, not the format's to hide.
@@ -16625,3 +16626,85 @@ The decisions log D73.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+
+## 2026-11-01 — The product path's payoff measured, and its overhead taken out (every output byte-identical)
+
+The user, 2026-11-01: "did we get the product payoff?", then "Profile arrow, json, and CSV ... think about if database
+should go back to doing them again", "why even raw types is 1.3x jdbc", then "keep going do whatever you think can
+safely and generically without overfitting ... make them production grade and get them in", and "isolate the
+performance stuff on clean new branch on current main" (branch `claude/product-path-perf`, from `efff0406`). Built and
+first measured on the seam branch (PR #83's `c9847ebe`), then moved here alone: no file of the seam program's, no
+decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; this entry is the record).
+
+1. **Measured** with `//core:seam_benchmark` (manual), extended with the product's own paths: the plan runner with no
+   writer, with each of the four writers, the raw JDBC read of the same statement, and the database writing the
+   product's exact bytes; a CRC32 of each output (`-Dseam.crc`) and a JFR recording per path (`-Dseam.jfr`). DuckDB,
+   10,000,000 rows of `id BIGINT, name VARCHAR, amount DECIMAL(18,2), ts TIMESTAMP, bucket`, a 2 GB heap, wall time,
+   both columns measured here on this branch (main = the benchmark alone, this change = the benchmark and the code):
+
+   | Path | main (`efff0406`) | this change |
+   |---|---|---|
+   | raw JDBC read of the product's statement (1′) | 4.85 s | 4.95 s |
+   | the plan runner, typed batches, no writer (6) | 9.1-9.3 s | 5.9-6.0 s |
+   | + `ArrowWriter` (9) | 11.8 s | 7.3 s |
+   | + `CsvWriter` (8) | 17.1 s | 8.3 s |
+   | + `JsonRowsWriter` (7) | 22.2 s | 8.9 s |
+   | + `PureV1Writer` (10, the server's engine-format answer) | 19.7 s | 8.9 s |
+   | the database writing the product's exact CSV (4″) | 8.6 s | 8.6 s |
+   | the database writing the product's exact JSON (3″) | 9.4 s | 9.4 s |
+
+   At 1,000,000 rows: JSON 2.93 -> 1.54 s, CSV 2.14 -> 1.22 s, PureV1 2.45 -> 1.39 s, Arrow 1.31 -> 0.95 s, no writer
+   0.97 -> 0.62 s. **Byte-identical**: each writer's CRC32 at 1,000,000 rows the same on main and with this change (JSON
+   `17719932` over 107,001,011 characters, CSV `4ef82f2d` over 66,601,036, PureV1 `1d92eb68` over 84,001,138, Arrow
+   `687598f6` over 54,367,016 bytes), and the database's exact-spelling paths answer the same CRCs as the writers. (The
+   same measurement on the seam branch earlier the same day: the same CRCs; no writer 9.3-10.0 -> 5.9-6.1 s, Arrow 11.5
+   -> 7.5, CSV 16.8 -> 8.3, JSON 23.3 -> 9.6, the database's exact CSV and JSON 10.3 and 11.2 s that run.)
+2. **Where the time went** (JFR, per path): the typed seam asked each cell's slot kind three or four times (a substring
+   per ask: about a fifth of the seam) and read every timestamp twice (the driver's `Timestamp`, then the `java.time`
+   re-read); every date was spelled by `String.format`, its pattern parsed per call (about a fifth of the JSON and CSV
+   writers); the JSON writer escaped each column's name for every cell and made a text per cell to copy;
+   `Json.escapeTo` appended one character at a time (a tenth of the JSON writer); the PureV1 writer made a list and a
+   text per row; the Arrow writer counted a decimal's digits through its text (a sixth of its time) and parsed a padded
+   string per timestamp.
+3. **Built** (no plan, SQL or output change; one allowlist row, dated):
+   - `exec/JdbcDecode.Reader`, one per statement (`JdbcStatements.rows`): each column's slot kind read once; a column of
+     a TIMESTAMP slot whose driver answers `java.sql.Timestamp` (which the read re-reads as `java.time`) is read as
+     `java.time` at once from its second non-null cell on -- one SQL type, one class on every row; the re-read is the
+     value either way -- and a re-read answering nothing for a cell that is not SQL's null is still refused (asked
+     again only on a null). A driver without `javaTime` (Snowflake, Databricks) keeps its own object, as before.
+   - `values/PureDateLiteral`: every `String.format` replaced by hand-written spelling (`engineJson`, `spelled`,
+     `twoDigits`, `nineDigits`; a nano-of-second only, anything else refused).
+   - `json/Json.escapeTo`: the leading run that needs no escape appended whole (the escape set unchanged: a control,
+     `"`, `\`).
+   - `result/JsonRowsWriter`: the member names made once with the columns (`CodeShapeGuardrailTest`'s allowlist row
+     `JsonRowsWriter.keys`, dated: the same per-stream state as its columns); each cell's token written into the batch's
+     text by a compact writer. `result/PureV1Writer`: each row's values written in place the same way.
+   - `result/ArrowWriter`: a decimal's digit count from `BigDecimal.precision()` (the unscaled value's digits); a
+     subsecond's nanoseconds read in place (more than nine digits refused by name as before; `Long.parseLong` kept to its
+     two registered uses, the R3 guard).
+   - Tests: `JdbcDecodeDuckDbTest.aStatementsReadAnswersEveryRowAsTheCellReadDoes` (null first rows, values of every
+     precision, a year-44 timestamp, the statement's read against each row read alone); `PureDateSpellingTest` (every
+     precision's spelling against `String.format`'s over years -44 to 275760, the fields at their edges, every subsecond
+     length); `SeamBenchmark*` the paths above (the database's exact statements in the DuckDB test, their owner).
+4. **The user's question -- should the database format again? No.** Writing the product's exact bytes the database is
+   no faster than the product's writers now (CSV 8.6 s against 8.3, JSON 9.4 against 8.9 here; 10.3 and 11.2 against
+   8.3 and 9.6 on the seam branch's run): moving the spelling into SQL buys nothing and costs a dialect's worth of
+   spelling per database. **Raw JDBC against the product's typed read** is now 1.2x (6.0 s against 4.95): what remains
+   is the batch's boxing and the date carrier (a `PureDateLiteral` record per timestamp cell, its subsecond a `String`).
+5. **A record corrected:** the 2026-10-18 entry's D2 ("An H2 session takes lazy execution ... landed with step 7's
+   typed seam") never landed: no dialect, connector or session sets `LAZY_QUERY_EXECUTION`. Measured on the seam branch:
+   the product on H2 buffers a 2,000,000-row result whole and fails out of memory under a 2 GB heap, where the same
+   connection with `SET LAZY_QUERY_EXECUTION 1` drains every product path. Open, not built: it changes an H2 session's
+   behaviour (H2's lazy mode has its own limits on a connection's interleaved statements), so it waits for the user's go.
+6. **Named, not built** (each the user's go first): H2's lazy execution (5); a numeric timestamp carrier; batches
+   without boxing; the Arrow writer's buffers reused across batches.
+7. **The chain, on this branch**: 75 of 75 -- every non-Postgres `//core` test (73, `guardrails` and `census` among
+   them), `//json:tests` and `//pct:pct_discipline`; PCT channel A 16 of 16 (DuckDB, SQLite and MongoDB five suites
+   each, H2 relation), exact against their ledgers; channel B 10 of 11 -- every suite IDENTICAL line for line to main's
+   own run (the code stashed, 11 suites run on main's sources) apart from the execution-trace ids, and the one red
+   (`pct_channel_b_sqlite_essential`, 332 < 333) red on main too, test for test the same; the corpus verdicts on
+   DuckDB and H2 green, the rosters unchanged (nine of ten roster checks cached: their judges' outputs byte-identical);
+   the Postgres targets unprivileged (`tools/postgres/as_unprivileged.sh`) 18 of 18 -- the eight `//core` Postgres
+   tests, PCT's five suites exact, channel B's five suites identical per test to the 2026-10-31 run; `//gates:local` (`--lockfile_mode=error`) 447 of
+   457 as root, the nine failures the eight `//core` Postgres tests and `//datacube:verify_app_test`, each "initdb
+   refuses root" -- all nine green unprivileged (the eight above, `verify_app_test` run on its own).
