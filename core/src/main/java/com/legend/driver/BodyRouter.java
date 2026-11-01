@@ -7,6 +7,9 @@ import com.legend.Execution;
 import com.legend.ExecuteOptions;
 import com.legend.TypedQuery;
 import com.legend.base.Nullable;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.spec.typed.Lets;
+import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.DataError;
 import com.legend.exec.Census;
 import com.legend.exec.PlanRunner;
@@ -48,14 +51,21 @@ public final class BodyRouter {
             BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
             return;
         }
-        TestDoor.Planned planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version());
         Census.inc(Census.Key.BODIES_MOVED);
+        TestDoor.Planned planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version());
         try {
             PlanRunner.program(planned.plan(), Map.of(), PlanSessions.of(session), PlanRunner.Judging.HOST,
-                    new Moved(planned, dialect, options.recorder(), answer));
+                    new Moved(planned, dialect, options.recorder(), answer, toOneReader(typed)));
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** Whether {@code typed}'s last statement is a to-one reader ({@code toOne()} over a relation): the walk's
+     *  exactly-one contract on its answer ({@link BodyDriver#toOneReader}). */
+    private static boolean toOneReader(TypedQuery typed) {
+        List<TypedSpec> body = typed.body();
+        return !body.isEmpty() && BodyDriver.toOneReader(Lets.bare(body.get(body.size() - 1)));
     }
 
     /** A moved body's sink: its answer to the caller's, by the shape of the plan's answer; its effect and seed
@@ -67,15 +77,17 @@ public final class BodyRouter {
         private final SqlDialect dialect;
         private final RawSqlBoundary.@Nullable Recorder recorder;
         private final Execution.@Nullable Answer answer;
+        private final boolean toOneReader;
         /** The caller's sink, opened when the answer's columns arrive (as the walk opens it: only to answer). */
         private @Nullable ResultSink opened;
 
         Moved(TestDoor.Planned planned, SqlDialect dialect, RawSqlBoundary.@Nullable Recorder recorder,
-                Execution.@Nullable Answer answer) {
+                Execution.@Nullable Answer answer, boolean toOneReader) {
             this.planned = planned;
             this.dialect = dialect;
             this.recorder = recorder;
             this.answer = answer;
+            this.toOneReader = toOneReader;
         }
 
         @Override
@@ -96,10 +108,30 @@ public final class BodyRouter {
         @Override
         public void columns(List<ExecutionPlan.Column> columns) throws IOException {
             if (answer != null) {
-                ResultSink sink = answer.of(planned.plan().answerShape());
+                ResultSink sink = holdingTheWalksContract(answer.of(planned.plan().answerShape()), columns);
                 opened = sink;
                 sink.columns(columns);
             }
+        }
+
+        /** {@code sink} holding the cardinality the walk holds on a statement's answer (JudgePlans.streamResult): a
+         *  value of at most one row answers no more, a required one at least one, a to-one reader exactly one; a
+         *  constant the walk folds and answers as it is. */
+        private ResultSink holdingTheWalksContract(ResultSink sink, List<ExecutionPlan.Column> columns) {
+            if (answering(planned.plan()) instanceof ExecutionPlan.Constant) {
+                return sink;
+            }
+            return switch (planned.plan().answerShape()) {
+                case VALUE -> {
+                    ExecutionPlan.Multiplicity m = columns.get(0).multiplicity();
+                    Integer upper = m.upper();
+                    yield JudgePlans.holding(sink, upper != null && upper <= 1, m.lower(),
+                            new Multiplicity.Bounded(m.lower(), upper).text(), false);
+                }
+                case RELATION -> JudgePlans.holding(sink, toOneReader, 0, "", toOneReader);
+                case OBJECTS -> throw new IllegalStateException("a moved body answered objects: no moved class"
+                        + " answers a graph");
+            };
         }
 
         @Override
@@ -160,6 +192,20 @@ public final class BodyRouter {
                         + node.getClass().getSimpleName());
             }
             return e.script().statements();
+        }
+
+        /** The plan's answering step: its last result, keyed result or constant. */
+        private static ExecutionPlan.Node answering(ExecutionPlan plan) {
+            List<ExecutionPlan.Node> steps = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
+                    : List.of(plan.root());
+            for (int i = steps.size() - 1; i >= 0; i--) {
+                ExecutionPlan.Node step = steps.get(i);
+                if (step instanceof ExecutionPlan.TdsResult || step instanceof ExecutionPlan.Keyed
+                        || step instanceof ExecutionPlan.Constant) {
+                    return step;
+                }
+            }
+            throw new IllegalStateException("a moved body's answer streamed with no answering step in its plan");
         }
 
         private TestDoor.Effect effect(int step) {

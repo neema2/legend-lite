@@ -115,6 +115,21 @@ class BodyRouterParityTest {
                 + effect("insert into no_such_table values (1)") + "true;}", "select count(*) from p7");
     }
 
+    @ParameterizedTest
+    @MethodSource("backends")
+    void queryPrograms(TestBackend backend) throws Exception {
+        for (String body : List.of("{| true;}", "{| let x = 1; $x + 1;}", "{| 'abc'->toUpper();}",
+                "{| [1, 2, 3]->map(x|$x * 2);}", "{| print('x', 1); 1;}",
+                "{| #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1);}",
+                "{| let t = #TDS\na,b\n1,x\n2,y\n#; $t->filter(r|$r.a > 1)->select(~b);}",
+                // the walk's answer contract, held by the router (§9, D30, D46): a required root of no row, a
+                // to-one reader of two
+                "{| #TDS\n  x:Integer\n  1\n#->filter(r|$r.x > 5)->map(r|$r.x)->toOneMany();}",
+                "{| #TDS\na,b\n1,x\n2,y\n#->toOne();}")) {
+            assertParity(backend, body, "select 1");
+        }
+    }
+
     @Test
     void theShapesTheRuleKeepsOnTheWalk() {
         TestBackend backend = TestBackends.platform();
@@ -128,8 +143,8 @@ class BodyRouterParityTest {
         assertWalked(backend, c + effect("insert into seed_t values (9)") + "true;}", true);
         // a computed effect argument (T9, M9)
         assertWalked(backend, c + EXEC + "'create table w3(i int)'->toUpper(), $c, 0, 1000);\ntrue;}", false);
-        // no effect at all
-        assertWalked(backend, "{| true;}", false);
+        // an executeInDb result read: a raw grid (T8, M9)
+        assertWalked(backend, c + "let r = " + EXEC + "'select 1', $c, 0, 1000);\n$r;}", false);
     }
 
     private static void assertWalked(TestBackend backend, String body, boolean seeded) {
@@ -162,13 +177,13 @@ class BodyRouterParityTest {
         assertNotNull(BodyClass.of(typed(ctx, body), RT), "the body is a moved class's: " + body);
         Run walked = run(backend, ctx, body, false, check);
         Run moved = run(backend, ctx, body, true, check);
-        assertEquals(walked.outcome, moved.outcome, "outcome");
-        assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger");
-        assertEquals(walked.answer, moved.answer, "the answer");
-        assertEquals(walked.origins, moved.origins, "the statement-origin census");
-        assertEquals(walked.effects, moved.effects, "the effects census");
-        assertEquals(walked.database, moved.database, "the database left");
-        assertEquals(walked.moved + 1, moved.moved, "the router moved the body");
+        assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
+        assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
+        assertEquals(walked.answer, moved.answer, "the answer: " + body);
+        assertEquals(walked.origins, moved.origins, "the statement-origin census: " + body);
+        assertEquals(walked.effects, moved.effects, "the effects census: " + body);
+        assertEquals(walked.database, moved.database, "the database left: " + body);
+        assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
     }
 
     private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,

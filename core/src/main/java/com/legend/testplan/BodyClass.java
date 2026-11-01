@@ -7,26 +7,38 @@ import com.legend.TypedQuery;
 import com.legend.base.Nullable;
 import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
+import com.legend.builtin.SystemMetamodel;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.StatementEffects;
 import com.legend.compiler.spec.typed.Literals;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedCopyInstance;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedGetAll;
+import com.legend.compiler.spec.typed.TypedGraphFetch;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedNewInstance;
+import com.legend.compiler.spec.typed.TypedPackageableRef;
+import com.legend.compiler.spec.typed.TypedRawSqlRelation;
+import com.legend.compiler.spec.typed.TypedSerialize;
+import com.legend.compiler.spec.typed.TypedSerializeGraph;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedTableReference;
+import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.model.FunctionId;
+import com.legend.model.MappingDefinition;
 import com.legend.planner.BodyPlanner;
 import com.legend.planner.ConnectionLets;
 import com.legend.planner.QueryDoor;
 
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * THE CLASSES OF BODIES THAT RUN WHOLE ON THE PROGRAM ROAD (the test-is-the-product plan's R16, brief B1, M5): a body
@@ -52,11 +64,72 @@ public enum BodyClass {
      * content, and orders a statement's seeds against an open script the other way round: the M5 audit's B1). The
      * test door plans each as the walk sends it (M3d: every script byte-identical; {@code BodyRouterParityTest}).
      */
-    EFFECT_PROGRAM;
+    EFFECT_PROGRAM,
+
+    /**
+     * A QUERY PROGRAM (M5f): every statement is one the product's query door plans -- it holds no test kind (no
+     * effect, no seeds, no let-bound {@code execute(...)}, no assert) -- and none is a kind the program road plans
+     * another way yet: no {@code execute(...)} read where it stands (M9), no staged rows, no store write, no
+     * test-data generation, no read of the system metamodel store (M4); the runtime declares no test data (M5's
+     * audit B1). The body is a product program the test door plans as the query door would.
+     */
+    QUERY_PROGRAM;
 
     /** {@code body}'s class on {@code runtime}, or null when the walk runs it. */
     public static @Nullable BodyClass of(TypedQuery body, String runtime) {
-        return effectProgram(body, runtime) ? EFFECT_PROGRAM : null;
+        if (effectProgram(body, runtime)) {
+            return EFFECT_PROGRAM;
+        }
+        return queryProgram(body, runtime) ? QUERY_PROGRAM : null;
+    }
+
+    private static boolean queryProgram(TypedQuery query, String runtime) {
+        if (QueryDoor.declaresTestData(runtime, query.context())) {
+            return false;
+        }
+        QueryDoor.Scan scan = new QueryDoor.Scan(query, runtime);
+        Set<String> systemClasses = systemClasses(query.context());
+        Map<FunctionId, Boolean> memo = new HashMap<>();
+        for (TypedSpec statement : query.body()) {
+            if (!scan.kinds(statement).isEmpty() || StatementEffects.containsTdgGenerator(statement)
+                    || StatementEffects.reaches(statement, n -> plannedAnotherWay(n, systemClasses), query.specs(),
+                            memo)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether {@code n} is a kind the program road plans another way than the walk yet: an {@code execute(...)},
+     *  staged rows, a raw grid ({@code executeInDb}'s rows, typed as a raw-SQL relation: T8, T12), a store write; a
+     *  read of the system metamodel store (M4) -- the extent of a class its mapping binds ({@code systemClasses}), a
+     *  table of it, one of its functions, an element used as a value (a mapping, a store: its instance is the
+     *  store's row); an object built or a graph answered (their ids and their answer's layout converge on the
+     *  product's with MV6). */
+    private static boolean plannedAnotherWay(TypedSpec n, Set<String> systemClasses) {
+        return n instanceof TypedNativeCall call && (NativeFn.Handle.runsAFrame(call.callee().id())
+                        || Pure.Lite.STAGE.equals(call.callee().qualifiedName()))
+                || n instanceof TypedRawSqlRelation
+                || StatementEffects.isStoreWrite(n)
+                || n instanceof TypedGetAll all && (systemClasses.contains(all.classFqn())
+                        || SystemMetamodel.isSystemElement(all.classFqn()))
+                || n instanceof TypedTableReference table && SystemMetamodel.STORE_FQN.equals(table.store())
+                || n instanceof TypedUserCall call && SystemMetamodel.functionIds().contains(call.callee().id())
+                || n instanceof TypedPackageableRef
+                || n instanceof TypedNewInstance || n instanceof TypedCopyInstance
+                || n instanceof TypedGraphFetch || n instanceof TypedSerialize || n instanceof TypedSerializeGraph;
+    }
+
+    /** The classes the system metamodel's mapping binds: their extents are the system store's rows. */
+    private static Set<String> systemClasses(ModelContext ctx) {
+        MappingDefinition system = ctx.findMapping(SystemMetamodel.MAPPING_FQN).orElseThrow(() ->
+                new IllegalStateException("the system metamodel's mapping is not in the model -- injection"
+                        + " regressed"));
+        Set<String> classes = new HashSet<>();
+        for (MappingDefinition.ClassBinding binding : system.classBindings()) {
+            classes.add(binding.classFqn());
+        }
+        return classes;
     }
 
     private static boolean effectProgram(TypedQuery query, String runtime) {

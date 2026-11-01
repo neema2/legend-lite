@@ -255,6 +255,13 @@ final class JudgePlans {
         }
     }
 
+    /** {@code sink} holding the walk's answer contract ({@link Cardinality}): for the body router, whose moved body's
+     *  answer holds the walk's cardinality until the plan carries it (the test-is-the-product plan's §9, D30). */
+    static com.legend.result.ResultSink holding(com.legend.result.ResultSink sink, boolean atMostOne, long atLeast,
+            String multiplicity, boolean toOneReader) {
+        return new Cardinality(sink, atMostOne, atLeast, multiplicity, toOneReader);
+    }
+
     /** A sink that counts the rows on their way to {@code sink} and refuses, by the collected side's own words, a
      *  scalar of more than one row, a required root of none, a to-one reader of other than one. */
     private static final class Cardinality implements com.legend.result.ResultSink {

@@ -21,7 +21,9 @@ import org.junit.jupiter.api.Test;
 class BodyClassTest {
 
     /** The classes moved, in the order they moved: append only (M10 moves the last). */
-    private static final List<String> MOVED = List.of("EFFECT_PROGRAM");
+    private static final List<String> MOVED = List.of("EFFECT_PROGRAM",
+            // M5f (2026-11-01): the plain query programs
+            "QUERY_PROGRAM");
 
     @Test
     void theMovedClassesOnlyGrow() {
@@ -46,9 +48,15 @@ class BodyClassTest {
     }
 
     @Test
-    void aBodyWithAnAssertOrNoEffectOrAComputedArgumentStaysOnTheWalk() {
+    void aBodyOfProductStatementsIsAQueryProgram() {
+        assertEquals(BodyClass.QUERY_PROGRAM, classOf("{| let x = 1; $x + 1;}"));
+        assertEquals(BodyClass.QUERY_PROGRAM, classOf("{| print('x', 1); 'abc'->toUpper();}"));
+    }
+
+    @Test
+    void aBodyWithAnAssertOrAComputedArgumentStaysOnTheWalk() {
         assertNull(classOf(CONN + EXEC + "'Create Table m5_a(i INT);', $c, 0, 1000);\nassert(1 == 1);}"));
-        assertNull(classOf("{| let x = 1; $x + 1;}"));
+        assertNull(classOf("{| assert(1 == 1);}"));
         // a String argument computed from a value only the run knows (the walk folds a let's literal, as the test door)
         assertNull(classOf(CONN + EXEC + "'Create Table t' + now()->toString() + '(i INT);', $c, 0, 1000);}"));
     }

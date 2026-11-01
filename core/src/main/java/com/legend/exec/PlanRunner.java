@@ -380,9 +380,19 @@ public final class PlanRunner {
                     sink.effectRan(i);
                 }
                 case ExecutionPlan.Setup u -> seed(u, i, session, st, sink);
-                case ExecutionPlan.TdsResult t -> result(t, live, st, held);
+                case ExecutionPlan.TdsResult t -> {
+                    // the program's answering statement is a statement of the body on its own, as the walk marks a
+                    // value statement (BodyDriver.answerValue); a mark in force (a judge's, a fixture's) stands
+                    try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
+                        result(t, live, st, held);
+                    }
+                }
                 case ExecutionPlan.Constant c -> constant(c, held);
-                case ExecutionPlan.Keyed k -> keyedOn(k, live, st, heldSink(held));
+                case ExecutionPlan.Keyed k -> {
+                    try (var origin = StatementOrigin.enterIfUnmarked(StatementOrigin.STATEMENT)) {
+                        keyedOn(k, live, st, heldSink(held));
+                    }
+                }
                 case ExecutionPlan.Verdicts v -> verdicts(v, judging, live, st, sink, insideATransaction(st));
                 case ExecutionPlan.Sequence s -> throw new IllegalStateException("a sequence inside a sequence");
             }
