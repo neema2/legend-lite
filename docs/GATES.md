@@ -16583,6 +16583,40 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's M8a: the host judgment as data
+
+The plan's §7 (M8), §9 "M8a", §10; the decisions log D111; the audit brief `docs/test-is-product-homework/M8A_AUDIT_BRIEF.md`
+(its findings and folds recorded in §9).
+
+1. **Built:** each host arm's `planX` builds one `driver/HostJudgment` record (seventeen, a sealed list): the
+   comparison's name and the facts it needs beyond the rows, every one read from the typed tree and the model when the
+   arm is PLANNED -- the side facts, the key trees and the keyed classes a polymorphic key slot's value may carry as
+   its own (`EqualityKeys.Key.declaredClass`, new; `EqualityKeys.declaresKeys` off the parsed definitions, so no class
+   the body never touched is compiled), the byte gates, the flat facts, the order views, `Size.envelopeValuesRead`,
+   `InstanceOf.acceptedTypes`, a decided `assertIs`, a planned raise. `HostJudge.judge` is the one dispatch (a switch
+   over the sealed records, no default); each judging function takes the record and the rows and nothing else;
+   `HostSides.Check` holds data, its closure interface deleted. The audit's S1, S3, N1, N5 and its parity cases folded;
+   S2, N2-N4 recorded (§9), N4 a register question for the user.
+2. **Movement:** none by design. The DuckDB host pass 2471 / 108, `moved=1080`, `other=6219`; the database pass
+   2473 / 108, `moved=1026`: every count M7's. Two earlier cuts were caught by the corpus and not by the quick suites
+   (19 then 10 host-pass tests: the keyed classes of a key slot missed, then a poisoned class compiled); the parity test
+   gained `keyedClassPrograms`, its outcomes pinned absolutely beside the parity, and the audit's cases (a decided
+   `assertIs`, a class wire under `assertInstanceOf`, a slot declared Any, the TDS equivalence with a time delta, the
+   subset fold, a sorted rendered text, `assertEq` over class values).
+3. **The checks:** `//core:core_tests` 28 of 28; the driver, judge, compiler, lowering, testplan, architecture,
+   guardrail and census suites; `//spec:corpus_duckdb` uncached, 6 of 6. The chain (core ids, PCT DuckDB, both corpora,
+   channel B, `//gates:local`, Postgres unprivileged) runs at M8's end.
+4. **Guards, dated:** `JavaEvalLedgerTest` HostJudge 1066 -> 1127 (the dispatch and the records' unpacking; the same
+   comparisons), AssertVerdicts 1510 -> 1470 (`instanceKeys`, `structuredSide`, the rendered counting wrapper and the
+   raise closures left), `HostJudgment.java` pinned at 134 and registered in the driver's funnel register (data; its one
+   judging-time method a selection over the wire's classifiers); the harness sort-site regex made the accessor
+   `sortedOrder`; the ordered-collection guardrail made `InstanceOf.acceptedTypes` a `LinkedHashSet`.
+5. **Residue, named:** the plan's §9 "M8a" (a)-(g): the asks and the planned side's typed root still in the sink's
+   hands until M10; the side's `ExprType` and the judging-time `CanonRider`; the per-assert universe walk for an
+   Any-declared slot; `InstanceOf`'s decline after reading; two pre-existing register questions for the user -- Any is
+   no implicit generalization (N4), and `assertInstanceOf` over a CONSTRUCTED instance fails on both roads where Pure
+   holds it; the absolute parity pins on the platform backend alone (H2 refuses the keyed constructions).
+
 ## 2026-11-01 — The test-is-the-product plan's M7: the database judge's assert and frame programs run whole
 
 The plan's §7 (M7), §9 "M7", §10; the decisions log D110; the audit brief `docs/test-is-product-homework/M7_AUDIT_BRIEF.md`
@@ -16623,6 +16657,12 @@ The plan's §7 (M7), §9 "M7", §10; the decisions log D110; the audit brief `do
    `//spec:corpus_h2` uncached, 6 of 6: host pass 2289 / 295, `moved=1080`; database pass 2233 / 353, `fallback=18`,
    `moved=961`, every count the baseline's; channel B 5 of 5 (BOTH walks every assert body: nothing moves);
    `//gates:local` 448 pass, 1 skipped, 9 red: the nine Postgres targets refusing root, 9 of 9 green unprivileged.
+   **CI on 91a49887 (read 2026-11-01 20:30 UTC):** 34 jobs green -- every Linux lane but `checks`, every Windows lane,
+   Linux-arm, the diagnostics battery; `linux / checks` died of the runner's disk BEFORE any test ran ("No space left on
+   device" fetching the embedded ClickHouse archive during analysis: the LLVM class of death, infrastructure); all
+   fifteen macOS jobs CANCELLED again four to seven minutes after they started, their logs gone -- the second time, so an
+   infrastructure pattern (a runner limit), not this program's; the `gates green` aggregate red on those alone. No lane
+   failed on the code. The M8a push supersedes this head's run.
 4. **Guards, dated:** `JavaEvalLedgerTest` -- `DatabaseAsserts.java` registered in the driver's funnel register (plans
    only, sends nothing, judges through the batch's seam), AssertVerdicts 1449 -> 1510 (`planDatabase`, its outcome and
    its static gate); `ErrorShapeGuardrailTest.BROAD_CATCH_COUNTS` AssertVerdicts 1 -> 2, `DatabaseAsserts.java` 4 (each

@@ -40,22 +40,17 @@ final class HostSides {
      * An arm PLANNED (the test-is-the-product plan's M6, brief B3): the sides it asks for, in its order, and its
      * judgment over them once they ran -- the two halves of a host arm, so a side is never planned at judging time.
      * The walk runs them back to back ({@link #run}); the test door's program places the asks as a verdict step's base
-     * ({@link #plan}) and the body router judges at that step. The judgment is a closure over the arm's typed
-     * arguments and the lets before it: it reads the sides, and at judging time the typed tree (a side's static type,
-     * its order view) and the model (a class's key tree, the subtype relation) -- the facts B3's verdict record would
-     * carry, named as residue in M6's records; null where the arm declines the sides it read (the walk's generic path
-     * continues; the program road refuses it by name, a shape {@code AssertVerdicts.planHost} leaves on the walk).
+     * ({@link #plan}) and the body router judges at that step. The judgment is DATA (the plan's M8a, 2026-11-01): one
+     * {@link HostJudgment} record naming the comparison, with the few facts the comparison needs beyond the rows -- a
+     * side's static type, its order view, a class's key tree, the subtype relation -- every one read from the typed
+     * tree and the model when the arm is PLANNED, never at judging time; {@link HostJudge#judge} runs the one function
+     * the record names over the rows. The answer is null where the arm declines the sides it read (the walk's generic
+     * path continues; the program road refuses it by name, a shape {@code AssertVerdicts.planHost} leaves on the walk).
      */
-    record Check(List<Ask> asks, Judgment judgment) {
+    record Check(List<Ask> asks, HostJudgment judgment) {
         Check {
             asks = List.copyOf(asks);
         }
-    }
-
-    /** A host arm's comparison over its sides, shaped and in the arm's order. */
-    @FunctionalInterface
-    interface Judgment {
-        @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides);
     }
 
     /** {@code check} run in place (the walk): its sides fetched, then judged; null where there is no check (the arm
@@ -65,7 +60,7 @@ final class HostSides {
         if (check == null) {
             return null;
         }
-        return check.judgment().judge(fetch(name, check.asks(), letPrefix, specs, env));
+        return HostJudge.judge(check.judgment(), fetch(name, check.asks(), letPrefix, specs, env));
     }
 
     /** {@code check} run in place where its judgment always decides (an arm with no declining shape). */

@@ -29,6 +29,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -180,10 +181,78 @@ class BodyRouterParityTest {
                 // a side whose planning raises (a computed bound the lowering refuses by name): raised at its turn,
                 // after the assert before it ran and reported, counted under its family
                 "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
-                        + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}")) {
+                        + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}",
+                // the M8a audit's E: a type identity decided with no side (held, failed with its message), the TDS
+                // equivalence with a time delta, the forAll-contains subset (held, refuted), a sorted rendered text
+                "{| assertIs(Integer, Integer); assertIs(type(1), Integer);}",
+                "{| assertIs(Integer, String);}",
+                "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
+                        + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1, 1.0);}",
+                "{| assert([1, 2]->forAll(e|[1, 2, 3]->contains($e)));}",
+                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}",
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
             assertParity(backend, body, "select 1");
         }
     }
+
+    /** The keyed-class pairs (X5: a keyed class compares by its key properties alone; M8a: the key trees, and the
+     *  classes a polymorphic key slot's value may carry as its own, are read when the arm is planned): a same-class
+     *  pair, a keyless abstract slot holding keyed subclass values (judged by the own class's keys), the multiset
+     *  form, the negated form, and a failing pair with the walk's own message. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void keyedClassPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(backend.withStorelessRuntime(KEYED));
+        // the outcome pinned ABSOLUTELY beside the parity on the platform backend (the M8a audit's S1): both roads
+        // run the same judgment, so a key restriction that stopped applying would fail both alike and parity alone
+        // would not see it -- the first body holds ONLY through the restriction (two construction sites, two
+        // identities); another backend may refuse the construction itself (H2: no list encoding), the same on both
+        // roads, so there the parity alone is asserted
+        boolean platform = backend.type() == TestBackends.platform().type();
+        for (var c : List.of(
+                Map.entry("{| assertEquals(^x::Lit(value=1), ^x::Lit(value=1));}", "ok"),
+                Map.entry("{| assertEquals(^x::Call(name='f', args=[^x::Lit(value=1), ^x::Lit(value=2)]),"
+                        + " ^x::Call(name='f', args=[^x::Lit(value=1), ^x::Lit(value=2)]));}", "ok"),
+                Map.entry("{| assertEquals(^x::Call(name='f', args=[^x::Lit(value=1)]),"
+                        + " ^x::Call(name='f', args=[^x::Lit(value=2)]));}", "AssertFailed:"),
+                Map.entry("{| assertSameElements([^x::Lit(value=1), ^x::Lit(value=2)],"
+                        + " [^x::Lit(value=2), ^x::Lit(value=1)]);}", "ok"),
+                Map.entry("{| assertNotEquals(^x::Lit(value=1), ^x::Lit(value=2));}", "ok"),
+                // the same let-bound instance: decided with no side
+                Map.entry("{| let f = ^x::Lit(value=1); assertIs($f, $f);}", "ok"))) {
+            Run walked = assertParity(backend, ctx, RT, c.getKey(), "select 1", List.of(),
+                    ExecuteOptions.JudgeMode.HOST);
+            if (platform) {
+                assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
+            }
+        }
+        for (String body : List.of(
+                // a class wire against the type's accepted classes: itself, its supertype's subtree, a sibling. Today
+                // BOTH roads fail the first two ("expected ... to be an instance of Lit, actual: LinkedHashMap": a
+                // constructed instance's wire judged by the pure rule, not its classifier) where Pure holds them -- a
+                // pre-existing divergence posted as a register question (the plan's §9 "M8a" (f)), parity alone here
+                "{| assertInstanceOf(^x::Lit(value=1), x::Lit);}",
+                "{| assertInstanceOf(^x::Lit(value=1), x::Node);}",
+                "{| assertInstanceOf(^x::Lit(value=1), x::Call);}",
+                // a slot declared Any (the prelude's List.values, the universe arm of the planned key trees): today
+                // both roads wall on the list's representation (toRepresentation of a list is not modeled), so the
+                // arm has no passing witness here -- the corpora's Pair and List stamps measure it
+                "{| assertEquals(list([^x::Lit(value=1), 'x']), list([^x::Lit(value=1), 'x']));}",
+                "{| assertEquals(list([pair(1, 2), 'x']), list([pair(1, 2), 'x']));}",
+                // assertEq over class values: eq's identity rule walls loudly on both roads, with one text
+                "{| assertEq(^x::Lit(value=1), ^x::Lit(value=1));}")) {
+            assertParity(backend, ctx, RT, body, "select 1", List.of());
+        }
+    }
+
+    /** Keyed classes: a keyless abstract node, a literal keyed by its value, a call keyed by its name and its
+     *  arguments -- a slot declared the keyless node, so an argument is judged by its own class's keys. */
+    private static final String KEYED = """
+            ###Pure
+            Class x::Node { }
+            Class x::Lit extends x::Node { <<equality.Key>> value: Integer[1]; }
+            Class x::Call extends x::Node { <<equality.Key>> name: String[1]; <<equality.Key>> args: x::Node[*]; }
+            """;
 
     /** A model of a class, a temporal class and a function, for the shapes the query-program rule keeps on the walk
      *  (classified only: none runs). */
@@ -658,7 +727,7 @@ class BodyRouterParityTest {
 
     /** {@code body} (a moved class's under {@code mode}'s judge) run on the walk and on the router, each on a fresh
      *  database: every boundary observed the same. */
-    private static void assertParity(TestBackend backend, ModelContext ctx, String runtime, String body, String check,
+    private static Run assertParity(TestBackend backend, ModelContext ctx, String runtime, String body, String check,
             List<String> setup, ExecuteOptions.JudgeMode mode) throws Exception {
         assertNotNull(BodyClass.of(typed(ctx, body), runtime, true),
                 "the body is a moved class's under one judge: " + body);
@@ -676,6 +745,7 @@ class BodyRouterParityTest {
                 + ")");
         assertEquals(walked.census, moved.census, "the verdict census: " + body + " (" + walked.outcome + ")");
         assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
+        return walked;
     }
 
     /** The walk's spelling of a frame's trace stamp (the run's comment, a literal in the activity rows it registered

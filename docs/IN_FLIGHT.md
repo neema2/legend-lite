@@ -3010,7 +3010,13 @@ census record); `planner/PlanEnv.java` (`stamps`), `BodyPlanner.java` (the stamp
 verdicts), `BodyDriver.java` (`plannedFrame` under a batch), `HostAsserts.java` (a one-step list);
 `testplan/TestDoor.java` (`Asserts.at` a list, `runsFrames`), `TestKinds.java`, `BodyClass.java` (`of(..., oneJudge)`);
 the tests (`BodyRouterParityTest`'s DATABASE-mode runs, `ArchitectureTest`'s V3 exemption, `CodeShapeGuardrailTest`,
-`ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`). Next: M8, then M10a-d, Z, in this session.
+`ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`). **M8a built 2026-11-01 (D111)** in the same session, its audit
+folded (the plan's §9 "M8a"): `driver/HostJudgment.java` (new), `HostJudge.java` (`judge`, the `planX` facts, the
+`xOf` over records), `HostSides.java` (`Check` over data), `AssertVerdicts.java` (`isDecided`, `Raise`;
+`instanceKeys`/`structuredSide` gone); `compiler/element/EqualityKeys.java` (`Key.declaredClass`, `declaresKeys`,
+`isKeyStereotype`), `ClassCompiler.java` (the shared stereotype test); the tests (`BodyRouterParityTest`'s
+`keyedClassPrograms` and the audit's cases, `JavaEvalLedgerTest`'s pins and register). Next: M8b (the database wrapper
+self-contained, MV2/MV3), M8c (MV4), then M10a-d, Z, in this session.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

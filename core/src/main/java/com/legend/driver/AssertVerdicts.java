@@ -559,18 +559,16 @@ final class AssertVerdicts {
          *  that raise before any family). */
         static HostAssert raising(String listenerName, @com.legend.base.Nullable String family,
                 RuntimeException failure) {
-            return new HostAssert(listenerName, family, true, new HostSides.Check(List.of(), none -> {
-                throw failure;
-            }));
+            return new HostAssert(listenerName, family, true,
+                    new HostSides.Check(List.of(), new HostJudgment.Raise(failure)));
         }
 
         /** An assert whose statement raised {@code failure} BEFORE its arm was entered -- the walk raises a let's
          *  handle registration at the let's turn and the assert's frame environment before {@link #tryAdjudicate}
          *  is called -- so it is raised at its turn with no census and no listener (M6's audit, S1). */
         static HostAssert raisingBeforeTheArm(String listenerName, RuntimeException failure) {
-            return new HostAssert(listenerName, null, true, new HostSides.Check(List.of(), none -> {
-                throw failure;
-            }), failure);
+            return new HostAssert(listenerName, null, true,
+                    new HostSides.Check(List.of(), new HostJudgment.Raise(failure)), failure);
         }
 
         /** The name the assert's sides go by: its family, or its listener name where none was classified. */
@@ -588,7 +586,7 @@ final class AssertVerdicts {
 
         /** The verdict over {@code sides}, shaped: a declined judgment counted as the generic path's (null). */
         @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides) {
-            return judgedOrFellThrough(check.judgment().judge(sides));
+            return judgedOrFellThrough(HostJudge.judge(check.judgment(), sides));
         }
 
         /** Run in place (the walk): counted, its sides fetched, judged. */
@@ -798,8 +796,9 @@ final class AssertVerdicts {
                 TypedSpec right = args.get(1);
                 // statically identified operands: decided with no side (the verdict, or its failure, at the
                 // assert's turn)
-                yield staticallyIdentified(left, right) ? new HostSides.Check(List.of(), none -> isVerdict(left,
-                        right)) : HostJudge.planIs(name, args, specs, hook);
+                yield staticallyIdentified(left, right) ? new HostSides.Check(List.of(),
+                        java.util.Objects.requireNonNull(isDecided(left, right), "statically identified operands"))
+                        : HostJudge.planIs(name, args, specs, hook);
             }
             case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> args.isEmpty() ? null
                     : HostJudge.planEmpty(args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY, hook);
@@ -841,15 +840,8 @@ final class AssertVerdicts {
         }
         String form = aForm != null ? aForm : java.util.Objects.requireNonNull(eForm);
         TypedSpec rendered = aForm != null ? args.get(1) : args.get(0);
-        HostSides.Check c = HostJudge.planRendered(name, wantEqual, args, form, rendered, eForm, aForm,
-                orderedForm, letPrefix, hook);
-        return new HostSides.Check(c.asks(), sides -> {
-            TypedSide v = c.judgment().judge(sides);
-            if (v != null) {
-                com.legend.judge.CanonicalDivergence.sqlRoute(name, "rendered-text");
-            }
-            return v;
-        });
+        return HostJudge.planRendered(name, wantEqual, args, form, rendered, eForm, aForm, orderedForm, letPrefix,
+                hook, true);
     }
 
     /** A side typed as a SEEDED metaclass (its extent is in the system
@@ -881,11 +873,18 @@ final class AssertVerdicts {
      * reference identity (the eq/equalNonPrimitive irreducible ruling). */
     static @com.legend.base.Nullable TypedSide isVerdict(
             TypedSpec left, TypedSpec right) {
+        HostJudgment.Decided d = isDecided(left, right);
+        return d == null ? null : HostJudge.judge(d, List.of());
+    }
+
+    /** {@link #isVerdict} as data (M8a): the verdict decided at planning with no side -- held, or its failure's
+     *  message -- or null where the operands are not statically identified. */
+    static HostJudgment.@com.legend.base.Nullable Decided isDecided(TypedSpec left, TypedSpec right) {
         String lt = typeIdentityOf(left);
         String rt = typeIdentityOf(right);
         if (lt != null && rt != null) {
-            return lt.equals(rt) ? ok()
-                    : fail("\nexpected: " + lt + "\nactual:   " + rt);
+            return lt.equals(rt) ? new HostJudgment.Decided(true, null)
+                    : new HostJudgment.Decided(false, "\nexpected: " + lt + "\nactual:   " + rt);
         }
         TypedSpec l = instanceOrigin(left);
         TypedSpec r = instanceOrigin(right);
@@ -893,7 +892,7 @@ final class AssertVerdicts {
                 && r instanceof com.legend.compiler.spec.typed.TypedVariable rv
                 && lv.name().equals(rv.name())) {
             // the same let-bound variable in one frame IS the same object
-            return ok();
+            return new HostJudgment.Decided(true, null);
         }
         return null;
     }
@@ -1899,51 +1898,9 @@ final class AssertVerdicts {
                                 com.legend.compiler.element.type.PlatformTypes.CLASS_METACLASS));
     }
 
-    /** X5 — the pair's shared key tree: non-null iff BOTH stamps are
-     * the SAME keyed class (the engine's classifier-match precondition
-     * plus resolvable {@code <<equality.Key>>} identity). */
-    static com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
-            instanceKeys(TypedSpec eSpec, TypedSpec aSpec,
-                    BodyDriver.ExecEnv env, List<Object> eVals, List<Object> aVals) {
-        String ef = com.legend.compiler.element.EqualityKeys.fqnOf(
-                eSpec.info().type());
-        String af = com.legend.compiler.element.EqualityKeys.fqnOf(
-                aSpec.info().type());
-        // a side DECLARED wider (a program's Node[1] return) whose wire
-        // values all carry the other side's class as their __type IS that
-        // class at runtime — the engine's classifier match holds on the
-        // evidence, not on the declaration (batch 54: assertConversion's
-        // `let actual = convertElement(…)` judged against ^StringLiteral(…))
-        if (ef != null && af != null && !ef.equals(af)) {
-            if (env.ctx().isSubtype(ef, af) && HostJudge.allWireType(aVals, ef)) {
-                af = ef;
-                aSpec = eSpec;
-            } else if (env.ctx().isSubtype(af, ef) && HostJudge.allWireType(eVals, af)) {
-                ef = af;
-                eSpec = aSpec;
-            }
-        }
-        if (ef != null && ef.equals(af)) {
-            // substitution-aware: the E-side stamp's instantiation
-            // (key NAMES are instantiation-independent; nesting follows
-            // the arguments — Pair-of-Pairs)
-            return com.legend.compiler.element.EqualityKeys.resolve(
-                    env.ctx(), eSpec.info().type());
-        }
-        return null;
-    }
-
-    /** A class-kind side's values with JSON object text decoded to structures. */
-    static List<Object> structuredSide(TypedSpec spec, List<Object> vals) {
-        if (com.legend.compiler.element.EqualityKeys.fqnOf(spec.info().type()) == null) {
-            return vals;
-        }
-        List<Object> out = new ArrayList<>(vals.size());
-        for (Object v : vals) {
-            out.add(structured(v));
-        }
-        return out;
-    }
+    // X5's instance-key rule (the pair's shared key tree: both stamps the SAME keyed class, a side declared wider
+    // counting as the other's class when every value on its wire is of it) is HostJudgment.Keys since M8a
+    // (2026-11-01): the model read at planning, the wire read at judging.
 
     /** A class VALUE riding a JSON slot inside a struct (a polymorphic field: {@code parameters :
      *  RelationalOperationElement[*]}) arrives as object or array text -- the field's declared kind says it is a
@@ -1957,12 +1914,6 @@ final class AssertVerdicts {
             }
         }
         return v;
-    }
-
-    /** Declared classes only (no wire evidence in hand). */
-    static com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
-            instanceKeys(TypedSpec eSpec, TypedSpec aSpec, BodyDriver.ExecEnv env) {
-        return instanceKeys(eSpec, aSpec, env, List.of(), List.of());
     }
 
 

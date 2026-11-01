@@ -566,7 +566,7 @@ posted the same way (R7 decision 12).
 | **M7** ◆ | (The row before M6's revalidation; superseded by the row below.) The fused group composed at planning (from `VerdictBatch`'s flush); the second class moves: bodies whose asserts all have verdict steps (2.D's rule, MV1, for the bodies moved) | 1 week |
 | **M9** ◆ | **BUILT 2026-11-01 (D109; §9 "M9a" to "M9d", §10): the frame programs under the host judge, 608 -> 1,080 bodies moved per DuckDB host pass, outcomes identical; its residual kinds (the engine-text asserts, the system-store reads, the test-data generator, `assertError` -- no corpus body --, staged grids, computed effects, effects through helpers, graph frames, seeded frames) named with their counts for M10a-d. Before M7 and M8 since M6's revalidation (the user, 2026-11-01: "the order is fine";** `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`**).** Frames read by asserts (the corpus's bulk: `let r = execute(...)`, its reads spliced into the asserts' sides, the eager run and the CTE as M3f/M3g planned them); the kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move, under the host judge first (zero output change expected) | 1-1.5 weeks |
 | **M7** ◆ | **BUILT 2026-11-01 (D110; §9 "M7", §10): the database judge's assert and frame programs run whole -- the fused statement composed at planning by the batch's own planning half, with the frames' CTEs at its head; 604 -> 1,026 bodies moved per DuckDB database pass (604 -> 961 on H2), outcomes identical; channel B (BOTH) walks every assert body until M8.** The fused group composed at planning (from `VerdictBatch`'s flush), with the frames' CTEs at its head; the database judge's and channel B's assert programs move (2.D's rule, MV1, for the bodies moved) | 1 week |
-| **M8** ◆ | The database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
+| **M8** ◆ | **M8a BUILT 2026-11-01 (D111; §9 "M8a", §10): the host judgment as data, zero movement.** Then: the database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
 | **M10** ◆ | Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
 | **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
 
@@ -828,6 +828,52 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   `ExecutionTrace` sees no moved body's stamps; (g) both roads run a fused statement after an effect bare (no
   program transaction), the Postgres savepoint path unchanged and not parity-pinned (the parity backends are the
   in-process ones).
+- **M8a -- the host judgment as data (2026-11-01; its independent audit folded: S1 the parity test pins the keyed
+  bodies' outcomes ABSOLUTELY beside the parity, since both roads run the same judgment; S3 a key slot whose type is an
+  unsubstituted type variable counts as Any's; N1 `HostJudgment` pinned in the Java-evaluation ledger; N5 a stale
+  javadoc; the parity cases its E named; S2, N2-N4 recorded below).** Each host arm's `planX` builds one
+  `driver/HostJudgment` record -- the comparison's name and the few facts it needs beyond the rows, every one read from
+  the typed tree and the model when the arm is PLANNED: the side facts (type, class, kind class, Any and Nil stamps, map
+  carrier, type name), the key trees (`Keys`: each side's tree resolved exactly where the walk resolved it -- the
+  expected side's where the classes agree or it is the narrower, the actual side's where it is the narrower -- the two
+  subtype facts, and the keyed classes a value may carry as its own in a slot that declares no keyed class), the byte
+  gates (shared keys; the keyless-constructor scan under the same static conditions the byte verdict asked it), the
+  flat facts (the bare-row and wrapped-relation stamps), the order views (`GridPair.sortedOrder`, `Json.incidentalRoot`,
+  `Rendered.sortedOrder`), `Size.envelopeValuesRead`, `InstanceOf.acceptedTypes` (the type and its subtree: the
+  knowledge layer's downward walk of the same explicit generalizations `isSubtype` walks upward), `TdsEquivalent
+  .hasTimeDelta`, `Decided` (a statically identified `assertIs`: held, or its failure's message), `Raise` (a planned
+  raise at the assert's turn). `HostJudge.judge` is the one dispatch, a switch over the sealed records with no default;
+  each `xOf` takes the record and the rows and nothing else; `HostSides.Check(asks, judgment)` holds data, the closure
+  interface deleted; `AssertVerdicts.instanceKeys` and `structuredSide` left for the records. **The key slots' own
+  classes, found by the corpus and not by the quick suites (two runs):** `compiler/element/EqualityKeys.Key` gained
+  `declaredClass` (the class a key property is declared as, which `collect` already read; Any for an unsubstituted type
+  variable), and `Keys.of` collects, for a slot that declares no keyed class, the keyed classes among the declared class
+  and its subtree (`ctx.subtree`), the whole `resolutionUniverse()` for Any, transitively through the classes found --
+  resolving ONLY a class that DECLARES an equality key (`EqualityKeys.declaresKeys`, read off the parsed definitions
+  with the class compiler's one stereotype test, `isKeyStereotype`), so no class the body never touched is compiled.
+  The first cut read `ctx.subtree(Any)`: the knowledge layer's index holds explicit generalizations alone, so every
+  class with no `extends` was missing and 19 host-pass tests failed (`toPostgresModel`, `debugPrint`: nested `Node[*]`
+  values kept `__id`, `__type`, `__canon`); the second cut resolved every class of the declared subtree and compiled a
+  class the tolerant corpus model holds poisoned (`ResultType` unknown), 10 tests raising at planning. Measured on the
+  DuckDB corpus after the third: both passes M7's to the count (host 2471 / 108, `other=6219`, `moved=1080`; database
+  2473 / 108, `moved=1026`). Residue, recorded: (a) `HostAsserts.Planned` still holds the asserts' `Check.asks` (the
+  typed arguments and the splice hook the sides were PLANNED from, dead once planned) and `JudgePlans.PlannedSide.root`
+  (a typed-tree read at judging in `toOneReader`): the sink's remaining compiler objects, dropped with the walk's run
+  forms at M10 (the audit's D, N3); (b) `SideFacts` carries the side's `ExprType` because `Equality.Typed.all` and
+  `PureAsserts.assertEquals` take `Type`s, and `sideCanonOf` constructs a lowering `CanonRider` at judging ("dead by
+  construction"): data-not-objects residue (N2); (c) `Keys.of` walks the whole `resolutionUniverse()` per assert whose
+  key slot is declared Any (a fresh set per call; no cost measured on the corpus: 171s a pass either way) -- a
+  per-context memo of the keyed classes is the right scope when one is needed (S2); (d) `InstanceOf` with a null type
+  name declines AFTER reading its side, as the walk's arm did (parity); (e) **a register question for the user (N4,
+  pre-existing, not M8a's):** no layer makes Any an implicit generalization, so `isSubtype(x::Firm, Any)` is false by
+  both relations and `assertInstanceOf(^x::Firm(name='a'), Any)` fails on every road where Pure holds -- a
+  `docs/SEMANTICS_REGISTER.md` row to rule on, or the typer's and the judge's Any made one; (f) **a second register
+  question (pre-existing, found writing the audit's parity cases):** `assertInstanceOf(^x::Lit(value=1), x::Lit)` and
+  the same against `x::Node` FAIL on both roads today ("expected ... to be an instance of Lit, actual: LinkedHashMap":
+  a CONSTRUCTED instance's wire is judged by the pure rule over a map, not by its classifier, where a store-read
+  instance carries `__type`, batch 53) where Pure holds them; the parity test keeps the three bodies parity-only until
+  the user rules. (g) The parity test's absolute pins hold on the platform backend alone: H2 refuses the keyed
+  constructions themselves (`LIST_GET` with no list encoding), the same refusal on both roads.
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
   on the runner ("Free space left: 84 MB", then "No space left on device"), two before any test ran; the same death
@@ -1082,3 +1128,12 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   on the corpora: the database pass `body-router moved` 604 -> 1,026 on DuckDB and 604 -> 961 on H2, outcomes and
   every census count identical (`fallback=18` on H2); the host passes unchanged. The chain: GATES "The
   test-is-the-product plan's M7". Next: M8.
+- 2026-11-01: **M8a built** (D111): the host judgment as data -- one `HostJudgment` record per host comparison, its
+  facts read at planning (the side facts, the key trees and the classes a polymorphic key slot may hold, the byte gates,
+  the flat facts, the order views, the accepted types, a decided verdict, a planned raise), `HostJudge.judge` the one
+  dispatch; the sink holds no closure and no model. Zero movement by design; the DuckDB corpus M7's to the count after
+  three cuts of the key slots' own classes (the first two caught by the corpus, not the quick suites: §9 "M8a"); the
+  audit folded (S1, S3, N1, N5, its parity cases), S2 and N2-N4 recorded, N4 a register question for the user. The
+  checks: the core suite 28 of 28, the driver, judge, compiler, lowering, testplan, architecture, guardrail and census
+  suites, `//spec:corpus_duckdb` 6 of 6; the chain runs at M8's end. Next: M8b (the database wrapper self-contained,
+  MV2/MV3).
