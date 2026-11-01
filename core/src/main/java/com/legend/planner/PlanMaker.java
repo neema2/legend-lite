@@ -117,16 +117,11 @@ public final class PlanMaker {
         Compiler.LoweredQuery l = new Compiler.LoweredQuery(ProductStatements.lower(query, planned, st.temporal(), true,
                 withStamps(slots, frames), new ObjectSites()),
                 planned.body().get(planned.body().size() - 1), query.context());
-        // the runtime decided: a null one is refused there, by name
-        Target decided = Compiler.executesOn(l.ctx(), runtime);
-        SqlDialect dialect = Databases.dialect(decided.type());
-        ExecutionPlan.Servers servers = serversFor(decided.type(), serverVersion);
-        if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
-            dialect = dialect.forServer(serverVersion);
-        }
+        Decided decided = decide(l.ctx(), runtime, serverVersion);
+        SqlDialect dialect = decided.dialect();
         Metamodel metamodel = metamodel(l, dialect);
-        ExecutionPlan.Target target = target(decided, Objects.requireNonNull(runtime), l.ctx(), dialect, servers,
-                metamodel);
+        ExecutionPlan.Target target = target(decided.target(), Objects.requireNonNull(runtime), l.ctx(), dialect,
+                decided.servers(), metamodel);
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
@@ -169,18 +164,21 @@ public final class PlanMaker {
     }
 
     /** {@code steps}' checks with their stamp dropped where no step binds it. */
-    private static void unreadStampsDropped(List<ExecutionPlan.Node> steps) {
+    private static List<ExecutionPlan.Node> withoutUnreadStamps(List<ExecutionPlan.Node> steps) {
         Set<String> read = new HashSet<>();
         for (ExecutionPlan.Node step : steps) {
             for (ExecutionPlan.Sql sql : sqls(step)) {
                 sql.slots().forEach(slot -> read.add(slot.parameter()));
             }
         }
-        steps.replaceAll(step -> step instanceof ExecutionPlan.Check c && c.sql().stamp() != null
-                && !read.contains(c.sql().stamp())
-                ? new ExecutionPlan.Check(new ExecutionPlan.Sql(c.sql().statement(), c.sql().slots(), c.sql().target(),
-                        c.sql().tree(), c.sql().regions()))
-                : step);
+        List<ExecutionPlan.Node> out = new ArrayList<>(steps.size());
+        for (ExecutionPlan.Node step : steps) {
+            out.add(step instanceof ExecutionPlan.Check c && c.sql().stamp() != null && !read.contains(c.sql().stamp())
+                    ? new ExecutionPlan.Check(new ExecutionPlan.Sql(c.sql().statement(), c.sql().slots(),
+                            c.sql().target(), c.sql().tree(), c.sql().regions()))
+                    : step);
+        }
+        return out;
     }
 
     /** The test door's refusal of a statement its library does not plan and the product road prepares as no query
@@ -258,32 +256,23 @@ public final class PlanMaker {
             List<SqlExpr.PlanParam> slots,
             Set<Feature> features, @Nullable String serverVersion,
             ProgramState.Door door, ProgramKinds kinds) {
-        ModelContext ctx = query.context();
-        // the runtime decided: a null one is refused there, by name
-        Target decided = Compiler.executesOn(ctx, runtime);
-        SqlDialect dialect = Databases.dialect(decided.type());
-        ExecutionPlan.Servers servers = serversFor(decided.type(), serverVersion);
-        if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
-            dialect = dialect.forServer(serverVersion);
-        }
+        Decided decided = decide(query.context(), runtime, serverVersion);
         // a program reads no system metamodel table (Class.all() inside a write program is not designed); the test
         // door's target carries no setup (R17 C6)
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
-                ? new ExecutionPlan.Target(database(decided), servers, dialect.sessionSetup(), List.of())
-                : target(decided, Objects.requireNonNull(runtime), ctx, dialect, servers, Metamodel.NONE);
+                ? new ExecutionPlan.Target(database(decided.target()), decided.servers(),
+                        decided.dialect().sessionSetup(), List.of())
+                : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
+                        decided.servers(), Metamodel.NONE);
         List<TypedSpec> body = query.body();
         StagedRows.refuseLetsTheWritesChange(body, query.specs());
         // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
         // construction read by two statements is one object in both, and every statement names its sites by the one
         // counter
-        ProgramState state = new ProgramState(query, Objects.requireNonNull(runtime), dialect, target,
+        ProgramState state = new ProgramState(query, Objects.requireNonNull(runtime), decided.dialect(), target,
                 slots, features);
         // the let kinds' effect scan, memoized over the program (LetPlanner.kind)
         Map<FunctionId, Boolean> effectMemo = new HashMap<>();
-        List<TypedSpec> lets = state.lets;
-        List<ExecutionPlan.Node> steps = state.steps;
-        List<String> staged = state.staged;
-        ObjectSites sites = state.sites;
         for (int i = 0; i < body.size(); i++) {
             TypedSpec stmt = body.get(i);
             boolean last = i == body.size() - 1;
@@ -292,103 +281,138 @@ public final class PlanMaker {
                 continue;
             }
             if (stmt instanceof TypedLet let && !last) {
-                // the let's KIND is the planner's (LetPlanner, the walk's own rule): where its rows live
-                switch (LetPlanner.kind(let, body, i, query.specs(), effectMemo, state.frames()::relationFrame)) {
-                    case ALIAS -> {
-                        // $r.values(->at(0)) over a relation frame: the same frame
-                        state.frames().alias(let.name(), Objects.requireNonNull(
-                                LetPlanner.aliasOf(let.value(), state.frames()::relationFrame)));
-                        continue;
-                    }
-                    case FRAME -> throw new IllegalStateException("a let-bound execute(...) reached the planner: the"
-                            + " query door refuses it, the test door's library plans it");
-                    case STAGED_GRID -> throw new NotImplementedException("a raw read bound by a let"
-                            + " and read after a later effect: its rows held at the let's turn are the T12 kind the"
-                            + " test-is-the-product plan's M9 plans");
-                    case VALUE -> {
-                        lets.add(let);
-                        continue;
-                    }
-                    case STAGED -> {
-                        // planned below
-                    }
-                }
-                TypedSpec rows = Objects.requireNonNull(
-                        StagedRows.rowsOf(let));
-                // STAGED ROWS: computed at this statement's turn into a temporary table of the session, which the
-                // statements after read by name (the writes between read the rows as they were)
-                String table = StagedRows.table(let.name());
-                // the product's statement road (M2, B11): the test road's front half, the product's lowering
-                ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, rows), runtime, i, features,
-                        state.frames());
-                Prepared.Planned sp = ProductStatements.planned(st);
-                Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
-                        withStamps(slots, state.frames()), sites);
-                SqlQuery q = FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
-                        ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
-                                sp.env()))), state.frames().definitions());
-                TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
-                ExecutionPlan.Sql stagedSql = sql(dialect.renderStatement(SqlDml.CreateTempTableAs
-                        .staged(table, q, StagedRows.columns(rowsRoot.info()))), target, null);
-                String own = state.frames().ownStamp();
-                if (own != null && reads(stagedSql, own)) {
-                    // a write is sent with no trace comment (the M3 audit's B7c)
-                    throw new NotImplementedException("a staged let's rows read an inline"
-                            + " execute(...)'s activity comment: a write is sent with no trace comment to record");
-                }
-                steps.add(new ExecutionPlan.Update(stagedSql, null));
-                staged.add(table);
-                lets.add(StagedRows.boundTo(let.name(), table, rows.info(),
-                        StagedRows.storeOf(sp.body(), ctx, runtime), let.info()));
-                continue;
+                planLet(state, body, i, let, effectMemo);
+            } else {
+                planStatement(state, i, stmt, last, door);
             }
-            ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, stmt), runtime, i, features,
-                    state.frames());
-            ExecutionPlan.Constant constant = ProductStatements.constant(st);
-            if (constant != null) {
-                // a value the program wrote: the answer where it is the last statement; before it, nothing to run
-                if (last) {
-                    steps.add(constant);
-                }
-                continue;
-            }
-            if (last && door == ProgramState.Door.TEST && ProductStatements.handle(st)) {
-                // a test's program ending on a handle (a setup that returns its runtime): answered as the walk answers
-                // it, no value, which no judge compares; the query door refuses a handle as an answer (planned())
-                steps.add(ProductStatements.scalar(ProductStatements.handleType(st), null));
-                continue;
-            }
-            if (!last && ProductStatements.handle(st)) {
-                // an orchestration handle (a connection, a runtime) before the last statement: nothing to run
-                continue;
-            }
-            if (st.prepared() instanceof Prepared.StoreWrite w) {
-                SqlDml dml = ProductStatements.storeWrite(query, w, st.temporal(), slots, sites);
-                steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
-                        last ? ExecutionPlan.COUNT : null));
-                if (last) {
-                    steps.add(count(query, w.write(), dialect, target, features, sites));
-                }
-                continue;
-            }
-            if (door == ProgramState.Door.TEST) {
-                unplannedOnTheTestDoor(st);
-            }
-            Prepared.Planned p = ProductStatements.planned(st);
-            SqlQuery q = state.lowered(st, last);
-            TypedSpec answer = p.body().get(p.body().size() - 1);
-            steps.add(stampedIfRead(last ? typed(answer, q, dialect, target)
-                    : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), state.frames().ownStamp()));
         }
-        // a frame's run binds its stamp only where a later statement reads it (the M3 audit's B7a: an unread stamp would
-        // still be minted, and refused on a session whose statements carry no comment)
-        unreadStampsDropped(steps);
-        for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : staged) {
-            // (a failed program's transaction takes its tables back with its writes)
+        return new ExecutionPlan.Sequence(finished(state));
+    }
+
+    /** Where a plan runs: the runtime's database ({@code Compiler.executesOn}: a null runtime refused there, by name),
+     *  its dialect (for the session's server version where the plan names versions) and the servers it serves. */
+    private record Decided(Target target, SqlDialect dialect, ExecutionPlan.Servers servers) {
+    }
+
+    /** {@link Decided} for {@code runtime} of {@code ctx}, on a server of {@code serverVersion} when one is named. */
+    private static Decided decide(ModelContext ctx, @Nullable String runtime, @Nullable String serverVersion) {
+        Target decided = Compiler.executesOn(ctx, runtime);
+        SqlDialect dialect = Databases.dialect(decided.type());
+        ExecutionPlan.Servers servers = serversFor(decided.type(), serverVersion);
+        if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
+            dialect = dialect.forServer(serverVersion);
+        }
+        return new Decided(decided, dialect, servers);
+    }
+
+    /** A let before the program's last statement, planned by its KIND (the planner's {@link LetPlanner}, the walk's
+     *  own rule): where its rows live. */
+    private static void planLet(ProgramState state, List<TypedSpec> body, int i, TypedLet let,
+            Map<FunctionId, Boolean> effectMemo) {
+        switch (LetPlanner.kind(let, body, i, state.query().specs(), effectMemo, state.frames()::relationFrame)) {
+            // $r.values(->at(0)) over a relation frame: the same frame
+            case ALIAS -> state.frames().alias(let.name(), Objects.requireNonNull(
+                    LetPlanner.aliasOf(let.value(), state.frames()::relationFrame)));
+            case FRAME -> throw new IllegalStateException("a let-bound execute(...) reached the planner: the"
+                    + " query door refuses it, the test door's library plans it");
+            case STAGED_GRID -> throw new NotImplementedException("a raw read bound by a let"
+                    + " and read after a later effect: its rows held at the let's turn are the T12 kind the"
+                    + " test-is-the-product plan's M9 plans");
+            case VALUE -> state.let(let);
+            case STAGED -> stagedLet(state, i, let);
+        }
+    }
+
+    /** STAGED ROWS: a let's rows computed at its statement's turn into a temporary table of the session, which the
+     *  statements after read by name (the writes between read the rows as they were). */
+    private static void stagedLet(ProgramState state, int i, TypedLet let) {
+        TypedQuery query = state.query();
+        ModelContext ctx = query.context();
+        TypedSpec rows = Objects.requireNonNull(StagedRows.rowsOf(let));
+        String table = StagedRows.table(let.name());
+        // the product's statement road (M2, B11): the test road's front half, the product's lowering
+        ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), rows), state.runtime(), i,
+                state.features(), state.frames());
+        Prepared.Planned sp = ProductStatements.planned(st);
+        Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
+                withStamps(state.slots(), state.frames()), state.sites());
+        SqlQuery q = FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
+                ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
+                        sp.env()))), state.frames().definitions());
+        TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
+        ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(SqlDml.CreateTempTableAs
+                .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null);
+        String own = state.frames().ownStamp();
+        if (own != null && reads(stagedSql, own)) {
+            // a write is sent with no trace comment (the M3 audit's B7c)
+            throw new NotImplementedException("a staged let's rows read an inline"
+                    + " execute(...)'s activity comment: a write is sent with no trace comment to record");
+        }
+        state.add(new ExecutionPlan.Update(stagedSql, null));
+        state.stage(table);
+        state.let(StagedRows.boundTo(let.name(), table, rows.info(),
+                StagedRows.storeOf(sp.body(), ctx, state.runtime()), let.info()));
+    }
+
+    /** A statement of the program (any but a let before the last): a value the program wrote (a constant, the answer
+     *  when last), an orchestration handle (no step; the test door answers a last one as no value), a store write (an
+     *  update, its count the answer when last), or a query (a check, its rows dropped; the typed answer when last). */
+    private static void planStatement(ProgramState state, int i, TypedSpec stmt, boolean last,
+            ProgramState.Door door) {
+        TypedQuery query = state.query();
+        SqlDialect dialect = state.dialect();
+        ExecutionPlan.Target target = state.target();
+        ProductStatements.Statement st = ProductStatements.prepare(query, with(state.lets(), stmt), state.runtime(), i,
+                state.features(), state.frames());
+        ExecutionPlan.Constant constant = ProductStatements.constant(st);
+        if (constant != null) {
+            // a value the program wrote: the answer where it is the last statement; before it, nothing to run
+            if (last) {
+                state.add(constant);
+            }
+            return;
+        }
+        if (last && door == ProgramState.Door.TEST && ProductStatements.handle(st)) {
+            // a test's program ending on a handle (a setup that returns its runtime): answered as the walk answers
+            // it, no value, which no judge compares; the query door refuses a handle as an answer (planned())
+            state.add(ProductStatements.scalar(ProductStatements.handleType(st), null));
+            return;
+        }
+        if (!last && ProductStatements.handle(st)) {
+            // an orchestration handle (a connection, a runtime) before the last statement: nothing to run
+            return;
+        }
+        if (st.prepared() instanceof Prepared.StoreWrite w) {
+            SqlDml dml = ProductStatements.storeWrite(query, w, st.temporal(), state.slots(), state.sites());
+            state.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
+                    last ? ExecutionPlan.COUNT : null));
+            if (last) {
+                state.add(count(query, w.write(), dialect, target, state.features(), state.sites()));
+            }
+            return;
+        }
+        if (door == ProgramState.Door.TEST) {
+            unplannedOnTheTestDoor(st);
+        }
+        Prepared.Planned p = ProductStatements.planned(st);
+        SqlQuery q = state.lowered(st, last);
+        TypedSpec answer = p.body().get(p.body().size() - 1);
+        state.add(stampedIfRead(last ? typed(answer, q, dialect, target)
+                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), state.frames().ownStamp()));
+    }
+
+    /** The program's steps, finished: a frame's run binds its stamp only where a later statement reads it (the M3
+     *  audit's B7a: an unread stamp would still be minted, and refused on a session whose statements carry no
+     *  comment), and the staged tables dropped after the answer (a failed program's transaction takes them back with
+     *  its writes where the dialect drops them with it). */
+    private static List<ExecutionPlan.Node> finished(ProgramState state) {
+        List<ExecutionPlan.Node> steps = withoutUnreadStamps(state.steps());
+        SqlDialect dialect = state.dialect();
+        for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : state.staged()) {
             steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(
-                    null, table, NameQuoting.BARE)), List.of(), target, null, List.of()), null));
+                    null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()), null));
         }
-        return new ExecutionPlan.Sequence(steps);
+        return steps;
     }
 
     /** {@code statement} after {@code lets}. */

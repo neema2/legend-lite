@@ -15,7 +15,6 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -37,13 +36,15 @@ public final class ProgramState {
     private final String runtime;
     private final SqlDialect dialect;
     private final ExecutionPlan.Target target;
-    final List<SqlExpr.PlanParam> slots;
-    final Set<Feature> features;
-    /** One minter for the program's objects (B9): a let's construction read by two statements is one object. */
-    final ObjectSites sites = new ObjectSites();
-    final List<TypedSpec> lets = new ArrayList<>();
-    final List<ExecutionPlan.Node> steps = new ArrayList<>();
-    final List<String> staged = new ArrayList<>();
+    private final List<SqlExpr.PlanParam> slots;
+    private final Set<Feature> features;
+    /** One minter for the program's objects (B9): a let's construction read by two statements is one object. The
+     *  lowering calls it deep inside (an object's site named at its first sight), so it is a minter with one owner,
+     *  this program, never a value threaded through. */
+    private final ObjectSites sites = new ObjectSites();
+    private final List<TypedSpec> lets = new ArrayList<>();
+    private final List<ExecutionPlan.Node> steps = new ArrayList<>();
+    private final List<String> staged = new ArrayList<>();
     /** The program's frames (M3f): the execute(...) results its statements read, their plan rows and stamps. */
     private final ProgramFrames frames = new ProgramFrames();
 
@@ -77,9 +78,10 @@ public final class ProgramState {
         return target;
     }
 
-    /** The lets the statements after read (the lets planned so far, in order). */
+    /** The lets planned so far, in order: what the statement being planned reads (a copy -- a list handed out never
+     *  changes under its reader). */
     public List<TypedSpec> lets() {
-        return Collections.unmodifiableList(lets);
+        return List.copyOf(lets);
     }
 
     /** The program's feature flags. */
@@ -110,5 +112,35 @@ public final class ProgramState {
     /** Places {@code step} after the steps planned so far. */
     public void add(ExecutionPlan.Node step) {
         steps.add(step);
+    }
+
+    /** Adds {@code let} to the lets the statements after read. */
+    void let(TypedSpec let) {
+        lets.add(let);
+    }
+
+    /** Records {@code table}, a staged let's temporary table, to drop once the program has answered. */
+    void stage(String table) {
+        staged.add(table);
+    }
+
+    /** The steps planned so far, in order (a copy). */
+    List<ExecutionPlan.Node> steps() {
+        return List.copyOf(steps);
+    }
+
+    /** The staged tables, in the order they were made (a copy). */
+    List<String> staged() {
+        return List.copyOf(staged);
+    }
+
+    /** The declared parameters' slots every statement binds. */
+    List<SqlExpr.PlanParam> slots() {
+        return slots;
+    }
+
+    /** The program's one object-id minter (B9). */
+    ObjectSites sites() {
+        return sites;
     }
 }
