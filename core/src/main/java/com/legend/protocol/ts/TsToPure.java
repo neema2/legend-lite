@@ -1097,32 +1097,26 @@ public final class TsToPure {
                                 + "(x, 1y)" + (returns ? ", and its type: returns(x, 1, 'log')" : ""), fc.pos());
                     }
                     SqlAst.Expr back = args.size() >= 2 ? args.get(1) : null;
-                    TsAst.Span span = back instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
-                    List<ValueSpecification> type = new ArrayList<>();
+                    // the library's word over lines (TsWords): how far back as written, its type by place or name
+                    Map<String, TsWords.Given> given = new LinkedHashMap<>();
+                    if (back != null) {
+                        TsAst.Span span = back instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
+                        if (span != null) {
+                            Period p = calendar(span);
+                            given.put("obs", new TsWords.Calendar(p.n(), p.unit()));
+                        } else {
+                            given.put("obs", new TsWords.Observations(observations(back, "obs", name + "(x, 1)")));
+                        }
+                    }
                     if (returns) {
                         SqlAst.Expr t = args.size() == 3 ? args.get(2) : a.named().get("type");
-                        type.add(new EnumValue(LIBRARY + "Returns", t == null ? "simple"
-                                : option(t, "type", List.of("simple", "log", "absolute"))));
+                        if (t != null) {
+                            given.put("type", new TsWords.Word(option(t, "type", List.of("simple", "log",
+                                    "absolute"))));
+                        }
                     }
-                    if (span != null) {
-                        // as of that far back (R9): the library's of a calendar period
-                        Period p = calendar(span);
-                        List<ValueSpecification> params = new ArrayList<>(List.of(l.rel(), new ColSpec(l.part()),
-                                new ColSpec(l.at()), new ColSpec(v.value()), new CInteger((long) p.n()),
-                                new EnumValue(DURATION, p.unit())));
-                        params.addAll(type);
-                        params.add(new ColSpec(out));
-                        rel = call(LIBRARY + BACK.get(name) + "Period", params);
-                    } else {
-                        int obs = back == null ? 1 : observations(back, "obs", name + "(x, 1)");
-                        List<ValueSpecification> params = new ArrayList<>(List.of(l.rel(), TsLines.over(l, null),
-                                new ColSpec(v.value()), new CInteger((long) obs)));
-                        params.addAll(type);
-                        params.add(new ColSpec(out));
-                        rel = call(LIBRARY + BACK.get(name), params);
-                    }
+                    return TsWords.call(this, java.util.Objects.requireNonNull(BACK.get(name)), v, given, fc.pos());
                 }
-                return new TsLines.Valued(l.with(rel), out);
             }
 
             /** A window as written (R4): a span (3mo), all, a date on ('2024-01-01'), or a number of observations. */

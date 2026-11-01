@@ -343,6 +343,9 @@ final class TsFunctions {
             if (i < at.size() && named.containsKey(p.name())) {
                 throw invalid(fn + "'s " + p.name() + " is given twice (R10)", fc.pos());
             }
+            if (e == null && p.kind() == Kind.DATE) {
+                throw invalid(fn + " reads a date: " + fn + "(x, '2024-01-01') (R9)", fc.pos());
+            }
             if (e == null) {
                 continue;
             }
@@ -473,43 +476,8 @@ final class TsFunctions {
         Lib w = new Lib(c, x.line());
         String a = x.value();
         return switch (f) {
-            case PRICES -> w.done(w.ofLine("prices", "px", a, new CFloat(p.num("initial")),
-                    option("Returns", p.word("type"))));
-            case ANNUALIZE -> w.done(w.ofRow("annualize", "ann", new ColSpec(a), new ColSpec(w.perYear())));
-            case INDEX -> w.done(w.based("index", "idx", a, p.word("from"), new CFloat(p.num("initial"))));
-            case REBASE -> w.done(w.based("index", "idx", a, p.word("from"), new CFloat(p.num("base"))));
-            case CHANGE -> w.done(w.based("change", "chg", a, p.word("from")));
-            case PERCENT_CHANGE -> w.done(w.based("percentChange", "pchg", a, p.word("from")));
-            case RSI -> w.done(w.ofLine("rsi", "rsi", a, new CInteger((long) p.whole("w"))));
-            case SMOOTHED_MOVING_AVERAGE -> w.done(w.ofLine("smoothedMean", "smma", a,
-                    new CInteger((long) Math.max(p.whole("w"), 1))));
-            case EXPONENTIAL_MOVING_AVERAGE -> p.num("beta") == 0 ? x
-                    : w.done(w.ofLine("ewma", "ewm", a, new CFloat(p.num("beta"))));
-            case EXPONENTIAL_STD -> w.done(w.ofLine("ewmStd", "ewm_std", a, new CFloat(p.num("beta"))));
-            case EXPONENTIAL_VOLATILITY -> w.done(w.ofLine("exponentialVolatility", "evol", a,
-                    new CFloat(p.num("beta")), new ColSpec(w.perYear())));
-            case EXPONENTIAL_SPREAD_VOLATILITY -> w.done(w.ofLine("exponentialSpreadVolatility", "esvol", a,
-                    new CFloat(p.num("beta")), new ColSpec(w.perYear())));
-            case MACD -> w.done(w.ofLine("macd", "macd", a, new CInteger((long) p.whole("m")),
-                    new CInteger((long) p.whole("n")), new CInteger((long) p.whole("s"))));
-            case GEOMETRICALLY_AGGREGATE -> w.done(w.ofLine("geometricallyAggregate", "geo", a));
-            case SMOOTH_SPIKES -> w.done(w.ofLine("smoothSpikes", "smooth", a, new CFloat(p.num("threshold")),
-                    option("ThresholdType", p.word("type"))));
-            case CONSECUTIVE -> w.done(w.ofLine("consecutive", "cs", a, option("Direction",
-                    p.word("direction"))));
-            case VALUE_AT -> w.done(w.ofLine("valueAt", "va", a, new com.legend.protocol.spec.CDate(
-                    com.legend.values.PureDateLiteral.parse(p.word("date")))));
             case TREND, SEASONALLY_ADJUSTED -> w.done(decomposed(c, w, fc, fn, a, p.word("method"),
                     p.word("freq")));
-            case FIRST_OF -> w.done(w.ofLine("first", "first", a));
-            case LAST_OF -> w.done(w.ofLine("last", "last", a));
-            case FILTER_VALUES -> {
-                ValueSpecification rel = TsLines.call(LIBRARY + "filterValues", w.line.rel(), new ColSpec(a),
-                        option("FilterOperator", p.word("operator")), new CFloat(p.num("value")));
-                yield new TsLines.Valued(w.line.with(rel), a);
-            }
-            case DAY_OF, MONTH_OF, YEAR_OF, QUARTER_OF, WEEKDAY_OF -> w.done(w.ofRow(
-                    fn.substring(0, fn.length() - "_of".length()), fn, new ColSpec(w.line.at())));
             case BOLLINGER_BANDS -> {
                 Span s = p.span("w");
                 CFloat k = new CFloat(p.num("k"));

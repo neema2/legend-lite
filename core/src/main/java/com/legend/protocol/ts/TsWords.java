@@ -27,7 +27,7 @@ import java.util.Set;
  * over lines -- {@code timeseries::line::<word>}, of a line {@code Relation<(key, date, value)>} to a line -- is called by
  * its name, each argument the call gives bound to the parameter of its name and kind, read from the word's own
  * overloads in the model: a window of {@code w} observations to the {@code w: Integer} one, a span ({@code 3mo}) to
- * {@code w: Integer, unit: DurationUnit}, {@code all} to {@code w: timeseries::Scope}, a date to {@code w: StrictDate};
+ * {@code w: Integer, unit: DurationUnit} (a lag's {@code obs} likewise), {@code all} to {@code w: timeseries::Scope}, a date to {@code w: StrictDate};
  * a word to the value of the parameter's enumeration; a number to an Integer or a Float. A parameter the call does not
  * give takes its default: none ({@code []}) where it may ({@code [0..1]}, its default in the body), else the overload
  * without it -- and {@code annualization_factor}, under SAMPLE BY, the sample's periods a year (gs-quant's parameter, the
@@ -120,9 +120,13 @@ final class TsWords {
             List<TsToPure.Parameter> o, Map<String, Given> given) {
         Set<String> taken = new LinkedHashSet<>();
         List<ValueSpecification> args = new ArrayList<>();
+        // a calendar span (a window w, a lag's obs) takes the unit parameter beside its count's
+        Calendar span = given.values().stream().filter(g -> g instanceof Calendar).map(g -> (Calendar) g).findFirst()
+                .orElse(null);
         for (TsToPure.Parameter p : o) {
             ValueSpecification v;
-            if ("unit".equals(p.name()) && given.get("w") instanceof Calendar cal) {
+            if ("unit".equals(p.name()) && span != null) {
+                Calendar cal = span;
                 v = DURATION.equals(p.type()) ? new EnumValue(DURATION, cal.unit()) : null;
             } else if (given.containsKey(p.name())) {
                 v = value(c, given.get(p.name()), p);
@@ -137,8 +141,8 @@ final class TsWords {
             }
             args.add(v);
         }
-        // a calendar window takes its unit's parameter too: an overload without one does not fit it
-        if (given.get("w") instanceof Calendar && o.stream().noneMatch(p -> "unit".equals(p.name()))) {
+        // a calendar span takes its unit's parameter too: an overload without one does not fit it
+        if (span != null && o.stream().noneMatch(p -> "unit".equals(p.name()))) {
             return null;
         }
         return taken.equals(given.keySet()) ? args : null;
