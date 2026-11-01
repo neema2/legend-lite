@@ -30,10 +30,9 @@ The code is on the backup branch `claude/wizardly-dirac-rw6tim-seam-wip` (§3).
 - Repository `neema2/legend-lite`. Working branch **`claude/wizardly-dirac-rw6tim-seam`**, PR #83 (draft; the user
   lands it, never a session). Pushed head before this handoff: `93c930cd` (CI green on all 52 checks, every OS),
   then `3680cbc3` (R23's row, docs only) and this handoff (docs only).
-- **M6's uncommitted code**: on **`claude/wizardly-dirac-rw6tim-seam-wip`**, one commit on top of this handoff's
-  commit ("WIP M6 ..."). Fetch it and check it out on the working branch (`git checkout claude/wizardly-dirac-rw6tim-seam
-  && git merge --ff-only origin/claude/wizardly-dirac-rw6tim-seam-wip`) only once you have re-run its checks (§4.4);
-  or cherry-pick it and keep it uncommitted while you finish M6.
+- **M6's uncommitted code**: on **`claude/wizardly-dirac-rw6tim-seam-wip`**, one commit, `89e604de` ("WIP M6 ..."),
+  whose parent is `f08cc4d9` (the working branch has docs-only commits after it). Bring it in uncommitted on the
+  working branch (`git cherry-pick -n 89e604de`) and commit it there only once its checks have run (§4.3, §11).
 - Records, each updated with the code it records (the user's rule): `docs/GATES.md` (one entry per step and per
   checkpoint), `docs/result-boundary-homework/DECISIONS_LOG.md` (last: **D107**; next **D108**),
   `docs/IN_FLIGHT.md`, the plan's §9 (open) and §10 (status), `docs/SEMANTICS_REGISTER.md` (last row **S128**,
