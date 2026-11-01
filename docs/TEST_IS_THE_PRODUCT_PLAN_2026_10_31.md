@@ -567,7 +567,7 @@ posted the same way (R7 decision 12).
 | **M9** ◆ | **BUILT 2026-11-01 (D109; §9 "M9a" to "M9d", §10): the frame programs under the host judge, 608 -> 1,080 bodies moved per DuckDB host pass, outcomes identical; its residual kinds (the engine-text asserts, the system-store reads, the test-data generator, `assertError` -- no corpus body --, staged grids, computed effects, effects through helpers, graph frames, seeded frames) named with their counts for M10a-d. Before M7 and M8 since M6's revalidation (the user, 2026-11-01: "the order is fine";** `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`**).** Frames read by asserts (the corpus's bulk: `let r = execute(...)`, its reads spliced into the asserts' sides, the eager run and the CTE as M3f/M3g planned them); the kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move, under the host judge first (zero output change expected) | 1-1.5 weeks |
 | **M7** ◆ | **BUILT 2026-11-01 (D110; §9 "M7", §10): the database judge's assert and frame programs run whole -- the fused statement composed at planning by the batch's own planning half, with the frames' CTEs at its head; 604 -> 1,026 bodies moved per DuckDB database pass (604 -> 961 on H2), outcomes identical; channel B (BOTH) walks every assert body until M8.** The fused group composed at planning (from `VerdictBatch`'s flush), with the frames' CTEs at its head; the database judge's and channel B's assert programs move (2.D's rule, MV1, for the bodies moved) | 1 week |
 | **M8** ◆ | **M8a BUILT 2026-11-01 (D111; §9 "M8a", §10): the host judgment as data, zero movement. M8b BUILT 2026-11-01 (D112; §9 "M8b", §10): the database verdict row self-contained -- holds and message in the statement, the plan's verdict without its polarity (PlanJson 25), zero movement. M8c OPEN 2026-11-01 -- a design question posted to the user (`docs/test-is-product-homework/M8C_DESIGN_QUESTION.md`): a canon over the product columns has no finite static form for a RECURSIVE polymorphic key slot; M10a proceeds meanwhile (R23).** Then: the database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
-| **M10** ◆ | Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
+| **M10** ◆ | **M10a BUILT 2026-11-01 (D113; §9 "M10a", §10): the system database on the test road (the narrow M4): a step's target names the graph's system database (`Database.System`, PlanJson 26), the class rule `systemRouted`, the router opens that database once per graph and plans a routed body's program and sides on it; 1,165 / 1,111 bodies moved per DuckDB pass (host / database; from 1,080 / 1,026), 1,165 / 1,045 on H2, outcomes identical, every register test green; the server engines, the frame programs over the system store, the bodies mixing a user read with a system read and the CSV census carrier's stay (§9).** Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
 | **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
 
 ## 8. Start here (for a session picking this up)
@@ -911,6 +911,76 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   scalar expression). Options for the user: (a) keep the construction canon for recursive classes alone; (b) a depth
   bound from the statement's own construction tree; (c) a dialect-specific recursive form; or withdraw MV4. Until the
   ruling the identity lane is unchanged; M10a proceeds (R23).
+- **M10a -- the system database on the test road (the narrow M4; 2026-11-01; its independent audit: COMMIT AFTER FOLDS,
+  folded; `docs/test-is-product-homework/M10A_BRIEF.md`).** The user (2026-11-01, on M4 narrow: "fine for now but needs a
+  product follow up"): a step's target names the graph's system database, seeded once per graph; the test library plans
+  it, the runner opens it; the product unchanged. (1) `ExecutionPlan.Database.System(type)`: the graph's system database
+  on an engine, named by type alone (PlanJson 25 -> 26, tag `system`); the runner knows no database: `Statements.check`
+  compares the type, the sessions source opens it. (2) `BodyClass.systemRouted(body, runtime)`: some statement reads the
+  system metamodel store (a system class's extent, the store's tables, a system function, a tracked element's row) and
+  no statement reads a user store (`userStoreRead`: a mapped class's extent, a user store's table, a `from()`, an
+  `execute` or a handle over a runtime, the test-data generator) -- each through the user functions it calls
+  (`readsStore`: `StatementEffects.reaches`' walk, one memo per callee), a lambda literal's body left aside (a lambda is
+  a value: the native that runs one against a store is itself the read) and the arguments of a planning-time native
+  (`NativeFn.Handle`, `NativeFn.JavaRoutine`: a mapping handed to `executionPlan(...)` is consumed when the plan is
+  made, never read as a row) -- on a runtime whose engine runs in process (`SystemRoutes.inProcess`: the system tables
+  keep their names there). The frame, effect and store-write exclusions are the class's (`assertProgram`), not the
+  predicate's; such an assert program's `SYSTEM_READ` sides are admitted (`sideKind(..., routed)`). (3) The router
+  (`BodyRouter`) opens the graph's system database for a routed body before planning its asserts
+  (`BodyDriver.systemRoute`, the walk's own `SystemDatabase.routeFor`: one session object per graph, seeded once; the
+  route's renames checked against the plan's as `openRoute` checks them) and plans them on that session
+  (`env.withSession`), so every side's statement names the System target (`JudgePlans.target`: an environment on the
+  graph's system database, `SystemDatabase.engineOf`); the test door plans the program on the System target
+  (`TestDoor.planned(..., systemRouted)`, `PlanMaker.testProgram(..., systemRouted)`); the sessions source opens the
+  system session for that target (`PlanSessions.of(session, trace, system)`, a non-closing view; the shared and the
+  own-session sources refuse a System target by name). **Measured:** DuckDB host 1,165 bodies moved per pass (from
+  1,080), the database pass 1,111 (from 1,026); H2 host 1,165 (from 1,080), database 1,045 (from 961); outcomes
+  identical (DuckDB 2471 / 108 and 2473 / 108, H2 2289 / 295 and 2233 / 353 with `fallback=18`), every register test green;
+  the census: the printed histogram counts passing bodies: `assert,system-read` 390 (the host pass before M10a) -> 211 on the host pass and 213 on the database pass, each pass's 85 moved; 94 on each pass now counted `host-unplanned-assert,system-read` / `database-unplanned-assert,system-read` (engine-text asserts over system reads: the class admits them, the host checks do not plan them -- M10b's); 3 `assert,csv-census,system-read` (the census carrier); the 211 / 213 still `assert,system-read` read a user store beside the system read (the graph-fetch suites' shape: a query executed over the user store, its mapping and runtime let-bound elements) or hold a shape the assert class refuses regardless -- the per-body listing `corpus2-body-stayed.tsv` of each pass. **The class rule's cuts, caught by the corpus and the parity
+  suite, not the quick suites (as M8a's):** the first cut counted a user class's extent INSIDE A LAMBDA LITERAL
+  (`relationalMapperSqlQuery({|Product.all()}, mapping, ...)`: a lambda handed to a SQL-text generator, run nowhere) as
+  a user read, so 40 of the 390 moved; the second (lambda-opaque) made the HANDLE bodies system-routed (`let p =
+  executionPlan(...)`: a mapping and a runtime, tracked elements, as a native's arguments) and the test-data generator's
+  bodies too (three DuckDB host regressions, `scalar lowering not yet implemented for TypedCsvCensus`; an H2 judge
+  disagreement on `testGenerateNecessaryData`), so a planning-time native's arguments are left aside and the generator is
+  a user read; the third moved the three CSV CENSUS tests (`let mapping = <element>; let d =
+  getRelationalCSVDataFromQuery($query, $mapping)`: the carrier `TypedCsvCensus` holds its mapping as a name, the
+  let-bound element is the body's one visible read, the system store's) and they walled at lowering (`scalar lowering
+  not yet implemented for TypedCsvCensus`: the walk folds the carrier to instance literals in Java from the model,
+  `TestDataGenerationNatives.foldCensus`, and the program road has no fold), so the carrier is a kind of its own
+  (`Kind.CSV_CENSUS`, the census tag `csv-census`) that keeps a body on the walk whatever else it reads; the parity
+  test walks such a body and pins its class. Until then those three bodies rode the walk on the strength of their
+  system reads alone -- the kind that named them was not the kind that kept them. **The audit** (COMMIT AFTER FOLDS): its one blocker was M8b's omission below (the TypeScript plan-version
+  pin), folded here; its should-fixes folded: a unit test of the sessions source (a System target opens the opener's
+  session; the shared source refuses it by name: `ProgramRunnerTest`), the store-free assert beside a system read as a
+  parity body (it runs on the system session on the program road, one target, so the walk sends one more statement on
+  the body's session and one more fused statement under the database judge: the parity test allows that pair's delta
+  alone), the `system` tag's round trip (`PlanJsonTest`); its nits folded: the router checks the route's renames as the
+  walk does, the planner's javadoc merged onto the one `testProgram`, the plan vocabulary names the ROLE (the graph's
+  system database) not the driver class, the predicate's javadoc says whose the frame and effect exclusions are; its
+  nits recorded: (a) the predicate is computed twice per routed body (the class rule and the router); (b) a latent
+  two-target where a body session's and the system session's server versions differ (no witness: both the one
+  in-process jar); (c) a derived route object made for every graph; (d) a `system-read-server` tag for the server lanes'
+  residue. **Residue:** (e) server engines (Postgres, the rest): the walk renames the system tables to the session's
+  temporary names; the program road does not apply the renames, so the rule refuses such a runtime by name
+  (`inProcess`); (f) frame programs over the system store (`let r = execute(..., systemRuntime)`) and bodies mixing a
+  user store's read with a system read (two targets): the walk's -- the `assert,system-read` bodies still counted stayed
+  are these, or shapes the assert class refuses regardless; (g) the engine-text asserts over system reads (`host-unplanned-assert,system-read`,
+  `database-unplanned-assert,system-read`) wait for M10b; (h) on the walk a system-routed side's plan now names the
+  System target in its metadata (behaviour unchanged: the walk's source ignores the target); (i) the graph's system
+  database is seeded by whichever road first touches it (the parity test seeds it before its pairs; on a corpus lane the
+  seeding is counted once, as before); (j) the product's own metamodel carriage (`PlanMaker.metamodel`) unchanged: the
+  follow-up the user named. **M8b's omissions, found by CI on 8bae5b1a (read 2026-11-01 22:12 UTC; the runs on
+  52092449 and 189c0475 were cancelled by the pushes after them):** 24 jobs green, 15 macOS cancelled (the pattern), 12
+  FAILED, all M8b's: the `checks` lane -- the twelve SQL ladder goldens (`core/src/test/resources/ladder/r*.current.sql`:
+  the verdict statement's text with its two new columns) and `parser-equivalence`'s `ratchets.tsv` (`own_corpus.matched`
+  3038 -> 3041) not regenerated (`bazel run //:update_generated` regenerates both; `//:generated` green); the `ui`,
+  `datacube`, `warehouse` and `parser_equivalence` lanes on Linux, Windows and arm -- engine-client's TypeScript plan
+  runner pins the plan format (`PLAN_VERSION = 24`, `engine-client/src/plan-runner.ts`) and refused every plan the WASM
+  planner wrote at 25 ("not a legend-lite execution plan of version 24": `//engine-client:plan_runner_test`,
+  `//datacube:table_output_test`, `verify_flow_test`, `headless_test`, `//python:engine_test`); the pin moved to 26 with
+  this step. The rule re-learned: PlanJson's version moves with the TypeScript pin and `//:generated` in the same commit
+  (M8b did not run `//gates:local`; `//gates:local` runs at M10's chain).
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
   on the runner ("Free space left: 84 MB", then "No space left on device"), two before any test ran; the same death
@@ -1182,3 +1252,8 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   §9 "M8c"): the canon over the product columns has no finite static form for a recursive polymorphic key slot, where
   the construction-site canon is finite by construction. The identity lane stays as it is; M10a (the system database on
   the test road) proceeds (R23). Next: M10a.
+- 2026-11-01: **M10a built** (D113): the system database on the test road -- `Database.System` in the plan (PlanJson
+  26), the class rule `systemRouted`, the router's route and sessions source, the test door's target; DuckDB host
+  `moved=1080 -> 1,165`, database `moved=1026 -> 1,111`; H2 host `1080 -> 1,165`, database `961 -> 1,045`; outcomes
+  identical, every register test green. The commit carries M8b's omissions (the ladder goldens, the ratchets, the
+  TypeScript plan-version pin 24 -> 26) that CI found on 8bae5b1a. Next: M10b (the engine-text asserts).

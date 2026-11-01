@@ -49,7 +49,7 @@ interface Sql { readonly statement: string; readonly slots: readonly Slot[]; rea
 // 24 since 2026-10-31: an effect's script, the setup node (a program's seed step) and a verdict group's savepoint (the
 // test-is-the-product plan's M3) -- an effect and a seed step are refused by name, as any step that is not an update, a
 // check, a typed result or a constant
-const PLAN_VERSION = 24;
+const PLAN_VERSION = 26;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

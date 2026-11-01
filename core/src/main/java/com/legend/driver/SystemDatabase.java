@@ -135,6 +135,19 @@ public final class SystemDatabase {
         return new Route(s.session, s.renames);
     }
 
+    /** The engine whose system database {@code session} is (the very session object {@link #routeFor} answered), or
+     *  null for any other session: how a body environment on the system database is known (the test-is-the-product
+     *  plan's M10a: its sides' statements then name the system target, {@code JudgePlans.target}). */
+    public synchronized com.legend.model.ConnectionDefinition.@com.legend.base.Nullable DatabaseType engineOf(
+            Sessions.Session session) {
+        for (Map.Entry<com.legend.model.ConnectionDefinition.DatabaseType, Session> e : sessions.entrySet()) {
+            if (e.getValue().session == session) {
+                return e.getKey();
+            }
+        }
+        return null;
+    }
+
     private Session open(com.legend.model.ConnectionDefinition.DatabaseType engine, SqlDialect dialect,
             DatabaseDefinition store, Function<String, List<List<String>>> rowsOf,
             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {

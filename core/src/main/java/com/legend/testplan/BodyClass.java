@@ -18,6 +18,7 @@ import com.legend.compiler.spec.typed.Literals;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCopyInstance;
+import com.legend.compiler.spec.typed.TypedCsvCensus;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.compiler.spec.typed.TypedGetAll;
@@ -30,6 +31,8 @@ import com.legend.compiler.spec.typed.TypedRawSqlRelation;
 import com.legend.compiler.spec.typed.TypedSerialize;
 import com.legend.compiler.spec.typed.TypedSerializeGraph;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.SpecCompiler;
+import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.model.FunctionId;
@@ -37,6 +40,7 @@ import com.legend.model.MappingDefinition;
 import com.legend.planner.BodyPlanner;
 import com.legend.planner.ConnectionLets;
 import com.legend.planner.LetPlanner;
+import com.legend.planner.SystemRoutes;
 import com.legend.planner.FramePlanner;
 import com.legend.planner.ProductStatements;
 import com.legend.compiler.spec.ResultEnvelopeSplice;
@@ -151,10 +155,110 @@ public enum BodyClass {
             // step alone (the M9c audit's F2)
             return null;
         }
-        if (assertProgram(body, scan)) {
+        if (assertProgram(body, scan, systemRouted(body, runtime))) {
             return ASSERT_PROGRAM;
         }
         return frameProgram(body, runtime, scan) ? FRAME_PROGRAM : null;
+    }
+
+    /**
+     * Whether {@code query}'s body is SYSTEM-ROUTED (the test-is-the-product plan's M10a, the narrow M4): some
+     * statement reads the system metamodel store (a system class's {@code all()}, the store's tables, a system
+     * function, a tracked element's row) and no statement reads a user store (a mapped class's {@code all()}, a
+     * user store's table, a {@code from()}, an {@code execute} or a handle over a runtime) -- each through the user
+     * functions it calls, a lambda literal's body left aside (a lambda is a value: the native that runs one against
+     * a store, an execute or a handle, is itself the read the scan names; a lambda handed to a SQL-text generator,
+     * {@code toSQLString(|Product.all()...)}, runs nowhere) -- on a runtime whose engine the platform runs in
+     * process (the system tables keep their names there). The frame, effect and store-write exclusions are the
+     * class's ({@link #of}, {@code assertProgram}), not this predicate's. Such a body's program runs on the graph's
+     * system database, the one session the walk routes each of its sides to; a body mixing the two stores has two
+     * targets and stays on the walk, by name.
+     */
+    public static boolean systemRouted(TypedQuery query, String runtime) {
+        ModelContext ctx = query.context();
+        if (!SystemRoutes.inProcess(ctx, runtime)) {
+            return false;
+        }
+        Set<String> systemClasses = systemClasses(ctx);
+        Map<FunctionId, Boolean> systemMemo = new HashMap<>();
+        Map<FunctionId, Boolean> userMemo = new HashMap<>();
+        boolean system = false;
+        for (TypedSpec statement : query.body()) {
+            if (readsStore(statement, n -> userStoreRead(n, systemClasses, ctx), query.specs(), userMemo)) {
+                return false;
+            }
+            system |= readsStore(statement, n -> anotherWay(n, systemClasses, ctx) == Kind.SYSTEM_READ, query.specs(),
+                    systemMemo);
+        }
+        return system;
+    }
+
+    /**
+     * Whether {@code n} reaches a node {@code read} names (a store's read) through the user functions it calls
+     * ({@code StatementEffects.reaches}' walk, one memo per callee), with two places left aside: a lambda literal's
+     * body (a lambda is a value; the native that runs one against a store -- an execute, a handle, a generator -- is
+     * itself the read {@link #userStoreRead} names) and the arguments of a planning-time native (a handle's or a Java
+     * routine's, {@code NativeFn.Handle}, {@code NativeFn.JavaRoutine}: a mapping or a runtime handed to
+     * {@code executionPlan(...)} or {@code toSQLString(...)} is consumed when the plan or the text is made, never read
+     * as a row of the system store).
+     */
+    static boolean readsStore(TypedSpec n, java.util.function.Predicate<TypedSpec> read, SpecCompiler specs,
+            Map<FunctionId, Boolean> memo) {
+        if (n instanceof TypedLambda) {
+            return false;
+        }
+        if (read.test(n)) {
+            return true;
+        }
+        if (n instanceof TypedNativeCall call && (NativeFn.Handle.of(call.callee().id()).isPresent()
+                || NativeFn.JavaRoutine.of(call.callee().id()).isPresent())) {
+            return false;
+        }
+        if (n instanceof TypedUserCall uc) {
+            FunctionId key = uc.callee().id();
+            Boolean known = memo.get(key);
+            if (known == null) {
+                memo.put(key, false);   // in progress: a cycle scores false
+                boolean reaches = false;
+                try {
+                    for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
+                        if (readsStore(stmt, read, specs, memo)) {
+                            reaches = true;
+                            break;
+                        }
+                    }
+                } catch (com.legend.compiler.spec.TypeInferenceException e) {
+                    // an un-typeable callee executes in no channel; the scan does not decide on it (StatementEffects')
+                }
+                memo.put(key, reaches);
+                known = reaches;
+            }
+            if (known) {
+                return true;
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsStore(c, read, specs, memo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A read of a USER store: a mapped class's extent that is no system class's, a table of a store that is not the
+     *  system store, a {@code from()} (its runtime's), an {@code execute} or a handle over a runtime, a test-data
+     *  generator (it runs against the runtime's database: {@code StatementEffects.containsTdgGenerator}'s natives). */
+    static boolean userStoreRead(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
+        if (n instanceof TypedGetAll all) {
+            return !systemClasses.contains(all.classFqn()) && !SystemMetamodel.isSystemElement(all.classFqn());
+        }
+        if (n instanceof TypedTableReference table) {
+            return !SystemMetamodel.STORE_FQN.equals(table.store());
+        }
+        return n instanceof TypedFrom
+                || n instanceof TypedNativeCall call && (NativeFn.Handle.isExecute(call.callee().id())
+                        || NativeFn.Handle.runsAFrame(call.callee().id())
+                        || StatementEffects.containsTdgGenerator(call));
     }
 
     /** Whether any statement of {@code query} reaches a store write (through the user functions it calls). */
@@ -338,7 +442,7 @@ public enum BodyClass {
         return arg instanceof TypedNativeCall ec && NativeFn.Handle.isExecute(ec.callee().id());
     }
 
-    private static boolean assertProgram(TypedQuery query, QueryDoor.Scan scan) {
+    private static boolean assertProgram(TypedQuery query, QueryDoor.Scan scan, boolean systemRouted) {
         ModelContext ctx = query.context();
         Set<String> systemClasses = systemClasses(ctx);
         Map<FunctionId, Boolean> memo = new HashMap<>();
@@ -352,7 +456,7 @@ public enum BodyClass {
                     && !(statement instanceof TypedLet);
             if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
                     || StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
-                            n -> sideKind(n, systemClasses, ctx) != null, query.specs(), memo)) {
+                            n -> sideKind(n, systemClasses, ctx, systemRouted) != null, query.specs(), memo)) {
                 return false;
             }
             if (assertRoot) {
@@ -441,7 +545,13 @@ public enum BodyClass {
         EXECUTE("execute"), STAGED("staged"), RAW_GRID("raw-grid"), STORE_WRITE("store-write"),
         SYSTEM_READ("system-read"), TEMPORAL("temporal"), OBJECT("object"), GRAPH("graph"),
         /** The one inline shape the splice runs at planning ({@link #eagerInlineExecute}). */
-        EAGER_INLINE_EXECUTE("eager-inline-execute");
+        EAGER_INLINE_EXECUTE("eager-inline-execute"),
+        /** The test-data-generation lane's census carrier ({@code getRelationalCSVDataFromQuery}, the checker's
+         *  {@link TypedCsvCensus}): the walk folds it to instance literals in Java from the model
+         *  ({@code TestDataGenerationNatives.foldCensus}) before the statement is planned; the program road has no
+         *  such fold (M10a's third cut, caught by the corpus: its three census tests moved on the strength of their
+         *  system reads alone and walled at lowering). */
+        CSV_CENSUS("csv-census");
 
         private final String tag;
 
@@ -460,8 +570,12 @@ public enum BodyClass {
      *  T12), a store write; a read of the system metamodel store (M4) -- the extent of a class its mapping binds
      *  ({@code systemClasses}), a table of it, one of its functions, an element used as a value (a mapping, a store:
      *  its instance is the store's row: {@link #systemElementReference}); an object built, a graph answered, a
-     *  temporal class read (their ids, layouts and the exists-join form converge on the product's with MV6). */
+     *  temporal class read (their ids, layouts and the exists-join form converge on the product's with MV6); the
+     *  test-data-generation lane's census carrier, folded in Java on the walk ({@link Kind#CSV_CENSUS}). */
     static @Nullable Kind anotherWay(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
+        if (n instanceof TypedCsvCensus) {
+            return Kind.CSV_CENSUS;
+        }
         if (n instanceof TypedNativeCall call) {
             if (NativeFn.Handle.runsAFrame(call.callee().id())) {
                 return Kind.EXECUTE;
@@ -509,17 +623,28 @@ public enum BodyClass {
 
     /** The kind {@code n} is that keeps an assert statement or a value let of a HOST-judged program off the program
      *  road, named, or null: a read of the system metamodel store (its session is the system database's, which a
-     *  moved body's program does not open until M10a), a store write (run where its side is planned), or the eager
-     *  inline execute (a run at planning). Every other
+     *  moved body's program does not open until M10a), a store write (run where its side is planned), the census
+     *  carrier the walk folds in Java ({@link Kind#CSV_CENSUS}), or the eager inline execute (a run at planning).
+     *  Every other
      *  kind in such a statement is admitted since M9c: the asserts' sides are the walk's own plans on both roads
      *  ({@code HostAsserts} plans them with the walk's planner, let prefix and frames) and a value let sends nothing
      *  on either road, so an object, a graph, a temporal read or a class reference inside one diverges nowhere. */
     static @Nullable Kind sideKind(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
+        return sideKind(n, systemClasses, ctx, false);
+    }
+
+    /** {@link #sideKind(TypedSpec, Set, ModelContext)}; {@code systemRouted}: the body's program runs on the graph's
+     *  system database ({@link #systemRouted}), so a system read is no longer a kind that keeps it on the walk
+     *  (M10a). */
+    static @Nullable Kind sideKind(TypedSpec n, Set<String> systemClasses, ModelContext ctx, boolean systemRouted) {
         Kind kind = anotherWay(n, systemClasses, ctx);
-        if (kind == Kind.SYSTEM_READ || kind == Kind.STORE_WRITE) {
+        if (kind == Kind.SYSTEM_READ && systemRouted) {
+            return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;
+        }
+        if (kind == Kind.SYSTEM_READ || kind == Kind.STORE_WRITE || kind == Kind.CSV_CENSUS) {
             // a store write inside a side or a value let: the side planner runs it where it plans it (the walk at
             // the assert's turn, inside the body's transaction; the program road before the program ran), so it is
-            // the walk's (the M9c audit's F2)
+            // the walk's (the M9c audit's F2); the census carrier: folded by the walk alone (M10a)
             return kind;
         }
         return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;

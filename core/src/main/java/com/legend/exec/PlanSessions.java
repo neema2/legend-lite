@@ -67,7 +67,19 @@ public final class PlanSessions {
     /** {@link #of(Sessions.Session)} whose statements publish each query's execution-trace stamp to {@code trace}
      *  (the body driver's, track B's B1b). */
     public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace) {
-        return target -> Sessions.view(session, trace);
+        return of(session, trace, null);
+    }
+
+    /** {@link #of(Sessions.Session, ExecutionTrace)} where a target naming the graph's SYSTEM database
+     *  ({@link ExecutionPlan.Database.System}) opens {@code system}'s session for it instead -- a non-closing view, as
+     *  the caller's own (the test-is-the-product plan's M10a: the body driver holds the graph's system database,
+     *  opened and written once per graph, and hands it here; the runner knows no database). Null {@code system}: every
+     *  target the caller's session. */
+    public static Source of(Sessions.Session session, @com.legend.base.Nullable ExecutionTrace trace,
+            java.util.function.@com.legend.base.Nullable Function<ExecutionPlan.Database.System, Sessions.Session> system) {
+        return target -> target.database() instanceof ExecutionPlan.Database.System s && system != null
+                ? Sessions.view(system.apply(s), trace)
+                : Sessions.view(session, trace);
     }
 
     /** {@link #of(Sessions.Session)} with {@code target}'s setup run on the session first, once (the plan's seeds, the
@@ -92,6 +104,10 @@ public final class PlanSessions {
     private static Sessions.Session openShared(ExecutionPlan.Target target) {
         Hash key = Hash.ofUtf8(com.legend.executionplan.PlanJson.writeTarget(target));
         return switch (target.database()) {
+            // the graph's system database is the body driver's (opened and written once per graph): it reaches the
+            // runner through a caller's source with a system opener (M10a), never the shared one
+            case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
+                    + " database on " + s.type() + " opens through its holder's sessions source, not the shared one");
             case ExecutionPlan.Database.Platform p -> Sessions.view(SHARED.getOrOpenSlowly(key, Sessions::closed,
                     () -> setUpOpened(Sessions.openPrivate(p.type()), target)));
             case ExecutionPlan.Database.Declared d -> {
@@ -128,6 +144,8 @@ public final class PlanSessions {
      *  user names or the URL reaches (shared: those keep themselves). */
     private static Sessions.Session openOwn(ExecutionPlan.Target target) {
         return switch (target.database()) {
+            case ExecutionPlan.Database.System s -> throw new IllegalStateException("a target naming the graph's system"
+                    + " database on " + s.type() + " is read-only: no plan writes it");
             case ExecutionPlan.Database.Platform p -> setUpOpened(Sessions.openPrivate(p.type()), target);
             case ExecutionPlan.Database.Declared d -> switch (Sessions.openingFor(d.connection())) {
                 case Sessions.Opening.Held h -> setUpOpened(Sessions.openHeld(h), target);

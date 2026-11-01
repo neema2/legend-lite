@@ -655,6 +655,71 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M10a: a SYSTEM-ROUTED assert program -- every store it reads is the graph's system metamodel store (an
+     *  element's row, a mapping's class mappings, a store's tables), no user store -- runs its program on the graph's
+     *  system database, the session the walk routes each of its sides to; under both judges. A body mixing a user
+     *  store's read with a system read stays on the walk (two targets), by name. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void systemRoutedPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        // the graph's system database is opened and seeded ONCE per graph by whichever road first touches it (the
+        // walk's route and the router's program share the one SystemDatabase): seeded here first, so neither run of a
+        // pair carries the seeding's statements in its census -- a run-order fact, not a road difference
+        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", false, "select count(*) from FIRM", FIRM_ROWS);
+        for (String body : List.of(
+                "{| assertEquals('M', x::M.name);}",
+                "{| let m = x::M; assertEquals('M', $m.name); assertSize($m.classMappings, 2);}",
+                "{| assertEquals(['FIRM', 'TFIRM'], x::DB.schemas.tables.name->sort());}",
+                "{| assertEquals(1, x::DB.schemas->size()); 'done';}")) {
+            assertTrue(BodyClass.systemRouted(typed(ctx, body), "x::RT"), "system-routed: " + body);
+            assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.HOST);
+            assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.DATABASE);
+        }
+        // a store-free assert beside a system read: the program has ONE target, so its statement runs on the system
+        // session where the walk ran it on the body's -- the one difference M10a makes for a body (the M10a audit's A):
+        // every outcome, verdict and answer the same; the walk alone sets the body session up (one SESSION statement),
+        // and under the database judge it fuses the two asserts into two statements (one per session) where the
+        // program fuses them into one
+        String storeFree = "{| assertEquals('ABC', 'abc'->toUpper()); assertEquals('M', x::M.name);}";
+        assertTrue(BodyClass.systemRouted(typed(ctx, storeFree), "x::RT"));
+        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
+            Run walked = run(backend, ctx, "x::RT", storeFree, false, "select count(*) from FIRM", FIRM_ROWS, mode);
+            Run moved = run(backend, ctx, "x::RT", storeFree, true, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals(walked.outcome, moved.outcome, "outcome: " + storeFree);
+            assertEquals(walked.answer, moved.answer, "the answer: " + storeFree);
+            assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + storeFree);
+            assertEquals(walked.census, moved.census, "the verdict census: " + storeFree);
+            assertEquals(walked.database, moved.database, "the database left: " + storeFree);
+            long[] w = originsOf(walked.origins);
+            long[] m = originsOf(moved.origins);
+            for (int i = 0; i < w.length; i++) {
+                long allowed = i == StatementOrigin.BODY.ordinal() || i == StatementOrigin.SESSION.ordinal() ? 1 : 0;
+                assertTrue(w[i] - m[i] >= 0 && w[i] - m[i] <= allowed, "the statement-origin census differs beyond"
+                        + " the body session's setup and the per-session fusion: " + storeFree + "\n  walked: "
+                        + walked.statements + "\n  moved:  " + moved.statements);
+            }
+        }
+        // a user store's read beside a system read: two targets, the walk's
+        String mixed = "{| assertEquals('M', x::M.name); assertSize(x::Firm.all(), 2);}";
+        assertFalse(BodyClass.systemRouted(typed(ctx, mixed), "x::RT"));
+        assertNull(BodyClass.of(typed(ctx, mixed), "x::RT", true));
+        // the test-data-generation lane's census carrier (getRelationalCSVDataFromQuery): the walk folds it to
+        // instance literals in Java from the model, the program road has no fold -- the walk's, by name (M10a's third
+        // cut: the corpus's three census tests moved on the strength of their system reads alone and walled at
+        // lowering); in the corpus's shape: the let-bound mapping is the body's one visible store read, the system
+        // store's (the carrier holds its mapping as a name), so the carrier's kind alone keeps the body on the walk
+        String censusBody = "{| let query = {|x::Firm.all()->project([f|$f.name], ['n'])}; let mapping = x::M;"
+                + " let d = meta::relational::testDataGeneration::getRelationalCSVDataFromQuery($query, $mapping);"
+                + " assertEquals(1, $d.tables->size()); assertEquals('FIRM', $d.tables->at(0).table);}";
+        assertTrue(BodyClass.systemRouted(typed(ctx, censusBody), "x::RT"), "system-routed: " + censusBody);
+        assertNull(BodyClass.of(typed(ctx, censusBody), "x::RT", true), "the census carrier stays on the walk");
+        assertEquals("ok", run(backend, ctx, "x::RT", censusBody, false, "select count(*) from FIRM", FIRM_ROWS,
+                ExecuteOptions.JudgeMode.HOST).outcome, "the census body on the walk");
+    }
+
     /** M9c: a frame's activity COMMENT is the trace stamp of its eager run on both roads -- the walk's frame holds the
      *  run's comment as a literal, the pre-planned frame a parameter the run's check step binds (R17 C4) -- so the
      *  sides' texts differ there by design and every other boundary is the same; the moved side carries the stamp
@@ -742,7 +807,8 @@ class BodyRouterParityTest {
         assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
         assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
         assertEquals(walked.answer, moved.answer, "the answer: " + body);
-        assertEquals(walked.origins, moved.origins, "the statement-origin census: " + body);
+        assertEquals(walked.origins, moved.origins, "the statement-origin census: " + body + "\n  walked: "
+                + walked.statements + "\n  moved:  " + moved.statements);
         assertEquals(walked.effects, moved.effects, "the effects census: " + body);
         assertEquals(walked.database, moved.database, "the database left: " + body);
         assertEquals(stampsAsParameters(walked.statements), stampsAsParameters(moved.statements),
@@ -777,6 +843,16 @@ class BodyRouterParityTest {
     private static Run run(TestBackend backend, ModelContext ctx, String body, boolean router, String check)
             throws Exception {
         return run(backend, ctx, RT, body, router, check, List.of());
+    }
+
+    /** The statement-origin deltas a {@link Run} printed ({@code Arrays.toString}), as numbers again. */
+    private static long[] originsOf(String printed) {
+        String[] parts = printed.substring(1, printed.length() - 1).split(", ");
+        long[] out = new long[parts.length];
+        for (int i = 0; i < parts.length; i++) {
+            out[i] = Long.parseLong(parts[i].trim());
+        }
+        return out;
     }
 
     private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body, boolean router,

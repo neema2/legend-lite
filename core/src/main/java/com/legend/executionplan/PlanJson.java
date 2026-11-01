@@ -74,8 +74,10 @@ public final class PlanJson {
      *  verdict group's {@code savepoint} (F11) -- the test-is-the-product plan's M3, B12; 25 since 2026-11-01: a verdict
      *  carries no {@code wantEqual} -- the database judge's row answers holds and message itself and the host judgment
      *  record carries its own polarity (the test-is-the-product plan's M8b, MV2: the plan carries nothing about the
-     *  assert but the listener's name and the census arm). */
-    public static final int VERSION = 25;
+     *  assert but the listener's name and the census arm); 26 since 2026-11-01: a target's database may be the graph's
+     *  SYSTEM database on an engine ({@code system}: a test body reading the metamodel store, the test-is-the-product
+     *  plan's M10a). */
+    public static final int VERSION = 26;
 
     private PlanJson() {
     }
@@ -92,7 +94,7 @@ public final class PlanJson {
 
     enum BindingTag { one, array, key }
 
-    enum DatabaseTag { declared, platform }
+    enum DatabaseTag { declared, platform, system }
 
     enum ServersTag { every, versions }
 
@@ -395,6 +397,10 @@ public final class PlanJson {
                 o.put("_type", DatabaseTag.platform.name());
                 o.put("databaseType", p.type().name());
             }
+            case ExecutionPlan.Database.System s -> {
+                o.put("_type", DatabaseTag.system.name());
+                o.put("databaseType", s.type().name());
+            }
         }
         return o;
     }
@@ -684,6 +690,8 @@ public final class PlanJson {
         return switch (tag(DatabaseTag.class, o, "database")) {
             case declared -> new ExecutionPlan.Database.Declared(ConnectionWire.read(fields(o.getObj("connection"))));
             case platform -> new ExecutionPlan.Database.Platform(
+                    ConnectionWire.databaseType(o.getString("databaseType")));
+            case system -> new ExecutionPlan.Database.System(
                     ConnectionWire.databaseType(o.getString("databaseType")));
         };
     }

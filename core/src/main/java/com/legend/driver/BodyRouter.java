@@ -57,11 +57,29 @@ public final class BodyRouter {
         // a body holding an assert of a shape the judge's planner does not plan yet has none, and the walk runs it (a
         // named rule over its shape: AssertVerdicts.planHost; the database arms answering null)
         boolean assertsPlanned = bodyClass == BodyClass.ASSERT_PROGRAM || bodyClass == BodyClass.FRAME_PROGRAM;
+        // a SYSTEM-ROUTED assert program (M10a): every store it reads is the graph's system metamodel store, so its
+        // asserts are planned on the system database's session (the walk's route for each side) and its program's
+        // target is that database, which the sessions source below opens -- the same session object, seeded once per
+        // graph
+        boolean systemRouted = bodyClass == BodyClass.ASSERT_PROGRAM
+                && BodyClass.systemRouted(typed, java.util.Objects.requireNonNull(runtimeFqn));
+        SystemDatabase.Route systemRoute = null;
         HostAsserts host = null;
         DatabaseAsserts database = null;
         if (assertsPlanned) {
             BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, java.util.Objects.requireNonNull(runtimeFqn), dialect,
                     session, listener, referee, options);
+            if (systemRouted) {
+                com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(), runtimeFqn);
+                systemRoute = BodyDriver.systemRoute(env, route);
+                // the session names the store's tables as the plan is written (the walk's check, openRoute): in
+                // process neither renames; a server engine is refused by the class rule before this
+                if (!systemRoute.renames().equals(com.legend.planner.SystemRoutes.renames(route))) {
+                    throw new IllegalStateException("the system database on " + route.engine() + " names the store's"
+                            + " tables " + systemRoute.renames() + ", its plan " + com.legend.planner.SystemRoutes.renames(route));
+                }
+                env = env.withSession(systemRoute.session());
+            }
             if (mode == ExecuteOptions.JudgeMode.HOST) {
                 host = HostAsserts.plan(typed, runtimeFqn, env);
             } else {
@@ -80,7 +98,7 @@ public final class BodyRouter {
         }
         Census.inc(Census.Key.BODIES_MOVED);
         TestDoor.Planned planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version(),
-                asserts == null ? TestDoor.Asserts.NONE : asserts);
+                asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted);
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
         // program has run, as the walk answers a folded value at the body's end
@@ -90,7 +108,9 @@ public final class BodyRouter {
         try {
             Moved moved = new Moved(planned, dialect, options.recorder(), answer, early, toOneReader(typed), host,
                     database, listener);
-            PlanRunner.program(plan, Map.of(), PlanSessions.of(session),
+            Sessions.Session system = systemRoute == null ? null : systemRoute.session();
+            PlanRunner.program(plan, Map.of(),
+                    PlanSessions.of(session, null, system == null ? null : target -> system),
                     database != null ? PlanRunner.Judging.DATABASE : PlanRunner.Judging.HOST, moved);
             if (answer != null && asserts != null && asserts.at(typed.body().size() - 1) != null) {
                 // a body whose last statement is an assert answers its verdict as host rows, as the walk does

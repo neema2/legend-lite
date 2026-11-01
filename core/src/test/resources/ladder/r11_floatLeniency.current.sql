@@ -20,7 +20,9 @@ WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.*
   ) AS s), __sl_0 AS (SELECT 0 AS __ne, 0 AS __na, COUNT(CASE WHEN NOT ((__e.__c IS NOT DISTINCT FROM __a.__c) OR __e.__v IS NOT NULL AND __a.__v IS NOT NULL AND abs(__e.__v) <= 1.7976931348623157E308 AND abs(__a.__v) <= 1.7976931348623157E308 AND abs(__e.__v - __a.__v) <= CASE WHEN greatest(abs(__e.__v), abs(__a.__v)) = CAST(0.0 AS DOUBLE) THEN CAST(0.0 AS DOUBLE) ELSE CAST(2.0 AS DOUBLE) * power(CAST(2.0 AS DOUBLE), CAST(floor((CAST(ln(greatest(abs(__e.__v), abs(__a.__v))) AS DOUBLE) / CAST(ln(CAST(2.0 AS DOUBLE)) AS DOUBLE))) AS BIGINT) - 52) END) THEN 1 END) AS __bad
   FROM __e_0 AS __e
   JOIN __a_0 AS __a ON __e.__rn = __a.__rn)
-SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) OR e.__n = a.__n AND l.__bad = 0 AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, NOT (e.__text IS NOT DISTINCT FROM a.__text) AND e.__n = a.__n AND l.__bad = 0 AS __lenient
+SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) OR e.__n = a.__n AND l.__bad = 0 AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, NOT (e.__text IS NOT DISTINCT FROM a.__text) AND e.__n = a.__n AND l.__bad = 0 AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) OR e.__n = a.__n AND l.__bad = 0 AS __holds, concat('assertSameElements
+expected: ', coalesce(CAST(e.__text AS VARCHAR), 'null'), '
+actual:   ', coalesce(CAST(a.__text AS VARCHAR), 'null')) AS __message
 FROM __se_0 AS e
 CROSS JOIN __sa_0 AS a
 CROSS JOIN __sl_0 AS l

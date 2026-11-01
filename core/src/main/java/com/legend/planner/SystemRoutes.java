@@ -25,6 +25,14 @@ public final class SystemRoutes {
             com.legend.model.DatabaseDefinition store) {
     }
 
+    /** Whether {@code runtimeFqn} executes on an engine the platform runs IN PROCESS (DuckDB, H2, SQLite), where the
+     *  system store's tables keep their own names ({@link #renames} is empty): the engines the test door's program may
+     *  name the graph's system database on (the test-is-the-product plan's M10a; a server engine's temporary names
+     *  wait for the program road's renames). */
+    public static boolean inProcess(com.legend.compiler.element.ModelContext ctx, String runtimeFqn) {
+        return com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(ctx, runtimeFqn).type()).inProcess();
+    }
+
     /** {@code body}'s route, or null when it reads no system store. */
     public static @com.legend.base.Nullable Route of(java.util.List<TypedSpec> body, PlanEnv env) {
         java.util.Set<String> stores = new java.util.TreeSet<>();

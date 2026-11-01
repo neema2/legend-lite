@@ -55,6 +55,33 @@ final class ProgramRunnerTest {
         return PlanSessions.setUp(TestSessions.over(conn), target);
     }
 
+    /** The test-is-the-product plan's M10a: a target naming the graph's SYSTEM database opens the session its holder
+     *  hands the source for it (a non-closing view), every other target the caller's own; the shared source and a
+     *  writing open refuse a System target by name (the runner knows no database). */
+    @Test
+    void aSystemTargetOpensTheSystemOpenersSession() throws Exception {
+        try (Connection other = TestBackends.platform().open()) {
+            Sessions.Session body = TestSessions.over(conn);
+            Sessions.Session system = TestSessions.over(other);
+            ExecutionPlan.Target systemTarget = new ExecutionPlan.Target(
+                    new ExecutionPlan.Database.System(Databases.PLATFORM), new ExecutionPlan.Servers.Every(),
+                    List.of(), List.of());
+            PlanSessions.Source source = PlanSessions.of(body, null, s -> system);
+            assertEquals(Sessions.identity(system), Sessions.identity(source.open(systemTarget)),
+                    "the System target opens the opener's session");
+            assertEquals(Sessions.identity(body), Sessions.identity(source.open(target)),
+                    "any other target the caller's own");
+            assertEquals(Sessions.identity(body), Sessions.identity(PlanSessions.of(body, null, null).open(systemTarget)),
+                    "no opener: the caller's own for every target");
+            var refused = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                    () -> PlanSessions.shared().open(systemTarget));
+            assertTrue(refused.getMessage().contains("system database"), refused.getMessage());
+            var refusedWrite = org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                    () -> PlanSessions.shared().openToChange(systemTarget));
+            assertTrue(refusedWrite.getMessage().contains("read-only"), refusedWrite.getMessage());
+        }
+    }
+
     private static ExecutionPlan.Column col(String name, String type, String slot) {
         return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(1, 1), slot, null, null);
     }

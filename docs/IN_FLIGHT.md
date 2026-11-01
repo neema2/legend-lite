@@ -3020,7 +3020,16 @@ folded (the plan's §9 "M8a"): `driver/HostJudgment.java` (new), `HostJudge.java
 (`SelfContained`, `Judge.judge(name, row)`, `Pending` without polarity), `driver/DatabaseJudge.java` (`verdictOf(name,
 row)`), `BodyDriver.java`, `HostSides.java`, `HostAsserts.java`; `executionplan/ExecutionPlan.java` (`Verdict` without
 `wantEqual`), `PlanJson.java` (25); the tests (`ProgramRunnerTest`, `PlanJsonTest`, `PlanRoundTrip`,
-`JavaEvalLedgerTest`). Next: M8c (the canon over the product columns, MV4), then M10a-d, Z, in this session.
+`JavaEvalLedgerTest`). **M8c OPEN 2026-11-01** (a design question posted:
+`docs/test-is-product-homework/M8C_DESIGN_QUESTION.md`; the identity lane unchanged until the ruling). **M10a built
+2026-11-01 (D113)**: `executionplan/ExecutionPlan.java` (`Database.System`), `PlanJson.java` (26);
+`exec/PlanSessions.java` (the system opener); `planner/SystemRoutes.java` (`inProcess`), `PlanMaker.java`
+(`testProgram(..., systemRouted)`); `testplan/BodyClass.java` (`systemRouted`, `readsStore`, `userStoreRead`,
+`sideKind(..., routed)`, `Kind.CSV_CENSUS`), `TestDoor.java`; `driver/BodyRouter.java`, `BodyDriver.java` (`systemRoute`,
+`systemRouteOf`), `JudgePlans.java` (`target`), `SystemDatabase.java` (`engineOf`); the tests
+(`BodyRouterParityTest.systemRoutedPrograms`, `PlanJsonTest`, `PlanRoundTrip`, `ProgramRunnerTest`,
+`JavaEvalLedgerTest`); with it M8b's omissions (the ladder goldens, `ratchets.tsv`, engine-client's `PLAN_VERSION`
+26). Next: M10b (the engine-text asserts on every lane), M10c, M10d, Z, in this session; M8c awaits the user's ruling.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

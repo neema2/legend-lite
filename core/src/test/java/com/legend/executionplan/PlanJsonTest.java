@@ -111,6 +111,17 @@ class PlanJsonTest {
     }
 
     @Test
+    void theGraphsSystemDatabaseReadsBack() {
+        // the test-is-the-product plan's M10a: a test body reading the metamodel store runs on the graph's system
+        // database on its engine; the plan names it by type alone (the one who opens it holds the session)
+        Target t = new Target(new Database.System(Databases.PLATFORM), new Servers.Every(), List.of(), List.of());
+        ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+                new Sql("select 1", List.of(), t, null)));
+        assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+        assertTrue(PlanJson.write(plan).contains("\"_type\":\"system\""), PlanJson.write(plan));
+    }
+
+    @Test
     void aStatementWrittenForSomeServerVersionsNamesOne() {
         var refused = assertThrows(IllegalArgumentException.class, () -> new Servers.Versions(List.of()));
         assertTrue(refused.getMessage().contains("names at least one"), refused.getMessage());
@@ -140,14 +151,14 @@ class PlanJsonTest {
         // folded flag (S2f); 22 the same day: a keyed result's key source, a statement's rows or its reported columns
         // (S3c, a raw grid's); 23 since 2026-10-31: the constant node (the test-is-the-product plan's M2, MV12); 24 the
         // same day: an effect's script, the seed step, a verdict group's savepoint (M3b, B12)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":25,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":26,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v25 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v26 plan"), refused.getMessage());
     }
 
     @Test

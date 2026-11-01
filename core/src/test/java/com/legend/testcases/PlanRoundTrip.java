@@ -168,6 +168,7 @@ public final class PlanRoundTrip {
         DatabaseType type = switch (sql.target().database()) {
             case ExecutionPlan.Database.Declared d -> d.connection().databaseType();
             case ExecutionPlan.Database.Platform p -> p.type();
+            case ExecutionPlan.Database.System sys -> sys.type();
         };
         RenderedStatement rendered = Databases.dialect(type).renderStatement(sql.tree());
         assertEquals(sql.statement(), rendered.sql(), what + ": the tree read back renders differently");

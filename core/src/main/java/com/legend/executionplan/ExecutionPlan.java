@@ -839,8 +839,9 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
         }
     }
 
-    /** The database a target runs on: one a connection declares, or the platform's own engine. */
-    public sealed interface Database permits Database.Declared, Database.Platform {
+    /** The database a target runs on: one a connection declares, the platform's own engine, or the graph's system
+     *  database on an engine. */
+    public sealed interface Database permits Database.Declared, Database.Platform, Database.System {
 
         /** The database's type: what its session must be. */
         ConnectionDefinition.DatabaseType type();
@@ -862,6 +863,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
          *  (docs/SEMANTICS_REGISTER.md S27). */
         record Platform(ConnectionDefinition.DatabaseType type) implements Database {
             public Platform {
+                Objects.requireNonNull(type, "type");
+            }
+        }
+
+        /** THE GRAPH'S SYSTEM DATABASE on {@code type} (the test-is-the-product plan's M10a, the narrow M4,
+         *  2026-11-01): the metamodel store's tables, written once per graph by the one who opens it -- the sessions
+         *  source a caller hands the runner; the runner knows no database (the user ruling of 2026-09-02: separate
+         *  from every user connection). A test body reading the metamodel store runs its program here; the product's
+         *  own metamodel carriage is unchanged (the user, 2026-11-01: a product follow-up). */
+        record System(ConnectionDefinition.DatabaseType type) implements Database {
+            public System {
                 Objects.requireNonNull(type, "type");
             }
         }

@@ -104,8 +104,17 @@ public final class TestDoor {
      *  them. */
     public static Planned planned(TypedQuery body, String runtime, Set<Feature> features,
             @Nullable String serverVersion, Asserts asserts) {
+        return planned(body, runtime, features, serverVersion, asserts, false);
+    }
+
+    /** {@link #planned(TypedQuery, String, Set, String, Asserts)}; {@code systemRouted}: the body reads the system
+     *  metamodel store and nothing else ({@code BodyClass.systemRouted}), so its program's target is the graph's
+     *  SYSTEM database on the runtime's engine ({@link ExecutionPlan.Database.System}; the test-is-the-product plan's
+     *  M10a), which the caller's sessions source opens. */
+    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features,
+            @Nullable String serverVersion, Asserts asserts, boolean systemRouted) {
         TestKinds kinds = new TestKinds(body, runtime, asserts);
-        ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, serverVersion, kinds);
+        ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, serverVersion, kinds, systemRouted);
         List<ExecutionPlan.Node> steps = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
                 : List.of(plan.root());
         Map<Integer, Effect> effects = byStep(steps, kinds.effects());

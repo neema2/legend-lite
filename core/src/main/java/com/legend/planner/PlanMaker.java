@@ -107,7 +107,7 @@ public final class PlanMaker {
             // 2026-10-26), a sequence of steps on one session
             return new ExecutionPlan(declarations(declared, query.context()),
                     program(query, runtime, slots, features, serverVersion, ProgramState.Door.QUERY,
-                            NO_TEST_KINDS));
+                            NO_TEST_KINDS, false));
         }
         // the product's statement road (M2, B11); a value the program wrote is answered as a constant, nothing sent
         // a query's inline execute(...) reads are frames too (D15, M3f): their activities' stamps the statement's own
@@ -274,13 +274,16 @@ public final class PlanMaker {
      * whatever it holds, each statement holding a test's kind planned by {@code kinds} -- the test-planning
      * library's, its one caller (ArchitectureTest pins it) -- on {@code runtime}, for a session whose server is
      * {@code serverVersion}. Its target carries no setup (R17 C6): a test's seeds are steps of its own program.
+     * {@code systemRouted}: the body's statements read the graph's system metamodel store and no user store, so the
+     * program's target is the SYSTEM database on the runtime's engine (the test-is-the-product plan's M10a).
      */
     public static ExecutionPlan testProgram(TypedQuery query, String runtime,
             Set<Feature> features, @Nullable String serverVersion,
-            ProgramKinds kinds) {
+            ProgramKinds kinds, boolean systemRouted) {
         List<QueryParameters.Declared> declared = query.parameters();
         return new ExecutionPlan(declarations(declared, query.context()),
-                program(query, runtime, slots(declared), features, serverVersion, ProgramState.Door.TEST, kinds));
+                program(query, runtime, slots(declared), features, serverVersion, ProgramState.Door.TEST, kinds,
+                        systemRouted));
     }
 
     /** Each declared parameter as the value its statement binds: one value, an optional one's absence, or a list as
@@ -307,13 +310,15 @@ public final class PlanMaker {
     private static ExecutionPlan.Node program(TypedQuery query, @Nullable String runtime,
             List<SqlExpr.PlanParam> slots,
             Set<Feature> features, @Nullable String serverVersion,
-            ProgramState.Door door, ProgramKinds kinds) {
+            ProgramState.Door door, ProgramKinds kinds, boolean systemRouted) {
         Decided decided = decide(query.context(), runtime, serverVersion);
-        // a program reads no system metamodel table (Class.all() inside a write program is not designed); the test
-        // door's target carries no setup (R17 C6)
+        // a product program reads no system metamodel table (Class.all() inside a write program is not designed); the
+        // test door's target carries no setup (R17 C6), and names the graph's SYSTEM database where the body reads the
+        // metamodel store (M10a: the system tables keep their names in process; the opener seeds them once per graph)
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
-                ? new ExecutionPlan.Target(database(decided.target()), decided.servers(),
-                        decided.dialect().sessionSetup(), List.of())
+                ? new ExecutionPlan.Target(systemRouted
+                        ? new ExecutionPlan.Database.System(decided.target().type()) : database(decided.target()),
+                        decided.servers(), decided.dialect().sessionSetup(), List.of())
                 : target(decided.target(), Objects.requireNonNull(runtime), query.context(), decided.dialect(),
                         decided.servers(), Metamodel.NONE);
         List<TypedSpec> body = query.body();

@@ -54,6 +54,14 @@ final class JudgePlans {
      * that opened it ({@link Execution#dialectOf}), and the judge's plan runs within it ({@link PlanSessions#of}).
      */
     static ExecutionPlan.Target target(BodyDriver.ExecEnv env) {
+        com.legend.model.ConnectionDefinition.DatabaseType system = SystemDatabase.of(env.ctx()).engineOf(env.session());
+        if (system != null) {
+            // the environment runs on the graph's system database (the walk's route, BodyDriver.openRoute, or a
+            // system-routed body's program, M10a): its statements name that target, so a program of such sides and
+            // its steps share the one target the runner requires
+            return new ExecutionPlan.Target(new ExecutionPlan.Database.System(system),
+                    PlanMaker.serversFor(system, env.session().version()), env.dialect().sessionSetup(), List.of());
+        }
         return target(Compiler.executesOn(env.ctx(), env.runtimeFqn()), env.session().version(), env.dialect());
     }
 

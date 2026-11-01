@@ -5,6 +5,8 @@ WITH __se_0 AS (SELECT coalesce(CAST(value AS VARCHAR), '[]') AS __text, CASE WH
   LEFT OUTER JOIN (
     SELECT 3 AS value
   ) AS side ON TRUE)
-SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient
+SELECT 0 AS __ix, (e.__text IS NOT DISTINCT FROM a.__text) AS __verdict, e.__text AS __expected, a.__text AS __actual, CASE WHEN e.__nulls > 0 OR a.__nulls > 0 THEN 'null-canon-cell' WHEN e.__trees > 0 OR a.__trees > 0 THEN 'unclaimable tree cell' END AS __unjudged, FALSE AS __lenient, (e.__text IS NOT DISTINCT FROM a.__text) AS __holds, concat('assertEquals
+expected: ', coalesce(CAST(e.__text AS VARCHAR), 'null'), '
+actual:   ', coalesce(CAST(a.__text AS VARCHAR), 'null')) AS __message
 FROM __se_0 AS e
 CROSS JOIN __se_0 AS a

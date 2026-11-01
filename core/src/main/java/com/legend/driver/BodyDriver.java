@@ -760,15 +760,30 @@ public final class BodyDriver {
         if (route == null) {
             return env;
         }
-        ModelContext ctx = env.ctx();
-        SystemDatabase.Route opened = SystemDatabase.of(ctx).routeFor(route.engine(), env.dialect(), route.store(),
-                table -> MetamodelSeeds.rows(table, ctx), env.options().systemConnections());
+        SystemDatabase.Route opened = systemRoute(env, route);
         java.util.Map<String, String> planned = com.legend.planner.SystemRoutes.renames(route);
         if (!opened.renames().equals(planned)) {
             throw new IllegalStateException("the system database on " + route.engine() + " names the store's tables "
                     + opened.renames() + ", its plan " + planned);
         }
         return env.withSession(opened.session());
+    }
+
+    /** The graph's system database for {@code route}'s engine, opened and written once per graph ({@link SystemDatabase}):
+     *  the walk's route ({@link #openRoute}) and a system-routed body's program (the router, M10a) open the same
+     *  session object. */
+    static SystemDatabase.Route systemRoute(ExecEnv env, com.legend.planner.SystemRoutes.Route route) {
+        ModelContext ctx = env.ctx();
+        return SystemDatabase.of(ctx).routeFor(route.engine(), env.dialect(), route.store(),
+                table -> MetamodelSeeds.rows(table, ctx), env.options().systemConnections());
+    }
+
+    /** The system store's route for a body the class rule found system-routed ({@code BodyClass.systemRouted}):
+     *  the runtime's engine and the system metamodel store. */
+    static com.legend.planner.SystemRoutes.Route systemRouteOf(ModelContext ctx, String runtimeFqn) {
+        var store = ctx.findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN).orElseThrow(() ->
+                new IllegalStateException("the system metamodel store is not in the model — injection regressed"));
+        return new com.legend.planner.SystemRoutes.Route(com.legend.Compiler.executesOn(ctx, runtimeFqn).type(), store);
     }
 
     /** A write into a store table: its body lowered to the DML statement (Lowerer.lowerStoreWrite), rendered by the
