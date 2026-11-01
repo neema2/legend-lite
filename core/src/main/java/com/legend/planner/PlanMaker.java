@@ -76,9 +76,11 @@ import java.util.function.Function;
  */
 public final class PlanMaker {
 
+    /** The query door's: no statement is a test's kind (its test-only kinds were refused before, QueryDoor). */
+    private static final ProgramKinds NO_TEST_KINDS = (program, index, statement, last) -> false;
+
     /** The query door's program: no statement is the test-planning library's (the door refused every test-only kind
      *  first, {@link QueryDoor}). */
-    private static final ProgramKinds NO_TEST_KINDS = (program, index, statement, last) -> false;
 
     private PlanMaker() {
     }
@@ -126,7 +128,7 @@ public final class PlanMaker {
         // metamodel table on a server read by its session name (Metamodel.renames)
         SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
-                stampedIfRead(typed(l.root(), lowered, dialect, target), frames.ownStamp()));
+                stampedIfRead(typed(l.root(), lowered, dialect, target), st.reads().ownStamp()));
     }
 
     /** {@code slots} and the stamp parameters of {@code frames}, which every statement's lowering binds. */
@@ -338,11 +340,11 @@ public final class PlanMaker {
                 withStamps(state.slots(), state.frames()), state.sites());
         SqlQuery q = FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
                 ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
-                        sp.env()))), state.frames().definitions());
+                        sp.env()))), st.reads().definitions());
         TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
         ExecutionPlan.Sql stagedSql = sql(state.dialect().renderStatement(SqlDml.CreateTempTableAs
                 .staged(table, q, StagedRows.columns(rowsRoot.info()))), state.target(), null);
-        String own = state.frames().ownStamp();
+        String own = st.reads().ownStamp();
         if (own != null && reads(stagedSql, own)) {
             // a write is sent with no trace comment (the M3 audit's B7c)
             throw new NotImplementedException("a staged let's rows read an inline"
@@ -398,7 +400,7 @@ public final class PlanMaker {
         SqlQuery q = state.lowered(st, last);
         TypedSpec answer = p.body().get(p.body().size() - 1);
         state.add(stampedIfRead(last ? typed(answer, q, dialect, target)
-                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), state.frames().ownStamp()));
+                : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), st.reads().ownStamp()));
     }
 
     /** The program's steps, finished: a frame's run binds its stamp only where a later statement reads it (the M3

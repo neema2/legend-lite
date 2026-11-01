@@ -101,7 +101,7 @@ public final class ProgramState {
         // the frames it reads as their CTE defined ahead of it (M3g)
         return FrameCtes.attach(EnumValueTables.apply(ProductStatements.lower(query,
                 ProductStatements.planned(st), st.temporal(), last, PlanMaker.withStamps(slots, frames), sites)),
-                frames.definitions());
+                st.reads().definitions());
     }
 
     /** {@code q} written in the program's dialect for its target. */

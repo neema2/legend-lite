@@ -19,6 +19,7 @@ import com.legend.sql.SqlQuery;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -60,29 +61,33 @@ public final class ProgramFrames {
         }
     }
 
+    /** What ONE statement read of the program's frames, frozen once its inlining ended: the stamp it binds itself
+     *  (an inline lazy frame it runs; null when it runs none) and the CTE definitions it references, by CTE name, in
+     *  first-read order (the frames it reads more than once, M3g). A value: nothing reads "the last statement's"
+     *  facts from the program. */
+    public record Reads(@Nullable String ownStamp, Map<String, SqlQuery> definitions) {
+        /** A statement that read no frame. */
+        public static final Reads NONE = new Reads(null, Map.of());
+
+        public Reads {
+            definitions = Collections.unmodifiableMap(new LinkedHashMap<>(definitions));
+        }
+    }
+
     private final Map<String, Frame> frames = new LinkedHashMap<>();
     /** The program's handle and activity rows, shared by its statements. */
     private final Map<String, Map<String, List<List<String>>>> planRows = new LinkedHashMap<>();
     /** Every stamp parameter minted, in order: each statement's lowering binds them all. */
     private final List<String> stamps = new ArrayList<>();
-    /** The stamp the statement being planned binds itself (an inline lazy frame it reads), or null. */
-    private @Nullable String ownStamp;
-    /** The frames the statement being planned reads as their CTE (it reads each more than once, M3g). */
-    private final Set<String> asCte = new LinkedHashSet<>();
-    /** The statement being planned's reads of each frame, by name. */
-    private final Map<String, Integer> reads = new LinkedHashMap<>();
-    /** The CTE definitions the statement being planned references, by CTE name, in first-read order. */
-    private final Map<String, SqlQuery> definitions = new LinkedHashMap<>();
     /** The lets the frames' chains consumed (the query lambda's own, a graph-tree qualifier's argument keeping its
      *  spelling): a statement that reads one free -- a frame's eager run, its CTE, a reader -- binds it (the M3 audit's
      *  B6; the walk's environment shared them across the body). */
     private final Map<String, TypedSpec> consumed = new LinkedHashMap<>();
-    /** The call sites whose activity rows the statement being planned registered by its own inline lazy run: a later
-     *  statement's run of the same call site (a helper called twice) registers its own, with its own stamp (the M3
-     *  audit's B7d). A site a frame let registered keeps the let's rows -- its own CTE's planning asks for the same
-     *  site again -- so an inline run of a let's call site reads the let's stamp (no corpus body runs one call site
-     *  both ways). */
-    private final Set<String> inlineRuns = new LinkedHashSet<>();
+    /** The call sites whose activity rows an INLINE run registered (never a frame let's): their rows are their most
+     *  recent run's, so a later statement that runs one again registers its own, with its own stamp (a helper called
+     *  twice; the M3 audit's B7d). A frame let's rows stay the let's -- its own CTE's planning asks for the same site
+     *  again -- so an inline run of a let's call site reads the let's stamp (no corpus body runs one site both ways). */
+    private final Set<String> inlineRunSites = new HashSet<>();
 
     ProgramFrames() {
     }
@@ -137,36 +142,16 @@ public final class ProgramFrames {
         return out;
     }
 
-    /** A statement begins: it binds no stamp of its own yet, reads no frame. */
-    void startStatement() {
-        inlineRuns.forEach(planRows::remove);
-        inlineRuns.clear();
-        ownStamp = null;
-        asCte.clear();
-        reads.clear();
-        definitions.clear();
+    /** The renames each frame runs its query under, by the frame's name ({@link FramePlanner#renames}). */
+    Map<String, Map<String, String>> renames() {
+        Map<String, Map<String, String>> out = new LinkedHashMap<>();
+        frames.forEach((name, f) -> out.put(name, f.tableReplace()));
+        return out;
     }
 
-    /** A second planning of the statement, the frames it read more than once read as their CTE (B10's rule, per
-     *  statement: a frame read once is pasted where it is read); false when none is (one planning suffices). A read
-     *  is a paste of the frame's chain in {@code body}, the statement as first inlined -- the hook is asked for a frame
-     *  by its other readers too (its activities, its SQL text, its size), which paste nothing (the M3 audit's B4). */
-    boolean readAgainWithCtes(List<TypedSpec> body) {
-        Set<String> twice = new LinkedHashSet<>();
-        reads.forEach((name, n) -> {
-            Frame f = frames.get(name);
-            if (f != null && f.readsAsCte() && pastes(body, f.chain()) > 1) {
-                twice.add(name);
-            }
-        });
-        if (twice.isEmpty()) {
-            return false;
-        }
-        String own = ownStamp;
-        startStatement();
-        ownStamp = own;
-        asCte.addAll(twice);
-        return true;
+    /** The recorder of a statement after {@code letPrefix}, planned on {@code env}, for its first inlining. */
+    Recorder recorder(List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env) {
+        return new Recorder(letPrefix, specs, env, null, Set.of());
     }
 
     /** How many times {@code chain} (by identity: a pasted read places the frame's chain itself) stands in
@@ -185,85 +170,121 @@ public final class ProgramFrames {
         return n;
     }
 
-    /** The CTE definitions the statement just planned references (FrameCtes.attach's), by CTE name. */
-    public Map<String, SqlQuery> definitions() {
-        return Collections.unmodifiableMap(definitions);
-    }
+    /**
+     * ONE INLINING'S READS of the program's frames -- the splice hook the inliner calls, re-entrantly, as it inlines a
+     * statement. A recorder with one owner, the statement's preparation, which freezes it ({@link #reads}) when the
+     * inlining ends; a second inlining of the statement (its frames read as their CTE) is a recorder of its own
+     * ({@link #again}). The program's facts it adds to -- a stamp minted, an inline run's activity rows -- are the
+     * program's, kept by {@link ProgramFrames}.
+     */
+    final class Recorder implements ResultEnvelopeSplice.Frames {
+        private final List<TypedSpec> letPrefix;
+        private final SpecCompiler specs;
+        private final PlanEnv env;
+        /** The frames this inlining reads by reference to their CTE (the statement reads each more than once). */
+        private final Set<String> asCte;
+        /** The stamp this statement binds itself (an inline lazy frame it runs), or null. */
+        private @Nullable String ownStamp;
+        /** The frames this inlining asked for, in first-ask order (the hook is asked by every reader of a frame). */
+        private final Set<String> asked = new LinkedHashSet<>();
+        /** The CTE definitions this inlining references, by CTE name, in first-read order. */
+        private final Map<String, SqlQuery> definitions = new LinkedHashMap<>();
+        /** The call sites this inlining ran inline (each registers its rows once). */
+        private final Set<String> ran = new HashSet<>();
 
-    /** The stamp the statement just planned binds itself, or null. */
-    @Nullable String ownStamp() {
-        return ownStamp;
-    }
+        private Recorder(List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env, @Nullable String ownStamp,
+                Set<String> asCte) {
+            this.letPrefix = letPrefix;
+            this.specs = specs;
+            this.env = env;
+            this.ownStamp = ownStamp;
+            this.asCte = Collections.unmodifiableSet(new LinkedHashSet<>(asCte));
+        }
 
-    /** The renames each frame runs its query under, by the frame's name ({@link FramePlanner#renames}). */
-    Map<String, Map<String, String>> renames() {
-        Map<String, Map<String, String>> out = new LinkedHashMap<>();
-        frames.forEach((name, f) -> out.put(name, f.tableReplace()));
-        return out;
-    }
+        /** What this inlining read, frozen. */
+        Reads reads() {
+            return new Reads(ownStamp, definitions);
+        }
 
-    /** The splice hook's frames for a statement after {@code letPrefix}, planned on {@code env}. */
-    ResultEnvelopeSplice.Frames reads(List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env) {
-        return new ResultEnvelopeSplice.Frames() {
-            @Override
-            public ResultEnvelopeSplice.@Nullable View frame(String name) {
+        /** The recorder of a second inlining of the statement, the frames this one's {@code body} pastes more than
+         *  once read as their CTE (B10's rule, per statement: a frame read once is pasted where it is read); null when
+         *  none is (one inlining suffices). A read is a paste of the frame's chain in {@code body}, the statement as
+         *  first inlined -- the hook is asked for a frame by its other readers too (its activities, its SQL text, its
+         *  size), which paste nothing (the M3 audit's B4). The second inlining binds the same stamp. */
+        @Nullable Recorder again(List<TypedSpec> body) {
+            Set<String> twice = new LinkedHashSet<>();
+            for (String name : asked) {
                 Frame f = frames.get(name);
-                if (f == null) {
-                    return null;
+                if (f != null && f.readsAsCte() && pastes(body, f.chain()) > 1) {
+                    twice.add(name);
                 }
-                reads.merge(name, 1, Integer::sum);
-                if (!asCte.contains(name)) {
-                    return new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source());
-                }
-                // read by REFERENCE: its planned CTE, defined ahead of the statement (a class frame's is its extent
-                // rows, a relation frame's its plan), its aliases under the frame's own prefix (the walk's)
-                String cteName = "frame_" + name;
-                definitions.computeIfAbsent(cteName, n -> AliasPrefix.apply(
-                        AliasPrefix.frameBody(name), f.cte().extentRows() != null
-                                ? f.cte().extentRows() : Objects.requireNonNull(f.cte().plan())));
-                return new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source(), cteName,
-                        f.cte().plan(), f.cte().plannedInfo());
             }
+            return twice.isEmpty() ? null : new Recorder(letPrefix, specs, env, ownStamp, twice);
+        }
 
-            @Override
-            public ResultEnvelopeSplice.View inlineExecute(TypedNativeCall ec, boolean eager) {
-                if (eager) {
-                    throw new NotImplementedException("an execute(...) run where it stands, its"
-                            + " result the value asked for: planned at the test-is-the-product plan's M9; a query"
-                            + " reads an execute(...)'s result through it (->values)");
+        @Override
+        public ResultEnvelopeSplice.@Nullable View frame(String name) {
+            Frame f = frames.get(name);
+            if (f == null) {
+                return null;
+            }
+            asked.add(name);
+            if (!asCte.contains(name)) {
+                return new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source());
+            }
+            // read by REFERENCE: its planned CTE, defined ahead of the statement (a class frame's is its extent
+            // rows, a relation frame's its plan), its aliases under the frame's own prefix (the walk's)
+            String cteName = "frame_" + name;
+            definitions.computeIfAbsent(cteName, n -> AliasPrefix.apply(
+                    AliasPrefix.frameBody(name), f.cte().extentRows() != null
+                            ? f.cte().extentRows() : Objects.requireNonNull(f.cte().plan())));
+            return new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source(), cteName,
+                    f.cte().plan(), f.cte().plannedInfo());
+        }
+
+        @Override
+        public ResultEnvelopeSplice.View inlineExecute(TypedNativeCall ec, boolean eager) {
+            if (eager) {
+                throw new NotImplementedException("an execute(...) run where it stands, its"
+                        + " result the value asked for: planned at the test-is-the-product plan's M9; a query"
+                        + " reads an execute(...)'s result through it (->values)");
+            }
+            FramePlanner.FrameChain fc = FramePlanner.chain(ec, letPrefix, specs, env);
+            if (ownStamp == null) {
+                ownStamp = newStamp();
+            }
+            // this statement's run of the call: its activity rows record this statement's stamp -- a site an earlier
+            // statement ran inline holds that run's rows, replaced now by this one's (the M3 audit's B7d)
+            String scope = PlanRows.scopeId(fc.source());
+            if (ran.add(scope)) {
+                if (inlineRunSites.contains(scope)) {
+                    planRows.remove(scope);
                 }
-                FramePlanner.FrameChain fc = FramePlanner.chain(ec, letPrefix, specs, env);
-                if (ownStamp == null) {
-                    ownStamp = newStamp();
-                }
-                // this statement's run of the call: its activity rows record this statement's stamp (an earlier
-                // statement's run of the same call site was dropped at this statement's start: the M3 audit's B7d)
-                String scope = PlanRows.scopeId(fc.source());
                 if (!planRows.containsKey(scope)) {
-                    inlineRuns.add(scope);
+                    inlineRunSites.add(scope);
                     PlanAllocations.registerActivityRows(fc.source(), fc.chain(), letPrefix, specs, null, ownStamp,
                             env);
                 }
-                return new ResultEnvelopeSplice.View(fc.chain(), !fc.legendQuery() && fc.relationRooted(),
-                        fc.source());
             }
+            return new ResultEnvelopeSplice.View(fc.chain(), !fc.legendQuery() && fc.relationRooted(),
+                    fc.source());
+        }
 
-            @Override
-            public @Nullable String relationalActivitySql(String frameName, long activityNumber) {
-                Frame f = frames.get(frameName);
-                if (f == null || activityNumber != 0) {
-                    // single-statement execution: exactly one RelationalActivity per execute; other indices fall to
-                    // the activity ROWS
-                    return null;
-                }
-                return PlanAllocations.activitySql(f.source(), f.chain(), letPrefix, specs, env);
+        @Override
+        public @Nullable String relationalActivitySql(String frameName, long activityNumber) {
+            Frame f = frames.get(frameName);
+            if (f == null || activityNumber != 0) {
+                // single-statement execution: exactly one RelationalActivity per execute; other indices fall to
+                // the activity ROWS
+                return null;
             }
+            return PlanAllocations.activitySql(f.source(), f.chain(), letPrefix, specs, env);
+        }
 
-            @Override
-            public @Nullable String relationalActivitySql(TypedNativeCall ec) {
-                return PlanAllocations.activitySql(ec, FramePlanner.chain(ec, letPrefix, specs, env).chain(),
-                        letPrefix, specs, env);
-            }
-        };
+        @Override
+        public @Nullable String relationalActivitySql(TypedNativeCall ec) {
+            return PlanAllocations.activitySql(ec, FramePlanner.chain(ec, letPrefix, specs, env).chain(),
+                    letPrefix, specs, env);
+        }
     }
 }

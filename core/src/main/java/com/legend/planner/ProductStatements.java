@@ -72,7 +72,7 @@ public final class ProductStatements {
 
     /** A statement on the product's road, prepared: its kind ({@link Prepared}), and whether it reads a temporal
      *  class (decided on the inlined body, before the resolver, as the product always has). */
-    public record Statement(Prepared prepared, boolean temporal) {
+    public record Statement(Prepared prepared, boolean temporal, ProgramFrames.Reads reads) {
     }
 
     /** {@code statements} (a query's body, or a program's statement after its lets) prepared for {@code runtime};
@@ -92,26 +92,17 @@ public final class ProductStatements {
             Set<Feature> features, ProgramFrames frames) {
         ModelContext ctx = query.context();
         SpecCompiler specs = query.specs();
-        frames.startStatement();
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         PlanEnv env = PlanEnv.of(ctx, runtime, null, features, ProductStatements::noGenerator)
                 .withPlanRows(frames.planRows());
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
-        UserCallInliner inliner = new UserCallInliner(specs,
-                ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
-        List<TypedSpec> body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));   // Phase G½
-        if (frames.readAgainWithCtes(body)) {
-            // a frame the statement reads more than once: read by reference to its CTE (M3g, B10), so inlined again
-            inliner = new UserCallInliner(specs,
-                    ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
-            body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));
-        }
+        Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env));
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
-        Set<String> read = FreeVars.ofBody(body);
-        inliner.queryLets().forEach((name, value) -> {
+        Set<String> read = FreeVars.ofBody(inlined.body());
+        inlined.lets().forEach((name, value) -> {
             if (read.contains(name)) {
                 env.queryLets().put(name, value);
             }
@@ -122,6 +113,7 @@ public final class ProductStatements {
                 env.queryLets().putIfAbsent(name, value);
             }
         });
+        List<TypedSpec> body = new ArrayList<>(inlined.body());
         boolean temporal = Temporal.anyTemporalGetAll(body, ctx);
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
@@ -135,7 +127,29 @@ public final class ProductStatements {
         Map<String, String> renames = FramePlanner.renames(statements.get(statements.size() - 1),
                 frames.renames(), env.tableReplace(), lets, specs);
         PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
-        return new Statement(BodyPlanner.prepare(body, widened), temporal);
+        return new Statement(BodyPlanner.prepare(body, widened), temporal, inlined.reads());
+    }
+
+    /** A statement inlined (Phase G½): its body, the lets the inliner consumed (in the order it met them), and what
+     *  it read of the program's frames. */
+    private record Inlined(List<TypedSpec> body, Map<String, TypedSpec> lets, ProgramFrames.Reads reads) {
+    }
+
+    /** {@code statements} inlined with the splice hook {@code first} records into; inlined again, its frames read as
+     *  their CTE, where it pastes one more than once (M3g, B10). */
+    private static Inlined inline(SpecCompiler specs, List<TypedSpec> statements, @Nullable Integer mark,
+            ProgramFrames.Recorder first) {
+        ProgramFrames.Recorder recorder = first;
+        UserCallInliner inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
+        List<TypedSpec> body = inliner.inlineBody(new ArrayList<>(statements), mark);
+        ProgramFrames.Recorder again = recorder.again(body);
+        if (again != null) {
+            recorder = again;
+            inliner = new UserCallInliner(specs, ResultEnvelopeSplice.hook(recorder));
+            body = inliner.inlineBody(new ArrayList<>(statements), mark);
+        }
+        return new Inlined(body, Collections.unmodifiableMap(new LinkedHashMap<>(inliner.queryLets())),
+                recorder.reads());
     }
 
     /** {@code s}'s answer as a value the program wrote, answered with nothing sent (MV12), or null: a DDL text the

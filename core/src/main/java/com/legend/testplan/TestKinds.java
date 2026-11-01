@@ -53,6 +53,10 @@ import java.util.Set;
  */
 final class TestKinds implements ProgramKinds {
 
+    // ONE PROGRAM'S (ProgramKinds: one instance per program, made by TestDoor.plan): the open effect run's script and
+    // the seeds placed since the program's last write are this program's planning state, owned by it alone; the
+    // generated seeds are a cache of a pure function
+
     private final QueryDoor.Scan scan;
     /** The open script: the effect statements since the last statement of another kind. */
     private final List<String> script = new ArrayList<>();

@@ -12,8 +12,11 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * which the product's query door, the server's planning and the WebAssembly and native planners never carry. The
  * planner asks it first at each statement of a program that came through the test door; the query door's program
  * asks none (its test-only kinds refused before, QueryDoor).
+ *
+ * <p>ONE INSTANCE PER PROGRAM: an implementation may hold what it plans across the program's statements (the test
+ * library's open script and the seeds it placed), owned by that one program and never shared -- so it is not a
+ * lambda, and the program's planning makes it for the program it plans ({@code TestDoor.plan}).
  */
-@FunctionalInterface
 public interface ProgramKinds {
 
     /** Plans {@code statement}, the program's statement at {@code index} ({@code last} whether it is the last), into
