@@ -1,0 +1,213 @@
+AGREE       abs A                        abs(returns(close[SPX]))                                               1303 points
+AGREE       abs B                        mean(abs(returns(close[SPX])), 21)                                     1283 points
+NOT-CHECKED align A                      px:close[SPX] / macro:value[CPI] * 100                                 align
+NOT-CHECKED align B                      px:close[SPX]                                                          align
+AGREE       annualize A                  annualize(std(returns(close[SPX]), 21))                                1283 points
+AGREE       annualize B                  std(returns(close[SPX]), 21)                                           1283 points
+AGREE       atr-stochastic A             close[NVDA]                                                            1304 points
+NO-GSQUANT  atr-stochastic B             atr(high[NVDA], low[NVDA], close[NVDA])                                atr
+NO-GSQUANT  atr-stochastic C             stochastic(high[NVDA], low[NVDA], close[NVDA])                         stochastic
+AGREE       basket A                     basket(close[SPX], 0.6, close[TLT], 0.4)                               1304 points
+AGREE       basket B                     basket(close[SPX], 0.6, close[TLT], 0.4, rebalance=monthly)            1304 points
+NO-GSQUANT  benchmark A                  tracking_error(close[NVDA], close[SPX])                                tracking_error
+NO-GSQUANT  benchmark B                  information_ratio(close[NVDA], close[SPX])                             information_ratio
+AGREE       beta A                       beta(close[AAPL], close[SPX], 126)                                     1178 points
+AGREE       beta B                       beta(close[MSFT], close[SPX], 126)                                     1178 points
+AGREE       beta C                       beta(close[NVDA], close[SPX], 126)                                     1178 points
+AGREE       bollinger A                  close[GLD]                                                             1304 points
+DIFFER      bollinger B                  bollinger_bands(close[GLD])                                            1284 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-29
+DIFFER      bollinger C                  mean(close[GLD], 20)                                                   1284 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-29
+AGREE       bonds A                      px:close[TLT]                                                          1304 points
+AGREE       bonds B                      rates:yield[10Y]                                                       1304 points
+AGREE       bonds C                      correlation(px:close[TLT], rates:yield[10Y])                           1241 points
+AGREE       calendar A                   weekday(close[SPX])                                                    1304 points
+AGREE       calendar B                   month(close[SPX])                                                      1304 points
+AGREE       calendar C                   quarter(close[SPX])                                                    1304 points
+AGREE       calendar D                   day(close[SPX])                                                        1304 points
+AGREE       calendar E                   year(close[SPX])                                                       1304 points
+NO-GSQUANT  candles-volume A             ohlc(open[MSFT], high[MSFT], low[MSFT], close[MSFT])                   ohlc
+AGREE       candles-volume B             volume[MSFT]                                                           1304 points
+NOT-CHECKED candles-weekly A             ohlc(open[SPX], high[SPX], low[SPX], close[SPX])                       grain
+NO-GSQUANT  capture A                    up_capture(close[NDX], close[SPX], 252)                                up_capture
+NO-GSQUANT  capture B                    down_capture(close[NDX], close[SPX], 252)                              down_capture
+AGREE       change A                     change(close[GLD])                                                     1304 points
+NOT-CHECKED change A from 2022-03-15     change(close[GLD])                                                     anchor
+AGREE       change B                     change(close[TLT])                                                     1304 points
+NOT-CHECKED change B from 2022-03-15     change(close[TLT])                                                     anchor
+AGREE       channels A                   close[SPX]                                                             1304 points
+NO-GSQUANT  channels B                   keltner_channels(high[SPX], low[SPX], close[SPX])                      keltner_channels
+NO-GSQUANT  channels C                   donchian_channels(high[SPX], low[SPX])                                 donchian_channels
+AGREE       compare A                    close[SPX]                                                             1304 points
+AGREE       compare B                    close[TLT]                                                             1304 points
+AGREE       compare C                    close[GLD]                                                             1304 points
+AGREE       compare D                    close[EURUSD]                                                          1304 points
+NO-GSQUANT  compounded A                 rebase(close[NVDA])                                                    rebase
+NOT-CHECKED compounded A from 2022-03-15 rebase(close[NVDA])                                                    anchor
+AGREE       compounded B                 prices(returns(close[NVDA]), 100)                                      1304 points
+AGREE       compounded C                 returns(close[NVDA])                                                   1303 points
+AGREE       compounded-to-date A         geometrically_aggregate(returns(close[MSFT]))                          1303 points
+AGREE       compounded-to-date B         returns(close[MSFT])                                                   1303 points
+AGREE       condition A                  px:close[SPX]                                                          1304 points
+AGREE       condition B                  rates:yield[10Y] - rates:yield[2Y] < 0                                 1304 points
+AGREE       condition C                  rates:yield[10Y] - rates:yield[2Y]                                     1304 points
+AGREE       correlation A                correlation(close[SPX], close[TLT])                                    1241 points
+AGREE       correlation B                correlation(close[SPX], close[GLD])                                    1241 points
+AGREE       cov A                        cov(returns(close[AAPL]), returns(close[MSFT]))                        1241 points
+NOT-CHECKED curve A                      yield                                                                  split
+AGREE       curve B                      yield[10Y] - yield[2Y]                                                 1304 points
+NOT-CHECKED decompose A                  value[RETAIL]                                                          grain
+NOT-CHECKED decompose B                  trend(value[RETAIL], multiplicative)                                   grain
+NOT-CHECKED decompose C                  seasonally_adjusted(value[RETAIL], multiplicative)                     grain
+AGREE       diff-lag A                   close[GLD]                                                             1304 points
+AGREE       diff-lag B                   lag(close[GLD], 5)                                                     1299 points
+AGREE       diff-lag C                   diff(close[GLD], 5)                                                    1299 points
+NO-GSQUANT  drawdown A                   drawdown(close[NVDA])                                                  drawdown
+AGREE       drawdown B                   max_drawdown(close[NVDA])                                              1304 points
+NO-GSQUANT  drawdowns A                  drawdown(close[SPX])                                                   drawdown
+NO-GSQUANT  drawdowns B                  drawdown(close[NVDA])                                                  drawdown
+NO-GSQUANT  drawdowns C                  drawdown(close[TLT])                                                   drawdown
+AGREE       drawn A                      close[SPX]                                                             1304 points
+AGREE       excess A                     close[SPX]                                                             1304 points
+NO-GSQUANT  excess B                     excess_returns(close[SPX], 0.05)                                       excess_returns
+AGREE       excess C                     excess_returns(close[SPX], close[TLT])                                 1304 points
+AGREE       exponential A                close[SPX]                                                             1304 points
+AGREE       exponential B                exponential_moving_average(close[SPX], 0.9)                            1304 points
+AGREE       exponential C                smoothed_moving_average(close[SPX], 20)                                1284 points
+AGREE       exponential D                exponential_std(close[SPX], 0.95)                                      1303 points
+AGREE       exponential-volatility A     exponential_volatility(px:close[SPX], 0.94)                            1302 points
+AGREE       exponential-volatility B     volatility(px:close[SPX], 63)                                          1241 points
+AGREE       exponential-volatility C     exponential_spread_volatility(rates:yield[10Y] - rates:yield[2Y], 0.94 1302 points
+AGREE       filter-smooth A              filter(close[GLD], greater_than, 200)                                  1192 points
+AGREE       filter-smooth B              smooth_spikes(close[GLD], 0.02)                                        1302 points
+NO-GSQUANT  filter-smooth C              weighted_sum(rebase(close[SPX]), 0.6, rebase(close[TLT]), 0.4)         rebase
+NOT-CHECKED filter-smooth C from 2022-03-15 weighted_sum(rebase(close[SPX]), 0.6, rebase(close[TLT]), 0.4)         anchor
+AGREE       first-last-count A           close[SPX]                                                             1304 points
+AGREE       first-last-count B           first(close[SPX])                                                      1304 points
+AGREE       first-last-count C           last(close[SPX])                                                       1304 points
+AGREE       first-last-count D           count(close[SPX])                                                      1304 points
+DIFFER      floor-ceil A                 zscores(close[EURUSD], 63)                                             1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+DIFFER      floor-ceil B                 ceil(floor(zscores(close[EURUSD], 63), -2), 2)                         1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+DIFFER      if-compare A                 if(close[SPX] < mean(close[SPX], 200), close[SPX], mean(close[SPX], 20 1104 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-10-07
+DIFFER      if-compare B                 compare(close[SPX], mean(close[SPX], 200))                             1304 common, 199 differ, 0 lite's alone, 0 gs-quant's alone; 2020-01-02: lite 0, gs-quant -1; 2020-01-03: lite 0, gs-quant -1; 2020-01-06: lite 0, gs-quant -1
+DIFFER      if-compare C                 not(close[SPX] > mean(close[SPX], 200))                                1104 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-10-07
+AGREE       index A                      index(close[JPM])                                                      1304 points
+NOT-CHECKED index A from 2022-03-15      index(close[JPM])                                                      anchor
+AGREE       index B                      index(close[XOM])                                                      1304 points
+NOT-CHECKED index B from 2022-03-15      index(close[XOM])                                                      anchor
+AGREE       interpolate A                interpolate(macro:value[CPI], px:close[SPX], step)                     1304 points
+AGREE       interpolate B                macro:value[CPI]                                                       120 points
+NO-GSQUANT  lead-lag A                   lead_lag(close[NVDA], close[SPX])                                      lead_lag
+NO-GSQUANT  lead-lag B                   lead_lag(close[NVDA], close[SPX], -1)                                  lead_lag
+AGREE       log-exp A                    close[SPX]                                                             1304 points
+AGREE       log-exp B                    exp(log(close[SPX]))                                                   1304 points
+AGREE       log-exp C                    log(close[SPX])                                                        1304 points
+AGREE       log-scale A                  close[NVDA]                                                            1304 points
+AGREE       log-scale B                  close[SPX]                                                             1304 points
+AGREE       macd A                       macd(close[SPX])                                                       1304 points
+AGREE       macd B                       macd(close[SPX], 12, 26, 9)                                            1304 points
+AGREE       macd C                       macd(close[SPX]) - macd(close[SPX], 12, 26, 9)                         1304 points
+DIFFER      max-drawdown-year A          max_drawdown(close[SPX], 252)                                          1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
+DIFFER      max-drawdown-year B          max_drawdown(close[NDX], 252)                                          1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
+AGREE       mean A                       close[SPX]                                                             1304 points
+DIFFER      mean B                       mean(close[SPX], 50)                                                   1254 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-11
+DIFFER      mean C                       mean(close[SPX], 200)                                                  1104 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-10-07
+AGREE       min-max-range A              close[MSFT]                                                            1304 points
+DIFFER      min-max-range B              max(close[MSFT], 252)                                                  1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
+DIFFER      min-max-range C              min(close[MSFT], 252)                                                  1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
+DIFFER      min-max-range D              range(close[MSFT], 252)                                                1052 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-12-18
+NOT-CHECKED monthly A                    close[SPX]                                                             grain
+NOT-CHECKED monthly B                    returns(close[SPX], 12)                                                grain
+AGREE       pair A                       close[AAPL] / close[MSFT]                                              1304 points
+DIFFER      pair B                       zscores(close[AAPL] / close[MSFT], 126)                                1178 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-06-25
+NO-GSQUANT  percent-change A             percent_change(close[AAPL])                                            percent_change
+NOT-CHECKED percent-change A from 2022-03-15 percent_change(close[AAPL])                                            anchor
+NO-GSQUANT  percent-change B             percent_change(close[MSFT])                                            percent_change
+NOT-CHECKED percent-change B from 2022-03-15 percent_change(close[MSFT])                                            anchor
+NO-GSQUANT  percent-change C             percent_change(close[NVDA])                                            percent_change
+NOT-CHECKED percent-change C from 2022-03-15 percent_change(close[NVDA])                                            anchor
+AGREE       percentiles A                close[GLD]                                                             1304 points
+AGREE       percentiles B                median(close[GLD], 1y)                                                 1042 points
+AGREE       percentiles C                percentile(close[GLD], 90, 1y)                                         1042 points
+AGREE       percentiles D                percentiles(close[GLD], 1y)                                            1042 points
+AGREE       performance A                close[SPX]                                                             1304 points
+AGREE       performance B                close[NDX]                                                             1304 points
+AGREE       performance C                close[GLD]                                                             1304 points
+AGREE       performance D                close[TLT]                                                             1304 points
+AGREE       performance E                volatility(close[SPX], 21)                                             1283 points
+AGREE       product-streaks A            product(1 + returns(close[EURUSD]), 5) - 1                             1299 points
+AGREE       product-streaks B            consecutive(returns(close[EURUSD]))                                    1304 points
+AGREE       product-streaks C            0 - consecutive(returns(close[EURUSD]), negative)                      1304 points
+AGREE       projected A                  close[SPX]                                                             1304 points
+NO-GSQUANT  rebase A                     rebase(close[SPX])                                                     rebase
+NOT-CHECKED rebase A from 2022-03-15     rebase(close[SPX])                                                     anchor
+NO-GSQUANT  rebase B                     rebase(close[XOM])                                                     rebase
+NOT-CHECKED rebase B from 2022-03-15     rebase(close[XOM])                                                     anchor
+NO-GSQUANT  rebase C                     rebase(close[JPM])                                                     rebase
+NOT-CHECKED rebase C from 2022-03-15     rebase(close[JPM])                                                     anchor
+NO-GSQUANT  rebase D                     rebase(close[EURUSD])                                                  rebase
+NOT-CHECKED rebase D from 2022-03-15     rebase(close[EURUSD])                                                  anchor
+NO-GSQUANT  regression A                 alpha(close[NVDA], close[SPX], 126)                                    alpha
+NO-GSQUANT  regression B                 r_squared(close[NVDA], close[SPX], 126)                                r_squared
+NO-GSQUANT  regression C                 hedge_ratio(close[MSFT], close[AAPL], 126)                             hedge_ratio
+NO-GSQUANT  regression D                 residual(close[MSFT], close[AAPL], 126)                                residual
+AGREE       returns A                    returns(close[SPX])                                                    1303 points
+AGREE       returns B                    returns(close[SPX], 1, log)                                            1303 points
+AGREE       reversion A                  close[AAPL] / close[MSFT]                                              1304 points
+NO-GSQUANT  reversion B                  dickey_fuller(close[AAPL] / close[MSFT], 252)                          dickey_fuller
+NO-GSQUANT  reversion C                  half_life(close[AAPL] / close[MSFT], 252)                              half_life
+AGREE       rsi A                        close[NVDA]                                                            1304 points
+AGREE       rsi B                        rsi(close[NVDA])                                                       1289 points
+NO-GSQUANT  sharpe A                     sharpe_ratio(close[SPX])                                               sharpe_ratio
+NO-GSQUANT  sharpe B                     sharpe_ratio(close[GLD])                                               sharpe_ratio
+NO-GSQUANT  sharpe C                     sharpe_ratio(close[TLT])                                               sharpe_ratio
+AGREE       splice A                     append(filter(if(year(close[GLD]) < 2023, close[GLD], 0), equals), clo 1304 points
+AGREE       splice B                     prepend(close[GLD], filter(if(year(close[TLT]) >= 2023, close[TLT], 0) 1304 points
+AGREE       splice C                     union(filter(close[GLD], greater_than, 190), close[TLT])               1304 points
+NOT-CHECKED split A                      volatility(close[asset_class=Equity], 63)                              split
+DIFFER      sqrt-power A                 std(close[GLD], 63)                                                    1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+DIFFER      sqrt-power B                 sqrt(var(close[GLD], 63))                                              1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+DIFFER      sqrt-power C                 power(std(close[GLD], 63))                                             1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+DIFFER      std-var A                    std(close[GLD], 63)                                                    1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+DIFFER      std-var B                    var(close[GLD], 63)                                                    1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+AGREE       styles A                     close[JPM]                                                             1304 points
+DIFFER      styles B                     max(close[JPM], 21)                                                    1283 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-30
+DIFFER      styles C                     mean(close[JPM], 21)                                                   1283 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-30
+AGREE       styles D                     returns(close[JPM])                                                    1303 points
+AGREE       styles E                     volume[JPM]                                                            1304 points
+DIFFER      sum A                        sum(volume[AAPL], 21)                                                  1283 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-30
+AGREE       sum B                        sum(volume[AAPL])                                                      1304 points
+NO-GSQUANT  technicals A                 ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])                   ohlc
+DIFFER      technicals B                 bollinger_bands(close[AAPL])                                           1284 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-01-29
+DIFFER      technicals C                 mean(close[AAPL], 50)                                                  1254 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-11
+DIFFER      technicals D                 mean(close[AAPL], 200)                                                 1104 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-10-07
+AGREE       technicals E                 rsi(close[AAPL])                                                       1289 points
+NO-GSQUANT  technicals F                 volume[AAPL].sum                                                       no reading of Attribute(value=Subscript(value=Name(id='volume', ctx=Load()
+AGREE       total-return A               close[SPX]                                                             1304 points
+NO-GSQUANT  total-return B               total_return(close[SPX], 0.015)                                        total_return
+AGREE       two-grids A                  px:close[SPX]                                                          1304 points
+AGREE       two-grids B                  rates:yield[2Y]                                                        1304 points
+AGREE       two-grids C                  correlation(px:close[SPX], rates:yield[2Y])                            1241 points
+NOT-CHECKED view-curve A                 yield                                                                  split
+AGREE       view-histogram A             returns(close[SPX])                                                    1303 points
+AGREE       view-scatter A               returns(close[SPX])                                                    1303 points
+AGREE       view-scatter B               returns(close[NDX])                                                    1303 points
+NOT-CHECKED view-seasonality A           close[SPX]                                                             grain
+AGREE       vol-corr A                   volatility(close[SPX], 63)                                             1241 points
+AGREE       vol-corr B                   volatility(close[NVDA], 63)                                            1241 points
+AGREE       vol-corr C                   correlation(close[AAPL], close[MSFT])                                  1241 points
+AGREE       vol-corr D                   correlation(close[SPX], close[TLT])                                    1241 points
+AGREE       vol-corr E                   beta(close[NVDA], close[SPX], 126)                                     1178 points
+AGREE       vol-swap A                   vol_swap_volatility(close[SPX], 21)                                    1284 points
+AGREE       vol-swap B                   volatility(close[SPX], 21)                                             1283 points
+AGREE       volatility A                 volatility(close[SPX], 21)                                             1283 points
+AGREE       volatility B                 volatility(close[SPX], 63)                                             1241 points
+AGREE       volatility C                 volatility(close[SPX], 252)                                            1052 points
+AGREE       volume-flow A                close[AAPL]                                                            1304 points
+NO-GSQUANT  volume-flow B                vwap(close[AAPL], volume[AAPL])                                        vwap
+NO-GSQUANT  volume-flow C                obv(close[AAPL], volume[AAPL])                                         obv
+AGREE       winsorize A                  winsorize(returns(close[EURUSD]), 1.5)                                 1303 points
+AGREE       winsorize B                  returns(close[EURUSD])                                                 1303 points
+DIFFER      zscores A                    zscores(close[NVDA], 63)                                               1241 common, 0 differ, 1 lite's alone, 0 gs-quant's alone; lite alone from 2020-03-30
+
+AGREE 119, DIFFER 27, NO-GSQUANT 39, NOT-CHECKED 25
+of the DIFFER, 26 differ only in lite's first value, one observation before gs-quant's: bollinger B, bollinger C, floor-ceil A, floor-ceil B, if-compare A, if-compare C, max-drawdown-year A, max-drawdown-year B, mean B, mean C, min-max-range B, min-max-range C, min-max-range D, pair B, sqrt-power A, sqrt-power B, sqrt-power C, std-var A, std-var B, styles B, styles C, sum A, technicals B, technicals C, technicals D, zscores A

@@ -19,7 +19,9 @@ import {
 } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries, TsView } from '../src/timeseries-spec.ts';
 import { readsBase, TS_ITEM, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
-import { inlined } from '../src/timeseries-expr.ts';
+import { exprText, inlined } from '../src/timeseries-expr.ts';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { catalogColumns, ingestFile } from '../src/upload.ts';
 import { frozenOf, holdFrozen, type Frozen } from './timeseries-frozen.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -93,6 +95,8 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   const unexpected: string[] = [];
   const agreed: string[] = [];
   const frozen = new Map<string, Frozen>();
+  // the oracle's input (tools/ts-oracle): each series' formula, its tile's settings and its points, and the samples
+  const oracle: Record<string, unknown> = {};
   let ran = 0;
   try {
     for (const [what, build] of pages) {
@@ -134,6 +138,13 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
             frozen.set(id, frozenOf(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)));
             const date = ts.sources.find((s) => s.alias === aliases[0])!.date;
             const mine = await local.execute(await plannerOf.plan(tsSeriesQuery(inputsOf, ts, series, anchor)), 0);
+            oracle[id] = {
+              formula: exprText(inlined(series.expr, ts.series)), split: series.split ?? null, grain: ts.grain ?? null,
+              align: ts.align ?? null, anchor: anchor ?? null,
+              sources: ts.sources.map((x) => ({ alias: x.alias, cube: x.cube, date: x.date, key: x.key ?? null })),
+              columns: mine.columns.map((c) => ({ name: c.name, values: c.values.map((v) => (v instanceof Date
+                ? v.toISOString() : typeof v === 'bigint' ? Number(v) : v)) })),
+            };
             const d = difference(keyed(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)),
               keyed(mine, date, q.split, pairs.map(([, b]) => b)));
             said = d === undefined ? 'same' : `DIFFERS: ${d}`;
@@ -153,6 +164,12 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   console.log(outcomes.filter((o) => !o.includes(') same\n')).join('\n'));
   console.log(`${ran} series: ${outcomes.filter((o) => o.includes(') same\n')).length} the same`);
   holdFrozen('TS_ANSWERS', frozen, 'gallery-answers');
+  const outputs = process.env['TEST_UNDECLARED_OUTPUTS_DIR'];
+  if (outputs) {
+    const { macroCsv: m, marketsCsv: k, ratesCsv: r } = await import('../src/samples.ts');
+    writeFileSync(join(outputs, 'oracle-input.json'), JSON.stringify({ series: oracle,
+      samples: { prices: k(), rates: r(), macro: m() } }));
+  }
   assert.deepEqual(unexpected, [], 'every series answers the same, or is listed in DIFFERS with why');
   assert.deepEqual(agreed, [], 'a series listed in DIFFERS that now answers the same: delete its row');
 });
