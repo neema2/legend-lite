@@ -3418,8 +3418,11 @@ Status lives in the plan's Progress table (rule 0b.16).
   `seed.PACK_TABLES` and `literals.FIXTURE_TABLES`), oracle, generators, `executed.py`, `quarantine.py`, repros,
   `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
 - **Cross-area, finishing the plan (announced 2026-11-01, before it lands):**
-  - `.github/workflows/` (the Bazel program's): a way to dispatch the whole engine verdict on GitHub-hosted Linux,
-    in the shape the user picks; `gates/BUILD.bazel` only if that shape needs a suite.
+  - `.github/workflows/` (the Bazel program's): a new `engine-verdict.yml`, as the user chose (2026-11-01): a
+    standalone workflow, dispatched with a platform (linux, linux-arm, macos, windows), that runs `engine_stress`'s
+    eight slices as eight jobs (`run.py --shard K/8`) and merges them (`scripts/corpus/verdicts.py`, tested in
+    `:run_test`). gate.yml, gates-run.yml and `gates/BUILD.bazel` don't change. It can be dispatched only once the
+    file is on the default branch.
   - `docs/build-inventory/program/PHASE_8.md`: a note against Test-11 saying what the run covers and what it doesn't.
   - `core/BUILD.bazel` (the comment on `:stress_files`) and `scripts/corpus/trading_model.py`'s `SERVICES_AND_DATA`
     (the timeseries line's), for each new generated file.

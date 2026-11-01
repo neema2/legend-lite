@@ -4,6 +4,9 @@ The stress corpus through legend-engine, judged (Bazel workplan P3-25; docs/STRE
   bazel run //scripts/corpus:run -- [--only <file>] [--out <dir>] [--jobs N] [--batch N] [--limit SECONDS] [-v]
   bazel run //scripts/corpus:run -- --rows <dir> [--data <damaged.pure>]...      every test's rows (tools/wrongrows)
   bazel test //scripts/corpus:engine_stress                                       the whole corpus, sharded (manual)
+  bazel run //scripts/corpus:run -- --shard K/N ...    one shard, as engine_stress's shard K of N runs it; the shards'
+                                                       verdicts merge into one (verdicts.py, .github/workflows/
+                                                       engine-verdict.yml)
 
 The engine is //tools/engine-runner:testable: legend-engine at the release release.MODULE.bazel pins, the one version
 every test uses (the plan's D3). The testables are the `stress::` services that have test suites, in every stress
@@ -30,8 +33,8 @@ next real failure in that area is assumed to be the old known one.
 Paths on the command line are relative to where the command was typed. The run writes, into --out (under `bazel
 test`, the test's outputs): engine-pass.txt, the passing tests in lite's pass-list form (`<service> / <suite> / <test>
 :: PASS`, which the feature report's tools read beside lite's stress-suites-pass.txt); engine-verdicts.tsv, one
-verdict per testable; engine-report.tsv, every test's line as the runner reported it; and batches/, each JVM's
-arguments, report and log.
+verdict per testable; engine-report.tsv, every test's line as the runner reported it; shard.txt, which shard of how
+many this run was (`0/1` for a whole run); and batches/, each JVM's arguments, report and log.
 """
 from __future__ import annotations
 
@@ -55,6 +58,7 @@ os.environ.setdefault("CORPUS_ROOT", str(Path(_RUNFILES.Rlocation(_LAYOUT)).pare
 
 import functest  # noqa: E402
 import model  # noqa: E402
+import verdicts as verdict_lines  # noqa: E402
 from quarantine import ENGINE_QUARANTINE, HANGS  # noqa: E402
 
 # Testables per JVM. Each JVM first parses and compiles the whole corpus (about 25 s), then runs its testables at about
@@ -236,6 +240,14 @@ class Engine:
         return results
 
 
+def parse_shard(text: str) -> tuple[int, int]:
+    """--shard's K/N: shard K, counted from 0, of N."""
+    k, _, n = text.partition("/")
+    if not (k.isdigit() and n.isdigit() and int(k) < int(n)):
+        raise SystemExit(f"--shard takes K/N with 0 <= K < N, not {text!r}")
+    return int(k), int(n)
+
+
 def _verdict(statuses: list[str]) -> str:
     for s in ("HUNG", "DIED", "MISSING", "ERROR", "FAIL", "ROWS"):
         if s in statuses:
@@ -253,6 +265,7 @@ def main() -> None:
     p.add_argument("--heap", default=HEAP)
     p.add_argument("--rows", help="rows mode: every test's actual rows into this directory, nothing judged")
     p.add_argument("--data", action="append", default=[], help="a .pure file whose elements replace the model's")
+    p.add_argument("--shard", help="K/N: only shard K (from 0) of N, every N-th testable, as engine_stress's shards")
     p.add_argument("-v", action="store_true", help="every verdict, and each batch's log")
     args = p.parse_args()
 
@@ -270,10 +283,13 @@ def main() -> None:
     hangs = sorted(n for n in names if n in HANGS)
     names = [n for n in names if n not in HANGS]
 
-    # a shard of `bazel test`: every TEST_TOTAL_SHARDS-th testable, so the slow families spread across the shards
+    # a shard of `bazel test`: every TEST_TOTAL_SHARDS-th testable, so the slow families spread across the shards;
+    # --shard asks for the same slice by hand, for a run split across machines
     shards, shard = int(os.environ.get("TEST_TOTAL_SHARDS", "1")), int(os.environ.get("TEST_SHARD_INDEX", "0"))
     if os.environ.get("TEST_SHARD_STATUS_FILE"):
         Path(os.environ["TEST_SHARD_STATUS_FILE"]).touch()
+    if args.shard:
+        shard, shards = parse_shard(args.shard)
     names, hangs = names[shard::shards], hangs[shard::shards]
 
     out = _typed(args.out) if args.out else (Path(os.environ["TEST_UNDECLARED_OUTPUTS_DIR"])
@@ -281,7 +297,8 @@ def main() -> None:
                                              else Path(tempfile.mkdtemp(prefix="engine-stress-")))
     work = out / "batches"
     work.mkdir(parents=True, exist_ok=True)
-    engine = Engine.from_runfiles(args, corpus_files(), work)
+    (out / "shard.txt").write_text(f"{shard}/{shards}\n", encoding="utf-8")
+    engine =Engine.from_runfiles(args, corpus_files(), work)
     chunks = [names[i:i + args.batch] for i in range(0, len(names), args.batch)]
     print(f"{len(names)} testables in {len(chunks)} batches of {args.batch}, {args.jobs} at a time"
           + (f" (shard {shard + 1} of {shards})" if shards > 1 else "") + f"; batches in {work}", flush=True)
@@ -355,10 +372,8 @@ def main() -> None:
         for log in sorted(work.glob("*.log")):
             print(f"\n=== {log.name}\n{log.read_text(encoding='utf-8', errors='replace')}")
 
-    def count(prefix):
-        return sum(1 for _, v, _, _ in verdicts if v.startswith(prefix))
-    print(f"\n{count('PASS')} passed, {count('KNOWN-FAIL')} known-fail (quarantined), {count('NOT RUN')} not run "
-          f"(hangs), {bad} unexpected, {len(verdicts)} total, in {time.monotonic() - t0:.0f} s; outputs in {out}")
+    print(f"\n{verdict_lines.summary([v for _, v, _, _ in verdicts])}, in {time.monotonic() - t0:.0f} s; outputs in "
+          f"{out}")
     if bad:
         raise SystemExit(1)
 

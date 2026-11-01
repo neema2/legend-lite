@@ -30,12 +30,21 @@ bazel run //scripts/corpus:changed -- --out changed.txt  # the testables that ch
 bazel run //scripts/corpus:run -- --only changed.txt     # run those on legend-engine and judge them
 bazel run //scripts/corpus:run -- --jobs 4               # the whole corpus, four JVMs at once
 bazel test //scripts/corpus:engine_stress                # the whole corpus as a sharded test (manual)
+bazel run //scripts/corpus:run -- --shard 3/8 --out s3    # one of engine_stress's eight slices, by hand
+python scripts/corpus/verdicts.py merge --shards 8 --out all s0 s1 ...   # the slices' verdicts as one
+python scripts/corpus/verdicts.py fingerprint all/engine-verdicts.tsv     # compare two machines' verdicts
 ```
 
 `changed` lists every testable when anything other than a service changed: a seed, a mapping
 or a class can change any service's answer. `run` writes `engine-pass.txt` (lite's pass-list
-form), `engine-verdicts.tsv`, `engine-report.tsv` and each JVM's log into `--out`, or into a
-temporary directory it names.
+form), `engine-verdicts.tsv`, `engine-report.tsv`, `shard.txt` and each JVM's log into `--out`,
+or into a temporary directory it names.
+
+The whole verdict also runs on GitHub-hosted runners, by hand: `.github/workflows/engine-verdict.yml`
+(dispatched with a platform, `linux`, `linux-arm`, `macos` or `windows`) runs the eight slices
+as eight jobs and merges them. Its merge job's annotations carry the summary and the verdict's
+fingerprint, which `verdicts.py fingerprint` gives a desk's run too, so two platforms agree on
+every testable exactly when the fingerprints are equal.
 
 The generators are the part that matters. Thirteen files under `stress/` are **generated wholesale**
 and must never be hand-edited, because the next build overwrites them (`core/stress.bzl`'s

@@ -361,7 +361,12 @@ _ENGINE_ENV = dict(
 
 py_library(
     name = "run_lib",
-    srcs = ["run.py"],
+    # verdicts.py, the summary and the merge of a run split across machines: standard library only, so CI's merge job
+    # runs it with a bare python3 (.github/workflows/engine-verdict.yml)
+    srcs = [
+        "run.py",
+        "verdicts.py",
+    ],
     imports = ["."],
     deps = [
         ":corpus",

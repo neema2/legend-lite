@@ -1,0 +1,142 @@
+# THE STRESS CORPUS'S ENGINE VERDICT, BY HAND (docs/STRESS_CORPUS_PLAN_2026_10_19.md, Phase 0): every testable of the
+# stress corpus through legend-engine at the pinned release, judged against scripts/corpus/quarantine.py, on one
+# platform's GitHub-hosted runners. Dispatched, never on a push: a whole run is about six runner-hours, and its true
+# trigger is a corpus, quarantine or legend-engine change, never lite's own (docs/build-inventory/program/PHASE_8.md,
+# Exec-2 and Test-11). A dispatch fires only once this file is on the default branch; it then runs on any branch:
+#   gh workflow run engine-verdict.yml --ref <branch> -f platform=linux
+#
+# WHY A MATRIX. //scripts/corpus:engine_stress (8 shards, each one JVM at -Xmx6g, tagged resources:memory:7168) took
+# about 90 minutes on a 20-core desk at four JVMs (about 6 JVM-hours for 6,055 testables, 2026-10-31). A public
+# repository's ubuntu-latest has 4 vCPUs, 16 GB and a 6-hour job limit: two JVMs at most, and one job would need 3 to
+# 4.5 hours, too near the limit. So each job runs one of engine_stress's eight slices (run.py --shard K/8, the same
+# every-eighth testables), and the merge job makes one verdict of the eight (scripts/corpus/verdicts.py). The merge
+# fails if a shard is missing or a testable was judged twice, so a lost job is never a smaller green verdict.
+#
+# WHERE THE VERDICT IS READ. The merge job's annotations: the summary with a fingerprint of every testable's verdict
+# (`verdicts.py fingerprint <engine-verdicts.tsv>` gives a desk's run the same number, so two platforms agree exactly
+# when the fingerprints do) and the unexpected testables by kind. The public API serves annotations without signing
+# in; a job's log needs a token. The merged pass list and verdicts are the artifact engine-verdict-<platform>.
+name: engine verdict
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Where the engine runs: linux (ubuntu-latest), linux-arm (ubuntu-24.04-arm), macos (macos-14, arm64, one JVM a job: 7 GB) or windows (windows-2022)."
+        default: linux
+        type: choice
+        options: [linux, linux-arm, macos, windows]
+      only:
+        description: "A file in the checkout naming the testables to run, one per line (//scripts/corpus:changed writes one); empty = the whole corpus."
+        default: ""
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-verdict-${{ github.ref }}-${{ inputs.platform }}
+  cancel-in-progress: false
+
+jobs:
+  shard:
+    name: shard ${{ matrix.shard }} of 8 (${{ inputs.platform }})
+    # the runners gate.yml uses for each platform
+    runs-on: ${{ fromJSON('{"linux":"ubuntu-latest","linux-arm":"ubuntu-24.04-arm","macos":"macos-14","windows":"windows-2022"}')[inputs.platform] }}
+    # one slice is about 760 testables: under an hour at two JVMs, and macOS's one JVM about twice that
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    env:
+      # Git Bash on Windows rewrites an argument starting with '/' as a path; only the '//' labels are exempted
+      # (gates-run.yml says why not all of them)
+      MSYS2_ARG_CONV_EXCL: "//"
+    strategy:
+      fail-fast: false
+      matrix:
+        # engine_stress's shard_count (scripts/corpus/BUILD.bazel)
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - name: line endings and long paths (a Windows checkout would corrupt the corpus)
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+          git config --global core.longpaths true
+      - uses: actions/checkout@v4
+      # the downloads the gate's product job saved for this platform (gates-run.yml says what they are); read only:
+      # this workflow never saves, so it cannot fix a key's content
+      - name: Bazel downloads, keyed by the pins
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/bazel-repo/content_addressable
+          key: bazel-repo-${{ inputs.platform }}=${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock', 'maven_*_install.json', 'tools/deps/jars*.bzl', '.bazelversion', '**/pnpm-lock.yaml', 'tools/python/requirements_lock.txt', 'tools/postgres/postgres.bzl') }}
+          restore-keys: |
+            bazel-repo-${{ inputs.platform }}=
+      - name: Linux host prerequisites of the hermetic toolchain and bazelisk where the image has none
+        if: startsWith(inputs.platform, 'linux')
+        run: |
+          set -euo pipefail
+          ldconfig -p | grep -q 'libxml2\.so\.2' || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libxml2; }
+          if ! command -v bazel >/dev/null 2>&1; then
+            case "$(uname -m)" in
+              x86_64)  arch=amd64; sha=5a408715e932c0250d28bd84555f12edbf70117de42f9181691c736eacc4a992 ;;
+              aarch64) arch=arm64; sha=e20e8b0f4f240091b7a55bf17b9398bd4f40ee70ae0208dff95dd4c445fb4010 ;;
+            esac
+            sudo curl -fsSL -o /usr/local/bin/bazel "https://github.com/bazelbuild/bazelisk/releases/download/v1.29.0/bazelisk-linux-$arch"
+            echo "$sha  /usr/local/bin/bazel" | sha256sum -c -
+            sudo chmod +x /usr/local/bin/bazel
+          fi
+      - name: the engine over shard ${{ matrix.shard }} of 8
+        env:
+          SHARD: ${{ matrix.shard }}
+          ONLY: ${{ inputs.only }}
+          # two JVMs fit 16 GB beside Bazel's server; macOS's 7 GB holds one
+          JVMS: ${{ inputs.platform == 'macos' && '1' || '2' }}
+        run: |
+          set -euo pipefail
+          flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo")
+          only=()
+          if [ -n "$ONLY" ]; then only=(--only "$ONLY"); fi
+          # run.py exits 1 on an unexpected verdict; the outputs are uploaded either way, and the merge judges them
+          bazel run "${flags[@]}" //scripts/corpus:run -- --shard "$SHARD/8" --jobs "$JVMS" \
+            --out "engine-out/shard-$SHARD" "${only[@]}"
+      - name: the shard's verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-verdict-${{ inputs.platform }}-shard-${{ matrix.shard }}
+          path: engine-out/shard-${{ matrix.shard }}/
+          if-no-files-found: ignore
+
+  merge:
+    name: the verdict (${{ inputs.platform }})
+    needs: [shard]
+    # a failed shard's verdict still counts (its testables' verdicts say why); a shard with no outputs fails the merge
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/corpus/verdicts.py
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: engine-verdict-${{ inputs.platform }}-shard-*
+          path: shards
+      - name: one verdict from the eight shards
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          set -euo pipefail
+          # no shard came back: the glob stays itself, and the merge names every shard missing
+          mkdir -p shards
+          python3 scripts/corpus/verdicts.py merge --shards 8 --out merged --title "engine verdict, $PLATFORM" \
+            shards/*/
+      - name: the merged verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-verdict-${{ inputs.platform }}
+          path: merged/
+          if-no-files-found: ignore
