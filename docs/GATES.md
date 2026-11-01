@@ -16799,9 +16799,31 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
     It would also put Arrow among `//core:exec`'s deps, and the wall (D72) does not allow that today. Nothing was
     built.
 
-    Snowflake was looked at too and not pursued (the user, 2026-11-01). snowflake-jdbc 4.4.0, read from its class
-    files, has no public route to its Arrow chunks:
-    - the public `SnowflakeResultSetSerializable` answers a JDBC `ResultSet` per split;
-    - the chunk bytes are reachable only through `net.snowflake.client.internal.jdbc` (`SnowflakeResultSetSerializableV1`,
-      `ResultStreamProvider`), whose accessors report an outside caller to the driver's telemetry;
-    - the driver's own Arrow classes are shaded.
+    Snowflake, read from snowflake-jdbc 4.4.0's class files: no public route to its Arrow chunks.
+    - The public `SnowflakeResultSetSerializable` answers a JDBC `ResultSet` per split.
+    - The chunk bytes are reachable only through `net.snowflake.client.internal.jdbc` (`SnowflakeResultSetSerializableV1`,
+      `ResultStreamProvider`), whose accessors report an outside caller to the driver's telemetry.
+    - The driver's own Arrow classes are shaded.
+
+    Measured in the Snowflake lane session (the user's yes there, 2026-11-01), before the user dropped the line. The
+    same five columns on INTEGRATION_WH1 with the result cache off, two runs each, every route timed until its last row:
+
+    | Route at 10,000,000 rows | Best | Supported |
+    |---|---|---|
+    | JDBC, one thread, `getObject` per cell, Arrow wire format | 0.81M rows/s (12.4 s) | yes |
+    | JDBC, the same with the JSON wire format | 0.27M rows/s | yes |
+    | JDBC, `getResultSetSerializables` read on 8 threads, `getObject` per cell | 2.00M rows/s (5.0 s) | yes |
+    | ADBC Snowflake from Java via `adbc-driver-jni`, Arrow batches | 1.84M rows/s (5.4 s) | yes, a 74 MB native library |
+    | Python connector Arrow batches / ADBC from Python | 1.54M / 2.16M rows/s | yes, Python only |
+    | `COPY INTO` a stage as Parquet, then `GET` | 0.99M rows/s | yes; timestamps cut to ms, a UTC zone added |
+
+    - Time to the first row or batch is 1.3-2.9 s on every route: the query's own latency. A small fetch gains nothing
+      from any of these.
+    - The download is the bottleneck, not the decode. One raw chunk decoded at 34.5M rows/s (pyarrow); the parallel
+      split reached ADBC's rate while still building a Java object per cell.
+    - The wire format is Snowflake's own: `NUMBER(18,2)` as an unscaled `int32`, `TIMESTAMP_NTZ` as a struct of
+      epoch and fraction, integer widths compacted per chunk. Every client converts from it. The Python connector's
+      default turns `NUMBER(18,2)` into `float64`, which is lossy; ADBC answers exact `decimal128` and nanosecond
+      timestamps.
+    - The raw-chunk route (the internal class's public methods; no reflection) was run twice. So two outside-caller
+      telemetry records went to Snowflake.
