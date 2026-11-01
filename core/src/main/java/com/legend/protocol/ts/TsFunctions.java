@@ -84,6 +84,10 @@ final class TsFunctions {
     private record Span(int obs, TsAst.@com.legend.base.Nullable Span period) {
     }
 
+    /** A window from a date on ({@code '2024-01-01'}): a word whose window takes one (mean's, sum's). */
+    private record On(String iso) {
+    }
+
     /** {@code fc}'s parameters as given, by place after its line then by name, each as the generic rule takes it
      *  ({@link TsWords}): none defaulted here -- a word's defaults are the library's. */
     private static Map<String, TsWords.Given> given(Ctx c, SqlAst.FunctionCall fc, String fn, Signature sig,
@@ -111,6 +115,9 @@ final class TsFunctions {
             Object v = value(c, fn, p, e);
             out.put(p.name(), switch (p.kind()) {
                 case SPAN -> {
+                    if (v instanceof On on) {
+                        yield new TsWords.Day(on.iso());
+                    }
                     Span s = (Span) v;
                     if (s.period() != null) {
                         Period q = period(s.period());
@@ -148,8 +155,19 @@ final class TsFunctions {
                         && n.value().compareTo(java.math.BigInteger.valueOf(100_000)) <= 0) {
                     return new Span(n.value().intValue(), null);
                 }
-                throw invalid(fn + "'s " + p.name() + " is a number of observations, a span (3mo) or all (R4)",
-                        e.pos());
+                String text = e instanceof SqlAst.StringLit sl ? sl.value() : e instanceof SqlAst.TypedLit t
+                        && "date".equalsIgnoreCase(t.type().name()) ? t.value() : null;
+                if (text != null) {
+                    // a window from a date on: the word's own form, if it has one
+                    try {
+                        return new On(java.time.LocalDate.parse(text).toString());
+                    } catch (java.time.format.DateTimeParseException bad) {
+                        throw invalid(fn + "'s window from a date is a date: " + fn + "(x, '2024-01-01') (R4)",
+                                e.pos());
+                    }
+                }
+                throw invalid(fn + "'s " + p.name() + ": a window counts observations, a whole number from 1, or is a"
+                        + " span (3mo) or all: " + fn + "(x, 20) (R4)", e.pos());
             }
             case WHOLE -> {
                 Double d = constant(e);

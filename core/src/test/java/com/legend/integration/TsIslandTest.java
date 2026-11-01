@@ -885,8 +885,10 @@ class TsIslandTest {
         refusals.put("SELECT avg(CLOSE, 3) m FROM PRICES ON DAY BY SYMBOL", "name an item with AS: ... AS m");
         refusals.put("SELECT avg(CLOSE) AS m FROM PRICES ON DAY BY SYMBOL", "a avg over what? add SAMPLE BY 1w");
         refusals.put("SELECT avg(CLOSE, 0) AS m FROM PRICES ON DAY BY SYMBOL", "a window counts observations");
+        // no word of the library: Postgres's window function, refused as the per-point SQL refuses it (S1e: no list of
+        // words still to come is kept in core)
         refusals.put("SELECT rank(CLOSE) AS v FROM PRICES ON DAY BY SYMBOL",
-                "rank is one of the catalog's (§6) still to come");
+                "window function rank requires an OVER clause");
         refusals.put("SELECT value_at(CLOSE['AAA']) AS v FROM PRICES ON DAY BY SYMBOL",
                 "value_at reads a date: value_at(x, '2024-01-01') (R9)");
         refusals.put("SELECT value_at(CLOSE['AAA'], '2024-13-01') AS v FROM PRICES ON DAY BY SYMBOL",

@@ -49,27 +49,7 @@ public final class TsToPure {
      *  {@code #TS} imports: a function a query names is the library's (ruling 4). */
     public static final String LIBRARY = "timeseries::";
 
-    /** v0's statistics of a window (R4): the language's name, the library's function. */
-    private static final Map<String, String> WINDOWED = Map.of("avg", "mean", "mean", "mean", "sum", "sum",
-            "min", "min", "max", "max", "std", "std", "stddev", "std", "var", "var", "variance", "var");
-
-    /** v0's functions of a value some observations back ({@code obs = 1}): the language's name, the library's. */
-    private static final Map<String, String> BACK = Map.of("lag", "lag", "diff", "diff", "returns", "returns");
-
     private static final String DURATION = "meta::pure::functions::date::DurationUnit";
-
-    /** The functions of the language's catalog (§6) that v1 brings, refused by name until then (P4). */
-    private static final Set<String> LATER = Set.of("alpha", "annualize", "append", "atr", "basket", "beta",
-            "bollinger_bands", "change", "compare", "consecutive", "correlation", "cov", "dickey_fuller",
-            "donchian_channels", "down_capture", "drawdown", "excess_returns", "exponential_moving_average",
-            "exponential_spread_volatility", "exponential_std", "exponential_volatility", "filter_values",
-            "first_of", "geometrically_aggregate", "half_life", "hedge_ratio", "if", "index", "information_ratio",
-            "interpolate", "keltner_channels", "last_of", "lead_lag", "macd", "max_drawdown", "obv",
-            "percent_change", "percentile", "percentiles", "prepend", "prices", "product", "r_squared", "range_of",
-            "rank", "rebase", "residual", "rsi", "seasonally_adjusted", "sharpe_ratio", "smooth_spikes",
-            "smoothed_moving_average", "stochastic", "total_return", "tracking_error", "trend", "union_of",
-            "up_capture", "value_at", "vol_swap_volatility", "volatility", "vwap", "weighted_sum", "winsorize",
-            "zscores");
 
     /** What a query asks of the model beyond a relation's columns ({@link SqlToPure.Sources}): its classes by a name
      *  as a query writes it (R13), a class's properties, an enumeration's values. */
@@ -885,7 +865,8 @@ public final class TsToPure {
 
             /** An item's node: a struct allowed where the item is a function's whole answer (R10). */
             TsLines.Node item(SqlAst.Expr e) {
-                if (e instanceof SqlAst.FunctionCall fc && alongTime(fc)
+                // a period's aggregate (R5: last(x), sum(x) under SAMPLE BY) before a word of the same name
+                if (e instanceof SqlAst.FunctionCall fc && !periodOf(fc) && alongTime(fc)
                         && function(java.util.Objects.requireNonNull(fn(fc)))) {
                     Arguments a = arguments(fc);
                     return TsFunctions.call(this, fc, a.positional(), a.named());
@@ -947,7 +928,7 @@ public final class TsToPure {
                         }
                         return n;
                     }
-                    return along(fc);
+                    throw new IllegalStateException("no word " + name + " in the library: alongTime said it was one");
                 }
                 return computed(e);
             }
@@ -1074,130 +1055,22 @@ public final class TsToPure {
                 return TsToPure.column(v.value(), e.pos());
             }
 
-            /** Whether {@code fc} is a function along time v0 writes, or one of v1's (refused by name). */
+            /** Whether {@code fc} is a word of the library: a figure along time (R4), the library's call over its
+             *  lines' rows. */
             private boolean alongTime(SqlAst.FunctionCall fc) {
                 String name = fn(fc);
-                if (name == null) {
-                    return false;
-                }
-                if (LATER.contains(name) && !TsFunctions.has(this, name)) {
-                    throw unsupported(name + " is one of the catalog's (§6) still to come", fc.pos());
-                }
-                return WINDOWED.containsKey(name) || BACK.containsKey(name) || "count".equals(name)
-                        || TsFunctions.has(this, name);
+                return name != null && TsFunctions.has(this, name);
             }
 
-            /** Whether {@code name} is called through TsFunctions: a function of the language but the windowed basics
-             *  and the lags, which {@link #along} reads (their date windows, their aliases: avg, stddev, variance). */
+            /** Whether {@code name} is a word of the library ({@link #alongTime}'s). */
             private boolean function(String name) {
-                return !WINDOWED.containsKey(name) && !BACK.containsKey(name) && !"count".equals(name)
-                        && TsFunctions.has(this, name);
-            }
-
-            /** A figure along time (R4): the library's call over its line's rows, its window the line's periods. */
-            private TsLines.Valued along(SqlAst.FunctionCall fc) {
-                String name = java.util.Objects.requireNonNull(fn(fc));
-                if (fc.distinct() || fc.star() || !fc.orderBy().isEmpty() || !fc.withinGroup().isEmpty()
-                        || fc.args().isEmpty()) {
-                    throw invalid(name + " along time takes a line and a window: " + name + "(x, 20)", fc.pos());
-                }
-                Arguments a = arguments(fc);
-                List<SqlAst.Expr> args = a.positional();
-                if (args.isEmpty() || !(node(args.get(0)) instanceof TsLines.Valued v)) {
-                    throw invalid(name + " reads a line: its first argument is a number", fc.pos());
-                }
-                TsLines.Line l = v.line();
-                String out = fresh(name);
-                ValueSpecification rel;
-                if (WINDOWED.containsKey(name) || "count".equals(name)) {
-                    a.only(name);
-                    if (args.size() != 2) {
-                        throw invalid(name + " takes a line and a window: " + name + "(x, 20), " + name
-                                + "(x, 3mo), " + name + "(x, all) or " + name + "(x, '2024-01-01') (R4)", fc.pos());
-                    }
-                    // the library's word over lines (TsWords): its window's form the argument's
-                    String stat = "count".equals(name) ? "count" : java.util.Objects.requireNonNull(WINDOWED.get(name));
-                    return TsWords.call(this, stat, v, TsWords.window(windowOf(args.get(1), name)), fc.pos());
-                } else {
-                    boolean returns = "returns".equals(name);
-                    if (returns) {
-                        a.only(name, "type");
-                    } else {
-                        a.only(name);
-                    }
-                    if (args.size() > (returns ? 3 : 2)) {
-                        throw invalid(name + " takes a line and how far back: " + name + "(x, 1), " + name
-                                + "(x, 1y)" + (returns ? ", and its type: returns(x, 1, 'log')" : ""), fc.pos());
-                    }
-                    SqlAst.Expr back = args.size() >= 2 ? args.get(1) : null;
-                    // the library's word over lines (TsWords): how far back as written, its type by place or name
-                    Map<String, TsWords.Given> given = new LinkedHashMap<>();
-                    if (back != null) {
-                        TsAst.Span span = back instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
-                        if (span != null) {
-                            Period p = calendar(span);
-                            given.put("obs", new TsWords.Calendar(p.n(), p.unit()));
-                        } else {
-                            given.put("obs", new TsWords.Observations(observations(back, "obs", name + "(x, 1)")));
-                        }
-                    }
-                    if (returns) {
-                        SqlAst.Expr t = args.size() == 3 ? args.get(2) : a.named().get("type");
-                        if (t != null) {
-                            given.put("type", new TsWords.Word(option(t, "type", List.of("simple", "log",
-                                    "absolute"))));
-                        }
-                    }
-                    return TsWords.call(this, java.util.Objects.requireNonNull(BACK.get(name)), v, given, fc.pos());
-                }
-            }
-
-            /** A window as written (R4): a span (3mo), all, a date on ('2024-01-01'), or a number of observations. */
-            private TsWords.Given windowOf(SqlAst.Expr w, String name) {
-                TsAst.Span span = w instanceof SqlAst.ColumnRef c ? query.spans().get(c.pos()) : null;
-                if (span != null) {
-                    Period p = calendar(span);
-                    return new TsWords.Calendar(p.n(), p.unit());
-                }
-                if (w instanceof SqlAst.ColumnRef c && query.alls().contains(c.pos())) {
-                    return new TsWords.All();
-                }
-                String text = w instanceof SqlAst.StringLit sl ? sl.value() : w instanceof SqlAst.TypedLit t
-                        && "date".equalsIgnoreCase(t.type().name()) ? t.value() : null;
-                if (text != null) {
-                    try {
-                        return new TsWords.Day(java.time.LocalDate.parse(text).toString());
-                    } catch (java.time.format.DateTimeParseException bad) {
-                        throw invalid(name + "'s window from a date is a date: " + name + "(x, '2024-01-01') (R4)",
-                                w.pos());
-                    }
-                }
-                return new TsWords.Observations(observations(w, "a window", name + "(x, 20)"));
-            }
-
-            /** A whole number of observations, from 1. */
-            private int observations(SqlAst.Expr e, String what, String example) {
-                if (e instanceof SqlAst.IntegerLit n && n.value().signum() > 0
-                        && n.value().compareTo(java.math.BigInteger.valueOf(100_000)) <= 0) {
-                    return n.value().intValue();
-                }
-                throw invalid(what + " counts observations, a whole number from 1, or is a span: " + example
-                        + " (R4)", e.pos());
+                return TsFunctions.has(this, name);
             }
         }
 
         /** A call's arguments (R10): those by place, then those by name. */
         private record Arguments(List<SqlAst.Expr> positional, Map<String, SqlAst.Expr> named, SqlAst.Pos pos) {
 
-            /** Refused: an option by name the function {@code fn} has not ({@code options} its own). */
-            void only(String fn, String... options) {
-                for (String n : named.keySet()) {
-                    if (!List.of(options).contains(n)) {
-                        throw invalid(fn + " has no option " + n + (options.length == 0 ? ""
-                                : ": its options are " + String.join(", ", options)) + " (R10)", pos);
-                    }
-                }
-            }
         }
 
         /** {@code fc}'s arguments: by place, then by name ({@code type => 'log'}, R10). */
@@ -1220,31 +1093,8 @@ public final class TsToPure {
             return new Arguments(positional, named, fc.pos());
         }
 
-        /** An option's value (R10): a string, one of {@code values}. */
-        private static String option(SqlAst.Expr e, String name, List<String> values) {
-            if (!(e instanceof SqlAst.StringLit s) || !values.contains(s.value())) {
-                throw invalid(name + " is " + String.join(", ", values.stream().map(x -> "'" + x + "'").toList())
-                        + " (R10)", e.pos());
-            }
-            return s.value();
-        }
-
         /** A span as the library's calendar periods take it (§5): a count of a DurationUnit, a quarter three months. */
         private record Period(int n, String unit) {
-        }
-
-        private static Period calendar(TsAst.Span s) {
-            return switch (s.unit()) {
-                case "d" -> new Period(s.n(), "DAYS");
-                case "w" -> new Period(s.n(), "WEEKS");
-                case "mo" -> new Period(s.n(), "MONTHS");
-                case "q" -> new Period(3 * s.n(), "MONTHS");
-                case "y" -> new Period(s.n(), "YEARS");
-                case "h" -> new Period(s.n(), "HOURS");
-                case "min" -> new Period(s.n(), "MINUTES");
-                case "s" -> new Period(s.n(), "SECONDS");
-                default -> throw invalid("a span is d, w, mo, q, y, h, min or s (§5)", s.pos());
-            };
         }
 
         /** {@code e} with each span ({@code 1y}) Postgres's interval ({@code INTERVAL '1 year'}): date arithmetic in a

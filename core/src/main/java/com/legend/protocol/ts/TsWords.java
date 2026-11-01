@@ -104,9 +104,13 @@ final class TsWords {
      *  {@code if_}. */
     private static final Set<String> KEYWORDS = Set.of("if", "let", "true", "false");
 
+    /** SQL's spellings of the library's words (the language reads Postgres's: avg, stddev, variance). */
+    private static final Map<String, String> SPELLINGS = Map.of("avg", "mean", "stddev", "std", "variance", "var");
+
     /** The path of the library's function {@code word} names. */
     static String fqn(String word) {
-        return PACKAGE + (KEYWORDS.contains(word) ? word + "_" : word);
+        String w = SPELLINGS.getOrDefault(word, word);
+        return PACKAGE + (KEYWORDS.contains(w) ? w + "_" : w);
     }
 
     /** The language's name of the library's function {@code name} (its own, but a keyword's: {@code if_} is
