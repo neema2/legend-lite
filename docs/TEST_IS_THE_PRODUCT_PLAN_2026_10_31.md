@@ -46,6 +46,8 @@ steps with checkpoints (§7).
 | R12 | Unchanged from the predecessor program (§8.2): never push to main, never open or merge a PR without the user's word; no output spelling change without the user's word, case by case; an answer to a question is not a go to build something else; a guard pin or allowlist moves only with a dated justification; never read, print or copy credentials; records land with the code. |
 | R19 | 2026-11-01, the order after M3 (asked; the user chose the recommendation): **M5 before M4** -- the test door's code carries real test traffic sooner, the window in which two roads coexist shrinks. M4's measurement (M4a) is done and waits. On M4's server rule the user asked "Why are we changing it if it works?": no answer is broken; the narrower M4 (the plan can name the system database, the test door plans it, the product's forms unchanged) is recommended and comes back to the user as a one-line choice at M4. |
 | R20 | 2026-11-01, before everything else (the user, verbatim): "The real thing that needs to come before everything is killing mutable state and fixing everything expertly and also split by concern". A step of its own, **MR** (brief B14), before M5: the planning code that survives the program (the planner, the test-planning library, the runner's program loop) without mutable state held across calls or reset by convention, split by concern, the expert-level defects of that code fixed -- zero movement (every statement byte-identical, the census identical), audited as every step. The walk M10 deletes is not refactored. |
+| R21 | 2026-11-01, M4's scope and the answer facts (asked after M5; the user's words): M4 -- "Why would test diverge from product? Why change test if product works correctly - why not get test to match product if product correct": the product's system-store road (the store's tables carried in the query's own plan, `PlanMaker.metamodel`) is kept; the TEST road moves onto it, the driver's separate system database (`driver/SystemDatabase`, `planner/SystemRoutes`, `BodyDriver.openRoute`) goes; B13 rewritten. The print answer -- "Does that match engine too? If matches engine too do it": legend-engine has no `print` (refused, upstream-api/m5-answers.json), so the product's answer stays. A test body's literal answer -- "What matches upstream engine/pure? We should always try to match upstream as much as we can/makes sense": Pure types `true` `Boolean[1]` (the engine carries no multiplicity), so a one-value answer is `[1..1]` on both roads. A value through a class's chain -- "We should match upstream engine/pure both as much as we can/makes sense": the engine answers the value's rows (`String`, its SQL column's label, no to-one check); the product's column becomes the value's (`value:String[0..*]`, Pure's multiplicity), the engine's label `NAME` not taken (lite's value answers are `value`; its engine-compatible API refuses a value answer, unprobed until now). |
+| R22 | 2026-11-01, the cadence (asked after M5: M6-M10 still ahead; the user's words): "Yes keep plan, yes keep audits, yes go faster": from M4 each step keeps its independent audit; the lane sessions are asked at an M-step's boundary only (not at sub-steps); one measurement chain per step (not per sub-step); a step moves a bigger class of bodies, its movement classes posted to the user in one batch. |
 
 ## 2. The ledger
 
@@ -610,8 +612,10 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   sources before it lands. If ruled out: a `docs/SEMANTICS_REGISTER.md` row for the product's answer. No corpus or
   channel B case reaches it (M0).
 
-- **A test body's answer facts, and the product's no-value answer -- OPEN (posted at M5, 2026-11-01).** Two
-  cases, each kept as today until ruled:
+- **A test body's answer facts, and the product's no-value answer -- RULED 2026-11-01 (R21), upstream asked
+  (`core/src/test/resources/upstream-api/m5-answers.json`): item 1 kept (the engine has no `print`; register S128);
+  item 2 done (a one-value answer `[1..1]`, Pure's, on both roads; a no-value one no row); item 3 done (the product's
+  value through a class's chain `value:String[0..*]`). As posted:
   1. *The product's answer for a query ending on `print`.* The expression `|print('x', 1)`, run as a product query
      (`Execution.run`, the JSON rows writer). Today: `[{"value":null}]` (one row, a null cell: the no-value
      constant of M2's R18). The test road answers no row (the walk's `TypedSide.Scalar(null)`, Pure's `[]`, which
@@ -825,3 +829,12 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   labels (the program road's own tests) and the parity test's own (17,471); core 28 of 28; channel B 5 of 5;
   `//gates:local` green but the 9 Postgres targets refusing root (9 of 9 unprivileged) after the parser-equivalence
   ratchet regenerated (3,036 -> 3,038: the parity test's model joined the own corpus, both elements matching).
+- 2026-11-01: M5f's checkpoint (3bd68a81): CI 49 of 51 (`stress` died on its runner's disk before any test, noted on
+  the PR; `gates green` its roll-up); the lane sessions' round 12 zero movement on every lane. The user's rulings R21
+  (M4: the test road takes the product's system-store road; the answer facts as upstream answers them, asked of the
+  engine runner) and R22 (the faster cadence). **Built (D107):** a one-value answer `[1..1]` on both roads
+  (`JudgePlans.host`, `ProductStatements.asATestAnswers`: only a no-value answer is answered as no row); the product's
+  value through a class's chain answered in the value's column (`PlanMaker.typed` through `ResultShape.valueInfo`).
+  Measured: every core package's statements identical to M5f's (17,471), core 28 of 28; `pct_duckdb` 6 of 6; both
+  corpora's censuses and pass/fail counts identical, 604 moved per pass; channel B 5 of 5; `//gates:local` 448 pass
+  and 1 skipped (the 9 Postgres targets refusing root, 9 of 9 unprivileged). Next: M4 as R21 rules it (B13 rewritten).

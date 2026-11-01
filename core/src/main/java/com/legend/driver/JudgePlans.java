@@ -178,10 +178,12 @@ final class JudgePlans {
         java.util.List<java.util.List<Object>> rows = new java.util.ArrayList<>();
         switch (side) {
             case TypedSide.Scalar s -> {
-                // the driver's Scalar(null) is Pure's [] (an empty optional value): no row, as the plan path answers
+                // the driver's Scalar(null) is Pure's [] (an empty optional value): no row, as the plan path answers;
+                // a value is one, [1] as Pure types it (the test-is-the-product plan's §9 item 2; the user,
+                // 2026-11-01: "match upstream engine/pure"): until then [0..1] whatever it held
                 shape = com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE;
                 columns = java.util.List.of(hostColumn("value", s.returnType().typeName(),
-                        new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1)));
+                        s.value() == null ? new com.legend.executionplan.ExecutionPlan.Multiplicity(0, 1) : one));
                 if (s.value() != null) {
                     rows.add(hostRow(s.value()));
                 }

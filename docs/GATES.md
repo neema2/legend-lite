@@ -16583,6 +16583,26 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan: the answer facts as upstream answers them (R21), M5f's checkpoint
+
+The plan's §1 R21, R22, §9, §10; the decisions log D107; the semantics register S128.
+
+1. **M5f's checkpoint (3bd68a81):** CI 49 of 51 -- `linux / stress` died before any test (its runner's disk full
+   extracting the LLVM toolchain; noted on PR #83, the session cannot re-run it) and `gates green` is its roll-up; the
+   lane sessions' round 12 zero movement on every lane (every statement byte-identical in order, no label moved,
+   `bodies.moved` absent; BigQuery's two whole-log lines its own row order on unordered results).
+2. **Upstream asked** (the engine runner, 4.145.0; `core/src/test/resources/upstream-api/m5-answers.json`, the probe
+   `docs/test-is-product-homework/probes/m5-answer-probe.java.txt`): `print` refused by the engine; a constant answered
+   by data type with no multiplicity (`true`, `[2,4,6]`, `[]`); a value through a class's chain answered as its rows
+   under its SQL column's label (`NAME`), no to-one check (`P.all()->toOne().name` answers three rows: D30's evidence).
+3. **Built:** a one-value answer `[1..1]` on both roads (the walk's host scalar and the test door's constants); the
+   product's value through a class's chain in the value's column (`value:String[0..*]`, where it answered the map
+   binder's `u_map__name:String[1..1]`, which its own service writer refused). The print answer kept (S128).
+4. **Measured:** every core package's statements identical to M5f's (17,471) and core 28 of 28; `//pct:pct_duckdb`
+   6 of 6; both corpora uncached, every pass's census and pass/fail counts identical to MR's (604 moved per pass);
+   `pct_channel_b` 5 of 5; `//gates:local` 448 pass and 1 skipped, the 9 Postgres targets refusing root here (9 of 9
+   unprivileged).
+
 ## 2026-11-01 — The test-is-the-product plan's M5f: the second class, the plain query programs
 
 The plan's §6 B1 item 5, §9 (item 3 added), §10; the decisions log D106.

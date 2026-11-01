@@ -242,7 +242,7 @@ final class TestKinds implements ProgramKinds {
             // the walk's arms' value: the DDL that drops and creates answers true, the others no value
             boolean dropsAndCreates = effect == NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB
                     || effect == NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB;
-            program.add(ProductStatements.asTheWalkAnswers(dropsAndCreates ? ProductStatements.scalar("Boolean", "true")
+            program.add(ProductStatements.asATestAnswers(dropsAndCreates ? ProductStatements.scalar("Boolean", "true")
                     : ProductStatements.scalar(e.call().info().type().typeName(), null)));
         }
     }

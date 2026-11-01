@@ -2980,7 +2980,10 @@ AGENTS.md (the one-caller sentence). **M5f built 2026-11-01 (D106)**: `testplan/
 `driver/BodyRouter.java` (the walk's answer contract and timing), `JudgePlans.java` (`holding`), `BodyDriver.java`
 (the to-one rule delegated), `planner/ProductStatements.java` (`toOneReader`), `exec/PlanRunner.java` (the answering
 statement's label), `StatementOrigin.java` (`observing`); the tests (`BodyRouterParityTest`, `BodyClassTest`); the
-ledger; `parser-equivalence`'s `ratchets.tsv`. Next: the checkpoint, then M4 (the user's one-line choice) or M6.
+ledger; `parser-equivalence`'s `ratchets.tsv`. **The answer facts as upstream answers them 2026-11-01 (D107, R21)**:
+`driver/JudgePlans.java` (the host scalar), `planner/ProductStatements.java` (`asATestAnswers`), `PlanMaker.java`
+(the value column), `testplan/TestKinds.java`; `upstream-api/m5-answers.{json,pure}`. Next: M4 as R21 rules it (the
+test road onto the product's system-store road; B13 rewritten), then M6-M10 at R22's cadence.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

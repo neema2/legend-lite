@@ -400,14 +400,14 @@ public final class PlanMaker {
             // a value the program wrote: the answer where it is the last statement (a test's as the walk answers
             // it, M5); before it, nothing to run
             if (last) {
-                state.add(door == ProgramState.Door.TEST ? ProductStatements.asTheWalkAnswers(constant) : constant);
+                state.add(door == ProgramState.Door.TEST ? ProductStatements.asATestAnswers(constant) : constant);
             }
             return;
         }
         if (last && door == ProgramState.Door.TEST && ProductStatements.handle(st)) {
             // a test's program ending on a handle (a setup that returns its runtime): answered as the walk answers
             // it, no value, which no judge compares; the query door refuses a handle as an answer (planned())
-            state.add(ProductStatements.asTheWalkAnswers(ProductStatements.scalar(ProductStatements.handleType(st),
+            state.add(ProductStatements.asATestAnswers(ProductStatements.scalar(ProductStatements.handleType(st),
                     null)));
             return;
         }
@@ -514,8 +514,12 @@ public final class PlanMaker {
                         rowSchema, lowered, ExecutionPlan.TdsResult.Shape.RELATION), TypedRows.statement(lowered),
                         dialect, target);
             }
+            // a value's one column is the value's: through a class's chain the map binder's cell carries it, typed by
+            // the value and the root's multiplicity (ResultShape.valueInfo, as the test road answers it), never the
+            // binder's own to-one column (the test-is-the-product plan's §9 item 3; the user, 2026-11-01: "match
+            // upstream engine/pure"; the engine answers the value's rows, upstream-api/m5-answers.json)
             case SCALAR, COLLECTION -> rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.VALUE,
-                    PlanColumns.of(TypedRows.schema(root), lowered,
+                    PlanColumns.of(TypedRows.schema(ResultShape.valueInfo(root)), lowered,
                             ExecutionPlan.TdsResult.Shape.VALUE),
                     TypedRows.statement(lowered), dialect, target);
         };
