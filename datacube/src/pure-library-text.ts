@@ -1797,6 +1797,159 @@ function timeseries::periodIndex<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[
 }
 
 // =====================================================================================================================
+// THE LANGUAGE'S LINES (docs/TIMESERIES_LANGUAGE_2026_10_29.md R2, R5, R6; docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md
+// S1): what a line of a #TS query is, how a period's rows become one value, how lines meet -- the rules the translator
+// (protocol/ts/TsLines) calls, naming the columns; the words over several lines meet theirs by the same rules. A line
+// here is a relation of a row per line and period: its key (an instrument's; a line of no instrument's, 'all'), its
+// period (the column lines meet on), its number in time (since 1970), its date (the one its value is of), its values.
+
+// A SAMPLE BY's period (R5).
+Enum timeseries::Sample
+{
+  day, week, month, quarter, year
+}
+
+// How a period's rows become its value (R5): its last row's, its first row's, the greatest, the least, their sum, their
+// mean.
+Enum timeseries::Taken
+{
+  last, first, max, min, sum, avg
+}
+
+// What a period is dated at (R5): its last row's day, its first day, its last day.
+Enum timeseries::Dated
+{
+  last, start, end
+}
+
+// A COLUMN'S OWN LINE (R2): t's rows that have a date and a value, each its key, its period (its date), its number in
+// time (since 1970, in ordUnit: a date's days, a date-time's seconds), its date and its value.
+function timeseries::lines::line<T,K,D,V,OK,OP,OO,OA,OV>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], ordUnit: meta::pure::functions::date::DurationUnit[1], outKey: ColSpec<OK>[1], period: ColSpec<OP>[1], ord: ColSpec<OO>[1], at: ColSpec<OA>[1], out: ColSpec<OV>[1]): Relation<OK+OP+OO+OA+OV>[1]
+{
+  $t->filter(r|$r->read($date)->isNotEmpty() && $r->read($value)->isNotEmpty())
+    ->extend(~[lk:r|$r->read($key), lp:r|$r->read($date), lo:r|dateDiff(%1970-01-01, $r->read($date)->toOne(), $ordUnit), la:r|$r->read($date), lv:r|$r->read($value)])
+    ->select(~[lk, lp, lo, la, lv])
+    ->rename(~lk, $outKey)->rename(~lp, $period)->rename(~lo, $ord)->rename(~la, $at)->rename(~lv, $out)
+}
+
+// A date-time's day: the day a SAMPLE BY takes it in.
+function timeseries::lines::dayOf<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  $t->extend(~o:r|$r->read($date)->toOne()->datePart())->rename(~o, $out)
+}
+
+// The period of a SAMPLE BY a day is in: the first day of its week, month, quarter or year; a day's, the day.
+function timeseries::lines::periodOf(d: Date[1], sample: timeseries::Sample[1]): Date[1]
+{
+  if($sample == timeseries::Sample.week, |$d->firstDayOfWeek(),
+    |if($sample == timeseries::Sample.month, |$d->firstDayOfMonth(),
+      |if($sample == timeseries::Sample.quarter, |$d->firstDayOfQuarter(),
+        |if($sample == timeseries::Sample.year, |$d->firstDayOfYear(), |$d))))
+}
+
+// The last day of a SAMPLE BY's period that starts on start: the day before the next one's first; a day's, itself.
+function timeseries::lines::periodEnd(start: Date[1], sample: timeseries::Sample[1]): Date[1]
+{
+  if($sample == timeseries::Sample.day, |$start,
+    |if($sample == timeseries::Sample.week, |$start->adjust(6, meta::pure::functions::date::DurationUnit.DAYS)->datePart(),
+      |$start->adjust(if($sample == timeseries::Sample.month, |1, |if($sample == timeseries::Sample.quarter, |3, |12)), meta::pure::functions::date::DurationUnit.MONTHS)
+        ->adjust(-1, meta::pure::functions::date::DurationUnit.DAYS)->datePart()))
+}
+
+// A COLUMN'S LINE BY PERIOD (R5, SAMPLE BY): t's rows that have a date and a value, each in its day's period (the
+// first day of its week, month, quarter or year; a day's, the day), grouped by key and period: its value taken (its last
+// row's, its first's, the greatest, the least, the sum, the mean), its number in time and its day its last row's; the
+// periods with a value alone; dated at its last row's day, its first day or its last.
+function timeseries::lines::sample<T,K,D,Y,V,OK,OP,OO,OA,OV>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], day: ColSpec<Y⊆T>[1], value: ColSpec<V⊆T>[1], ordUnit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[1], taken: timeseries::Taken[1], dated: timeseries::Dated[1], outKey: ColSpec<OK>[1], period: ColSpec<OP>[1], ord: ColSpec<OO>[1], at: ColSpec<OA>[1], out: ColSpec<OV>[1]): Relation<OK+OP+OO+OA+OV>[1]
+{
+  let rows = $t->filter(r|$r->read($date)->isNotEmpty() && $r->read($value)->isNotEmpty())
+    ->extend(~[sk:r|$r->read($key), sp:r|timeseries::lines::periodOf($r->read($day)->toOne(), $sample), so:r|dateDiff(%1970-01-01, $r->read($date)->toOne(), $ordUnit), sa:r|$r->read($day), sv:r|$r->read($value)]);
+  let grouped = if($taken == timeseries::Taken.last, |$rows->groupBy(~[sk, sp], ~[gv:x|rowMapper($x.sv, $x.so):y|$y->maxBy(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
+    |if($taken == timeseries::Taken.first, |$rows->groupBy(~[sk, sp], ~[gv:x|rowMapper($x.sv, $x.so):y|$y->minBy(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
+      |if($taken == timeseries::Taken.max, |$rows->groupBy(~[sk, sp], ~[gv:x|$x.sv:y|$y->max(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
+        |if($taken == timeseries::Taken.min, |$rows->groupBy(~[sk, sp], ~[gv:x|$x.sv:y|$y->min(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
+          |if($taken == timeseries::Taken.sum, |$rows->groupBy(~[sk, sp], ~[gv:x|$x.sv:y|$y->sum(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
+            |$rows->groupBy(~[sk, sp], ~[gv:x|$x.sv:y|$y->average(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]))))));
+  $grouped->filter(x|$x.gv->isNotEmpty())
+    ->extend(~gd:x|if($dated == timeseries::Dated.last, |$x.ga, |if($dated == timeseries::Dated.start, |$x.sp, |timeseries::lines::periodEnd($x.sp->toOne(), $sample))))
+    ->select(~[sk, sp, go, gd, gv])
+    ->rename(~sk, $outKey)->rename(~sp, $period)->rename(~go, $ord)->rename(~gd, $at)->rename(~gv, $out);
+}
+
+// A line's period and its number in time, of its date (a word's answer, back as a line of the query's): the date the
+// period, and its number in time since 1970 in ordUnit.
+function timeseries::lines::timed<T,D,OP,OO>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], ordUnit: meta::pure::functions::date::DurationUnit[1], period: ColSpec<OP>[1], ord: ColSpec<OO>[1]): Relation<T+OP+OO>[1]
+{
+  $t->extend(~[tp:r|$r->read($date), to:r|dateDiff(%1970-01-01, $r->read($date)->toOne(), $ordUnit)])->rename(~tp, $period)->rename(~to, $ord)
+}
+
+// ... under SAMPLE BY: the period its sample's that holds the date.
+function timeseries::lines::timed<T,D,OP,OO>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], sample: timeseries::Sample[1], ordUnit: meta::pure::functions::date::DurationUnit[1], period: ColSpec<OP>[1], ord: ColSpec<OO>[1]): Relation<T+OP+OO>[1]
+{
+  $t->extend(~[tp:r|timeseries::lines::periodOf($r->read($date)->toOne(), $sample), to:r|dateDiff(%1970-01-01, $r->read($date)->toOne(), $ordUnit)])->rename(~tp, $period)->rename(~to, $ord)
+}
+
+// LINES MEETING (R6, without FILL; the tile's intersect): x's rows met by y's on their period and their key, each dated
+// at the later of their dates.
+function timeseries::lines::meet<T,U,K,P,A,L,Q,B,O>(x: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yKey: ColSpec<L⊆U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
+{
+  $x->join($y, meta::pure::functions::relation::JoinKind.INNER, {a,b|($a->read($period) == $b->read($yPeriod)) && ($a->read($key) == $b->read($yKey))})
+    ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
+}
+
+// A LINE OF NO INSTRUMENT MEETING ANOTHER (R2's broadcast, R6): x's rows met by y's on their period alone -- y one line,
+// every instrument's -- each dated at the later of their dates.
+function timeseries::lines::meetOne<T,U,P,A,Q,B,O>(x: Relation<T>[1], period: ColSpec<P⊆T>[1], at: ColSpec<A⊆T>[1], y: Relation<U>[1], yPeriod: ColSpec<Q⊆U>[1], yAt: ColSpec<B⊆U>[1], out: ColSpec<O>[1]): Relation<T+U+O>[1]
+{
+  $x->join($y, meta::pure::functions::relation::JoinKind.INNER, {a,b|$a->read($period) == $b->read($yPeriod)})
+    ->extend(~o:r|if($r->read($at)->toOne() >= $r->read($yAt)->toOne(), |$r->read($at), |$r->read($yAt)))->rename(~o, $out)
+}
+
+// How a line's values are put onto the periods of another's it has none at (R6, FILL): its last value at or before
+// (prev), linear in time between its values either side (linear), 0 (zero), none (none), gs-quant's step (step).
+Enum timeseries::Fill
+{
+  prev, linear, zero, none, step
+}
+
+// EVERY PERIOD ANY LINE HAS (R6), a line of no instrument's under every instrument of the lines per instrument (R2's
+// broadcast): its periods with each instrument of keys (the lines per instrument's, each once).
+function timeseries::lines::each<I,T>(keys: Relation<I>[1], periods: Relation<T>[1]): Relation<I+T>[1]
+{
+  $keys->distinct()->extend(~ek:r|1)->join($periods->extend(~el:r|1), meta::pure::functions::relation::JoinKind.INNER, {a,b|$a.ek == $b.el})
+    ->without(~[ek, el])
+}
+
+// A LINE'S VALUES ONTO THE ANSWER'S PERIODS (R6): each of spine's rows, the line's row of its period and its key where it
+// has one.
+function timeseries::lines::onto<T,U,K,P,L,Q>(spine: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], lineKey: ColSpec<L⊆U>[1], linePeriod: ColSpec<Q⊆U>[1]): Relation<T+U>[1]
+{
+  $spine->join($line, meta::pure::functions::relation::JoinKind.LEFT, {a,b|($a->read($period) == $b->read($linePeriod)) && ($a->read($key) == $b->read($lineKey))})
+}
+
+// A line of no instrument's values onto the answer's periods: its row of each period, whatever its instrument (R2).
+function timeseries::lines::ontoOne<T,U,P,Q>(spine: Relation<T>[1], period: ColSpec<P⊆T>[1], line: Relation<U>[1], linePeriod: ColSpec<Q⊆U>[1]): Relation<T+U>[1]
+{
+  $spine->join($line, meta::pure::functions::relation::JoinKind.LEFT, {a,b|$a->read($period) == $b->read($linePeriod)})
+}
+
+// A LINE'S VALUE ONTO EVERY PERIOD OF THE ANSWER (R6, FILL) -- the library's alignment: prev, its last value at or before
+// each period (none before its first: never a later value); linear, linear in time between its values either side (none
+// outside them); zero, 0 where it has none; step, gs-quant's (prev, and before the line's first value its first); none,
+// as it is. marker says which periods are the line's own (a value of its row); own is its number in time there, time
+// every period's.
+function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], period: ColSpec<P⊆T>[1], marker: ColSpec<M⊆T>[1], own: ColSpec<N⊆T>[1], time: ColSpec<X⊆T>[1], value: ColSpec<V⊆T>[1], how: timeseries::Fill[1], out: ColSpec<O>[1]): Relation<T+O>[1]
+{
+  if($how == timeseries::Fill.zero, |$t->timeseries::fillZero($value, $out),
+    |if($how == timeseries::Fill.step, |$t->timeseries::fillStep($key, $period, $value, $value, $out),
+      |if($how == timeseries::Fill.prev, |$t->timeseries::lastValued($key, $period, $marker, ~flp)->timeseries::valueAt($key, $period, ~flp, $value, ~flv)->without(~[flp])->rename(~flv, $out),
+        |if($how == timeseries::Fill.linear, |$t->timeseries::lastValued($key, $period, $marker, ~flp)->timeseries::nextValued($key, $period, $marker, ~fnp)
+            ->timeseries::valueAt($key, $period, ~flp, $own, ~ft0)->timeseries::valueAt($key, $period, ~fnp, $own, ~ft1)
+            ->timeseries::valueAt($key, $period, ~flp, $value, ~fa)->timeseries::valueAt($key, $period, ~fnp, $value, ~fb)
+            ->timeseries::linearAt(~ft0, ~fa, ~ft1, ~fb, $time, ~fo)->without(~[flp, fnp, ft0, ft1, fa, fb])->rename(~fo, $out),
+          |$t->extend(~fo:r|$r->read($value))->rename(~fo, $out)))))
+}
+
 // THE LANGUAGE'S WORDS, OVER LINES (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md: the library defines the
 // language). A line is one value per date per key: Relation<(key:K, date:D, value:Number)> -- K an instrument's key,
 // D a date or a date-time. Each word of #TS is a function of the same name here, of lines to a line, its plumbing (the

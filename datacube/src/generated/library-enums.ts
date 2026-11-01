@@ -15,6 +15,10 @@ export const LIBRARY_ENUMS = {
   Rebalance: ['daily', 'weekly', 'monthly'],
   Grain: ['day', 'week', 'month', 'quarter'],
   Compare: ['none', 'rebase', 'percent'],
+  Sample: ['day', 'week', 'month', 'quarter', 'year'],
+  Taken: ['last', 'first', 'max', 'min', 'sum', 'avg'],
+  Dated: ['last', 'start', 'end'],
+  Fill: ['prev', 'linear', 'zero', 'none', 'step'],
   Scope: ['all'],
 } as const;
 

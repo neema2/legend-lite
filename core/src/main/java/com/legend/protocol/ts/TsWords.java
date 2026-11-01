@@ -232,11 +232,14 @@ final class TsWords {
         for (Map.Entry<String, String> o : outs.entrySet()) {
             rel = renamed(rel, o.getKey(), o.getValue());
         }
+        // its period and its number in time, of its date (the library's timed)
         TsAst.Span sample = c.query().sample();
-        return TsLines.call("extend", rel, new ColSpecArray(List.of(
-                new ColSpec(TsLines.PERIOD, TsLines.lambda("x", TsLines.periodOf(sample == null ? null : sample.unit(),
-                        TsLines.col(l.at())))),
-                new ColSpec(TsLines.ORD, TsLines.lambda("x", TsLines.ordOf(l.at(), l.seconds()))))));
+        EnumValue unit = new EnumValue(DURATION, l.seconds() ? "SECONDS" : "DAYS");
+        return sample == null
+                ? TsLines.call(TsLines.LINES + "timed", rel, new ColSpec(l.at()), unit, new ColSpec(TsLines.PERIOD),
+                        new ColSpec(TsLines.ORD))
+                : TsLines.call(TsLines.LINES + "timed", rel, new ColSpec(l.at()), TsLines.sample(sample.unit()), unit,
+                        new ColSpec(TsLines.PERIOD), new ColSpec(TsLines.ORD));
     }
 
     private static ValueSpecification renamed(ValueSpecification rel, String from, String to) {

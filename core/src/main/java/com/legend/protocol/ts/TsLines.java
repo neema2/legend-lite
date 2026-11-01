@@ -5,7 +5,6 @@ package com.legend.protocol.ts;
 
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
-import com.legend.protocol.spec.CInteger;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ColSpec;
 import com.legend.protocol.spec.ColSpecArray;
@@ -95,34 +94,39 @@ final class TsLines {
         for (SqlAst.Expr m : matches) {
             rel = call("filter", rel, w.rowLambda(m, rel, true, "a subscript"));
         }
-        rel = call("filter", rel, lambda("x", call("and", call("isNotEmpty", col(s.date())),
-                call("isNotEmpty", col(column)))));
         String instrument = split ? java.util.Objects.requireNonNull(s.instrument(),
                 "a line per instrument of a source of none") : ONE_LINE;
+        if (!split) {
+            rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
+        }
         String value = w.fresh("base");
         boolean seconds = !"StrictDate".equals(s.dateType()) && !"Date".equals(s.dateType());
-        List<ColSpec> derived = new ArrayList<>();
-        if (!split) {
-            derived.add(new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
-        }
-        derived.add(new ColSpec(PERIOD, lambda("x", col(s.date()))));
-        derived.add(new ColSpec(ORD, lambda("x", call("dateDiff", epoch(), one(s.date()),
-                new EnumValue(DURATION, seconds ? "SECONDS" : "DAYS")))));
-        derived.add(new ColSpec(AT, lambda("x", col(s.date()))));
-        derived.add(new ColSpec(value, lambda("x", col(column))));
-        rel = call("extend", rel, new ColSpecArray(derived));
-        rel = call("select", rel, new ColSpecArray(List.of(new ColSpec(instrument), new ColSpec(PERIOD),
-                new ColSpec(ORD), new ColSpec(AT), new ColSpec(value))));
+        // the library's line (timeseries::lines::line): its rows with a date and a value, its period, its number in
+        // time, its date and its value
+        rel = call(LINES + "line", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(column),
+                new EnumValue(DURATION, seconds ? "SECONDS" : "DAYS"), new ColSpec(instrument), new ColSpec(PERIOD),
+                new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));
         return new Valued(new Line(rel, instrument, split, AT, seconds), value);
     }
 
-    /** A period's function of a date (R5's calendar periods): its first day. */
-    private static final Map<String, String> PERIOD_START = Map.of("w", "firstDayOfWeek", "mo", "firstDayOfMonth",
-            "q", "firstDayOfQuarter", "y", "firstDayOfYear");
+    /** The package of the language's lines' rules (projects/timeseries/model.pure, THE LANGUAGE'S LINES). */
+    static final String LINES = TsToPure.LIBRARY + "lines::";
 
-    /** How a period's rows become one value (R5): the language's name, the aggregate. */
-    static final Map<String, String> TAKEN = Map.of("last", "maxBy", "first", "minBy", "max", "max", "min", "min",
-            "sum", "sum", "avg", "average", "mean", "average");
+    /** SAMPLE BY's unit as the library's {@code timeseries::Sample}. */
+    static EnumValue sample(String unit) {
+        return new EnumValue(TsToPure.LIBRARY + "Sample", switch (unit) {
+            case "d" -> "day";
+            case "w" -> "week";
+            case "mo" -> "month";
+            case "q" -> "quarter";
+            case "y" -> "year";
+            default -> throw new IllegalStateException("SAMPLE BY " + unit);
+        });
+    }
+
+    /** How a period's rows become one value (R5): the language's name, the library's {@code timeseries::Taken}. */
+    static final Map<String, String> TAKEN = Map.of("last", "last", "first", "first", "max", "max", "min", "min",
+            "sum", "sum", "avg", "avg", "mean", "avg");
 
     /**
      * A COLUMN'S LINE BY PERIOD (R5, SAMPLE BY): its rows as {@link #column}'s, each row's period the first day of its
@@ -136,57 +140,26 @@ final class TsLines {
         for (SqlAst.Expr m : matches) {
             rel = call("filter", rel, w.rowLambda(m, rel, true, "a subscript"));
         }
-        rel = call("filter", rel, lambda("x", call("and", call("isNotEmpty", col(s.date())),
-                call("isNotEmpty", col(column)))));
-        boolean day = "StrictDate".equals(s.dateType()) || "Date".equals(s.dateType());
-        ValueSpecification date = day ? col(s.date()) : call("datePart", one(s.date()));
-        String start = PERIOD_START.get(unit);
-        ValueSpecification period = start == null ? date : call(start, call("toOne", date));
-        String ordRow = w.fresh("or");
-        String atRow = w.fresh("ar");
-        rel = call("extend", rel, new ColSpecArray(List.of(
-                new ColSpec(PERIOD, lambda("x", period)),
-                new ColSpec(ordRow, lambda("x", call("dateDiff", epoch(), one(s.date()),
-                        new EnumValue(DURATION, day ? "DAYS" : "SECONDS")))),
-                new ColSpec(atRow, lambda("x", date)))));
         String instrument = split ? java.util.Objects.requireNonNull(s.instrument(),
                 "a line per instrument of a source of none") : ONE_LINE;
-        List<ColSpec> keys = split ? List.of(new ColSpec(instrument), new ColSpec(PERIOD))
-                : List.of(new ColSpec(PERIOD));
-        String value = w.fresh("base");
-        String fn = java.util.Objects.requireNonNull(TAKEN.get(taken));
-        boolean byRow = "maxBy".equals(fn) || "minBy".equals(fn);
-        List<ColSpec> aggs = List.of(
-                new ColSpec(value, lambda("x", byRow ? call("rowMapper", col(column), col(ordRow)) : col(column)),
-                        lambda("y", call(fn, new Variable("y")))),
-                new ColSpec(ORD, lambda("x", col(ordRow)), lambda("y", call("max", new Variable("y")))),
-                new ColSpec(AT, lambda("x", col(atRow)), lambda("y", call("max", new Variable("y")))));
-        rel = call("groupBy", rel, new ColSpecArray(keys), new ColSpecArray(aggs));
         if (!split) {
             rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
         }
-        rel = call("filter", rel, lambda("x", call("isNotEmpty", col(value))));
-        if (!"LAST".equals(dated)) {
-            // dated at the period's first day, or its last (R5: AT START, AT END)
-            String last = w.fresh("ar_last");
-            rel = call("rename", rel, new ColSpec(AT), new ColSpec(last));
-            rel = call("extend", rel, new ColSpec(AT, lambda("x", "START".equals(dated) ? one(PERIOD)
-                    : periodEnd(unit))));
+        boolean day = "StrictDate".equals(s.dateType()) || "Date".equals(s.dateType());
+        String dayColumn = s.date();
+        if (!day) {
+            // a date-time's day (the library's dayOf)
+            dayColumn = w.fresh("day");
+            rel = call(LINES + "dayOf", rel, new ColSpec(s.date()), new ColSpec(dayColumn));
         }
+        String value = w.fresh("base");
+        // the library's line by period (timeseries::lines::sample)
+        rel = call(LINES + "sample", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(dayColumn),
+                new ColSpec(column), new EnumValue(DURATION, day ? "DAYS" : "SECONDS"), sample(unit),
+                new EnumValue(TsToPure.LIBRARY + "Taken", java.util.Objects.requireNonNull(TAKEN.get(taken))),
+                new EnumValue(TsToPure.LIBRARY + "Dated", dated.toLowerCase(java.util.Locale.ROOT)),
+                new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));
         return new Valued(new Line(rel, instrument, split, AT, !day), value);
-    }
-
-    /** The last day of the period of {@code unit} {@code $x}'s period starts: the day before the next one's first. */
-    private static ValueSpecification periodEnd(String unit) {
-        ValueSpecification start = one(PERIOD);
-        // a day, as the period's start is (a date plus an interval is a timestamp on some databases)
-        return switch (unit) {
-            case "d" -> start;
-            case "w" -> call("datePart", call("adjust", start, new CInteger(6L), new EnumValue(DURATION, "DAYS")));
-            default -> call("datePart", call("adjust", call("adjust", start, new CInteger("mo".equals(unit) ? 1L
-                    : "q".equals(unit) ? 3L : 12L), new EnumValue(DURATION, "MONTHS")), new CInteger(-1L),
-                    new EnumValue(DURATION, "DAYS")));
-        };
     }
 
     /** Lines spread onto every period any of them has ({@link #spread}): the line, and each line's own number in
@@ -224,37 +197,33 @@ final class TsLines {
                 instruments = instruments == null ? own : call("concatenate", instruments, own);
             }
         }
-        String k1 = w.fresh("sp_k");
-        String k2 = w.fresh("sp_k");
         String inst = w.fresh("sp_i");
         if (instruments != null) {
-            instruments = call("extend", call("rename", call("distinct", instruments), new ColSpec(part),
-                    new ColSpec(inst)), new ColSpec(k1, lambda("x", new CInteger(1L))));
+            instruments = call("rename", instruments, new ColSpec(part), new ColSpec(inst));
         }
-        // the periods each line has, keyed alike
+        // the periods each line has, keyed alike: a line of no instrument's under every instrument (the library's each)
         ValueSpecification keys = null;
         for (Line l : distinct) {
             ValueSpecification k = call("rename", call("rename", call("select", l.rel(), new ColSpecArray(List.of(
                     new ColSpec(l.part()), new ColSpec(PERIOD), new ColSpec(l.at()), new ColSpec(ORD)))),
                     new ColSpec(l.at()), new ColSpec(at)), new ColSpec(ORD), new ColSpec(ord));
             if (instruments != null && !l.byInstrument()) {
-                // one line under every instrument
-                k = call("extend", call("select", k, new ColSpecArray(List.of(new ColSpec(PERIOD), new ColSpec(at),
-                        new ColSpec(ord)))), new ColSpec(k2, lambda("x", new CInteger(1L))));
-                k = call("join", instruments, k, new EnumValue("meta::pure::functions::relation::JoinKind", "INNER"),
-                        lambda2("l", "r", call("equal", prop("l", k1), prop("r", k2))));
-                k = call("rename", k, new ColSpec(inst), new ColSpec(part));
+                k = call("select", k, new ColSpecArray(List.of(new ColSpec(PERIOD), new ColSpec(at), new ColSpec(ord))));
+                k = call("rename", call(LINES + "each", instruments, k), new ColSpec(inst), new ColSpec(part));
                 k = call("select", k, new ColSpecArray(List.of(new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
                         new ColSpec(ord))));
             }
             keys = keys == null ? k : call("concatenate", keys, k);
         }
+        // the answer's periods: each (instrument, period) once, dated at its latest line's date and number in time (R5).
+        // Written here, not as a library function: a function's aggregate renamed to the caller's name is a derived
+        // table more, and H2 plans nested derived tables exponentially (it ran out of memory on two items' answer).
         ValueSpecification spine = call("groupBy", java.util.Objects.requireNonNull(keys, "lines to spread"),
-                new ColSpecArray(List.of(new ColSpec(part),
-                new ColSpec(PERIOD))), new ColSpecArray(List.of(
+                new ColSpecArray(List.of(new ColSpec(part), new ColSpec(PERIOD))), new ColSpecArray(List.of(
                 new ColSpec(at, lambda("x", col(at)), lambda("y", call("max", new Variable("y")))),
                 new ColSpec(ord, lambda("x", col(ord)), lambda("y", call("max", new Variable("y")))))));
-        // each line's values onto them
+        // each line's values onto them (the library's onto; a line of no instrument's among lines per instrument,
+        // ontoOne)
         List<String> owns = new ArrayList<>();
         List<ColSpec> kept = new ArrayList<>(List.of(new ColSpec(part), new ColSpec(PERIOD), new ColSpec(at),
                 new ColSpec(ord)));
@@ -277,12 +246,10 @@ final class TsLines {
             }
             r = call("rename", call("rename", r, new ColSpec(PERIOD), new ColSpec(per)), new ColSpec(ORD),
                     new ColSpec(own));
-            ValueSpecification on = call("equal", prop("l", PERIOD), prop("r", per));
-            if (byLine) {
-                on = call("and", on, call("equal", prop("l", part), prop("r", p)));
-            }
-            spine = call("join", spine, r, new EnumValue("meta::pure::functions::relation::JoinKind", "LEFT"),
-                    lambda2("l", "r", on));
+            spine = byLine
+                    ? call(LINES + "onto", spine, new ColSpec(part), new ColSpec(PERIOD), r, new ColSpec(p),
+                            new ColSpec(per))
+                    : call(LINES + "ontoOne", spine, new ColSpec(PERIOD), r, new ColSpec(per));
             kept.add(new ColSpec(own));
             values.get(d).forEach(v -> kept.add(new ColSpec(v)));
             spine = call("select", spine, new ColSpecArray(List.copyOf(kept)));
@@ -408,57 +375,25 @@ final class TsLines {
         return l.with(call("select", l.rel(), new ColSpecArray(keep)));
     }
 
-    /** {@code line}'s {@code values} put onto its merged dates by {@code how} (R6), each under its own name; {@code ord}
-     *  the number in time of the periods they had a row in. */
+    /** {@code line}'s {@code values} put onto its merged dates by {@code how} (R6, the library's fill), each under its
+     *  own name; {@code ord} the number in time of the periods they had a row in, the first value its rows' marker. */
     private static Line fill(Writer w, Line line, List<String> values, String ord, String how) {
         if ("NULL".equals(how) || values.isEmpty()) {
             return line;
         }
         Line l = line;
-        if ("ZERO".equals(how)) {
-            for (String v : values) {
-                String out = w.fresh("al_zero");
-                l = replaced(w, l.with(call(TsToPure.LIBRARY + "fillZero", l.rel(), new ColSpec(v), new ColSpec(out))),
-                        v, out);
-            }
-            return l;
-        }
-        if ("STEP".equals(how)) {
-            // gs-quant's step: PREV, and before a line's first value its first
-            for (String v : values) {
-                String[] out = new String[1];
-                l = stepped(w, l, v, out);
-                l = replaced(w, l, v, out[0]);
-            }
-            return l;
-        }
-        String lastP = w.fresh("al_lastp");
-        l = l.with(call(TsToPure.LIBRARY + "lastValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
-                new ColSpec(values.get(0)), new ColSpec(lastP)));
-        if ("PREV".equals(how)) {
-            for (String v : values) {
-                String[] out = new String[1];
-                l = valueAt(w, l, lastP, v, out);
-                l = replaced(w, l, v, out[0]);
-            }
-            return l;
-        }
-        String nextP = w.fresh("al_nextp");
-        l = l.with(call(TsToPure.LIBRARY + "nextValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
-                new ColSpec(values.get(0)), new ColSpec(nextP)));
-        String[] t0 = new String[1];
-        String[] t1 = new String[1];
-        l = valueAt(w, l, lastP, ord, t0);
-        l = valueAt(w, l, nextP, ord, t1);
+        // every value filled before any is replaced: the marker is the line's first value as it came
+        List<String> outs = new ArrayList<>();
         for (String v : values) {
-            String[] a = new String[1];
-            String[] b = new String[1];
-            l = valueAt(w, l, lastP, v, a);
-            l = valueAt(w, l, nextP, v, b);
-            String out = w.fresh("al_lin");
-            l = l.with(call(TsToPure.LIBRARY + "linearAt", l.rel(), new ColSpec(t0[0]), new ColSpec(a[0]),
-                    new ColSpec(t1[0]), new ColSpec(b[0]), new ColSpec(ORD), new ColSpec(out)));
-            l = replaced(w, l, v, out);
+            String out = w.fresh("al_fill");
+            l = l.with(call(LINES + "fill", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
+                    new ColSpec(values.get(0)), new ColSpec(ord), new ColSpec(ORD), new ColSpec(v),
+                    new EnumValue(TsToPure.LIBRARY + "Fill", how.toLowerCase(java.util.Locale.ROOT)),
+                    new ColSpec(out)));
+            outs.add(out);
+        }
+        for (int i = 0; i < values.size(); i++) {
+            l = replaced(w, l, values.get(i), outs.get(i));
         }
         return l;
     }
@@ -511,15 +446,14 @@ final class TsLines {
             }
             values.get(d).forEach(v -> kept.add(new ColSpec(v)));
             rel = call("select", rel, new ColSpecArray(kept));
-            ValueSpecification on = call("equal", prop("l", PERIOD), prop("r", p));
-            if (l != null) {
-                on = call("and", on, call("equal", prop("l", left.part()), prop("r", l)));
-            }
-            ValueSpecification met = call("join", left.rel(), rel,
-                    new EnumValue("meta::pure::functions::relation::JoinKind", "INNER"), lambda2("l", "r", on));
+            // the library's meeting (timeseries::lines::meet; a line of no instrument, meetOne): on the period, and the
+            // instrument where both are lines per instrument; dated at the later date
             String at = w.fresh("at");
-            met = call("extend", met, new ColSpec(at, lambda("x", call("if", call("greaterThanEqual", one(left.at()),
-                    one(a)), thunk(col(left.at())), thunk(col(a))))));
+            ValueSpecification met = l != null
+                    ? call(LINES + "meet", left.rel(), new ColSpec(left.part()), new ColSpec(PERIOD),
+                            new ColSpec(left.at()), rel, new ColSpec(l), new ColSpec(p), new ColSpec(a), new ColSpec(at))
+                    : call(LINES + "meetOne", left.rel(), new ColSpec(PERIOD), new ColSpec(left.at()), rel,
+                            new ColSpec(p), new ColSpec(a), new ColSpec(at));
             left = new Line(met, left.part(), left.byInstrument(), at, left.seconds());
         }
         return left;
@@ -564,26 +498,5 @@ final class TsLines {
 
     static ValueSpecification prop(String v, String c) {
         return new AppliedProperty(new Variable(v), c);
-    }
-
-    /** {@code $x.c->toOne()}. */
-    private static ValueSpecification one(String c) {
-        return call("toOne", col(c));
-    }
-
-    private static ValueSpecification epoch() {
-        return new com.legend.protocol.spec.CDate(com.legend.values.PureDateLiteral.parse("1970-01-01"));
-    }
-
-    /** The period a line's {@code date} is of: SAMPLE BY's {@code unit}'s that holds it ({@link #sampled}: the first
-     *  day of its week, month, quarter or year), else the date itself -- a word's line's period ({@link TsWords}). */
-    static ValueSpecification periodOf(@com.legend.base.Nullable String unit, ValueSpecification date) {
-        String start = unit == null ? null : PERIOD_START.get(unit);
-        return start == null ? date : call(start, call("toOne", date));
-    }
-
-    /** A line's number in time of its date column {@code at} ({@link #column}'s: days since 1970, or seconds). */
-    static ValueSpecification ordOf(String at, boolean seconds) {
-        return call("dateDiff", epoch(), one(at), new EnumValue(DURATION, seconds ? "SECONDS" : "DAYS"));
     }
 }
