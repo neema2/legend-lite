@@ -2982,8 +2982,13 @@ AGENTS.md (the one-caller sentence). **M5f built 2026-11-01 (D106)**: `testplan/
 statement's label), `StatementOrigin.java` (`observing`); the tests (`BodyRouterParityTest`, `BodyClassTest`); the
 ledger; `parser-equivalence`'s `ratchets.tsv`. **The answer facts as upstream answers them 2026-11-01 (D107, R21)**:
 `driver/JudgePlans.java` (the host scalar), `planner/ProductStatements.java` (`asATestAnswers`), `PlanMaker.java`
-(the value column), `testplan/TestKinds.java`; `upstream-api/m5-answers.{json,pure}`. Next: M4 as R21 rules it (the
-test road onto the product's system-store road; B13 rewritten), then M6-M10 at R22's cadence.
+(the value column), `testplan/TestKinds.java`; `upstream-api/m5-answers.{json,pure}`. M4 DEFERRED (R23, 2026-11-01);
+M6-M10 and Z at R22's cadence, no questions (R23). **M6 half-built and HANDED OFF 2026-11-01**: the next session starts
+at `docs/TEST_IS_THE_PRODUCT_HANDOFF_2026_11_01.md`; M6's code (unmeasured beyond the quick tests) is the one commit on
+`claude/wizardly-dirac-rw6tim-seam-wip` (`89e604de`): `driver/HostSides.java`, `HostJudge.java`, `AssertVerdicts.java`,
+`HostAsserts.java` (new), `BodyRouter.java`, `BodyDriver.java`, `SqlTextVerdicts.java`; `exec/PlanRunner.java`;
+`executionplan/ExecutionPlan.java`; `planner/PlanMaker.java`; `testplan/BodyClass.java`, `TestDoor.java`,
+`TestKinds.java`; the tests (`BodyRouterParityTest`, `BodyClassTest`, `TestDoorTest`, `CodeShapeGuardrailTest`).
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

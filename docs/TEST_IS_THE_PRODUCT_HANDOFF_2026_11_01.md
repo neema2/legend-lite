@@ -306,3 +306,29 @@ at most one / at least one / exactly one for a to-one reader, held by the router
 vs the engine's `NAME` (upstream answers `NAME`); lifting `QUERY_PROGRAM`'s exclusions later; M4's two directions (the
 plan's R23 row); the B3/B4/B5 residue (§4.3); the non-DataError exit while reading a moved body's sides (the walk
 counts `sqlRaised`, the router does not yet).
+
+## 10. What lived only in the old session, and how to get each back
+
+| Item | Where it was | What the new session does |
+|---|---|---|
+| M6's code | the old container's working tree | it is commit `89e604de` on `claude/wizardly-dirac-rw6tim-seam-wip` (byte-identical, checked) |
+| The measurement baselines (per-package statement dumps: q34, m5g, mrf ...) and the chain scripts | the old session's scratchpad (gone with its container) | regenerate the base with §6.2's `ids.sh` on `f08cc4d9` (the working branch's head: the R21 code plus docs, so its statements are q34's); the corpora's baseline census is §6.3 |
+| M6's chain (started 2026-11-01 on the M6 code) | running in the old session | first results only: all 28 core test packages green; core statements identical to q34 except `driver` (17,471 -> 17,581: the parity test's own runs); PCT DuckDB 5/5 + discipline green. The corpora, channel B, the gate and the Postgres targets had not finished: re-run them (§6) |
+| M6's audit | running in the old session (an agent) | its brief is `docs/test-is-product-homework/M6_AUDIT_BRIEF.md`: run it again on `89e604de` |
+| The PR #83 activity subscription (CI and review events) | the old session | subscribe again (`subscribe_pr_activity` on neema2/legend-lite #83) |
+| The lane sessions' conversation | their own sessions (§7) | message them from the new session (`send_message`); they answer the session that asked |
+| The task list | the old session's tool | the plan's §7 is the list; §3 and §4.3 here are the state |
+| How to ask legend-engine (upstream answers, R21) | in the repo | `docs/result-boundary-homework/README.md` §7, "How to ask it again (the recipe)": the engine runner's jars (`//tools/engine-runner:testable`), a scratch main, the answers recorded under `core/src/test/resources/upstream-api/` or the homework's `upstream-api/` |
+| The superseded local branch `wip/s3c-part3-unreviewed` | the old container only | nothing: its code is identical to `29286366` on the working branch |
+| Bazel's caches | the old container | the first build in a fresh container is slow; `docs/CLOUD_SESSIONS.md` (`tools/cloud-distdir.sh` where GitHub archives are refused) |
+
+## 11. The first hour of the new session, in order
+
+1. Read this file, the plan's §1, §4, §6 (B3-B5), §7 and §10, AGENTS.md, `docs/GATES.md`'s last entries.
+2. `git fetch origin claude/wizardly-dirac-rw6tim-seam-wip`; create the base dumps on `f08cc4d9` (§6.2).
+3. Bring the M6 commit into the working tree uncommitted (`git cherry-pick -n 89e604de`); run the quick tests
+   (`//core:core_tests_architecture //core:core_tests_driver //core:core_tests_testplan //core:guardrails`), then the
+   chain (§6) and the audit (`M6_AUDIT_BRIEF.md`) -- the audit read-only while the chain runs.
+4. Fold the audit; close §4.3's items; record (GATES with the R21 CI result too, the plan's §9/§10, IN_FLIGHT, D108,
+   AGENTS.md); commit and push to `claude/wizardly-dirac-rw6tim-seam`; CI; lanes round 13; post M6's movement batch.
+5. Then M7 (§5).
