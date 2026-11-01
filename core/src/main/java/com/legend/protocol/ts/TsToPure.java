@@ -78,8 +78,13 @@ public final class TsToPure {
 
     /** A function's overload as {@link Model#overloads} reports it: its parameters in order (a word's lines first), the
      *  columns of the relation it answers after its key and its date (a word's value, or a struct's fields: a band's
-     *  lower, upper and width), and its documentation ({@code doc.doc}; none: null). */
-    public record Overload(List<Parameter> params, List<String> gives, @com.legend.base.Nullable String doc) {
+     *  lower, upper and width), its documentation ({@code doc.doc}; none: null), and the other names #TS reads it by
+     *  ({@code timeseries::Words.alias}: mean's avg). */
+    public record Overload(List<Parameter> params, List<String> gives, @com.legend.base.Nullable String doc,
+            List<String> aliases) {
+        public Overload {
+            aliases = List.copyOf(aliases);
+        }
     }
 
     /** A function's parameter as {@link Model#overloads} reports it: its name, its type's path ({@code Integer},
@@ -238,8 +243,9 @@ public final class TsToPure {
                     types = o.types();
                 }
                 own.addAll(types.keySet());
-                opened.put(o.key(), new TsLines.Source(rel, r.date(), java.util.Objects.requireNonNull(
-                        types.get(r.date())), r.instrument(), o.alias().isEmpty() ? "the source" : o.alias()));
+                java.util.Objects.requireNonNull(types.get(r.date()), "the source's date column");
+                opened.put(o.key(), new TsLines.Source(rel, r.date(), r.instrument(),
+                        o.alias().isEmpty() ? "the source" : o.alias()));
             }
             String date = resolved.get(0).date();
             for (SqlAst.Ident a : aliases) {

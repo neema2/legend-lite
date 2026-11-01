@@ -1047,6 +1047,12 @@ class TsIslandTest {
         words.forEach(w -> byName.put(w.name(), w));
         assertEquals(81, words.size(), "the words: " + byName.keySet());
         assertTrue(byName.keySet().stream().noneMatch(n -> n.contains("::")), "the helpers are not words");
+        // a word's other spellings are the library's (timeseries::Words.alias, R15): mean's avg, Postgres's stddev and
+        // variance; no word is named by one
+        assertEquals(List.of("avg"), java.util.Objects.requireNonNull(byName.get("mean")).aliases());
+        assertEquals(List.of("stddev"), java.util.Objects.requireNonNull(byName.get("std")).aliases());
+        assertEquals(List.of("variance"), java.util.Objects.requireNonNull(byName.get("var")).aliases());
+        assertTrue(byName.keySet().stream().noneMatch(List.of("avg", "stddev", "variance")::contains), "an alias is no word");
         for (com.legend.protocol.ts.TsCatalog.Word w : words) {
             assertNotNull(w.doc(), w.name() + " is documented");
             assertTrue(!w.forms().isEmpty(), w.name() + " has forms");

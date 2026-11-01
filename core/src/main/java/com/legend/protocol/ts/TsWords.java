@@ -98,22 +98,28 @@ final class TsWords {
     record MembersArg(List<TsLines.Valued> lines, List<Double> weights) implements Arg {
     }
 
-    /** Whether the library defines {@code word} over lines. */
+    /** Whether the library defines {@code word} over lines (by its name or an alias). */
     static boolean defines(TsFunctions.Ctx c, String word) {
-        return !c.model().overloads(fqn(word)).isEmpty();
+        return !c.model().overloads(fqn(c.model(), word)).isEmpty();
     }
 
     /** The words the language spells as Pure keywords: the library's are spelled with an underscore after, gs-quant's
      *  {@code if_}. */
     private static final Set<String> KEYWORDS = Set.of("if", "let", "true", "false");
 
-    /** SQL's spellings of the library's words (the language reads Postgres's: avg, stddev, variance). */
-    private static final Map<String, String> SPELLINGS = Map.of("avg", "mean", "stddev", "std", "variance", "var");
-
-    /** The path of the library's function {@code word} names. */
-    static String fqn(String word) {
-        String w = SPELLINGS.getOrDefault(word, word);
-        return PACKAGE + (KEYWORDS.contains(w) ? w + "_" : w);
+    /** The path of the library's function {@code word} names: its own ({@code if} written {@code if_}, a Pure
+     *  keyword), else the word whose alias it is ({@code timeseries::Words.alias}: avg is mean's). */
+    static String fqn(TsToPure.Model model, String word) {
+        String own = PACKAGE + (KEYWORDS.contains(word) ? word + "_" : word);
+        if (!model.overloads(own).isEmpty()) {
+            return own;
+        }
+        for (String fn : model.functionsIn(PACKAGE.substring(0, PACKAGE.length() - 2))) {
+            if (model.overloads(PACKAGE + fn).stream().anyMatch(o -> o.aliases().contains(word))) {
+                return PACKAGE + fn;
+            }
+        }
+        return own;
     }
 
     /** The language's name of the library's function {@code name} (its own, but a keyword's: {@code if_} is
@@ -139,7 +145,8 @@ final class TsWords {
      */
     static TsLines.Valued call(TsFunctions.Ctx c, String word, List<Arg> args, Map<String, Given> given,
             SqlAst.Pos pos) {
-        List<TsToPure.Overload> overloads = c.model().overloads(fqn(word));
+        String fqn = fqn(c.model(), word);
+        List<TsToPure.Overload> overloads = c.model().overloads(fqn);
         TsLines.Line key = keyLine(args, word, pos);
         List<List<ValueSpecification>> fits = new ArrayList<>();
         List<TsToPure.Overload> fitting = new ArrayList<>();
@@ -160,7 +167,7 @@ final class TsWords {
                     + String.join(", ", overloads.stream().map(o -> form(word, o.params())).toList()), pos);
         }
         if (fits.size() > 1) {
-            throw new IllegalStateException("the library's " + fqn(word) + " has " + fits.size()
+            throw new IllegalStateException("the library's " + fqn + " has " + fits.size()
                     + " overloads a call fits: " + given.keySet());
         }
         // the answer's value columns: a word's value, or a struct's fields (R10), each under a fresh name
@@ -169,7 +176,7 @@ final class TsWords {
         for (String g : gives) {
             outs.put(g, c.fresh("value".equals(g) ? word : word + "_" + g));
         }
-        ValueSpecification rel = back(c, TsLines.call(fqn(word), fits.get(0)), key, outs);
+        ValueSpecification rel = back(c, TsLines.call(fqn, fits.get(0)), key, outs);
         TsLines.Line line = new TsLines.Line(rel, key.part(), key.byInstrument(), key.at());
         String first = outs.values().iterator().next();
         if (!gives.equals(List.of("value"))) {

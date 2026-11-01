@@ -33,7 +33,11 @@ public final class TsCatalog {
     /** A word of the catalog: its name, its parameters by place (its lines first), its forms (each overload as
      *  written: {@code volatility(x: Line, w: Integer, type: Returns (optional), ...)}), and its documentation (none:
      *  null). */
-    public record Word(String name, List<Param> params, List<String> forms, @com.legend.base.Nullable String doc) {
+    public record Word(String name, List<Param> params, List<String> forms, @com.legend.base.Nullable String doc,
+            List<String> aliases) {
+        public Word {
+            aliases = List.copyOf(aliases);
+        }
     }
 
     /** A word's parameter: its name; its kind ({@code line}; {@code line_or_number}; {@code members}: lines with their
@@ -63,7 +67,7 @@ public final class TsCatalog {
                     required(overloads, p.name()))));
             out.add(new Word(name, List.copyOf(params), overloads.stream().map(o -> TsWords.form(name, o.params()))
                     .toList(), overloads.stream().map(TsToPure.Overload::doc).filter(java.util.Objects::nonNull)
-                    .findFirst().orElse(null)));
+                    .findFirst().orElse(null), overloads.stream().flatMap(o -> o.aliases().stream()).distinct().toList()));
         }
         return out;
     }
@@ -71,7 +75,7 @@ public final class TsCatalog {
     /** {@code word}'s signature, read from its overloads in {@code model}: its lines' count (-1: weighted members, any
      *  number), its other parameters. */
     static TsFunctions.Signature signature(TsToPure.Model model, String word) {
-        return signature(model, model.overloads(TsWords.fqn(word)));
+        return signature(model, model.overloads(TsWords.fqn(model, word)));
     }
 
     private static TsFunctions.Signature signature(TsToPure.Model model, List<TsToPure.Overload> overloads) {

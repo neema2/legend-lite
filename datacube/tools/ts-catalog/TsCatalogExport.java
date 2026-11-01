@@ -89,11 +89,13 @@ public final class TsCatalogExport {
                 "  readonly required: boolean;",
                 "}",
                 "",
-                "/** A word: its parameters by place, its forms (each overload as written), its description. */",
+                "/** A word: its parameters by place, its forms (each overload as written), its description, and its other",
+                " *  spellings (the library's timeseries::Words.alias: mean's avg). */",
                 "export interface TsWord {",
                 "  readonly params: readonly TsWordParam[];",
                 "  readonly forms: readonly string[];",
                 "  readonly doc: string | null;",
+                "  readonly aliases: readonly string[];",
                 "}",
                 "",
                 "/** Every word, by its name. */",
@@ -108,6 +110,7 @@ public final class TsCatalogExport {
             out.add("    ],");
             out.add("    forms: " + list(w.forms()) + ",");
             out.add("    doc: " + (w.doc() == null ? "null" : quote(w.doc())) + ",");
+            out.add("    aliases: " + list(w.aliases()) + ",");
             out.add("  },");
         }
         out.addAll(List.of("};", ""));
@@ -132,6 +135,11 @@ public final class TsCatalogExport {
             out.add("");
             if (w.doc() != null) {
                 out.add(w.doc());
+                out.add("");
+            }
+            if (!w.aliases().isEmpty()) {
+                out.add("Also written " + w.aliases().stream().map(a -> "`" + a + "`").collect(Collectors.joining(", "))
+                        + ".");
                 out.add("");
             }
             out.add("| Parameter | Kind | Takes | Required |");

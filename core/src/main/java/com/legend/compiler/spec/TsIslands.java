@@ -199,7 +199,10 @@ public final class TsIslands {
                 String doc = f.definition() == null ? null : f.definition().taggedValues().stream()
                         .filter(t -> t.tagName().equals("doc") && t.profileName().endsWith("doc"))
                         .map(com.legend.model.TaggedValue::value).findFirst().orElse(null);
-                out.add(new TsToPure.Overload(ps, gives, doc));
+                List<String> aliases = f.definition() == null ? List.of() : f.definition().taggedValues().stream()
+                        .filter(t -> t.tagName().equals("alias") && t.profileName().equals(TsToPure.LIBRARY + "Words"))
+                        .map(com.legend.model.TaggedValue::value).toList();
+                out.add(new TsToPure.Overload(ps, gives, doc, aliases));
             }
             return out;
         }

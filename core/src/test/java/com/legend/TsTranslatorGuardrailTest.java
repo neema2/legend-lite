@@ -40,9 +40,10 @@ class TsTranslatorGuardrailTest {
     /** Every relation call the translator writes: {@code call(<name>, ...)}, its first argument as written. */
     private static final Pattern CALL = Pattern.compile("\\bcall\\(([^,()]*(?:\\([^()]*\\))?)[,)]");
 
-    /** A call's name that is the library's: a line's rule, a word, a word by its catalog name. */
+    /** A call's name that is the library's: a line's rule, a word, a word by its name as written ({@code fqn}: its
+     *  path, resolved by {@code TsWords.fqn(model, word)}). */
     private static final Pattern LIBRARY = Pattern.compile("(TsLines\\.)?LINES \\+ \"[A-Za-z_]+\"|PACKAGE \\+ \"[A-Za-z_:]+\""
-            + "|fqn\\([a-z]+\\)");
+            + "|fqn(\\([a-z().]+, [a-z]+\\))?");
 
     /** The forms of {@code call(} that write no relation call: the helpers' declarations, a word's dispatch. */
     private static final Pattern NOT_A_CALL = Pattern.compile("String fn|(TsFunctions\\.)?Ctx c|c|this");

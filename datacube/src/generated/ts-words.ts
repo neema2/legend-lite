@@ -15,11 +15,13 @@ export interface TsWordParam {
   readonly required: boolean;
 }
 
-/** A word: its parameters by place, its forms (each overload as written), its description. */
+/** A word: its parameters by place, its forms (each overload as written), its description, and its other
+ *  spellings (the library's timeseries::Words.alias: mean's avg). */
 export interface TsWord {
   readonly params: readonly TsWordParam[];
   readonly forms: readonly string[];
   readonly doc: string | null;
+  readonly aliases: readonly string[];
 }
 
 /** Every word, by its name. */
@@ -33,6 +35,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['alpha(x: Line, y: Line, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'alpha(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized alpha of x\'s simple returns over y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
+    aliases: [],
   },
   annualize: {
     params: [
@@ -41,6 +44,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['annualize(x: Line, annualization_factor: Integer (optional))'],
     doc: 'Each of x\'s values annualized by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
+    aliases: [],
   },
   append: {
     params: [
@@ -49,6 +53,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['append(x: Line, y: Line)'],
     doc: 'x\'s rows to its last, then y\'s after it (gs-quant\'s append).',
+    aliases: [],
   },
   atr: {
     params: [
@@ -59,6 +64,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['atr(high: Line, low: Line, close: Line)', 'atr(high: Line, low: Line, close: Line, w: Integer)'],
     doc: 'The average true range over w observations (14 unless given), Wilder\'s: of a high, a low and a close line, met.',
+    aliases: [],
   },
   basket: {
     params: [
@@ -67,6 +73,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['basket(members: TimedMembers)', 'basket(members: TimedMembers, rebalance: Rebalance)'],
     doc: 'A basket of the members in their weights from 100, rebalanced daily unless told weekly or monthly (gs-quant\'s basket_series, its costs none): units fixed between rebalances.',
+    aliases: [],
   },
   beta: {
     params: [
@@ -76,6 +83,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['beta(x: Line, y: Line)', 'beta(x: Line, y: Line, w: Integer)', 'beta(x: Line, y: Line, w: Scope)', 'beta(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The beta of x\'s simple returns on y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   bollinger_bands: {
     params: [
@@ -85,6 +93,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['bollinger_bands(x: Line, k: Float (optional))', 'bollinger_bands(x: Line, w: Integer, k: Float (optional))', 'bollinger_bands(x: Line, w: Scope, k: Float (optional))', 'bollinger_bands(x: Line, w: Integer, unit: DurationUnit, k: Float (optional))'],
     doc: 'Bollinger bands of x: its mean over a window less and plus k (2 unless given) sample deviations, and the band\'s width -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 20 observations unless given. A struct (R10): its lower, upper and width.',
+    aliases: [],
   },
   change: {
     params: [
@@ -93,6 +102,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['change(x: Line)', 'change(x: Line, from: StrictDate)'],
     doc: 'Each value less the line\'s first (or its value as of from).',
+    aliases: [],
   },
   compare: {
     params: [
@@ -102,6 +112,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['compare(x: Line, y: Line)', 'compare(x: Line, y: Line, method: Interpolation)', 'compare(x: Line, y: Float)', 'compare(x: Float, y: Line)'],
     doc: 'Which of x and y is greater: 1, -1, or 0 where they are equal or one has none (gs-quant\'s compare) -- each a line or a number; two lines aligned by a method, gs-quant\'s Interpolate: step unless given (every date either has, each line\'s last value at or before it -- gs-quant\'s but for a line\'s start, which gs-quant fills with its first value, a later one: none there, R12), intersect (the dates both have), nan (every date either has, none where one has none) or zero (0 there); under FILL, filled.',
+    aliases: [],
   },
   consecutive: {
     params: [
@@ -110,6 +121,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['consecutive(x: Line, direction: Direction (optional))'],
     doc: 'The number of values in a row to date that rose (positive, unless given) or fell.',
+    aliases: [],
   },
   correlation: {
     params: [
@@ -119,6 +131,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['correlation(x: Line, y: Line)', 'correlation(x: Line, y: Line, w: Integer)', 'correlation(x: Line, y: Line, w: Scope)', 'correlation(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The correlation of x\'s and y\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   count: {
     params: [
@@ -127,6 +140,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['count(x: Line, w: Integer, unit: DurationUnit)', 'count(x: Line, w: Scope)', 'count(x: Line, w: StrictDate)'],
     doc: 'The number of x\'s values over a calendar period back, from the line\'s start to date, or a date on (a window of observations holds its own count).',
+    aliases: [],
   },
   cov: {
     params: [
@@ -136,6 +150,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['cov(x: Line, y: Line)', 'cov(x: Line, y: Line, w: Integer)', 'cov(x: Line, y: Line, w: Scope)', 'cov(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The sample covariance of x\'s and y\'s values over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   day: {
     params: [
@@ -143,6 +158,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['day(x: Line)'],
     doc: 'Each of x\'s dates\' the day of month.',
+    aliases: [],
   },
   dickey_fuller: {
     params: [
@@ -151,6 +167,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['dickey_fuller(x: Line)', 'dickey_fuller(x: Line, w: Integer)', 'dickey_fuller(x: Line, w: Scope)', 'dickey_fuller(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The Dickey-Fuller statistic of x\'s values over a window -- w observations to date (a value once it holds three at least, and w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    aliases: [],
   },
   diff: {
     params: [
@@ -159,6 +176,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['diff(x: Line)', 'diff(x: Line, obs: Integer)', 'diff(x: Line, obs: Integer, unit: DurationUnit)'],
     doc: 'Each value less the one obs observations back (1 unless given), or a calendar period back.',
+    aliases: [],
   },
   donchian_channels: {
     params: [
@@ -168,6 +186,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['donchian_channels(high: Line, low: Line)', 'donchian_channels(high: Line, low: Line, w: Integer)', 'donchian_channels(high: Line, low: Line, w: Scope)', 'donchian_channels(high: Line, low: Line, w: Integer, unit: DurationUnit)'],
     doc: 'Donchian channels: the window\'s lowest low and highest high, and their width -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 20 observations unless given. A struct (R10): its lower, upper and width.',
+    aliases: [],
   },
   down_capture: {
     params: [
@@ -177,6 +196,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['down_capture(x: Line, y: Line)', 'down_capture(x: Line, y: Line, w: Integer)', 'down_capture(x: Line, y: Line, w: Scope)', 'down_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The down-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   drawdown: {
     params: [
@@ -185,6 +205,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['drawdown(x: Line)', 'drawdown(x: Line, w: Integer)', 'drawdown(x: Line, w: Scope)', 'drawdown(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'Each value\'s drawdown from the greatest of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    aliases: [],
   },
   excess_returns: {
     params: [
@@ -193,6 +214,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['excess_returns(x: Line, y: Line)', 'excess_returns(x: TimedLine, y: Float)'],
     doc: 'The excess returns of x over a cash index y (on the dates both have), or over a rate accrued actual/360 (gs-quant\'s excess_returns).',
+    aliases: [],
   },
   exponential_moving_average: {
     params: [
@@ -201,6 +223,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['exponential_moving_average(x: Line)', 'exponential_moving_average(x: Line, beta: Float)'],
     doc: 'The exponentially weighted moving average, each value\'s weight beta (0.75 unless given) of the one after it; beta 0, the line itself.',
+    aliases: [],
   },
   exponential_spread_volatility: {
     params: [
@@ -210,6 +233,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['exponential_spread_volatility(x: Line, beta: Float (optional), annualization_factor: Integer (optional))'],
     doc: 'The exponentially weighted volatility of x\'s differences (a spread\'s; beta 0.75 unless given), annualized.',
+    aliases: [],
   },
   exponential_std: {
     params: [
@@ -218,6 +242,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['exponential_std(x: Line, beta: Float (optional))'],
     doc: 'The exponentially weighted standard deviation (beta 0.75 unless given).',
+    aliases: [],
   },
   exponential_volatility: {
     params: [
@@ -227,6 +252,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['exponential_volatility(x: Line, beta: Float (optional), annualization_factor: Integer (optional))'],
     doc: 'The exponentially weighted volatility of x\'s returns (beta 0.75 unless given), annualized by the periods a year given, SAMPLE BY\'s, or the line\'s dates infer.',
+    aliases: [],
   },
   filter: {
     params: [
@@ -236,6 +262,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['filter(x: Line, operator: FilterOperator (optional), value: Float (optional))'],
     doc: 'x\'s values that meet operator (empty unless given: none dropped but the empty) against value (0 unless given).',
+    aliases: [],
   },
   first: {
     params: [
@@ -244,6 +271,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['first(x: Line, w: Scope)'],
     doc: 'x\'s first value, on every date (gs-quant\'s first): first(x, all), the line\'s start to date. Under SAMPLE BY, first(x) is each period\'s first (D3).',
+    aliases: [],
   },
   geometrically_aggregate: {
     params: [
@@ -251,6 +279,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['geometrically_aggregate(x: Line)'],
     doc: 'The product of one plus each of x\'s values, to date: returns compounded.',
+    aliases: [],
   },
   half_life: {
     params: [
@@ -259,6 +288,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['half_life(x: Line)', 'half_life(x: Line, w: Integer)', 'half_life(x: Line, w: Scope)', 'half_life(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The half-life of mean reversion of x\'s values over a window -- w observations to date (a value once it holds three at least, and w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    aliases: [],
   },
   hedge_ratio: {
     params: [
@@ -268,6 +298,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['hedge_ratio(x: Line, y: Line)', 'hedge_ratio(x: Line, y: Line, w: Integer)', 'hedge_ratio(x: Line, y: Line, w: Scope)', 'hedge_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The hedge ratio of x\'s values on y\'s (the beta of their levels) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   if: {
     params: [
@@ -277,6 +308,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['if(condition: Line, x: Line, y: Line)', 'if(condition: Line, x: Line, y: Float)', 'if(condition: Line, x: Float, y: Line)', 'if(condition: Line, x: Float, y: Float)'],
     doc: 'x where the condition (its flags: not 0) holds, y where it does not, none where it is none (gs-quant\'s if_) -- each a line or a number, on the condition\'s dates.',
+    aliases: [],
   },
   index: {
     params: [
@@ -286,6 +318,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['index(x: Line, initial: Float (optional))', 'index(x: Line, initial: Float (optional), from: StrictDate)'],
     doc: 'Each value over the line\'s first (or its value as of from), times initial (1 unless given).',
+    aliases: [],
   },
   information_ratio: {
     params: [
@@ -296,6 +329,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['information_ratio(x: Line, y: Line, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'information_ratio(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized information ratio of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
+    aliases: [],
   },
   interpolate: {
     params: [
@@ -305,6 +339,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['interpolate(x: Line, y: Line)', 'interpolate(x: Line, y: Line, method: Interpolation)'],
     doc: 'x on y\'s dates (gs-quant\'s interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant\'s step -- at the first, x\'s value as of it (none before x starts: gs-quant\'s its first, a later value, R12), at each later its own, else the one before among them.',
+    aliases: [],
   },
   keltner_channels: {
     params: [
@@ -317,6 +352,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['keltner_channels(high: Line, low: Line, close: Line, k: Float (optional))', 'keltner_channels(high: Line, low: Line, close: Line, w: Integer, k: Float (optional))', 'keltner_channels(high: Line, low: Line, close: Line, w: Integer, a: Integer, k: Float (optional))'],
     doc: 'Keltner channels: the close\'s exponential mean of span w (20 unless given) less and plus k (2 unless given) average true ranges over a (10 unless given). A struct (R10): its lower, upper and width.',
+    aliases: [],
   },
   lag: {
     params: [
@@ -325,6 +361,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['lag(x: Line)', 'lag(x: Line, obs: Integer)', 'lag(x: Line, obs: Integer, unit: DurationUnit)'],
     doc: 'The value obs observations back (1 unless given), or as of a calendar period back.',
+    aliases: [],
   },
   last: {
     params: [
@@ -333,6 +370,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['last(x: Line, w: Whole)'],
     doc: 'x\'s last value, on every date (gs-quant\'s last): last(x, whole), the whole line\'s -- the future read, so asked for by name (D3). Under SAMPLE BY, last(x) is each period\'s last (D3).',
+    aliases: [],
   },
   lead_lag: {
     params: [
@@ -343,6 +381,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['lead_lag(x: Line, y: Line)', 'lead_lag(x: Line, y: Line, lag: Integer)', 'lead_lag(x: Line, y: Line, lag: Integer, w: Integer)', 'lead_lag(x: Line, y: Line, lag: Integer, w: Scope)', 'lead_lag(x: Line, y: Line, lag: Integer, w: Integer, unit: DurationUnit)'],
     doc: 'The correlation of x\'s simple returns with y\'s lag observations before (a lead where lag is negative; 1 unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   macd: {
     params: [
@@ -353,6 +392,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['macd(x: Line, m: Integer (optional), n: Integer (optional), s: Integer (optional))'],
     doc: 'The moving average convergence divergence: the exponential averages over m and n observations (12 and 26 unless given) apart, smoothed over s (1 unless given).',
+    aliases: [],
   },
   max: {
     params: [
@@ -361,6 +401,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['max(x: Line, w: Integer)', 'max(x: Line, w: Integer, unit: DurationUnit)', 'max(x: Line, w: Scope)', 'max(x: Line, w: StrictDate)'],
     doc: 'The greatest of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
+    aliases: [],
   },
   max_drawdown: {
     params: [
@@ -369,6 +410,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['max_drawdown(x: Line)', 'max_drawdown(x: Line, w: Integer)', 'max_drawdown(x: Line, w: Scope)', 'max_drawdown(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The deepest drawdown of x\'s values within a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    aliases: [],
   },
   mean: {
     params: [
@@ -377,6 +419,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['mean(x: Line, w: Integer)', 'mean(x: Line, w: Integer, unit: DurationUnit)', 'mean(x: Line, w: Scope)', 'mean(x: Line, w: StrictDate)'],
     doc: 'The mean of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
+    aliases: ['avg'],
   },
   median: {
     params: [
@@ -385,6 +428,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['median(x: Line)', 'median(x: Line, w: Integer)', 'median(x: Line, w: Scope)', 'median(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The median of x\'s values over a window -- w observations to date, a calendar period back, the line\'s start to date; 22 observations unless given.',
+    aliases: [],
   },
   min: {
     params: [
@@ -393,6 +437,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['min(x: Line, w: Integer)', 'min(x: Line, w: Integer, unit: DurationUnit)', 'min(x: Line, w: Scope)', 'min(x: Line, w: StrictDate)'],
     doc: 'The least of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
+    aliases: [],
   },
   month: {
     params: [
@@ -400,6 +445,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['month(x: Line)'],
     doc: 'Each of x\'s dates\' month\'s number.',
+    aliases: [],
   },
   obv: {
     params: [
@@ -408,6 +454,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['obv(close: Line, volume: Line)'],
     doc: 'On-balance volume: the running sum of the volume, signed by the close\'s move.',
+    aliases: [],
   },
   ohlc: {
     params: [
@@ -418,6 +465,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['ohlc(open: Line, high: Line, low: Line, close: Line)'],
     doc: 'A candle (R10): its open, high, low and close lines on the dates all have (under FILL, filled) -- under SAMPLE BY each its period\'s own: ohlc(first(open), max(high), min(low), last(close)).',
+    aliases: [],
   },
   percent_change: {
     params: [
@@ -426,6 +474,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['percent_change(x: Line)', 'percent_change(x: Line, from: StrictDate)'],
     doc: 'Each value\'s change from the line\'s first (or its value as of from), in percent.',
+    aliases: [],
   },
   percentile: {
     params: [
@@ -435,6 +484,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['percentile(x: Line, n: Float (optional))', 'percentile(x: Line, n: Float (optional), w: Integer)', 'percentile(x: Line, n: Float (optional), w: Scope)', 'percentile(x: Line, n: Float (optional), w: Integer, unit: DurationUnit)'],
     doc: 'The n-th percentile (50 unless given) of x\'s values over a window -- w observations to date, a calendar period back, or the whole line (its default, and all).',
+    aliases: [],
   },
   percentiles: {
     params: [
@@ -443,6 +493,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['percentiles(x: Line)', 'percentiles(x: Line, w: Integer)', 'percentiles(x: Line, w: Scope)', 'percentiles(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'Each of x\'s values\' percentile among its window\'s -- w observations to date, a calendar period back, the line\'s start to date (its default).',
+    aliases: [],
   },
   prepend: {
     params: [
@@ -451,6 +502,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['prepend(x: Line, y: Line)'],
     doc: 'x\'s rows before y\'s first, then y\'s every row (gs-quant\'s prepend).',
+    aliases: [],
   },
   prices: {
     params: [
@@ -460,6 +512,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['prices(x: Line, initial: Float (optional), type: Returns (optional))'],
     doc: 'The prices x\'s returns of a type (simple unless given) make, from initial (1 unless given).',
+    aliases: [],
   },
   product: {
     params: [
@@ -468,6 +521,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['product(x: Line)', 'product(x: Line, w: Integer)', 'product(x: Line, w: Scope)', 'product(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The product of x\'s values over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    aliases: [],
   },
   quarter: {
     params: [
@@ -475,6 +529,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['quarter(x: Line)'],
     doc: 'Each of x\'s dates\' quarter\'s number.',
+    aliases: [],
   },
   r_squared: {
     params: [
@@ -484,6 +539,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['r_squared(x: Line, y: Line)', 'r_squared(x: Line, y: Line, w: Integer)', 'r_squared(x: Line, y: Line, w: Scope)', 'r_squared(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The R squared of x\'s simple returns regressed on y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   range: {
     params: [
@@ -492,6 +548,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['range(x: Line)', 'range(x: Line, w: Integer)', 'range(x: Line, w: Scope)', 'range(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The range of x\'s values (greatest less least) over a window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date; 22 observations unless given.',
+    aliases: [],
   },
   rebase: {
     params: [
@@ -501,6 +558,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['rebase(x: Line, base: Float (optional))', 'rebase(x: Line, base: Float (optional), from: StrictDate)'],
     doc: 'Each value over the line\'s first (or its value as of from), times base (100 unless given).',
+    aliases: [],
   },
   residual: {
     params: [
@@ -510,6 +568,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['residual(x: Line, y: Line)', 'residual(x: Line, y: Line, w: Integer)', 'residual(x: Line, y: Line, w: Scope)', 'residual(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The residual of x\'s value from its regression on y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   returns: {
     params: [
@@ -519,6 +578,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['returns(x: Line, type: Returns (optional))', 'returns(x: Line, obs: Integer, type: Returns (optional))', 'returns(x: Line, obs: Integer, unit: DurationUnit, type: Returns (optional))'],
     doc: 'The returns of a type (simple unless given) over obs observations (1 unless given), or as of a calendar period back.',
+    aliases: [],
   },
   rsi: {
     params: [
@@ -527,6 +587,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['rsi(x: Line, w: Integer (optional))'],
     doc: 'The relative strength index over w observations (14 unless given), Wilder\'s.',
+    aliases: [],
   },
   seasonally_adjusted: {
     params: [
@@ -536,6 +597,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['seasonally_adjusted(x: Line)', 'seasonally_adjusted(x: Line, method: SeasonalModel)', 'seasonally_adjusted(x: Line, freq: Cycle)', 'seasonally_adjusted(x: Line, method: SeasonalModel, freq: Cycle)'],
     doc: 'x seasonally adjusted (gs-quant\'s seasonally_adjusted): less (additive, unless given) or over (multiplicative) each place in the cycle\'s mean of the detrended values -- a cycle (freq: a year unless given) counted in the query\'s periods (SAMPLE BY).',
+    aliases: [],
   },
   sharpe_ratio: {
     params: [
@@ -545,6 +607,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['sharpe_ratio(x: Line, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Integer, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Scope, annualization_factor: Integer (optional))', 'sharpe_ratio(x: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized Sharpe ratio of x\'s simple returns over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 252 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
+    aliases: [],
   },
   smooth_spikes: {
     params: [
@@ -554,6 +617,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['smooth_spikes(x: Line, threshold: Float (optional), type: ThresholdType (optional))'],
     doc: 'x with each spike -- a value apart from both neighbours by more than threshold (0.5 unless given), as a percentage unless absolute -- the mean of its neighbours.',
+    aliases: [],
   },
   smoothed_moving_average: {
     params: [
@@ -562,6 +626,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['smoothed_moving_average(x: Line)', 'smoothed_moving_average(x: Line, w: Integer)'],
     doc: 'The smoothed (Wilder\'s) moving average over w observations (14 unless given). w reaches the library as written: its smoothedMean folds its own case of one observation.',
+    aliases: [],
   },
   std: {
     params: [
@@ -570,6 +635,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['std(x: Line, w: Integer)', 'std(x: Line, w: Integer, unit: DurationUnit)', 'std(x: Line, w: Scope)', 'std(x: Line, w: StrictDate)'],
     doc: 'The sample standard deviation of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
+    aliases: ['stddev'],
   },
   stochastic: {
     params: [
@@ -580,6 +646,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['stochastic(high: Line, low: Line, close: Line)', 'stochastic(high: Line, low: Line, close: Line, w: Integer)'],
     doc: 'The stochastic oscillator %K over w observations (14 unless given): where the close stands between the window\'s lowest low and highest high, in percent.',
+    aliases: [],
   },
   sum: {
     params: [
@@ -588,6 +655,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['sum(x: Line, w: Integer)', 'sum(x: Line, w: Integer, unit: DurationUnit)', 'sum(x: Line, w: Scope)', 'sum(x: Line, w: StrictDate)'],
     doc: 'The sum of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
+    aliases: [],
   },
   total_return: {
     params: [
@@ -596,6 +664,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['total_return(x: Line, y: Line)', 'total_return(x: TimedLine, y: Float)'],
     doc: 'The total return of a price x: over a dividend line y (on every date either has), or a yield accrued actual/365 (gs-quant\'s total_return).',
+    aliases: [],
   },
   tracking_error: {
     params: [
@@ -606,6 +675,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['tracking_error(x: Line, y: Line, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Scope, annualization_factor: Integer (optional))', 'tracking_error(x: Line, y: Line, w: Integer, unit: DurationUnit, annualization_factor: Integer (optional))'],
     doc: 'The annualized tracking error of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 63 observations unless given -- by the periods a year given (annualization_factor), SAMPLE BY\'s, or the dates infer.',
+    aliases: [],
   },
   trend: {
     params: [
@@ -615,6 +685,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['trend(x: Line)', 'trend(x: Line, method: SeasonalModel)', 'trend(x: Line, freq: Cycle)', 'trend(x: Line, method: SeasonalModel, freq: Cycle)'],
     doc: 'The trend of a seasonal series (gs-quant\'s trend, statsmodels\' classical decomposition): a centred moving average over a cycle (freq: a year unless given) counted in the query\'s periods (SAMPLE BY).',
+    aliases: [],
   },
   union: {
     params: [
@@ -623,6 +694,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['union(x: Line, y: Line)'],
     doc: 'x where it has a value, else y (gs-quant\'s union): on every date either has.',
+    aliases: [],
   },
   up_capture: {
     params: [
@@ -632,6 +704,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['up_capture(x: Line, y: Line)', 'up_capture(x: Line, y: Line, w: Integer)', 'up_capture(x: Line, y: Line, w: Scope)', 'up_capture(x: Line, y: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The up-market capture of x\'s simple returns against y\'s over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 63 observations unless given.',
+    aliases: [],
   },
   value_at: {
     params: [
@@ -640,6 +713,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['value_at(x: Line, date: StrictDate)'],
     doc: 'x\'s value as of a date: its last on or before it, on every date.',
+    aliases: [],
   },
   var: {
     params: [
@@ -648,6 +722,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['var(x: Line, w: Integer)', 'var(x: Line, w: Integer, unit: DurationUnit)', 'var(x: Line, w: Scope)', 'var(x: Line, w: StrictDate)'],
     doc: 'The sample variance of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.',
+    aliases: ['variance'],
   },
   vol_swap_volatility: {
     params: [
@@ -656,6 +731,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['vol_swap_volatility(x: Line)', 'vol_swap_volatility(x: Line, w: Integer)', 'vol_swap_volatility(x: Line, w: Scope)', 'vol_swap_volatility(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The volatility a variance swap\'s realized leg reads, of x\'s values over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; the line\'s start to date unless given.',
+    aliases: [],
   },
   volatility: {
     params: [
@@ -666,6 +742,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['volatility(x: Line, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Integer, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Scope, type: Returns (optional), annualization_factor: Integer (optional))', 'volatility(x: Line, w: Integer, unit: DurationUnit, type: Returns (optional), annualization_factor: Integer (optional))'],
     doc: 'The annualized volatility of x\'s returns of a type (simple unless given) over a window -- w observations to date (a value once it holds two at least, and w), a calendar period back, the line\'s start to date; 22 observations unless given -- in percent, by the periods a year given (annualization_factor), SAMPLE BY\'s, or the line\'s dates infer.',
+    aliases: [],
   },
   vwap: {
     params: [
@@ -675,6 +752,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['vwap(price: Line, volume: Line)', 'vwap(price: Line, volume: Line, w: Integer)', 'vwap(price: Line, volume: Line, w: Scope)', 'vwap(price: Line, volume: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The volume-weighted average price over a window -- w observations to date (a value once it holds w), a calendar period back, the line\'s start to date; 20 observations unless given.',
+    aliases: [],
   },
   weekday: {
     params: [
@@ -682,6 +760,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['weekday(x: Line)'],
     doc: 'Each of x\'s dates\' weekday\'s number.',
+    aliases: [],
   },
   weighted_sum: {
     params: [
@@ -689,6 +768,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['weighted_sum(members: Members)'],
     doc: 'The weighted sum of the members (each line and its weight: weighted_sum(x, 0.6, y, 0.4)) over their weights\' sum, on the dates all have (gs-quant\'s weighted_sum).',
+    aliases: [],
   },
   winsorize: {
     params: [
@@ -697,6 +777,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['winsorize(x: Line, limit: Float (optional))'],
     doc: 'x\'s values winsorized: each held within limit (2.5 unless given) sample deviations of the whole line\'s mean.',
+    aliases: [],
   },
   year: {
     params: [
@@ -704,6 +785,7 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['year(x: Line)'],
     doc: 'Each of x\'s dates\' year.',
+    aliases: [],
   },
   zscores: {
     params: [
@@ -712,5 +794,6 @@ export const TS_WORDS: Readonly<Record<string, TsWord>> = {
     ],
     forms: ['zscores(x: Line)', 'zscores(x: Line, w: Integer)', 'zscores(x: Line, w: Scope)', 'zscores(x: Line, w: Integer, unit: DurationUnit)'],
     doc: 'The z-score of each of x\'s values against its window -- w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, or the whole line (its default, and today\'s all: docs/TS_ONE_TREE_PLAN_2026_10_31.md §4 moves all to the line\'s start to date).',
+    aliases: [],
   },
 };

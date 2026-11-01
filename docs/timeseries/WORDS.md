@@ -479,6 +479,8 @@ Forms: `max_drawdown(x: Line)`, `max_drawdown(x: Line, w: Integer)`, `max_drawdo
 
 The mean of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
 
+Also written `avg`.
+
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
@@ -741,6 +743,8 @@ Forms: `smoothed_moving_average(x: Line)`, `smoothed_moving_average(x: Line, w: 
 
 The sample standard deviation of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
 
+Also written `stddev`.
+
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|
 | `x` | line |  | yes |
@@ -845,6 +849,8 @@ Forms: `value_at(x: Line, date: StrictDate)`.
 ## `var`
 
 The sample variance of x's values over a window: w observations to date (a value from the line's (w + 1)-th, gs-quant's ramp), a calendar period back, the line's start to date, or a date on.
+
+Also written `variance`.
 
 | Parameter | Kind | Takes | Required |
 |---|---|---|---|

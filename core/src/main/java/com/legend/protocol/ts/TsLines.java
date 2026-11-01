@@ -67,10 +67,9 @@ final class TsLines {
     record Valued(Line line, String value) implements Node {
     }
 
-    /** A source a line reads: its relation, its date column (and that column's type), its instrument column (none:
-     *  null), and what the query calls it. */
-    record Source(ValueSpecification relation, String date, String dateType, @com.legend.base.Nullable String instrument,
-            String what) {
+    /** A source a line reads: its relation, its date column, its instrument column (none: null), and what the query
+     *  calls it. */
+    record Source(ValueSpecification relation, String date, @com.legend.base.Nullable String instrument, String what) {
     }
 
     /** What the lines are written with: a per-point expression's lambda (the translator's, R13's), and fresh names. */
@@ -140,17 +139,10 @@ final class TsLines {
         if (!split) {
             rel = call("extend", rel, new ColSpec(ONE_LINE, lambda("x", new CString("all"))));
         }
-        boolean day = "StrictDate".equals(s.dateType()) || "Date".equals(s.dateType());
-        String dayColumn = s.date();
-        if (!day) {
-            // a date-time's day (the library's dayOf)
-            dayColumn = w.fresh("day");
-            rel = call(LINES + "dayOf", rel, new ColSpec(s.date()), new ColSpec(dayColumn));
-        }
         String value = w.fresh("base");
         // the library's line by period (timeseries::lines::sample)
-        rel = call(LINES + "sample", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(dayColumn),
-                new ColSpec(column), sample(unit),
+        rel = call(LINES + "sample", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(column),
+                sample(unit),
                 new EnumValue(TsToPure.LIBRARY + "Taken", java.util.Objects.requireNonNull(TAKEN.get(taken))),
                 new EnumValue(TsToPure.LIBRARY + "Dated", dated.toLowerCase(java.util.Locale.ROOT)),
                 new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));

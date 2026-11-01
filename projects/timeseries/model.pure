@@ -1828,12 +1828,6 @@ function timeseries::lines::line<T,K,D,V,OK,OP,OO,OA,OV>(t: Relation<T>[1], key:
     ->rename(~lk, $outKey)->rename(~lp, $period)->rename(~lo, $ord)->rename(~la, $at)->rename(~lv, $out)
 }
 
-// A date-time's day: the day a SAMPLE BY takes it in.
-function timeseries::lines::dayOf<T,D,O>(t: Relation<T>[1], date: ColSpec<D⊆T>[1], out: ColSpec<O>[1]): Relation<T+O>[1]
-{
-  $t->extend(~o:r|$r->read($date)->toOne()->datePart())->rename(~o, $out)
-}
-
 // The period of a SAMPLE BY a day is in: the first day of its week, month, quarter or year; a day's, the day.
 function timeseries::lines::periodOf(d: Date[1], sample: timeseries::Sample[1]): Date[1]
 {
@@ -1852,14 +1846,14 @@ function timeseries::lines::periodEnd(start: Date[1], sample: timeseries::Sample
         ->adjust(-1, meta::pure::functions::date::DurationUnit.DAYS)->datePart()))
 }
 
-// A COLUMN'S LINE BY PERIOD (R5, SAMPLE BY): t's rows that have a date and a value, each in its day's period (the
-// first day of its week, month, quarter or year; a day's, the day), grouped by key and period: its value taken (its last
+// A COLUMN'S LINE BY PERIOD (R5, SAMPLE BY): t's rows that have a date and a value, each in its day's period (its
+// date's day -- a date-time's, a date's own --; the first day of its week, month, quarter or year), grouped by key and period: its value taken (its last
 // row's, its first's, the greatest, the least, the sum, the mean), its number in time and its day its last row's; the
 // periods with a value alone; dated at its last row's day, its first day or its last.
-function timeseries::lines::sample<T,K,D,Y,V,OK,OP,OO,OA,OV>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], day: ColSpec<Y⊆T>[1], value: ColSpec<V⊆T>[1], sample: timeseries::Sample[1], taken: timeseries::Taken[1], dated: timeseries::Dated[1], outKey: ColSpec<OK>[1], period: ColSpec<OP>[1], ord: ColSpec<OO>[1], at: ColSpec<OA>[1], out: ColSpec<OV>[1]): Relation<OK+OP+OO+OA+OV>[1]
+function timeseries::lines::sample<T,K,D,V,OK,OP,OO,OA,OV>(t: Relation<T>[1], key: ColSpec<K⊆T>[1], date: ColSpec<D⊆T>[1], value: ColSpec<V⊆T>[1], sample: timeseries::Sample[1], taken: timeseries::Taken[1], dated: timeseries::Dated[1], outKey: ColSpec<OK>[1], period: ColSpec<OP>[1], ord: ColSpec<OO>[1], at: ColSpec<OA>[1], out: ColSpec<OV>[1]): Relation<OK+OP+OO+OA+OV>[1]
 {
   let rows = $t->filter(r|$r->read($date)->isNotEmpty() && $r->read($value)->isNotEmpty())
-    ->extend(~[sk:r|$r->read($key), sp:r|timeseries::lines::periodOf($r->read($day)->toOne(), $sample), so:r|dateDiff(%1970-01-01, $r->read($date)->toOne(), meta::pure::functions::date::DurationUnit.SECONDS), sa:r|$r->read($day), sv:r|$r->read($value)]);
+    ->extend(~[sk:r|$r->read($key), sp:r|timeseries::lines::periodOf($r->read($date)->toOne()->datePart(), $sample), so:r|dateDiff(%1970-01-01, $r->read($date)->toOne(), meta::pure::functions::date::DurationUnit.SECONDS), sa:r|$r->read($date)->toOne()->datePart(), sv:r|$r->read($value)]);
   let grouped = if($taken == timeseries::Taken.last, |$rows->groupBy(~[sk, sp], ~[gv:x|rowMapper($x.sv, $x.so):y|$y->maxBy(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
     |if($taken == timeseries::Taken.first, |$rows->groupBy(~[sk, sp], ~[gv:x|rowMapper($x.sv, $x.so):y|$y->minBy(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
       |if($taken == timeseries::Taken.max, |$rows->groupBy(~[sk, sp], ~[gv:x|$x.sv:y|$y->max(), go:x|$x.so:y|$y->max(), ga:x|$x.sa:y|$y->max()]),
@@ -2065,6 +2059,14 @@ function timeseries::lines::fill<T,K,P,M,N,X,V,O>(t: Relation<T>[1], key: ColSpe
 // (w: StrictDate). #TS's generic rule (protocol/ts/TsWords) calls a word by its name, each argument bound to the
 // parameter of its name and kind; an overload without a window is the word's default one.
 
+// A WORD'S OTHER SPELLINGS: alias, on a word's first overload, a name #TS reads as the word's own (R15: mean the
+// canonical, SQL's avg its alias; Postgres's stddev and variance, std's and var's) -- the language's vocabulary the
+// library's, never the translator's.
+Profile timeseries::Words
+{
+  tags: [alias];
+}
+
 // The scopes a window names that are no number of observations: all, the line's start to date.
 Enum timeseries::Scope
 {
@@ -2116,7 +2118,7 @@ function timeseries::line::helpers::returnsType(type: timeseries::Returns[0..1])
   if($type->isEmpty(), |timeseries::Returns.simple, |$type->toOne())
 }
 
-function {meta::pure::profiles::doc.doc = 'The mean of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The mean of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.', timeseries::Words.alias = 'avg'} timeseries::line::mean<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::mean(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, $w, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
@@ -2196,7 +2198,7 @@ function timeseries::line::max<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
   $x->timeseries::line::helpers::since($w)->timeseries::line::max(timeseries::Scope.all)
 }
 
-function {meta::pure::profiles::doc.doc = 'The sample standard deviation of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The sample standard deviation of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.', timeseries::Words.alias = 'stddev'} timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::std(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
@@ -2216,7 +2218,7 @@ function timeseries::line::std<K,D>(x: Relation<(key:K, date:D, value:Number)>[1
   $x->timeseries::line::helpers::since($w)->timeseries::line::std(timeseries::Scope.all)
 }
 
-function {meta::pure::profiles::doc.doc = 'The sample variance of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.'} timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
+function {meta::pure::profiles::doc.doc = 'The sample variance of x\'s values over a window: w observations to date (a value from the line\'s (w + 1)-th, gs-quant\'s ramp), a calendar period back, the line\'s start to date, or a date on.', timeseries::Words.alias = 'variance'} timeseries::line::var<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], w: Integer[1]): Relation<(key:K, date:D, value:Number)>[1]
 {
   $x->timeseries::var(over(~[key], [~date->ascending()], rows(-($w - 1), 0)), ~value, if($w < 2, |2, |$w), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)->timeseries::line::helpers::ramped($w)
 }
