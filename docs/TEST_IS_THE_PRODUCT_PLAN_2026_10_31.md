@@ -395,6 +395,36 @@ posted the same way (R7 decision 12).
   M3h the `from()` renames -- test-road SQL moves: counted, posted, landed;
   M3i the census re-run, the audit, the records, the checkpoint.
 
+- **B13, the system database on one code path (M4; written 2026-11-01 under R15, its ruling R9; drafted from a read of
+  the code at bb9de6ce).** Today a product query that reads the system metamodel store (`Class.all()`, the metamodel
+  tables) carries the tables it reads in its own plan (`PlanMaker.metamodel`: setup steps on the plan's own target
+  in process, the session's temporary tables on a server, the rows inline on a database with no temporary table),
+  while a test body is routed by the driver to the graph's separate system database (`driver/SystemDatabase`,
+  `planner/SystemRoutes`, `BodyDriver.openRoute`). R9: one code path, the graph's separate database kept.
+  1. **The plan names the system database.** `ExecutionPlan.Database.System(type)`: the graph's system database on
+     the engine the runtime executes on. A statement that reads the system store has that target, its setup the
+     graph's whole system store (every table, its DDL and rows: `Ddl.metamodelSteps` in process,
+     `Ddl.metamodelTemporary` on a server, the one owner `SystemDatabase.seed` builds today), its table names the
+     session's (`SystemRoutes.renames`). A statement reading the system store and a user store stays refused by name.
+     `PlanJson` writes the new database (25) and the TypeScript runner refuses it by name.
+  2. **The runner opens it once per graph.** `PlanSessions` opens a `System` target from the target's content (the
+     graph's rows are its key, as a platform database is kept today): in process a private database seeded once and
+     kept while it is used; on a server the host's system connection for the engine (`ExecuteOptions
+     .systemConnections`, handed to the source; none configured is refused by name, never a user's session). The
+     caller's own-session source (`PlanSessions.of`, the driver's) routes a `System` target the same way.
+  3. **Both roads plan it.** The product (`PlanMaker.plan`, the program road) and the test road (the side and value
+     plans: `SidePlanner`, `JudgePlans`) name the target; `Metamodel`'s per-plan carriage, `SystemRoutes`' route and
+     `BodyDriver.openRoute` and `driver/SystemDatabase` go.
+  4. **A database with no temporary table** (no system database is possible on it): the rows stay inline in the
+     statement, as today, its one named exception -- measured first, kept or refused by the count.
+  Movement (MV11): a product metamodel query's statements move from the user's database to the system database (its
+  setup no longer on the user's session); the test road's system statements move from the driver's route to the
+  runner's (the same database, the same SQL). Measured by every core package's statements, the corpora's and channel
+  B's statement-origins census, and the PCT lanes at the checkpoint.
+  Sub-steps: M4a measure (which product tests read the system store, on which engines, with and without temporary
+  tables); M4b the plan's target and the runner; M4c the product moved; M4d the test road moved, the driver's route
+  deleted; M4e audit, records, checkpoint.
+
 ## 7. The steps (◆ = a checkpoint: the branch pushed, CI on every OS, the lane sessions, the movement register to the user)
 
 | Step | What | Size |
