@@ -130,6 +130,33 @@ class BodyRouterParityTest {
         }
     }
 
+    @ParameterizedTest
+    @MethodSource("backends")
+    void assertPrograms(TestBackend backend) throws Exception {
+        for (String body : List.of(
+                "{| assertEquals(2, 1 + 1);}",
+                "{| assertEquals(3, 1 + 1);}",
+                "{| assertNotEquals(3, 1 + 1); 'after';}",
+                "{| let n = 2; assertEquals(['a', 'b'], ['b', 'a']->sort()); assertEquals($n, 1 + 1);}",
+                "{| assertSize([1, 2, 3], 3); assertEmpty([]); assertNotEmpty([1]); assert(1 < 2);"
+                        + " assertFalse(1 > 2); true;}",
+                "{| assertSameElements([1, 2], [2, 1]); assertContains([1, 2], 2);"
+                        + " assertEqWithinTolerance(1.0, 1.05, 0.1);}",
+                "{| assertJsonStringsEqual('{\"a\":1}', '{\"a\": 1}');}",
+                "{| assertEquals(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1),"
+                        + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1));}",
+                "{| assertEquals(1, #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1)->size());}",
+                "{| assertEq(1, 1); assertEq('a', 'a');}",
+                // a side the database refuses: the assert reported failed, the data error the body's
+                "{| assertEquals(1, 'abc'->parseInteger());}")) {
+            assertParity(backend, body, "select 1");
+        }
+        // asserts, then a query answered: its planning after the asserts is the walk's at its turn
+        ModelContext ctx = Compiler.compileModel(model(backend, false));
+        assertNull(BodyClass.of(typed(ctx, "{| assertEquals(2, 1 + 1); #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 1);}"),
+                RT, true));
+    }
+
     /** A model of a class, a temporal class and a function, for the shapes the query-program rule keeps on the walk
      *  (classified only: none runs). */
     private static final String CLASSES = """
@@ -208,7 +235,7 @@ class BodyRouterParityTest {
      *  observed the same. */
     private static void assertParity(TestBackend backend, String body, String check) throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend, false));
-        assertNotNull(BodyClass.of(typed(ctx, body), RT), "the body is a moved class's: " + body);
+        assertNotNull(BodyClass.of(typed(ctx, body), RT, true), "the body is a moved class's under the host judge: " + body);
         Run walked = run(backend, ctx, body, false, check);
         Run moved = run(backend, ctx, body, true, check);
         assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
@@ -218,11 +245,14 @@ class BodyRouterParityTest {
         assertEquals(walked.effects, moved.effects, "the effects census: " + body);
         assertEquals(walked.database, moved.database, "the database left: " + body);
         assertEquals(walked.statements, moved.statements, "the statements sent (origin and text, in order): " + body);
+        assertEquals(walked.verdicts, moved.verdicts, "the verdicts the listener heard: " + body + " (" + walked.outcome
+                + ")");
+        assertEquals(walked.census, moved.census, "the verdict census: " + body + " (" + walked.outcome + ")");
         assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
     }
 
     private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,
-            String database, long moved, List<String> statements) {
+            String database, long moved, List<String> statements, List<String> verdicts, String census) {
     }
 
     private static Run run(TestBackend backend, ModelContext ctx, String body, boolean router, String check)
@@ -238,12 +268,27 @@ class BodyRouterParityTest {
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
             String outcome = "ok";
             List<String> statements = new ArrayList<>();
+            List<String> verdicts = new ArrayList<>();
+            com.legend.judge.AssertListener listener = new com.legend.judge.AssertListener() {
+                @Override
+                public void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
+                    verdicts.add(assertName + " " + pass + " " + detail);
+                }
+
+                @Override
+                public void unjudged(String assertName, String reason) {
+                    verdicts.add(assertName + " unjudged " + reason);
+                }
+            };
+            java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
+                    com.legend.judge.CanonicalDivergence.sqlCensus());
             try (var observing = StatementOrigin.observing(statements)) {
                 if (router) {
-                    Execution.runProgram(q, RT, Execution.Source.given(session), null, null, options, capture::of);
+                    Execution.runProgram(q, RT, Execution.Source.given(session), listener, null, options,
+                            capture::of);
                 } else {
-                    BodyDriver.execute(q, RT, backend.dialect().forServer(session.version()), session, null, null,
-                            options, capture::of);
+                    BodyDriver.execute(q, RT, backend.dialect().forServer(session.version()), session, listener,
+                            null, options, capture::of);
                 }
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -255,9 +300,16 @@ class BodyRouterParityTest {
             }
             List<String> ledger = new ArrayList<>();
             recorder.entries().forEach(e -> ledger.add(String.valueOf(e)));
+            java.util.SortedMap<String, Long> census = new java.util.TreeMap<>();
+            com.legend.judge.CanonicalDivergence.sqlCensus().forEach((k, v) -> {
+                long d = v - censusBefore.getOrDefault(k, 0L);
+                if (d != 0) {
+                    census.put(k, d);
+                }
+            });
             return new Run(outcome, ledger, capture.toString(), Arrays.toString(delta),
                     Census.count(Census.Key.EFFECTS_IN_SCRIPT) - effectsBefore, database(c, check),
-                    Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements);
+                    Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements, verdicts, census.toString());
         }
     }
 

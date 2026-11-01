@@ -59,10 +59,31 @@ public final class TestDoor {
         }
     }
 
-    /** {@link #plan} with the effects' and seeds' ledger texts beside it. */
+    /**
+     * A body's asserts, each planned by its judge before the program is (the test-is-the-product plan's M6, brief B3):
+     * the verdict step for the statement at a body's place, or null where its judge planned none there. The judge's
+     * comparison rides beside the plan with the judge (the driver's), never in it; the library places the step.
+     */
+    @FunctionalInterface
+    public interface Asserts {
+        /** No assert planned: an assert is refused by name. */
+        Asserts NONE = statement -> null;
+
+        /** The verdict step for the statement at {@code statement} (0-based), or null. */
+        ExecutionPlan.@Nullable Verdicts at(int statement);
+    }
+
+    /** {@link #plan} with the effects' and seeds' ledger texts beside it; no assert planned. */
     public static Planned planned(TypedQuery body, String runtime, Set<Feature> features,
             @Nullable String serverVersion) {
-        TestKinds kinds = new TestKinds(body, runtime);
+        return planned(body, runtime, features, serverVersion, Asserts.NONE);
+    }
+
+    /** {@link #planned(TypedQuery, String, Set, String)} with the body's asserts placed as {@code asserts} planned
+     *  them. */
+    public static Planned planned(TypedQuery body, String runtime, Set<Feature> features,
+            @Nullable String serverVersion, Asserts asserts) {
+        TestKinds kinds = new TestKinds(body, runtime, asserts);
         ExecutionPlan plan = PlanMaker.testProgram(body, runtime, features, serverVersion, kinds);
         List<ExecutionPlan.Node> steps = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
                 : List.of(plan.root());

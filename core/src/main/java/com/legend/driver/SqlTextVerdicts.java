@@ -45,6 +45,25 @@ final class SqlTextVerdicts {
     private SqlTextVerdicts() {
     }
 
+    /** Whether {@link #tryArm} may claim an assert of these arguments (the test-is-the-product plan's M6): a static
+     *  superset of its gates -- a toSQLString producer, a test-data generator's fetch text, a SQL read, a plan node's
+     *  SQL read (looked through a helper for the plain assert) on either side. The host checks leave such an assert
+     *  to the walk's own dispatch ({@code AssertVerdicts.planHost}). */
+    static boolean mayArm(String name, boolean wantEqual, List<TypedSpec> args, List<TypedSpec> letPrefix,
+            SpecCompiler specs) {
+        if (!wantEqual || args.size() < 2) {
+            return false;
+        }
+        for (TypedSpec side : args.subList(0, 2)) {
+            if (findProducer(side, letPrefix) != null || hasTdgProducer(side, letPrefix)
+                    || findSqlRead(side, letPrefix) != null || findPlanProducer(side, letPrefix) != null
+                    || "assertEquals".equals(name) && lookThroughPlanProducer(side, letPrefix, specs) != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** Null = not this arm's shape (the caller's generic path
      * continues); otherwise the verdict. */
     static @com.legend.base.Nullable TypedSide tryArm(String name,

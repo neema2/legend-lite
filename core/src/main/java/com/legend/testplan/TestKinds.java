@@ -42,7 +42,8 @@ import java.util.Set;
  * A TEST'S KINDS ON THE PROGRAM ROAD (the test-is-the-product plan's M3, brief B12): the statements of a test's program
  * that hold a kind the query door refuses ({@link QueryDoor.TestOnly}, found by the door's own scan), planned by this
  * library. Each kind is planned from the sub-step its brief names; until then it is refused by name, the step that
- * plans it said: the eager run at M3f, asserts at M6 (the verdict record), assertError at M9 (T10). Seeds (M3e) are
+ * plans it said: the eager run at M3f, asserts from M6 (a statement-root assert as the verdict step its judge planned,
+ * {@link TestDoor.Asserts}), assertError at M9 (T10). Seeds (M3e) are
  * planned before every statement whose sources name test data ({@link #seed}).
  *
  * <p><b>Effects (M3d; R11, D34, R7 decision 14).</b> A database effect's statements are written by
@@ -76,8 +77,12 @@ final class TestKinds implements ProgramKinds {
     private final Map<Seeds.Sources, List<CsvSeed.Planned>> generated =
             new HashMap<>();
 
-    TestKinds(TypedQuery body, String runtime) {
+    /** The body's asserts, as its judge planned them (M6). */
+    private final TestDoor.Asserts asserts;
+
+    TestKinds(TypedQuery body, String runtime, TestDoor.Asserts asserts) {
         this.scan = new QueryDoor.Scan(body, runtime);
+        this.asserts = asserts;
     }
 
     @Override
@@ -99,6 +104,14 @@ final class TestKinds implements ProgramKinds {
             frame(program, index, (TypedLet) statement);
             return true;
         }
+        if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT)) && !(statement instanceof TypedLet)) {
+            // a statement-root assert its judge planned (M6): its verdict step, at its turn
+            ExecutionPlan.Verdicts verdict = asserts.at(index);
+            if (verdict != null) {
+                program.add(verdict);
+                return true;
+            }
+        }
         if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT))) {
             effect(program, index, statement, last);
             // the effect writes: the next statement's seeds are established again (the walk's markWriting)
@@ -111,7 +124,7 @@ final class TestKinds implements ProgramKinds {
             case EFFECT, INLINE_SEEDS, RUNTIME_SEEDS -> throw new IllegalStateException("planned above");
             // a let-bound execute(...) as the program's last statement, or with another kind in its binding
             case LET_EXECUTE -> "M9 (an execute(...) whose result is the value asked for)";
-            case ASSERT -> "M6, the verdict record";
+            case ASSERT -> "M6-M8: an assert its judge planned no verdict step for";
             case ASSERT_ERROR -> "M9, T10";
         };
         throw new NotImplementedException(kind.what() + " on the test door's program road: not"

@@ -139,7 +139,7 @@ final class AssertVerdicts {
         batch.flush(env.assertListener());
     }
 
-    private static String listenerName(TypedSpec bare) {
+    static String listenerName(TypedSpec bare) {
         String fqn = calleeFqn(bare);
         return fqn != null ? fqn
                 : bare instanceof com.legend.compiler.spec.typed.TypedMap
@@ -155,6 +155,14 @@ final class AssertVerdicts {
             BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
+        if (env.options().judgeMode() == ExecuteOptions.JudgeMode.HOST) {
+            // the host judge's planned shapes (the test-is-the-product plan's M6): the two halves the program road
+            // places as a verdict step, run back to back here
+            HostAssert planned = planHost(bare, letPrefix, specs, env, rawHook);
+            if (planned != null) {
+                return planned.run(letPrefix, specs, env);
+            }
+        }
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
         // task #14 leg 1 (2026-09-21): a lineage tree print is judged as LINES —
         // the golden brought to its canon rows here, ours the prelude's own
@@ -324,25 +332,8 @@ final class AssertVerdicts {
                         args.get(0).info().type())
                         && com.legend.compiler.element.type.Type.isRelation(
                                 args.get(1).info().type())) {
-                    List<TypedSide> grids = HostSides.fetch(name, List.of(
-                            new HostSides.Ask(args.get(0), false, true, hook),
-                            new HostSides.Ask(args.get(1), false, true, hook)), letPrefix, specs, env);
-                    TypedSide.Tabular te = grids.get(0) instanceof TypedSide.Tabular t0 ? t0 : null;
-                    TypedSide.Tabular ta = grids.get(1) instanceof TypedSide.Tabular t1 ? t1 : null;
-                    if (te == null || ta == null) {
-                        throw new com.legend.error.NotImplementedException(
-                                "relation-stamped assert side executed"
-                                        + " to a non-tabular result");
-                    }
-                    boolean held = com.legend.judge.TdsCompare.grids(te,
-                            ta, com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
-                                    == com.legend.compiler.spec.OrderView.SORTED);
-                    com.legend.judge.CanonicalDivergence.sqlRoute(name, "grid-pair");
-                    if (held != wantEqual) {
-                        yield fail(name + ":\n" + HostJudge.summarize(te)
-                                + "\n does not match:\n" + HostJudge.summarize(ta));
-                    }
-                    yield ok();
+                    yield HostSides.judged(name, HostJudge.planGridPair(name, wantEqual, args, letPrefix, hook),
+                            letPrefix, specs, env);
                 }
                 // D3 — the ORDER VIEW: an INCIDENTAL-order actual side
                 // (unsorted store read / frame read) has SQL arrival
@@ -460,6 +451,251 @@ final class AssertVerdicts {
             com.legend.judge.CanonicalDivergence.sqlFellThrough();
         }
         return adjudicated;
+    }
+
+    /**
+     * A statement-root assert the HOST judge plans in two halves (the test-is-the-product plan's M6, brief B3): its
+     * listener name, its family (the census key {@link #adjudicate} counts), whether it holds on equality, and the
+     * planned arm ({@link HostSides.Check}: the sides it asks for and its judgment over them). The walk runs it in
+     * place ({@link #run}); the body router places its sides as a verdict step's base and judges at that step.
+     */
+    record HostAssert(String listenerName, @com.legend.base.Nullable String family, boolean wantEqual,
+            HostSides.Check check) {
+
+        /** An assert whose planning raised {@code failure}: it raises it at its turn, as the walk does where it plans
+         *  the assert (after the asserts before it ran); {@code family} null where the classification itself raised
+         *  (the walk counts that raise before any family). */
+        static HostAssert raising(String listenerName, @com.legend.base.Nullable String family,
+                RuntimeException failure) {
+            return new HostAssert(listenerName, family, true, new HostSides.Check(List.of(), none -> {
+                throw failure;
+            }));
+        }
+
+        /** The name the assert's sides go by: its family, or its listener name where none was classified. */
+        String name() {
+            return family != null ? family : listenerName;
+        }
+
+        /** The census at the assert's turn: its family, counted before any side runs (as {@link #adjudicate}
+         *  counts it). */
+        void enter() {
+            if (family != null) {
+                familyEntered(family);
+            }
+        }
+
+        /** The verdict over {@code sides}, shaped: a declined judgment counted as the generic path's (null). */
+        @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides) {
+            return judgedOrFellThrough(check.judgment().judge(sides));
+        }
+
+        /** Run in place (the walk): counted, its sides fetched, judged. */
+        @com.legend.base.Nullable TypedSide run(List<TypedSpec> letPrefix, SpecCompiler specs,
+                BodyDriver.ExecEnv env) {
+            enter();
+            return judge(HostSides.fetch(name(), check.asks(), letPrefix, specs, env));
+        }
+    }
+
+    private static void familyEntered(String family) {
+        com.legend.judge.CanonicalDivergence.sqlFamily(family);
+    }
+
+    private static @com.legend.base.Nullable TypedSide judgedOrFellThrough(@com.legend.base.Nullable TypedSide v) {
+        if (v == null) {
+            com.legend.judge.CanonicalDivergence.sqlFellThrough();
+        }
+        return v;
+    }
+
+    /**
+     * THE PROGRAM ROAD'S VERDICT SEAM (the test-is-the-product plan's M6): {@code a}, planned before the program ran,
+     * judged at its verdict step over the sides the runner read ({@code sides} shapes them) -- counted and reported to
+     * {@code listener} exactly as {@link #tryAdjudicate} counts and reports an assert the walk adjudicates in place:
+     * entered, its verdict reported, a failure (an assert that does not hold, a side's data error) counted as raised and
+     * reported, any other exit counted as raised. Null where the judgment declined the sides it read.
+     */
+    static @com.legend.base.Nullable TypedSide judgedAtItsStep(HostAssert a,
+            com.legend.judge.@com.legend.base.Nullable AssertListener listener,
+            java.util.function.Supplier<List<TypedSide>> sides) {
+        if (listener == null) {
+            a.enter();
+            return a.judge(sides.get());
+        }
+        com.legend.judge.CanonicalDivergence.sqlEnter();
+        boolean settled = false;
+        try {
+            a.enter();
+            TypedSide v = a.judge(sides.get());
+            settled = true;
+            if (v != null) {
+                listener.verdict(a.listenerName(), true, null);
+            }
+            return v;
+        } catch (com.legend.error.AssertFailed | com.legend.error.DataError e) {
+            settled = true;
+            com.legend.judge.CanonicalDivergence.sqlRaised();
+            if (e instanceof com.legend.error.AssertFailed af && af.unjudgedReason() != null) {
+                listener.unjudged(a.listenerName(), af.unjudgedReason());
+            }
+            listener.verdict(a.listenerName(), false, e.getMessage());
+            throw e;
+        } finally {
+            if (!settled) {
+                com.legend.judge.CanonicalDivergence.sqlRaised();
+            }
+        }
+    }
+
+    /** A side of {@code a}'s the database refused with {@code failure} before it was judged: entered and reported as
+     *  {@link #tryAdjudicate} reports an assert whose side raised. */
+    static com.legend.error.DataError sideRefused(HostAssert a,
+            com.legend.judge.@com.legend.base.Nullable AssertListener listener, com.legend.error.DataError failure) {
+        if (listener != null) {
+            com.legend.judge.CanonicalDivergence.sqlEnter();
+        }
+        a.enter();
+        if (listener != null) {
+            com.legend.judge.CanonicalDivergence.sqlRaised();
+            listener.verdict(a.listenerName(), false, failure.getMessage());
+        }
+        return failure;
+    }
+
+    /**
+     * {@code bare} planned for the HOST judge (the test-is-the-product plan's M6), classified as {@link #adjudicate}
+     * classifies it, in its order: the grid pair, the rendered text, the equality, the multiset, the size, the JSON
+     * text, the membership, {@code assertEq}, the tolerance, the condition, the instance test, the identity, the
+     * emptiness, the TDS equivalence. Null where the shape is one the host checks do not plan yet -- a lineage print,
+     * the quantified forms, the engine-text arms ({@link SqlTextVerdicts#mayArm}), the sorted cell pool (two stages),
+     * the assertion with a message overload no arm owns, a callee outside the verdict family: the walk's own dispatch
+     * adjudicates it, and the body router leaves its body on the walk. Planning sends nothing and counts nothing.
+     */
+    static @com.legend.base.Nullable HostAssert planHost(TypedSpec bare, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> rawHook) {
+        SpliceHook hook = rawHook == null ? null : rawHook::apply;
+        if (com.legend.compiler.spec.LineageTreeLines.asLines(bare, letPrefix, env.ctx()) != null
+                || com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare)
+                        instanceof com.legend.compiler.spec.typed.TypedMap
+                || bare instanceof com.legend.compiler.spec.typed.TypedMap
+                || com.legend.compiler.spec.VerdictQueries.forAllAsQuantified(bare) != null) {
+            return null;
+        }
+        String fqn = calleeFqn(bare);
+        if (fqn == null || com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
+                || com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
+                || com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)) {
+            return null;
+        }
+        NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+        if (fn == null) {
+            return null;
+        }
+        String name = fn.bareName();
+        List<TypedSpec> raw = (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args();
+        List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix, specs);
+        HostSides.Check check = switch (fn) {
+            case ASSERT_TDS_EQUIVALENT -> raw.size() < 3 || raw.size() > 4 ? null
+                    : HostJudge.planTdsEquivalent(raw, hook);
+            case TO_CSV -> null;
+            case ASSERT_EQUALS, ASSERT_NOT_EQUALS -> {
+                boolean wantEqual = fn == NativeFn.Verdict.ASSERT_EQUALS;
+                if (args.size() < 2 || SqlTextVerdicts.mayArm(name, wantEqual, args, letPrefix, specs)) {
+                    yield null;
+                }
+                HostSides.Check rendered = renderedPlan(name, wantEqual, args, letPrefix, hook, true);
+                if (rendered != null) {
+                    yield rendered;
+                }
+                if (wantEqual && (bareSortOverCells(args.get(0)) != null
+                        || bareSortOverCells(args.get(1)) != null)) {
+                    // the sorted flat-cells idiom: the cell pool, or the equality where neither side is a grid
+                    // (decided once the sides ran: two stages, the walk's)
+                    yield null;
+                }
+                if (com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
+                        && com.legend.compiler.element.type.Type.isRelation(args.get(1).info().type())) {
+                    yield HostJudge.planGridPair(name, wantEqual, args, letPrefix, hook);
+                }
+                boolean incidental = com.legend.compiler.spec.OrderView.of(args.get(1), letPrefix)
+                        == com.legend.compiler.spec.OrderView.INCIDENTAL;
+                boolean gridPair = tabularShaped(args.get(0)) || tabularShaped(args.get(1));
+                yield HostJudge.planEquals(name, wantEqual, args, incidental, gridPair, letPrefix, env, hook);
+            }
+            case ASSERT_SAME_ELEMENTS -> {
+                if (args.size() < 2) {
+                    yield null;
+                }
+                HostSides.Check rendered = renderedPlan(name, true, args, letPrefix, hook, false);
+                yield rendered != null ? rendered : HostJudge.planSameElements(args,
+                        tabularShaped(args.get(0)) || tabularShaped(args.get(1)), letPrefix, env, hook);
+            }
+            case ASSERT_SIZE -> args.size() < 2 ? null : HostJudge.planSize(args, letPrefix, hook);
+            case ASSERT_JSON_STRINGS_EQUAL -> args.size() != 2 ? null
+                    : HostJudge.planJsonStringsEqual(args, letPrefix, hook);
+            case ASSERT_CONTAINS -> args.size() < 2 ? null : HostJudge.planContains(args, hook);
+            case ASSERT_EQ -> args.size() < 2 ? null : HostJudge.planEq(args, letPrefix, env, hook);
+            case ASSERT_EQ_WITHIN_TOLERANCE -> args.size() < 3 ? null : HostJudge.planTolerance(args, hook);
+            case ASSERT, ASSERT_FALSE -> args.isEmpty() ? null
+                    : HostJudge.planCondition(name, args.get(0), fn == NativeFn.Verdict.ASSERT, hook);
+            case ASSERT_INSTANCE_OF -> args.size() != 2 ? null : HostJudge.planInstanceOf(args, env, hook);
+            case ASSERT_IS -> {
+                if (args.size() != 2) {
+                    yield null;
+                }
+                TypedSpec left = args.get(0);
+                TypedSpec right = args.get(1);
+                // statically identified operands: decided with no side (the verdict, or its failure, at the
+                // assert's turn)
+                yield staticallyIdentified(left, right) ? new HostSides.Check(List.of(), none -> isVerdict(left,
+                        right)) : HostJudge.planIs(name, args, specs, hook);
+            }
+            case ASSERT_EMPTY, ASSERT_NOT_EMPTY -> args.isEmpty() ? null
+                    : HostJudge.planEmpty(args.get(0), fn == NativeFn.Verdict.ASSERT_EMPTY, hook);
+        };
+        if (check == null) {
+            return null;
+        }
+        boolean wantEqual = fn != NativeFn.Verdict.ASSERT_NOT_EQUALS && fn != NativeFn.Verdict.ASSERT_FALSE
+                && fn != NativeFn.Verdict.ASSERT_NOT_EMPTY;
+        return new HostAssert(listenerName(bare), name, wantEqual, check);
+    }
+
+    /** Whether {@link #isVerdict} decides {@code left} against {@code right} with no side: both a statically known
+     *  type, or the same let-bound instance. */
+    private static boolean staticallyIdentified(TypedSpec left, TypedSpec right) {
+        if (typeIdentityOf(left) != null && typeIdentityOf(right) != null) {
+            return true;
+        }
+        return instanceOrigin(left) instanceof com.legend.compiler.spec.typed.TypedVariable lv
+                && instanceOrigin(right) instanceof com.legend.compiler.spec.typed.TypedVariable rv
+                && lv.name().equals(rv.name());
+    }
+
+    /** {@link #renderedArm} planned for the host judge: null when the pair is not the rendered-text shape; the
+     *  route counted where the judgment holds (as {@link #adjudicate} counts it once the arm answered). */
+    private static HostSides.@com.legend.base.Nullable Check renderedPlan(String name, boolean wantEqual,
+            List<TypedSpec> args, List<TypedSpec> letPrefix, @com.legend.base.Nullable SpliceHook hook,
+            boolean orderedForm) {
+        String eForm = renderForm(args.get(0), letPrefix);
+        String aForm = renderForm(args.get(1), letPrefix);
+        if ((eForm == null && aForm == null) || (eForm != null && aForm != null && !eForm.equals(aForm))) {
+            return null;
+        }
+        String form = aForm != null ? aForm : java.util.Objects.requireNonNull(eForm);
+        TypedSpec rendered = aForm != null ? args.get(1) : args.get(0);
+        HostSides.Check c = HostJudge.planRendered(name, wantEqual, args, form, rendered, eForm, aForm,
+                orderedForm, letPrefix, hook);
+        return new HostSides.Check(c.asks(), sides -> {
+            TypedSide v = c.judgment().judge(sides);
+            if (v != null) {
+                com.legend.judge.CanonicalDivergence.sqlRoute(name, "rendered-text");
+            }
+            return v;
+        });
     }
 
     /** A side typed as a SEEDED metaclass (its extent is in the system

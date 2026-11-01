@@ -17,6 +17,7 @@ import com.legend.exec.PlanSessions;
 import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.judge.AssertListener;
+import com.legend.judge.TypedSide;
 import com.legend.judge.SqlReplayReferee;
 import com.legend.planner.ProductStatements;
 import com.legend.result.Batch;
@@ -48,20 +49,35 @@ public final class BodyRouter {
     public static void execute(TypedQuery typed, @Nullable String runtimeFqn, SqlDialect dialect,
             Sessions.Session session, @Nullable AssertListener listener, @Nullable SqlReplayReferee referee,
             ExecuteOptions options, Execution.@Nullable Answer answer) {
-        if (runtimeFqn == null || BodyClass.of(typed, runtimeFqn) == null) {
+        boolean hostJudge = options.judgeMode() == ExecuteOptions.JudgeMode.HOST;
+        BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, hostJudge);
+        // an assert program's asserts, planned by the host judge before the program is (M6): a body holding an assert
+        // of a shape the host checks do not plan yet has none, and the walk runs it (a named rule over its shape:
+        // AssertVerdicts.planHost)
+        HostAsserts asserts = bodyClass != BodyClass.ASSERT_PROGRAM ? null : HostAsserts.plan(typed,
+                java.util.Objects.requireNonNull(runtimeFqn), BodyDriver.bodyEnv(typed, runtimeFqn, dialect, session,
+                        listener, referee, options));
+        if (runtimeFqn == null || bodyClass == null || bodyClass == BodyClass.ASSERT_PROGRAM && asserts == null) {
             BodyDriver.execute(typed, runtimeFqn, dialect, session, listener, referee, options, answer);
             return;
         }
         Census.inc(Census.Key.BODIES_MOVED);
-        TestDoor.Planned planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version());
+        TestDoor.Planned planned = TestDoor.planned(typed, runtimeFqn, options.features(), session.version(),
+                asserts == null ? TestDoor.Asserts.NONE : asserts);
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
         // program has run, as the walk answers a folded value at the body's end
         ExecutionPlan plan = planned.plan();
-        ResultSink early = answer != null && plan.sendsTheAnswer() ? answer.of(plan.answerShape()) : null;
+        ResultSink early = answer != null && plan.answers() && plan.sendsTheAnswer() ? answer.of(plan.answerShape())
+                : null;
         try {
-            PlanRunner.program(plan, Map.of(), PlanSessions.of(session), PlanRunner.Judging.HOST,
-                    new Moved(planned, dialect, options.recorder(), answer, early, toOneReader(typed)));
+            Moved moved = new Moved(planned, dialect, options.recorder(), answer, early, toOneReader(typed), asserts,
+                    listener);
+            PlanRunner.program(plan, Map.of(), PlanSessions.of(session), PlanRunner.Judging.HOST, moved);
+            if (answer != null && asserts != null && asserts.at(typed.body().size() - 1) != null) {
+                // a body whose last statement is an assert answers its verdict as host rows, as the walk does
+                JudgePlans.host(moved.lastVerdict(), answer);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -76,8 +92,9 @@ public final class BodyRouter {
 
     /** A moved body's sink: its answer to the caller's, by the shape of the plan's answer; its effect and seed
      *  statements to the raw-SQL ledger as each runs, the texts the walk records (the referee mirrors the ledger to
-     *  replay the golden SQL of later bodies), and an effect's failure named as the walk names it. No verdict: no
-     *  moved class holds an assert yet. */
+     *  replay the golden SQL of later bodies), and an effect's failure named as the walk names it; each assert's
+     *  sides judged by the host judge at its verdict step, counted and reported to the listener as the walk does
+     *  (M6). The database judge's verdicts reach no moved body: its bodies stay on the walk until M7. */
     private static final class Moved implements PlanRunner.ProgramSink {
         private final TestDoor.Planned planned;
         private final SqlDialect dialect;
@@ -86,32 +103,71 @@ public final class BodyRouter {
         /** The caller's sink, asked for before the program ran (a sent answer), or null (none, or a constant's). */
         private final @Nullable ResultSink early;
         private final boolean toOneReader;
+        /** The body's asserts as the host judge planned them (an assert program's), or null. */
+        private final @Nullable HostAsserts asserts;
+        private final @Nullable AssertListener listener;
         /** The caller's sink holding the walk's contract, once the answer's columns arrive. */
         private @Nullable ResultSink opened;
+        /** The last assert's verdict, once judged: a body ending on an assert answers it. */
+        private @Nullable TypedSide lastVerdict;
 
         Moved(TestDoor.Planned planned, SqlDialect dialect, RawSqlBoundary.@Nullable Recorder recorder,
-                Execution.@Nullable Answer answer, @Nullable ResultSink early, boolean toOneReader) {
+                Execution.@Nullable Answer answer, @Nullable ResultSink early, boolean toOneReader,
+                @Nullable HostAsserts asserts, @Nullable AssertListener listener) {
             this.planned = planned;
             this.dialect = dialect;
             this.recorder = recorder;
             this.answer = answer;
             this.early = early;
             this.toOneReader = toOneReader;
+            this.asserts = asserts;
+            this.listener = listener;
+        }
+
+        TypedSide lastVerdict() {
+            return java.util.Objects.requireNonNull(lastVerdict, "a body ending on an assert judged none");
         }
 
         @Override
         public void verdict(ExecutionPlan.Verdict verdict, @Nullable List<Object> row) {
-            throw new IllegalStateException("a verdict in a moved body: no moved class holds an assert");
+            throw new IllegalStateException("a database verdict in a moved body: the database judge's bodies stay"
+                    + " on the walk until M7");
         }
 
         @Override
         public void fused(ExecutionPlan.Verdicts group, @Nullable DataError rejected) {
-            throw new IllegalStateException("a verdict group in a moved body: no moved class holds an assert");
+            throw new IllegalStateException("a fused verdict group in a moved body: the database judge's bodies stay"
+                    + " on the walk until M7");
         }
 
+        /** The assert {@code verdict} planned, judged over the rows the runner read for it -- counted and reported
+         *  as the walk's {@code AssertVerdicts.tryAdjudicate} does: the assert entered, a verdict reported, a
+         *  failure (an assert that does not hold, a side the database refused) counted as raised and reported. */
         @Override
-        public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> sides) {
-            throw new IllegalStateException("a verdict's sides in a moved body: no moved class holds an assert");
+        public void sides(ExecutionPlan.Verdict verdict, List<PlanRunner.Rows> rows) {
+            HostAsserts.Planned p = assertOf(verdict);
+            AssertVerdicts.HostAssert a = p.assertion();
+            TypedSide v = AssertVerdicts.judgedAtItsStep(a, listener,
+                    () -> HostSides.shaped(a.name(), p.sides(), rows));
+            if (v == null) {
+                throw new com.legend.error.NotImplementedException(a.name() + " on the program road: the host"
+                        + " judge declined the sides it read (the walk's generic path has no program form)");
+            }
+            lastVerdict = v;
+        }
+
+        /** A side of {@code verdict}'s the database refused: the assert entered and its failure reported, as the
+         *  walk reports an assert whose side raised. */
+        @Override
+        public DataError sidesFailed(ExecutionPlan.Verdict verdict, DataError failure) {
+            return AssertVerdicts.sideRefused(assertOf(verdict).assertion(), listener, failure);
+        }
+
+        private HostAsserts.Planned assertOf(ExecutionPlan.Verdict verdict) {
+            if (asserts == null) {
+                throw new IllegalStateException("a verdict's sides in a moved body whose asserts no judge planned");
+            }
+            return asserts.of(verdict);
         }
 
         @Override

@@ -35,6 +35,7 @@ import com.legend.model.FunctionId;
 import com.legend.model.MappingDefinition;
 import com.legend.planner.BodyPlanner;
 import com.legend.planner.ConnectionLets;
+import com.legend.planner.LetPlanner;
 import com.legend.planner.ProductStatements;
 import com.legend.planner.QueryDoor;
 
@@ -84,10 +85,28 @@ public enum BodyClass {
      * a to-one reader ({@code toOne()} over a relation) only as the answer's own root, where the router holds the
      * walk's exactly-one contract. The runtime declares no test data (M5's audit B1).
      */
-    QUERY_PROGRAM;
+    QUERY_PROGRAM,
 
-    /** {@code body}'s class on {@code runtime}, or null when the walk runs it. */
+    /**
+     * An ASSERT PROGRAM under the HOST judge (M6): statement-root asserts -- at least one -- among lets the program
+     * rides (a let's kind {@code VALUE}: no frame, staged rows, raw grid or alias) and statements that plan no step;
+     * the last statement an assert or a statement that sends nothing (a query planned after the asserts could fail its
+     * planning before they ran, where the walk fails it at its turn). No statement holds another test kind
+     * or a kind planned another way (the query program's list). Each assert is planned by its judge before the
+     * program is ({@link TestDoor.Asserts}); the router leaves on the walk a body holding an assert of a shape the host
+     * checks do not plan yet (a named rule of the driver's: the engine-text arms, the quantified forms, the cell
+     * pool). The database judge's bodies stay on the walk (its fused group is composed at planning from M7).
+     */
+    ASSERT_PROGRAM;
+
+    /** {@code body}'s class on {@code runtime} under the database judge, or null when the walk runs it. */
     public static @Nullable BodyClass of(TypedQuery body, String runtime) {
+        return of(body, runtime, false);
+    }
+
+    /** {@code body}'s class on {@code runtime}, {@code hostJudge} whether the run judges on the host, or null when
+     *  the walk runs it. */
+    public static @Nullable BodyClass of(TypedQuery body, String runtime, boolean hostJudge) {
         if (QueryDoor.declaresTestData(runtime, body.context())) {
             return null;
         }
@@ -95,7 +114,46 @@ public enum BodyClass {
         if (effectProgram(body, scan)) {
             return EFFECT_PROGRAM;
         }
-        return queryProgram(body, scan) ? QUERY_PROGRAM : null;
+        if (queryProgram(body, scan)) {
+            return QUERY_PROGRAM;
+        }
+        return hostJudge && assertProgram(body, scan) ? ASSERT_PROGRAM : null;
+    }
+
+    private static boolean assertProgram(TypedQuery query, QueryDoor.Scan scan) {
+        ModelContext ctx = query.context();
+        Set<String> systemClasses = systemClasses(ctx);
+        Map<FunctionId, Boolean> memo = new HashMap<>();
+        Map<FunctionId, Boolean> effectMemo = new HashMap<>();
+        List<TypedSpec> body = query.body();
+        boolean anAssert = false;
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec statement = body.get(i);
+            EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
+            boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))
+                    && !(statement instanceof TypedLet);
+            if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
+                    || StatementEffects.reaches(statement, n -> plannedAnotherWay(n, systemClasses, ctx),
+                            query.specs(), memo)) {
+                return false;
+            }
+            if (assertRoot) {
+                anAssert = true;
+            } else if (i < body.size() - 1 && !plansNoStep(statement, body.subList(0, i), ctx)
+                    && !(statement instanceof TypedLet let && LetPlanner.kind(let, body, i, query.specs(),
+                            effectMemo, name -> false) == LetPlanner.Kind.VALUE)) {
+                return false;
+            }
+        }
+        if (!anAssert) {
+            return false;
+        }
+        TypedSpec last = body.get(body.size() - 1);
+        // an assert as the last statement answers its verdict, as the walk answers it; any other last statement sends
+        // nothing (a literal, a handle, an inert print): a query planned after the asserts could fail planning before
+        // they ran and reported, where the walk fails it at its turn
+        return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT)
+                || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
     }
 
     private static boolean queryProgram(TypedQuery query, QueryDoor.Scan scan) {
@@ -117,7 +175,12 @@ public enum BodyClass {
         if (body.isEmpty()) {
             return false;
         }
-        TypedSpec answer = Lets.bare(body.get(body.size() - 1));
+        return answered(query, Lets.bare(body.get(body.size() - 1)));
+    }
+
+    /** Whether {@code answer}, a program's last statement, is answered on the program road as the walk answers it:
+     *  a relation or a value that reads no class's extent, not an object, a to-one reader only as its own root. */
+    private static boolean answered(TypedQuery query, TypedSpec answer) {
         Type type = answer.info().type();
         if (type instanceof Type.ClassType ct && !PlatformTypes.isVariant(ct) && !PlatformTypes.isNil(ct)) {
             return false;

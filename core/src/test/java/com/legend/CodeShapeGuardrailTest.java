@@ -81,6 +81,10 @@ class CodeShapeGuardrailTest {
             "DatabaseProtocolParser.schemaStretchSpan", "CypherToPure.leading", "SqlToPure.name", "Batch.other",
             "PureV1Writer.firstObject", "BodyCompiler.last", "BodyCompiler.pendingVerdict", "BodyCompiler.answers",
             "ProgramFrames.ownStamp", "BodyRouter.opened",
+            // (2026-11-01, the test-is-the-product plan's M6) the body router's last judged verdict: one moved body's
+            // sink, one instance per run and never shared, set at each verdict step so a body ending on an assert
+            // answers it (the walk's Segments.last, beside it above, until M10 deletes both)
+            "BodyRouter.lastVerdict",
             // (same date) regex artifact, NOT mutable: an interface's field, implicitly static final
             "DecisionProbe.INSTALLED",
             // a parser cursor (2026-10-27, the result boundary program's phase 5: the reader of a database's JSON

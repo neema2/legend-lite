@@ -23,7 +23,9 @@ class BodyClassTest {
     /** The classes moved, in the order they moved: append only (M10 moves the last). */
     private static final List<String> MOVED = List.of("EFFECT_PROGRAM",
             // M5f (2026-11-01): the plain query programs
-            "QUERY_PROGRAM");
+            "QUERY_PROGRAM",
+            // M6 (2026-11-01): the assert programs under the host judge
+            "ASSERT_PROGRAM");
 
     @Test
     void theMovedClassesOnlyGrow() {
