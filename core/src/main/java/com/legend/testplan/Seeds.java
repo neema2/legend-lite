@@ -3,11 +3,21 @@
 
 package com.legend.testplan;
 
+import com.legend.base.Nullable;
+import com.legend.cache.Hash;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.typed.ExecutionContext;
+import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.model.ConnectionDefinition;
+import com.legend.model.RuntimeDefinition;
+import com.legend.setup.CsvSeed;
+import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * A STATEMENT'S SEEDS (D35; the test-is-the-product plan's M3e, brief B12 item 7): the test data a statement's
@@ -33,16 +43,16 @@ public final class Seeds {
     /** WHAT A SEED IS MADE OF: each from()'s inline setups and the runtime it names; the program's runtime. A
      *  runtime contributes its definition and its bound connections' definitions (a LocalH2 specification carries
      *  the CSV / SQL strings as written). */
-    public record Sources(List<From> froms, @com.legend.base.Nullable String runtimeFqn,
-            @com.legend.base.Nullable DeclaredSeed runtime) {
+    public record Sources(List<From> froms, @Nullable String runtimeFqn,
+            @Nullable DeclaredSeed runtime) {
         public record From(List<String> sqlSetups,
-                List<com.legend.compiler.spec.typed.ExecutionContext.CsvSetup> csvSetups,
-                @com.legend.base.Nullable DeclaredSeed runtime) {
+                List<ExecutionContext.CsvSetup> csvSetups,
+                @Nullable DeclaredSeed runtime) {
         }
 
         public record DeclaredSeed(String runtimeFqn,
-                com.legend.model.@com.legend.base.Nullable RuntimeDefinition definition,
-                List<com.legend.model.ConnectionDefinition> connections) {
+                com.legend.model.@Nullable RuntimeDefinition definition,
+                List<ConnectionDefinition> connections) {
         }
 
         /** Whether nothing names test data: no from(), no runtime. */
@@ -52,11 +62,11 @@ public final class Seeds {
     }
 
     /** {@code statement}'s seed sources, {@code runtime} the program's. */
-    public static Sources sources(TypedSpec statement, @com.legend.base.Nullable String runtime, ModelContext ctx) {
-        List<com.legend.compiler.spec.typed.TypedFrom> froms =
-                com.legend.compiler.spec.typed.ExecutionContext.froms(statement);
+    public static Sources sources(TypedSpec statement, @Nullable String runtime, ModelContext ctx) {
+        List<TypedFrom> froms =
+                ExecutionContext.froms(statement);
         List<Sources.From> fromSources = new ArrayList<>(froms.size());
-        for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
+        for (TypedFrom fr : froms) {
             String rtFqn = fr.context().runtime().map(r -> r.fullPath()).orElse(null);
             fromSources.add(new Sources.From(fr.sqlSetups(), fr.csvSetups(),
                     rtFqn == null ? null : declaredSeed(rtFqn, ctx)));
@@ -66,44 +76,44 @@ public final class Seeds {
 
     /** {@code statement}'s seeds as the plan's setup steps, final for {@code dialect}'s database, each with the text
      *  the referee's ledger records for it. */
-    public static List<com.legend.setup.CsvSeed.Planned> planned(TypedSpec statement,
-            @com.legend.base.Nullable String runtime, ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
-        List<com.legend.compiler.spec.typed.TypedFrom> froms =
-                com.legend.compiler.spec.typed.ExecutionContext.froms(statement);
-        List<com.legend.setup.CsvSeed.Step> setups = new ArrayList<>();
-        for (com.legend.compiler.spec.typed.TypedFrom fr : froms) {
+    public static List<CsvSeed.Planned> planned(TypedSpec statement,
+            @Nullable String runtime, ModelContext ctx, SqlDialect dialect) {
+        List<TypedFrom> froms =
+                ExecutionContext.froms(statement);
+        List<CsvSeed.Step> setups = new ArrayList<>();
+        for (TypedFrom fr : froms) {
             for (String sql : fr.sqlSetups()) {
                 // written in the database the from()'s connection declares (decision D2)
-                setups.add(new com.legend.setup.CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
+                setups.add(new CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
             }
-            setups.addAll(com.legend.setup.CsvSeed.setupSteps(fr, ctx, dialect));
+            setups.addAll(CsvSeed.setupSteps(fr, ctx, dialect));
             // an ELEMENT runtime named by the from(): its declared connections' test data (the instance form above
             // carries the same facts on the instance)
             fr.context().runtime().ifPresent(ref ->
-                    setups.addAll(com.legend.setup.CsvSeed.declaredSteps(ref.fullPath(), ctx, dialect)));
+                    setups.addAll(CsvSeed.declaredSteps(ref.fullPath(), ctx, dialect)));
         }
         // the program's runtime: its declared connections' test data seeds the session the same way
         if (runtime != null) {
-            setups.addAll(com.legend.setup.CsvSeed.declaredSteps(runtime, ctx, dialect));
+            setups.addAll(CsvSeed.declaredSteps(runtime, ctx, dialect));
         }
-        return com.legend.setup.CsvSeed.planned(setups, dialect);
+        return CsvSeed.planned(setups, dialect);
     }
 
     /** The seeds' name in a plan: the content of the steps the session runs (a step's executed text, a load's rows),
      *  so equal seeds share it and seeds that run differently never do (the M3 audit: the authored text alone named
      *  two languages' runs of one text alike). */
-    public static String key(List<com.legend.executionplan.ExecutionPlan.SetupStep> steps) {
+    public static String key(List<ExecutionPlan.SetupStep> steps) {
         StringBuilder sb = new StringBuilder();
-        for (com.legend.executionplan.ExecutionPlan.SetupStep step : steps) {
+        for (ExecutionPlan.SetupStep step : steps) {
             sb.append(step).append('\u0000');
         }
-        return "seeds:" + com.legend.cache.Hash.ofUtf8(sb.toString()).hex();
+        return "seeds:" + Hash.ofUtf8(sb.toString()).hex();
     }
 
     /** A named runtime's contribution to the seed sources. */
     private static Sources.DeclaredSeed declaredSeed(String runtimeFqn, ModelContext ctx) {
-        java.util.Optional<com.legend.model.RuntimeDefinition> rt = ctx.findRuntime(runtimeFqn);
-        List<com.legend.model.ConnectionDefinition> conns = new ArrayList<>();
+        Optional<RuntimeDefinition> rt = ctx.findRuntime(runtimeFqn);
+        List<ConnectionDefinition> conns = new ArrayList<>();
         rt.ifPresent(r -> {
             for (var binding : r.connectionBindings().entrySet()) {
                 for (String connFqn : binding.getValue()) {

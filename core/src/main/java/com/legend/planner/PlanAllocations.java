@@ -4,6 +4,59 @@
 package com.legend.planner;
 
 import com.legend.Compiler;
+import com.legend.base.Nullable;
+import com.legend.builtin.Pure;
+import com.legend.compiler.ResolvedNames;
+import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.SourceSubst;
+import com.legend.compiler.spec.SpecCompiler;
+import com.legend.compiler.spec.TypeInferenceException;
+import com.legend.compiler.spec.typed.ExecutionContext;
+import com.legend.compiler.spec.typed.Lets;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCDate;
+import com.legend.compiler.spec.typed.TypedCFloat;
+import com.legend.compiler.spec.typed.TypedCInteger;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedFrom;
+import com.legend.compiler.spec.typed.TypedLet;
+import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedPackageableRef;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.error.MappingResolutionException;
+import com.legend.error.NotImplementedException;
+import com.legend.lineage.ColumnLineageRows;
+import com.legend.lineage.LineageRows;
+import com.legend.lineage.ScanColumns;
+import com.legend.lineage.ScanRelations;
+import com.legend.lowering.SqlPostProcessors;
+import com.legend.model.ConnectionDefinition;
+import com.legend.plan.LazyRows;
+import com.legend.plan.PlanNode;
+import com.legend.plan.PlanRows;
+import com.legend.plan.PlanSupportFunctions;
+import com.legend.plan.PlanText;
+import com.legend.plan.PurePrint;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.AppliedProperty;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.spec.Variable;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlQuery;
+import com.legend.sql.SqlSelect;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.UnaryOperator;
 
 /** The Allocation plan-node factory for let bindings (extracted from
  * BodyDriver at the file guardrail; the planner's since the seam
@@ -17,10 +70,10 @@ public final class PlanAllocations {
     /** The free PLAN VARIABLES the expression reads, in first-read
      * order, spelled {@code name(Type[mult])}. */
     private static void collectRequires(
-            com.legend.compiler.spec.typed.TypedSpec n,
-            java.util.Map<String, String> paramSpells, StringBuilder out,
-            java.util.Set<String> seen) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v
+            TypedSpec n,
+            Map<String, String> paramSpells, StringBuilder out,
+            Set<String> seen) {
+        if (n instanceof TypedVariable v
                 && paramSpells.containsKey(v.name())
                 && seen.add(v.name())) {
             if (out.length() > 0) {
@@ -29,7 +82,7 @@ public final class PlanAllocations {
             out.append(v.name()).append('(')
                     .append(paramSpells.get(v.name())).append(')');
         }
-        for (com.legend.compiler.spec.typed.TypedSpec c : n.children()) {
+        for (TypedSpec c : n.children()) {
             collectRequires(c, paramSpells, out, seen);
         }
     }
@@ -39,89 +92,89 @@ public final class PlanAllocations {
      * Relational nodes (bare-typed, alias-less select), and CLASS query
      * values as full Class-envelope Relational nodes — the engine's
      * three Allocation value forms. */
-    public static @com.legend.base.Nullable String node(
-            com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
-            com.legend.compiler.spec.SpecCompiler specs, PlanEnv env,
-            java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
-            java.util.Map<String, String> paramSpells,
-            boolean quote, @com.legend.base.Nullable String timeZone, com.legend.model.ConnectionDefinition.DatabaseType dbType,
-            @com.legend.base.Nullable String connName) {
+    public static @Nullable String node(
+            TypedLet let, String mappingFqn,
+            SpecCompiler specs, PlanEnv env,
+            Map<String, SqlExpr.PlanParam> params,
+            Map<String, String> paramSpells,
+            boolean quote, @Nullable String timeZone, ConnectionDefinition.DatabaseType dbType,
+            @Nullable String connName) {
         String literal = switch (let.value()) {
-            case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
-            case com.legend.compiler.spec.typed.TypedCInteger ci ->
+            case TypedCString cs -> cs.value();
+            case TypedCInteger ci ->
                     String.valueOf(ci.value());
-            case com.legend.compiler.spec.typed.TypedCFloat cf ->
+            case TypedCFloat cf ->
                     String.valueOf(cf.value());
-            case com.legend.compiler.spec.typed.TypedCBoolean cb ->
+            case TypedCBoolean cb ->
                     String.valueOf(cb.value());
-            case com.legend.compiler.spec.typed.TypedCDate cd ->
+            case TypedCDate cd ->
                     cd.value().toEngineString();
             default -> null;
         };
         if (literal != null) {
-            String typeName = com.legend.plan.PlanText
+            String typeName = PlanText
                     .pureTypeName(let.info().type());
-            String size = com.legend.plan.PurePrint.sizeRange(let.info().multiplicity());
-            return com.legend.plan.PlanText.allocation(let.name(),
-                    com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
-                    com.legend.plan.PlanText.constant(typeName, literal));
+            String size = PurePrint.sizeRange(let.info().multiplicity());
+            return PlanText.allocation(let.name(),
+                    PlanText.scalarTypeBlock(typeName, size),
+                    PlanText.constant(typeName, literal));
         }
-        String rootClass = com.legend.plan.PlanText.rootGetAllClass(java.util.List.of(let.value()));
+        String rootClass = PlanText.rootGetAllClass(List.of(let.value()));
         if (rootClass == null) {
             // NON-RELATIONAL expression let — the engine's
             // PureExpressionPlatformExecutionNode: the expression rides
             // as PURE SOURCE with its required plan variables
-            String typeName = com.legend.plan.PlanText
+            String typeName = PlanText
                     .pureTypeName(let.info().type());
-            String size = com.legend.plan.PurePrint.sizeRange(let.info().multiplicity());
+            String size = PurePrint.sizeRange(let.info().multiplicity());
             StringBuilder req = new StringBuilder();
             collectRequires(let.value(), paramSpells, req,
-                    new java.util.LinkedHashSet<>());
-            return com.legend.plan.PlanText.allocation(let.name(),
-                    com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
-                    com.legend.plan.PlanText.pureExp(typeName, size,
+                    new LinkedHashSet<>());
+            return PlanText.allocation(let.name(),
+                    PlanText.scalarTypeBlock(typeName, size),
+                    PlanText.pureExp(typeName, size,
                             req.toString(),
-                            com.legend.plan.PurePrint.source(let.value())));
+                            PurePrint.source(let.value())));
         }
         var renderer = EngineText.enginePlanText(dbType, quote, timeZone);
-        EnginePlans.EngineSql es = EnginePlans.engineSql(java.util.List.of(let.value()),
+        EnginePlans.EngineSql es = EnginePlans.engineSql(List.of(let.value()),
                 mappingFqn, specs, env, renderer, params,
-                java.util.function.UnaryOperator.identity());
-        String[] impl = com.legend.lineage.ScanRelations.rootImpl(
+                UnaryOperator.identity());
+        String[] impl = ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
         if (let.info().type()
-                instanceof com.legend.compiler.element.type.Type.ClassType) {
+                instanceof Type.ClassType) {
             // class-valued allocation: the full Class-envelope node, and
             // the Allocation's own type block is the impls form
-            String inner = com.legend.plan.PlanText.single(env.ctx(),
+            String inner = PlanText.single(env.ctx(),
                     rootClass, mappingFqn, es.plan(), es.sql(),
-                    java.util.List.of(let.value()), connName, java.util.List.of(), es.plan(), false,
+                    List.of(let.value()), connName, List.of(), es.plan(), false,
                     renderer::selectList);
-            return com.legend.plan.PlanText.allocation(let.name(),
-                    com.legend.plan.PlanText.typeBlock(env.ctx(), rootClass,
-                            impl, es.plan(), java.util.List.of(let.value())),
+            return PlanText.allocation(let.name(),
+                    PlanText.typeBlock(env.ctx(), rootClass,
+                            impl, es.plan(), List.of(let.value())),
                     inner);
         }
-        String typeName = com.legend.plan.PlanText
+        String typeName = PlanText
                 .pureTypeName(let.info().type());
-        String size = com.legend.plan.PurePrint.sizeRange(let.info().multiplicity());
-        if (!(es.plan() instanceof com.legend.sql.SqlSelect sel)) {
-            throw new com.legend.error.NotImplementedException(
+        String size = PurePrint.sizeRange(let.info().multiplicity());
+        if (!(es.plan() instanceof SqlSelect sel)) {
+            throw new NotImplementedException(
                     "plan: Allocation value lowers to a non-select");
         }
-        com.legend.sql.SqlSelect bareSel = new com.legend.sql.SqlSelect(
+        SqlSelect bareSel = new SqlSelect(
                 sel.projections().stream().map(p ->
-                        new com.legend.sql.SqlSelect.Projection(
+                        new SqlSelect.Projection(
                                 p.expr(), null, p.out())).toList(),
                 sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
                 sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
                 sel.offset(), sel.outputs());
         String bareSql = renderer.render(bareSel);
-        String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
+        String inner = PlanText.scalarRelational(env.ctx(),
                 impl[2], sel, typeName, size, bareSql,
                 renderer::renderedAlias, connName);
-        return com.legend.plan.PlanText.allocation(let.name(),
-                com.legend.plan.PlanText.scalarTypeBlock(typeName, size),
+        return PlanText.allocation(let.name(),
+                PlanText.scalarTypeBlock(typeName, size),
                 inner);
     }
 
@@ -133,17 +186,17 @@ public final class PlanAllocations {
      * support functions + enum-typed parameters' dynamic enum-map
      * functions (relationalPlanSupportFunctions(connection),
      * executionPlan_generation.pure:215). */
-    public static java.util.List<String> planTemplateFunctions(
-            com.legend.compiler.spec.typed.TypedNativeCall pep,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+    public static List<String> planTemplateFunctions(
+            TypedNativeCall pep,
+            List<TypedSpec> letPrefix,
             PlanEnv env) {
-        java.util.List<String> supportFns = new java.util.ArrayList<>(
-                com.legend.plan.PlanSupportFunctions
+        List<String> supportFns = new ArrayList<>(
+                PlanSupportFunctions
                         .relationalPlanSupportFunctions(
                                 pep.args().size() > 2
-                                        ? com.legend.compiler.spec.typed.ExecutionContext.reader()
-                                                .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
-                                                .read(java.util.Optional.empty(), pep.args().get(2))
+                                        ? ExecutionContext.reader()
+                                                .bind(v -> Lets.bound(v, letPrefix))
+                                                .read(Optional.empty(), pep.args().get(2))
                                                 .timeZone()
                                         : null));
         if (pep.args().get(0) instanceof com.legend.compiler.spec
@@ -151,16 +204,16 @@ public final class PlanAllocations {
                 && pep.args().size() > 1
                 && pep.args().get(1) instanceof com.legend.compiler
                         .spec.typed.TypedPackageableRef pmr) {
-            java.util.Set<String> seenFns =
-                    new java.util.LinkedHashSet<>();
+            Set<String> seenFns =
+                    new LinkedHashSet<>();
             for (QueryParameters.Declared prm : QueryParameters.of(plam)) {
                 if (!(prm.type() instanceof com.legend.compiler
                         .element.type.Type.EnumType et)) {
                     continue;
                 }
-                String fn = com.legend.plan.PlanText.enumMapFnOf(
+                String fn = PlanText.enumMapFnOf(
                         env.ctx(), pmr.fullPath(), et.fqn());
-                var em = com.legend.plan.PlanText.enumMappingOf(
+                var em = PlanText.enumMappingOf(
                         env.ctx(), pmr.fullPath(), et.fqn());
                 if (fn != null && em != null && seenFns.add(fn)) {
                     supportFns.add(com.legend.plan
@@ -176,9 +229,9 @@ public final class PlanAllocations {
      * a plan the model cannot build registers nothing (the handle stays
      * symbolic and its reads keep their loud walls). */
     public static void registerPlanRows(
-            com.legend.compiler.spec.typed.TypedNativeCall pn,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix, com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
-        String scope = com.legend.plan.PlanRows.scopeId(pn);
+            TypedNativeCall pn,
+            List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env) {
+        String scope = PlanRows.scopeId(pn);
         if (env.planRows().containsKey(scope)) {
             return;
         }
@@ -186,20 +239,20 @@ public final class PlanAllocations {
         // executionPlan($l, …)): the plan model needs the lambda itself;
         // the rows register under BOTH spellings — the handle as written
         // and as the inliner's substitution rebuilds it
-        java.util.List<com.legend.compiler.spec.typed.TypedSpec> bound = new java.util.ArrayList<>();
-        for (com.legend.compiler.spec.typed.TypedSpec a : pn.args()) {
-            bound.add(com.legend.compiler.spec.typed.Lets.bound(a, letPrefix));
+        List<TypedSpec> bound = new ArrayList<>();
+        for (TypedSpec a : pn.args()) {
+            bound.add(Lets.bound(a, letPrefix));
         }
-        com.legend.compiler.spec.typed.TypedNativeCall pnBound =
-                (com.legend.compiler.spec.typed.TypedNativeCall) pn.withChildren(bound);
+        TypedNativeCall pnBound =
+                (TypedNativeCall) pn.withChildren(bound);
         try {
-            com.legend.plan.PlanNode model = EnginePlans.planModel(pnBound, specs, env);
-            var rows = com.legend.plan.PlanRows.rows(scope, model,
+            PlanNode model = EnginePlans.planModel(pnBound, specs, env);
+            var rows = PlanRows.rows(scope, model,
                     planTemplateFunctions(pnBound, letPrefix, env));
             env.planRows().put(scope, rows);
-            env.planRows().put(com.legend.plan.PlanRows.scopeId(pnBound), rows);
-        } catch (com.legend.error.NotImplementedException
-                | com.legend.compiler.spec.TypeInferenceException
+            env.planRows().put(PlanRows.scopeId(pnBound), rows);
+        } catch (NotImplementedException
+                | TypeInferenceException
                 | IllegalStateException e) {
             // no rows: the symbolic handle's walls stand
         }
@@ -214,16 +267,16 @@ public final class PlanAllocations {
      * runs; the same pipeline as toSQLString(query, mapping, H2, ext)).
      * Null when the call's mapping is not a literal reference or the chain
      * does not render (the frame's own walls stand). */
-    public static @com.legend.base.Nullable String activitySql(
-            com.legend.compiler.spec.typed.TypedNativeCall ec,
-            com.legend.compiler.spec.typed.TypedSpec chain,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
+    public static @Nullable String activitySql(
+            TypedNativeCall ec,
+            TypedSpec chain,
+            List<TypedSpec> letPrefix,
+            SpecCompiler specs, PlanEnv env) {
         if (ec.args().size() < 2) {
             return null;
         }
-        com.legend.compiler.spec.typed.TypedSpec m = com.legend.compiler.spec.typed.Lets.bound(ec.args().get(1), letPrefix);
-        String mappingFqn = m instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
+        TypedSpec m = Lets.bound(ec.args().get(1), letPrefix);
+        String mappingFqn = m instanceof TypedPackageableRef pr
                 ? pr.fullPath() : chainMapping(chain);
         if (mappingFqn == null) {
             return null;
@@ -232,16 +285,16 @@ public final class PlanAllocations {
             // C4 (handed off): the execute call's runtime type is not read here yet
             var renderer = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
             EnginePlans.EngineSql es = EnginePlans.engineSql(
-                    java.util.List.of(chain), mappingFqn, specs, env, renderer,
-                    java.util.Map.of(), java.util.function.UnaryOperator.identity());
-            com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors.applyRecorded(
+                    List.of(chain), mappingFqn, specs, env, renderer,
+                    Map.of(), UnaryOperator.identity());
+            SqlQuery post = SqlPostProcessors.applyRecorded(
                     es.plan(), env.tableReplace(),
                     env.postProcessors().extractCtes(),
                     env.postProcessors().nonExecutable());
             return post == es.plan() ? es.sql() : renderer.render(post);
-        } catch (com.legend.error.NotImplementedException
-                | com.legend.compiler.spec.TypeInferenceException
-                | com.legend.error.MappingResolutionException
+        } catch (NotImplementedException
+                | TypeInferenceException
+                | MappingResolutionException
                 | IllegalStateException e) {
             // diagnostics (env-gated): the render's own wall, which the
             // rows path downstream would otherwise mask
@@ -257,10 +310,10 @@ public final class PlanAllocations {
     /** The mapping the chain itself carries (an in-query {@code from(m, r)}
      * / {@code withMapping(m)} — the execute's own mapping argument being a
      * placeholder {@code ^Mapping()}), outermost first; null when none. */
-    private static @com.legend.base.Nullable String chainMapping(com.legend.compiler.spec.typed.TypedSpec chain) {
-        com.legend.compiler.spec.typed.TypedSpec cur = chain;
+    private static @Nullable String chainMapping(TypedSpec chain) {
+        TypedSpec cur = chain;
         while (cur != null) {
-            if (cur instanceof com.legend.compiler.spec.typed.TypedFrom f
+            if (cur instanceof TypedFrom f
                     && f.mapping().isPresent()) {
                 return f.mapping().get().fullPath();
             }
@@ -277,11 +330,11 @@ public final class PlanAllocations {
      * ExecutionTrace's stamp of the frame's own run; a frame that did not
      * run records none), and no rewritten query is printed from Java
      * (the routed query as rows is its own leg). */
-    public static void registerActivityRows(com.legend.compiler.spec.typed.TypedNativeCall ec,
-            com.legend.compiler.spec.typed.TypedSpec chain,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs,
-            @com.legend.base.Nullable String comment,
+    public static void registerActivityRows(TypedNativeCall ec,
+            TypedSpec chain,
+            List<TypedSpec> letPrefix,
+            SpecCompiler specs,
+            @Nullable String comment,
             PlanEnv env) {
         registerActivityRows(ec, chain, letPrefix, specs, comment, null, env);
     }
@@ -289,19 +342,19 @@ public final class PlanAllocations {
     /** {@link #registerActivityRows} where the activity's comment is {@code commentParameter}'s value, a plan
      *  parameter bound when the plan runs (the test-is-the-product plan's M3f, R17 C4: the trace stamp of the
      *  statement that runs the frame, minted per execution as upstream mints it), when it is given. */
-    public static void registerActivityRows(com.legend.compiler.spec.typed.TypedNativeCall ec,
-            com.legend.compiler.spec.typed.TypedSpec chain,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs,
-            @com.legend.base.Nullable String comment, @com.legend.base.Nullable String commentParameter,
+    public static void registerActivityRows(TypedNativeCall ec,
+            TypedSpec chain,
+            List<TypedSpec> letPrefix,
+            SpecCompiler specs,
+            @Nullable String comment, @Nullable String commentParameter,
             PlanEnv env) {
-        String scope = com.legend.plan.PlanRows.scopeId(ec);
+        String scope = PlanRows.scopeId(ec);
         if (env.planRows().containsKey(scope)) {
             return;
         }
         // the SQL is a second render of the chain: computed only if a
         // program reads the result's activities (no SQL = no rows, as ever)
-        env.planRows().put(scope, new com.legend.plan.LazyRows(
+        env.planRows().put(scope, new LazyRows(
                 () -> activityRows(scope, activitySql(ec, chain, letPrefix, specs, env),
                         AggAwareActivities.rewrittenQuery(chain, env.ctx(), specs), comment, commentParameter)));
     }
@@ -309,29 +362,29 @@ public final class PlanAllocations {
     /** The activity row's comment column (results scope, activity id, scope, index, kind, sql, comment, rewritten). */
     private static final int COMMENT = 5;
 
-    private static com.legend.plan.LazyRows.@com.legend.base.Nullable Computed activityRows(String scope,
-            @com.legend.base.Nullable String sql, @com.legend.base.Nullable String rewrittenQuery,
-            @com.legend.base.Nullable String comment, @com.legend.base.Nullable String commentParameter) {
+    private static LazyRows.@Nullable Computed activityRows(String scope,
+            @Nullable String sql, @Nullable String rewrittenQuery,
+            @Nullable String comment, @Nullable String commentParameter) {
         if (sql == null) {
             return null;
         }
-        java.util.Map<String, java.util.List<java.util.List<String>>> rows =
-                new java.util.LinkedHashMap<>();
-        rows.put("results", java.util.List.of(java.util.List.of(scope)));
-        java.util.List<java.util.List<String>> acts = new java.util.ArrayList<>();
+        Map<String, List<List<String>>> rows =
+                new LinkedHashMap<>();
+        rows.put("results", List.of(List.of(scope)));
+        List<List<String>> acts = new ArrayList<>();
         if (rewrittenQuery != null) {
             // the engine records the aggregation-aware ROUTING activity
             // first (it happens at routing, before execution): the routed
             // query print names the set the router chose
-            acts.add(java.util.List.of(scope + "/0", scope, "0",
+            acts.add(List.of(scope + "/0", scope, "0",
                     "AggregationAwareActivity", "", "", rewrittenQuery));
         }
         int k = acts.size();
-        acts.add(java.util.List.of(scope + "/" + k, scope, Integer.toString(k),
+        acts.add(List.of(scope + "/" + k, scope, Integer.toString(k),
                 "RelationalActivity", sql, comment == null ? "" : comment, ""));
         rows.put("activities", acts);
-        return new com.legend.plan.LazyRows.Computed(rows, commentParameter == null ? java.util.List.of()
-                : java.util.List.of(new com.legend.plan.LazyRows.Parameter("activities", k, COMMENT,
+        return new LazyRows.Computed(rows, commentParameter == null ? List.of()
+                : List.of(new LazyRows.Parameter("activities", k, COMMENT,
                         commentParameter)));
     }
 
@@ -339,16 +392,16 @@ public final class PlanAllocations {
      * (the handle may sit under ->toOne(), ->removeDuplicates(), a cast —
      * the walk is shape-free). */
     public static void registerHandlesIn(String letName,
-            com.legend.compiler.spec.typed.TypedSpec rhs,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs,
+            TypedSpec rhs,
+            List<TypedSpec> letPrefix,
+            SpecCompiler specs,
             PlanEnv env) {
-        if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
-                && com.legend.compiler.element.type.PlatformTypes.handleRowClass(
+        if (rhs instanceof TypedNativeCall pn
+                && PlatformTypes.handleRowClass(
                         pn.callee().id(), pn.callee().returnType()) != null) {
             registerHandleRows(letName, pn, letPrefix, specs, env);
         }
-        for (com.legend.compiler.spec.typed.TypedSpec c : rhs.children()) {
+        for (TypedSpec c : rhs.children()) {
             registerHandlesIn(letName, c, letPrefix, specs, env);
         }
     }
@@ -356,17 +409,17 @@ public final class PlanAllocations {
     /** A HANDLE native bound by a let (executionPlan, scanRelations): its
      * rows register under the handle's scope (PlanRows / LineageRows). */
     public static void registerHandleRows(String letName,
-            com.legend.compiler.spec.typed.TypedNativeCall pn,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
-            com.legend.compiler.spec.SpecCompiler specs,
+            TypedNativeCall pn,
+            List<TypedSpec> letPrefix,
+            SpecCompiler specs,
             PlanEnv env) {
         String fqn = pn.callee().qualifiedName();
-        if (com.legend.compiler.element.type.PlatformTypes.EXECUTION_PLAN.equals(fqn)) {
+        if (PlatformTypes.EXECUTION_PLAN.equals(fqn)) {
             registerPlanRows(pn, letPrefix, specs, env);
-        } else if (com.legend.compiler.element.type.PlatformTypes.SCAN_RELATIONS
+        } else if (PlatformTypes.SCAN_RELATIONS
                 .equals(fqn)) {
             registerLineageRows(letName, pn, letPrefix, env);
-        } else if (com.legend.compiler.element.type.PlatformTypes.SCAN_COLUMNS
+        } else if (PlatformTypes.SCAN_COLUMNS
                 .equals(fqn)) {
             registerColumnLineageRows(letName, pn, letPrefix, env);
         }
@@ -379,24 +432,24 @@ public final class PlanAllocations {
      * the ones the LOWERED plan reads (ScanColumns over
      * Compiler.lowerResolved — the real pipeline's output). */
     private static void registerColumnLineageRows(String letName,
-            com.legend.compiler.spec.typed.TypedNativeCall pn,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            TypedNativeCall pn,
+            List<TypedSpec> letPrefix,
             PlanEnv env) {
-        String scope = com.legend.plan.PlanRows.scopeId(pn);
+        String scope = PlanRows.scopeId(pn);
         if (env.planRows().containsKey(scope)) {
             return;
         }
-        java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets =
-                new java.util.LinkedHashMap<>();
-        com.legend.protocol.spec.ValueSpecification scan = null;
-        for (com.legend.protocol.spec.ValueSpecification st : env.protocolBody()) {
-            com.legend.protocol.spec.CString ln =
-                    com.legend.compiler.spec.SourceSubst.letName(st);
+        Map<String, ValueSpecification> lets =
+                new LinkedHashMap<>();
+        ValueSpecification scan = null;
+        for (ValueSpecification st : env.protocolBody()) {
+            CString ln =
+                    SourceSubst.letName(st);
             if (ln == null) {
                 continue;
             }
-            com.legend.protocol.spec.ValueSpecification v =
-                    ((com.legend.protocol.spec.AppliedFunction) st).parameters().get(1);
+            ValueSpecification v =
+                    ((AppliedFunction) st).parameters().get(1);
             if (ln.value().equals(letName)) {
                 scan = v;
                 break;
@@ -405,34 +458,34 @@ public final class PlanAllocations {
         }
         // scanColumns(tree, m) under removeDuplicates → tree → buildPropertyTree(
         // $p.result) → $p → scanProperties(vs, …) → vs → lambda
-        com.legend.protocol.spec.ValueSpecification cur = scan;
-        com.legend.protocol.spec.LambdaFunction ql = null;
+        ValueSpecification cur = scan;
+        LambdaFunction ql = null;
         for (int guard = 0; guard < 16 && cur != null && ql == null; guard++) {
             switch (cur) {
-                case com.legend.protocol.spec.LambdaFunction lf -> ql = lf;
-                case com.legend.protocol.spec.Variable v ->
+                case LambdaFunction lf -> ql = lf;
+                case Variable v ->
                         cur = lets.get(v.name());
-                case com.legend.protocol.spec.AppliedProperty ap -> cur = ap.receiver();
-                case com.legend.protocol.spec.AppliedFunction af ->
+                case AppliedProperty ap -> cur = ap.receiver();
+                case AppliedFunction af ->
                         cur = af.parameters().isEmpty() ? null : af.parameters().get(0);
                 default -> cur = null;
             }
         }
-        com.legend.compiler.spec.typed.TypedSpec m =
-                com.legend.compiler.spec.typed.Lets.bound(
+        TypedSpec m =
+                Lets.bound(
                         pn.args().get(1), letPrefix);
         String runtimeFqn = env.runtimeFqn();
         if (ql == null || runtimeFqn == null
-                || !(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef mr)) {
+                || !(m instanceof TypedPackageableRef mr)) {
             return;
         }
         try {
-            com.legend.sql.SqlQuery plan = Compiler.lowerResolved(ql, env.ctx(),
+            SqlQuery plan = Compiler.lowerResolved(ql, env.ctx(),
                     runtimeFqn, false, mr.fullPath());
-            var rows = com.legend.lineage.ColumnLineageRows.rows(scope, env.ctx(),
-                    mr.fullPath(), com.legend.lineage.ScanColumns.entries(plan));
+            var rows = ColumnLineageRows.rows(scope, env.ctx(),
+                    mr.fullPath(), ScanColumns.entries(plan));
             env.planRows().put(scope, rows);
-        } catch (com.legend.error.NotImplementedException
+        } catch (NotImplementedException
                 | IllegalStateException e) {
             // no rows: the symbolic handle's walls stand
         }
@@ -444,26 +497,26 @@ public final class PlanAllocations {
      * through the protocol lets. A tree the scanner cannot build registers
      * nothing (the handle stays symbolic; its reads keep their walls). */
     private static void registerLineageRows(String letName,
-            com.legend.compiler.spec.typed.TypedNativeCall pn,
-            java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
+            TypedNativeCall pn,
+            List<TypedSpec> letPrefix,
             PlanEnv env) {
-        String scope = com.legend.plan.PlanRows.scopeId(pn);
+        String scope = PlanRows.scopeId(pn);
         if (env.planRows().containsKey(scope)) {
             return;
         }
-        java.util.Map<String, com.legend.protocol.spec.ValueSpecification> lets =
-                new java.util.LinkedHashMap<>();
-        com.legend.protocol.spec.AppliedFunction scan = null;
-        for (com.legend.protocol.spec.ValueSpecification st : env.protocolBody()) {
-            com.legend.protocol.spec.CString ln =
-                    com.legend.compiler.spec.SourceSubst.letName(st);
+        Map<String, ValueSpecification> lets =
+                new LinkedHashMap<>();
+        AppliedFunction scan = null;
+        for (ValueSpecification st : env.protocolBody()) {
+            CString ln =
+                    SourceSubst.letName(st);
             if (ln == null) {
                 continue;
             }
-            com.legend.protocol.spec.ValueSpecification v =
-                    ((com.legend.protocol.spec.AppliedFunction) st).parameters().get(1);
+            ValueSpecification v =
+                    ((AppliedFunction) st).parameters().get(1);
             if (ln.value().equals(letName)
-                    && v instanceof com.legend.protocol.spec.AppliedFunction af) {
+                    && v instanceof AppliedFunction af) {
                 scan = af;
                 break;
             }
@@ -471,34 +524,34 @@ public final class PlanAllocations {
         }
         // a ->toOne() over the scan is the same scan
         while (scan != null && scan.parameters().size() == 1
-                && com.legend.compiler.ResolvedNames.referents(scan).stream().anyMatch(com.legend.builtin.Pure::isToOneCall)
+                && ResolvedNames.referents(scan).stream().anyMatch(Pure::isToOneCall)
                 && scan.parameters().get(0)
-                        instanceof com.legend.protocol.spec.AppliedFunction inner) {
+                        instanceof AppliedFunction inner) {
             scan = inner;
         }
         if (scan == null || scan.parameters().isEmpty()) {
             return;
         }
-        com.legend.protocol.spec.ValueSpecification q = scan.parameters().get(0);
-        while (q instanceof com.legend.protocol.spec.Variable qv
+        ValueSpecification q = scan.parameters().get(0);
+        while (q instanceof Variable qv
                 && lets.containsKey(qv.name())) {
             q = lets.get(qv.name());
         }
-        if (!(q instanceof com.legend.protocol.spec.LambdaFunction ql)) {
+        if (!(q instanceof LambdaFunction ql)) {
             return;
         }
-        com.legend.compiler.spec.typed.TypedSpec m =
-                com.legend.compiler.spec.typed.Lets.bound(
+        TypedSpec m =
+                Lets.bound(
                         pn.args().get(1), letPrefix);
-        if (!(m instanceof com.legend.compiler.spec.typed.TypedPackageableRef mr)) {
+        if (!(m instanceof TypedPackageableRef mr)) {
             return;
         }
         try {
-            var lines = com.legend.lineage.ScanRelations.lines(env.ctx(), ql,
+            var lines = ScanRelations.lines(env.ctx(), ql,
                     mr.fullPath(), pn.args().size() == 4);
-            var rows = com.legend.lineage.LineageRows.rows(scope, lines);
+            var rows = LineageRows.rows(scope, lines);
             env.planRows().put(scope, rows);
-        } catch (com.legend.error.NotImplementedException
+        } catch (NotImplementedException
                 | IllegalStateException e) {
             // no rows: the symbolic handle's walls stand
         }

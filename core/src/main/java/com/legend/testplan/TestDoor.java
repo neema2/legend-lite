@@ -4,7 +4,12 @@
 package com.legend.testplan;
 
 import com.legend.TypedQuery;
+import com.legend.base.Nullable;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.planner.PlanMaker;
+import com.legend.platform.Feature;
+
+import java.util.Set;
 
 /**
  * THE TEST DOOR (the test-is-the-product plan's M3, brief B12 items 1 and 3; B4 brought forward by R17 C7): a test
@@ -23,8 +28,8 @@ public final class TestDoor {
     /** {@code body}'s plan on {@code runtime}, under {@code features}, for a session whose server is
      *  {@code serverVersion} (null: the dialect's declared target). */
     public static ExecutionPlan plan(TypedQuery body, String runtime,
-            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
-        return com.legend.planner.PlanMaker.testProgram(body, runtime, features, serverVersion,
+            Set<Feature> features, @Nullable String serverVersion) {
+        return PlanMaker.testProgram(body, runtime, features, serverVersion,
                 new TestKinds(body, runtime));
     }
 }

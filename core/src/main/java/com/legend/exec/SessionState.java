@@ -11,9 +11,9 @@ import java.util.Set;
  * What a body driver ESTABLISHED on a session, living exactly as long as the session (the owning session's own since
  * D70, 2026-10-30, shared by its views; until then a process-wide weak map keyed by the driver's connection, because a
  * connection was wrapped as a session anew at every call): the seeds it ran, by their SOURCES (a value key the driver builds: the from()'s
- * inline setups and the runtimes it names, never the rendered text, 2026-09-16); the database's reported column types
- * per statement text (leg 3.3, {@link WireTypes}); and whether a writing statement ran since the last seed (then the
- * next establishment re-seeds). Until track B's B1b (2026-10-29) this was the driver's own {@code ESTABLISHED} map,
+ * inline setups and the runtimes it names, never the rendered text, 2026-09-16), or a seed step's key; the session
+ * statements each target ran on it; and whether a writing statement ran since the last seed (then the next
+ * establishment re-seeds). Until track B's B1b (2026-10-29) this was the driver's own {@code ESTABLISHED} map,
  * keyed by the {@code java.sql.Connection} it held; the driver now holds a {@link Sessions.Session} and asks it.
  */
 public final class SessionState {

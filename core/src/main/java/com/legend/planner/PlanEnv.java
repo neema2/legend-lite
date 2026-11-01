@@ -3,8 +3,22 @@
 
 package com.legend.planner;
 
+import com.legend.base.Nullable;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.typed.ExecutionContext;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedTestDataGen;
+import com.legend.lowering.ObjectSites;
+import com.legend.platform.Feature;
+import com.legend.protocol.spec.ValueSpecification;
+import com.legend.sql.dialect.SqlDialect;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * The PLANNING half of a body's environment (the planner-driver seam program's S2g, 2026-10-31,
@@ -19,50 +33,50 @@ import com.legend.compiler.spec.typed.TypedSpec;
  * handles' lineage rows), shared by every environment derived from the body's: a derived environment changes what
  * it names, never the maps it was handed.
  */
-public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
-        com.legend.sql.dialect.@com.legend.base.Nullable SqlDialect dialect,
-        java.util.Map<String, TypedSpec> queryLets,
-        java.util.Map<String, String> tableReplace,
-        com.legend.lowering.ObjectSites instanceIds,
-        java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>> planRows,
-        java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
-        com.legend.compiler.spec.typed.@com.legend.base.Nullable ExecutionContext frame,
-        java.util.Set<com.legend.platform.Feature> features,
-        java.util.function.Function<com.legend.compiler.spec.typed.TypedTestDataGen, String> generatorPlanText) {
+public record PlanEnv(ModelContext ctx, @Nullable String runtimeFqn,
+        com.legend.sql.dialect.@Nullable SqlDialect dialect,
+        Map<String, TypedSpec> queryLets,
+        Map<String, String> tableReplace,
+        ObjectSites instanceIds,
+        Map<String, Map<String, List<List<String>>>> planRows,
+        List<ValueSpecification> protocolBody,
+        com.legend.compiler.spec.typed.@Nullable ExecutionContext frame,
+        Set<Feature> features,
+        Function<TypedTestDataGen, String> generatorPlanText) {
 
     /** A body's planning environment at its start: empty accumulators, no renames, no frame, no protocol body.
      *  {@code generatorPlanText}: a test-data generator's plan text ({@code planToString} over the generator's
      *  carrier), which is the generator library's -- a library the planner does not reach, since it also runs the
      *  generator's statements -- handed in by the driver until the generator's planning moves (the seam program's
      *  S2j: the generator's plan a plan of its own). */
-    public static PlanEnv of(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.sql.dialect.@com.legend.base.Nullable SqlDialect dialect,
-            java.util.Set<com.legend.platform.Feature> features,
-            java.util.function.Function<com.legend.compiler.spec.typed.TypedTestDataGen, String> generatorPlanText) {
-        return new PlanEnv(ctx, runtimeFqn, dialect, new java.util.LinkedHashMap<>(), java.util.Map.of(),
+    public static PlanEnv of(ModelContext ctx, @Nullable String runtimeFqn,
+            com.legend.sql.dialect.@Nullable SqlDialect dialect,
+            Set<Feature> features,
+            Function<TypedTestDataGen, String> generatorPlanText) {
+        return new PlanEnv(ctx, runtimeFqn, dialect, new LinkedHashMap<>(), Map.of(),
                 // the body is one program: one minter for its objects (B9); the test road's ids keep their own
                 // spelling until its layouts converge on the product's (the plan's M5)
-                new com.legend.lowering.ObjectSites("i"), new java.util.LinkedHashMap<>(), java.util.List.of(), null,
+                new ObjectSites("i"), new LinkedHashMap<>(), List.of(), null,
                 features,
                 generatorPlanText);
     }
 
     /** This environment reading and registering the plan rows {@code rows} (a program's, shared by its statements:
      *  the test-is-the-product plan's M3f). */
-    public PlanEnv withPlanRows(java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>> rows) {
+    public PlanEnv withPlanRows(Map<String, Map<String, List<List<String>>>> rows) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, rows, protocolBody, frame,
                 features, generatorPlanText);
     }
 
     /** This environment writing its statements in {@code d}: a test's program on the product's road, its runtime
      *  decided (the test door's effects, the test-is-the-product plan's M3d). */
-    public PlanEnv withDialect(com.legend.sql.dialect.SqlDialect d) {
+    public PlanEnv withDialect(SqlDialect d) {
         return new PlanEnv(ctx, runtimeFqn, d, queryLets, tableReplace, instanceIds, planRows, protocolBody, frame,
                 features, generatorPlanText);
     }
 
     /** The run's feature flags (the caller's execute options'). */
-    public PlanEnv withFeatures(java.util.Set<com.legend.platform.Feature> f) {
+    public PlanEnv withFeatures(Set<Feature> f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody,
                 frame, f, generatorPlanText);
     }
@@ -70,37 +84,37 @@ public record PlanEnv(ModelContext ctx, @com.legend.base.Nullable String runtime
     /** The dialect this environment's statements are written in: a test body's environment always names one; the
      *  product's statement road ({@code ProductStatements}) names none, since its caller renders in the runtime's
      *  dialect and nothing on that road writes a statement itself. */
-    public com.legend.sql.dialect.SqlDialect writtenIn() {
-        return java.util.Objects.requireNonNull(dialect, "a statement written on an environment that names no"
+    public SqlDialect writtenIn() {
+        return Objects.requireNonNull(dialect, "a statement written on an environment that names no"
                 + " dialect: the product's statement road writes none");
     }
 
     /** The executing frame's bound context (post-processors, time zone, options) -- set where an execute frame is
      *  entered. */
-    public PlanEnv withFrame(com.legend.compiler.spec.typed.ExecutionContext f) {
+    public PlanEnv withFrame(ExecutionContext f) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, protocolBody, f,
                 features, generatorPlanText);
     }
 
-    public PlanEnv withTableReplace(java.util.Map<String, String> tr) {
+    public PlanEnv withTableReplace(Map<String, String> tr) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tr, instanceIds, planRows, protocolBody, frame,
                 features, generatorPlanText);
     }
 
     /** The query's PROTOCOL statements (the source-shaped lets a handle's rows are built from -- the lineage scan
      *  walks the raw query lambda). */
-    public PlanEnv withProtocolBody(java.util.List<com.legend.protocol.spec.ValueSpecification> body) {
+    public PlanEnv withProtocolBody(List<ValueSpecification> body) {
         return new PlanEnv(ctx, runtimeFqn, dialect, queryLets, tableReplace, instanceIds, planRows, body, frame,
                 features, generatorPlanText);
     }
 
-    public com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
-        return frame == null ? com.legend.compiler.spec.typed.ExecutionContext.PostProcessors.NONE
+    public ExecutionContext.PostProcessors postProcessors() {
+        return frame == null ? ExecutionContext.PostProcessors.NONE
                 : frame.postProcessors();
     }
 
     /** The frame connection's time zone (every DateTime literal spells in it). */
-    public @com.legend.base.Nullable String timeZone() {
+    public @Nullable String timeZone() {
         return frame == null ? null : frame.timeZone();
     }
 }

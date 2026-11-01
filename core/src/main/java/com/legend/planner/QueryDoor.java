@@ -4,9 +4,21 @@
 package com.legend.planner;
 
 import com.legend.TypedQuery;
+import com.legend.base.Nullable;
+import com.legend.builtin.NativeFn;
+import com.legend.builtin.Pure;
+import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.StatementEffects;
+import com.legend.compiler.spec.typed.ExecutionContext;
+import com.legend.compiler.spec.typed.TypedFrom;
+import com.legend.compiler.spec.typed.TypedLet;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.error.NotImplementedException;
+import com.legend.model.FunctionId;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,32 +65,32 @@ public final class QueryDoor {
     /** The scan's memos, one per reach (a memo belongs to one predicate): one per program. */
     public static final class Scan {
         private final TypedQuery query;
-        private final @com.legend.base.Nullable String runtime;
-        private final Map<com.legend.model.FunctionId, Boolean> effects = new HashMap<>();
-        private final Map<com.legend.model.FunctionId, Boolean> catches = new HashMap<>();
-        private final Map<com.legend.model.FunctionId, Boolean> verdicts = new HashMap<>();
+        private final @Nullable String runtime;
+        private final Map<FunctionId, Boolean> effects = new HashMap<>();
+        private final Map<FunctionId, Boolean> catches = new HashMap<>();
+        private final Map<FunctionId, Boolean> verdicts = new HashMap<>();
 
         /** A scan of {@code query}'s statements, {@code runtime} the plan's own. */
-        public Scan(TypedQuery query, @com.legend.base.Nullable String runtime) {
+        public Scan(TypedQuery query, @Nullable String runtime) {
             this.query = query;
             this.runtime = runtime;
         }
 
         /** The first kind {@code statement} holds, or null: a statement the query door plans. */
-        public @com.legend.base.Nullable TestOnly of(TypedSpec statement) {
-            java.util.EnumSet<TestOnly> kinds = kinds(statement);
+        public @Nullable TestOnly of(TypedSpec statement) {
+            EnumSet<TestOnly> kinds = kinds(statement);
             return kinds.isEmpty() ? null : kinds.iterator().next();
         }
 
         /** Every kind {@code statement} holds, in the scan's order. */
-        public java.util.EnumSet<TestOnly> kinds(TypedSpec statement) {
-            java.util.EnumSet<TestOnly> kinds = java.util.EnumSet.noneOf(TestOnly.class);
-            com.legend.compiler.spec.SpecCompiler specs = query.specs();
+        public EnumSet<TestOnly> kinds(TypedSpec statement) {
+            EnumSet<TestOnly> kinds = EnumSet.noneOf(TestOnly.class);
+            SpecCompiler specs = query.specs();
             if (StatementEffects.containsEffect(statement, specs, effects)) {
                 kinds.add(TestOnly.EFFECT);
             }
-            for (com.legend.compiler.spec.typed.TypedFrom fr
-                    : com.legend.compiler.spec.typed.ExecutionContext.froms(statement)) {
+            for (TypedFrom fr
+                    : ExecutionContext.froms(statement)) {
                 if (!fr.sqlSetups().isEmpty() || !fr.csvSetups().isEmpty()) {
                     kinds.add(TestOnly.INLINE_SEEDS);
                 }
@@ -88,13 +100,13 @@ public final class QueryDoor {
                     kinds.add(TestOnly.RUNTIME_SEEDS);
                 }
             }
-            if (statement instanceof com.legend.compiler.spec.typed.TypedLet let
-                    && LetPlanner.rhs(let) instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                    && com.legend.builtin.NativeFn.Handle.runsAFrame(ec.callee().id())) {
+            if (statement instanceof TypedLet let
+                    && LetPlanner.rhs(let) instanceof TypedNativeCall ec
+                    && NativeFn.Handle.runsAFrame(ec.callee().id())) {
                 kinds.add(TestOnly.LET_EXECUTE);
             }
-            if (StatementEffects.reaches(statement, n -> n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && com.legend.builtin.NativeFn.ContextOwner.of(nc.callee().id()).isPresent(), specs, catches)) {
+            if (StatementEffects.reaches(statement, n -> n instanceof TypedNativeCall nc
+                    && NativeFn.ContextOwner.of(nc.callee().id()).isPresent(), specs, catches)) {
                 kinds.add(TestOnly.ASSERT_ERROR);
             }
             if (StatementEffects.reaches(statement, QueryDoor::isAssert, specs, verdicts)) {
@@ -109,12 +121,12 @@ public final class QueryDoor {
 
     /** Refuses {@code query}, planned for {@code runtime}, by name at its first statement holding a kind only a
      *  test's program holds. */
-    public static void refuseTestOnly(TypedQuery query, @com.legend.base.Nullable String runtime) {
+    public static void refuseTestOnly(TypedQuery query, @Nullable String runtime) {
         Scan scan = new Scan(query, runtime);
         for (TypedSpec statement : query.body()) {
             TestOnly kind = scan.of(statement);
             if (kind != null) {
-                throw new com.legend.error.NotImplementedException(kind.what + " in a query: " + kind.why
+                throw new NotImplementedException(kind.what + " in a query: " + kind.why
                         + ", and the product's query door plans none");
             }
         }
@@ -122,12 +134,12 @@ public final class QueryDoor {
 
     /** An assert's call: a verdict function, {@code fail} aside (a raise; by its declarations). */
     private static boolean isAssert(TypedSpec n) {
-        return StatementEffects.isVerdictCall(n) && !(n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.builtin.Pure.AT_ASSERTS_FAIL.contains(nc.callee().id()));
+        return StatementEffects.isVerdictCall(n) && !(n instanceof TypedNativeCall nc
+                && Pure.AT_ASSERTS_FAIL.contains(nc.callee().id()));
     }
 
     /** Whether the runtime {@code fqn} binds a connection that declares test data. */
-    private static boolean declaresTestData(String fqn, com.legend.compiler.element.ModelContext ctx) {
+    private static boolean declaresTestData(String fqn, ModelContext ctx) {
         var rt = ctx.findRuntime(fqn).orElseThrow(() -> new IllegalStateException("a from() names the runtime '"
                 + fqn + "', which the model does not hold"));
         for (var binding : rt.connectionBindings().entrySet()) {

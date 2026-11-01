@@ -3,7 +3,18 @@
 
 package com.legend.planner;
 
+import com.legend.base.Nullable;
+import com.legend.compiler.element.EqualityKeys;
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.lowering.CanonicalRenderSql;
+import com.legend.plan.ResultShape;
+import com.legend.sql.JsonKeyOrder;
+import com.legend.sql.SqlQuery;
+
+import java.util.List;
+import java.util.Set;
 
 /**
  * A statement's or a verdict SIDE's plan, made with no session (the planner-driver seam program's S4a, 2026-10-31;
@@ -20,11 +31,11 @@ public final class SidePlanner {
 
     /** A body prepared ({@link BodyPlanner#prepare}) under its system route: null where it reads no system store,
      *  so it runs on the body's own session. */
-    public record Routed(Prepared prepared, SystemRoutes.@com.legend.base.Nullable Route route) {
+    public record Routed(Prepared prepared, SystemRoutes.@Nullable Route route) {
     }
 
     /** {@code body} prepared under the system route it reads, the route's table names on its planning half. */
-    public static Routed prepare(java.util.List<TypedSpec> body, PlanEnv env) {
+    public static Routed prepare(List<TypedSpec> body, PlanEnv env) {
         SystemRoutes.Route route = SystemRoutes.of(body, env);
         PlanEnv routed = route == null ? env : SystemRoutes.routed(env, SystemRoutes.renames(route));
         return new Routed(BodyPlanner.prepare(body, routed), route);
@@ -34,26 +45,26 @@ public final class SidePlanner {
      *  its answer with no plan ({@link Unplanned}: an effect, a store write, a DDL text, a handle, an effectful map),
      *  which the driver answers. */
     public sealed interface Staged {
-        SystemRoutes.@com.legend.base.Nullable Route route();
+        SystemRoutes.@Nullable Route route();
     }
 
     /** A prepared kind with no plan, under its route. */
-    public record Unplanned(Prepared prepared, SystemRoutes.@com.legend.base.Nullable Route route) implements Staged {
+    public record Unplanned(Prepared prepared, SystemRoutes.@Nullable Route route) implements Staged {
     }
 
     /** A side's plan, its planned root, the collection declaration (a primitive collection declared over a
      *  relation root), the planning half it was planned on, its route, and whether it reads no store. */
-    public record Bare(com.legend.sql.SqlQuery plan, TypedSpec root,
-            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo, PlanEnv env,
-            SystemRoutes.@com.legend.base.Nullable Route route, boolean storeFree) implements Staged {
+    public record Bare(SqlQuery plan, TypedSpec root,
+            com.legend.compiler.element.type.@Nullable ExprType declaredInfo, PlanEnv env,
+            SystemRoutes.@Nullable Route route, boolean storeFree) implements Staged {
     }
 
     /** {@code body} (a side already inlined, staged and resolved) planned: {@code identityLane} the identity lane
      *  without a rider (a rider implies it); {@code hostSide} the host judge's preparation (the identity lane's flag
      *  alone, no wire reconciliation) where the database judge's side takes the verdict lane's. */
-    public static Staged staged(java.util.List<TypedSpec> body, PlanEnv env,
-            com.legend.lowering.@com.legend.base.Nullable CanonRider rider, boolean identityLane, boolean hostSide) {
-        java.util.Set<String> stores = new java.util.TreeSet<>();
+    public static Staged staged(List<TypedSpec> body, PlanEnv env,
+            com.legend.lowering.@Nullable CanonRider rider, boolean identityLane, boolean hostSide) {
+        Set<String> stores = new java.util.TreeSet<>();
         for (TypedSpec n : body) {
             BodyPlanner.collectStores(n, stores);
         }
@@ -62,10 +73,10 @@ public final class SidePlanner {
             return new Unplanned(r.prepared(), r.route());
         }
         PlanEnv penv = p.env();
-        com.legend.sql.SqlQuery plan = BodyPlanner.lowerAndPrepare(p.body(), penv, penv.ctx(), penv.writtenIn(),
+        SqlQuery plan = BodyPlanner.lowerAndPrepare(p.body(), penv, penv.ctx(), penv.writtenIn(),
                 hostSide ? identityLane : true);
         if (rider != null && rider.canonicalJsonKeys()) {
-            plan = com.legend.sql.JsonKeyOrder.sort(plan);
+            plan = JsonKeyOrder.sort(plan);
         }
         return new Bare(plan, p.root(), collectionDeclared(p.declaredInfo(), p.root()) ? p.declaredInfo() : null,
                 penv, r.route(), stores.isEmpty());
@@ -74,33 +85,33 @@ public final class SidePlanner {
     /** Whether {@code declaredInfo} declares a primitive collection over a relation-rooted {@code root}: the side is
      *  then that collection, not the relation. */
     public static boolean collectionDeclared(
-            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo, TypedSpec root) {
+            com.legend.compiler.element.type.@Nullable ExprType declaredInfo, TypedSpec root) {
         return declaredInfo != null
-                && declaredInfo.type() instanceof com.legend.compiler.element.type.Type.Primitive
+                && declaredInfo.type() instanceof Type.Primitive
                 && declaredInfo.multiplicity().requireBounded("result shape").isMany()
-                && com.legend.compiler.element.type.Type.isRelation(root.info().type());
+                && Type.isRelation(root.info().type());
     }
 
     /** A side's plan as its judge reads it: the plan (wrapped with the canon columns where a rider asks), its shape
      *  and its shape's type. */
-    public record SidePlan(com.legend.sql.SqlQuery plan, com.legend.compiler.element.type.ExprType shapeInfo,
-            com.legend.plan.ResultShape shape) {
+    public record SidePlan(SqlQuery plan, ExprType shapeInfo,
+            ResultShape shape) {
     }
 
     /** {@code plan} as a side: its shape and shape type, and, where a canon rider asks (the database judge's verdict
      *  planning), the plan wrapped with the canon columns the verdict statement composes. */
-    public static SidePlan wrap(com.legend.sql.SqlQuery plan, TypedSpec root,
-            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
-            com.legend.lowering.@com.legend.base.Nullable CanonRider rider, PlanEnv env) {
-        com.legend.compiler.element.type.ExprType shapeInfo =
+    public static SidePlan wrap(SqlQuery plan, TypedSpec root,
+            com.legend.compiler.element.type.@Nullable ExprType declaredInfo,
+            com.legend.lowering.@Nullable CanonRider rider, PlanEnv env) {
+        ExprType shapeInfo =
                 declaredInfo != null ? declaredInfo
-                        : com.legend.plan.ResultShape.valueInfo(root.info());
-        com.legend.plan.ResultShape shape = declaredInfo != null
-                ? com.legend.plan.ResultShape.COLLECTION
-                : com.legend.plan.ResultShape.of(root);
-        if (rider != null && shape == com.legend.plan.ResultShape.TABULAR) {
-            var schema = com.legend.compiler.element.type.Type.schemaView(shapeInfo.type());
-            var gw = com.legend.lowering.CanonicalRenderSql.wrapTdsCanon(plan, schema);
+                        : ResultShape.valueInfo(root.info());
+        ResultShape shape = declaredInfo != null
+                ? ResultShape.COLLECTION
+                : ResultShape.of(root);
+        if (rider != null && shape == ResultShape.TABULAR) {
+            var schema = Type.schemaView(shapeInfo.type());
+            var gw = CanonicalRenderSql.wrapTdsCanon(plan, schema);
             if (gw.declineReason() != null) {
                 rider.decline(gw.declineReason());
             } else {
@@ -108,12 +119,12 @@ public final class SidePlanner {
                 plan = gw.plan();
             }
         } else if (rider != null) {
-            var w = com.legend.lowering.CanonicalRenderSql.wrapWithCanon(
+            var w = CanonicalRenderSql.wrapWithCanon(
                     plan, shapeInfo, rider.canonicalOrder(),
-                    com.legend.compiler.element.EqualityKeys
+                    EqualityKeys
                             .resolve(env.ctx(), shapeInfo.type()),
                     true,
-                    com.legend.lowering.CanonicalRenderSql.nameValued(
+                    CanonicalRenderSql.nameValued(
                             shapeInfo.type(), env.ctx()::tracksClassifier),
                     rider.enumFrame());
             if (w.declineReason() != null) {

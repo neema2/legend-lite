@@ -3,12 +3,39 @@
 
 package com.legend.planner;
 
+import com.legend.Compiler;
 import com.legend.TypedQuery;
+import com.legend.base.Nullable;
+import com.legend.builtin.NativeFn;
 import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.element.Temporal;
+import com.legend.compiler.spec.NativeDispatch;
+import com.legend.compiler.spec.ResultEnvelopeSplice;
+import com.legend.compiler.spec.SpecCompiler;
+import com.legend.compiler.spec.UserCallInliner;
+import com.legend.compiler.spec.typed.FreeVars;
+import com.legend.compiler.spec.typed.TypedCBoolean;
+import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedTestDataGen;
+import com.legend.error.NotImplementedException;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.lowering.Lowerer;
+import com.legend.lowering.ObjectSites;
+import com.legend.lowering.SeedableLets;
+import com.legend.lowering.SqlPostProcessors;
+import com.legend.platform.Feature;
+import com.legend.sql.SqlDml;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlQuery;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * THE PRODUCT'S STATEMENT ROAD (the test-is-the-product plan's M2, brief B11, 2026-10-31): a query's body, or one
@@ -41,7 +68,7 @@ public final class ProductStatements {
      *  spelling cannot differ from the literal's (D26). The one owner, read by the test road's fold too
      *  ({@code driver.LiteralFold.ADMITTED}); a new kind needs its differential leg in {@code ConstantPlanParityTest}
      *  first. */
-    public static final java.util.Set<String> ADMITTED = java.util.Set.of("String", "Boolean");
+    public static final Set<String> ADMITTED = Set.of("String", "Boolean");
 
     /** A statement on the product's road, prepared: its kind ({@link Prepared}), and whether it reads a temporal
      *  class (decided on the inlined body, before the resolver, as the product always has). */
@@ -51,8 +78,8 @@ public final class ProductStatements {
     /** {@code statements} (a query's body, or a program's statement after its lets) prepared for {@code runtime};
      *  {@code mark} the statement's position in a program planned statement by statement, null for a whole query. */
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
-            @com.legend.base.Nullable String runtime, @com.legend.base.Nullable Integer mark,
-            java.util.Set<com.legend.platform.Feature> features) {
+            @Nullable String runtime, @Nullable Integer mark,
+            Set<Feature> features) {
         return prepare(query, statements, runtime, mark, features, new ProgramFrames());
     }
 
@@ -61,29 +88,29 @@ public final class ProductStatements {
      *  (the splice hook), its plan rows are the program's, and its environment is widened with the renames of the
      *  frames it reads ({@link FramePlanner#renames}, after the resolver, as the walk widens it). */
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
-            @com.legend.base.Nullable String runtime, @com.legend.base.Nullable Integer mark,
-            java.util.Set<com.legend.platform.Feature> features, ProgramFrames frames) {
+            @Nullable String runtime, @Nullable Integer mark,
+            Set<Feature> features, ProgramFrames frames) {
         ModelContext ctx = query.context();
-        com.legend.compiler.spec.SpecCompiler specs = query.specs();
+        SpecCompiler specs = query.specs();
         frames.startStatement();
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         PlanEnv env = PlanEnv.of(ctx, runtime, null, features, ProductStatements::noGenerator)
                 .withPlanRows(frames.planRows());
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
-        com.legend.compiler.spec.UserCallInliner inliner = new com.legend.compiler.spec.UserCallInliner(specs,
-                com.legend.compiler.spec.ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
+        UserCallInliner inliner = new UserCallInliner(specs,
+                ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
         List<TypedSpec> body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));   // Phase G½
         if (frames.readAgainWithCtes(body)) {
             // a frame the statement reads more than once: read by reference to its CTE (M3g, B10), so inlined again
-            inliner = new com.legend.compiler.spec.UserCallInliner(specs,
-                    com.legend.compiler.spec.ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
+            inliner = new UserCallInliner(specs,
+                    ResultEnvelopeSplice.hook(frames.reads(lets, specs, env)));
             body = new ArrayList<>(inliner.inlineBody(new ArrayList<>(statements), mark));
         }
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
-        java.util.Set<String> read = com.legend.compiler.spec.typed.FreeVars.ofBody(body);
+        Set<String> read = FreeVars.ofBody(body);
         inliner.queryLets().forEach((name, value) -> {
             if (read.contains(name)) {
                 env.queryLets().put(name, value);
@@ -95,17 +122,17 @@ public final class ProductStatements {
                 env.queryLets().putIfAbsent(name, value);
             }
         });
-        boolean temporal = com.legend.compiler.element.Temporal.anyTemporalGetAll(body, ctx);
+        boolean temporal = Temporal.anyTemporalGetAll(body, ctx);
         final List<TypedSpec> stageEnv = body;
-        body.replaceAll(b -> com.legend.compiler.spec.NativeDispatch.stage(b, stageEnv,
+        body.replaceAll(b -> NativeDispatch.stage(b, stageEnv,
                 EnginePlans.nativeRoutines(specs, env)));
         body = BodyPlanner.resolver(specs, env).resolve(body, runtime);   // Phase H
         // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by name),
         // then every store the statement touches must be bound to it (C3b)
-        com.legend.Compiler.executesOn(ctx, runtime);
+        Compiler.executesOn(ctx, runtime);
         CrossStoreGuard.check(body, ctx, runtime);
         // widened LAST, after resolution: the renames of the frames the statement reads (the walk's order)
-        java.util.Map<String, String> renames = FramePlanner.renames(statements.get(statements.size() - 1),
+        Map<String, String> renames = FramePlanner.renames(statements.get(statements.size() - 1),
                 frames.renames(), env.tableReplace(), lets, specs);
         PlanEnv widened = renames == null ? env : env.withTableReplace(renames);
         return new Statement(BodyPlanner.prepare(body, widened), temporal);
@@ -114,9 +141,9 @@ public final class ProductStatements {
     /** {@code s}'s answer as a value the program wrote, answered with nothing sent (MV12), or null: a DDL text the
      *  model gives (D17), or a String or Boolean literal (D26: the kinds whose database spelling cannot differ from
      *  the literal's, the test road's own rule, {@code LiteralFold}). */
-    public static com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable Constant constant(Statement s) {
+    public static ExecutionPlan.@Nullable Constant constant(Statement s) {
         return switch (s.prepared()) {
-            case Prepared.DdlText d -> constant(d.type().typeName(), java.util.Collections.singletonList(d.text()), true);
+            case Prepared.DdlText d -> constant(d.type().typeName(), Collections.singletonList(d.text()), true);
             case Prepared.DdlTexts d -> {
                 List<String> texts = new ArrayList<>(d.texts().size());
                 for (Object t : d.texts()) {
@@ -128,16 +155,16 @@ public final class ProductStatements {
                 yield constant("String", texts, false);
             }
             case Prepared.Planned p -> switch (p.root()) {
-                case com.legend.compiler.spec.typed.TypedCString str when ADMITTED.contains("String") ->
-                        constant("String", java.util.Collections.singletonList(str.value()), true);
-                case com.legend.compiler.spec.typed.TypedCBoolean b when ADMITTED.contains("Boolean") ->
-                        constant("Boolean", java.util.Collections.singletonList(String.valueOf(b.value())), true);
+                case TypedCString str when ADMITTED.contains("String") ->
+                        constant("String", Collections.singletonList(str.value()), true);
+                case TypedCBoolean b when ADMITTED.contains("Boolean") ->
+                        constant("Boolean", Collections.singletonList(String.valueOf(b.value())), true);
                 default -> null;
             };
             // print and println: no statement, the argument never evaluated; their value, as the test road's
             // (R18, the test-is-the-product plan's B12 item 4: both doors)
-            case Prepared.Effect e when com.legend.builtin.NativeFn.Effect.isInertDiagnostic(e.call().callee().id()) ->
-                    constant("String", java.util.Collections.singletonList(null), true);
+            case Prepared.Effect e when NativeFn.Effect.isInertDiagnostic(e.call().callee().id()) ->
+                    constant("String", Collections.singletonList(null), true);
             case Prepared.Effect e -> null;
             case Prepared.EffectfulMap m -> null;
             case Prepared.StoreWrite w -> null;
@@ -147,9 +174,9 @@ public final class ProductStatements {
 
     /** A one-value constant of {@code type} ({@code text} null: no value): a value a program's statement answers with
      *  nothing sent. */
-    public static com.legend.executionplan.ExecutionPlan.Constant scalar(String type,
-            @com.legend.base.Nullable String text) {
-        return constant(type, java.util.Collections.singletonList(text), true);
+    public static ExecutionPlan.Constant scalar(String type,
+            @Nullable String text) {
+        return constant(type, Collections.singletonList(text), true);
     }
 
     /** Whether {@code s} is an orchestration handle -- a connection, a runtime, {@code connectionByElement}'s
@@ -157,9 +184,9 @@ public final class ProductStatements {
      *  value to answer as its last (B12 item 4). */
     public static boolean handle(Statement s) {
         if (s.prepared() instanceof Prepared.Effect e) {
-            com.legend.compiler.spec.typed.TypedNativeCall call = e.call();
-            return com.legend.builtin.NativeFn.Effect.of(call.callee().id()).orElse(null)
-                    == com.legend.builtin.NativeFn.Effect.CONNECTION_BY_ELEMENT;
+            TypedNativeCall call = e.call();
+            return NativeFn.Effect.of(call.callee().id()).orElse(null)
+                    == NativeFn.Effect.CONNECTION_BY_ELEMENT;
         }
         return s.prepared() instanceof Prepared.Handle;
     }
@@ -174,17 +201,17 @@ public final class ProductStatements {
         };
     }
 
-    private static com.legend.executionplan.ExecutionPlan.Constant constant(String type, List<String> texts,
+    private static ExecutionPlan.Constant constant(String type, List<String> texts,
             boolean scalar) {
-        com.legend.executionplan.ExecutionPlan.Multiplicity m = scalar
-                ? new com.legend.executionplan.ExecutionPlan.Multiplicity(texts.get(0) == null ? 0 : 1, 1)
-                : new com.legend.executionplan.ExecutionPlan.Multiplicity(0, null);
+        ExecutionPlan.Multiplicity m = scalar
+                ? new ExecutionPlan.Multiplicity(texts.get(0) == null ? 0 : 1, 1)
+                : new ExecutionPlan.Multiplicity(0, null);
         List<List<String>> cells = new ArrayList<>(texts.size());
         for (String t : texts) {
-            cells.add(java.util.Collections.singletonList(t));
+            cells.add(Collections.singletonList(t));
         }
-        return new com.legend.executionplan.ExecutionPlan.Constant(List.of(
-                new com.legend.executionplan.ExecutionPlan.Column("value", type, m, null, null, null)), cells);
+        return new ExecutionPlan.Constant(List.of(
+                new ExecutionPlan.Column("value", type, m, null, null, null)), cells);
     }
 
     /** {@code s}'s body to lower: a planned statement's, or a refusal by name of a kind the product's query door does
@@ -194,31 +221,31 @@ public final class ProductStatements {
     public static Prepared.Planned planned(Statement s) {
         return switch (s.prepared()) {
             case Prepared.Planned p -> p;
-            case Prepared.Effect e when handle(s) -> throw new com.legend.error.NotImplementedException("a "
+            case Prepared.Effect e when handle(s) -> throw new NotImplementedException("a "
                     + e.call().info().type().typeName() + " (an orchestration handle) answered by a query: it has no"
                     + " value a plan can answer");
-            case Prepared.Effect e -> throw new com.legend.error.NotImplementedException("an effect ("
+            case Prepared.Effect e -> throw new NotImplementedException("an effect ("
                     + e.call().callee().qualifiedName() + ") in a query: effects run in a test's program, and the"
                     + " product's query door plans no effect");
-            case Prepared.EffectfulMap m -> throw new com.legend.error.NotImplementedException("a map over an effect"
+            case Prepared.EffectfulMap m -> throw new NotImplementedException("a map over an effect"
                     + " in a query: effects run in a test's program, and the product's query door plans no effect");
             case Prepared.StoreWrite w -> throw new IllegalStateException("a store write planned as a query: a"
                     + " program that writes is planned as a sequence (PlanMaker.program)");
-            case Prepared.DdlText d -> throw new com.legend.error.NotImplementedException("a DDL text has no"
+            case Prepared.DdlText d -> throw new NotImplementedException("a DDL text has no"
                     + " statement: the execution plan answers it as a constant; a query's SQL text has none to show");
-            case Prepared.DdlTexts d -> throw new com.legend.error.NotImplementedException("DDL texts have no"
+            case Prepared.DdlTexts d -> throw new NotImplementedException("DDL texts have no"
                     + " statement: the execution plan answers them as a constant; a query's SQL text has none to show");
-            case Prepared.Handle h -> throw new com.legend.error.NotImplementedException("a " + h.type().typeName()
+            case Prepared.Handle h -> throw new NotImplementedException("a " + h.type().typeName()
                     + " (an orchestration handle) answered by a query: it has no value a plan can answer");
         };
     }
 
     /** {@code p} lowered on the product's road: {@code streaming} the streaming graph root, {@code slots} the query's
      *  declared parameters, {@code sites} the program's object-id minter. */
-    public static com.legend.sql.SqlQuery lower(TypedQuery query, Prepared.Planned p, boolean temporal,
-            boolean streaming, List<com.legend.sql.SqlExpr.PlanParam> slots, com.legend.lowering.ObjectSites sites) {
-        com.legend.lowering.Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites);
-        com.legend.sql.SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
+    public static SqlQuery lower(TypedQuery query, Prepared.Planned p, boolean temporal,
+            boolean streaming, List<SqlExpr.PlanParam> slots, ObjectSites sites) {
+        Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites);
+        SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
         return postProcessed(plan, p.env());
     }
 
@@ -227,27 +254,27 @@ public final class ProductStatements {
      *  seeded: lowering it first would only spend the statement's alias numbers, and a lambda parameter of the same
      *  name would be renamed against it. */
     public static List<TypedSpec> seeded(List<TypedSpec> body, PlanEnv env, ModelContext ctx) {
-        java.util.Set<String> read = com.legend.compiler.spec.typed.FreeVars.ofBody(body);
-        java.util.Map<String, TypedSpec> lets = new java.util.LinkedHashMap<>();
+        Set<String> read = FreeVars.ofBody(body);
+        Map<String, TypedSpec> lets = new LinkedHashMap<>();
         env.queryLets().forEach((name, value) -> {
             if (read.contains(name)) {
                 lets.put(name, value);
             }
         });
-        return lets.isEmpty() ? body : com.legend.lowering.SeedableLets.withSeedableLetPrefix(body, lets, ctx);
+        return lets.isEmpty() ? body : SeedableLets.withSeedableLetPrefix(body, lets, ctx);
     }
 
     /** The Lowerer {@code p} lowers with on the product's road: the product's configuration, the frame's time zone,
      *  the features of the frame, the statement's tree and the caller. */
-    public static com.legend.lowering.Lowerer lowerer(TypedQuery query, Prepared.Planned p, boolean temporal,
-            boolean streaming, List<com.legend.sql.SqlExpr.PlanParam> slots, com.legend.lowering.ObjectSites sites) {
+    public static Lowerer lowerer(TypedQuery query, Prepared.Planned p, boolean temporal,
+            boolean streaming, List<SqlExpr.PlanParam> slots, ObjectSites sites) {
         return lowerer(query, p.body(), p.env(), temporal, streaming, slots, sites);
     }
 
     /** The Lowerer {@code body} (prepared on {@code env}) lowers with on the product's road. */
-    public static com.legend.lowering.Lowerer lowerer(TypedQuery query, List<TypedSpec> body, PlanEnv env,
-            boolean temporal, boolean streaming, List<com.legend.sql.SqlExpr.PlanParam> slots,
-            com.legend.lowering.ObjectSites sites) {
+    public static Lowerer lowerer(TypedQuery query, List<TypedSpec> body, PlanEnv env,
+            boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
+            ObjectSites sites) {
         return query.lowerer(temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
                 .withDbTimeZone(env.timeZone());
     }
@@ -255,12 +282,12 @@ public final class ProductStatements {
     /** A store write prepared on the product's road, lowered: its statement, the seedable let prefix before it. A
      *  write under the frame's post-processors is refused by name, as the test road refuses it (the writes design's
      *  leg 2 writes the table it names). */
-    public static com.legend.sql.SqlDml storeWrite(TypedQuery query, Prepared.StoreWrite w, boolean temporal,
-            List<com.legend.sql.SqlExpr.PlanParam> slots, com.legend.lowering.ObjectSites sites) {
+    public static SqlDml storeWrite(TypedQuery query, Prepared.StoreWrite w, boolean temporal,
+            List<SqlExpr.PlanParam> slots, ObjectSites sites) {
         PlanEnv env = w.env();
         if (!env.tableReplace().isEmpty() || env.postProcessors().extractCtes()
                 || env.postProcessors().nonExecutable()) {
-            throw new com.legend.error.NotImplementedException("a write into a store table under the execution's"
+            throw new NotImplementedException("a write into a store table under the execution's"
                     + " post-processors (tableReplace, extractCtes, nonExecutable) is not designed (the writes design's"
                     + " leg 2 writes the table it names)");
         }
@@ -271,14 +298,14 @@ public final class ProductStatements {
     }
 
     /** {@code plan} post-processed by {@code env}'s frame (its connection's table renames and CTE extraction). */
-    public static com.legend.sql.SqlQuery postProcessed(com.legend.sql.SqlQuery plan, PlanEnv env) {
-        return com.legend.lowering.SqlPostProcessors.applyRecorded(plan, env.tableReplace(),
+    public static SqlQuery postProcessed(SqlQuery plan, PlanEnv env) {
+        return SqlPostProcessors.applyRecorded(plan, env.tableReplace(),
                 env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
     }
 
     /** The product plans no test-data generator: its plan text is a test's ({@code PlanEnv}'s generator hook). */
-    public static String noGenerator(com.legend.compiler.spec.typed.TypedTestDataGen generator) {
-        throw new com.legend.error.NotImplementedException("a test-data generator in a query: the generator runs in"
+    public static String noGenerator(TypedTestDataGen generator) {
+        throw new NotImplementedException("a test-data generator in a query: the generator runs in"
                 + " a test's program, and the product's query door plans none");
     }
 }

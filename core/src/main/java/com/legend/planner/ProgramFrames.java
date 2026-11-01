@@ -3,15 +3,28 @@
 
 package com.legend.planner;
 
+import com.legend.base.Nullable;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.ResultEnvelopeSplice;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.error.NotImplementedException;
+import com.legend.plan.PlanRows;
+import com.legend.sql.AliasPrefix;
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlQuery;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * A PROGRAM'S FRAMES (the test-is-the-product plan's M3f, brief B12 items 8 and 10; D15, B10): the results of the
@@ -37,7 +50,7 @@ public final class ProgramFrames {
     public record Frame(TypedSpec chain, boolean relationRooted, TypedNativeCall source,
             Map<String, String> tableReplace, FramePlanner.Cte cte) {
         public Frame {
-            tableReplace = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(tableReplace));
+            tableReplace = Collections.unmodifiableMap(new LinkedHashMap<>(tableReplace));
         }
 
         /** Whether a statement may read this frame as its planned CTE: a relation frame's plan, or a plain class
@@ -53,13 +66,13 @@ public final class ProgramFrames {
     /** Every stamp parameter minted, in order: each statement's lowering binds them all. */
     private final List<String> stamps = new ArrayList<>();
     /** The stamp the statement being planned binds itself (an inline lazy frame it reads), or null. */
-    private @com.legend.base.Nullable String ownStamp;
+    private @Nullable String ownStamp;
     /** The frames the statement being planned reads as their CTE (it reads each more than once, M3g). */
-    private final java.util.Set<String> asCte = new java.util.LinkedHashSet<>();
+    private final Set<String> asCte = new LinkedHashSet<>();
     /** The statement being planned's reads of each frame, by name. */
     private final Map<String, Integer> reads = new LinkedHashMap<>();
     /** The CTE definitions the statement being planned references, by CTE name, in first-read order. */
-    private final Map<String, com.legend.sql.SqlQuery> definitions = new LinkedHashMap<>();
+    private final Map<String, SqlQuery> definitions = new LinkedHashMap<>();
     /** The lets the frames' chains consumed (the query lambda's own, a graph-tree qualifier's argument keeping its
      *  spelling): a statement that reads one free -- a frame's eager run, its CTE, a reader -- binds it (the M3 audit's
      *  B6; the walk's environment shared them across the body). */
@@ -69,7 +82,7 @@ public final class ProgramFrames {
      *  audit's B7d). A site a frame let registered keeps the let's rows -- its own CTE's planning asks for the same
      *  site again -- so an inline run of a let's call site reads the let's stamp (no corpus body runs one call site
      *  both ways). */
-    private final java.util.Set<String> inlineRuns = new java.util.LinkedHashSet<>();
+    private final Set<String> inlineRuns = new LinkedHashSet<>();
 
     ProgramFrames() {
     }
@@ -94,12 +107,12 @@ public final class ProgramFrames {
 
     /** The lets the frames' chains consumed. */
     Map<String, TypedSpec> consumedLets() {
-        return java.util.Collections.unmodifiableMap(consumed);
+        return Collections.unmodifiableMap(consumed);
     }
 
     /** The let {@code alias} reads the same frame as the let {@code of} ({@code $r.values->at(0)}). */
     public void alias(String alias, String of) {
-        frames.put(alias, java.util.Objects.requireNonNull(frames.get(of), () -> "no frame named " + of));
+        frames.put(alias, Objects.requireNonNull(frames.get(of), () -> "no frame named " + of));
     }
 
     /** Whether the let {@code name} is a relation-rooted frame (the let kinds' alias test). */
@@ -114,12 +127,12 @@ public final class ProgramFrames {
     }
 
     /** The stamp parameters every statement's lowering binds (as a declared parameter is bound). */
-    public List<com.legend.sql.SqlExpr.PlanParam> stampSlots() {
-        List<com.legend.sql.SqlExpr.PlanParam> out = new ArrayList<>(stamps.size());
+    public List<SqlExpr.PlanParam> stampSlots() {
+        List<SqlExpr.PlanParam> out = new ArrayList<>(stamps.size());
         for (String s : stamps) {
             // a String[1], typed as a declared parameter is (the comment column's type)
-            out.add(new QueryParameters.Declared(s, com.legend.compiler.element.type.Type.Primitive.STRING,
-                    com.legend.compiler.element.type.Multiplicity.Bounded.ONE).slot());
+            out.add(new QueryParameters.Declared(s, Type.Primitive.STRING,
+                    Multiplicity.Bounded.ONE).slot());
         }
         return out;
     }
@@ -139,7 +152,7 @@ public final class ProgramFrames {
      *  is a paste of the frame's chain in {@code body}, the statement as first inlined -- the hook is asked for a frame
      *  by its other readers too (its activities, its SQL text, its size), which paste nothing (the M3 audit's B4). */
     boolean readAgainWithCtes(List<TypedSpec> body) {
-        java.util.Set<String> twice = new java.util.LinkedHashSet<>();
+        Set<String> twice = new LinkedHashSet<>();
         reads.forEach((name, n) -> {
             Frame f = frames.get(name);
             if (f != null && f.readsAsCte() && pastes(body, f.chain()) > 1) {
@@ -160,7 +173,7 @@ public final class ProgramFrames {
      *  {@code body}. */
     private static int pastes(List<TypedSpec> body, TypedSpec chain) {
         int n = 0;
-        java.util.ArrayDeque<TypedSpec> todo = new java.util.ArrayDeque<>(body);
+        ArrayDeque<TypedSpec> todo = new ArrayDeque<>(body);
         while (!todo.isEmpty()) {
             TypedSpec t = todo.pop();
             if (t == chain) {
@@ -173,12 +186,12 @@ public final class ProgramFrames {
     }
 
     /** The CTE definitions the statement just planned references (FrameCtes.attach's), by CTE name. */
-    public Map<String, com.legend.sql.SqlQuery> definitions() {
-        return java.util.Collections.unmodifiableMap(definitions);
+    public Map<String, SqlQuery> definitions() {
+        return Collections.unmodifiableMap(definitions);
     }
 
     /** The stamp the statement just planned binds itself, or null. */
-    @com.legend.base.Nullable String ownStamp() {
+    @Nullable String ownStamp() {
         return ownStamp;
     }
 
@@ -193,7 +206,7 @@ public final class ProgramFrames {
     ResultEnvelopeSplice.Frames reads(List<TypedSpec> letPrefix, SpecCompiler specs, PlanEnv env) {
         return new ResultEnvelopeSplice.Frames() {
             @Override
-            public ResultEnvelopeSplice.@com.legend.base.Nullable View frame(String name) {
+            public ResultEnvelopeSplice.@Nullable View frame(String name) {
                 Frame f = frames.get(name);
                 if (f == null) {
                     return null;
@@ -205,9 +218,9 @@ public final class ProgramFrames {
                 // read by REFERENCE: its planned CTE, defined ahead of the statement (a class frame's is its extent
                 // rows, a relation frame's its plan), its aliases under the frame's own prefix (the walk's)
                 String cteName = "frame_" + name;
-                definitions.computeIfAbsent(cteName, n -> com.legend.sql.AliasPrefix.apply(
-                        com.legend.sql.AliasPrefix.frameBody(name), f.cte().extentRows() != null
-                                ? f.cte().extentRows() : java.util.Objects.requireNonNull(f.cte().plan())));
+                definitions.computeIfAbsent(cteName, n -> AliasPrefix.apply(
+                        AliasPrefix.frameBody(name), f.cte().extentRows() != null
+                                ? f.cte().extentRows() : Objects.requireNonNull(f.cte().plan())));
                 return new ResultEnvelopeSplice.View(f.chain(), f.relationRooted(), f.source(), cteName,
                         f.cte().plan(), f.cte().plannedInfo());
             }
@@ -215,7 +228,7 @@ public final class ProgramFrames {
             @Override
             public ResultEnvelopeSplice.View inlineExecute(TypedNativeCall ec, boolean eager) {
                 if (eager) {
-                    throw new com.legend.error.NotImplementedException("an execute(...) run where it stands, its"
+                    throw new NotImplementedException("an execute(...) run where it stands, its"
                             + " result the value asked for: planned at the test-is-the-product plan's M9; a query"
                             + " reads an execute(...)'s result through it (->values)");
                 }
@@ -225,7 +238,7 @@ public final class ProgramFrames {
                 }
                 // this statement's run of the call: its activity rows record this statement's stamp (an earlier
                 // statement's run of the same call site was dropped at this statement's start: the M3 audit's B7d)
-                String scope = com.legend.plan.PlanRows.scopeId(fc.source());
+                String scope = PlanRows.scopeId(fc.source());
                 if (!planRows.containsKey(scope)) {
                     inlineRuns.add(scope);
                     PlanAllocations.registerActivityRows(fc.source(), fc.chain(), letPrefix, specs, null, ownStamp,
@@ -236,7 +249,7 @@ public final class ProgramFrames {
             }
 
             @Override
-            public @com.legend.base.Nullable String relationalActivitySql(String frameName, long activityNumber) {
+            public @Nullable String relationalActivitySql(String frameName, long activityNumber) {
                 Frame f = frames.get(frameName);
                 if (f == null || activityNumber != 0) {
                     // single-statement execution: exactly one RelationalActivity per execute; other indices fall to
@@ -247,7 +260,7 @@ public final class ProgramFrames {
             }
 
             @Override
-            public @com.legend.base.Nullable String relationalActivitySql(TypedNativeCall ec) {
+            public @Nullable String relationalActivitySql(TypedNativeCall ec) {
                 return PlanAllocations.activitySql(ec, FramePlanner.chain(ec, letPrefix, specs, env).chain(),
                         letPrefix, specs, env);
             }

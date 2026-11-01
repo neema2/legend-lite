@@ -134,13 +134,6 @@ public final class ResultEnvelopeSplice {
         /** The same render for an INLINE execute call (a user-call
          * frame's query). */
         @com.legend.base.Nullable String relationalActivitySql(TypedNativeCall ec);
-
-        /** A {@code toSQLString(...)} / {@code toSQLStringPretty(...)}
-         * call's rendered text — the K-native evaluated WHEREVER the
-         * call appears (the old statement-root-only dispatch was
-         * position-dependent: nested under sqlRemoveFormatting the
-         * lambda leaked to the resolver). Null when the call cannot
-         * render (non-literal lambda etc.) — the caller's walls stand. */
     }
 
     /**

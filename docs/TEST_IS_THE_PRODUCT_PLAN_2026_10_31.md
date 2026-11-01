@@ -405,6 +405,37 @@ posted the same way (R7 decision 12).
   (not "at M6/M7"); item 5's effect inside a keyed step's snapshot runs bare in it (the snapshot holds the program in
   a transaction a store write did not open), a named limit.
 
+- **B14, mutable state out and split by concern (MR; R20, written 2026-11-01 from an independent read-only inventory
+  of the code at 96a1dbde, `docs/test-is-product-homework/E_MR_INVENTORY.md`).** The code that survives the program
+  -- the planner's program road (`PlanMaker`, `ProgramState`, `ProgramFrames`, `ProductStatements`, `FramePlanner`,
+  `QueryDoor`), the test-planning library (`TestDoor`, `TestKinds`, `Seeds`, `EffectPlanner`) and the runner's program
+  loop (`PlanRunner.program`) -- holds no state that one call leaves for another to read, and no field reset by
+  convention; where mutation is the honest form (a builder with ONE owner: the object-id minter the lowering calls
+  deep inside, the inliner's let map while it inlines, the runner's live values the database produces), it is private
+  to its owner, never aliased, frozen when handed out. Zero movement: every core package's statements byte-identical
+  (17,372), the corpora's and channel B's census identical. The walk M10 deletes is not refactored.
+  1. **A statement's facts are a value.** `ProductStatements.prepare` returns what the statement read --
+     `StatementReads(ownStamp, definitions, inline runs)` -- in its `Statement`; nothing reads "the last prepare's"
+     fields. The hook's recorder is local to one inlining (the inliner calls it re-entrantly), frozen when it ends.
+  2. **The program's facts have one owner.** `ProgramFrames` keeps only the program's own (its frames, consumed lets,
+     the stamp count, the program's rows); `ProgramState` is a builder confined to `PlanMaker.program`, its lists
+     private (no aliased locals, no live views), the test-planning library handed a narrow view and an `add`.
+     `TestKinds`' script and established seeds are its own private state, the class no longer a stateful lambda.
+  3. **Split by concern.** `PlanMaker.program` into the target decision (shared with `plan`), a let's plan, a
+     statement's plan, the stamp post-pass (pure), the staged drops; `ProductStatements.prepare` into inlining and
+     resolving; `PlanRunner.program` into a pure shape of the plan, the run of its steps, its transaction bracket,
+     its answer's stream (the pre-scan's deliberate differences from `sequence()` kept and named).
+  4. **The expert defects of that code:** imports for the inline fully-qualified names; dead code (the read counts,
+     `ProgramState.door`, constant guards); orphan and stale comments; duplicated logic made one (the target decision,
+     the declared parameters, the rename merge); the nullable-heavy signatures where a value says it better.
+  5. **The four latent defects the inventory names** (the eager run and the CTE planned without the frame's renames,
+     CTE bodies attached after the renames, a stamp an eager run's own inline read mints, a seed key's `establish`
+     clearing another's dirt) are verified one by one AFTER the zero-movement sub-steps; any that is real is a
+     behaviour change, posted before it lands.
+  Sub-steps, each its own commit, each checked byte-identical before it: MRa imports, dead code, comments; MRb the
+  runner's program loop; MRc the program state and `PlanMaker` split; MRd a statement's facts as a value and
+  `ProductStatements.prepare` split; MRe the latent defects verified; MRf the chain, the audit, the records, the
+  checkpoint.
 - **B13, the system database on one code path (M4; written 2026-11-01 under R15, its ruling R9; drafted from a read of
   the code at bb9de6ce).** Today a product query that reads the system metamodel store (`Class.all()`, the metamodel
   tables) carries the tables it reads in its own plan (`PlanMaker.metamodel`: setup steps on the plan's own target
@@ -644,3 +675,13 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   databases in core holding 6 distinct contents, one per corpus pass, so a store kept by content is bounded; Trino
   alone has no temporary table. Posted to the user: a server engine with no system connection configured turns a
   product store read from an answer into a refusal under B13 item 2; and whether M5 comes before M4.
+- 2026-11-01: M3's checkpoint CI green on every OS (52 of 52, `gates green` included); the lane sessions' round 9 on
+  90ea4e5c: every outcome identical on every lane, channel B and the test road byte-identical; channel A's one
+  movement M2's literal answers (MV12: 207 per lane, 148 on the four-engine lane, with their session statements),
+  measured on the PCT lanes for the first time -- the fold is the compile-time unroll's (ratified 2026-09-03), M2
+  only stopped sending its literal. The user's rulings R19 (M5 before M4) and R20 (MR first); B14 written from an
+  independent inventory (`docs/test-is-product-homework/E_MR_INVENTORY.md`). **MRa built**: imports for the inline
+  fully-qualified names in the seventeen files of the program road; the dead `ProgramState.door`; the stacked and
+  orphan javadoc (BodyPlanner, PlanRunner, ResultEnvelopeSplice) and the stale SessionState comment fixed. Measured:
+  every core package's statements byte-identical (17,377 -- M3's own count, its B7d test's five included, which the
+  M3i dump predated: the record's 17,372 was one test short).

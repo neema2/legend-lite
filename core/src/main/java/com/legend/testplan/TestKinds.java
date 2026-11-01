@@ -4,16 +4,36 @@
 package com.legend.testplan;
 
 import com.legend.TypedQuery;
+import com.legend.builtin.NativeFn;
+import com.legend.compiler.element.ModelContext;
+import com.legend.compiler.spec.typed.Literals;
+import com.legend.compiler.spec.typed.TypedLet;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.error.NotImplementedException;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.planner.BodyPlanner;
+import com.legend.planner.ConnectionLets;
+import com.legend.planner.FramePlanner;
+import com.legend.planner.LetPlanner;
+import com.legend.planner.PlanAllocations;
+import com.legend.planner.PlanEnv;
 import com.legend.planner.Prepared;
 import com.legend.planner.ProductStatements;
+import com.legend.planner.ProgramFrames;
 import com.legend.planner.ProgramKinds;
 import com.legend.planner.ProgramState;
 import com.legend.planner.QueryDoor;
+import com.legend.setup.CsvSeed;
+import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * A TEST'S KINDS ON THE PROGRAM ROAD (the test-is-the-product plan's M3, brief B12): the statements of a test's program
@@ -37,10 +57,10 @@ final class TestKinds implements ProgramKinds {
     /** The open script: the effect statements since the last statement of another kind. */
     private final List<String> script = new ArrayList<>();
     /** The seed sources placed since the program's last write. */
-    private final java.util.Set<Seeds.Sources> established = new java.util.HashSet<>();
+    private final Set<Seeds.Sources> established = new HashSet<>();
     /** The seeds' steps, generated once per sources value. */
-    private final java.util.Map<Seeds.Sources, List<com.legend.setup.CsvSeed.Planned>> generated =
-            new java.util.HashMap<>();
+    private final Map<Seeds.Sources, List<CsvSeed.Planned>> generated =
+            new HashMap<>();
 
     TestKinds(TypedQuery body, String runtime) {
         this.scan = new QueryDoor.Scan(body, runtime);
@@ -48,7 +68,7 @@ final class TestKinds implements ProgramKinds {
 
     @Override
     public boolean plan(ProgramState program, int index, TypedSpec statement, boolean last) {
-        java.util.EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
+        EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
         kinds.remove(QueryDoor.TestOnly.INLINE_SEEDS);
         kinds.remove(QueryDoor.TestOnly.RUNTIME_SEEDS);
         if (!kinds.contains(QueryDoor.TestOnly.EFFECT)) {
@@ -61,11 +81,11 @@ final class TestKinds implements ProgramKinds {
         if (kinds.isEmpty()) {
             return false;
         }
-        if (kinds.equals(java.util.EnumSet.of(QueryDoor.TestOnly.LET_EXECUTE)) && !last) {
-            frame(program, index, (com.legend.compiler.spec.typed.TypedLet) statement);
+        if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.LET_EXECUTE)) && !last) {
+            frame(program, index, (TypedLet) statement);
             return true;
         }
-        if (kinds.equals(java.util.EnumSet.of(QueryDoor.TestOnly.EFFECT))) {
+        if (kinds.equals(EnumSet.of(QueryDoor.TestOnly.EFFECT))) {
             effect(program, index, statement, last);
             // the effect writes: the next statement's seeds are established again (the walk's markWriting)
             established.clear();
@@ -80,7 +100,7 @@ final class TestKinds implements ProgramKinds {
             case ASSERT -> "M6, the verdict record";
             case ASSERT_ERROR -> "M9, T10";
         };
-        throw new com.legend.error.NotImplementedException(kind.what() + " on the test door's program road: not"
+        throw new NotImplementedException(kind.what() + " on the test door's program road: not"
                 + " planned yet (the test-is-the-product plan's " + step + ")");
     }
 
@@ -90,18 +110,18 @@ final class TestKinds implements ProgramKinds {
      * pass alike (MV7) -- and its activity's comment is that step's execution-trace stamp, a parameter the runner
      * binds when the plan runs (R17 C4); its readers after paste its chain ({@code ProgramFrames}).
      */
-    private void frame(ProgramState program, int index, com.legend.compiler.spec.typed.TypedLet let) {
-        com.legend.compiler.spec.typed.TypedNativeCall ec =
-                (com.legend.compiler.spec.typed.TypedNativeCall) com.legend.planner.LetPlanner.rhs(let);
-        com.legend.planner.ProgramFrames frames = program.frames();
+    private void frame(ProgramState program, int index, TypedLet let) {
+        TypedNativeCall ec =
+                (TypedNativeCall) LetPlanner.rhs(let);
+        ProgramFrames frames = program.frames();
         TypedQuery query = program.query();
-        com.legend.planner.PlanEnv env = com.legend.planner.PlanEnv.of(query.context(), program.runtime(), null,
+        PlanEnv env = PlanEnv.of(query.context(), program.runtime(), null,
                 program.features(), ProductStatements::noGenerator).withPlanRows(frames.planRows());
-        com.legend.planner.FramePlanner.FrameChain fc = com.legend.planner.FramePlanner.chain(ec, program.lets(),
+        FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(),
                 query.specs(), env);
         frames.consumed(fc.env().queryLets());
         String stamp = frames.newStamp();
-        com.legend.planner.PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(),
+        PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(),
                 null, stamp, env);
         // the eager run: the frame's query, run at the let, its rows dropped
         ProductStatements.Statement run = ProductStatements.prepare(query, List.of(fc.runChain()), program.runtime(),
@@ -109,15 +129,15 @@ final class TestKinds implements ProgramKinds {
         program.add(new ExecutionPlan.Check(program.statement(program.lowered(run, false)).stamped(stamp)));
         // its CTE, lowered once at the let with the product's configuration (M3g, B12 item 9): a statement that reads
         // the frame more than once references it; one that reads it once pastes its chain
-        com.legend.planner.FramePlanner.Cte cte = fc.legendQuery() ? com.legend.planner.FramePlanner.Cte.NONE
-                : com.legend.planner.FramePlanner.cte(fc, query.specs(), chain -> {
+        FramePlanner.Cte cte = fc.legendQuery() ? FramePlanner.Cte.NONE
+                : FramePlanner.cte(fc, query.specs(), chain -> {
                     ProductStatements.Statement planned = ProductStatements.prepare(query, List.of(chain),
                             program.runtime(), index, program.features(), frames);
-                    return planned.prepared() instanceof com.legend.planner.Prepared.Planned p
-                            ? new com.legend.planner.BodyPlanner.Bare(program.lowered(planned, false), p.root())
+                    return planned.prepared() instanceof Prepared.Planned p
+                            ? new BodyPlanner.Bare(program.lowered(planned, false), p.root())
                             : null;
                 });
-        frames.let(let.name(), new com.legend.planner.ProgramFrames.Frame(fc.chain(),
+        frames.let(let.name(), new ProgramFrames.Frame(fc.chain(),
                 !fc.legendQuery() && fc.relationRooted(), fc.source(), fc.env().tableReplace(), cte));
     }
 
@@ -131,12 +151,12 @@ final class TestKinds implements ProgramKinds {
      * name (below).
      */
     private void seed(ProgramState program, TypedSpec statement) {
-        com.legend.compiler.element.ModelContext ctx = program.query().context();
+        ModelContext ctx = program.query().context();
         Seeds.Sources sources = Seeds.sources(statement, program.runtime(), ctx);
         if (sources.namesNothing() || !established.add(sources)) {
             return;
         }
-        List<com.legend.setup.CsvSeed.Planned> planned = generated.computeIfAbsent(sources,
+        List<CsvSeed.Planned> planned = generated.computeIfAbsent(sources,
                 s -> Seeds.planned(statement, program.runtime(), ctx, program.dialect()));
         if (planned.isEmpty()) {
             return;
@@ -145,11 +165,11 @@ final class TestKinds implements ProgramKinds {
             // the walk sends a statement's seeds ahead of the open effect run's script, the program after it: the two
             // orders differ, and no corpus body names test data inside an effect run (M3a) -- refused by name (the M3
             // audit's B8)
-            throw new com.legend.error.NotImplementedException("seeds named inside an effect run (an effect statement"
+            throw new NotImplementedException("seeds named inside an effect run (an effect statement"
                     + " follows another, and its sources name test data): their order against the run's script is"
                     + " not designed");
         }
-        List<ExecutionPlan.SetupStep> steps = planned.stream().map(com.legend.setup.CsvSeed.Planned::step).toList();
+        List<ExecutionPlan.SetupStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
         program.add(new ExecutionPlan.Setup(Seeds.key(steps), steps, program.target()));
     }
 
@@ -157,8 +177,8 @@ final class TestKinds implements ProgramKinds {
      *  placed where it is the program's last statement. */
     private void effect(ProgramState program, int index, TypedSpec statement, boolean last) {
         List<TypedSpec> body = program.query().body();
-        if (statement instanceof com.legend.compiler.spec.typed.TypedLet let && !last
-                && !com.legend.planner.ConnectionLets.onlyConnectionReads(body, index + 1, let.name())) {
+        if (statement instanceof TypedLet let && !last
+                && !ConnectionLets.onlyConnectionReads(body, index + 1, let.name())) {
             // the walk's guard: the corpus binds an effect's opaque result as a smoke check and never reads it
             throw new IllegalStateException("reading an executeInDb result binding ('" + let.name()
                     + "') is not supported");
@@ -168,24 +188,24 @@ final class TestKinds implements ProgramKinds {
         ProductStatements.Statement st = ProductStatements.prepare(program.query(), statements, program.runtime(),
                 index, program.features());
         if (!(st.prepared() instanceof Prepared.Effect e)) {
-            throw new com.legend.error.NotImplementedException("an effect under an expression of another kind ("
+            throw new NotImplementedException("an effect under an expression of another kind ("
                     + st.prepared().getClass().getSimpleName() + ") on the test door's program road: an effect is"
                     + " planned as a statement of its own (an effectful map is the T9 kind the test-is-the-product"
                     + " plan's M9 plans)");
         }
-        com.legend.compiler.spec.typed.TypedNativeCall call = e.call();
-        com.legend.builtin.NativeFn.Effect effect = com.legend.builtin.NativeFn.Effect.of(call.callee().id())
+        TypedNativeCall call = e.call();
+        NativeFn.Effect effect = NativeFn.Effect.of(call.callee().id())
                 .orElseThrow();
-        if (effect == com.legend.builtin.NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
-            throw new com.legend.error.NotImplementedException("loadCsvToDbTable on the test door's program road:"
+        if (effect == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
+            throw new NotImplementedException("loadCsvToDbTable on the test door's program road:"
                     + " its CSV is a test resource, read where the body runs (R17 C10: the walk's until its body's"
                     + " class moves)");
         }
         List<String> values = new ArrayList<>();
         for (TypedSpec arg : EffectPlanner.stringArgs(e.call())) {
-            if (!(com.legend.compiler.spec.typed.Literals.fold(arg, e.body().subList(0, e.body().size() - 1))
+            if (!(Literals.fold(arg, e.body().subList(0, e.body().size() - 1))
                     instanceof String folded)) {
-                throw new com.legend.error.NotImplementedException("a computed String argument of "
+                throw new NotImplementedException("a computed String argument of "
                         + e.call().callee().qualifiedName() + " on the test door's program road: its value is the"
                         + " database's to compute before the effect is written (the T9 kind the test-is-the-product"
                         + " plan's M9 plans)");
@@ -199,8 +219,8 @@ final class TestKinds implements ProgramKinds {
         if (last) {
             close(program);
             // the walk's arms' value: the DDL that drops and creates answers true, the others no value
-            boolean dropsAndCreates = effect == com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB
-                    || effect == com.legend.builtin.NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB;
+            boolean dropsAndCreates = effect == NativeFn.Effect.DROP_AND_CREATE_TABLE_IN_DB
+                    || effect == NativeFn.Effect.DROP_AND_CREATE_SCHEMA_IN_DB;
             program.add(dropsAndCreates ? ProductStatements.scalar("Boolean", "true")
                     : ProductStatements.scalar(e.call().info().type().typeName(), null));
         }
@@ -211,7 +231,7 @@ final class TestKinds implements ProgramKinds {
         if (script.isEmpty()) {
             return;
         }
-        com.legend.sql.dialect.SqlDialect dialect = program.dialect();
+        SqlDialect dialect = program.dialect();
         program.add(new ExecutionPlan.Effect(new ExecutionPlan.Sql(String.join(";\n", script) + ";", List.of(),
                 program.target(), null, List.of()), new ExecutionPlan.Effect.Script(script, dialect.script(script),
                 dialect.scriptAbort())));

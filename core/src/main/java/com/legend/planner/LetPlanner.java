@@ -3,10 +3,27 @@
 
 package com.legend.planner;
 
+import com.legend.base.Nullable;
+import com.legend.builtin.NativeFn;
+import com.legend.builtin.Pure;
+import com.legend.compiler.spec.ResultEnvelopeSplice;
 import com.legend.compiler.spec.SpecCompiler;
+import com.legend.compiler.spec.StatementEffects;
+import com.legend.compiler.spec.typed.TypedCInteger;
+import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedRawSqlRelation;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedVariable;
+import com.legend.model.FunctionId;
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * A LET's kind, planned (the planner-driver seam program's S2b, 2026-10-31; the body driver's loop decided it until
@@ -41,21 +58,21 @@ public final class LetPlanner {
 
     /** The kind of {@code let}, statement {@code at} of {@code stmts}; {@code relationFrame} says whether a name is a
      *  relation-rooted frame planned before it. */
-    public static Kind kind(TypedLet let, java.util.List<TypedSpec> stmts, int at, SpecCompiler specs,
-            java.util.Map<com.legend.model.FunctionId, Boolean> effectMemo,
-            java.util.function.Predicate<String> relationFrame) {
+    public static Kind kind(TypedLet let, List<TypedSpec> stmts, int at, SpecCompiler specs,
+            Map<FunctionId, Boolean> effectMemo,
+            Predicate<String> relationFrame) {
         if (aliasOf(let.value(), relationFrame) != null) {
             return Kind.ALIAS;
         }
         TypedSpec rhs = rhs(let);
         if (rhs instanceof TypedNativeCall sc
-                && com.legend.builtin.Pure.Lite.STAGE.equals(sc.callee().qualifiedName())) {
+                && Pure.Lite.STAGE.equals(sc.callee().qualifiedName())) {
             return Kind.STAGED;
         }
-        if (rhs instanceof TypedNativeCall ec && com.legend.builtin.NativeFn.Handle.runsAFrame(ec.callee().id())) {
+        if (rhs instanceof TypedNativeCall ec && NativeFn.Handle.runsAFrame(ec.callee().id())) {
             return Kind.FRAME;
         }
-        if (rhs instanceof com.legend.compiler.spec.typed.TypedRawSqlRelation
+        if (rhs instanceof TypedRawSqlRelation
                 && readAfterEffect(stmts, at, let.name(), specs, effectMemo)) {
             return Kind.STAGED_GRID;
         }
@@ -65,7 +82,7 @@ public final class LetPlanner {
     /** {@code let}'s right-hand side under its execution contexts (a {@code from} only binds where it runs). */
     public static TypedSpec rhs(TypedLet let) {
         TypedSpec rhs = let.value();
-        while (rhs instanceof com.legend.compiler.spec.typed.TypedFrom rf) {
+        while (rhs instanceof TypedFrom rf) {
             rhs = rf.source();
         }
         return rhs;
@@ -79,24 +96,24 @@ public final class LetPlanner {
      * their at/toOne are REAL selections and the binding is an ordinary let.
      * The name of the frame aliased, or null.
      */
-    public static @com.legend.base.Nullable String aliasOf(TypedSpec rhs,
-            java.util.function.Predicate<String> relationFrame) {
+    public static @Nullable String aliasOf(TypedSpec rhs,
+            Predicate<String> relationFrame) {
         TypedSpec cur = rhs;
         boolean badIndex = false;
         while (true) {
-            if (cur instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+            if (cur instanceof TypedPropertyAccess pa
                     && pa.property().equals("values")) {
                 cur = pa.source();
                 continue;
             }
-            if (cur instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && (com.legend.compiler.spec.ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
-                            || com.legend.compiler.spec.ResultEnvelopeSplice.TO_ONE_FQN.equals(nc.callee().qualifiedName())
-                            || com.legend.compiler.spec.ResultEnvelopeSplice.FIRST_FQN.equals(nc.callee().qualifiedName()))
+            if (cur instanceof TypedNativeCall nc
+                    && (ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
+                            || ResultEnvelopeSplice.TO_ONE_FQN.equals(nc.callee().qualifiedName())
+                            || ResultEnvelopeSplice.FIRST_FQN.equals(nc.callee().qualifiedName()))
                     && !nc.args().isEmpty()) {
-                if (com.legend.compiler.spec.ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
+                if (ResultEnvelopeSplice.AT_FQN.equals(nc.callee().qualifiedName())
                         && !(nc.args().size() == 2 && nc.args().get(1)
-                                instanceof com.legend.compiler.spec.typed.TypedCInteger k
+                                instanceof TypedCInteger k
                                 && k.value().longValue() == 0)) {
                     badIndex = true;
                 }
@@ -105,7 +122,7 @@ public final class LetPlanner {
             }
             break;
         }
-        if (cur instanceof com.legend.compiler.spec.typed.TypedVariable v && relationFrame.test(v.name())) {
+        if (cur instanceof TypedVariable v && relationFrame.test(v.name())) {
             if (badIndex) {
                 throw new IllegalStateException("Result.values->at(k>0) on a"
                         + " relation-rooted query — the values envelope holds"
@@ -118,9 +135,9 @@ public final class LetPlanner {
 
     /** Whether a statement after {@code at} reads the let {@code name} -- itself or through a let that reads it --
      *  once an effect has run after it (an effect's own statement included: it may read the let, its change after). */
-    public static boolean readAfterEffect(java.util.List<TypedSpec> stmts, int at, String name, SpecCompiler specs,
-            java.util.Map<com.legend.model.FunctionId, Boolean> effectMemo) {
-        java.util.Set<String> names = new java.util.HashSet<>(java.util.List.of(name));
+    public static boolean readAfterEffect(List<TypedSpec> stmts, int at, String name, SpecCompiler specs,
+            Map<FunctionId, Boolean> effectMemo) {
+        Set<String> names = new HashSet<>(List.of(name));
         boolean effectSeen = false;
         for (int j = at + 1; j < stmts.size(); j++) {
             TypedSpec s = stmts.get(j);
@@ -131,14 +148,14 @@ public final class LetPlanner {
             if (s instanceof TypedLet l && reads) {
                 names.add(l.name());
             }
-            effectSeen |= com.legend.compiler.spec.StatementEffects.containsEffect(s, specs, effectMemo);
+            effectSeen |= StatementEffects.containsEffect(s, specs, effectMemo);
         }
         return false;
     }
 
     /** Whether {@code n} reads a variable named in {@code names}. */
-    private static boolean reads(TypedSpec n, java.util.Set<String> names) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v && names.contains(v.name())) {
+    private static boolean reads(TypedSpec n, Set<String> names) {
+        if (n instanceof TypedVariable v && names.contains(v.name())) {
             return true;
         }
         for (TypedSpec c : n.children()) {

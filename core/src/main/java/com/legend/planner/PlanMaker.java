@@ -5,22 +5,62 @@ package com.legend.planner;
 
 import com.legend.Compiler;
 import com.legend.TypedQuery;
-
+import com.legend.base.Nullable;
+import com.legend.builtin.SystemMetamodel;
+import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.ExprType;
-import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
+import com.legend.compiler.spec.typed.TypedLet;
+import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.database.Databases;
+import com.legend.database.Target;
+import com.legend.error.NotImplementedException;
+import com.legend.executionplan.ColumnFacts;
 import com.legend.executionplan.ExecutionPlan;
+import com.legend.lowering.KeyedPivot;
+import com.legend.lowering.Lowerer;
+import com.legend.lowering.ObjectSites;
+import com.legend.lowering.SqlPostProcessors;
 import com.legend.lowering.TypedRows;
 import com.legend.model.ConnectionDefinition;
+import com.legend.model.DatabaseDefinition;
+import com.legend.model.FunctionId;
+import com.legend.model.RelationalDataType;
+import com.legend.plan.PlanColumns;
+import com.legend.plan.ResultShape;
+import com.legend.platform.Feature;
+import com.legend.resolver.StagedRows;
 import com.legend.setup.CsvSeed;
+import com.legend.setup.Ddl;
+import com.legend.sql.EnumValueTables;
+import com.legend.sql.FrameCtes;
+import com.legend.sql.NameQuoting;
+import com.legend.sql.OutputCol;
+import com.legend.sql.SqlDdl;
+import com.legend.sql.SqlDml;
+import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
+import com.legend.sql.SqlRewriter;
+import com.legend.sql.SqlSelect;
+import com.legend.sql.SqlSource;
+import com.legend.sql.SqlType;
+import com.legend.sql.ValueKind;
 import com.legend.sql.dialect.RenderedStatement;
 import com.legend.sql.dialect.SqlDialect;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * THE PLANNER MAKES LITE PLANS (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2): a typed query planned
@@ -51,12 +91,12 @@ public final class PlanMaker {
      *  that version as what it is for, so its runner accepts the session; null plans for the dialect's declared
      *  target. The plan path program's step 9, 2026-10-19: the H2 PCT lane runs the modern H2, and a plan for the
      *  declared target was refused by its runner on every case. */
-    public static ExecutionPlan plan(TypedQuery query, @com.legend.base.Nullable String runtime,
-            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion) {
+    public static ExecutionPlan plan(TypedQuery query, @Nullable String runtime,
+            Set<Feature> features, @Nullable String serverVersion) {
         // THE QUERY DOOR (B6, B12 item 1): a test's kinds refused by name before anything is planned
         QueryDoor.refuseTestOnly(query, runtime);
         List<QueryParameters.Declared> declared = query.parameters();
-        List<com.legend.sql.SqlExpr.PlanParam> slots = slots(declared);
+        List<SqlExpr.PlanParam> slots = slots(declared);
         if (query.writes()) {
             // a program that changes a store: main's write plans (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7; merged
             // 2026-10-26), a sequence of steps on one session
@@ -75,29 +115,29 @@ public final class PlanMaker {
         // a typed plan answers a graph fetch's objects one per row: the streaming graph root
         Prepared.Planned planned = ProductStatements.planned(st);
         Compiler.LoweredQuery l = new Compiler.LoweredQuery(ProductStatements.lower(query, planned, st.temporal(), true,
-                withStamps(slots, frames), new com.legend.lowering.ObjectSites()),
+                withStamps(slots, frames), new ObjectSites()),
                 planned.body().get(planned.body().size() - 1), query.context());
         // the runtime decided: a null one is refused there, by name
-        com.legend.database.Target decided = Compiler.executesOn(l.ctx(), runtime);
+        Target decided = Compiler.executesOn(l.ctx(), runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
         ExecutionPlan.Servers servers = serversFor(decided.type(), serverVersion);
         if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
             dialect = dialect.forServer(serverVersion);
         }
         Metamodel metamodel = metamodel(l, dialect);
-        ExecutionPlan.Target target = target(decided, java.util.Objects.requireNonNull(runtime), l.ctx(), dialect, servers,
+        ExecutionPlan.Target target = target(decided, Objects.requireNonNull(runtime), l.ctx(), dialect, servers,
                 metamodel);
         // an enumeration parameter compared with a mapped column: through that place's value table; a system
         // metamodel table on a server read by its session name (Metamodel.renames)
-        SqlQuery lowered = metamodel.read(com.legend.sql.EnumValueTables.apply(l.plan()));
+        SqlQuery lowered = metamodel.read(EnumValueTables.apply(l.plan()));
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(l.ctx())).toList(),
                 stampedIfRead(typed(l.root(), lowered, dialect, target), frames.ownStamp()));
     }
 
     /** {@code slots} and the stamp parameters of {@code frames}, which every statement's lowering binds. */
-    static List<com.legend.sql.SqlExpr.PlanParam> withStamps(List<com.legend.sql.SqlExpr.PlanParam> slots,
+    static List<SqlExpr.PlanParam> withStamps(List<SqlExpr.PlanParam> slots,
             ProgramFrames frames) {
-        List<com.legend.sql.SqlExpr.PlanParam> out = new ArrayList<>(slots);
+        List<SqlExpr.PlanParam> out = new ArrayList<>(slots);
         out.addAll(frames.stampSlots());
         return out;
     }
@@ -108,7 +148,7 @@ public final class PlanMaker {
      * {@code stamp} is null or nothing in it reads it. A keyed result reading it is refused by name: its two
      * statements' stamps are not designed.
      */
-    static ExecutionPlan.Node stampedIfRead(ExecutionPlan.Node step, @com.legend.base.Nullable String stamp) {
+    static ExecutionPlan.Node stampedIfRead(ExecutionPlan.Node step, @Nullable String stamp) {
         if (stamp == null) {
             return step;
         }
@@ -118,7 +158,7 @@ public final class PlanMaker {
             case ExecutionPlan.Check c -> reads(c.sql(), stamp) ? new ExecutionPlan.Check(c.sql().stamped(stamp)) : c;
             case ExecutionPlan.Keyed k -> {
                 if (reads(k.keys(), stamp) || reads(k.body(), stamp)) {
-                    throw new com.legend.error.NotImplementedException("a keyed result reading an inline execute(...)'s"
+                    throw new NotImplementedException("a keyed result reading an inline execute(...)'s"
                             + " activity comment: the stamp of a keyed plan's statements is not designed");
                 }
                 yield k;
@@ -130,7 +170,7 @@ public final class PlanMaker {
 
     /** {@code steps}' checks with their stamp dropped where no step binds it. */
     private static void unreadStampsDropped(List<ExecutionPlan.Node> steps) {
-        java.util.Set<String> read = new java.util.HashSet<>();
+        Set<String> read = new HashSet<>();
         for (ExecutionPlan.Node step : steps) {
             for (ExecutionPlan.Sql sql : sqls(step)) {
                 sql.slots().forEach(slot -> read.add(slot.parameter()));
@@ -147,10 +187,10 @@ public final class PlanMaker {
      *  (the M3 audit: the query door's words misled there). */
     private static void unplannedOnTheTestDoor(ProductStatements.Statement st) {
         switch (st.prepared()) {
-            case Prepared.Effect e -> throw new com.legend.error.NotImplementedException("an effect ("
+            case Prepared.Effect e -> throw new NotImplementedException("an effect ("
                     + e.call().callee().qualifiedName() + ") on the test door's program road: not planned yet (the"
                     + " test-is-the-product plan's M5; setUpDataSQLs' texts as a constant, B12 item 4, deferred there)");
-            case Prepared.EffectfulMap m -> throw new com.legend.error.NotImplementedException("a map over an effect on"
+            case Prepared.EffectfulMap m -> throw new NotImplementedException("a map over an effect on"
                     + " the test door's program road: the T9 kind the test-is-the-product plan's M9 plans");
             default -> {
                 // planned, or answered above (a store write, a constant, a handle)
@@ -186,7 +226,7 @@ public final class PlanMaker {
      * {@code serverVersion}. Its target carries no setup (R17 C6): a test's seeds are steps of its own program.
      */
     public static ExecutionPlan testProgram(TypedQuery query, String runtime,
-            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion,
+            Set<Feature> features, @Nullable String serverVersion,
             ProgramKinds kinds) {
         List<QueryParameters.Declared> declared = query.parameters();
         return new ExecutionPlan(declared.stream().map(p -> p.declaration(query.context())).toList(),
@@ -195,8 +235,8 @@ public final class PlanMaker {
 
     /** Each declared parameter as the value its statement binds: one value, an optional one's absence, or a list as
      *  one array ({@link QueryParameters.Declared#slot}). */
-    private static List<com.legend.sql.SqlExpr.PlanParam> slots(List<QueryParameters.Declared> declared) {
-        List<com.legend.sql.SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
+    private static List<SqlExpr.PlanParam> slots(List<QueryParameters.Declared> declared) {
+        List<SqlExpr.PlanParam> slots = new ArrayList<>(declared.size());
         for (QueryParameters.Declared p : declared) {
             slots.add(p.slot());
         }
@@ -214,13 +254,13 @@ public final class PlanMaker {
      * statement's value is the plan's answer: a query's typed rows, or a write's count, which the database answers as a
      * value bound in a query of its own.
      */
-    private static ExecutionPlan.Node program(TypedQuery query, @com.legend.base.Nullable String runtime,
-            List<com.legend.sql.SqlExpr.PlanParam> slots,
-            java.util.Set<com.legend.platform.Feature> features, @com.legend.base.Nullable String serverVersion,
+    private static ExecutionPlan.Node program(TypedQuery query, @Nullable String runtime,
+            List<SqlExpr.PlanParam> slots,
+            Set<Feature> features, @Nullable String serverVersion,
             ProgramState.Door door, ProgramKinds kinds) {
-        com.legend.compiler.element.ModelContext ctx = query.context();
+        ModelContext ctx = query.context();
         // the runtime decided: a null one is refused there, by name
-        com.legend.database.Target decided = Compiler.executesOn(ctx, runtime);
+        Target decided = Compiler.executesOn(ctx, runtime);
         SqlDialect dialect = Databases.dialect(decided.type());
         ExecutionPlan.Servers servers = serversFor(decided.type(), serverVersion);
         if (serverVersion != null && servers instanceof ExecutionPlan.Servers.Versions) {
@@ -230,39 +270,39 @@ public final class PlanMaker {
         // door's target carries no setup (R17 C6)
         ExecutionPlan.Target target = door == ProgramState.Door.TEST
                 ? new ExecutionPlan.Target(database(decided), servers, dialect.sessionSetup(), List.of())
-                : target(decided, java.util.Objects.requireNonNull(runtime), ctx, dialect, servers, Metamodel.NONE);
-        List<com.legend.compiler.spec.typed.TypedSpec> body = query.body();
-        com.legend.resolver.StagedRows.refuseLetsTheWritesChange(body, query.specs());
+                : target(decided, Objects.requireNonNull(runtime), ctx, dialect, servers, Metamodel.NONE);
+        List<TypedSpec> body = query.body();
+        StagedRows.refuseLetsTheWritesChange(body, query.specs());
         // ONE PROGRAM STATE (B12 item 2), its one minter for the program's objects (B9, 2026-10-31): a let's
         // construction read by two statements is one object in both, and every statement names its sites by the one
         // counter
-        ProgramState state = new ProgramState(query, java.util.Objects.requireNonNull(runtime), door, dialect, target,
+        ProgramState state = new ProgramState(query, Objects.requireNonNull(runtime), dialect, target,
                 slots, features);
         // the let kinds' effect scan, memoized over the program (LetPlanner.kind)
-        Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
-        List<com.legend.compiler.spec.typed.TypedSpec> lets = state.lets;
+        Map<FunctionId, Boolean> effectMemo = new HashMap<>();
+        List<TypedSpec> lets = state.lets;
         List<ExecutionPlan.Node> steps = state.steps;
         List<String> staged = state.staged;
-        com.legend.lowering.ObjectSites sites = state.sites;
+        ObjectSites sites = state.sites;
         for (int i = 0; i < body.size(); i++) {
-            com.legend.compiler.spec.typed.TypedSpec stmt = body.get(i);
+            TypedSpec stmt = body.get(i);
             boolean last = i == body.size() - 1;
             if (kinds.plan(state, i, stmt, last)) {
                 // a test's kind, the test-planning library's (the test door only)
                 continue;
             }
-            if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
+            if (stmt instanceof TypedLet let && !last) {
                 // the let's KIND is the planner's (LetPlanner, the walk's own rule): where its rows live
                 switch (LetPlanner.kind(let, body, i, query.specs(), effectMemo, state.frames()::relationFrame)) {
                     case ALIAS -> {
                         // $r.values(->at(0)) over a relation frame: the same frame
-                        state.frames().alias(let.name(), java.util.Objects.requireNonNull(
+                        state.frames().alias(let.name(), Objects.requireNonNull(
                                 LetPlanner.aliasOf(let.value(), state.frames()::relationFrame)));
                         continue;
                     }
                     case FRAME -> throw new IllegalStateException("a let-bound execute(...) reached the planner: the"
                             + " query door refuses it, the test door's library plans it");
-                    case STAGED_GRID -> throw new com.legend.error.NotImplementedException("a raw read bound by a let"
+                    case STAGED_GRID -> throw new NotImplementedException("a raw read bound by a let"
                             + " and read after a later effect: its rows held at the let's turn are the T12 kind the"
                             + " test-is-the-product plan's M9 plans");
                     case VALUE -> {
@@ -273,33 +313,33 @@ public final class PlanMaker {
                         // planned below
                     }
                 }
-                com.legend.compiler.spec.typed.TypedSpec rows = java.util.Objects.requireNonNull(
-                        com.legend.resolver.StagedRows.rowsOf(let));
+                TypedSpec rows = Objects.requireNonNull(
+                        StagedRows.rowsOf(let));
                 // STAGED ROWS: computed at this statement's turn into a temporary table of the session, which the
                 // statements after read by name (the writes between read the rows as they were)
-                String table = com.legend.resolver.StagedRows.table(let.name());
+                String table = StagedRows.table(let.name());
                 // the product's statement road (M2, B11): the test road's front half, the product's lowering
                 ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, rows), runtime, i, features,
                         state.frames());
                 Prepared.Planned sp = ProductStatements.planned(st);
-                com.legend.lowering.Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
+                Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
                         withStamps(slots, state.frames()), sites);
-                SqlQuery q = com.legend.sql.FrameCtes.attach(com.legend.sql.EnumValueTables.apply(lowerer.namedColumns(
+                SqlQuery q = FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
                         ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
                                 sp.env()))), state.frames().definitions());
                 TypedSpec rowsRoot = sp.body().get(sp.body().size() - 1);
-                ExecutionPlan.Sql stagedSql = sql(dialect.renderStatement(com.legend.sql.SqlDml.CreateTempTableAs
-                        .staged(table, q, com.legend.resolver.StagedRows.columns(rowsRoot.info()))), target, null);
+                ExecutionPlan.Sql stagedSql = sql(dialect.renderStatement(SqlDml.CreateTempTableAs
+                        .staged(table, q, StagedRows.columns(rowsRoot.info()))), target, null);
                 String own = state.frames().ownStamp();
                 if (own != null && reads(stagedSql, own)) {
                     // a write is sent with no trace comment (the M3 audit's B7c)
-                    throw new com.legend.error.NotImplementedException("a staged let's rows read an inline"
+                    throw new NotImplementedException("a staged let's rows read an inline"
                             + " execute(...)'s activity comment: a write is sent with no trace comment to record");
                 }
                 steps.add(new ExecutionPlan.Update(stagedSql, null));
                 staged.add(table);
-                lets.add(com.legend.resolver.StagedRows.boundTo(let.name(), table, rows.info(),
-                        com.legend.resolver.StagedRows.storeOf(sp.body(), ctx, runtime), let.info()));
+                lets.add(StagedRows.boundTo(let.name(), table, rows.info(),
+                        StagedRows.storeOf(sp.body(), ctx, runtime), let.info()));
                 continue;
             }
             ProductStatements.Statement st = ProductStatements.prepare(query, with(lets, stmt), runtime, i, features,
@@ -323,7 +363,7 @@ public final class PlanMaker {
                 continue;
             }
             if (st.prepared() instanceof Prepared.StoreWrite w) {
-                com.legend.sql.SqlDml dml = ProductStatements.storeWrite(query, w, st.temporal(), slots, sites);
+                SqlDml dml = ProductStatements.storeWrite(query, w, st.temporal(), slots, sites);
                 steps.add(new ExecutionPlan.Update(sql(dialect.renderStatement(dml), target, null),
                         last ? ExecutionPlan.COUNT : null));
                 if (last) {
@@ -345,32 +385,32 @@ public final class PlanMaker {
         unreadStampsDropped(steps);
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : staged) {
             // (a failed program's transaction takes its tables back with its writes)
-            steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new com.legend.sql.SqlDdl.DropTable(
-                    null, table, com.legend.sql.NameQuoting.BARE)), List.of(), target, null, List.of()), null));
+            steps.add(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(
+                    null, table, NameQuoting.BARE)), List.of(), target, null, List.of()), null));
         }
         return new ExecutionPlan.Sequence(steps);
     }
 
     /** {@code statement} after {@code lets}. */
-    private static List<com.legend.compiler.spec.typed.TypedSpec> with(
-            List<com.legend.compiler.spec.typed.TypedSpec> lets, com.legend.compiler.spec.typed.TypedSpec statement) {
-        List<com.legend.compiler.spec.typed.TypedSpec> out = new ArrayList<>(lets);
+    private static List<TypedSpec> with(
+            List<TypedSpec> lets, TypedSpec statement) {
+        List<TypedSpec> out = new ArrayList<>(lets);
         out.add(statement);
         return out;
     }
 
     /** The answer of a program whose last statement is the write {@code write}: its count, which the step before
      *  binds ({@link ExecutionPlan#COUNT}), as an {@code Integer[1]} value: one row, one column {@code value}. */
-    private static ExecutionPlan.Node count(TypedQuery query, com.legend.compiler.spec.typed.TypedSpec write,
-            SqlDialect dialect, ExecutionPlan.Target target, java.util.Set<com.legend.platform.Feature> features,
-            com.legend.lowering.ObjectSites sites) {
-        ExprType type = new ExprType(write.info().type(), com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+    private static ExecutionPlan.Node count(TypedQuery query, TypedSpec write,
+            SqlDialect dialect, ExecutionPlan.Target target, Set<Feature> features,
+            ObjectSites sites) {
+        ExprType type = new ExprType(write.info().type(), Multiplicity.Bounded.ONE);
         QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
                 type.multiplicity());
         SqlQuery q = query.lowerer(false, false, List.of(count.slot()), features, sites)
                 .lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
-                com.legend.plan.PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
+                PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),
                 sql(q, dialect, target));
     }
 
@@ -385,22 +425,22 @@ public final class PlanMaker {
      * a pivot no cast names (its keys read first, the probe plan of 2026-10-20,
      * {@link com.legend.lowering.KeyedPivot}), and a statement that reads a raw grid's report ({@link #rowsOrGridKeyed}).
      */
-    private static ExecutionPlan.Node typed(com.legend.compiler.spec.typed.TypedSpec rootSpec, SqlQuery lowered,
+    private static ExecutionPlan.Node typed(TypedSpec rootSpec, SqlQuery lowered,
             SqlDialect dialect, ExecutionPlan.Target target) {
         ExprType root = rootSpec.info();
-        return switch (com.legend.plan.ResultShape.of(rootSpec)) {
+        return switch (ResultShape.of(rootSpec)) {
             case GRAPH -> {
-                List<com.legend.sql.OutputCol> outs = lowered.outputs();
+                List<OutputCol> outs = lowered.outputs();
                 if (outs.size() != 1) {
                     throw new IllegalStateException("a graph fetch's statement answers " + outs.size() + " columns "
-                            + outs.stream().map(com.legend.sql.OutputCol::name).toList()
+                            + outs.stream().map(OutputCol::name).toList()
                             + ": the streaming graph root answers one object per row");
                 }
                 yield new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.OBJECTS, List.of(
                         new ExecutionPlan.Column(outs.get(0).name(), root.type().typeName(),
-                                com.legend.plan.PlanColumns.multiplicity(root.multiplicity()),
-                                com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null,
-                                com.legend.executionplan.ColumnFacts.precision(root.type().typeName(),
+                                PlanColumns.multiplicity(root.multiplicity()),
+                                ColumnFacts.slot(outs.get(0).type()), null,
+                                ColumnFacts.precision(root.type().typeName(),
                                         outs.get(0).type(), ExecutionPlan.TdsResult.Shape.OBJECTS))),
                         sql(lowered, dialect, target));
             }
@@ -408,16 +448,16 @@ public final class PlanMaker {
                 // a relation root's schema with any row-struct column flattened (TypedRows.flat; its dynamic columns
                 // kept)
                 Type.RelationType rowSchema = TypedRows.schema(root);
-                com.legend.sql.SqlSource.Pivot dynamic = com.legend.lowering.KeyedPivot.dynamic(lowered);
+                SqlSource.Pivot dynamic = KeyedPivot.dynamic(lowered);
                 if (dynamic != null && !rowSchema.dynamicColumns().isEmpty()) {
                     yield keyed(lowered, dynamic, rowSchema, dialect, target);
                 }
-                yield rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.RELATION, com.legend.plan.PlanColumns.of(
+                yield rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.RELATION, PlanColumns.of(
                         rowSchema, lowered, ExecutionPlan.TdsResult.Shape.RELATION), TypedRows.statement(lowered),
                         dialect, target);
             }
             case SCALAR, COLLECTION -> rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape.VALUE,
-                    com.legend.plan.PlanColumns.of(TypedRows.schema(root), lowered,
+                    PlanColumns.of(TypedRows.schema(root), lowered,
                             ExecutionPlan.TdsResult.Shape.VALUE),
                     TypedRows.statement(lowered), dialect, target);
         };
@@ -425,7 +465,7 @@ public final class PlanMaker {
 
     /** A rendered statement as the plan's, on {@code target}. */
     static ExecutionPlan.Sql sql(RenderedStatement rendered, ExecutionPlan.Target target,
-            @com.legend.base.Nullable SqlQuery tree) {
+            @Nullable SqlQuery tree) {
         List<ExecutionPlan.Slot> slots = rendered.binds().stream()
                 .map(b -> new ExecutionPlan.Slot(b.parameter(), binding(b.binding()))).toList();
         List<ExecutionPlan.Region> regions = rendered.regions().stream()
@@ -440,19 +480,19 @@ public final class PlanMaker {
      * query, a per-key one's from its aggregate's template and slot), the database's snapshot and column limit; its
      * answer typed rows.
      */
-    public static ExecutionPlan.Keyed keyed(SqlQuery lowered, com.legend.sql.SqlSource.Pivot pivot, Type.RelationType schema,
+    public static ExecutionPlan.Keyed keyed(SqlQuery lowered, SqlSource.Pivot pivot, Type.RelationType schema,
             SqlDialect dialect, ExecutionPlan.Target target) {
         // the database's snapshot first: a database with no probe plan (MongoDB) refuses by its own name before any
         // statement is written
         SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
-        com.legend.lowering.KeyedPivot.Parts parts = com.legend.lowering.KeyedPivot.of(lowered, pivot, schema);
-        java.util.Map<String, ExecutionPlan.Column> facts = new java.util.HashMap<>();
-        for (ExecutionPlan.Column c : com.legend.plan.PlanColumns.of(schema, lowered,
+        KeyedPivot.Parts parts = KeyedPivot.of(lowered, pivot, schema);
+        Map<String, ExecutionPlan.Column> facts = new HashMap<>();
+        for (ExecutionPlan.Column c : PlanColumns.of(schema, lowered,
                 ExecutionPlan.TdsResult.Shape.RELATION)) {
             facts.put(c.name(), c);
         }
         // each statement's cells by the names it writes them under (the body's outputs in the outputs' order)
-        List<com.legend.sql.OutputCol> bodyFields = parts.body().outputs();
+        List<OutputCol> bodyFields = parts.body().outputs();
         if (bodyFields.size() != parts.outputs().size()) {
             throw new IllegalStateException("a keyed body answers " + bodyFields.size() + " columns for "
                     + parts.outputs().size() + " outputs");
@@ -461,19 +501,19 @@ public final class PlanMaker {
         for (int i = 0; i < parts.outputs().size(); i++) {
             String field = bodyFields.get(i).name();
             outputs.add(switch (parts.outputs().get(i)) {
-                case com.legend.lowering.KeyedPivot.Fixed f -> new ExecutionPlan.Keyed.Fixed(java.util.Objects
+                case KeyedPivot.Fixed f -> new ExecutionPlan.Keyed.Fixed(Objects
                         .requireNonNull(facts.get(f.column().name()), () -> "the fixed column '" + f.column().name()
                                 + "' has no facts in the typed schema " + facts.keySet()), field);
-                case com.legend.lowering.KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
+                case KeyedPivot.PerKey k -> new ExecutionPlan.Keyed.PerKey(
                         new ExecutionPlan.Column(k.template().name(), k.template().type().typeName(),
-                                com.legend.plan.PlanColumns.multiplicity(k.template().multiplicity()),
-                                com.legend.executionplan.ColumnFacts.slot(k.slot()), null,
-                                com.legend.executionplan.ColumnFacts.precision(k.template().type().typeName(),
+                                PlanColumns.multiplicity(k.template().multiplicity()),
+                                ColumnFacts.slot(k.slot()), null,
+                                ColumnFacts.precision(k.template().type().typeName(),
                                         k.slot(), ExecutionPlan.TdsResult.Shape.RELATION)),
                         k.nameCell(), field);
             });
         }
-        List<String> keyFields = parts.keys().outputs().stream().map(com.legend.sql.OutputCol::name).toList();
+        List<String> keyFields = parts.keys().outputs().stream().map(OutputCol::name).toList();
         return new ExecutionPlan.Keyed(sql(parts.keys(), dialect, target), keyFields, outputs, parts.perKeyAt(),
                 sql(parts.body(), dialect, target), snapshotOf(keysSnapshot), dialect.resultColumnLimit());
     }
@@ -500,30 +540,30 @@ public final class PlanMaker {
      */
     public static ExecutionPlan.Node rowsOrGridKeyed(ExecutionPlan.TdsResult.Shape shape,
             List<ExecutionPlan.Column> columns, SqlQuery statement, SqlDialect dialect, ExecutionPlan.Target target) {
-        List<com.legend.sql.SqlSource.GridReport> reports = gridReports(statement);
+        List<SqlSource.GridReport> reports = gridReports(statement);
         if (reports.isEmpty()) {
             return new ExecutionPlan.TdsResult(shape, columns, sql(statement, dialect, target));
         }
         // the database's snapshot first, as the pivot's keyed result takes it: a database with no keyed result
         // refuses by its own name before any statement is written
         SqlDialect.KeysSnapshot keysSnapshot = dialect.keysSnapshot();
-        com.legend.sql.SqlSource.RawSql grid = rawGridOf(reports.get(0));
+        SqlSource.RawSql grid = rawGridOf(reports.get(0));
         boolean texts = false;
         boolean cells = false;
-        for (com.legend.sql.SqlSource.GridReport r : reports) {
-            com.legend.sql.SqlSource.RawSql each = rawGridOf(r);
+        for (SqlSource.GridReport r : reports) {
+            SqlSource.RawSql each = rawGridOf(r);
             if (!each.sql().equals(grid.sql()) || !each.writtenFor().equals(grid.writtenFor())) {
-                throw new com.legend.error.NotImplementedException("one statement reads two raw grids' reports: a"
+                throw new NotImplementedException("one statement reads two raw grids' reports: a"
                         + " keyed result reads one grid's columns");
             }
-            texts |= r.part() == com.legend.sql.SqlSource.GridReport.Part.TEXTS;
-            cells |= r.part() == com.legend.sql.SqlSource.GridReport.Part.CELLS
-                    || r.part() == com.legend.sql.SqlSource.GridReport.Part.ROWS;
+            texts |= r.part() == SqlSource.GridReport.Part.TEXTS;
+            cells |= r.part() == SqlSource.GridReport.Part.CELLS
+                    || r.part() == SqlSource.GridReport.Part.ROWS;
         }
         List<String> admitted = texts ? List.of("INTEGER", "BIGINT", "VARCHAR")
                 : cells ? List.of("INTEGER", "BIGINT", "VARCHAR", "BOOLEAN", "DOUBLE") : List.of();
-        com.legend.sql.SqlQuery keys = com.legend.sql.SqlSelect.starOf(
-                new com.legend.sql.SqlSource.Subselect(reports.get(0).grid(), "grid", null)).withLimit(0L);
+        SqlQuery keys = SqlSelect.starOf(
+                new SqlSource.Subselect(reports.get(0).grid(), "grid", null)).withLimit(0L);
         List<ExecutionPlan.Keyed.Output> outputs = new ArrayList<>(columns.size());
         for (ExecutionPlan.Column c : columns) {
             outputs.add(new ExecutionPlan.Keyed.Fixed(c, c.name()));
@@ -536,21 +576,21 @@ public final class PlanMaker {
     /** The raw grid a report reads: its grid is a plain read of one authored text (the lowering's raw grid, or its
      *  rows as their cells over it); a report over anything else is refused by name, its grid's identity being that
      *  text and the language it is written in. */
-    private static com.legend.sql.SqlSource.RawSql rawGridOf(com.legend.sql.SqlSource.GridReport report) {
-        com.legend.sql.SqlQuery q = report.grid();
-        while (q instanceof com.legend.sql.SqlSelect s && s.projections().isEmpty() && s.where() == null
+    private static SqlSource.RawSql rawGridOf(SqlSource.GridReport report) {
+        SqlQuery q = report.grid();
+        while (q instanceof SqlSelect s && s.projections().isEmpty() && s.where() == null
                 && s.groupBy().isEmpty() && s.having() == null && s.qualify() == null && s.orderBy().isEmpty()
                 && s.limit() == null && s.offset() == null && !s.distinct()) {
             switch (s.from()) {
-                case com.legend.sql.SqlSource.RawSql raw -> {
+                case SqlSource.RawSql raw -> {
                     return raw;
                 }
-                case com.legend.sql.SqlSource.GridReport rows when rows.part()
-                        == com.legend.sql.SqlSource.GridReport.Part.ROWS -> q = rows.grid();
+                case SqlSource.GridReport rows when rows.part()
+                        == SqlSource.GridReport.Part.ROWS -> q = rows.grid();
                 default -> q = null;
             }
         }
-        throw new com.legend.error.NotImplementedException("a raw grid's report over a relation derived from it (a"
+        throw new NotImplementedException("a raw grid's report over a relation derived from it (a"
                 + " filter, a projection, a sort): a keyed result reads the columns of the grid as it is written");
     }
 
@@ -559,12 +599,12 @@ public final class PlanMaker {
         return !gridReports(statement).isEmpty();
     }
 
-    private static List<com.legend.sql.SqlSource.GridReport> gridReports(SqlQuery statement) {
-        List<com.legend.sql.SqlSource.GridReport> reports = new ArrayList<>();
-        new com.legend.sql.SqlRewriter() {
+    private static List<SqlSource.GridReport> gridReports(SqlQuery statement) {
+        List<SqlSource.GridReport> reports = new ArrayList<>();
+        new SqlRewriter() {
             @Override
-            protected com.legend.sql.SqlSource source(com.legend.sql.SqlSource s) {
-                if (s instanceof com.legend.sql.SqlSource.GridReport g) {
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.GridReport g) {
                     reports.add(g);
                 }
                 return s;
@@ -592,10 +632,10 @@ public final class PlanMaker {
         };
     }
 
-    private static java.util.Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> spellings(
-            java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types) {
-        java.util.Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> out =
-                new java.util.EnumMap<>(ExecutionPlan.ValueKind.class);
+    private static Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> spellings(
+            Map<ValueKind, RenderedStatement.TypeSpelling> types) {
+        Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> out =
+                new EnumMap<>(ExecutionPlan.ValueKind.class);
         types.forEach((k, t) -> out.put(kind(k), new ExecutionPlan.TypeSpelling(t.name(), switch (t.digits()) {
             case NONE -> ExecutionPlan.Digits.NONE;
             case PRECISION -> ExecutionPlan.Digits.PRECISION;
@@ -604,7 +644,7 @@ public final class PlanMaker {
         return out;
     }
 
-    private static ExecutionPlan.ValueKind kind(com.legend.sql.ValueKind k) {
+    private static ExecutionPlan.ValueKind kind(ValueKind k) {
         return switch (k) {
             case INTEGER -> ExecutionPlan.ValueKind.INTEGER;
             case DECIMAL -> ExecutionPlan.ValueKind.DECIMAL;
@@ -624,7 +664,7 @@ public final class PlanMaker {
      *  every case). Here, not in {@code Databases}, since main's dialect program Phase 5 (2026-10-16): the database
      *  owner does not reach the plan's types. */
     public static ExecutionPlan.Servers serversFor(ConnectionDefinition.DatabaseType type,
-            @com.legend.base.Nullable String serverVersion) {
+            @Nullable String serverVersion) {
         List<String> versions = Databases.dialect(type).serverVersions();
         if (versions == null) {
             return new ExecutionPlan.Servers.Every();
@@ -635,8 +675,8 @@ public final class PlanMaker {
 
     /** Where the plan runs: the database {@code decided}, the server versions and session statements of its dialect,
      *  and the setup its runtime's connections declare, every statement final for that database. */
-    private static ExecutionPlan.Target target(com.legend.database.Target decided, String runtime,
-            com.legend.compiler.element.ModelContext ctx, SqlDialect dialect, ExecutionPlan.Servers servers,
+    private static ExecutionPlan.Target target(Target decided, String runtime,
+            ModelContext ctx, SqlDialect dialect, ExecutionPlan.Servers servers,
             Metamodel metamodel) {
         ExecutionPlan.Database database = database(decided);
         List<ExecutionPlan.SetupStep> steps = new ArrayList<>(
@@ -648,10 +688,10 @@ public final class PlanMaker {
     }
 
     /** The database the compiler {@code decided}: the platform's own engine, or the declared connection's. */
-    private static ExecutionPlan.Database database(com.legend.database.Target decided) {
+    private static ExecutionPlan.Database database(Target decided) {
         return switch (decided) {
-            case com.legend.database.Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
-            case com.legend.database.Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
+            case Target.Platform p -> new ExecutionPlan.Database.Platform(p.type());
+            case Target.Declared d -> new ExecutionPlan.Database.Declared(oneDefinition(d));
         };
     }
 
@@ -663,19 +703,19 @@ public final class PlanMaker {
      * relation for an alias).
      */
     record Metamodel(List<ExecutionPlan.SetupStep> setup, List<String> session, Map<String, String> renames,
-            Map<String, java.util.function.Function<String, com.legend.sql.SqlSource>> inline) {
+            Map<String, Function<String, SqlSource>> inline) {
         static final Metamodel NONE = new Metamodel(List.of(), List.of(), Map.of(), Map.of());
 
         /** {@code q} reading the tables as they are held: a session table by its name, an inline table as its rows. */
         SqlQuery read(SqlQuery q) {
-            SqlQuery renamed = com.legend.lowering.SqlPostProcessors.apply(q, renames);
+            SqlQuery renamed = SqlPostProcessors.apply(q, renames);
             if (inline.isEmpty()) {
                 return renamed;
             }
-            return new com.legend.sql.SqlRewriter() {
+            return new SqlRewriter() {
                 @Override
-                protected com.legend.sql.SqlSource source(com.legend.sql.SqlSource s) {
-                    if (s instanceof com.legend.sql.SqlSource.Table t && inline.containsKey(t.name())) {
+                protected SqlSource source(SqlSource s) {
+                    if (s instanceof SqlSource.Table t && inline.containsKey(t.name())) {
                         return inline.get(t.name()).apply(t.alias());
                     }
                     return s;
@@ -700,41 +740,41 @@ public final class PlanMaker {
      * its columns with no row).
      */
     private static Metamodel metamodel(Compiler.LoweredQuery l, SqlDialect dialect) {
-        java.util.Set<String> tables = new java.util.TreeSet<>();
+        Set<String> tables = new java.util.TreeSet<>();
         collectSystemTables(l.root(), tables);
         if (tables.isEmpty()) {
             return Metamodel.NONE;
         }
-        com.legend.model.DatabaseDefinition store = l.ctx()
-                .findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN)
+        DatabaseDefinition store = l.ctx()
+                .findDatabase(SystemMetamodel.STORE_FQN)
                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));
         boolean inProcess = dialect.inProcess();
         List<ExecutionPlan.SetupStep> setup = new ArrayList<>();
         List<String> session = new ArrayList<>();
-        Map<String, String> renames = new java.util.LinkedHashMap<>();
-        Map<String, java.util.function.Function<String, com.legend.sql.SqlSource>> inline =
-                new java.util.LinkedHashMap<>();
-        for (com.legend.model.DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
-            for (com.legend.model.DatabaseDefinition.TableDefinition def : schema.tables()) {
+        Map<String, String> renames = new LinkedHashMap<>();
+        Map<String, Function<String, SqlSource>> inline =
+                new LinkedHashMap<>();
+        for (DatabaseDefinition.SchemaDefinition schema : store.schemas()) {
+            for (DatabaseDefinition.TableDefinition def : schema.tables()) {
                 // a reference names its table schema-qualified (metamodel.classes)
                 if (!tables.contains(schema.name() + "." + def.name()) && !tables.contains(def.name())) {
                     continue;
                 }
                 List<List<String>> rows = MetamodelSeeds.rows(def.name(), l.ctx());
                 if (inProcess) {
-                    setup.addAll(com.legend.setup.Ddl.metamodelSteps(def, schema.name(), rows, dialect));
+                    setup.addAll(Ddl.metamodelSteps(def, schema.name(), rows, dialect));
                 } else if (!dialect.temporaryTables()) {
                     inline.put(schema.name() + "." + def.name(), inlineRows(def, rows));
                 } else {
-                    session.addAll(com.legend.setup.Ddl.metamodelTemporary(def, schema.name(), rows, dialect));
+                    session.addAll(Ddl.metamodelTemporary(def, schema.name(), rows, dialect));
                     renames.put(schema.name() + "." + def.name(),
-                            com.legend.setup.Ddl.systemTable(schema.name(), def.name()));
+                            Ddl.systemTable(schema.name(), def.name()));
                 }
             }
         }
         return new Metamodel(List.copyOf(setup), List.copyOf(session),
-                java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(renames)),
-                java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(inline)));
+                Collections.unmodifiableMap(new LinkedHashMap<>(renames)),
+                Collections.unmodifiableMap(new LinkedHashMap<>(inline)));
     }
 
     /**
@@ -742,80 +782,80 @@ public final class PlanMaker {
      * facts, plan-time constants: the store declares VARCHAR, INTEGER and BIT), a NULL cast to the column's type; a
      * table of no rows a select of typed NULLs that holds no row.
      */
-    private static java.util.function.Function<String, com.legend.sql.SqlSource> inlineRows(
-            com.legend.model.DatabaseDefinition.TableDefinition def, List<List<String>> rows) {
+    private static Function<String, SqlSource> inlineRows(
+            DatabaseDefinition.TableDefinition def, List<List<String>> rows) {
         List<String> columns = new ArrayList<>();
-        List<com.legend.sql.SqlType> types = new ArrayList<>();
-        List<com.legend.sql.OutputCol> outputs = new ArrayList<>();
-        for (com.legend.model.DatabaseDefinition.ColumnDefinition col : def.columns()) {
-            com.legend.sql.SqlType type = switch (col.dataType()) {
-                case com.legend.model.RelationalDataType.Varchar ignored -> com.legend.sql.SqlType.Scalar.VARCHAR;
-                case com.legend.model.RelationalDataType.Integer_ ignored -> com.legend.sql.SqlType.Scalar.INTEGER;
-                case com.legend.model.RelationalDataType.Bit ignored -> com.legend.sql.SqlType.Scalar.BOOLEAN;
+        List<SqlType> types = new ArrayList<>();
+        List<OutputCol> outputs = new ArrayList<>();
+        for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
+            SqlType type = switch (col.dataType()) {
+                case RelationalDataType.Varchar ignored -> SqlType.Scalar.VARCHAR;
+                case RelationalDataType.Integer_ ignored -> SqlType.Scalar.INTEGER;
+                case RelationalDataType.Bit ignored -> SqlType.Scalar.BOOLEAN;
                 default -> throw new IllegalStateException("system table " + def.name() + "." + col.name()
                         + ": no literal for its type " + col.dataType() + " (the store declares VARCHAR, INTEGER and"
                         + " BIT)");
             };
             columns.add(col.name());
             types.add(type);
-            outputs.add(new com.legend.sql.OutputCol(col.name(), type, !col.notNull() && !col.primaryKey()));
+            outputs.add(new OutputCol(col.name(), type, !col.notNull() && !col.primaryKey()));
         }
-        List<List<com.legend.sql.SqlExpr>> cells = new ArrayList<>();
-        for (List<String> row : rows.isEmpty() ? List.of(java.util.Collections.<String>nCopies(columns.size(), null))
+        List<List<SqlExpr>> cells = new ArrayList<>();
+        for (List<String> row : rows.isEmpty() ? List.of(Collections.<String>nCopies(columns.size(), null))
                 : rows) {
-            List<com.legend.sql.SqlExpr> out = new ArrayList<>();
+            List<SqlExpr> out = new ArrayList<>();
             for (int c = 0; c < row.size(); c++) {
                 out.add(literal(def.name() + "." + columns.get(c), row.get(c), types.get(c)));
             }
             cells.add(out);
         }
-        List<List<com.legend.sql.SqlExpr>> values = List.copyOf(cells);
+        List<List<SqlExpr>> values = List.copyOf(cells);
         if (!rows.isEmpty()) {
-            return alias -> new com.legend.sql.SqlSource.Values(values, columns, alias, outputs);
+            return alias -> new SqlSource.Values(values, columns, alias, outputs);
         }
-        return alias -> new com.legend.sql.SqlSource.Subselect(com.legend.sql.SqlSelect.starOf(
-                new com.legend.sql.SqlSource.Values(values, columns, alias + "_none", outputs))
-                .withWhere(new com.legend.sql.SqlExpr.BoolLit(false)), alias, null);
+        return alias -> new SqlSource.Subselect(SqlSelect.starOf(
+                new SqlSource.Values(values, columns, alias + "_none", outputs))
+                .withWhere(new SqlExpr.BoolLit(false)), alias, null);
     }
 
     /** A system table's cell as its column's typed literal; a NULL cast to the type. */
-    private static com.legend.sql.SqlExpr literal(String column, @com.legend.base.Nullable String text,
-            com.legend.sql.SqlType type) {
+    private static SqlExpr literal(String column, @Nullable String text,
+            SqlType type) {
         if (text == null) {
-            return new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.NullLit(), type);
+            return new SqlExpr.Cast(new SqlExpr.NullLit(), type);
         }
-        if (type == com.legend.sql.SqlType.Scalar.VARCHAR) {
-            return new com.legend.sql.SqlExpr.StringLit(text);
+        if (type == SqlType.Scalar.VARCHAR) {
+            return new SqlExpr.StringLit(text);
         }
-        if (type == com.legend.sql.SqlType.Scalar.INTEGER) {
-            return new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.IntLit(Long.parseLong(text)), type);
+        if (type == SqlType.Scalar.INTEGER) {
+            return new SqlExpr.Cast(new SqlExpr.IntLit(Long.parseLong(text)), type);
         }
         return switch (text) {
-            case "true" -> new com.legend.sql.SqlExpr.BoolLit(true);
-            case "false" -> new com.legend.sql.SqlExpr.BoolLit(false);
+            case "true" -> new SqlExpr.BoolLit(true);
+            case "false" -> new SqlExpr.BoolLit(false);
             default -> throw new IllegalStateException("system table column " + column + ": '" + text + "' is no BIT"
                     + " fact (true or false)");
         };
     }
 
-    private static void collectSystemTables(com.legend.compiler.spec.typed.TypedSpec n, java.util.Set<String> out) {
-        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr
-                && tr.store().equals(com.legend.builtin.SystemMetamodel.STORE_FQN)) {
+    private static void collectSystemTables(TypedSpec n, Set<String> out) {
+        if (n instanceof TypedTableReference tr
+                && tr.store().equals(SystemMetamodel.STORE_FQN)) {
             out.add(tr.table());
         }
-        for (com.legend.compiler.spec.typed.TypedSpec c : n.children()) {
+        for (TypedSpec c : n.children()) {
             collectSystemTables(c, out);
         }
     }
 
     /** The one definition a declared target opens: its connections may differ in name, not in database —
      *  a query runs on one session. */
-    private static ConnectionDefinition oneDefinition(com.legend.database.Target.Declared d) {
+    private static ConnectionDefinition oneDefinition(Target.Declared d) {
         ConnectionDefinition first = d.connections().get(0);
         for (ConnectionDefinition c : d.connections()) {
             if (c.databaseType() != first.databaseType() || !c.specification().equals(first.specification())
                     || !c.authentication().equals(first.authentication())) {
-                throw new com.legend.error.NotImplementedException("the runtime binds "
+                throw new NotImplementedException("the runtime binds "
                         + d.connections().stream().map(ConnectionDefinition::qualifiedName).toList()
                         + ", different connections: a query runs on one session");
             }
