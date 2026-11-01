@@ -317,6 +317,28 @@ failed 9 series by name.
 Out of the order, and said: **intraday** (`SAMPLE BY` takes `1d` and longer, `TsParser.java:65`; gs-quant's
 annualization refuses several points a day, `econometrics.py:497`; time zones) is a later program.
 
+### 6a. Status (2026-11-01)
+
+The library defines the language (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, its rows M1 to S1e). All 81
+words of `#TS` are `timeseries::line::` functions in `projects/timeseries/model.pure`, and the line rules (a line,
+SAMPLE BY, meeting, FILL) are `timeseries::lines::` functions. Core's `#TS` Java names no word: it is the parser, the
+sources and columns, the per-point SQL, the answer's assembly, and the plumbing that names columns.
+
+- **Step 1** (frozen answers): done.
+- **Step 2** (the gs-quant oracle): done (docs/TS_GSQUANT_ORACLE_2026_11_01.md). 119 of 210 series agree; O1 and O2
+  are asked.
+- **Step 8** (the guide from the catalog): done, docs/timeseries/WORDS.md, written by core's export. The tile's option
+  values (src/generated/library-enums.ts) and its words (src/generated/ts-words.ts) come from the same export; the
+  regex tool is gone.
+- **Steps 3, 4 and 6 wait on rulings.** The tile still reads its own TS_SIGNATURES, because its vocabulary is gs-quant's
+  (`range`, `first`, `last`, `filter`, `union`, `day`) where `#TS`'s is `range_of`, `first_of`, `last_of`,
+  `filter_values`, `union_of`, `day_of`. `#TS` keeps the one-argument `first`, `last`, `max`, `min`, `sum` and `avg`
+  for SAMPLE BY's aggregates (R5). One vocabulary (§4, R11-R16) comes first. Only then can the tile read core's words in
+  place of its table, and the Python DSL's stubs be made from them.
+- **Step 4's numbers wait on O1 and O2** (the oracle's): a window's first value, and compare where a side has none.
+- **The library's text the clients ship** waits on the question asked on 2026-11-01: build it into the planner (every
+  page downloads it inside the WebAssembly module), or keep it a chunk fetched when a query uses it.
+
 ## 7. Spec by verification, applied to gs-quant
 
 As lite treats legend-pure and legend-engine (AGENTS.md: "spec by VERIFICATION, never by LOADING"): gs-quant's
