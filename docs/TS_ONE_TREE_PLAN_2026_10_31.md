@@ -337,6 +337,15 @@ sources and columns, the per-point SQL, the answer's assembly, and the plumbing 
   the baskets, the rates, under SAMPLE BY 1d, 1w, 1mo, and every third day, where only SAMPLE BY's periods a year give
   a value) compared before and after.
 
+- **Step 5** (Show #TS, D12): built 2026-11-01. Core prints a query of `#TS` over grids as one statement
+  (`protocol/ts/TsShow`, `TsPrinter`; the route `/api/lite/v1/grammar/jsonToTs/lambda`): each grid a flat source named
+  by WITH -- a table `(SELECT * FROM db::Store.T)`, a class's paths `(SELECT instrument.ticker AS sym, ... FROM
+  marketdata::MarketQuote WHERE ...)`, its filter as the WHERE -- the island reading it by that name. The tile's Query
+  window shows it in each series' own box, above its Pure and its SQL (Copy #TS; among Copy all). Exact as D12 defines:
+  every one of the gallery's and the markets page's 210 series prints, reads back as the same text, and answers the
+  same rows (`timeseries_ts_parity_test`); the class page's 7 do (`stress_markets_test`), and 3 are refused by name,
+  counted, only allowed to shrink: a grid that reads an enumeration as its values' names, which the `#SQL` reader casts
+  to no text yet. A calculated column is refused by name too (none on the example pages).
 - **Step 1** (frozen answers): done.
 - **Step 2** (the gs-quant oracle): done (docs/TS_GSQUANT_ORACLE_2026_11_01.md). First run 119 of 210 agree; O1 (a
   window's first value) and O2 (compare) then matched to gs-quant (the user, 2026-11-01: "Why would we not match

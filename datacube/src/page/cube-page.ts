@@ -30,6 +30,7 @@
 // detached -- a grid of its own grouping and query, made in one step, which it follows from then on (D7).
 
 import { ChartPanel } from '../ui/chart-panel.ts';
+import type { TsShown } from '../cube.ts';
 import type { RunOutcome } from '../runner.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import { createItems, type MenuItem } from '../ui/menu.ts';
@@ -106,6 +107,8 @@ export interface ChartSource {
   run(query: Lambda, snapshot: CubeSnapshot, signal: AbortSignal): Promise<RunOutcome>;
   /** A query as the compiler prints it, for a person to read (a timeseries' Query window). */
   print(query: Lambda): Promise<string>;
+  /** A #TS query over grids as one statement (Show #TS, D12), or why it has none. */
+  tsStatement?(query: Lambda): Promise<TsShown>;
   /** A value as the grid writes it; `headline`: scaled, a KPI's number (format.ts `headlineFormat`). */
   format(value: Scalar, column: string, type: string | undefined, headline?: boolean): string;
   /** A column's unit as the grid formats it (`currency|USD|`), or undefined: two units, two value axes. */
@@ -2875,6 +2878,7 @@ export class CubePage {
       get configuration() { return runs.configuration; },
       run: (query, s, signal) => runs.run(query, s, signal),
       print: (query) => runs.print(query),
+      ...(runs.tsStatement ? { tsStatement: (query: Lambda) => runs.tsStatement!(query) } : {}),
       format: (value, column, type, headline) => runs.format(value, column, type, headline),
       unit: (column) => runs.unit?.(column),
       label: (column) => runs.label(column),
@@ -3375,6 +3379,7 @@ export class CubePage {
       run: (query, snapshot, signal) => source.run(query, snapshot, signal),
       format: (value, column, type) => source.format(value, column, type),
       print: (query) => source.print(query),
+      ...(source.tsStatement ? { tsStatement: (query: Lambda) => source.tsStatement!(query) } : {}),
     };
   }
 

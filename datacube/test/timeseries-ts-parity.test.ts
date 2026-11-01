@@ -18,7 +18,8 @@ import {
   type TsInput, type TsInputs,
 } from '../src/timeseries-query.ts';
 import type { TimeseriesSpec, TsSeries, TsView } from '../src/timeseries-spec.ts';
-import { readsBase, TS_ITEM, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
+import { readsBase, TS_ITEM, tsIsland, tsQueryText, tsSeriesQuery } from '../src/timeseries-ts.ts';
+import { lambda } from '../../pure-protocol/src/index.ts';
 import { exprText, inlined } from '../src/timeseries-expr.ts';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -31,6 +32,9 @@ const writer = plannerFor('', 'local::RT');
 /** The first date shown, where a series reads a base (an index's, a change's): each such series is compared from it
  *  too. */
 const ANCHOR = '2022-03-15';
+
+/** The series Show #TS does not print as one statement yet, by reason, each count only allowed to shrink (D12). */
+const UNSHOWN: Readonly<Record<string, number>> = {};
 
 /** The series that answer otherwise, by `<view> <series>` (`... from <date>` with an anchor), and why. */
 const DIFFERS: Readonly<Record<string, string>> = {};
@@ -95,6 +99,10 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
   const unexpected: string[] = [];
   const agreed: string[] = [];
   const frozen = new Map<string, Frozen>();
+  // Show #TS (D12): each series' one statement; the grids that are not one yet, by reason (only allowed to shrink)
+  const statements: string[] = [];
+  const statementsWrong: string[] = [];
+  const unshown = new Map<string, number>();
   // the oracle's input (tools/ts-oracle): each series' formula, its tile's settings and its points, and the samples
   const oracle: Record<string, unknown> = {};
   let ran = 0;
@@ -137,7 +145,24 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
             const pairs = fields(q.band, q.candles === true);
             frozen.set(id, frozenOf(tile, TS_DATE, q.split === undefined ? undefined : TS_SPLIT, pairs.map(([a]) => a)));
             const date = ts.sources.find((s) => s.alias === aliases[0])!.date;
-            const mine = await local.execute(await plannerOf.plan(tsSeriesQuery(inputsOf, ts, series, anchor)), 0);
+            const sent = tsSeriesQuery(inputsOf, ts, series, anchor);
+            const mine = await local.execute(await plannerOf.plan(sent), 0);
+            // SHOW #TS (D12): the series as one statement, read back -- the same rows, and printed as itself
+            const shown = await plannerOf.tsStatement(sent);
+            if (shown.statement === undefined) {
+              unshown.set(shown.refused, (unshown.get(shown.refused) ?? 0) + 1);
+            } else {
+              const alone = lambda([], tsIsland(shown.statement));
+              const again = await plannerOf.tsStatement(alone);
+              if (again.statement !== shown.statement) statementsWrong.push(`${id}: printed again as ${again.statement ?? again.refused}`);
+              const read = await local.execute(await plannerOf.plan(alone), 0);
+              const date = ts.sources.find((s) => s.alias === aliases[0])!.date;
+              const split = series.split;
+              const names = fields(q.band, q.candles === true).map(([, b]) => b);
+              const off = difference(keyed(mine, date, split, names), keyed(read, date, split, names));
+              if (off !== undefined) statementsWrong.push(`${id}: ${off}\n    ${shown.statement}`);
+              statements.push(`${id}: ${shown.statement}`);
+            }
             oracle[id] = {
               formula: exprText(inlined(series.expr, ts.series)), split: series.split ?? null, grain: ts.grain ?? null,
               align: ts.align ?? null, anchor: anchor ?? null,
@@ -170,6 +195,10 @@ it('every gallery series answers the same written in #TS as the tile\'s writer a
     writeFileSync(join(outputs, 'oracle-input.json'), JSON.stringify({ series: oracle,
       samples: { prices: k(), rates: r(), macro: m() } }));
   }
+  console.log(`Show #TS: ${statements.length} series as one statement; not yet: ${JSON.stringify([...unshown])}`);
+  if (outputs) writeFileSync(join(outputs, 'show-ts.txt'), statements.join('\n'));
+  assert.deepEqual(statementsWrong, [], 'each series\' one statement reads back as itself and answers its rows');
+  assert.deepEqual(Object.fromEntries(unshown), UNSHOWN, 'the series not shown as one statement, by reason: only allowed to shrink');
   assert.deepEqual(unexpected, [], 'every series answers the same, or is listed in DIFFERS with why');
   assert.deepEqual(agreed, [], 'a series listed in DIFFERS that now answers the same: delete its row');
 });

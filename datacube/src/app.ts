@@ -3160,6 +3160,7 @@ export class CubeApp {
       get configuration() { return app.#config; },
       run: (query, snapshot, signal) => this.#controller.runQuery(query, snapshot, undefined, signal),
       print: (query) => this.#controller.print(query, 'PRETTY'),
+      tsStatement: (query) => this.#controller.tsStatement(query),
       format: (value, column, type, headline) =>
         this.#formatters.format(value, headline ? headlineFormat(this.#formats[column], type, value) : this.#formats[column], type),
       unit: (column) => {

@@ -1075,4 +1075,97 @@ class TsIslandTest {
         return String.join("; ", w.params().stream().map(p -> p.name() + " " + p.kind() + " " + p.takes() + " "
                 + p.words() + " " + (p.required() ? "required" : "optional")).toList());
     }
+
+    // ------------------------------------------------------------------ Show #TS (D12)
+
+    /** The statements the printer is held to: every mark the parser makes, every clause, every source. */
+    private static final List<String> PRINTED = List.of(
+            "SELECT avg(CLOSE, 3) AS ma3 FROM PRICES ON DAY BY SYMBOL",
+            "SELECT mean(CLOSE, 1w) AS m, sum(CLOSE, all) AS s, last(CLOSE, whole) AS l FROM PRICES ON DAY BY SYMBOL",
+            "SELECT CLOSE['AAA'] / CLOSE['BBB'] - 1 AS r, returns(CLOSE['AAA'], type => 'log') AS g FROM PRICES ON DAY"
+                    + " BY SYMBOL",
+            "SELECT CASE WHEN CLOSE > 100 THEN 1 WHEN CLOSE IS NULL THEN NULL ELSE -1 END AS c, -(CLOSE - 100) AS d,"
+                    + " (CLOSE + 1) * 2 AS e, CLOSE * (2 + 1) AS f FROM (PRICES WHERE DAY >= DATE '2024-01-22' AND"
+                    + " (SYMBOL = 'AAA' OR SYMBOL IN ('BBB'))) ON DAY BY SYMBOL FILTER c > 0",
+            "SELECT last(CLOSE['AAA']) AS a, max(CLOSE['BBB']) AS b FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1w AT END",
+            "SELECT a.CLOSE['AAA'] - b.CLOSE['BBB'] AS d FROM PRICES a ON DAY BY SYMBOL, (PRICES WHERE DAY >= DATE"
+                    + " '2024-01-24') b ON DAY BY SYMBOL FILL(PREV)",
+            "WITH q AS (SELECT instrument.ticker AS sym, day, close AS px FROM Quote) SELECT avg(px, 3) AS ma3,"
+                    + " px / ma3 - 1 AS dev FROM q ON day BY sym",
+            "WITH d AS TS (SELECT CLOSE['AAA'] AS a FROM PRICES ON DAY BY SYMBOL) SELECT last(a) AS w FROM d ON DAY"
+                    + " SAMPLE BY 1w",
+            "SELECT union(CLOSE['AAA'], CLOSE['BBB']) AS u, 3mo AS z FROM PRICES ON DAY BY SYMBOL");
+
+    @Test
+    void aQueryPrintedReadsBackAsTheSameText() {
+        // D12's exactness: the printed statement, parsed and printed again, is the same text (a fixpoint)
+        for (String text : PRINTED) {
+            String once = com.legend.protocol.ts.TsPrinter.print(com.legend.protocol.ts.TsParser.parse(text));
+            assertEquals(once, com.legend.protocol.ts.TsPrinter.print(com.legend.protocol.ts.TsParser.parse(once)),
+                    text);
+        }
+        assertEquals("SELECT avg(CLOSE, 3) AS ma3 FROM PRICES ON DAY BY SYMBOL", com.legend.protocol.ts.TsPrinter
+                .print(com.legend.protocol.ts.TsParser.parse("select avg(CLOSE,3)   as ma3\nfrom PRICES on DAY by"
+                        + " SYMBOL")).replace(" as ", " AS "), "the clauses in the language's own words");
+    }
+
+    @Test
+    void aQueryPrintedAnswersTheSameRows() throws Exception {
+        TestBackend backend = TestBackends.platform();
+        com.legend.compiler.element.ModelContext model = Compiler.compileModel(model(backend, true));
+        for (String text : PRINTED) {
+            if (text.contains("3mo AS z")) {
+                continue;
+            }
+            String printed = com.legend.protocol.ts.TsPrinter.print(com.legend.protocol.ts.TsParser.parse(text));
+            assertEquals(rows(backend, model, "|#TS{" + text + "}#"), rows(backend, model, "|#TS{" + printed + "}#"),
+                    printed);
+        }
+    }
+
+    /** {@code pure}, a query's text, as the lambda the planner is sent. */
+    private static com.legend.protocol.spec.LambdaFunction lambdaOf(String pure) {
+        // the tile's query read as lite reads it (its #TS island lite's own), then sent as JSON, as the tile sends it
+        return com.legend.protocol.ProtocolReader.lambda(com.legend.protocol.ProtocolEmitter.emitLambda(
+                (com.legend.protocol.spec.LambdaFunction) Compiler.parseQuery(pure)));
+    }
+
+    @Test
+    void aQueryOverGridsIsOneStatementThatAnswersTheSameRows() throws Exception {
+        // D12: each grid bound by let, the island reading it -- as one statement, each grid a flat source by WITH
+        TestBackend backend = TestBackends.platform();
+        com.legend.compiler.element.ModelContext model = Compiler.compileModel(model(backend, true));
+        Map<String, String> queries = new LinkedHashMap<>();
+        queries.put("a table", "|let px = #>{ts::DB.PRICES}#; #TS{SELECT avg(CLOSE, 3) AS ma3 FROM $px ON DAY BY"
+                + " SYMBOL}#;");
+        queries.put("a table filtered", "|let px = #>{ts::DB.PRICES}#->filter(r|($r.SYMBOL == 'AAA') ||"
+                + " ($r.CLOSE > 100.5 && !$r.DAY->isEmpty())); #TS{SELECT avg(CLOSE, 3) AS ma3 FROM $px ON DAY BY"
+                + " SYMBOL}#;");
+        queries.put("a class's paths, filtered", "|let q = ts::Quote.all()->project(~[sym: x|$x.instrument.ticker,"
+                + " day: x|$x.day, px: x|$x.close])->filter(x|$x.sym->in(['AAA', 'BBB']) && ($x.day >= %2024-01-22));"
+                + " #TS{SELECT avg(px, 3) AS ma3, px['AAA'] / px['BBB'] AS r FROM $q ON day BY sym}#;");
+        Map<String, String> statements = new LinkedHashMap<>();
+        for (Map.Entry<String, String> q : queries.entrySet()) {
+            com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(lambdaOf(q.getValue()));
+            assertNull(shown.refused(), q.getKey());
+            String statement = java.util.Objects.requireNonNull(shown.statement());
+            statements.put(q.getKey(), statement);
+            assertTrue(statement.startsWith("WITH "), statement);
+            assertEquals(statement, com.legend.protocol.ts.TsPrinter.print(com.legend.protocol.ts.TsParser.parse(
+                    statement)), "the statement reads back as itself");
+            assertEquals(rows(backend, model, q.getValue()), rows(backend, model, "|#TS{" + statement + "}#"),
+                    statement);
+        }
+        assertEquals("WITH q AS (SELECT instrument.ticker AS sym, day, close AS px FROM ts::Quote WHERE"
+                + " instrument.ticker IN ('AAA', 'BBB') AND day >= DATE '2024-01-22') SELECT avg(px, 3) AS ma3,"
+                + " px['AAA'] / px['BBB'] AS r FROM q ON day BY sym", statements.get("a class's paths, filtered"),
+                "as a person writes it: the class's paths, filtered by them");
+        // a calculated column is the flat form's later: refused by name, never approximated
+        com.legend.protocol.ts.TsShow.Shown later = com.legend.protocol.ts.TsShow.of(lambdaOf("|let px ="
+                + " #>{ts::DB.PRICES}#->extend(~twice: r|$r.CLOSE * 2); #TS{SELECT avg(twice, 3) AS m FROM $px ON DAY"
+                + " BY SYMBOL}#;"));
+        assertNull(later.statement());
+        assertTrue(java.util.Objects.requireNonNull(later.refused()).contains("calculated column (twice)"),
+                later.refused());
+    }
 }

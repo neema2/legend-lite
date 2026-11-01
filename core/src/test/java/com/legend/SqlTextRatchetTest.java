@@ -148,6 +148,10 @@ class SqlTextRatchetTest {
         // quote the marked forms as their fix ("WITH daily AS TS (SELECT ...)", "FROM TS (SELECT ...)",
         // "SELECT ... FROM source ON date"); still no SQL written
         REGISTER.put("protocol/ts/TsParser.java", 14);
+        // 0 -> 1 (2026-11-01, Show #TS, docs/TS_ONE_TREE_PLAN_2026_10_31.md D12): no SQL -- the #TS printer writes the
+        // language's own text for a person to read (a flat source's "(SELECT items FROM class WHERE ...)", TsParser's
+        // grammar printed back), never a statement a database runs; the database's SQL stays the compiler's
+        REGISTER.put("protocol/ts/TsPrinter.java", 1);
     }
 
     @Test

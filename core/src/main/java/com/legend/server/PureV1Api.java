@@ -160,6 +160,7 @@ public final class PureV1Api {
             case "/api/pure/v1/execution/execute" -> "ARROW_IPC".equals(queryParam(rawQuery, "serializationFormat"))
                     ? executeArrow(body, runner, models) : execute(body, runner, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
+            case "/api/lite/v1/grammar/jsonToTs/lambda" -> jsonToTsLambda(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
@@ -289,6 +290,21 @@ public final class PureV1Api {
                 errors.add(Map.of("message", message));
             }
             return Json.toCompact(Map.of("errors", errors));
+        });
+    }
+
+    /**
+     * {@code /api/lite/v1/grammar/jsonToTs/lambda} (D12, Show #TS; upstream has no #TS): a query of {@code #TS} over
+     * grids -- the lambda's protocol JSON, each grid bound by {@code let} and the island reading it -- as the one
+     * statement a person would write, each grid a flat source named by WITH ({@link TsShow}):
+     * {@code {"statement": text}}, or {@code {"refused": why}} where a grid's relation has no flat form yet.
+     */
+    public static Answer jsonToTsLambda(String body) {
+        return answer(400, "COMPILATION", () -> {
+            com.legend.protocol.ts.TsShow.Shown shown = com.legend.protocol.ts.TsShow.of(
+                    com.legend.protocol.ProtocolReader.lambda(body));
+            return Json.toCompact(shown.statement() != null ? Map.of("statement", shown.statement())
+                    : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
         });
     }
 

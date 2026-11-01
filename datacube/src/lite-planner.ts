@@ -25,7 +25,7 @@
 // it while the user is still looking at an empty grid.
 
 import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
-import type { Planner } from './cube.ts';
+import type { Planner, TsShown } from './cube.ts';
 import type { CatalogColumn, InferOptions, InferredModel, ModelTable, TableModels, TablesModel } from './infer.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
@@ -611,6 +611,12 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /** E4 (`grammar/jsonToGrammar/lambda`): a query as Pure text, as upstream prints it. */
   async compose(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
     return this.#pureV1('/api/pure/v1/grammar/jsonToGrammar/lambda', `renderStyle=${style}`, toJson(query), query);
+  }
+
+  /** SHOW #TS (D12): a #TS query over grids as the one statement a person would write -- core's printer
+   *  (protocol/ts TsShow), each grid a flat source named by WITH -- or why it has none. */
+  async tsStatement(query: Lambda): Promise<TsShown> {
+    return JSON.parse(await this.#pureV1('/api/lite/v1/grammar/jsonToTs/lambda', '', toJson(query), query)) as TsShown;
   }
 
   /** A query printed for a person to read (the Planner's `print`): PRETTY unless asked. */

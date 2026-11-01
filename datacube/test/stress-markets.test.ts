@@ -27,6 +27,7 @@ import { sourceColumns } from '../src/source-columns.ts';
 import { STRESS_MARKET_COLUMNS, STRESS_MARKET_TABLES, stressMarketCsvs, stressMarketsData } from '../src/stress-markets.ts';
 import { parseExpr } from '../src/timeseries-expr.ts';
 import { marksQuery, seriesQuery, TS_DATE, TS_SPLIT, TS_TEXT, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
+import { tsIsland, tsSeriesQuery } from '../src/timeseries-ts.ts';
 import type { TimeseriesSpec, TsAnnotation } from '../src/timeseries-spec.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
@@ -310,6 +311,38 @@ describe('the example page over the classes, opened the page\'s way', () => {
       }
     });
   }
+
+  it('each series is one #TS statement over the classes, and reads back to the same rows (Show #TS, D12)', async () => {
+    const said: string[] = [];
+    const unshown = new Map<string, number>();
+    for (const v of marketsClassesPage().views) {
+      if (v.kind !== 'timeseries') continue;
+      const inputs: TsInputs = new Map(v.spec.sources.map((src) => [src.alias, { snapshot: opened.get(src.cube)!.snapshot, filter: undefined }] as const));
+      const planner = opened.get(v.spec.sources[0]!.cube)!.planner;
+      for (const series of v.spec.series) {
+        const sent = tsSeriesQuery(inputs, v.spec, series);
+        const shown = await planner.tsStatement(sent);
+        if (shown.statement === undefined) {
+          unshown.set(shown.refused, (unshown.get(shown.refused) ?? 0) + 1);
+          continue;
+        }
+        // the grids' class paths named once, by WITH: no let, no Pure
+        assert.match(shown.statement, /^WITH \w+ AS \(SELECT .* FROM \w+::\w+/, shown.statement);
+        const alone = lambda([], tsIsland(shown.statement));
+        assert.equal((await planner.tsStatement(alone)).statement, shown.statement, 'printed again, the same text');
+        const want = await projectEngine.execute(await planner.plan(sent), 0);
+        const got = await projectEngine.execute(await planner.plan(alone), 0);
+        assert.deepEqual(got.columns.map((c) => [c.name, c.values]), want.columns.map((c) => [c.name, c.values]),
+          `${v.id} ${series.id}: ${shown.statement}`);
+        said.push(shown.statement);
+      }
+    }
+    assert.ok(said.length >= 7, `${said.length} statements`);
+    // the series not one statement yet, by reason: each count only allowed to shrink (D12)
+    assert.deepEqual(Object.fromEntries(unshown), {
+      'tr\'s grid reads side, an enumeration, as its values\' names: the #SQL reader casts no enumeration to text yet, so the flat form cannot say it': 3,
+    });
+  });
 
   it('every series of the page answers as it was frozen', () => {
     holdFrozen('TS_ANSWERS', answers, 'markets-classes-answers');
