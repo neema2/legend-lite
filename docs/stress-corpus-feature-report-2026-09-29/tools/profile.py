@@ -11,6 +11,7 @@ plan's measures are judged on the engine (docs/STRESS_CORPUS_PLAN_2026_10_19.md)
 """
 import collections
 import json
+import re
 import sys
 
 from lib import (E, classes, enums, measures, assocs, functions, services, mappings, dbs, props, supers, lookup,
@@ -72,6 +73,74 @@ join_facts = {}    # (db, name) -> set(features)
 filter_facts = {}  # (db, name) -> set
 
 
+# (db, table, column) -> the column's type, for a binding transformer over a semi-structured column (Phase 9)
+COLTYPE = {}
+
+
+def semi_feats(op):
+    """EMIT's semi-structured store features a relational operation reaches (added 2026-10-31, the improvement plan's
+    Phase 9): extractFromSemiStructured is navigation, an index in its path array-index, a `[*]` the wildcard path;
+    explodeSemiStructured is explode; an array_* function, the array functions."""
+    out = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            if o.get('_type') == 'dynaFunc':
+                fn = o.get('funcName') or ''
+                params = o.get('parameters') or []
+                if fn in ('extractFromSemiStructured', 'explodeSemiStructured'):
+                    out.add('store:relational-semistructured-navigation')
+                    path = params[1].get('value') if len(params) > 1 and isinstance(params[1], dict) else None
+                    if isinstance(path, str) and re.search(r'\[\d+\]', path):
+                        out.add('store:relational-semistructured-array-index')
+                    if isinstance(path, str) and '[*]' in path:
+                        out.add('store:relational-semistructured-wildcard-path')
+                if fn == 'explodeSemiStructured':
+                    out.add('store:relational-semistructured-explode')
+                if fn.startswith('array_'):
+                    out.add('store:relational-semistructured-array-functions')
+            for v in o.values():
+                walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    walk(op)
+    return out
+
+
+def included(db):
+    """db and every store it includes, transitively (a table read through an including store, Phase 9)."""
+    out, stack = [], [db]
+    while stack:
+        x = stack.pop()
+        if x in out or x not in DB:
+            continue
+        out.append(x)
+        for inc in DB[x].get('includedStores') or []:
+            stack.append(inc.get('path') if isinstance(inc, dict) else inc)
+    return out
+
+
+def facts_of_table(tkey):
+    db, schema, table = tkey
+    for d in included(db) or [db]:
+        f = table_facts.get((d, schema, table))
+        if f is not None:
+            return f
+    return set()
+
+
+def semi_column(op, db_hint):
+    """Whether a column operation reads a SEMISTRUCTURED or JSON column, through an including store too."""
+    if not isinstance(op, dict) or op.get('_type') != 'column':
+        return False
+    tb = op.get('table') or {}
+    for d in included(tb.get('database') or db_hint):
+        if COLTYPE.get((d, tb.get('table'), op.get('column'))) in ('SemiStructured', 'Json'):
+            return True
+    return False
+
+
 def dyna_names(op, acc):
     if isinstance(op, dict):
         if op.get('_type') == 'dynaFunc':
@@ -102,6 +171,7 @@ for name, d in DB.items():
                 f.add('x-store:named-schema')
             for c in t.get('columns') or []:
                 ct = (c.get('type') or {}).get('_type')
+                COLTYPE[(name, t.get('name'), c.get('name'))] = ct
                 if ct in ('SemiStructured', 'Json'):
                     f.add('store:relational-semistructured')
             table_facts[(name, s.get('name'), t.get('name'))] = f
@@ -133,11 +203,13 @@ for name, d in DB.items():
         eqs = json.dumps(j.get('operation')).count('"funcName": "equal"')
         if eqs > 1:
             f.add('x-join:multi-column')
+        f |= semi_feats(j.get('operation'))
         join_facts[(name, j.get('name'))] = f
     for flt in d.get('filters') or []:
         f = {'store:relational-filter'}
         if flt.get('_type') == 'multigrain':
             f.add('x-store:multigrain-filter')
+        f |= semi_feats(flt.get('operation'))
         filter_facts[(name, flt.get('name'))] = f
 # included stores: a join/filter referenced through an including db is still the same object
 
@@ -237,6 +309,7 @@ def op_feats(op, feats, tables_touched, db_hint):
     elif t == 'dynaFunc':
         feats.add('store:relational-dyna-function')
         feats.add('x-mapping:dynafunction-property')
+        feats |= semi_feats(op)
         for p in op.get('parameters') or []:
             op_feats(p, feats, tables_touched, db_hint)
     elif t == 'elemtWithJoins':
@@ -281,8 +354,12 @@ def set_feats(s, m, feats, tables):
                 feats.add('store:relational-cross-table-filter')
                 for j in f['joins']:
                     feats |= join_facts.get((j.get('db'), j.get('name')), set())
-                    if (j.get('joinType') or '').upper() == 'INNER':
+                    jt = (j.get('joinType') or '').upper()
+                    if jt == 'INNER':
                         feats.add('x-join:typed-inner')
+                    elif jt in ('OUTER', 'LEFT_OUTER'):
+                        # a ~filter's typed OUTER hop (added 2026-10-31, the improvement plan's Phase 9)
+                        feats.add('store:relational-left-outer-join')
         mt = s.get('mainTable')
         if mt:
             key = (mt.get('database'), mt.get('schema'), mt.get('table'))
@@ -616,10 +693,16 @@ for s in services:
         if cur_set is not None:
             set_feats(cur_set, mp, feats, tables)
         assoc_depth = 0
+        bound = False   # past a binding transformer over a semi-structured column (Phase 9)
         for i, (pname, info) in enumerate(hops):
             if info is None:
                 break
             ptype, pmult, pkind = info
+            if bound:
+                # a key of the bound document is navigation; a to-many one the planner flattens laterally
+                feats.add('store:relational-semistructured-navigation')
+                if pmult and pmult.endswith('*]'):
+                    feats.add('store:relational-semistructured-flatten')
             if pkind == 'derived':
                 feats.add('grammar:derived-property')
             elif pkind == 'qualified':
@@ -639,6 +722,8 @@ for s in services:
                 db_hint = ((cur_set.get('mainTable') or {}).get('database'))
                 if pm is not None:
                     prop_feats(pm, feats, tables, mp, db_hint, (owner or cur_set).get('srcClass'))
+                    if pm.get('bindingTransformer') and semi_column(pm.get('relationalOperation'), db_hint):
+                        bound = True
                     if pm.get('_type') in ('embeddedPropertyMapping', 'otherwiseEmbeddedPropertyMapping'):
                         nxt_set = dict(pm.get('classMapping') or {})
                         nxt_set['_type'] = 'embedded'
@@ -795,7 +880,7 @@ for s in services:
             elif v == 'bitemporal':
                 feats.add('milestoning:bi-temporal')
     for tkey in tables:
-        feats |= table_facts.get(tkey, set())
+        feats |= facts_of_table(tkey)
     if len(tables) > 1:
         feats.add('store:relational-multi-table')
     if len({t[1] for t in tables if t[1]}) > 1:

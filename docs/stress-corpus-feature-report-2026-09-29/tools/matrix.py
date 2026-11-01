@@ -37,7 +37,7 @@ for r in prof:
 
 # corpus declarations (anything in the model, whether or not a service reaches it) -- from analysis
 # (the M2M rows, the enumeration mappings and the merges re-counted 2026-10-30, the improvement plan's Phase 5; the
-# relation rows 2026-10-30, its Phase 6)
+# relation rows 2026-10-30, its Phase 6; the store rows 2026-10-31, its Phase 9)
 DECL = {
     'scaffolding:class': '2,330 classes', 'scaffolding:relational-store': '30 databases',
     'scaffolding:relational-connection': '16', 'scaffolding:relational-mapping': '2,358 class mappings',
@@ -71,9 +71,17 @@ DECL = {
     'store:relational-cross-schema': '5 named schemas', 'store:relational-cross-table-filter': '6',
     'store:relational-dyna-function': 'joins 17, views, 440 property mappings', 'store:relational-filter': '1,856 (+2 multigrain)',
     'store:relational-inline-view': '7 views', 'store:relational-inner-join': '390 joins',
-    'store:relational-left-outer-join': 'default navigation', 'store:relational-multi-table': '437 tables',
-    'store:relational-nested-join': '314 chains', 'store:relational-outer-join': '1 typed hop',
-    'store:relational-semistructured': '2 columns', 'milestoning:business-temporal': '6 tables, 3 classes',
+    'store:relational-left-outer-join': 'default navigation; 6 typed OUTER hops (2 chains, 4 ~filter)',
+    'store:relational-multi-table': '437 tables',
+    'store:relational-nested-join': '314 chains', 'store:relational-outer-join': '- (no form at the pin)',
+    'store:relational-right-outer-join': '- (no form at the pin)',
+    'store:relational-semistructured': '3 columns (2 seeded, C_JSON not loadable)',
+    'store:relational-semistructured-navigation': '30 extractions, 2 filters, 2 joins, 2 bindings',
+    'store:relational-semistructured-array-index': '8 indexed paths',
+    'store:relational-semistructured-wildcard-path': '6 wildcard paths',
+    'store:relational-semistructured-array-functions': '6 properties (7 array_* calls)',
+    'store:relational-semistructured-explode': '2 joins',
+    'store:relational-semistructured-flatten': '2 bindings with a to-many', 'milestoning:business-temporal': '6 tables, 3 classes',
     'milestoning:processing-temporal': '3 tables', 'milestoning:bi-temporal': '2 classes',
     'milestoning:point-in-time-query': 'yes', 'milestoning:all-versions-query': '1',
     'execution:binding': '1', 'execution:external-format-binding': '1', 'execution:data-element': '14',
@@ -81,7 +89,7 @@ DECL = {
     'execution:service': '4,742', 'execution:service-parameter': '1', 'execution:service-test': '4,737 suites',
     'execution:graph-fetch': '447 graph fetch services',
     'execution:shared-test-data': 'yes', 'execution:test-data': 'yes', 'execution:plan-generation': 'lite plans every service',
-    'store:relational-semistructured-binding': '1 binding transformer',
+    'store:relational-semistructured-binding': '3 binding transformers',
 }
 rows = []
 for f, desc in tax:
