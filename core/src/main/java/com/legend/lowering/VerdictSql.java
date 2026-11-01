@@ -56,6 +56,13 @@ public final class VerdictSql {
     /** True when the verdict held ONLY through the declared 2-ULP Float
      * leniency (the harness counts it, as host mode counts its own). */
     public static final String LENIENT = "__lenient";
+    /** The verdict under the assert's polarity (the test-is-the-product plan's M8b, MV2/MV3, 2026-11-01): what the
+     *  judge raises on when false. */
+    public static final String HOLDS = "__holds";
+    /** The failure text the judge raises with, composed in the statement (M8b): the family's name and the two
+     *  canons each on its line, or the negated families' one sentence; computed on every row, read where the row does
+     *  not hold. */
+    public static final String MESSAGE = "__message";
 
     /** One canon-wrapped side: the wrapped plan, the name of the canon
      * column that decides (one of {@code __canon<i>}), whether the side
@@ -1160,7 +1167,52 @@ public final class VerdictSql {
                 new OutputCol(EXPECTED, SqlType.Scalar.VARCHAR, false),
                 new OutputCol(ACTUAL, SqlType.Scalar.VARCHAR, false),
                 new OutputCol(UNJUDGED, SqlType.Scalar.VARCHAR, true),
-                new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false));
+                new OutputCol(LENIENT, SqlType.Scalar.BOOLEAN, false),
+                new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false),
+                new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true));
+    }
+
+    /**
+     * THE VERDICT ROW SELF-CONTAINED (the test-is-the-product plan's M8b, MV2/MV3, 2026-11-01; the user's ruling of
+     * 2026-11-01, §6 "B3 as settled": an assert is one lowered statement answering holds, message, unjudged, and the
+     * plan carries nothing about the assert): {@code row}, a verdict row of the five columns, gains {@link #HOLDS} --
+     * the verdict under the assert's polarity -- and {@link #MESSAGE} -- the failure text the judge raises with, spelled
+     * exactly as the host judge spelled it from the row: the family's {@code name}, {@code \nexpected: } the expected
+     * canon, {@code \nactual:   } the actual canon (every family's two canon columns were text already -- the
+     * tolerance's numbers and the counts cast by the database before M8b too -- so the message pastes the text Java
+     * pasted; a null canon the word {@code null}, as Java spelled it), or the negated families' one sentence. The judge
+     * reads holds and message and knows no polarity. A row wrapped once: a second wrap is a loud error.
+     */
+    public static SqlQuery selfContained(SqlQuery row, String name, boolean wantEqual) {
+        if (row instanceof SqlWith w && w.body() instanceof SqlSelect body) {
+            return new SqlWith(w.ctes(), withHoldsAndMessage(body, name, wantEqual));
+        }
+        if (row instanceof SqlSelect sel) {
+            return withHoldsAndMessage(sel, name, wantEqual);
+        }
+        throw new IllegalStateException("a verdict row is a select, not " + row.getClass().getSimpleName());
+    }
+
+    private static SqlSelect withHoldsAndMessage(SqlSelect sel, String name, boolean wantEqual) {
+        if (projectionOf(sel, HOLDS) != null) {
+            throw new IllegalStateException("a verdict row is made self-contained once: " + name);
+        }
+        SqlExpr verdict = java.util.Objects.requireNonNull(projectionOf(sel, VERDICT), "the verdict column").expr();
+        SqlExpr expected = java.util.Objects.requireNonNull(projectionOf(sel, EXPECTED), "the expected column").expr();
+        SqlExpr actual = java.util.Objects.requireNonNull(projectionOf(sel, ACTUAL), "the actual column").expr();
+        SqlExpr holds = wantEqual ? verdict : SqlExpr.Call.of(SqlFn.NOT, verdict);
+        SqlExpr message = wantEqual
+                ? SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit(name + "\nexpected: "),
+                        SqlExpr.Call.of(SqlFn.COALESCE, asText(expected), new SqlExpr.StringLit("null")),
+                        new SqlExpr.StringLit("\nactual:   "),
+                        SqlExpr.Call.of(SqlFn.COALESCE, asText(actual), new SqlExpr.StringLit("null")))
+                : new SqlExpr.StringLit("assertNotEquals: both sides are equal");
+        List<SqlSelect.Projection> ps = new ArrayList<>(sel.projections());
+        ps.add(new SqlSelect.Projection(holds, HOLDS, new OutputCol(HOLDS, SqlType.Scalar.BOOLEAN, false)));
+        ps.add(new SqlSelect.Projection(message, MESSAGE, new OutputCol(MESSAGE, SqlType.Scalar.VARCHAR, true)));
+        // the select's outputs are rebuilt from its projections by its constructor
+        return new SqlSelect(ps, sel.distinct(), sel.from(), sel.where(), sel.groupBy(), sel.having(), sel.qualify(),
+                sel.orderBy(), sel.limit(), sel.offset(), sel.outputs());
     }
 
     /** The relation a fused batch statement returns: the index, then
@@ -1187,7 +1239,10 @@ public final class VerdictSql {
                 new com.legend.compiler.element.type.Type.RelationType.Column(ACTUAL, t, one),
                 new com.legend.compiler.element.type.Type.RelationType.Column(UNJUDGED, t, opt),
                 new com.legend.compiler.element.type.Type.RelationType.Column(LENIENT,
-                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one)));
+                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one),
+                new com.legend.compiler.element.type.Type.RelationType.Column(HOLDS,
+                        com.legend.compiler.element.type.Type.Primitive.BOOLEAN, one),
+                new com.legend.compiler.element.type.Type.RelationType.Column(MESSAGE, t, opt)));
     }
 
     /** {@code SELECT canon AS __c, row_number() OVER () AS __rn FROM (wrapped) w}

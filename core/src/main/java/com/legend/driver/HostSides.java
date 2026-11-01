@@ -146,7 +146,7 @@ final class HostSides {
             }
             return out;
         }
-        ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(name, name, true, planned.base(), null);
+        ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(name, name, planned.base(), null);
         ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(verdict), null);
         List<List<PlanRunner.Rows>> got = new ArrayList<>(1);
         try {

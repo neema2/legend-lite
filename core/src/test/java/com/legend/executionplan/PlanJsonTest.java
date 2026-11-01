@@ -140,14 +140,14 @@ class PlanJsonTest {
         // folded flag (S2f); 22 the same day: a keyed result's key source, a statement's rows or its reported columns
         // (S3c, a raw grid's); 23 since 2026-10-31: the constant node (the test-is-the-product plan's M2, MV12); 24 the
         // same day: an effect's script, the seed step, a verdict group's savepoint (M3b, B12)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":24,"), json);
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":25,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v24 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v25 plan"), refused.getMessage());
     }
 
     @Test

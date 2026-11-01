@@ -3015,8 +3015,12 @@ folded (the plan's §9 "M8a"): `driver/HostJudgment.java` (new), `HostJudge.java
 `xOf` over records), `HostSides.java` (`Check` over data), `AssertVerdicts.java` (`isDecided`, `Raise`;
 `instanceKeys`/`structuredSide` gone); `compiler/element/EqualityKeys.java` (`Key.declaredClass`, `declaresKeys`,
 `isKeyStereotype`), `ClassCompiler.java` (the shared stereotype test); the tests (`BodyRouterParityTest`'s
-`keyedClassPrograms` and the audit's cases, `JavaEvalLedgerTest`'s pins and register). Next: M8b (the database wrapper
-self-contained, MV2/MV3), M8c (MV4), then M10a-d, Z, in this session.
+`keyedClassPrograms` and the audit's cases, `JavaEvalLedgerTest`'s pins and register). **M8b built 2026-11-01 (D112)**:
+`lowering/VerdictSql.java` (`selfContained`, `HOLDS`, `MESSAGE`, the batch and verdict schemas), `judge/VerdictBatch.java`
+(`SelfContained`, `Judge.judge(name, row)`, `Pending` without polarity), `driver/DatabaseJudge.java` (`verdictOf(name,
+row)`), `BodyDriver.java`, `HostSides.java`, `HostAsserts.java`; `executionplan/ExecutionPlan.java` (`Verdict` without
+`wantEqual`), `PlanJson.java` (25); the tests (`ProgramRunnerTest`, `PlanJsonTest`, `PlanRoundTrip`,
+`JavaEvalLedgerTest`). Next: M8c (the canon over the product columns, MV4), then M10a-d, Z, in this session.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

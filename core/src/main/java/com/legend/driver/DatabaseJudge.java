@@ -215,21 +215,23 @@ final class DatabaseJudge {
             batch.defer(name, wantEqual, vq, runOn.session());   // leg 3.4: judged at the flush
             return AssertVerdicts.ok();
         }
-        // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6)
-        return verdictOf(name, wantEqual, com.legend.judge.VerdictBatch.executeOne(
-                name, wantEqual, batch == null ? vq : com.legend.sql.FrameCtes.attach(vq, batch.frames()),
+        // the verdict statement is a plan whose one row is the verdict (JudgePlans, step 6), the row self-contained
+        // (M8b): its polarity and its message in the statement
+        com.legend.sql.SqlQuery row = com.legend.lowering.VerdictSql.selfContained(vq, name, wantEqual);
+        return verdictOf(name, com.legend.judge.VerdictBatch.executeOne(
+                name, batch == null ? row : com.legend.sql.FrameCtes.attach(row, batch.frames()),
                 runOn.session(), JudgePlans.runner(runOn)));
     }
 
-    /** The verdict of one row ({@code verdict, expected, actual, unjudged,
-     * lenient}): unjudged (counted, the assert fails with the reason), or
-     * the verdict with the two framed canons as the message. */
-    static TypedSide verdictOf(String name, boolean wantEqual, List<Object> row) {
+    /** The verdict of one row ({@code verdict, expected, actual, unjudged, lenient, holds, message}): unjudged
+     * (counted, the assert fails with the reason), or the row's own answer -- holds, or its message raised (the
+     * test-is-the-product plan's M8b: the polarity and the text are the statement's; this reads two columns). */
+    static TypedSide verdictOf(String name, List<Object> row) {
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
             // the SQL dump's companion: the verdict row the statement returned
             System.err.println("[verdict] " + name + " verdict=" + row.get(0)
                     + " expected=" + row.get(1) + " actual=" + row.get(2)
-                    + " unjudged=" + row.get(3));
+                    + " unjudged=" + row.get(3) + " holds=" + row.get(5));
         }
         Object unjudged = row.get(3);
         if (unjudged != null) {
@@ -240,21 +242,19 @@ final class DatabaseJudge {
                     "\nexpected: " + AssertVerdicts.excerpt(row.get(1))
                     + "\nactual:   " + AssertVerdicts.excerpt(row.get(2)));
         }
-        if (!(row.get(0) instanceof Boolean held)) {
-            throw new IllegalStateException(name + ": the verdict column is not a boolean: " + row.get(0));
+        if (!(row.get(5) instanceof Boolean holds)) {
+            throw new IllegalStateException(name + ": the holds column is not a boolean: " + row.get(5));
         }
         com.legend.judge.CanonicalDivergence.sqlJudgedInDatabase(name);
-        if (row.size() > 4 && Boolean.TRUE.equals(row.get(4))) {
+        if (Boolean.TRUE.equals(row.get(4))) {
             // the declared 2-ULP Float leniency decided it — counted as
             // host mode counts its own firings
             com.legend.judge.CanonicalDivergence.sqlUlpPolicy("database " + name);
         }
-        if (held == wantEqual) {
+        if (holds) {
             return AssertVerdicts.ok();
         }
-        return AssertVerdicts.fail(wantEqual
-                ? name + "\nexpected: " + row.get(1) + "\nactual:   " + row.get(2)
-                : "assertNotEquals: both sides are equal");
+        return AssertVerdicts.fail(String.valueOf(row.get(6)));
     }
 
     static SideRows planSide(TypedSpec spec, boolean expected, List<TypedSpec> letPrefix,

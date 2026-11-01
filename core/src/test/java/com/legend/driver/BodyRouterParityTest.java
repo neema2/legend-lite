@@ -565,6 +565,12 @@ class BodyRouterParityTest {
     void assertProgramsUnderTheDatabaseJudge(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(model(backend, false));
         for (String body : List.of(
+                // the M8b audit's should-fix 2: a FAILING negated family (the statement's constant message) and the
+                // builder-folded polarities that fail (the statement's own expected/actual text), so the
+                // double-negation regression class has a witness on every in-process backend
+                "{| assertNotEquals(2, 1 + 1);}",
+                "{| assertEmpty([1]);}",
+                "{| assertFalse(1 < 2);}",
                 "{| assertEquals(2, 1 + 1);}",
                 "{| assertEquals(3, 1 + 1);}",
                 "{| assertNotEquals(3, 1 + 1); 'after';}",

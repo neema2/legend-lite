@@ -16583,6 +16583,34 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-01 — The test-is-the-product plan's M8b: the database verdict row self-contained
+
+The plan's §7 (M8), §9 "M8b", §10; the decisions log D112; the audit brief `docs/test-is-product-homework/M8B_AUDIT_BRIEF.md`
+(its findings recorded in §9).
+
+1. **Built:** `VerdictSql.selfContained(row, name, wantEqual)` gives every verdict row `__holds` (the verdict under the
+   assert's polarity) and `__message` (the failure text, composed in the statement byte for byte as the Java judge
+   spelled it: the family's name, `expected:` and `actual:` over the two canons as text, or the negated families' one
+   sentence); `VerdictBatch` wraps every row once at `defer` (`SelfContained` beside `Fusion`, both the lowering's);
+   `DatabaseJudge.verdictOf(name, row)` reads unjudged, then holds and message, and knows no polarity;
+   `ExecutionPlan.Verdict` drops `wantEqual` (MV2), PlanJson 24 -> 25. The audit: no blocker, no code change asked;
+   its should-fix 2 (the failing negated and polarity-folded families as parity witnesses under the database judge) and
+   nits 3-6 (two javadocs, the dead outputs list, a once-only guard) folded, nits 7-8 recorded (§9 "M8b" (g)).
+2. **Movement:** none by design. The DuckDB host pass 2471 / 108, `moved=1080`, `other=6219`; the database pass
+   2473 / 108, `moved=1026`; every register test green (the failure messages the registers witness are byte-identical).
+   H2: the database pass 2233 / 353, `fallback=18`, `moved=961`; the host pass 2289 / 295, `moved=1080`; the register tests green -- every count M7's.
+3. **The checks:** the exec, judge, driver, lowering, planner, testplan, root, testing, guardrail, census and
+   architecture suites; `//spec:corpus_duckdb` uncached 6 of 6 (twice: before and after the message's canons were cast
+   to text); `//spec:corpus_h2`. The chain (core ids, PCT DuckDB, both corpora, channel B, `//gates:local`, Postgres
+   unprivileged) runs at M8's end; the core ids dumps will move for the database judge's statements (two more columns).
+4. **Guards, dated:** `JavaEvalLedgerTest` DatabaseJudge 596 -> 595 (`verdictOf` reads the row's own holds and
+   message), BodyDriver 945 -> 946 (the batch handed the self-contained form); `PlanJsonTest`'s two version pins
+   24 -> 25.
+5. **Residue, named:** the plan's §9 "M8b" (a)-(g): the unjudged detail still Java-formatted; the leniency flag read in
+   Java for the census; `name` and `arm` still in the plan's verdict; the message computed where the verdict holds; the
+   canon columns text already (no spelling moved); the verdict statements' text on every lane; the runner test's
+   five-column fixture rows and the uncalled `renderedText`.
+
 ## 2026-11-01 — The test-is-the-product plan's M8a: the host judgment as data
 
 The plan's §7 (M8), §9 "M8a", §10; the decisions log D111; the audit brief `docs/test-is-product-homework/M8A_AUDIT_BRIEF.md`

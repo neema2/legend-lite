@@ -67,7 +67,7 @@ public final class PlanRoundTrip {
             case ExecutionPlan.Setup u -> u;
             case ExecutionPlan.Constant c -> c;
             case ExecutionPlan.Verdicts v -> new ExecutionPlan.Verdicts(v.verdicts().stream().map(each ->
-                    new ExecutionPlan.Verdict(each.name(), each.arm(), each.wantEqual(),
+                    new ExecutionPlan.Verdict(each.name(), each.arm(),
                             each.base().stream().map(PlanRoundTrip::withoutTrees).toList(),
                             each.wrapper() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(each.wrapper())))
                     .toList(), v.fused() == null ? null : (ExecutionPlan.TdsResult) withoutTrees(v.fused()),

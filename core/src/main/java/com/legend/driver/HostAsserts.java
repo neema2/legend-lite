@@ -211,7 +211,7 @@ final class HostAsserts implements TestDoor.Asserts {
     /** {@code assertion}'s verdict step over {@code sides}' base: one verdict, its wrapper none (the host judges). */
     private static Planned planned(AssertVerdicts.HostAssert assertion, HostSides.Planned sides) {
         ExecutionPlan.Verdict verdict = new ExecutionPlan.Verdict(assertion.listenerName(), assertion.name(),
-                assertion.wantEqual(), sides.base(), null);
+                sides.base(), null);
         return new Planned(assertion, sides, new ExecutionPlan.Verdicts(List.of(verdict), null));
     }
 

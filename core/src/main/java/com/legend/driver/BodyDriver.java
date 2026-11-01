@@ -252,8 +252,9 @@ public final class BodyDriver {
     /** The body's verdict batch: the fusion (flat WITH + UNION ALL), the judge, and the runner that sends each
      * statement as a plan (JudgePlans, step 6). */
     static com.legend.judge.VerdictBatch newVerdictBatch(ExecEnv env) {
-        return new com.legend.judge.VerdictBatch(com.legend.lowering.VerdictSql::batch, DatabaseJudge::verdictOf,
-                JudgePlans.runner(env), env.trace());
+        return new com.legend.judge.VerdictBatch(com.legend.lowering.VerdictSql::batch,
+                com.legend.lowering.VerdictSql::selfContained, DatabaseJudge::verdictOf, JudgePlans.runner(env),
+                env.trace());
     }
 
     /** A statement at VALUE position, PREPARED — the compile phases only (helper

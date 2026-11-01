@@ -97,9 +97,9 @@ final class ProgramRunnerTest {
                 List.of(col("value", "Integer", "INTEGER"))));
         ExecutionPlan.Side right = new ExecutionPlan.Side.Constant(List.of(col("value", "Integer", null)),
                 List.of(List.of("3")), false);
-        ExecutionPlan.Verdict first = new ExecutionPlan.Verdict("assertEquals@2", "assertEquals", true,
+        ExecutionPlan.Verdict first = new ExecutionPlan.Verdict("assertEquals@2", "assertEquals",
                 List.of(left, right), wrapper(true, "x", "x"));
-        ExecutionPlan.Verdict second = new ExecutionPlan.Verdict("assertEquals@3", "assertEquals", true,
+        ExecutionPlan.Verdict second = new ExecutionPlan.Verdict("assertEquals@3", "assertEquals",
                 List.of(left, right), wrapper(false, "a", "b"));
         return new ExecutionPlan.Verdicts(List.of(first, second), fused);
     }
@@ -177,7 +177,7 @@ final class ProgramRunnerTest {
     @DisplayName("no fused statement: each verdict's wrapper runs; a verdict without one hands the sink no row")
     void noFusedStatementRunsEachWrapper() throws IOException {
         ExecutionPlan.Verdicts g = group(null);
-        ExecutionPlan.Verdict unjudged = new ExecutionPlan.Verdict("assertIs@4", "assertIs", true,
+        ExecutionPlan.Verdict unjudged = new ExecutionPlan.Verdict("assertIs@4", "assertIs",
                 g.verdicts().get(0).base(), null);
         ExecutionPlan.Verdicts withUnjudged = new ExecutionPlan.Verdicts(
                 List.of(g.verdicts().get(0), unjudged, g.verdicts().get(1)), null);
@@ -271,7 +271,7 @@ final class ProgramRunnerTest {
                 1, body, ExecutionPlan.Keyed.Snapshot.TRANSACTION, null);
         ExecutionPlan.Side keyedSide = new ExecutionPlan.Side.KeyedRows(keyed);
         ExecutionPlan.Verdicts g = group(fused(FUSED));
-        ExecutionPlan.Verdict third = new ExecutionPlan.Verdict("assertTdsEquivalent@5", "assertTdsEquivalent", false,
+        ExecutionPlan.Verdict third = new ExecutionPlan.Verdict("assertTdsEquivalent@5", "assertTdsEquivalent",
                 List.of(keyedSide, new ExecutionPlan.Side.Constant(List.of(col("a", "Integer", null),
                         optional("b", "String", null)), List.of(List.of("1", "x"), java.util.Arrays.asList("2", null)),
                         true)),

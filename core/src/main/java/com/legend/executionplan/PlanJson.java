@@ -71,8 +71,11 @@ public final class PlanJson {
      *  test-is-the-product plan's M2, MV12) and a keyed result's {@code shape} (a value read off a raw grid's report is
      *  a value's answer, not a relation's: M2's audit); 24 since 2026-10-31: an effect's {@code script} (its
      *  statements, bracketed form and abort), the {@code setup} node (a program's seed step: its key, steps and target) and a
-     *  verdict group's {@code savepoint} (F11) -- the test-is-the-product plan's M3, B12. */
-    public static final int VERSION = 24;
+     *  verdict group's {@code savepoint} (F11) -- the test-is-the-product plan's M3, B12; 25 since 2026-11-01: a verdict
+     *  carries no {@code wantEqual} -- the database judge's row answers holds and message itself and the host judgment
+     *  record carries its own polarity (the test-is-the-product plan's M8b, MV2: the plan carries nothing about the
+     *  assert but the listener's name and the census arm). */
+    public static final int VERSION = 25;
 
     private PlanJson() {
     }
@@ -221,7 +224,6 @@ public final class PlanJson {
                     Map<String, Object> vo = new LinkedHashMap<>();
                     vo.put("name", each.name());
                     vo.put("arm", each.arm());
-                    vo.put("wantEqual", each.wantEqual());
                     List<Object> base = new ArrayList<>();
                     for (ExecutionPlan.Side side : each.base()) {
                         Map<String, Object> so = new LinkedHashMap<>();
@@ -562,7 +564,7 @@ public final class PlanJson {
                     }
                     Json.Obj w = vo.getObjOr("wrapper", null);
                     verdicts.add(new ExecutionPlan.Verdict(vo.getString("name"), vo.getString("arm"),
-                            vo.getBool("wantEqual"), base, w == null ? null : readNode(w)));
+                            base, w == null ? null : readNode(w)));
                 }
                 Json.Obj f = o.getObjOr("fused", null);
                 Json.Obj sp = o.getObjOr("savepoint", null);

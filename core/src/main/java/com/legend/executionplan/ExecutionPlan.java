@@ -210,7 +210,8 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * One assert of a {@link Verdicts} group, as data: {@code name}, the label the test listener reports under;
      * {@code arm}, the assert function's name as the program spells it ({@code assertEquals},
      * {@code assertSameElements}, ...), which comparison the judges apply -- the judges' own vocabulary, never read by
-     * the runner; {@code wantEqual}, whether the assert holds on equality or on its negation; {@code base}, the sides
+     * the runner (the assert's polarity is no longer here: the database judge's row answers holds and message itself
+     * and the host judgment record carries its own, the test-is-the-product plan's M8b); {@code base}, the sides
      * in the assert's order, each a statement with its column facts (what the HOST judge runs) or a typed constant
      * the program wrote; {@code wrapper}, the verdict statement the planner composed around the base for the
      * DATABASE judge -- the canonical spelling of the cells and the comparison, answering one row of the verdict
@@ -218,7 +219,7 @@ public record ExecutionPlan(List<Parameter> parameters, Node root) {
      * database judge cannot express the arm, and then the database judges nothing here (the row the sink receives is
      * null).
      */
-    public record Verdict(String name, String arm, boolean wantEqual, List<Side> base,
+    public record Verdict(String name, String arm, List<Side> base,
             @com.legend.base.Nullable Node wrapper) {
         public Verdict {
             Objects.requireNonNull(name, "name");

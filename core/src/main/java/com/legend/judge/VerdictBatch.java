@@ -49,11 +49,20 @@ public final class VerdictBatch {
     }
 
     /** The verdict arm's reading of one row ({@code verdict, expected,
-     * actual, unjudged, lenient}): returns on a held verdict, raises the
-     * assert's own failure otherwise. */
+     * actual, unjudged, lenient, holds, message}): returns where the row
+     * holds, raises the row's own message otherwise (the test-is-the-product
+     * plan's M8b: the polarity and the message are the statement's). */
     @FunctionalInterface
     public interface Judge {
-        void judge(String name, boolean wantEqual, List<Object> row);
+        void judge(String name, List<Object> row);
+    }
+
+    /** The lowering's self-contained form of a verdict row (M8b): the assert's polarity and its failure message
+     *  composed in the statement, so the judge reads holds and message and the plan carries nothing about the
+     *  assert. */
+    @FunctionalInterface
+    public interface SelfContained {
+        SqlQuery wrap(SqlQuery row, String name, boolean wantEqual);
     }
 
     /** The plan side's PLANNER for a verdict statement (the planner-driver seam program's S2e, 2026-10-30; until then
@@ -116,7 +125,7 @@ public final class VerdictBatch {
     private sealed interface Step permits Pending, Resolved {
     }
 
-    private record Pending(int ix, String name, boolean wantEqual, SqlQuery query,
+    private record Pending(int ix, String name, SqlQuery query,
             Sessions.Session on, @com.legend.base.Nullable Appeal appeal) implements Step {
     }
 
@@ -170,6 +179,7 @@ public final class VerdictBatch {
     }
 
     private final Fusion fusion;
+    private final SelfContained selfContained;
     private final Judge judge;
     private final Runner runner;
     private final List<Root> roots = new ArrayList<>();
@@ -181,8 +191,9 @@ public final class VerdictBatch {
     /** The body's execution trace: its fused statement publishes its stamp there. */
     private final ExecutionTrace trace;
 
-    public VerdictBatch(Fusion fusion, Judge judge, Runner runner, ExecutionTrace trace) {
+    public VerdictBatch(Fusion fusion, SelfContained selfContained, Judge judge, Runner runner, ExecutionTrace trace) {
         this.fusion = fusion;
+        this.selfContained = selfContained;
         this.judge = judge;
         this.runner = runner;
         this.trace = trace;
@@ -230,7 +241,8 @@ public final class VerdictBatch {
                 }
             }
         }
-        r.steps.add(new Pending(ix, name, wantEqual, query, on, appeal));
+        // the row self-contained (M8b): its polarity and its message in the statement, nothing of the assert kept
+        r.steps.add(new Pending(ix, name, selfContained.wrap(query, name, wantEqual), on, appeal));
     }
 
     /** The verdict rows deferred so far (the next row's index). */
@@ -413,8 +425,7 @@ public final class VerdictBatch {
             }
             List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(ps.size());
             for (Pending p : ps) {
-                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(),
-                        List.of(), null);
+                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(), null);
                 verdicts.add(v);
                 members.put(v, p);
             }
@@ -497,11 +508,11 @@ public final class VerdictBatch {
                         if (s instanceof Pending p) {
                             List<Object> row = rows.get(p.ix());
                             if (row == null) {
-                                row = executeOne(p.name(), p.wantEqual(),
+                                row = executeOne(p.name(),
                                         com.legend.sql.FrameCtes.attach(p.query(), frames), p.on(), runner);
                             }
                             try {
-                                judge.judge(p.name(), p.wantEqual(), row);
+                                judge.judge(p.name(), row);
                             } catch (com.legend.error.AssertFailed e) {
                                 if (p.appeal() == null) {
                                     throw e;
@@ -551,7 +562,7 @@ public final class VerdictBatch {
         List<ExecutionPlan.Verdict> verdicts = new ArrayList<>(keyed.size());
         for (Pending p : keyed) {
             try {
-                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), p.wantEqual(), List.of(),
+                ExecutionPlan.Verdict v = new ExecutionPlan.Verdict(p.name(), armOf(p.name()), List.of(),
                         runner.plan(com.legend.sql.FrameCtes.attach(p.query(), frames), false));
                 verdicts.add(v);
                 members.put(v, p);
@@ -599,8 +610,7 @@ public final class VerdictBatch {
      * wrapper under the FALLBACK origin), and return its one row; a statement the database rejects, or a canon the
      * dialect cannot spell, is counted UNJUDGED with the database's own words and surfaces as itself — never a bare
      * re-run, never a host rescue. */
-    public static List<Object> executeOne(String name, boolean wantEqual, SqlQuery vq, Sessions.Session on,
-            Runner runner) {
+    public static List<Object> executeOne(String name, SqlQuery vq, Sessions.Session on, Runner runner) {
         ExecutionPlan.Node wrapper;
         try {
             wrapper = runner.plan(vq, false);
@@ -610,7 +620,7 @@ public final class VerdictBatch {
             throw e;
         }
         ExecutionPlan.Verdicts group = new ExecutionPlan.Verdicts(List.of(
-                new ExecutionPlan.Verdict(name, armOf(name), wantEqual, List.of(), wrapper)), null);
+                new ExecutionPlan.Verdict(name, armOf(name), List.of(), wrapper)), null);
         List<List<Object>> rows = new ArrayList<>(1);
         try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.FALLBACK)) {
             PlanRunner.program(new ExecutionPlan(List.of(), group), Map.of(), PlanSessions.of(on, null),

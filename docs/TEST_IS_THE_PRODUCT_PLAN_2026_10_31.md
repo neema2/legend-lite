@@ -566,7 +566,7 @@ posted the same way (R7 decision 12).
 | **M7** ◆ | (The row before M6's revalidation; superseded by the row below.) The fused group composed at planning (from `VerdictBatch`'s flush); the second class moves: bodies whose asserts all have verdict steps (2.D's rule, MV1, for the bodies moved) | 1 week |
 | **M9** ◆ | **BUILT 2026-11-01 (D109; §9 "M9a" to "M9d", §10): the frame programs under the host judge, 608 -> 1,080 bodies moved per DuckDB host pass, outcomes identical; its residual kinds (the engine-text asserts, the system-store reads, the test-data generator, `assertError` -- no corpus body --, staged grids, computed effects, effects through helpers, graph frames, seeded frames) named with their counts for M10a-d. Before M7 and M8 since M6's revalidation (the user, 2026-11-01: "the order is fine";** `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`**).** Frames read by asserts (the corpus's bulk: `let r = execute(...)`, its reads spliced into the asserts' sides, the eager run and the CTE as M3f/M3g planned them); the kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move, under the host judge first (zero output change expected) | 1-1.5 weeks |
 | **M7** ◆ | **BUILT 2026-11-01 (D110; §9 "M7", §10): the database judge's assert and frame programs run whole -- the fused statement composed at planning by the batch's own planning half, with the frames' CTEs at its head; 604 -> 1,026 bodies moved per DuckDB database pass (604 -> 961 on H2), outcomes identical; channel B (BOTH) walks every assert body until M8.** The fused group composed at planning (from `VerdictBatch`'s flush), with the frames' CTEs at its head; the database judge's and channel B's assert programs move (2.D's rule, MV1, for the bodies moved) | 1 week |
-| **M8** ◆ | **M8a BUILT 2026-11-01 (D111; §9 "M8a", §10): the host judgment as data, zero movement.** Then: the database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
+| **M8** ◆ | **M8a BUILT 2026-11-01 (D111; §9 "M8a", §10): the host judgment as data, zero movement. M8b BUILT 2026-11-01 (D112; §9 "M8b", §10): the database verdict row self-contained -- holds and message in the statement, the plan's verdict without its polarity (PlanJson 25), zero movement.** Then: the database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
 | **M10** ◆ | Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
 | **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
 
@@ -874,6 +874,34 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   instance carries `__type`, batch 53) where Pure holds them; the parity test keeps the three bodies parity-only until
   the user rules. (g) The parity test's absolute pins hold on the platform backend alone: H2 refuses the keyed
   constructions themselves (`LIST_GET` with no list encoding), the same refusal on both roads.
+- **M8b -- the database verdict row self-contained (2026-11-01; its independent audit found no blocker and asked no
+  code change: its should-fix 2 folded -- the failing negated and polarity-folded families as parity witnesses under
+  the database judge; its nits 3-6 folded -- two javadocs, the dead outputs list, a once-only guard; its nits 7-8
+  recorded).** The user's
+  ruling (§6 "B3 as settled", design 1): an assert under the database judge is one lowered statement answering holds /
+  message / unjudged, and the plan carries nothing about the assert. `VerdictSql.selfContained(row, name, wantEqual)`
+  gives every verdict row two more columns, composed IN the statement: `__holds`, the verdict under the assert's
+  polarity (`__verdict`, or `NOT __verdict` for the negated families), and `__message`, the failure text the judge
+  raises with -- the family's name, `expected:` and `actual:` each on its line over the two canons as text (a null
+  canon the word `null`), or the negated families' one sentence -- spelled byte for byte as `DatabaseJudge.verdictOf`
+  spelled it in Java from the row. The batch wraps every row once at `defer` (the fused members, the keyed members and
+  the split rung's lazy wrapper alike: `VerdictBatch.SelfContained` beside `Fusion`, both the lowering's, handed by the
+  body driver); `verdictOf(name, row)` reads unjudged, then holds and message, and knows no polarity;
+  `ExecutionPlan.Verdict` drops `wantEqual` (MV2: the plan's verdict carries the listener's name and the census arm,
+  nothing else about the assert; PlanJson 24 -> 25); the host judgment records carry their own polarity since M8a.
+  Zero movement by design; measured on the DuckDB corpus: both passes M8a's to the count (host 2471 / 108,
+  `other=6219`, `moved=1080`; database 2473 / 108, `moved=1026`), every register test green -- so the failure messages
+  the registers witness are byte-identical; H2: the database pass 2233 / 353, `fallback=18`, `moved=961`, the host pass 2289 / 295, `moved=1080`, the registers green -- every count M7's. Residue: (a) the unjudged DETAIL (the two excerpts) is
+  still Java-formatted (`AssertVerdicts.excerpt`): diagnostics for the register, not a verdict; (b) the leniency flag
+  is still read in Java for the census (`sqlUlpPolicy`); (c) `name` and `arm` stay in the plan's verdict (the listener
+  and the census); (d) the message is computed where the verdict holds too (unread); (e) every family's two canon
+  columns were text already (the tolerance's numbers and the counts cast by the database before M8b), so the message
+  pastes the text Java pasted -- the audit read every builder and every dialect's `CONCAT`, `COALESCE`, `NOT` and
+  string literal (BigQuery escapes the newline, every other dialect writes it raw; each engine reads it back as one);
+  (f) the verdict statements' text changes on every lane (two more columns): the core ids dumps move for the database
+  judge's statements at the chain; (g) `ProgramRunnerTest`'s fixture rows still carry five verdict columns (the
+  runner's own plumbing, judged by nothing); `VerdictSql.renderedText` has no caller in main (pre-existing: the
+  rendered road is host-judged).
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
   on the runner ("Free space left: 84 MB", then "No space left on device"), two before any test ran; the same death
@@ -1137,3 +1165,7 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   checks: the core suite 28 of 28, the driver, judge, compiler, lowering, testplan, architecture, guardrail and census
   suites, `//spec:corpus_duckdb` 6 of 6; the chain runs at M8's end. Next: M8b (the database wrapper self-contained,
   MV2/MV3).
+- 2026-11-01: **M8b built** (D112): the database verdict row self-contained -- `__holds` and `__message` composed in
+  the statement (`VerdictSql.selfContained`), the judge reading them and knowing no polarity, the plan's verdict
+  without `wantEqual` (PlanJson 25). Zero movement; the DuckDB corpus M8a's to the count with every register test
+  green (the messages byte-identical); H2 run too (database 2233 / 353 with `fallback=18`, host 2289 / 295, the registers green). Next: M8c (the canon over the product columns, MV4).
