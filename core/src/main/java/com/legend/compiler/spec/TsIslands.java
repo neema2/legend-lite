@@ -192,8 +192,14 @@ public final class TsIslands {
                 if (columns.equals(java.util.Set.of("key", "date", "value"))) {
                     return TsToPure.LINE;
                 }
+                if (columns.equals(java.util.Set.of("key", "date", "time", "value"))) {
+                    return TsToPure.TIMED_LINE;
+                }
                 if (columns.equals(java.util.Set.of("key", "date", "member", "weight", "value"))) {
                     return TsToPure.MEMBERS;
+                }
+                if (columns.equals(java.util.Set.of("key", "date", "time", "member", "weight", "value"))) {
+                    return TsToPure.TIMED_MEMBERS;
                 }
             }
             return t.typeName();

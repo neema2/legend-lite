@@ -50,10 +50,6 @@ final class TsFunctions {
         return new Param(name, Kind.SPAN, fallback, List.of());
     }
 
-    private static Param whole(String name, int fallback) {
-        return new Param(name, Kind.WHOLE, fallback, List.of());
-    }
-
     private static Param number(String name, double fallback) {
         return new Param(name, Kind.NUMBER, fallback, List.of());
     }
@@ -64,70 +60,6 @@ final class TsFunctions {
 
     private static Signature one(Param... params) {
         return new Signature(1, List.of(params));
-    }
-
-    /** THE FUNCTIONS STILL WRITTEN HERE (§6), each by its language name: those over several lines, and the
-     *  decomposition. A word over one line is the library's ({@link TsWords}, {@link TsCatalog}): it has no entry here. */
-    enum Fn {
-        TOTAL_RETURN("total_return"),
-        EXCESS_RETURNS("excess_returns"),
-        COMPARE("compare"),
-        IF("if"),
-        UNION_OF("union_of"),
-        APPEND("append"),
-        PREPEND("prepend"),
-        WEIGHTED_SUM("weighted_sum"),
-        BASKET("basket"),
-        INTERPOLATE("interpolate"),
-        OHLC("ohlc"),
-        TREND("trend"),
-        SEASONALLY_ADJUSTED("seasonally_adjusted");
-
-        private static final Map<String, Fn> BY_TEXT = byText();
-
-        private static Map<String, Fn> byText() {
-            Map<String, Fn> m = new LinkedHashMap<>();
-            for (Fn f : values()) {
-                m.put(f.text, f);
-            }
-            return java.util.Collections.unmodifiableMap(m);
-        }
-
-        final String text;
-
-        Fn(String text) {
-            this.text = text;
-        }
-
-        /** The function {@code text} names (none: null). */
-        static @com.legend.base.Nullable Fn of(String text) {
-            return BY_TEXT.get(text);
-        }
-    }
-
-    /** THE SIGNATURES of the functions still written here, each by its language name. A word the library defines
-     *  has its signature read from its overloads ({@link TsCatalog#signature}). */
-    static final Map<Fn, Signature> SIGNATURES;
-
-    static {
-        Map<Fn, Signature> s = new java.util.EnumMap<>(Fn.class);
-        s.put(Fn.TOTAL_RETURN, new Signature(2, List.of()));
-        s.put(Fn.EXCESS_RETURNS, new Signature(2, List.of()));
-        s.put(Fn.COMPARE, new Signature(2, List.of()));
-        s.put(Fn.IF, new Signature(3, List.of()));
-        s.put(Fn.UNION_OF, new Signature(2, List.of()));
-        s.put(Fn.APPEND, new Signature(2, List.of()));
-        s.put(Fn.PREPEND, new Signature(2, List.of()));
-        s.put(Fn.WEIGHTED_SUM, new Signature(-1, List.of()));
-        s.put(Fn.BASKET, new Signature(-1, List.of(word("rebalance", "daily", "daily", "weekly", "monthly"))));
-        s.put(Fn.INTERPOLATE, new Signature(2, List.of(word("method", "intersect", "intersect", "nan", "zero",
-                "step"))));
-        s.put(Fn.OHLC, new Signature(4, List.of()));
-        for (String d : List.of("trend", "seasonally_adjusted")) {
-            s.put(java.util.Objects.requireNonNull(Fn.of(d)), one(word("method", "additive", "additive", "multiplicative"), word("freq", "year", "year",
-                    "quarter", "month", "week")));
-        }
-        SIGNATURES = java.util.Collections.unmodifiableMap(s);
     }
 
     /** What the functions are written with: a line's node, fresh names, a per-point lambda, the query. */
@@ -145,73 +77,19 @@ final class TsFunctions {
 
     /** Whether {@code name} is a function of the language: one written here, or a word the library defines. */
     static boolean has(Ctx c, String name) {
-        return Fn.of(name) != null || TsWords.defines(c, name);
+        return TsWords.defines(c, name);
     }
 
     /** A window or a lag as given: a number of observations ({@code 0}: from the start, {@code all}), or a span. */
     private record Span(int obs, TsAst.@com.legend.base.Nullable Span period) {
     }
 
-    /** A call's parameters, bound: each by its name, of its kind. */
-    private record Bound(Map<String, Object> values) {
-
-        private Object get(String name) {
-            return java.util.Objects.requireNonNull(values.get(name), name);
-        }
-
-        Span span(String name) {
-            return (Span) get(name);
-        }
-
-        double num(String name) {
-            return ((Number) get(name)).doubleValue();
-        }
-
-        int whole(String name) {
-            return ((Number) get(name)).intValue();
-        }
-
-        String word(String name) {
-            return (String) get(name);
-        }
-    }
-
-    /** {@code fc}'s parameters, by place after its lines then by name, each defaulted as its signature says. */
-    private static Map<String, Object> bind(Ctx c, SqlAst.FunctionCall fc, String fn, Signature sig,
-            List<SqlAst.Expr> positional, Map<String, SqlAst.Expr> named) {
-        // a function of any number of lines (each with its weight) takes its parameters by name alone
-        int lines = sig.lines() < 0 ? positional.size() : sig.lines();
-        List<SqlAst.Expr> given = positional.subList(Math.min(lines, positional.size()), positional.size());
-        if (given.size() > sig.params().size()) {
-            throw invalid(fn + " takes " + lines + " line" + (lines == 1 ? "" : "s") + " and its parameters "
-                    + String.join(", ", sig.params().stream().map(Param::name).toList()) + " (R10)", fc.pos());
-        }
-        Map<String, Object> out = new LinkedHashMap<>();
-        for (int i = 0; i < sig.params().size(); i++) {
-            Param p = sig.params().get(i);
-            SqlAst.Expr e = i < given.size() ? given.get(i) : named.get(p.name());
-            if (i < given.size() && named.containsKey(p.name())) {
-                throw invalid(fn + "'s " + p.name() + " is given twice (R10)", fc.pos());
-            }
-            if (e == null && p.kind() == Kind.DATE) {
-                throw invalid(fn + " reads a date: " + fn + "(x, '2024-01-01') (R9)", fc.pos());
-            }
-            out.put(p.name(), e == null ? fallback(p) : value(c, fn, p, e));
-        }
-        for (String n : named.keySet()) {
-            if (sig.params().stream().noneMatch(p -> p.name().equals(n))) {
-                throw invalid(fn + " has no option " + n + (sig.params().isEmpty() ? "" : ": its parameters are "
-                        + String.join(", ", sig.params().stream().map(Param::name).toList())) + " (R10)", fc.pos());
-            }
-        }
-        return out;
-    }
-
     /** {@code fc}'s parameters as given, by place after its line then by name, each as the generic rule takes it
      *  ({@link TsWords}): none defaulted here -- a word's defaults are the library's. */
     private static Map<String, TsWords.Given> given(Ctx c, SqlAst.FunctionCall fc, String fn, Signature sig,
             List<SqlAst.Expr> positional, Map<String, SqlAst.Expr> named) {
-        List<SqlAst.Expr> at = positional.subList(Math.min(sig.lines(), positional.size()), positional.size());
+        List<SqlAst.Expr> at = positional.subList(Math.max(0, Math.min(sig.lines(), positional.size())),
+                positional.size());
         if (at.size() > sig.params().size()) {
             throw invalid(fn + " takes " + sig.lines() + " line" + (sig.lines() == 1 ? "" : "s")
                     + " and its parameters " + String.join(", ", sig.params().stream().map(Param::name).toList())
@@ -253,11 +131,6 @@ final class TsFunctions {
             }
         }
         return out;
-    }
-
-    private static Object fallback(Param p) {
-        Object f = java.util.Objects.requireNonNull(p.fallback(), p.name());
-        return p.kind() == Kind.SPAN ? new Span((Integer) f, null) : f;
     }
 
     /** A parameter's value as written. */
@@ -371,166 +244,7 @@ final class TsFunctions {
                     named);
             return TsWords.call(c, fn, args, given, fc.pos());
         }
-        Fn f = java.util.Objects.requireNonNull(Fn.of(fn));
-        Signature sig = java.util.Objects.requireNonNull(SIGNATURES.get(f));
-        if (positional.size() < sig.lines()) {
-            throw invalid(fn + " reads " + sig.lines() + " line" + (sig.lines() == 1 ? "" : "s") + ": " + fn + "(x"
-                    + (sig.lines() > 1 ? ", y" : "") + ", ...)", fc.pos());
-        }
-        Bound p = new Bound(bind(c, fc, fn, sig, positional, named));
-        TsLines.Valued many = several(c, fc, f, p, positional);
-        if (many != null) {
-            return many;
-        }
-        TsLines.Valued x = line(c, fn, positional.get(0), 0);
-        Lib w = new Lib(c, x.line());
-        String a = x.value();
-        return switch (f) {
-            case TREND, SEASONALLY_ADJUSTED -> w.done(decomposed(c, w, fc, fn, a, p.word("method"),
-                    p.word("freq")));
-            default -> throw new IllegalStateException("no writing of " + fn);
-        };
-    }
-
-    /**
-     * THE FUNCTIONS OF SEVERAL LINES (the tile's pairs, otherCalls and analystCalls): each line on its own rows first
-     * (a pair's returns each on its own), then met on the dates all have -- or, where a function reads which has a
-     * row (an if's, a splice's), on every date any has; null for a function of one line.
-     */
-    private static TsLines.@com.legend.base.Nullable Valued several(Ctx c, SqlAst.FunctionCall fc, Fn f,
-            Bound p, List<SqlAst.Expr> args) {
-        String fn = f.text;
-        SqlAst.Pos pos = fc.pos();
-        switch (f) {
-            case TOTAL_RETURN, EXCESS_RETURNS -> {
-                TsLines.Valued x = line(c, fn, args.get(0), 0);
-                TsLines.Node second = c.node(args.get(1));
-                if (second instanceof TsLines.Constant k) {
-                    Double rate = constant(k.expr());
-                    if (rate == null) {
-                        throw invalid(fn + "'s second is a line or a number", args.get(1).pos());
-                    }
-                    Lib w = new Lib(c, x.line());
-                    return w.done(w.ofLine("total_return".equals(fn) ? "totalReturn" : "excessReturns", fn,
-                            x.value(), new ColSpec(TsLines.ORD), new EnumValue(DURATION, x.line().seconds() ? "SECONDS"
-                                    : "DAYS"), new CFloat(rate)));
-                }
-                TsLines.Valued y = (TsLines.Valued) second;
-                if ("excess_returns".equals(fn)) {
-                    Lib w = new Lib(c, TsLines.joined(c, List.of(x, y), pos, null));
-                    return w.done(w.ofLine("excessReturnsOver", "er", x.value(), new ColSpec(y.value())));
-                }
-                Lib w = new Lib(c, TsLines.spread(c, List.of(x, y), pos).line());
-                return w.done(w.ofLine("totalReturnOf", "tr", x.value(), new ColSpec(y.value())));
-            }
-            case INTERPOLATE -> {
-                TsLines.Valued x = line(c, fn, args.get(0), 0);
-                TsLines.Valued y = line(c, fn, args.get(1), 1);
-                return TsLines.interpolated(c, x, y, p.word("method"), pos);
-            }
-            case OHLC -> {
-                // a candle (R10): its four lines on the dates all have -- under SAMPLE BY each its period's own
-                // aggregate, as written: ohlc(first(open['X']), max(high['X']), min(low['X']), last(close['X']))
-                List<TsLines.Valued> parts = new ArrayList<>();
-                for (int i = 0; i < 4; i++) {
-                    parts.add(line(c, fn, args.get(i), i));
-                }
-                TsAst.Fill fill = c.query().fill();
-                Lib w = new Lib(c, TsLines.joined(c, parts, pos, fill == null ? null : fill.how()));
-                Map<String, String> fields = new LinkedHashMap<>();
-                List<String> names = List.of("open", "high", "low", "close");
-                for (int i = 0; i < 4; i++) {
-                    fields.put(names.get(i), parts.get(i).value());
-                }
-                c.struct(parts.get(3).value(), java.util.Collections.unmodifiableMap(fields));
-                return w.done(parts.get(3).value());
-            }
-            case COMPARE -> {
-                TsLines.Node x = c.node(args.get(0));
-                TsLines.Node y = c.node(args.get(1));
-                List<TsLines.Valued> parts = lines(x, y);
-                if (parts.isEmpty()) {
-                    throw invalid("compare reads a line: compare(x, 0)", pos);
-                }
-                TsAst.Fill fill = c.query().fill();
-                Lib w = new Lib(c, parts.size() == 1 ? parts.get(0).line()
-                        : TsLines.joined(c, parts, pos, fill == null ? null : fill.how()));
-                return w.done(w.ofRow("compare", "cmp", new ColSpec(w.side(x)), new ColSpec(w.side(y))));
-            }
-            case IF -> {
-                // a condition's flags 1 where it holds, 0 where it does not, none where it is none (the library's
-                // ifThen reads a line's flags, a figure's not 0)
-                SqlAst.Expr cond = args.get(0);
-                TsLines.Valued flags = line(c, fn, truth(cond) ? new SqlAst.Case(null, List.of(
-                        new SqlAst.When(cond, new SqlAst.IntegerLit(java.math.BigInteger.ONE, cond.pos())),
-                        new SqlAst.When(new SqlAst.Unary(SqlAst.UnaryOp.NOT, cond, cond.pos()),
-                                new SqlAst.IntegerLit(java.math.BigInteger.ZERO, cond.pos()))), null, cond.pos())
-                        : cond, 0);
-                TsLines.Node x = c.node(args.get(1));
-                TsLines.Node y = c.node(args.get(2));
-                List<TsLines.Valued> parts = new ArrayList<>(List.of(flags));
-                parts.addAll(lines(x, y));
-                Lib w;
-                if (parts.size() > 1) {
-                    TsLines.Spread spread = TsLines.spread(c, parts, pos);
-                    // the flags' dates alone
-                    w = new Lib(c, spread.line().with(TsLines.call("filter", spread.line().rel(), TsLines.lambda("x",
-                            TsLines.call("isNotEmpty", TsLines.col(spread.ords().get(0)))))));
-                } else {
-                    w = new Lib(c, flags.line());
-                }
-                return w.done(w.ofRow("ifThen", "if", new ColSpec(flags.value()), new ColSpec(w.side(x)),
-                        new ColSpec(w.side(y))));
-            }
-            case UNION_OF, APPEND, PREPEND -> {
-                TsLines.Valued x = line(c, fn, args.get(0), 0);
-                TsLines.Valued y = line(c, fn, args.get(1), 1);
-                TsLines.Spread spread = TsLines.spread(c, List.of(x, y), pos);
-                Lib w = new Lib(c, spread.line());
-                if ("union_of".equals(fn)) {
-                    return w.done(w.ofRow("union", "union", new ColSpec(x.value()), new ColSpec(y.value())));
-                }
-                return w.done(w.ofRow(fn, fn, new ColSpec(w.line.part()), new ColSpec(w.line.at()),
-                        new ColSpec(x.value()), new ColSpec(y.value()), new ColSpec(spread.ords().get(0)),
-                        new ColSpec(spread.ords().get(1))));
-            }
-            case WEIGHTED_SUM, BASKET -> {
-                List<TsLines.Valued> members = new ArrayList<>();
-                List<Double> weights = new ArrayList<>();
-                for (int i = 0; i < args.size(); i += 2) {
-                    members.add(line(c, fn, args.get(i), i));
-                    Double weight = i + 1 < args.size() ? constant(args.get(i + 1)) : null;
-                    if (weight == null) {
-                        throw invalid(fn + " reads each line and its weight: " + fn + "(x, 0.6, y, 0.4)",
-                                i + 1 < args.size() ? args.get(i + 1).pos() : pos);
-                    }
-                    weights.add(weight);
-                }
-                Lib w = new Lib(c, TsLines.joined(c, members, pos, null));
-                return w.done("basket".equals(fn) ? w.basket(members, weights, p.word("rebalance"))
-                        : w.weighted(members, weights));
-            }
-            default -> {
-                return null;
-            }
-        }
-    }
-
-    /** The lines among {@code nodes}. */
-    private static List<TsLines.Valued> lines(TsLines.Node... nodes) {
-        List<TsLines.Valued> out = new ArrayList<>();
-        for (TsLines.Node n : nodes) {
-            if (n instanceof TsLines.Valued v && out.stream().noneMatch(o -> o == v)) {
-                out.add(v);
-            }
-        }
-        return out;
-    }
-
-    /** {@code v}'s simple returns, on its own rows (a pair's, a benchmark's). */
-    private static TsLines.Valued simple(Ctx c, TsLines.Valued v) {
-        Lib l = new Lib(c, v.line());
-        return l.done(l.returns(v.value(), new Span(1, null), "simple"));
+        throw new IllegalStateException("no word " + fn + " in the library: has() said it was one");
     }
 
     /** {@code fn}'s {@code i}-th argument in a line's place: a line, a condition's flags (1 where it holds, 0 where it
@@ -561,48 +275,6 @@ final class TsFunctions {
         return v;
     }
 
-    /** Each SAMPLE BY's periods as the library's grain (§5's units). */
-    private static final Map<String, String> GRAINS = Map.of("d", "day", "w", "week", "mo", "month", "q", "quarter",
-            "y", "year");
-
-    /** A decomposition's cycle in periods of a grain (the tile's CYCLES): a cycle of business days at days. */
-    private static final Map<String, Map<String, Integer>> CYCLES = Map.of(
-            "day", Map.of("week", 5, "month", 21, "quarter", 63, "year", 252),
-            "week", Map.of("month", 4, "quarter", 13, "year", 52),
-            "month", Map.of("quarter", 3, "year", 12),
-            "quarter", Map.of("year", 4));
-
-    /**
-     * A CLASSICAL DECOMPOSITION (the tile's decomposed: gs-quant's trend and seasonally_adjusted, statsmodels'
-     * seasonal_decompose): its cycle {@code freq} counted in the query's periods ({@code SAMPLE BY}); the trend a moving
-     * average centred over it, the season each place in the cycle's mean of the detrended values -- the library's.
-     */
-    private static String decomposed(Ctx c, Lib w, SqlAst.FunctionCall fc, String fn, String a, String method,
-            String freq) {
-        TsAst.Span sample = c.query().sample();
-        if (sample == null) {
-            throw invalid(fn + " counts its cycle in the query's periods: add SAMPLE BY 1mo (R5)", fc.pos());
-        }
-        String grain = java.util.Objects.requireNonNull(GRAINS.get(sample.unit()), sample.unit());
-        Map<String, Integer> cycles = CYCLES.get(grain);
-        Integer p = cycles == null ? null : cycles.get(freq);
-        if (p == null) {
-            throw invalid(fn + ": a " + freq + " is no cycle of " + grain + "s: choose a longer one, or another SAMPLE"
-                    + " BY", fc.pos());
-        }
-        CInteger cycle = new CInteger((long) p);
-        CInteger half = new CInteger((long) (p / 2));
-        if ("trend".equals(fn)) {
-            return w.ofLine("trend", "dc_trend", a, cycle, half);
-        }
-        // its place in the cycle: the calendar's at weeks, months and quarters (a missing period never moving the
-        // places after it), its row's number at days
-        String place = "day".equals(grain) ? w.rowNumber()
-                : w.ofRow("periodIndex", "dc_i", new ColSpec(TsLines.PERIOD), option("Grain", grain));
-        return w.ofLine("seasonallyAdjusted", "dc_sa", a, new ColSpec(place), cycle, half,
-                option("SeasonalModel", method));
-    }
-
     /** Whether {@code e} is a condition: a comparison, a test, or one of them combined. */
     private static boolean truth(SqlAst.Expr e) {
         return switch (e) {
@@ -617,15 +289,6 @@ final class TsFunctions {
             case SqlAst.Like l -> true;
             default -> false;
         };
-    }
-
-    /** {@code w} observations (0: from the start) as a frame: the tile's Writer.frame. */
-    private static Object frame(int w) {
-        return w == 0 ? "running" : w;
-    }
-
-    private static EnumValue option(String enumeration, String value) {
-        return new EnumValue(LIBRARY + enumeration, value);
     }
 
     /** A span as the library's calendar periods take it (§5): a count of a DurationUnit, a quarter three months. */
@@ -644,249 +307,6 @@ final class TsFunctions {
             case "s" -> new Period(s.n(), "SECONDS");
             default -> throw invalid("a span is d, w, mo, q, y, h, min or s (§5)", s.pos());
         };
-    }
-
-    /**
-     * THE LIBRARY'S CALLS OVER ONE LINE (the tile's Writer): each over the line's window, or its line and its dates,
-     * or each row alone, its figure a fresh column; the line as it grows.
-     */
-    private static final class Lib {
-        private final Ctx c;
-        private TsLines.Line line;
-        private @com.legend.base.Nullable String perYear;
-
-        Lib(Ctx c, TsLines.Line line) {
-            this.c = c;
-            this.line = line;
-        }
-
-        TsLines.Valued done(String column) {
-            return new TsLines.Valued(line, column);
-        }
-
-        private String then(String name, String what, List<ValueSpecification> args) {
-            String out = c.fresh(what);
-            List<ValueSpecification> all = new ArrayList<>(List.of(line.rel()));
-            all.addAll(args);
-            all.add(new ColSpec(out));
-            line = line.with(TsLines.call(LIBRARY + name, all));
-            return out;
-        }
-
-        /** {@code timeseries::name(over(~[line], [~period->ascending()], frame), ~value, args, ~out)}. */
-        String library(String name, String what, String value, @com.legend.base.Nullable Object frame,
-                ValueSpecification... args) {
-            List<ValueSpecification> all = new ArrayList<>(List.of(TsLines.over(line, frameOf(frame)),
-                    new ColSpec(value)));
-            all.addAll(List.of(args));
-            return then(name, what, all);
-        }
-
-        /** {@code timeseries::name(~line, ~date, ~value, args, ~out)}. */
-        String ofLine(String name, String what, String value, ValueSpecification... args) {
-            List<ValueSpecification> all = new ArrayList<>(List.of(new ColSpec(line.part()), new ColSpec(line.at()),
-                    new ColSpec(value)));
-            all.addAll(List.of(args));
-            return then(name, what, all);
-        }
-
-        /** {@link #ofLine} over a calendar period: its n and its unit first. */
-        String ofPeriod(String name, String what, String value, TsAst.Span span, ValueSpecification... args) {
-            Period p = period(span);
-            List<ValueSpecification> all = new ArrayList<>(List.of(new CInteger((long) p.n()),
-                    new EnumValue(DURATION, p.unit())));
-            all.addAll(List.of(args));
-            return ofLine(name, what, value, all.toArray(new ValueSpecification[0]));
-        }
-
-        /** A BASE OVER THE WHOLE LINE (the tile's libraryBased): {@code name} of the line's first value, or, from a date
-         *  ({@code from}; none: ""), its {@code nameFrom} of the value as of it (the library's valueAt) -- {@code args}
-         *  after the date. */
-        String based(String name, String what, String value, String from, ValueSpecification... args) {
-            if (from.isEmpty()) {
-                return ofLine(name, what, value, args);
-            }
-            List<ValueSpecification> all = new ArrayList<>(List.of(new com.legend.protocol.spec.CDate(
-                    com.legend.values.PureDateLiteral.parse(line.seconds() ? from + "T00:00:00" : from))));
-            all.addAll(List.of(args));
-            return ofLine(name + "From", what, value, all.toArray(new ValueSpecification[0]));
-        }
-
-        /** {@code timeseries::name(args, ~out)}: of each row alone. */
-        String ofRow(String name, String what, ValueSpecification... args) {
-            return then(name, what, List.of(args));
-        }
-
-        /** {@code value} {@code k} observations later along its line ({@code $p->lead($r, k)}, the tile's): a fresh
-         *  column, none after the line's last. */
-        String lead(String value, int k) {
-            String out = c.fresh("lead");
-            List<ValueSpecification> args = new ArrayList<>(List.of(new com.legend.protocol.spec.Variable("p"),
-                    new com.legend.protocol.spec.Variable("r")));
-            if (k != 1) {
-                args.add(new CInteger((long) k));
-            }
-            line = line.with(TsLines.call("extend", line.rel(), TsLines.over(line, null), new ColSpec(out,
-                    new com.legend.protocol.spec.LambdaFunction(List.of(new com.legend.protocol.spec.Variable("p"),
-                            new com.legend.protocol.spec.Variable("w"), new com.legend.protocol.spec.Variable("r")),
-                            List.of(new com.legend.protocol.spec.AppliedProperty(TsLines.call("lead", args),
-                                    value))))));
-            return out;
-        }
-
-        /** Each row's number in time along its line, from 1: a fresh column. */
-        String rowNumber() {
-            String out = c.fresh("rn");
-            line = line.with(TsLines.call("extend", line.rel(), TsLines.over(line, null), new ColSpec(out,
-                    new com.legend.protocol.spec.LambdaFunction(List.of(new com.legend.protocol.spec.Variable("p"),
-                            new com.legend.protocol.spec.Variable("w"), new com.legend.protocol.spec.Variable("r")),
-                            List.of(TsLines.call("rowNumber", new com.legend.protocol.spec.Variable("p"),
-                                    new com.legend.protocol.spec.Variable("r")))))));
-            return out;
-        }
-
-        /** The line's window over {@code frame}. */
-        ValueSpecification window(@com.legend.base.Nullable Object frame) {
-            return TsLines.over(line, frameOf(frame));
-        }
-
-        /** {@code timeseries::name(args, ~out1, ~out2, ...)}: a function of several figures, each a fresh column. */
-        List<String> many(String name, List<String> whats, ValueSpecification... args) {
-            List<String> outs = whats.stream().map(c::fresh).toList();
-            List<ValueSpecification> all = new ArrayList<>(List.of(line.rel()));
-            all.addAll(List.of(args));
-            outs.forEach(o -> all.add(new ColSpec(o)));
-            line = line.with(TsLines.call(LIBRARY + name, all));
-            return outs;
-        }
-
-        /** A band (R10): its lower, upper and width columns, its upper the answer's value. */
-        TsLines.Valued band(List<String> lowerUpperWidth) {
-            Map<String, String> fields = new LinkedHashMap<>();
-            fields.put("lower", lowerUpperWidth.get(0));
-            fields.put("upper", lowerUpperWidth.get(1));
-            fields.put("width", lowerUpperWidth.get(2));
-            c.struct(lowerUpperWidth.get(1), java.util.Collections.unmodifiableMap(fields));
-            return done(lowerUpperWidth.get(1));
-        }
-
-        /** A side of a function of lines and numbers: a line's column, or a number as a column of it. */
-        String side(TsLines.Node n) {
-            if (n instanceof TsLines.Valued v) {
-                return v.value();
-            }
-            String k = c.fresh("k");
-            line = line.with(TsLines.call("extend", line.rel(), new ColSpec(k, c.rowLambda(((TsLines.Constant) n)
-                    .expr(), line.rel(), false, "SELECT"))));
-            return k;
-        }
-
-        /** THE MEMBERS AS ROWS (the library's long table): each member's line, date, number in time, its number
-         *  ({@code names[0]}), its value ({@code names[1]}) and its weight ({@code names[2]}), concatenated. */
-        private ValueSpecification long_(List<TsLines.Valued> members, List<Double> weights, String[] names) {
-            ValueSpecification all = null;
-            for (int i = 0; i < members.size(); i++) {
-                ValueSpecification one = TsLines.call("select", line.rel(), new com.legend.protocol.spec.ColSpecArray(
-                        List.of(new ColSpec(line.part()), new ColSpec(line.at()), new ColSpec(TsLines.ORD),
-                                new ColSpec(members.get(i).value()))));
-                one = TsLines.call("rename", one, new ColSpec(members.get(i).value()), new ColSpec(names[1]));
-                one = TsLines.call("extend", one, new com.legend.protocol.spec.ColSpecArray(List.of(
-                        new ColSpec(names[0], TsLines.lambda("x", new CInteger((long) i))),
-                        new ColSpec(names[2], TsLines.lambda("x", new CFloat(weights.get(i)))))));
-                all = all == null ? one : TsLines.call("concatenate", all, one);
-            }
-            return java.util.Objects.requireNonNull(all);
-        }
-
-        /** {@code other} (a relation of a row a line and date) joined to the line by its line and date. */
-        private void joinByDate(ValueSpecification other) {
-            String gp = c.fresh("jd_part");
-            String ga = c.fresh("jd_at");
-            ValueSpecification r = TsLines.call("rename", TsLines.call("rename", other, new ColSpec(line.part()),
-                    new ColSpec(gp)), new ColSpec(line.at()), new ColSpec(ga));
-            line = line.with(TsLines.call("join", line.rel(), r, new EnumValue(
-                    "meta::pure::functions::relation::JoinKind", "LEFT"), TsLines.lambda2("l", "r", TsLines.call("and",
-                    TsLines.call("equal", TsLines.prop("l", line.part()), TsLines.prop("r", gp)),
-                    TsLines.call("equal", TsLines.prop("l", line.at()), TsLines.prop("r", ga))))));
-        }
-
-        /** Each member and its weight, on the dates all have: their weighted sum over the weights (the library's). */
-        String weighted(List<TsLines.Valued> members, List<Double> weights) {
-            String[] names = {c.fresh("mb_m"), c.fresh("mb_v"), c.fresh("mb_w")};
-            ValueSpecification rows = long_(members, weights, names);
-            String out = c.fresh("wsum");
-            joinByDate(TsLines.call(LIBRARY + "weightedSum", rows, new com.legend.protocol.spec.ColSpecArray(List.of(
-                    new ColSpec(line.part()), new ColSpec(line.at()))), new ColSpec(names[1]), new ColSpec(names[2]),
-                    new CInteger((long) members.size()), new ColSpec(out)));
-            return out;
-        }
-
-        /** A basket of the members in their weights from 100, rebalanced as told (the library's). */
-        String basket(List<TsLines.Valued> members, List<Double> weights, String rebalance) {
-            String[] names = {c.fresh("mb_m"), c.fresh("mb_v"), c.fresh("mb_w")};
-            ValueSpecification rows = long_(members, weights, names);
-            String out = c.fresh("basket");
-            joinByDate(TsLines.call(LIBRARY + "basket", rows, new ColSpec(line.part()), new ColSpec(line.at()),
-                    new ColSpec(TsLines.ORD), new ColSpec(names[0]), new ColSpec(names[1]), new ColSpec(names[2]),
-                    new CInteger((long) members.size()), option("Rebalance", rebalance), new EnumValue(DURATION,
-                            line.seconds() ? "SECONDS" : "DAYS"), new ColSpec(out)));
-            return out;
-        }
-
-        /** A rolled statistic over {@code w} observations (0: from the start) with its ramp, or a calendar period. */
-        String rolled(String stat, String value, Span w, int ramp) {
-            if (w.period() != null) {
-                return ofPeriod("overPeriod", stat, value, w.period(), option("Statistic", stat));
-            }
-            return library(stat, stat, value, frame(w.obs()), new CInteger((long) ramp));
-        }
-
-        /** Returns over {@code obs} observations, or as of a calendar period back, of a type. */
-        String returns(String value, Span obs, String type) {
-            return obs.period() == null
-                    ? library("returns", "ret", value, null, new CInteger((long) obs.obs()), option("Returns", type))
-                    : ofPeriod("returnsPeriod", "ret", value, obs.period(), option("Returns", type));
-        }
-
-        /** The periods a year a figure is annualized by (the tile's perYearColumn): SAMPLE BY's, else the one the
-         *  line's own dates infer (the library's periodsPerYear, gs-quant's buckets). */
-        String perYear() {
-            if (perYear == null) {
-                TsAst.Span sample = c.query().sample();
-                if (sample != null) {
-                    long n = switch (sample.unit()) {
-                        case "d" -> 252L;
-                        case "w" -> 52L;
-                        case "mo" -> 12L;
-                        case "q" -> 4L;
-                        case "y" -> 1L;
-                        default -> throw new IllegalStateException("SAMPLE BY " + sample.unit());
-                    };
-                    String out = c.fresh("per_year");
-                    line = line.with(TsLines.call("extend", line.rel(), new ColSpec(out, TsLines.lambda("x",
-                            new CInteger(n)))));
-                    perYear = out;
-                } else {
-                    perYear = ofRow("periodsPerYear", "per_year", new ColSpec(line.part()), new ColSpec(TsLines.ORD),
-                            new EnumValue(DURATION, line.seconds() ? "SECONDS" : "DAYS"));
-                }
-            }
-            return perYear;
-        }
-
-        private static @com.legend.base.Nullable ValueSpecification frameOf(@com.legend.base.Nullable Object frame) {
-            if (frame == null) {
-                return null;
-            }
-            if ("running".equals(frame)) {
-                return TsLines.call("rows", TsLines.call("unbounded"), new CInteger(0L));
-            }
-            if ("all".equals(frame)) {
-                return TsLines.call("rows", TsLines.call("unbounded"), TsLines.call("unbounded"));
-            }
-            int n = (Integer) frame;
-            return TsLines.call("rows", new CInteger((long) -(Math.max(1, n) - 1)), new CInteger(0L));
-        }
     }
 
     private static SqlTranslationException invalid(String message, SqlAst.Pos pos) {

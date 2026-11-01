@@ -3045,3 +3045,324 @@ function timeseries::line::vwap<K,D>(price: Relation<(key:K, date:D, value:Numbe
   timeseries::line::helpers::meet($price, $volume, $sample)->timeseries::tradedValue(~x, ~y, ~traded)
     ->timeseries::vwapPeriod(~key, ~date, ~x, ~traded, ~y, $w, $unit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
 }
+
+// The interpolation methods (gs-quant's interpolate): x on y's dates where x has one too (intersect), none where it has
+// none (nan), 0 there (zero), gs-quant's step.
+Enum timeseries::Interpolation
+{
+  intersect, nan, zero, step
+}
+
+// A line's period of each date (p): the date's own, or its SAMPLE BY's that holds it -- the column lines meet on.
+function timeseries::line::helpers::periods<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number, p:Date)>[1]
+{
+  if($sample->isEmpty(), |$x->extend(~p:r|$r.date->cast(@Date)->toOne()), |$x->extend(~p:r|timeseries::lines::periodOf($r.date->cast(@Date)->toOne(), $sample->toOne())))
+}
+
+function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer)>[1]
+{
+  $a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
+    ->concatenate($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
+    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max()])
+    ->join($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ak)->rename(~p, ~ap)->rename(~value, ~x)->rename(~to, ~xo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ak) && ($l.p == $r.ap)})
+    ->join($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~bk)->rename(~p, ~bp)->rename(~value, ~y)->rename(~to, ~yo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.bk) && ($l.p == $r.bp)})
+    ->select(~[key, sd, so, x, xo, y, yo])->rename(~sd, ~date)->rename(~so, ~o)
+}
+
+function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1], c: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer, z:Number, zo:Integer)>[1]
+{
+  $a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
+    ->concatenate($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
+    ->concatenate($c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
+    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max()])
+    ->join($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ak)->rename(~p, ~ap)->rename(~value, ~x)->rename(~to, ~xo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ak) && ($l.p == $r.ap)})
+    ->join($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~bk)->rename(~p, ~bp)->rename(~value, ~y)->rename(~to, ~yo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.bk) && ($l.p == $r.bp)})
+    ->join($c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ck)->rename(~p, ~cp)->rename(~value, ~z)->rename(~to, ~zo), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ck) && ($l.p == $r.cp)})
+    ->select(~[key, sd, so, x, xo, y, yo, z, zo])->rename(~sd, ~date)->rename(~so, ~o)
+}
+
+function timeseries::line::helpers::spreadOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1], c: Relation<(key:K, date:D, value:Number, p:Date)>[1], d: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, o:Integer, open:Number, ho:Integer, high:Number, hh:Integer, low:Number, hl:Integer, close:Number, hc:Integer)>[1]
+{
+  $a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to])
+    ->concatenate($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
+    ->concatenate($c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
+    ->concatenate($d->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, date, to]))
+    ->groupBy(~[key, p], ~[sd:r|$r.date:v|$v->max(), so:r|$r.to:v|$v->max()])
+    ->join($a->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ak)->rename(~p, ~ap)->rename(~value, ~open)->rename(~to, ~ho), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ak) && ($l.p == $r.ap)})
+    ->join($b->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~bk)->rename(~p, ~bp)->rename(~value, ~high)->rename(~to, ~hh), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.bk) && ($l.p == $r.bp)})
+    ->join($c->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~ck)->rename(~p, ~cp)->rename(~value, ~low)->rename(~to, ~hl), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.ck) && ($l.p == $r.cp)})
+    ->join($d->extend(~to:r|dateDiff(%1970-01-01, $r.date->cast(@Date), meta::pure::functions::date::DurationUnit.SECONDS))->select(~[key, p, value, to])->rename(~key, ~dk)->rename(~p, ~dp)->rename(~value, ~close)->rename(~to, ~hc), meta::pure::functions::relation::JoinKind.LEFT, {l,r|($l.key == $r.dk) && ($l.p == $r.dp)})
+    ->select(~[key, sd, so, open, ho, high, hh, low, hl, close, hc])->rename(~sd, ~date)->rename(~so, ~o)
+}
+
+function timeseries::line::helpers::meetOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, x:Number, y:Number)>[1]
+{
+  timeseries::lines::meet($a->rename(~value, ~x), ~key, ~p, ~date, $b->rename(~key, ~bk)->rename(~p, ~bp)->rename(~date, ~bd)->rename(~value, ~y), ~bk, ~bp, ~bd, ~d1)
+    ->select(~[key, d1, x, y])->rename(~d1, ~date)
+}
+
+function timeseries::line::helpers::meetOn<K,D>(a: Relation<(key:K, date:D, value:Number, p:Date)>[1], b: Relation<(key:K, date:D, value:Number, p:Date)>[1], c: Relation<(key:K, date:D, value:Number, p:Date)>[1], d: Relation<(key:K, date:D, value:Number, p:Date)>[1]): Relation<(key:K, date:D, open:Number, high:Number, low:Number, close:Number)>[1]
+{
+  timeseries::lines::meet(timeseries::lines::meet(timeseries::lines::meet($a->rename(~value, ~open), ~key, ~p, ~date, $b->rename(~key, ~bk)->rename(~p, ~bp)->rename(~date, ~bd)->rename(~value, ~high), ~bk, ~bp, ~bd, ~d1), ~key, ~p, ~d1, $c->rename(~key, ~ck)->rename(~p, ~cp)->rename(~date, ~cd)->rename(~value, ~low), ~ck, ~cp, ~cd, ~d2), ~key, ~p, ~d2, $d->rename(~key, ~dk)->rename(~p, ~dp)->rename(~date, ~dd)->rename(~value, ~close), ~dk, ~dp, ~dd, ~d3)
+    ->select(~[key, d3, open, high, low, close])->rename(~d3, ~date)
+}
+
+// TWO LINES MET UNDER FILL (R6): without one, on the dates both have; with one, spread onto every date either has and
+// each line's value put onto it (timeseries::lines::fill).
+function timeseries::line::helpers::filled<K,D>(a: Relation<(key:K, date:D, value:Number)>[1], b: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, x:Number, y:Number)>[1]
+{
+  if($fill->isEmpty(), |timeseries::line::helpers::meetOn(timeseries::line::helpers::periods($a, $sample), timeseries::line::helpers::periods($b, $sample)),
+    |timeseries::line::helpers::spreadOn(timeseries::line::helpers::periods($a, $sample), timeseries::line::helpers::periods($b, $sample))
+       ->timeseries::lines::fill(~key, ~date, ~x, ~xo, ~o, ~x, $fill->toOne(), ~xf)->timeseries::lines::fill(~key, ~date, ~y, ~yo, ~o, ~y, $fill->toOne(), ~yf)
+       ->select(~[key, date, xf, yf])->rename(~xf, ~x)->rename(~yf, ~y))
+}
+
+// A CANDLE'S FOUR LINES MET UNDER FILL, as two lines are.
+function timeseries::line::helpers::filled<K,D>(a: Relation<(key:K, date:D, value:Number)>[1], b: Relation<(key:K, date:D, value:Number)>[1], c: Relation<(key:K, date:D, value:Number)>[1], d: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, open:Number, high:Number, low:Number, close:Number)>[1]
+{
+  if($fill->isEmpty(), |timeseries::line::helpers::meetOn(timeseries::line::helpers::periods($a, $sample), timeseries::line::helpers::periods($b, $sample), timeseries::line::helpers::periods($c, $sample), timeseries::line::helpers::periods($d, $sample)),
+    |timeseries::line::helpers::spreadOn(timeseries::line::helpers::periods($a, $sample), timeseries::line::helpers::periods($b, $sample), timeseries::line::helpers::periods($c, $sample), timeseries::line::helpers::periods($d, $sample))
+       ->timeseries::lines::fill(~key, ~date, ~open, ~ho, ~o, ~open, $fill->toOne(), ~openf)->timeseries::lines::fill(~key, ~date, ~high, ~hh, ~o, ~high, $fill->toOne(), ~highf)->timeseries::lines::fill(~key, ~date, ~low, ~hl, ~o, ~low, $fill->toOne(), ~lowf)->timeseries::lines::fill(~key, ~date, ~close, ~hc, ~o, ~close, $fill->toOne(), ~closef)
+       ->select(~[key, date, openf, highf, lowf, closef])->rename(~openf, ~open)->rename(~highf, ~high)->rename(~lowf, ~low)->rename(~closef, ~close))
+}
+
+// TWO LINES SPREAD (R6): every key and date either has -- under a SAMPLE BY, every period, dated at its latest -- each
+// line's value where it has one (x, y), its own number in time there (xo, yo: whether it has a row), the date's (o).
+function timeseries::line::helpers::spread<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer)>[1]
+{
+  timeseries::line::helpers::spreadOn(timeseries::line::helpers::periods($x, $sample), timeseries::line::helpers::periods($y, $sample))
+}
+
+// THREE LINES SPREAD, as two are.
+function timeseries::line::helpers::spread<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], z: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer, z:Number, zo:Integer)>[1]
+{
+  timeseries::line::helpers::spreadOn(timeseries::line::helpers::periods($x, $sample), timeseries::line::helpers::periods($y, $sample), timeseries::line::helpers::periods($z, $sample))
+}
+
+function {meta::pure::profiles::doc.doc = 'Which of x and y is greater: 1, -1, or 0 where they are equal (gs-quant\'s compare) -- each a line or a number, two lines met on their dates (under FILL, filled).'} timeseries::line::compare<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::filled($x, $y, $sample, $fill)->timeseries::compare(~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function timeseries::line::compare<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Float[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->extend(~k:r|$y)->timeseries::compare(~value, ~k, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function timeseries::line::compare<K,D>(x: Float[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $y->extend(~k:r|$x)->timeseries::compare(~k, ~value, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function {meta::pure::profiles::doc.doc = 'x where the condition (its flags: not 0) holds, y where it does not, none where it is none (gs-quant\'s if_) -- each a line or a number, on the condition\'s dates.'} timeseries::line::if_<K,D>(condition: Relation<(key:K, date:D, value:Number)>[1], x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::spread($condition, $x, $y, $sample)->filter(r|$r.xo->isNotEmpty())->timeseries::ifThen(~x, ~y, ~z, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function timeseries::line::if_<K,D>(condition: Relation<(key:K, date:D, value:Number)>[1], x: Relation<(key:K, date:D, value:Number)>[1], y: Float[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::spread($condition, $x, $sample)->filter(r|$r.xo->isNotEmpty())->extend(~k:r|$y)->timeseries::ifThen(~x, ~y, ~k, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function timeseries::line::if_<K,D>(condition: Relation<(key:K, date:D, value:Number)>[1], x: Float[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::spread($condition, $y, $sample)->filter(r|$r.xo->isNotEmpty())->extend(~k:r|$x)->timeseries::ifThen(~x, ~k, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function timeseries::line::if_<K,D>(condition: Relation<(key:K, date:D, value:Number)>[1], x: Float[1], y: Float[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $condition->extend(~[kx:r|$x, ky:r|$y])->timeseries::ifThen(~value, ~kx, ~ky, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function {meta::pure::profiles::doc.doc = 'x where it has a value, else y (gs-quant\'s union): on every date either has.'} timeseries::line::union_of<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::spread($x, $y, $sample)->timeseries::union(~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function {meta::pure::profiles::doc.doc = 'x\'s rows to its last, then y\'s after it (gs-quant\'s append).'} timeseries::line::append<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::spread($x, $y, $sample)->timeseries::append(~key, ~date, ~x, ~y, ~xo, ~yo, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function {meta::pure::profiles::doc.doc = 'x\'s rows before y\'s first, then y\'s every row (gs-quant\'s prepend).'} timeseries::line::prepend<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::spread($x, $y, $sample)->timeseries::prepend(~key, ~date, ~x, ~y, ~xo, ~yo, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function {meta::pure::profiles::doc.doc = 'The total return of a price x: over a dividend line y (on every date either has), or a yield accrued actual/365 (gs-quant\'s total_return).'} timeseries::line::total_return<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::spread($x, $y, $sample)->timeseries::totalReturnOf(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// time is each value's number in time, counted in timeUnit (#TS gives a line's own: a date line's days, a date-time
+// line's seconds -- under SAMPLE BY its period's last tick's).
+function timeseries::line::total_return<K,D>(x: Relation<(key:K, date:D, time:Integer, value:Number)>[1], y: Float[1], timeUnit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->timeseries::totalReturn(~key, ~date, ~value, ~time, $timeUnit, $y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function {meta::pure::profiles::doc.doc = 'The excess returns of x over a cash index y (on the dates both have), or over a rate accrued actual/360 (gs-quant\'s excess_returns).'} timeseries::line::excess_returns<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::meet($x, $y, $sample)->timeseries::excessReturnsOver(~key, ~date, ~x, ~y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// time is each value's number in time, counted in timeUnit (#TS gives a line's own: a date line's days, a date-time
+// line's seconds -- under SAMPLE BY its period's last tick's).
+function timeseries::line::excess_returns<K,D>(x: Relation<(key:K, date:D, time:Integer, value:Number)>[1], y: Float[1], timeUnit: meta::pure::functions::date::DurationUnit[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->timeseries::excessReturns(~key, ~date, ~value, ~time, $timeUnit, $y, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function {meta::pure::profiles::doc.doc = 'A candle (R10): its open, high, low and close lines on the dates all have (under FILL, filled) -- under SAMPLE BY each its period\'s own: ohlc(first(open), max(high), min(low), last(close)).'} timeseries::line::ohlc<K,D>(open: Relation<(key:K, date:D, value:Number)>[1], high: Relation<(key:K, date:D, value:Number)>[1], low: Relation<(key:K, date:D, value:Number)>[1], close: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1], fill: timeseries::Fill[0..1]): Relation<(key:K, date:D, open:Number, high:Number, low:Number, close:Number)>[1]
+{
+  timeseries::line::helpers::filled($open, $high, $low, $close, $sample, $fill)
+}
+
+function {meta::pure::profiles::doc.doc = 'x on y\'s dates (gs-quant\'s interpolate): where x has one too (intersect, unless given), none where it has none (nan), 0 there (zero), or gs-quant\'s step -- at the first, x\'s value as of it (its first, before x starts), at each later its own, else the one before among them.'} timeseries::line::interpolate<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::interpolate($x, $y, timeseries::Interpolation.intersect, $sample)
+}
+
+function timeseries::line::interpolate<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], y: Relation<(key:K, date:D, value:Number)>[1], method: timeseries::Interpolation[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  if($method == timeseries::Interpolation.step, |timeseries::line::helpers::stepOnto(timeseries::line::helpers::spread($x, $y, $sample)),
+    |if($method == timeseries::Interpolation.intersect, |timeseries::line::helpers::spread($x, $y, $sample)->filter(r|$r.yo->isNotEmpty() && $r.xo->isNotEmpty())->select(~[key, date, x])->rename(~x, ~value),
+      |if($method == timeseries::Interpolation.zero, |timeseries::line::helpers::spread($x, $y, $sample)->filter(r|$r.yo->isNotEmpty())->timeseries::fillZero(~x, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value),
+        |timeseries::line::helpers::spread($x, $y, $sample)->filter(r|$r.yo->isNotEmpty())->select(~[key, date, x])->rename(~x, ~value))))
+}
+
+// gs-quant's step onto y's dates: at the first, x's value as of it (its last at or before it, else its first), at each later
+// its own, else the one before among them -- an x date between two asked never read.
+function timeseries::line::helpers::stepOnto<K,D>(s: Relation<(key:K, date:D, o:Integer, x:Number, xo:Integer, y:Number, yo:Integer)>[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $s->timeseries::fillStep(~key, ~date, ~x, ~x, ~asof)->timeseries::firstValued(~key, ~date, ~yo, ~fy)->filter(r|$r.yo->isNotEmpty())
+    ->extend(~v1:r|if($r.x->isNotEmpty(), |$r.x, |if($r.date == $r.fy, |$r.asof, |[])))
+    ->timeseries::fillStep(~key, ~date, ~v1, ~v1, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// WEIGHTED MEMBERS MET (R6): each member's rows on the periods (and the keys) every one of the n members has, dated at the
+// latest of theirs.
+function timeseries::line::helpers::met<K,D>(members: Relation<(key:K, date:D, member:Integer, weight:Float, value:Number)>[1], n: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, member:Integer, weight:Float, value:Number)>[1]
+{
+  timeseries::line::helpers::metOn(timeseries::line::helpers::memberPeriods($members, $sample), $n)
+}
+
+// The members' periods of each date (p), as a line's (periods).
+function timeseries::line::helpers::memberPeriods<K,D>(members: Relation<(key:K, date:D, member:Integer, weight:Float, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, member:Integer, weight:Float, value:Number, p:Date)>[1]
+{
+  if($sample->isEmpty(), |$members->extend(~p:r|$r.date->cast(@Date)->toOne()),
+    |$members->extend(~p:r|timeseries::lines::periodOf($r.date->cast(@Date)->toOne(), $sample->toOne())))
+}
+
+function timeseries::line::helpers::metOn<K,D>(m: Relation<(key:K, date:D, member:Integer, weight:Float, value:Number, p:Date)>[1], n: Integer[1]): Relation<(key:K, date:D, member:Integer, weight:Float, value:Number)>[1]
+{
+  $m->join($m->groupBy(~[key, p], ~[c:r|$r.member:v|$v->count(), md:r|$r.date:v|$v->max()])->filter(g|$g.c == $n)->rename(~key, ~gk)->rename(~p, ~gp), meta::pure::functions::relation::JoinKind.INNER, {l,r|($l.key == $r.gk) && ($l.p == $r.gp)})
+    ->select(~[key, md, member, weight, value])->rename(~md, ~date)
+}
+
+function {meta::pure::profiles::doc.doc = 'The weighted sum of the members (each line and its weight: weighted_sum(x, 0.6, y, 0.4)) over their weights\' sum, on the dates all have (gs-quant\'s weighted_sum); n their count.'} timeseries::line::weighted_sum<K,D>(members: Relation<(key:K, date:D, member:Integer, weight:Float, value:Number)>[1], n: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::met($members, $n, $sample)->timeseries::weightedSum(~[key, date], ~value, ~weight, $n, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+function {meta::pure::profiles::doc.doc = 'A basket of the members in their weights from 100, rebalanced daily unless told weekly or monthly (gs-quant\'s basket_series, its costs none): units fixed between rebalances.'} timeseries::line::basket<K,D>(members: Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number)>[1], n: Integer[1], timeUnit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::basket($members, $n, timeseries::Rebalance.daily, $timeUnit, $sample)
+}
+
+// time is each value's number in time, counted in timeUnit (a timed line's): a week rebalanced by time from the first.
+function timeseries::line::basket<K,D>(members: Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number)>[1], n: Integer[1], rebalance: timeseries::Rebalance[1], timeUnit: meta::pure::functions::date::DurationUnit[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::helpers::metTimed($members, $n, $sample)
+    ->timeseries::basket(~key, ~date, ~time, ~member, ~value, ~weight, $n, $rebalance, $timeUnit, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// TIMED MEMBERS MET, as members are (met): each its number in time kept.
+function timeseries::line::helpers::metTimed<K,D>(members: Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number)>[1], n: Integer[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number)>[1]
+{
+  timeseries::line::helpers::metOnTimed(timeseries::line::helpers::memberPeriodsTimed($members, $sample), $n)
+}
+
+function timeseries::line::helpers::memberPeriodsTimed<K,D>(members: Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number)>[1], sample: timeseries::Sample[0..1]): Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number, p:Date)>[1]
+{
+  if($sample->isEmpty(), |$members->extend(~p:r|$r.date->cast(@Date)->toOne()),
+    |$members->extend(~p:r|timeseries::lines::periodOf($r.date->cast(@Date)->toOne(), $sample->toOne())))
+}
+
+function timeseries::line::helpers::metOnTimed<K,D>(m: Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number, p:Date)>[1], n: Integer[1]): Relation<(key:K, date:D, time:Integer, member:Integer, weight:Float, value:Number)>[1]
+{
+  $m->join($m->groupBy(~[key, p], ~[c:r|$r.member:v|$v->count(), md:r|$r.date:v|$v->max()])->filter(g|$g.c == $n)->rename(~key, ~gk)->rename(~p, ~gp), meta::pure::functions::relation::JoinKind.INNER, {l,r|($l.key == $r.gk) && ($l.p == $r.gp)})
+    ->select(~[key, md, time, member, weight, value])->rename(~md, ~date)
+}
+
+// A DECOMPOSITION'S CYCLE (gs-quant's freq of trend and seasonally_adjusted, statsmodels' seasonal_decompose's period).
+Enum timeseries::Cycle
+{
+  week, month, quarter, year
+}
+
+// A cycle in a SAMPLE BY's periods: a week of days 5 (business days), a month 21, a quarter 63, a year 252; of weeks a
+// month 4, a quarter 13, a year 52; of months a quarter 3, a year 12; of quarters a year 4 -- a cycle no longer than the
+// period refused (a fail no row escapes, refused when planned).
+function timeseries::line::helpers::cycle(sample: timeseries::Sample[1], freq: timeseries::Cycle[1]): Integer[1]
+{
+  if($sample == timeseries::Sample.day, |if($freq == timeseries::Cycle.week, |5, |if($freq == timeseries::Cycle.month, |21, |if($freq == timeseries::Cycle.quarter, |63, |252))), |if($sample == timeseries::Sample.week, |if($freq == timeseries::Cycle.week, |if(fail('a week is no cycle of weeks: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.month, |4, |if($freq == timeseries::Cycle.quarter, |13, |52))), |if($sample == timeseries::Sample.month, |if($freq == timeseries::Cycle.week, |if(fail('a week is no cycle of months: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.month, |if(fail('a month is no cycle of months: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.quarter, |3, |12))), |if($sample == timeseries::Sample.quarter, |if($freq == timeseries::Cycle.week, |if(fail('a week is no cycle of quarters: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.month, |if(fail('a month is no cycle of quarters: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.quarter, |if(fail('a quarter is no cycle of quarters: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |4))), |if($freq == timeseries::Cycle.week, |if(fail('a week is no cycle of years: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.month, |if(fail('a month is no cycle of years: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.quarter, |if(fail('a quarter is no cycle of years: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if(fail('a year is no cycle of years: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0))))))))
+}
+
+// Half a cycle (its floor): a centred window's reach either side.
+function timeseries::line::helpers::halfCycle(sample: timeseries::Sample[1], freq: timeseries::Cycle[1]): Integer[1]
+{
+  if($sample == timeseries::Sample.day, |if($freq == timeseries::Cycle.week, |2, |if($freq == timeseries::Cycle.month, |10, |if($freq == timeseries::Cycle.quarter, |31, |126))), |if($sample == timeseries::Sample.week, |if($freq == timeseries::Cycle.week, |if(fail('a week is no cycle of weeks: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.month, |2, |if($freq == timeseries::Cycle.quarter, |6, |26))), |if($sample == timeseries::Sample.month, |if($freq == timeseries::Cycle.week, |if(fail('a week is no cycle of months: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.month, |if(fail('a month is no cycle of months: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.quarter, |1, |6))), |if($sample == timeseries::Sample.quarter, |if($freq == timeseries::Cycle.week, |if(fail('a week is no cycle of quarters: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.month, |if(fail('a month is no cycle of quarters: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.quarter, |if(fail('a quarter is no cycle of quarters: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |2))), |if($freq == timeseries::Cycle.week, |if(fail('a week is no cycle of years: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.month, |if(fail('a month is no cycle of years: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if($freq == timeseries::Cycle.quarter, |if(fail('a quarter is no cycle of years: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0), |if(fail('a year is no cycle of years: choose a longer cycle (freq), or another SAMPLE BY'), |0, |0))))))))
+}
+
+// A SAMPLE BY's period as the library's grain (periodIndex's).
+function timeseries::line::helpers::grain(sample: timeseries::Sample[1]): timeseries::Grain[1]
+{
+  if($sample == timeseries::Sample.week, |timeseries::Grain.week, |if($sample == timeseries::Sample.month, |timeseries::Grain.month, |if($sample == timeseries::Sample.quarter, |timeseries::Grain.quarter, |timeseries::Grain.day)))
+}
+
+function {meta::pure::profiles::doc.doc = 'The trend of a seasonal series (gs-quant\'s trend, statsmodels\' classical decomposition): a centred moving average over a cycle (freq: a year unless given) counted in the query\'s periods (SAMPLE BY).'} timeseries::line::trend<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::trend($x, timeseries::SeasonalModel.additive, timeseries::Cycle.year, $sample)
+}
+
+function timeseries::line::trend<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], method: timeseries::SeasonalModel[1], sample: timeseries::Sample[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::trend($x, $method, timeseries::Cycle.year, $sample)
+}
+
+function timeseries::line::trend<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], freq: timeseries::Cycle[1], sample: timeseries::Sample[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::trend($x, timeseries::SeasonalModel.additive, $freq, $sample)
+}
+
+function {meta::pure::profiles::doc.doc = 'x seasonally adjusted (gs-quant\'s seasonally_adjusted): less (additive, unless given) or over (multiplicative) each place in the cycle\'s mean of the detrended values -- a cycle (freq: a year unless given) counted in the query\'s periods (SAMPLE BY).'} timeseries::line::seasonally_adjusted<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], sample: timeseries::Sample[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::seasonally_adjusted($x, timeseries::SeasonalModel.additive, timeseries::Cycle.year, $sample)
+}
+
+function timeseries::line::seasonally_adjusted<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], method: timeseries::SeasonalModel[1], sample: timeseries::Sample[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::seasonally_adjusted($x, $method, timeseries::Cycle.year, $sample)
+}
+
+function timeseries::line::seasonally_adjusted<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], freq: timeseries::Cycle[1], sample: timeseries::Sample[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  timeseries::line::seasonally_adjusted($x, timeseries::SeasonalModel.additive, $freq, $sample)
+}
+
+function timeseries::line::trend<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], method: timeseries::SeasonalModel[1], freq: timeseries::Cycle[1], sample: timeseries::Sample[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  $x->timeseries::trend(~key, ~date, ~value, timeseries::line::helpers::cycle($sample, $freq), timeseries::line::helpers::halfCycle($sample, $freq), ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value)
+}
+
+// Each value's place in the cycle: the calendar's at weeks, months and quarters (a missing period never moving the places
+// after it), its row's number at days.
+function timeseries::line::seasonally_adjusted<K,D>(x: Relation<(key:K, date:D, value:Number)>[1], method: timeseries::SeasonalModel[1], freq: timeseries::Cycle[1], sample: timeseries::Sample[1]): Relation<(key:K, date:D, value:Number)>[1]
+{
+  if($sample == timeseries::Sample.day,
+    |$x->extend(over(~[key], [~date->ascending()]), ~pl:{p,w,r|$p->rowNumber($r)})
+       ->timeseries::seasonallyAdjusted(~key, ~date, ~value, ~pl, timeseries::line::helpers::cycle($sample, $freq), timeseries::line::helpers::halfCycle($sample, $freq), $method, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value),
+    |$x->timeseries::periodIndex(~date, timeseries::line::helpers::grain($sample), ~pl)
+       ->timeseries::seasonallyAdjusted(~key, ~date, ~value, ~pl, timeseries::line::helpers::cycle($sample, $freq), timeseries::line::helpers::halfCycle($sample, $freq), $method, ~line_v)->select(~[key, date, line_v])->rename(~line_v, ~value))
+}

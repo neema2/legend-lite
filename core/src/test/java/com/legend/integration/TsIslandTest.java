@@ -892,9 +892,7 @@ class TsIslandTest {
         refusals.put("SELECT value_at(CLOSE['AAA'], '2024-13-01') AS v FROM PRICES ON DAY BY SYMBOL",
                 "value_at's date is a date");
         refusals.put("SELECT trend(CLOSE['AAA']) AS v FROM PRICES ON DAY BY SYMBOL",
-                "trend counts its cycle in the query's periods: add SAMPLE BY 1mo (R5)");
-        refusals.put("SELECT trend(last(CLOSE['AAA']), freq => 'week') AS v FROM PRICES ON DAY BY SYMBOL SAMPLE BY 1mo",
-                "trend: a week is no cycle of months");
+                "trend counts in the query's periods: add SAMPLE BY 1mo (R5)");
         refusals.put("SELECT bollinger_bands(CLOSE['AAA'], 3) AS bb, bb * 2 AS d FROM PRICES ON DAY BY SYMBOL",
                 "bb has lower, upper, width: read one, bb.lower (R10)");
         refusals.put("SELECT bollinger_bands(CLOSE['AAA'], 3) * 2 AS d FROM PRICES ON DAY BY SYMBOL",
@@ -952,6 +950,11 @@ class TsIslandTest {
             assertTrue(message.contains(r.getValue()), r.getKey() + "\n  refused as: " + message);
             assertTrue(message.startsWith("#TS{...}# at line"), "placed in the island: " + message);
         }
+        // a decomposition's cycle no longer than the SAMPLE BY's period: the library's table fails it, refused when
+        // planned in its words (S1d)
+        String cycle = refused("SELECT trend(last(CLOSE['AAA']), freq => 'week') AS v FROM PRICES ON DAY BY SYMBOL"
+                + " SAMPLE BY 1mo", true);
+        assertTrue(cycle.contains("a week is no cycle of months"), "the cycle's refusal: " + cycle);
         assertTrue(refused("SELECT avg(CLOSE, 3) AS a FROM PRICES ON DAY", false)
                 .contains("#TS uses the timeseries library: add the project timeseries"), "the library is a dependency");
     }
@@ -964,7 +967,7 @@ class TsIslandTest {
                 Compiler.compileModel(library()));
         Map<String, com.legend.protocol.ts.TsCatalog.Word> byName = new LinkedHashMap<>();
         words.forEach(w -> byName.put(w.name(), w));
-        assertEquals(68, words.size(), "the words: " + byName.keySet());
+        assertEquals(81, words.size(), "the words: " + byName.keySet());
         assertTrue(byName.keySet().stream().noneMatch(n -> n.contains("::")), "the helpers are not words");
         for (com.legend.protocol.ts.TsCatalog.Word w : words) {
             assertNotNull(w.doc(), w.name() + " is documented");

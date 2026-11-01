@@ -45,14 +45,15 @@ public final class TsCatalog {
     public record Param(String name, String kind, List<String> takes, List<String> words, boolean required) {
     }
 
-    /** The type of the parameter a word's SAMPLE BY is: never given, the query's. */
+    /** The type of the parameter a word's SAMPLE BY is: never given, the query's ({@link TsWords#FILL} its FILL's). */
     static final String SAMPLE = TsToPure.LIBRARY + "Sample";
 
     /** Every word the model's library defines, by name. */
     public static List<Word> words(TsToPure.Model model) {
         List<Word> out = new ArrayList<>();
-        for (String name : model.functionsIn(TsWords.PACKAGE.substring(0, TsWords.PACKAGE.length() - 2))) {
-            List<TsToPure.Overload> overloads = model.overloads(TsWords.PACKAGE + name);
+        for (String fn : model.functionsIn(TsWords.PACKAGE.substring(0, TsWords.PACKAGE.length() - 2))) {
+            String name = TsWords.languageName(fn);
+            List<TsToPure.Overload> overloads = model.overloads(TsWords.PACKAGE + fn);
             List<Param> params = new ArrayList<>();
             for (String line : lines(overloads)) {
                 params.add(new Param(line, lineKind(overloads, line), List.of(), List.of(), required(overloads, line)));
@@ -70,13 +71,14 @@ public final class TsCatalog {
     /** {@code word}'s signature, read from its overloads in {@code model}: its lines' count (-1: weighted members, any
      *  number), its other parameters. */
     static TsFunctions.Signature signature(TsToPure.Model model, String word) {
-        return signature(model, model.overloads(TsWords.PACKAGE + word));
+        return signature(model, model.overloads(TsWords.fqn(word)));
     }
 
     private static TsFunctions.Signature signature(TsToPure.Model model, List<TsToPure.Overload> overloads) {
         List<String> lines = lines(overloads);
         boolean members = overloads.stream().anyMatch(o -> !o.params().isEmpty()
-                && TsToPure.MEMBERS.equals(o.params().get(0).type()));
+                && (TsToPure.MEMBERS.equals(o.params().get(0).type())
+                        || TsToPure.TIMED_MEMBERS.equals(o.params().get(0).type())));
         // the order of the overload that takes most, then any another names; a calendar span's unit rides its count's
         // parameter; SAMPLE BY's the query's
         List<List<TsToPure.Parameter>> orders = new ArrayList<>();
@@ -86,8 +88,10 @@ public final class TsCatalog {
         Map<String, TsFunctions.Param> params = new LinkedHashMap<>();
         for (List<TsToPure.Parameter> ps : orders) {
             for (TsToPure.Parameter p : ps) {
-                if (!"unit".equals(p.name()) && !SAMPLE.equals(p.type()) && !lines.contains(p.name())
-                        && !params.containsKey(p.name())) {
+                // a calendar span's unit, SAMPLE BY's, FILL's and a basket's count are the query's, never given
+                boolean language = "unit".equals(p.name()) || SAMPLE.equals(p.type()) || TsWords.FILL.equals(p.type())
+                        || members && "n".equals(p.name()) || "timeUnit".equals(p.name());
+                if (!language && !lines.contains(p.name()) && !params.containsKey(p.name())) {
                     params.put(p.name(), param(model, overloads, p));
                 }
             }
@@ -102,7 +106,8 @@ public final class TsCatalog {
         List<String> out = new ArrayList<>();
         for (TsToPure.Parameter p : widest) {
             boolean line = overloads.stream().anyMatch(o -> o.params().stream().anyMatch(q -> q.name().equals(p.name())
-                    && (TsToPure.LINE.equals(q.type()) || TsToPure.MEMBERS.equals(q.type()))));
+                    && (TsToPure.LINE.equals(q.type()) || TsToPure.TIMED_LINE.equals(q.type())
+                            || TsToPure.MEMBERS.equals(q.type()) || TsToPure.TIMED_MEMBERS.equals(q.type()))));
             if (!line) {
                 break;
             }
@@ -113,12 +118,12 @@ public final class TsCatalog {
 
     private static String lineKind(List<TsToPure.Overload> overloads, String name) {
         boolean members = overloads.stream().anyMatch(o -> o.params().stream().anyMatch(q -> q.name().equals(name)
-                && TsToPure.MEMBERS.equals(q.type())));
+                && (TsToPure.MEMBERS.equals(q.type()) || TsToPure.TIMED_MEMBERS.equals(q.type()))));
         if (members) {
             return "members";
         }
         boolean number = overloads.stream().anyMatch(o -> o.params().stream().anyMatch(q -> q.name().equals(name)
-                && !TsToPure.LINE.equals(q.type())));
+                && !TsToPure.LINE.equals(q.type()) && !TsToPure.TIMED_LINE.equals(q.type())));
         return number ? "line_or_number" : "line";
     }
 

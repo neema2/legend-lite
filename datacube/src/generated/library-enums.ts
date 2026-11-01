@@ -20,6 +20,8 @@ export const LIBRARY_ENUMS = {
   Dated: ['last', 'start', 'end'],
   Fill: ['prev', 'linear', 'zero', 'none', 'step'],
   Scope: ['all'],
+  Interpolation: ['intersect', 'nan', 'zero', 'step'],
+  Cycle: ['week', 'month', 'quarter', 'year'],
 } as const;
 
 /** An enumeration of timeseries. */

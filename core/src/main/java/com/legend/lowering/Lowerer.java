@@ -2823,7 +2823,8 @@ public final class Lowerer {
         }
         // a bound the database computes (a parameter, arithmetic over one) lowered as any scalar: it reads no row
         ColumnResolver none = scopedResolver(base, null);
-        return new Over(parts, keys, over.frame().map(f -> Windows.sqlFrame(f, v -> scalar(v, none))).orElse(null));
+        return new Over(parts, keys, over.frame().map(f -> Windows.sqlFrame(f, v -> scalar(refusingFail(v), none)))
+                .orElse(null));
     }
 
     /**
@@ -2992,6 +2993,26 @@ public final class Lowerer {
         return e;
     }
 
+    /** {@code spec}, a value that reads no row (a frame's or a lag's offset), refused when planned where it fails
+     *  unconditionally -- a {@code fail(message)} outside any {@code if}'s branches (in its condition, or none), which
+     *  would raise on every row: its
+     *  message the refusal's (a library's word that tables its parameters, a decomposition's cycle of a SAMPLE BY's
+     *  period, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S1d). */
+    private static TypedSpec refusingFail(TypedSpec spec) {
+        if (spec instanceof TypedNativeCall nc
+                && "meta::pure::functions::asserts::fail".equals(nc.callee().qualifiedName())) {
+            String message = !nc.args().isEmpty() && nc.args().get(0) instanceof TypedCString m ? m.value() : "fail";
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE, message);
+        }
+        if (spec instanceof com.legend.compiler.spec.typed.TypedIf ti) {
+            // its condition is evaluated whatever it answers; its branches are not
+            refusingFail(ti.condition());
+        } else {
+            spec.children().forEach(Lowerer::refusingFail);
+        }
+        return spec;
+    }
+
     /** Whether {@code spec} reads no row: literals, and functions of them (a lambda of no parameter among them, an
      *  {@code if}'s branch) -- a value the database computes once for every row. */
     private static boolean rowFree(TypedSpec spec) {
@@ -3017,7 +3038,7 @@ public final class Lowerer {
             if (a instanceof TypedCInteger c) {
                 args.add(new SqlExpr.IntLit(c.value().longValue()));
             } else if (a instanceof TypedNativeCall && rowFree(a)) {
-                args.add(scalar(a, scopedResolver(base, null)));
+                args.add(scalar(refusingFail(a), scopedResolver(base, null)));
             } else if (!(a instanceof TypedVariable)) {
                 throw new IllegalStateException("window function argument of kind "
                         + a.getClass().getSimpleName() + " is not supported (literals only)");

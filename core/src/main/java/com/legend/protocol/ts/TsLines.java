@@ -303,69 +303,6 @@ final class TsLines {
         return -1;
     }
 
-    /**
-     * X ON Y'S DATES (the tile's interpolate, gs-quant's datetime.interpolate): every period either has ({@link #spread}),
-     * then y's alone kept -- those x has too ({@code intersect}), none where x has none ({@code nan}), 0 there
-     * ({@code zero}); {@code step} as gs-quant walks the dates asked: at the first, x's value as of it (its first, before
-     * x starts), at each later its own, else the one before among them -- an x date between two asked never read.
-     */
-    static Valued interpolated(Writer w, Valued x, Valued y, String method, SqlAst.Pos pos) {
-        Spread s = spread(w, List.of(x, y), pos);
-        Line l = s.line();
-        String hx = s.ords().get(0);
-        String hy = s.ords().get(1);
-        String v = x.value();
-        String asOf = null;
-        String firstY = null;
-        if ("step".equals(method)) {
-            String[] made = new String[1];
-            l = stepped(w, l, v, made);
-            asOf = made[0];
-            firstY = w.fresh("ip_first");
-            l = l.with(call(TsToPure.LIBRARY + "firstValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
-                    new ColSpec(hy), new ColSpec(firstY)));
-        }
-        // y's dates kept after the windows above read every date
-        ValueSpecification keep = call("isNotEmpty", col(hy));
-        if ("intersect".equals(method)) {
-            keep = call("and", keep, call("isNotEmpty", col(hx)));
-        }
-        l = l.with(call("filter", l.rel(), lambda("x", keep)));
-        if ("zero".equals(method)) {
-            l = fill(w, l, List.of(v), hx, "ZERO");
-        }
-        if (asOf != null && firstY != null) {
-            // its own value where it has one; at the first date asked, its value as of it; then each carried on
-            String raw = w.fresh("ip_raw");
-            l = l.with(call("rename", l.rel(), new ColSpec(v), new ColSpec(raw)));
-            l = l.with(call("extend", l.rel(), new ColSpec(v, lambda("x", call("if", call("isNotEmpty", col(raw)),
-                    thunk(col(raw)), thunk(call("if", call("equal", col(PERIOD), col(firstY)), thunk(col(asOf)),
-                            thunk(new PureCollection(List.of())))))))));
-            String[] made = new String[1];
-            l = stepped(w, l, v, made);
-            l = replaced(w, l, v, made[0]);
-        }
-        return new Valued(l, v);
-    }
-
-    /** {@code l} with {@code value} as gs-quant's step fills it -- its last value at or before each date, else its first
-     *  (before it starts) -- as a fresh column named in {@code out[0]}: the library's (the tile's fill 'step'). */
-    private static Line stepped(Writer w, Line l, String value, String[] out) {
-        String lastP = w.fresh("al_lastp");
-        String firstP = w.fresh("al_firstp");
-        Line m = l.with(call(TsToPure.LIBRARY + "lastValued", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
-                new ColSpec(value), new ColSpec(lastP)));
-        m = m.with(call(TsToPure.LIBRARY + "firstValued", m.rel(), new ColSpec(m.part()), new ColSpec(PERIOD),
-                new ColSpec(value), new ColSpec(firstP)));
-        String[] last = new String[1];
-        String[] first = new String[1];
-        m = valueAt(w, m, lastP, value, last);
-        m = valueAt(w, m, firstP, value, first);
-        out[0] = w.fresh("al_step");
-        return m.with(call(TsToPure.LIBRARY + "orElse", m.rel(), new ColSpec(last[0]), new ColSpec(first[0]),
-                new ColSpec(out[0])));
-    }
-
     /** THE ANSWER'S ROWS (R6): every period any item has a value in ({@link #spread}), the items' columns as named. */
     static Line answer(Writer w, List<Valued> items, SqlAst.Pos pos) {
         Line l = items.stream().allMatch(v -> v.line() == items.get(0).line()) ? items.get(0).line()
@@ -396,14 +333,6 @@ final class TsLines {
             l = replaced(w, l, values.get(i), outs.get(i));
         }
         return l;
-    }
-
-    /** {@code l} with {@code value}'s value at the period {@code at} names (a column of periods) as a fresh column,
-     *  named in {@code out[0]}: the library's valueAt. */
-    private static Line valueAt(Writer w, Line l, String at, String value, String[] out) {
-        out[0] = w.fresh("al_v");
-        return l.with(call(TsToPure.LIBRARY + "valueAt", l.rel(), new ColSpec(l.part()), new ColSpec(PERIOD),
-                new ColSpec(at), new ColSpec(value), new ColSpec(out[0])));
     }
 
     /** {@code l} with {@code filled} under {@code value}'s name, the column it filled kept under another. */
@@ -459,16 +388,6 @@ final class TsLines {
         return left;
     }
 
-    /** The window of a figure along {@code line}: its line, its periods in order, and {@code frame} (none: null). */
-    static ValueSpecification over(Line line, @com.legend.base.Nullable ValueSpecification frame) {
-        List<ValueSpecification> args = new ArrayList<>(List.of(new ColSpecArray(List.of(new ColSpec(line.part()))),
-                new PureCollection(List.of(call("ascending", new ColSpec(PERIOD))))));
-        if (frame != null) {
-            args.add(frame);
-        }
-        return call("over", args);
-    }
-
     // ------------------------------------------------------------------ Pure
 
     static AppliedFunction call(String fn, ValueSpecification... args) {
@@ -483,20 +402,9 @@ final class TsLines {
         return new LambdaFunction(List.of(new Variable(parameter)), List.of(body));
     }
 
-    static LambdaFunction lambda2(String a, String b, ValueSpecification body) {
-        return new LambdaFunction(List.of(new Variable(a), new Variable(b)), List.of(body));
-    }
-
-    private static LambdaFunction thunk(ValueSpecification body) {
-        return new LambdaFunction(List.of(), List.of(body));
-    }
-
     /** {@code $x.c}. */
     static ValueSpecification col(String c) {
         return new AppliedProperty(new Variable("x"), c);
     }
 
-    static ValueSpecification prop(String v, String c) {
-        return new AppliedProperty(new Variable(v), c);
-    }
 }
