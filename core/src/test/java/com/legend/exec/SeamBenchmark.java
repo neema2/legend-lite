@@ -171,6 +171,99 @@ final class SeamBenchmark {
     record ExactText(String label, String sql, String head, String between, String after, String tail) {
     }
 
+    /** The small-fetch sizes ({@code -Dseam.small.sizes}, comma-separated; 10 to 1,000 rows by default). */
+    static int[] smallSizes() {
+        return java.util.Arrays.stream(System.getProperty("seam.small.sizes", "10,20,50,100,200,1000").split(","))
+                .mapToInt(t -> Integer.parseInt(t.trim())).toArray();
+    }
+
+    /**
+     * SMALL FETCHES (the user, 2026-11-01: "make sure we didn't over tune on large datasets only -- like datacube other
+     * smaller fetches also"): the product's statement over the first n rows of the relation, for each n of
+     * {@link #smallSizes}, through each path -- the raw JDBC read of the same statement (the floor), the plan runner
+     * with no writer, and each writer at the boundary. Per path and size: its first call (the first size's is cold for
+     * its writer), then fetches until {@code -Dseam.small.warmMs} (1,000) has passed, then each fetch timed alone until
+     * {@code -Dseam.small.measureMs} (2,000) has passed (200 at least); the median and the 90th percentile printed in
+     * microseconds. Every fetch is one {@link PlanRunner#stream} on a session borrowed for it, as a product request
+     * runs. With {@code -Dseam.crc} each path's output at each size is checksummed once, outside the timing.
+     */
+    static void smallFetches(String db, Connection c, com.legend.model.ConnectionDefinition.DatabaseType type)
+            throws Exception {
+        long warmNs = Long.getLong("seam.small.warmMs", 1000L) * 1_000_000L;
+        long measureNs = Long.getLong("seam.small.measureMs", 2000L) * 1_000_000L;
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
+                new ExecutionPlan.Servers.Every(), com.legend.database.Databases.dialect(type).sessionSetup(),
+                List.of());
+        for (int n : smallSizes()) {
+            String sql = "SELECT id, name, CAST(amount AS DECIMAL(18,2)) AS amount, ts, bucket FROM bench WHERE id < "
+                    + n;
+            ExecutionPlan plan = new ExecutionPlan(List.of(), new ExecutionPlan.TdsResult(
+                    ExecutionPlan.TdsResult.Shape.RELATION, PLAN_COLUMNS, new ExecutionPlan.Sql(sql, List.of(), target,
+                            null)));
+            java.util.Map<String, java.util.function.Function<Boolean, Path>> paths = new java.util.LinkedHashMap<>();
+            paths.put("1' raw JDBC read", crc -> () -> typedColumns(c, sql));
+            paths.put("6 plan runner, no writer", crc -> () -> productDrain(c, plan, null, null));
+            // the same, every fetch on ONE session (its session statements sent once, not per fetch): what a
+            // request's own session costs is the difference from path 6
+            PlanSessions.Source held = PlanSessions.of(Sessions.borrowed(c));
+            paths.put("6s  same, one session held", crc -> () -> productDrain(held, plan, null, null));
+            paths.put("7 + JsonRowsWriter", crc -> () -> {
+                CountingWriter w = new CountingWriter();
+                return productDrain(c, plan, new com.legend.result.JsonRowsWriter(w,
+                        ExecutionPlan.TdsResult.Shape.RELATION), crc ? w::count : null);
+            });
+            paths.put("8 + CsvWriter", crc -> () -> {
+                CountingWriter w = new CountingWriter();
+                return productDrain(c, plan, new com.legend.result.CsvWriter(w,
+                        ExecutionPlan.TdsResult.Shape.RELATION), crc ? w::count : null);
+            });
+            paths.put("10 + PureV1Writer", crc -> () -> {
+                CountingWriter w = new CountingWriter();
+                return productDrain(c, plan, com.legend.result.PureV1Writer.relation(w, columns ->
+                        new com.legend.result.PureV1Writer.Envelope("{\"_type\":\"tdsBuilder\"}", "[]",
+                                columns.stream().map(ExecutionPlan.Column::name).toList())), crc ? w::count : null);
+            });
+            paths.put("9 + ArrowWriter", crc -> () -> {
+                CountingStream o = new CountingStream();
+                return productDrain(c, plan, new com.legend.result.ArrowWriter(o, Map.of()), crc ? o::count : null);
+            });
+            for (java.util.Map.Entry<String, java.util.function.Function<Boolean, Path>> e : paths.entrySet()) {
+                small(db, n, e.getKey(), e.getValue().apply(false), warmNs, measureNs);
+                if (CRC && !e.getKey().startsWith("1'") && !e.getKey().startsWith("6")) {
+                    System.out.print("[seam-small] " + db + " | n=" + n + " | " + e.getKey() + " | ");
+                    System.out.flush();
+                    e.getValue().apply(true).drain();
+                }
+            }
+        }
+    }
+
+    private static void small(String db, int n, String name, Path path, long warmNs, long measureNs) throws Exception {
+        long t0 = System.nanoTime();
+        Drained first = path.drain();
+        long firstNs = System.nanoTime() - t0;
+        if (first.rows() != n) {
+            throw new IllegalStateException(name + " drained " + first.rows() + " rows of " + n);
+        }
+        long warmEnd = System.nanoTime() + warmNs;
+        while (System.nanoTime() < warmEnd) {
+            path.drain();
+        }
+        long[] times = new long[1 << 17];
+        int k = 0;
+        long end = System.nanoTime() + measureNs;
+        while ((System.nanoTime() < end || k < 200) && k < times.length) {
+            long s0 = System.nanoTime();
+            path.drain();
+            times[k++] = System.nanoTime() - s0;
+        }
+        long[] t = java.util.Arrays.copyOf(times, k);
+        java.util.Arrays.sort(t);
+        System.out.printf(java.util.Locale.ROOT,
+                "[seam-small] %s | n=%d | %-26s | first=%7.1fus | median=%7.1fus | p90=%7.1fus | fetches=%d%n", db, n,
+                name, firstNs / 1e3, t[k / 2] / 1e3, t[(int) (k * 0.9)] / 1e3, k);
+    }
+
     /** Each row's text the database wrote, onto {@code w}: {@code head}, the rows with {@code between} before every
      *  row but the first and {@code after} each, then {@code tail}. */
     private static Drained databaseText(Connection c, String sql, CountingWriter w, String head, String between,
@@ -199,6 +292,12 @@ final class SeamBenchmark {
     private static Drained productDrain(Connection c, ExecutionPlan plan,
             com.legend.result.@com.legend.base.Nullable ResultSink writer,
             java.util.function.@com.legend.base.Nullable LongSupplier written) throws Exception {
+        return productDrain(PlanSessions.of(Sessions.borrowed(c)), plan, writer, written);
+    }
+
+    private static Drained productDrain(PlanSessions.Source sessions, ExecutionPlan plan,
+            com.legend.result.@com.legend.base.Nullable ResultSink writer,
+            java.util.function.@com.legend.base.Nullable LongSupplier written) throws Exception {
         long[] n = {0};
         com.legend.result.ResultSink counting = new com.legend.result.ResultSink() {
             @Override
@@ -223,7 +322,7 @@ final class SeamBenchmark {
                 }
             }
         };
-        PlanRunner.stream(plan, Map.of(), PlanSessions.of(Sessions.borrowed(c)), counting);
+        PlanRunner.stream(plan, Map.of(), sessions, counting);
         return new Drained(n[0], written == null ? 0 : written.getAsLong());
     }
 

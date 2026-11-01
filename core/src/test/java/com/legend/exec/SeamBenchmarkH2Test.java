@@ -34,12 +34,26 @@ final class SeamBenchmarkH2Test {
         }
     }
 
-    private static void h2(Connection c, String db, boolean mustDrain) throws Exception {
+    /** Small fetches ({@link SeamBenchmark#smallFetches}) on H2 as our sessions open it. */
+    @Test
+    void smallFetches() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:seamsmall" + H2Connector.SETTINGS)) {
+            bench(c, java.util.Arrays.stream(SeamBenchmark.smallSizes()).max().orElseThrow());
+            SeamBenchmark.smallFetches("h2", c, DatabaseType.H2);
+        }
+    }
+
+    /** The generated relation {@code bench} of {@code rows} rows. */
+    private static void bench(Connection c, long rows) throws Exception {
         SeamBenchmark.exec(c, "CREATE VIEW bench AS SELECT X AS id, 'name' || CAST(X AS VARCHAR) AS name,"
                 + " CAST(X AS DECIMAL(18,2)) / 7 AS amount,"
                 + " DATEADD('SECOND', MOD(X, 86400), TIMESTAMP '2024-01-01 00:00:00') AS ts,"
                 + " CASE WHEN MOD(X, 10) = 0 THEN NULL ELSE CAST(MOD(X, 1000) AS INTEGER) END AS bucket"
-                + " FROM SYSTEM_RANGE(0, " + (H2_ROWS - 1) + ")");
+                + " FROM SYSTEM_RANGE(0, " + (rows - 1) + ")");
+    }
+
+    private static void h2(Connection c, String db, boolean mustDrain) throws Exception {
+        bench(c, H2_ROWS);
         SeamBenchmark.run(db, c, Databases.dialect(DatabaseType.H2), true, H2_ROWS, mustDrain,
                 "CONCAT(CAST(id AS VARCHAR), ',', name, ',', CAST(amount AS VARCHAR), ',',"
                         + " FORMATDATETIME(ts, 'yyyy-MM-dd''T''HH:mm:ss'), ',', COALESCE(CAST(bucket AS VARCHAR), ''))",

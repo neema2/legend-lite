@@ -21,11 +21,7 @@ final class SeamBenchmarkDuckDbTest {
     @Test
     void duckdb() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            SeamBenchmark.exec(c, "CREATE VIEW bench AS SELECT i AS id, 'name' || CAST(i AS VARCHAR) AS name,"
-                    + " CAST(i AS DECIMAL(18,2)) / 7 AS amount,"
-                    + " TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i % 86400) SECOND AS ts,"
-                    + " CASE WHEN i % 10 = 0 THEN NULL ELSE CAST(i % 1000 AS INTEGER) END AS bucket"
-                    + " FROM range(" + DUCKDB_ROWS + ") t(i)");
+            bench(c, DUCKDB_ROWS);
             SeamBenchmark.run("duckdb", c, Databases.dialect(DatabaseType.DuckDB), false, DUCKDB_ROWS, true,
                     "concat(CAST(id AS VARCHAR), ',', name, ',', CAST(amount AS VARCHAR), ',',"
                             + " strftime(ts, '%Y-%m-%dT%H:%M:%S'), ',', coalesce(CAST(bucket AS VARCHAR), ''))",
@@ -35,6 +31,24 @@ final class SeamBenchmarkDuckDbTest {
                             + " ts := strftime(ts, '%Y-%m-%dT%H:%M:%S'), bucket := bucket)) AS VARCHAR)",
                     exactTexts());
         }
+    }
+
+    /** Small fetches ({@link SeamBenchmark#smallFetches}): the same relation, as many rows as the largest size. */
+    @Test
+    void smallFetches() throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+            bench(c, java.util.Arrays.stream(SeamBenchmark.smallSizes()).max().orElseThrow());
+            SeamBenchmark.smallFetches("duckdb", c, DatabaseType.DuckDB);
+        }
+    }
+
+    /** The generated relation {@code bench} of {@code rows} rows. */
+    private static void bench(Connection c, long rows) throws Exception {
+        SeamBenchmark.exec(c, "CREATE VIEW bench AS SELECT i AS id, 'name' || CAST(i AS VARCHAR) AS name,"
+                + " CAST(i AS DECIMAL(18,2)) / 7 AS amount,"
+                + " TIMESTAMP '2024-01-01 00:00:00' + INTERVAL (i % 86400) SECOND AS ts,"
+                + " CASE WHEN i % 10 = 0 THEN NULL ELSE CAST(i % 1000 AS INTEGER) END AS bucket"
+                + " FROM range(" + rows + ") t(i)");
     }
 
     /** The product's CSV and JSON rows spelled by DuckDB exactly as CsvWriter and JsonRowsWriter spell them (the

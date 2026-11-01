@@ -16708,3 +16708,36 @@ decisions-log id (main's log ends at D77 and PR #83 holds D78 to D108 unmerged; 
    tests, PCT's five suites exact, channel B's five suites identical per test to the 2026-10-31 run; `//gates:local` (`--lockfile_mode=error`) 447 of
    457 as root, the nine failures the eight `//core` Postgres tests and `//datacube:verify_app_test`, each "initdb
    refuses root" -- all nine green unprivileged (the eight above, `verify_app_test` run on its own).
+8. **Small fetches** (the user, 2026-11-01: "benchmark on like ... 10-20-50-100-200-1000 rows to make sure we didn't
+   over tune on large datasets only - like datacube other smaller fetches also"): `SeamBenchmark.smallFetches`
+   (`--test_filter='#smallFetches'`; sizes `-Dseam.small.sizes`), the product's statement over the first n rows, each
+   fetch one `PlanRunner.stream` on a session borrowed for it; per path and size a cold first call, a second of
+   warm-up, then two seconds of fetches each timed alone. Run four times alternating main and this change (each column
+   the mean of two runs' medians, microseconds per fetch), the raw JDBC read of the same statement beside them:
+
+   | DuckDB | n=10 main / this | n=100 main / this | n=1000 main / this |
+   |---|---|---|---|
+   | raw JDBC read | 481 / 483 | 519 / 522 | 1,027 / 1,007 |
+   | plan runner, no writer | 735 / 750 (runs 732, 738 / 767, 733) | 804 / 733 | 1,741 / 1,317 |
+   | + JSON rows | 728 / 701 | 1,020 / 797 | 3,102 / 1,812 |
+   | + CSV | 732 / 686 | 930 / 777 | 2,540 / 1,686 |
+   | + PureV1 | 770 / 716 | 985 / 840 | 2,812 / 1,797 |
+   | + Arrow | 785 / 715 | 879 / 817 | 2,065 / 1,581 |
+
+   | H2 (repeated statements answered from its cache) | n=10 main / this | n=100 main / this | n=1000 main / this |
+   |---|---|---|---|
+   | raw JDBC read | 0.9 / 0.9 | 5.1 / 5.0 | 46 / 45 |
+   | plan runner, no writer | 12.4 / 9.8 | 60 / 35 | 597 / 316 |
+   | + JSON rows | 24.3 / 13.5 | 181 / 71 | 1,884 / 710 |
+   | + CSV | 19.9 / 12.2 | 132 / 56 | 1,402 / 555 |
+   | + PureV1 | 22.4 / 13.9 | 153 / 68 | 1,591 / 673 |
+   | + Arrow | 18.3 / 15.2 | 83 / 51 | 839 / 454 |
+
+   No size got slower: at 10 rows on DuckDB every writer is 4-9% faster and the bare runner within its runs' spread;
+   from 20 rows up every path is faster, by 23-42% at 1,000; on H2 every path at every size, by 17-63%. All 48 outputs
+   (2 databases x 6 sizes x 4 writers) the same CRC32 on main and here. **The per-fetch floor on DuckDB** (about 250
+   us over the raw read at 10 rows, the same on main) is the borrowed session's own setup: with one session held for
+   every fetch (`6s`, a diagnostic path) the plan runner at 10 rows is 501 us against the raw read's 497. The server
+   already holds its databases that way (`ConnectionResolver`: a held database's requests run on views of one
+   session, sharing its state, so its session statements go once); a URL connection opens a connection per request,
+   which costs more than this. Nothing built for it.
