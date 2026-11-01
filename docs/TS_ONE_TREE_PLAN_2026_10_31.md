@@ -324,6 +324,12 @@ words of `#TS` are `timeseries::line::` functions in `projects/timeseries/model.
 SAMPLE BY, meeting, FILL) are `timeseries::lines::` functions. Core's `#TS` Java names no word: it is the parser, the
 sources and columns, the per-point SQL, the answer's assembly, and the plumbing that names columns.
 
+**What remains, in order, is run as a program: `docs/TS_V1_PROGRAM_2026_11_01.md`** (the user, 2026-11-01: "Create a
+roadmap for all the fixes first and then all of these awesome features"). Its Part A finishes this plan (the last rules
+out of Java, the review and the gate, one reader, step 4's words, the library's text off the wire, Show #TS complete);
+its Part B is v1 (warehouses, scale, the Python DSL and Show Python, a second oracle, calendars and clocks, the page as a
+dashboard, tile kinds).
+
 - **No rule in the translator** (the user, 2026-11-01: "get all the logic out of java"). The lines' spine (the GROUP BY
   of N lines' periods), the answer's some-value filter (R6), its latest date and its order are `timeseries::lines::`
   functions (`periodsOf`, `spine`, `someValued`, `latest`, `ordered`); a word's parameters are bound by type and place,
