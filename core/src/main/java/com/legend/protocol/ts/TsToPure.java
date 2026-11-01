@@ -92,12 +92,15 @@ public final class TsToPure {
         /** The overloads of the function of path {@code fqn} ({@link TsWords}); none where the model defines no such
          *  function. */
         List<Overload> overloads(String fqn);
+
+        /** The names of the functions directly in the package {@code pkg} ({@code timeseries::line}: the words). */
+        List<String> functionsIn(String pkg);
     }
 
     /** A function's overload as {@link Model#overloads} reports it: its parameters after its first (a word's line), in
-     *  order, and the columns of the relation it answers after its key and its date (a word's value, or a struct's
-     *  fields: a band's lower, upper and width). */
-    public record Overload(List<Parameter> params, List<String> gives) {
+     *  order, the columns of the relation it answers after its key and its date (a word's value, or a struct's fields: a
+     *  band's lower, upper and width), and its documentation ({@code doc.doc}; none: null). */
+    public record Overload(List<Parameter> params, List<String> gives, @com.legend.base.Nullable String doc) {
     }
 
     /** A function's parameter as {@link Model#overloads} reports it: its name, its type's path ({@code Integer},

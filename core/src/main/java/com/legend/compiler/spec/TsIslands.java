@@ -165,9 +165,20 @@ final class TsIslands {
                     r.columns().stream().map(Type.Column::name).filter(n -> !n.equals("key") && !n.equals("date"))
                             .forEach(gives::add);
                 }
-                out.add(new TsToPure.Overload(ps, gives));
+                String doc = f.definition() == null ? null : f.definition().taggedValues().stream()
+                        .filter(t -> t.tagName().equals("doc") && t.profileName().endsWith("doc"))
+                        .map(com.legend.model.TaggedValue::value).findFirst().orElse(null);
+                out.add(new TsToPure.Overload(ps, gives, doc));
             }
             return out;
+        }
+
+        @Override
+        public List<String> functionsIn(String pkg) {
+            String prefix = pkg + "::";
+            return model.functionFqns().stream().filter(f -> f.startsWith(prefix)
+                    && !f.substring(prefix.length()).contains("::")).map(f -> f.substring(prefix.length()))
+                    .distinct().sorted().toList();
         }
     }
 }

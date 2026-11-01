@@ -37,8 +37,9 @@ final class TsFunctions {
      *  first). */
     enum Kind { SPAN, WHOLE, NUMBER, WORD, DATE, SINCE }
 
-    /** A parameter: its name, its kind, its default, its words (a word's). */
-    record Param(String name, Kind kind, Object fallback, List<String> words) {
+    /** A parameter: its name, its kind, its default (none: a word the library defines, whose defaults are its own --
+     *  TsCatalog), its words (a word's). */
+    record Param(String name, Kind kind, @com.legend.base.Nullable Object fallback, List<String> words) {
     }
 
     /** A function's signature: how many lines it reads (-1: several, a basket's), and its parameters in order. */
@@ -375,7 +376,8 @@ final class TsFunctions {
     }
 
     private static Object fallback(Param p) {
-        return p.kind() == Kind.SPAN ? new Span((Integer) p.fallback(), null) : p.fallback();
+        Object f = java.util.Objects.requireNonNull(p.fallback(), p.name());
+        return p.kind() == Kind.SPAN ? new Span((Integer) f, null) : f;
     }
 
     /** A parameter's value as written. */

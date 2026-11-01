@@ -201,7 +201,7 @@ final class TsWords {
     }
 
     /** {@code word(x, ...)} as written: an overload's parameters, a refusal's words. */
-    private static String form(String word, List<TsToPure.Parameter> o) {
+    static String form(String word, List<TsToPure.Parameter> o) {
         List<String> ps = new ArrayList<>(List.of("x"));
         for (TsToPure.Parameter p : o) {
             String type = p.type().substring(p.type().lastIndexOf(':') + 1);
