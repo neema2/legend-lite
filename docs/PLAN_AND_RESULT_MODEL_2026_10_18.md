@@ -243,7 +243,8 @@ the rest, up to 40 times); the corpus's 16,810 statements a median of 662 charac
   twentieth of its heap, on H2 lazy in 7.4 s against 8.6 s at an eighth.
 - **H2's session takes lazy execution** (new, D2): the plan's target for an H2 database carries
   `SET LAZY_QUERY_EXECUTION 1` among its session statements, because H2 buffers a result whole otherwise and no
-  streaming claim holds on it. Recorded here; landed with step 7's typed seam.
+  streaming claim holds on it. Recorded here; landed with step 7's typed seam. (**Corrected 2026-11-01: it never
+  landed**; GATES "The product path's payoff measured". Open.)
 - **No compression, no binary format** (P4 stands): the corpus never makes a statement over 74 KB; the plans past
   100 KB are two MongoDB lowerings and the tree, and the tree stays off the wire (P3, measured as the bulk).
 - **Arrow is not measured** and not built: the build has no Java Arrow dependency; the gap it could close is the

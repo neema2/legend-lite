@@ -244,8 +244,9 @@ final class JdbcStatements implements Statements {
                             .toList() + ": a typed-rows statement answers the plan's columns in their order"
                             + (declared == columns.size() ? "" : " (a tagged column's slots beside it)"));
                 }
+                JdbcDecode.Reader reader = new JdbcDecode.Reader(columns, driver);
                 while (rs.next()) {
-                    cells.row(JdbcDecode.row(rs, columns, driver));
+                    cells.row(reader.row(rs));
                 }
             }
         } catch (SQLException e) {
