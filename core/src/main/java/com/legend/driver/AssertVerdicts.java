@@ -185,10 +185,47 @@ final class AssertVerdicts {
             }
             bare = helper;
         }
+        if (quantifiedForm(bare) != null) {
+            // a quantified assert (M10c item 5): the vector forms plan without reading (the database arm's predicate
+            // vector); the unroll form is gated element by element -- any element the walk keeps, the walk keeps the
+            // body; a raise is the first element's, a row before it carries a later one (the planning pass's own
+            // root holds every element's row)
+            QuantifiedPlan qp = planQuantified(bare, letPrefix, specs, env, rawHook);
+            if (qp == null) {
+                return DatabaseGate.UNPLANNED;
+            }
+            if (qp instanceof VectorPlan) {
+                return DatabaseGate.PLANS;
+            }
+            DatabaseGate worst = DatabaseGate.PLANS;
+            boolean first = true;
+            for (Unrolled u : ((UnrollPlan) qp).elements()) {
+                DatabaseGate g = gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
+                if (g == DatabaseGate.UNPLANNED) {
+                    return g;
+                }
+                if (g == DatabaseGate.RAISES && first) {
+                    return g;
+                }
+                if (g == DatabaseGate.ENGINE_TEXT) {
+                    worst = g;
+                }
+                first = false;
+            }
+            return worst;
+        }
         HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
         if (shape == null) {
             return DatabaseGate.UNPLANNED;
         }
+        return gateOf(shape, bare, letPrefix, specs, env, rawHook);
+    }
+
+    /** {@link #databaseGate}'s answer for {@code bare} once the host checks planned it as {@code shape}: the raise and
+     *  the engine text from the judgment, the rest from the arm's shape over the root's arguments. */
+    private static DatabaseGate gateOf(HostAssert shape, TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
         if (shape.check().judgment() instanceof HostJudgment.Raise) {
             return DatabaseGate.RAISES;
         }
@@ -394,6 +431,10 @@ final class AssertVerdicts {
             if (u != null) {
                 return u;
             }
+            // the simple predicate under forAll is the vector form, as under map (M10c item 5's audit: the forAll
+            // spelling fell through to the generic path, where the Lowerer has no arm for an assert -- a wall where
+            // the map spelling judged)
+            return quantified(forAllForm, letPrefix, specs, env, hook);
         }
         String fqn = calleeFqn(bare);
         if (fqn == null) {
@@ -722,6 +763,20 @@ final class AssertVerdicts {
             if (beforeTheArm != null) {
                 throw beforeTheArm;
             }
+            if (check.judgment() instanceof HostJudgment.Unrolled u) {
+                // the walk's unroll: each element entered, fetched and judged in turn, the first failure stopping it
+                // (the program road reads every element's sides in one step and judges them in order: the one
+                // difference, on a failing body -- its later elements' sides are read; M10c item 5)
+                TypedSide last = null;
+                for (HostAssert part : u.parts()) {
+                    last = part.run(letPrefix, specs, env);
+                    if (last == null) {
+                        throw new com.legend.error.NotImplementedException(
+                                "unrolled quantified assert: element verdict not adjudicable for " + part.listenerName());
+                    }
+                }
+                return last == null ? ok() : last;
+            }
             enter();
             return judge(HostSides.fetch(name(), check.asks(), letPrefix, specs, env));
         }
@@ -838,11 +893,15 @@ final class AssertVerdicts {
             return rewritten == null ? null : new HostAssert(listenerName(bare), rewritten.family(),
                     rewritten.wantEqual(), rewritten.check(), rewritten.beforeTheArm());
         }
-        if (com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare)
-                        instanceof com.legend.compiler.spec.typed.TypedMap
-                || bare instanceof com.legend.compiler.spec.typed.TypedMap
-                || com.legend.compiler.spec.VerdictQueries.forAllAsQuantified(bare) != null) {
-            return null;
+        if (quantifiedForm(bare) != null) {
+            // a quantified assert (M10c item 5): the vector forms one host check over all rows; the unroll form the
+            // elements' planned asserts as ONE check (their asks in order, the composite judgment), so the statement
+            // reports one verdict as the walk's tryAdjudicate does
+            QuantifiedPlan qp = planQuantified(bare, letPrefix, specs, env, rawHook);
+            if (qp instanceof VectorPlan v) {
+                return v.assertion();
+            }
+            return qp instanceof UnrollPlan u ? composite(bare, u) : null;
         }
         String fqn = calleeFqn(bare);
         if (fqn == null) {
@@ -1188,10 +1247,30 @@ final class AssertVerdicts {
      * adjudicates as a statement-root verdict. All elements must hold.
      * Null when not this shape (a runtime collection, a one-statement
      * predicate lambda — the vector form). */
-    private static @com.legend.base.Nullable TypedSide unrolled(
-            com.legend.compiler.spec.typed.TypedMap qm,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env,
+    /** The quantified shapes the walk's {@link #adjudicate} meets, in its order: {@code xs->map(x|<assert>)} under the
+     *  distinct/true wrappers, bare, or {@code xs->forAll(x|<assert>)}; null for any other root. */
+    static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedMap quantifiedForm(TypedSpec bare) {
+        if (com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare)
+                instanceof com.legend.compiler.spec.typed.TypedMap qm) {
+            return qm;
+        }
+        if (bare instanceof com.legend.compiler.spec.typed.TypedMap qm) {
+            return qm;
+        }
+        return com.legend.compiler.spec.VerdictQueries.forAllAsQuantified(bare);
+    }
+
+    /** A quantified assert's shape as the walk's unroll reads it: the source through the lets and the one substitution
+     *  engine, the lambda's root, whether the VECTOR CONTRACT holds (the predicate vector then), whether the root is
+     *  the SIMPLE predicate ({@code assert}/{@code assertFalse} with a literal message: the vector form judged over all
+     *  rows). Null where the shape is no quantified assert the walk adjudicates. */
+    record QuantifiedShape(com.legend.compiler.spec.typed.TypedMap qm, TypedSpec source,
+            com.legend.compiler.spec.typed.TypedLambda lam, TypedSpec root, @com.legend.base.Nullable String fqn,
+            boolean nestedQuantified, @com.legend.base.Nullable TypedSpec vectorPredMap, boolean simplePredicate) {
+    }
+
+    static @com.legend.base.Nullable QuantifiedShape quantifiedShape(com.legend.compiler.spec.typed.TypedMap qm,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         var lam = qm.mapper();
@@ -1246,39 +1325,60 @@ final class AssertVerdicts {
         // THE VECTOR CONTRACT (VerdictQueries.vectorContract, 2026-09-22): a per-element assert
         // is the predicate it means; over a row source, row-local, with a literal message, the
         // vector is planned and judged in the fused statement (zip = a join on the row number,
-        // forAll = no failing row). The unroll below — which FETCHES a zip arm's cells into
+        // forAll = no failing row). The unroll — which FETCHES a zip arm's cells into
         // Java to spell them as literals — stays the road for everything else.
+        TypedSpec vectorPredMap = null;
         if (!nestedQuantified && lam.body().size() == 1 && fqn != null) {
             TypedSpec pred = com.legend.compiler.spec.VerdictQueries.assertAsPredicate(root, specs);
             if (pred != null && com.legend.compiler.spec.VerdictQueries.vectorContract(source, lam, root, pred)) {
-                TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVectorOver(source, qm, lam, pred);
-                TypedSide planned = arm(env).quantifiedVector(
-                        NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).map(NativeFn.Verdict::bareName).orElse(fqn), predMap, source, lam, root, letPrefix, specs, env,
-                        rawHook == null ? null : rawHook::apply);
-                if (planned != null) {
-                    return planned;
-                }
+                vectorPredMap = com.legend.compiler.spec.VerdictQueries.predicateVectorOver(source, qm, lam, pred);
             }
         }
         boolean simplePredicate = !nestedQuantified && fqn != null && lam.body().size() == 1
                 && (fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT)
                         || fqn.equals(com.legend.compiler.element.type.PlatformTypes.ASSERT_FALSE))
                 && literalMessage;
-        if (simplePredicate) {
+        return new QuantifiedShape(qm, source, lam, root, fqn, nestedQuantified, vectorPredMap, simplePredicate);
+    }
+
+    /** The family name the vector arms report under: the root's verdict native's bare name, else its FQN. */
+    private static String vectorFamily(QuantifiedShape sh) {
+        return NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(sh.root()))
+                .map(NativeFn.Verdict::bareName).orElse(java.util.Objects.requireNonNull(sh.fqn()));
+    }
+
+    private static @com.legend.base.Nullable TypedSide unrolled(
+            com.legend.compiler.spec.typed.TypedMap qm,
+            List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> rawHook) {
+        QuantifiedShape sh = quantifiedShape(qm, letPrefix, specs, env, rawHook);
+        if (sh == null) {
+            return null;
+        }
+        if (sh.vectorPredMap() != null) {
+            TypedSide planned = arm(env).quantifiedVector(vectorFamily(sh), sh.vectorPredMap(), sh.source(), sh.lam(),
+                    sh.root(), letPrefix, specs, env, rawHook == null ? null : rawHook::apply);
+            if (planned != null) {
+                return planned;
+            }
+        }
+        if (sh.simplePredicate()) {
             return null;
         }
         // the elements are compiler-owned SYNTHESIS (VerdictQueries, Invariant 7) over LITERAL tokens alone: a zip
         // arm the database would answer is the vector form's above, never fetched here (the seam program's step
         // after S2f, 2026-10-30; the unroll rearranges spelled tokens and reads nothing)
         List<TypedSpec> elements = com.legend.compiler.spec.VerdictQueries
-                .unrollElements(source, letPrefix, env.ctx());
+                .unrollElements(sh.source(), letPrefix, env.ctx());
         if (elements == null) {
             return null;
         }
         TypedSide last = null;
         for (TypedSpec element : elements) {
             List<TypedSpec> reduced = com.legend.compiler.spec.VerdictQueries
-                    .unrolledElement(specs, letPrefix, lam, element, rawHook);
+                    .unrolledElement(specs, letPrefix, sh.lam(), element, rawHook);
             List<TypedSpec> lets = new java.util.ArrayList<>(
                     reduced.subList(0, reduced.size() - 1));
             TypedSpec bareStmt = reduced.get(reduced.size() - 1);
@@ -1291,6 +1391,113 @@ final class AssertVerdicts {
             last = v;
         }
         return last == null ? ok() : last;
+    }
+
+    /** A quantified assert PLANNED for the program road (the test-is-the-product plan's M10c item 5), as the walk
+     *  adjudicates it: the VECTOR forms -- the vector contract's {@code assert}/{@code assertFalse} over a row source,
+     *  and the simple predicate over any source -- one host check whose one side is the predicate vector the
+     *  database computes and whose judgment holds when every row is the wanted truth
+     *  ({@link HostJudgment.AllRows}); the UNROLL form -- a literal collection whose lambda carries lets or another
+     *  assert family -- one host assert per element, each the walk's reduced statement planned as any root
+     *  ({@link #planHost}), to be placed at the statement's place in order. Null where the shape is no quantified
+     *  assert, the vector contract's other families ({@code assertEquals}, the tolerance: the walk's row-by-row
+     *  judgment), a nested quantification, a runtime collection, or an element's assert the host checks do not plan. */
+    sealed interface QuantifiedPlan permits VectorPlan, UnrollPlan {
+    }
+
+    record VectorPlan(HostAssert assertion) implements QuantifiedPlan {
+    }
+
+    /** One element of an unrolled quantified assert: its reduced root (the walk's {@code unrolledElement}: the lets
+     *  before it and the element dissolved into one statement, so {@code before} is empty) and the host assert planned
+     *  for it. */
+    record Unrolled(TypedSpec root, List<TypedSpec> before, HostAssert assertion) {
+    }
+
+    record UnrollPlan(List<Unrolled> elements) implements QuantifiedPlan {
+    }
+
+    /** Whether {@code j} is, or holds (an unrolled quantified assert's part), an engine-text judgment: the one whose
+     *  appeal reads the user store, which a system-routed body's program cannot carry (M10b's refusal). */
+    static boolean holdsEngineText(HostJudgment j) {
+        return j instanceof HostJudgment.EngineText
+                || j instanceof HostJudgment.Unrolled u
+                        && u.parts().stream().anyMatch(p -> holdsEngineText(p.check().judgment()));
+    }
+
+    /** The unroll's elements as ONE host assert under the statement's name and no family: every element's asks in
+     *  order, judged by {@link HostJudgment.Unrolled} element by element (each entered and counted there). */
+    static HostAssert composite(TypedSpec bare, UnrollPlan unroll) {
+        List<HostSides.Ask> asks = new ArrayList<>();
+        List<HostAssert> parts = new ArrayList<>(unroll.elements().size());
+        List<Integer> counts = new ArrayList<>(unroll.elements().size());
+        for (Unrolled u : unroll.elements()) {
+            asks.addAll(u.assertion().check().asks());
+            parts.add(u.assertion());
+            counts.add(u.assertion().check().asks().size());
+        }
+        return new HostAssert(listenerName(bare), null, true,
+                new HostSides.Check(asks, new HostJudgment.Unrolled(parts, counts)));
+    }
+
+    static @com.legend.base.Nullable QuantifiedPlan planQuantified(TypedSpec bare, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
+                    java.util.Set<String>, TypedSpec> rawHook) {
+        com.legend.compiler.spec.typed.TypedMap qm = quantifiedForm(bare);
+        if (qm == null) {
+            return null;
+        }
+        QuantifiedShape sh = quantifiedShape(qm, letPrefix, specs, env, rawHook);
+        if (sh == null || sh.nestedQuantified()) {
+            return null;
+        }
+        SpliceHook hook = rawHook == null ? null : rawHook::apply;
+        NativeFn.Verdict family = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(sh.root()))
+                .orElse(null);
+        if (sh.vectorPredMap() != null) {
+            if (family == NativeFn.Verdict.ASSERT || family == NativeFn.Verdict.ASSERT_FALSE) {
+                // the vector contract's assert/assertFalse: the vector already carries the assert's polarity
+                // (assertAsPredicate negates an assertFalse's condition), so every row true holds -- the database arm's
+                // own reading (allOf(vector, true)); the host's quantifiedRows tested the negated vector against the
+                // family's truth and inverted assertFalse until this item's audit
+                return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), true,
+                        HostJudge.planAllRows(vectorFamily(sh), sh.vectorPredMap(), true, "Assert failed", hook)));
+            }
+            if (family == NativeFn.Verdict.ASSERT_EQUALS || family == NativeFn.Verdict.ASSERT_EQ_WITHIN_TOLERANCE) {
+                // the walk judges these row by row on the host (HostJudge.quantifiedRows): the walk's
+                return null;
+            }
+        }
+        if (sh.simplePredicate()) {
+            List<TypedSpec> aargs = com.legend.compiler.spec.typed.Calls.argsOf(sh.root());
+            String msg = aargs.size() >= 2 && aargs.get(1) instanceof com.legend.compiler.spec.typed.TypedCString cs
+                    ? cs.value() : "Assert failed";
+            TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVector(qm, sh.lam(), aargs.get(0));
+            boolean truth = family == NativeFn.Verdict.ASSERT;
+            // the family the walk's arm fetched under was the root's FQN, and it counted no family at all (its census
+            // row is new with this item, one spelling for both vector forms: the bare name)
+            return new VectorPlan(new HostAssert(listenerName(bare), vectorFamily(sh), truth,
+                    HostJudge.planAllRows(vectorFamily(sh), predMap, truth, msg, hook)));
+        }
+        List<TypedSpec> elements = com.legend.compiler.spec.VerdictQueries.unrollElements(sh.source(), letPrefix,
+                env.ctx());
+        if (elements == null) {
+            return null;
+        }
+        List<Unrolled> out = new ArrayList<>(elements.size());
+        for (TypedSpec element : elements) {
+            List<TypedSpec> reduced = com.legend.compiler.spec.VerdictQueries.unrolledElement(specs, letPrefix,
+                    sh.lam(), element, rawHook);
+            List<TypedSpec> lets = new ArrayList<>(reduced.subList(0, reduced.size() - 1));
+            TypedSpec root = reduced.get(reduced.size() - 1);
+            HostAssert planned = planHost(root, lets, specs, env, rawHook);
+            if (planned == null) {
+                return null;
+            }
+            out.add(new Unrolled(root, lets, planned));
+        }
+        return new UnrollPlan(out);
     }
 
     private static @com.legend.base.Nullable TypedSide quantified(

@@ -146,15 +146,45 @@ The planners' refusals, by site:
    flush judges it) where a statement-root assert and the program road answer nothing -- a quirk the walk's deletion
    removes. The audit (COMMIT WITH FIXES, folded): the naming rationale and (i)'s mechanism as above; the helper
    reduced once per road (seven inline passes before); one predicate for the three sites; the pre-check.
-5. **The quantified forms (18).** Two shapes today: the VECTOR form (`xs->map(x|assert(pred))`: the predicate
-   vectorizes in the database, the boolean vector judged on the host, the first failure raising) and the UNROLL form
-   (a literal collection whose lambda carries lets or a non-boolean assert: each element bound as a let, the inliner
-   reduces, each final assert a statement-root verdict). On the program road: the vector form is one verdict step whose
-   side is the boolean vector and whose judgment is `HostJudgment.Condition` over every row (`ROWS_ALL`: holds when no
-   row fails; T3's database form the predicate a column over the rows, holding when no row is false); the unroll form
-   over a LITERAL collection is unrolled at planning into N statement-root asserts (the walk's own reduction, the
-   inliner), each planned as any assert. A quantified assert over a runtime collection with lets stays the walk's, by
-   name.
+5. **The quantified forms (18). BUILT 2026-11-02: DuckDB host pass moved 2,764 -> 2,782, database 2,734 -> 2,752; H2
+   host 2,764 -> 2,782, database 2,650 -> 2,668; outcomes identical on every pass, the rosters as registered.** The walk's `adjudicate` meets three spellings
+   (`xs->map(x| <asserts>)`, the same under distinct/true wrappers, `xs->forAll(x| <assert>)`) and two forms: the
+   VECTOR form (the predicate vector the database computes over the source's elements, judged on the host over every
+   row: the vector contract's `assert`/`assertFalse` over a row source, and the simple predicate with a literal message
+   over any source) and the UNROLL form (a literal collection whose lambda carries lets or another assert family, each
+   element's lambda body β-reduced to one statement and adjudicated in turn, the statement reported once). The first half
+   of the walk's `unrolled` is factored out as `quantifiedShape` (the source through the lets and the substitution
+   engine, the lambda's root, the vector contract, the simple predicate) and shared; `planQuantified` plans the vector
+   forms as one host check whose one side is the predicate vector and whose judgment is `HostJudgment.AllRows` (every
+   row the wanted truth, else the element arm's own words), and the unroll as one host check per statement -- every
+   element's reduced root planned by `planHost` as any root, their asks in order, the judgment
+   `HostJudgment.Unrolled` judging each element over its slice (entered and counted as the walk counts an element; the
+   first failure raising) -- so the statement reports ONE verdict as the walk's `tryAdjudicate` does. `planHost`
+   answers them (the walk under the HOST judge now takes the plan first, the same judgment); `databaseGate` admits a
+   vector form (the database arm's predicate vector reads nothing) and gates an unroll element by element; the
+   planning pass is the walk's own path (one batch root, one row per element). Left to the walk by name: a nested
+   quantification, the vector contract's `assertEquals` and tolerance families (the walk's row-by-row judgment), a
+   runtime collection the substitution engine does not reduce. The witness (`quantifiedPrograms`): the unroll with
+   `assertEquals`, with lets in the lambda, the corpus's pairs (`testCbrt`, `testPad`: held and failing), `forAll`, the
+   vector form held and failing, `assertFalse` -- on both roads under both judges; where a dialect walls the predicate
+   vector's unnest, the outcome and the verdicts are the walk's (the host road moved, the database road given back:
+   item 4's (i)). The independent audit (COMMIT WITH FIXES, folded) found two defects of the WALK's own beside my
+   change: the `forAll` spelling of the simple predicate fell through to the generic path (the map spelling judged
+   the vector; the Lowerer has no arm for an assert, so a forAll walled) -- `adjudicate`'s forAll arm now takes the
+   vector form as the map arm does, on both judges (a behaviour change: a walled shape judges; no corpus body was
+   found walled by it, the lanes decide); and the vector contract's `assertFalse` was INVERTED on the host (the
+   contract's vector already carries the polarity, `assertAsPredicate` negating an assertFalse's condition, and the
+   host arm tested it against the family's truth where the database arm reads every row true) -- fixed in the walk's
+   `quantifiedRows` and in the planned form alike, witnessed over a row source under both judges. Also folded: an
+   engine-text part inside a composite refused in a system-routed body (`holdsEngineText`); one family spelling for
+   both vector forms (a NEW census row per vector assert: the walk's arms counted no family; deliberate); the walk's
+   `run` judges a composite element by element (fetch, judge, stop at the first failure) as its unroll did, the
+   program road reading every element's sides in one step (a named difference on a failing body); the gate reads the
+   elements' planned judgments instead of re-planning each; the javadocs. One register row: the generator body
+   `testAlloyTestDatGenWithQuotedColumnsForViews` moves on both database lanes (its helper's guard, a `map(assert)` with
+   a computed message spliced into the body, is item 5's unroll) and its plan-text assert walls at planning on the
+   generator's known gap, the wall carried as a step after the guard's rows -- decided outside a verdict row where the
+   walk raised it at the assert's turn (M10b's registered mechanism); FAIL on both roads as before.
 6. **The tails.** The dual-golden route null (6: the rewrite to `assertEquals(upgraded, actual)` declines too -- measure
    which arm), the non-constant text sides (5), no callee (2): each measured and named; none moves without a witness.
 7. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two

@@ -835,6 +835,65 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M10c item 5: the QUANTIFIED asserts on both roads -- the UNROLL form ({@code xs->map(x| ...asserts...)} over a
+     *  literal collection, lets in the lambda or any assert family; {@code forAll} the same) one verdict step per
+     *  element at the statement's place, each the walk's reduced statement planned as a root; the VECTOR forms
+     *  ({@code xs->map(x|assert(pred, 'msg'))}: the predicate vector the database computes, every row the wanted
+     *  truth) one step over all rows; under both judges, the outcomes pinned absolutely. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void quantifiedPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(model(backend, false));
+        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
+            for (var c : List.of(
+                    // the unroll: an assert family that is no simple predicate
+                    java.util.Map.entry("{| [1, 2]->map(x|assertEquals($x, $x)); true;}", "ok"),
+                    // the unroll with lets in the lambda
+                    java.util.Map.entry("{| ['a', 'b']->map(s| let u = $s->toUpper(); assertEquals($u, $s->toUpper()););"
+                            + " true;}", "ok"),
+                    // the corpus's pairs (testCbrt, testPad): the element a pair, its sides read through the lambda
+                    java.util.Map.entry("{| [pair('a', 'A'), pair('b', 'B')]->map(p| assertEquals($p.second,"
+                            + " $p.first->toUpper()));}", "ok"),
+                    java.util.Map.entry("{| [pair('a', 'A'), pair('b', 'X')]->map(p| assertEquals($p.second,"
+                            + " $p.first->toUpper()));}", "AssertFailed"),
+                    // forAll over asserts is the same unroll
+                    java.util.Map.entry("{| [1, 2]->forAll(x| assertEquals($x, $x));}", "ok"),
+                    // the vector form: the simple predicate with a literal message, judged over every row
+                    java.util.Map.entry("{| [1, 2, 3]->map(x| assert($x > 0, 'positive'));}", "ok"),
+                    java.util.Map.entry("{| [1, -2]->map(x| assert($x > 0, 'positive'));}", "AssertFailed"),
+                    java.util.Map.entry("{| [1, 2]->map(x| assertFalse($x > 5, 'small'));}", "ok"),
+                    // the forAll spelling of the simple predicate: the vector form too (the audit: it walled before)
+                    java.util.Map.entry("{| [1, 2]->forAll(x| assert($x > 0, 'positive'));}", "ok"),
+                    java.util.Map.entry("{| [1, -2]->forAll(x| assert($x > 0, 'positive'));}", "AssertFailed"),
+                    // the vector contract over a row source, assertFalse: the vector carries the polarity (the audit:
+                    // the host's own arm inverted it)
+                    java.util.Map.entry("{| #TDS\nx\n1\n2\n#.rows->forAll(r| assertFalse($r.getInteger('x') > 5,"
+                            + " 'small'));}", "ok"),
+                    java.util.Map.entry("{| #TDS\nx\n1\n9\n#.rows->forAll(r| assertFalse($r.getInteger('x') > 5,"
+                            + " 'small'));}", "AssertFailed"),
+                    java.util.Map.entry("{| #TDS\nx\n1\n9\n#.rows->forAll(r| assert($r.getInteger('x') > 0,"
+                            + " 'positive'));}", "ok"))) {
+                assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, c.getKey()), RT, true), c.getKey());
+                Run walked = run(backend, ctx, RT, c.getKey(), false, "select 1", List.of(), mode);
+                if (walked.outcome.startsWith("DialectCapability")) {
+                    // the vector form's predicate vector unnests the collection: a dialect without an unnest placement
+                    // walls it on both roads alike (the walk's own answer). The host road carries the raise as its
+                    // step (moved); under the DATABASE judge the arm raises at planning as the first root of its
+                    // segment and the body goes back to the walk after the planning pass counted it (M7's gap, item 4's
+                    // (i); M10d carries it as the step). The outcome and the verdicts are the walk's.
+                    Run moved = run(backend, ctx, RT, c.getKey(), true, "select 1", List.of(), mode);
+                    assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
+                    assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
+                    assertEquals(mode == ExecuteOptions.JudgeMode.DATABASE ? walked.moved : walked.moved + 1,
+                            moved.moved, "the body's road under the wall: " + c.getKey());
+                    continue;
+                }
+                walked = assertParity(backend, ctx, RT, c.getKey(), "select 1", List.of(), mode);
+                assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
+            }
+        }
+    }
+
     /** M7: the frame programs under the DATABASE judge: a frame is never run at its let -- the asserts' sides reference
      *  its CTE inside the segment's fused statement, whose stamp is the frame's activity comment (a parameter the
      *  fused step binds; the walk's reserved comment) -- an effect between two asserts closes a segment. */
@@ -1087,8 +1146,9 @@ class BodyRouterParityTest {
                 "{| assertInstanceOf(1, type(2));}",
                 // the identity of two values that are not elements
                 "{| assertIs(1, 1);}",
-                // a quantified assert (a map over asserts)
-                "{| [1, 2]->map(x|assertEquals($x, $x)); true;}")) {
+                // a NESTED quantification (the engine's guard idiom): the walk unrolls it recursively; the planners
+                // leave it (M10c item 5 plans the flat forms)
+                "{| [1, 2]->map(i| [3]->map(j| assertEquals($i, $i))); true;}")) {
             ModelContext ctx = Compiler.compileModel(model(backend, false));
             assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), RT, true), body);
             Run walked = run(backend, ctx, body, false, "select 1");

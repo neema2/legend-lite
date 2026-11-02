@@ -149,7 +149,7 @@ final class HostAsserts implements TestDoor.Asserts {
                 raisedByAnAssert = true;
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env);
-                if (p == null || systemRouted && p.assertion().check().judgment() instanceof HostJudgment.EngineText) {
+                if (p == null || systemRouted && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
                     // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
                     // session where the walk runs it, which is not this program's one session (M10b)
                     return null;

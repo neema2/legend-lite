@@ -16718,6 +16718,47 @@ measured on both corpora with the registers and a parity witness; the chain at M
    HOST walk had begun to inline every statement-root user call once more); the lane numbers, missing when the audit
    read the brief, recorded. Noted, not a defect: a helper whose inlining raises is now counted at the walk's
    pre-arm raise where it raised outside the census before; the program road matches it.
+17. **Item 5 -- the quantified forms:** the walk's `unrolled` analysis factored out as `quantifiedShape` (the source
+   through the lets and the substitution engine, the lambda's root, the vector contract, the simple predicate) and
+   shared; `planQuantified` plans the VECTOR forms (the contract's `assert`/`assertFalse` over a row source; the simple
+   predicate with a literal message) as one host check whose one side is the predicate vector and whose judgment is
+   `HostJudgment.AllRows`, and the UNROLL form as ONE host check per statement -- every element's reduced root planned
+   by `planHost`, their asks in order, `HostJudgment.Unrolled` judging each element over its slice (entered and counted
+   as the walk counts an element, the first failure raising), so the statement reports one verdict as the walk's
+   `tryAdjudicate` does; `databaseGate` admits a vector form and gates an unroll element by element from the planned
+   judgments; the planning pass is the walk's own path (one batch root, one row per element). Left to the walk, by
+   name: a nested quantification, the contract's `assertEquals` and tolerance families, a runtime collection.
+18. **Movement (item 5):** DuckDB host pass `moved=2764 -> 2,782` (2471 / 108, unchanged), database `2734 -> 2,752` (2473 / 108,
+   unchanged); H2 host `2764 -> 2,782` (2289 / 295), database `2650 -> 2,668` (2233 / 353); 12 of 12 lane tests green
+   with the register row of item 20; both corpora run twice (before and after the audit's folds, the second with the
+   walk's forAll and assertFalse fixes), identical outcomes both times -- no corpus body had the walled forAll or the
+   inverted assertFalse under the contract.
+19. **The checks (item 5):** the driver suite (`BodyRouterParityTest.quantifiedPrograms`: the unroll with
+   `assertEquals`, with lets in the lambda, the corpus's pairs held and failing, `forAll`, the vector form held and
+   failing, `assertFalse`, the `forAll` simple predicate held and failing, the contract's `assertFalse` over a row
+   source held and failing -- both roads, both judges, every in-process backend; where a dialect walls the predicate
+   vector's unnest the outcomes and the verdicts are the walk's, the host road moved, the database road given back),
+   root, architecture, judge, testplan, `//core:census` (`JavaEvalLedgerTest` AssertVerdicts 1587 -> 1737,
+   HostJudge 1132 -> 1168, HostJudgment 154 -> 162, dated); `//spec:corpus_duckdb` and `//spec:corpus_h2`
+   uncached, on the folded code.
+20. **Item 5's independent audit (COMMIT WITH FIXES, folded) and the register:** two defects of the walk's own found:
+   the `forAll` spelling of the simple predicate fell through to the generic path and WALLED (the Lowerer has no arm
+   for an assert) where the map spelling judged the vector -- `adjudicate`'s forAll arm now takes the vector form, on
+   both judges; and the vector contract's `assertFalse` was INVERTED on the host (`quantifiedRows` tested the already
+   negated vector against the family's truth; the database arm read every row true) -- fixed in the walk's arm and the
+   planned form alike. Folded too: an engine-text part inside a composite refused in a system-routed body
+   (`holdsEngineText`); one family spelling for the vector forms (a new census row per vector assert, where the walk's
+   arms counted no family -- deliberate, recorded); the walk's `run` judges a composite element by element as its
+   unroll did (the program road reads every element's sides in one step: a named difference on a failing body); the
+   gate reads the planned judgments; the pins; the javadocs. **Register** (the rule: every register change carries its
+   reason here): `duckdb-database-host-compared-register.txt` and `h2-database-host-compared-register.txt` gain
+   `meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumnsForViews` -- the body's
+   helper `createTableRowIdentifiers` carries the engine's guard idiom (a `map(assert)` with a computed message),
+   spliced into the body as its own statements by the inliner, which item 5 unrolls and plans, so the body moves on
+   both database lanes; its one written assert (`assertEquals` of a plan text) walls at planning on the generator's
+   known gap ("view-backed relation: view slice pending") and the program carries the wall as its step after the
+   guard's rows -- a decision outside a verdict row where the walk raised it at the assert's turn (M10b's registered
+   mechanism for `testSubAggregationMultiLevelJoinString`); FAIL on both roads as before, outcome unchanged.
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 

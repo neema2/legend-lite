@@ -28,7 +28,7 @@ import java.util.Set;
  * outside the plan by the user's ruling (R3, T13, R6), run at the step on a failed text alone. The walk runs the same
  * function in place ({@link HostSides#run}).
  */
-sealed interface HostJudgment permits HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
+sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolled, HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
@@ -186,6 +186,23 @@ sealed interface HostJudgment permits HostJudgment.TdsEquivalent, HostJudgment.G
     }
 
     record Tolerance() implements HostJudgment {
+    }
+
+    /** A quantified assert's VECTOR judgment (the test-is-the-product plan's M10c item 5): the one side is the
+     *  predicate vector the database computes over the source's elements; the assert holds when every row is
+     *  {@code wantTrue}, else it fails with {@code message} (the element arm's own words). */
+    record AllRows(String name, boolean wantTrue, String message) implements HostJudgment {
+    }
+
+    /** An UNROLLED quantified assert's judgment (M10c item 5): the elements' planned asserts in order, each judged over
+     *  its own slice of the sides ({@code askCounts} asks each), each counted as the walk counts it (entered, its
+     *  family); the statement's one verdict is the last element's, the first failure raising -- exactly the walk's
+     *  unroll, which adjudicates each element and reports the statement once. */
+    record Unrolled(List<AssertVerdicts.HostAssert> parts, List<Integer> askCounts) implements HostJudgment {
+        public Unrolled {
+            parts = List.copyOf(parts);
+            askCounts = List.copyOf(askCounts);
+        }
     }
 
     /** {@code assert(cond)} / {@code assertFalse(cond)} on the identity lane. */

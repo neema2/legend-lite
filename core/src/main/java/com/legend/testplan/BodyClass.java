@@ -106,8 +106,8 @@ public enum BodyClass {
      * kind is admitted here: the sides are the walk's plans on both roads). Each assert is planned by its judge before the
      * program is ({@link TestDoor.Asserts}); the router leaves on the walk a body holding an assert of a shape the host
      * checks do not plan yet (a named rule of the driver's: an engine-text assert whose text side is no constant of
-     * the plan, the quantified forms, the cell
-     * pool). The database judge's bodies stay on the walk (its fused group is composed at planning from M7).
+     * the plan, a nested quantification, the vector contract's row-by-row families, the cell pool; the flat
+     * quantified forms are planned since M10c item 5). The database judge's bodies stay on the walk (its fused group is composed at planning from M7).
      */
     ASSERT_PROGRAM,
 

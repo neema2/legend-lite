@@ -661,6 +661,8 @@ final class HostJudge {
             case HostJudgment.Contains c -> containsOf(sides);
             case HostJudgment.Tolerance t -> toleranceOf(sides);
             case HostJudgment.Condition c -> conditionOf(c, sides);
+            case HostJudgment.AllRows a -> allRowsOf(a, sides);
+            case HostJudgment.Unrolled u -> unrolledOf(u, sides);
             case HostJudgment.Subset s -> subsetOf(s, sides);
             case HostJudgment.Empty e -> emptyOf(e, sides.get(0));
             case HostJudgment.Eq e -> eqOf(e, sides);
@@ -1188,6 +1190,48 @@ final class HostJudge {
                 () -> d);
     }
 
+    /** The VECTOR judgment planned (M10c item 5): one identity-lane side, the predicate vector; judged by
+     *  {@link #allRowsOf} as {@link #quantified} judges its read. */
+    static HostSides.Check planAllRows(String fqn, TypedSpec predMap, boolean wantTrue, String message,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        return new HostSides.Check(List.of(identityAsk(predMap, hook)),
+                new HostJudgment.AllRows(fqn, wantTrue, message));
+    }
+
+    /** Each element's planned assert judged over its slice of the sides, in order, counted as the walk counts an
+     *  element it adjudicates (entered, its family; an engine-text route once answered): the last verdict, the first
+     *  failure raising; an element whose judgment declines its sides is the walk's wall. */
+    private static TypedSide unrolledOf(HostJudgment.Unrolled u, List<TypedSide> sides) {
+        int at = 0;
+        TypedSide last = null;
+        for (int i = 0; i < u.parts().size(); i++) {
+            AssertVerdicts.HostAssert part = u.parts().get(i);
+            int n = u.askCounts().get(i);
+            List<TypedSide> slice = sides.subList(at, at + n);
+            at += n;
+            if (part.beforeTheArm() != null) {
+                throw part.beforeTheArm();
+            }
+            part.enter();
+            TypedSide v = part.judge(slice);
+            if (v == null) {
+                throw new com.legend.error.NotImplementedException(
+                        "unrolled quantified assert: element verdict not adjudicable for " + part.listenerName());
+            }
+            last = v;
+        }
+        return last == null ? AssertVerdicts.ok() : last;
+    }
+
+    private static TypedSide allRowsOf(HostJudgment.AllRows j, List<TypedSide> sides) {
+        for (Object v : AssertVerdicts.decodeSide(sides.get(0))) {
+            if (Boolean.TRUE.equals(v) != j.wantTrue()) {
+                return AssertVerdicts.fail(j.message());
+            }
+        }
+        return AssertVerdicts.ok();
+    }
+
     /** The quantified assert's predicate vector executed; every element judged here,
      * the first failure raising the assert's message. */
     static TypedSide quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message,
@@ -1225,7 +1269,10 @@ final class HostJudge {
             List<Object> verdicts = AssertVerdicts.decodeSide(
                     sides(fqn, List.of(identityAsk(predMap, hook)), letPrefix, specs, env).get(0));
             for (Object v : verdicts) {
-                if (Boolean.TRUE.equals(v) != isAssert) {
+                // the vector carries the assert's polarity (assertAsPredicate negates an assertFalse's condition):
+                // every row true holds, as the database arm reads it (allOf(vector, true)); tested against the
+                // family's truth, assertFalse was inverted here until M10c item 5's audit
+                if (!Boolean.TRUE.equals(v)) {
                     return AssertVerdicts.fail("Assert failed");
                 }
             }
