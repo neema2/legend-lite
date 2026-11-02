@@ -3733,6 +3733,11 @@ public final class Lowerer {
                 yield ie;
             }
             case TypedNativeCall n when formatOverSlots(n) -> formatted(n, columns);
+            // isEmpty/isNotEmpty over read(row, ~[a, b]) (2026-11-02): the rule takes the read's cells, each column
+            // read as the row's column is, and tests them -- no list is made (Scalars.overCells)
+            case TypedNativeCall n when Scalars.overCells(n) -> NullSemantics.verbatim(
+                    verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n, n.args().get(0).children().stream()
+                            .map(c -> scalar(c, columns)).toList(), features, implementations));
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the

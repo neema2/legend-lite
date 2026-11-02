@@ -88,7 +88,8 @@ plus 53 more commits, and is behind `main` by none. The commits are listed in th
     an earlier one when it was built from it.
   - **R10, struct fields.** A field's answer column is named `<item>_<field>`.
   - **R5 and R9.** The rename to one date and the `latest` substitution.
-  - **The column cap.** An answer has at most 12 columns, because the library's `someValued` has only 12 overloads.
+  - **The column cap.** An answer had at most 12 columns, because the library's `someValued` had only 12 overloads.
+    **Lifted 2026-11-02** (move 5 below).
   - **Refusals of meaning written in Java.** A grep for lines that throw or refuse finds 173 across `protocol/ts`:
     `TsToPure` 61, `TsParser` 51, `TsFunctions` 18, `TsShow` 18, `TsPrinter` 12, `TsWords` 8, `TsLines` 3 and
     `TsCatalog` 2. Not all of these are meaning rules; the census in A1 sorts them.
@@ -137,7 +138,8 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
     writes is bookkeeping, which the guard allows. The naming rule itself is either written in the library or
     recorded as the language's surface syntax, and the census says which, with its reason.
   - **The 12-column cap.** Either `someValued` takes a `ColSpecArray` (which needs a compiler that reads a row through
-    one), or the cap stays as a named limit of the library. This is ruling P7.
+    one), or the cap stays as a named limit of the library. This is ruling P7. **Ruled and built 2026-11-02:** the
+    array `read`; the cap is gone.
   - **Refusals of meaning.** Each becomes a Pure `fail` in the library or a type error, keeping the same words.
 - **Where.** `core/src/main/java/com/legend/protocol/ts/{TsToPure,TsLines,TsWords,TsFunctions}.java`,
   `projects/timeseries/model.pure`, and `TsTranslatorGuardrailTest`.
@@ -174,7 +176,7 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
          (`TsIslandTest.aLineOfNoInstrumentIsEveryInstrumentsWhateverTheKeysType`).
        - Left for move 7: a word's own broadcast, `TsWords.each`, which calls `helpers::each`. A Pure `if` there would
          need the two keys of one type, and a line of no instrument is keyed by a String.
-    5. The 12-column cap (P7).
+    5. The 12-column cap (P7). **Done** (below).
     6. The period aggregates' vocabulary (`TAKEN`) read from `timeseries::Taken`. **Done.**
        - `TsLines.TAKEN`, a hand copy of the enumeration plus a Java-only alias `mean -> avg`, is deleted.
        - The enumeration's value is now `mean`, the canonical word of R15, where it was `avg`.
@@ -192,17 +194,30 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
       line. Conditions on other columns, and on a source with no `BY`, are unchanged; the spec's text follows in A9.
     - **A window counts any whole number of observations from 1,** as gs-quant's `Window(w)` does. The cap of
       100,000 had no recorded reason, and is gone.
-  - **The 12-column cap (move 5, P7).**
-    - **Today:** the answer's some-value filter, `lines::someValued`, has 12 overloads, one for each number of
-      items, because Pure has no parameter that takes any number of columns.
-    - **Proposed (the user asked, 2026-11-02):** `meta::legend::lite::read` over a `ColSpecArray`, so that a row's
-      several columns are read as one list. `someValued` becomes one function, `$r->read($cols)->isNotEmpty()`.
-      That is compiler work:
-      - the list typed as the columns' common type;
-      - its uses lowered by name (`isNotEmpty`, `isEmpty`, later `size`), and any other use refused;
-      - register row S114 amended.
-    - **The fallback:** fold the items one step at a time through two fixed-size library functions. It needs no
-      compiler change. Waiting on the user's word.
+  - **The 12-column cap (move 5, P7). Done 2026-11-02** (the user: "Yes array read").
+    - **Before:** the answer's some-value filter, `lines::someValued`, had 12 overloads, one for each number of
+      items, because Pure has no parameter that takes any number of columns, and a list literal of a row's
+      columns, `[$r.a, $r.b]`, is refused upstream when a column may be empty (each element must be `[1]`).
+    - **Built:** `meta::legend::lite::read<T,Z>(row:T[1], columns:ColSpecArray<Z⊆T>[1]):Any[*]`, a row's values in
+      several columns as one list, a column with no value contributing none. `someValued` is one function,
+      `$t->filter(r|$r->read($items)->isNotEmpty())`, and the translator passes the items' columns as one `~[...]`;
+      its cap and refusal are deleted.
+      - Typed by `ReadChecker` as a call of the overload over the column reads (each `Typer.rowColumn`'s): the
+        columns' common supertype, the multiplicity the sum of theirs, as a list literal's.
+      - Lowered to no SQL list, as proposed. `isEmpty` and `isNotEmpty` over it are the cells' null tests (an AND
+        of `IS NULL`, an OR of `IS NOT NULL`), which every database spells, so the library's filter runs on
+        DuckDB, H2 and SQLite alike. The Lowerer hands the rule the cells, each lowered as the row's column is
+        (`Scalars.overCells`, beside `format`'s arm). Any other use (`size`, a value) is refused by name; `size`
+        can be written the same way when move 8 needs it.
+      - A first build made the list (`CompactList` of an `ArrayLit`), and the carrier purity ratchet refused it: a
+        new list built before the dialect (`CarrierPurityRatchetTest`, the `ArrayLit` pin 42). Building no list
+        keeps the pin where it was.
+      - Register S114 amended; the census row; the not-upstream overload count 69 -> 70.
+      - Tests: `ExtendCheckerTest$ReadTests` (some, none, the SQL equal to the hand-written null tests, another use
+        refused, a column the row has not, no column); `TimeseriesLibraryTest.aRowsSeveralColumnsAreOneListThatIsEmptyWhereNoneHasAValue`
+        (every in-process database); `TsIslandTest.aQueryAnswersAnyNumberOfItemsARowKeptWhereAnyHasAValue` (13
+        items, a row kept by the 13th item's value). That last one runs on the platform's database alone: 13 lines
+        meeting is a deep query, and H2's parser runs out of memory on it, the known H2 limit (A7, v1.1).
 
 ### A2. Checkpoint: an independent review and the full gate
 
@@ -477,7 +492,7 @@ Split in two:
 | P4 | The databases | **ruled 2026-11-01**: DuckDB, Postgres and Snowflake ("enough for now") | -- |
 | P5 | The scale budgets | proposed from the first measurement | B2 |
 | P6 | Where holidays come from | **ruled 2026-11-01**: built in the platform, v1.1 | -- |
-| P7 | The 12-column cap: lift it or keep it | lift it, if A1 shows the compiler can read a row through a `ColSpecArray` | A1 |
+| P7 | The 12-column cap: lift it or keep it | **ruled 2026-11-02** ("Yes array read"): lifted by `read` over a `ColSpecArray`. Built | -- |
 | R1, R7, R9 | The one-tree plan's §9: §4's rows, D2 as narrowed, and two lines meeting | as that plan recommends | A4 |
 
 **P2: what other charts do** (the user asked, 2026-11-01: "what do other great charts do like Yahoo finance or trading
@@ -509,7 +524,7 @@ Update this table in the same commit as the work.
 
 | Item | State | Last commit |
 |---|---|---|
-| A1 the last rules out of Java | in progress: moves 1 to 4 and 6 done, and the three decisions of 2026-11-02 built. Move 5, the 12-column cap, waits on the array `read`; move 7 comes next | 7b23e09f, c841d939, 69796cc5 |
+| A1 the last rules out of Java | in progress: moves 1 to 6 done, and the three decisions of 2026-11-02 built (move 5, the 12-column cap, by the array `read`). Move 7 comes next | 7b23e09f, c841d939, 69796cc5, 5dc88c85 |
 | A2 review and gate | waiting on A1. #86 was folded into #81 on 2026-11-02, with main (#85) merged. #81 waits on #83 before it lands, and the v1 work is stacked on it with no PR. #86's last CI was green on every OS | af758d34 |
 | A3 one reader | | |
 | A4 the words' remainder | waiting on R1, R7, R9 | |

@@ -701,6 +701,28 @@ class TsIslandTest {
         assertEquals(List.of(), got, "a window of 250,000 observations over 12 never fills");
     }
 
+    @Test
+    void aQueryAnswersAnyNumberOfItemsARowKeptWhereAnyHasAValue() throws Exception {
+        // the 12-column cap lifted (the user, 2026-11-02: "Yes array read"): someValued reads the items' columns as one
+        // list, so thirteen items run, and a row is kept for its thirteenth item's value when the twelve before have none.
+        // Thirteen lines meeting is a query of many lines (deep(): H2's parser runs out of memory on it, 2026-11-02;
+        // the array read itself runs on every in-process database, TimeseriesLibraryTest)
+        StringBuilder items = new StringBuilder();
+        for (int i = 1; i <= 12; i++) {
+            items.append("avg(CLOSE['AAA'], 250000) AS e").append(i).append(", ");
+        }
+        for (TestBackend backend : deep()) {
+            List<Map<String, String>> got = rows(backend, "|#TS{SELECT " + items + "CLOSE['AAA'] AS v"
+                    + " FROM PRICES ON DAY BY SYMBOL}#");
+            assertEquals(AAA.length, got.size(), backend + ": every AAA date kept by the thirteenth item");
+            assertEquals(14, got.get(0).size(), backend + ": the date and thirteen items");
+            assertNull(got.get(0).get("e12"), backend + ": a window that never fills has no value");
+            List<Map<String, String>> none = rows(backend, "|#TS{SELECT " + items + "avg(CLOSE['AAA'], 250000) AS e13"
+                    + " FROM PRICES ON DAY BY SYMBOL}#");
+            assertEquals(List.of(), none, backend + ": no item has a value, no row");
+        }
+    }
+
     private static double sampleStd(double[] v, int from, int to) {
         double mean = 0;
         for (int i = from; i <= to; i++) {

@@ -129,9 +129,6 @@ public final class TsToPure {
 
     /** The relation {@code text}, a {@code #TS{...}#} query, means over {@code model}, its per-point expressions in
      *  {@code dialect} (Postgres's); a {@link SqlTranslationException}, placed in the text, where it means none. */
-    /** The most columns an answer has: the library's {@code someValued}'s overloads (R6). */
-    private static final int SOME_VALUED = 12;
-
     public static ValueSpecification translate(String text, Model model, InputDialect dialect) {
         return new Builder(model, dialect, TsParser.parse(text)).query();
     }
@@ -318,13 +315,7 @@ public final class TsToPure {
             answer.addAll(columns);
             rel = call("select", rel, new ColSpecArray(answer.stream().map(ColSpec::new).toList()));
             // a row where at least one item has a value (R6): the library's someValued over the items' columns
-            if (columns.size() > SOME_VALUED) {
-                throw invalid("a query answers " + SOME_VALUED + " columns at most: split its " + columns.size()
-                        + " into queries", aliases.get(0).pos());
-            }
-            List<ValueSpecification> some = new ArrayList<>(List.of(rel));
-            columns.forEach(n -> some.add(new ColSpec(n)));
-            rel = call(TsLines.LINES + "someValued", some);
+            rel = call(TsLines.LINES + "someValued", rel, new ColSpecArray(columns.stream().map(ColSpec::new).toList()));
             if (query.filter() != null) {
                 // a struct's field as the answer names it: bb.lower its column bb_lower (R10)
                 SqlAst.Expr condition = map(intervals(perPoint(query.filter())), x -> x instanceof SqlAst.ColumnRef c

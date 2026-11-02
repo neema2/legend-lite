@@ -1922,67 +1922,11 @@ function timeseries::lines::each<I,T>(keys: Relation<I>[1], periods: Relation<T>
     ->without(~[ek, el])
 }
 
-// THE ANSWER'S ROWS (R6): a row where at least one of its items has a value -- each item a column, by place; a
-// query's items one overload, by their count (twelve at most: a query of more is refused by name, its fix to split
-// it).
-function timeseries::lines::someValued<T,A>(t: Relation<T>[1], a: ColSpec<A⊆T>[1]): Relation<T>[1]
+// THE ANSWER'S ROWS (R6): a row where at least one of its items has a value -- the items' columns read as one list
+// (read over several columns: a column with no value contributes none), not empty; any number of items.
+function timeseries::lines::someValued<T,X>(t: Relation<T>[1], items: ColSpecArray<X⊆T>[1]): Relation<T>[1]
 {
-  $t->filter(r|$r->read($a)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D,E>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D,E,F>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D,E,F,G>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1], i: ColSpec<I⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I,J>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1], i: ColSpec<I⊆T>[1], j: ColSpec<J⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty() || $r->read($j)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I,J,K>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1], i: ColSpec<I⊆T>[1], j: ColSpec<J⊆T>[1], k: ColSpec<K⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty() || $r->read($j)->isNotEmpty() || $r->read($k)->isNotEmpty())
-}
-
-function timeseries::lines::someValued<T,A,B,C,D,E,F,G,H,I,J,K,L>(t: Relation<T>[1], a: ColSpec<A⊆T>[1], b: ColSpec<B⊆T>[1], c: ColSpec<C⊆T>[1], d: ColSpec<D⊆T>[1], e: ColSpec<E⊆T>[1], f: ColSpec<F⊆T>[1], g: ColSpec<G⊆T>[1], h: ColSpec<H⊆T>[1], i: ColSpec<I⊆T>[1], j: ColSpec<J⊆T>[1], k: ColSpec<K⊆T>[1], l: ColSpec<L⊆T>[1]): Relation<T>[1]
-{
-  $t->filter(r|$r->read($a)->isNotEmpty() || $r->read($b)->isNotEmpty() || $r->read($c)->isNotEmpty() || $r->read($d)->isNotEmpty() || $r->read($e)->isNotEmpty() || $r->read($f)->isNotEmpty() || $r->read($g)->isNotEmpty() || $r->read($h)->isNotEmpty() || $r->read($i)->isNotEmpty() || $r->read($j)->isNotEmpty() || $r->read($k)->isNotEmpty() || $r->read($l)->isNotEmpty())
+  $t->filter(r|$r->read($items)->isNotEmpty())
 }
 
 // THE DATA'S LAST DATE (R9, latest): the last date of a source's rows (after its WHERE), on every row of t, under the

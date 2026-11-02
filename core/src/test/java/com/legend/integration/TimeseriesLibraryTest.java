@@ -178,6 +178,24 @@ class TimeseriesLibraryTest {
     }
 
     @Test
+    void aRowsSeveralColumnsAreOneListThatIsEmptyWhereNoneHasAValue() throws Exception {
+        // read(row, ~[a, b]) (2026-11-02): a row's columns as one list, empty where no column has a value -- the
+        // library's someValued over any number of columns, on every database ([$x.m, $x.r] is refused upstream: a
+        // literal of several elements takes each [1])
+        String query = "|" + PRICES + """
+                  ->timeseries::mean(over(~SYMBOL, [~DAY->ascending()], rows(-2, 0)), ~CLOSE, 3, ~m)
+                  ->timeseries::returns(over(~SYMBOL, [~DAY->ascending()]), ~CLOSE, 1, timeseries::Returns.simple, ~r)
+                  ->filter(x|$x->read(~[m, r])->isNotEmpty())
+                  ->select(~[SYMBOL, DAY, m, r])
+                  ->sort([~SYMBOL->ascending(), ~DAY->ascending()])""";
+        for (TestBackend backend : TestBackends.inProcess()) {
+            List<Map<String, String>> rows = rows(backend, query);
+            assertEquals(2 * (AAA.length - 1), rows.size(), backend + ": each line's first row (no mean, no return)"
+                    + " dropped, every other kept");
+        }
+    }
+
+    @Test
     void aPersonsPureOverTheTableAnswersAsArithmeticOnEveryDatabase() throws Exception {
         String query = "|" + PRICES + """
                   ->timeseries::mean(over(~SYMBOL, [~DAY->ascending()], rows(-2, 0)), ~CLOSE, 3, ~m)
