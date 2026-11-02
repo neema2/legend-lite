@@ -172,6 +172,81 @@ user, since a faster handoff (Arrow into the planner) needs an Arrow reader on t
 A grid's query renders no text: the runner's Arrow goes straight to the consumer (DataCube reads Arrow already), with the
 plan's facts carried in the schema's metadata as today.
 
+### 3.6a The tab's result model (H1b; proposed 2026-11-02, for the user's review before code moves)
+
+**Why.** A tab result holds every cell as a finished `Scalar` (`engine-client/src/result.ts`), and a decimal, a date, a
+time or a timestamp as its exact text (`values.ts`: JavaScript has no exact type for any of them). The text was the
+vehicle for exactness; Arrow already holds each exactly in binary (a decimal's unscaled integer and scale, a timestamp's
+microseconds, a date's days). Two costs follow, measured and mapped (GATES "H1a", item 3; the consumer map below):
+every cell is spelled when the rows arrive, whether or not anything reads it; and the consumers that need a number or a
+date parse the text back (43 `numberOf` calls, 24 `toNumber`, the formatter's `instantOf` and `fieldsOf`, `periodText`,
+XLSX's `DATE` reader). The user's own reading (2026-11-02): "should decimal and timestamp not be converted to string
+until render... is it also pointing out to us that maybe our data structure is wrong?"
+
+**The consumer map** (an agent reading the code at `cf73e6ef`; about 45 files in `datacube/src`, 6 in `engine-client`,
+one each in `query`, `studio` and `pure-protocol`, two in `python/legend_lite`). There are two kinds of reader:
+
+- **Readers that need the exact text.** The text is their meaning, so it must stay exactly as spelled today:
+  - every filter built from a cell: the click, value lists, tree keys, chart marks, brush and drill, Dynamic Replace.
+    The text becomes a Pure literal (`literalNode`, `lit.of`);
+  - pivot values: they name columns and become literals in step 2;
+  - persisted document fields: filter values, tree paths, pivot values, a chart's drill path;
+  - equality keys (`keyText`, `groupValue`, value-list keys) and text-ordered comparisons;
+  - raw CSV, clipboard, flow Output, chart CSV and TSV;
+  - `hostRows`;
+  - Python's `GridView` and `pin_pivot`.
+- **Readers that need only a number or a date:** charts' and timeseries' values (`numberOf`, `toNumber`), styles and
+  conditional formatting, the selection's average and its min and max ordering, counts, the formatter's dates, XLSX's
+  serial days. The selection's sum needs the exact digits (`exactSum`).
+
+**The model.** A result column keeps its rows as the database answered them (the Arrow vectors, or the decoded arrays a
+non-Arrow plane gives). It answers, for row `i`:
+
+- `number(i)`: the value as a number, for the numeric readers. It is what `numberOf` answers today, computed from the
+  exact value, never re-parsed.
+- `text(i)`: the exact text, spelled as `values.ts` spells it today, computed when asked. Every reader of the first
+  kind moves to it, and none of them sees a different character.
+- `exact(i)` for a decimal (its unscaled integer and scale: the sum's digits), and `instant(i)` / `day(i)` for the
+  temporal types (what `instantOf` and `fieldsOf` parse today).
+- `values`: today's `Scalar[]`, made on first access, so a reader not yet moved keeps working unchanged. It goes when
+  the last reader moves.
+
+The display spelling (`format.ts`, `format-code.ts`) reads the typed value it parses today, and only for the cells on
+screen. Every displayed text stays identical. Where today's chain goes through a double (a decimal under a format code:
+`Number(text)`), the new chain makes the same double the same way. Changing that is a separate decision.
+
+**The order, each step its own commit, every displayed and persisted text unchanged:**
+
+1. **H1b.1:** the column interface over today's decoded values, with `values` made on first access. No reader moves
+   and nothing visible changes.
+2. **H1b.2:** the grid's cells, tooltips and the display formatter read the typed interface, for the cells on screen
+   only.
+3. **H1b.3:** the numeric readers (`numberOf`, `toNumber`, styles, conditional formatting, the selection's totals) read
+   `number`, `exact`, `instant` and `day`.
+4. **H1b.4:** the readers of the first kind read `text`.
+5. **H1b.5:** the columns read the Arrow vectors themselves, and the eager decode goes.
+
+Each step is measured, including an interaction end to end: planning, SQL, decode and drawing, at the sizes DataCube
+fetches (up to 1,001 rows a level; `DEFAULT_MAX_ROWS`) and an uncapped flat grid. The judges, unchanged:
+`//datacube:typed_values_test` in its three zones, `values`, `format`, `format_code`, `format_scale`, `style`,
+`conditional`, `query`, `value_filter`, `selection`, `pivot_values`, `pivot_total`, the chart and timeseries suites, the
+export suites, `grid`, `grid_dom`, `app_dom`, `treeview`, `cube_document`, `saved_documents`, `headless`,
+`live_snap`, and Python's `engine_test` (`tests/test_page.py` pins `'12.30'`, `'2024-01-31'` and
+`'2024-02-01T09:00:00'`).
+
+**Behaviours the map found that differ between planes or lose precision.** These are not changed by H1b. Each is a
+spelling or behaviour change, posted to the user case by case before any is built:
+
+- On the remote legend-engine plane (`engine-remote.ts:93-110`), a decimal becomes a JavaScript number whenever a double
+  reproduces its digits, its trailing zeros dropped (`12.30` arrives as `12.3`), where the Arrow planes keep `"12.30"`.
+  A filter made from the same cell differs by plane.
+- A nested timestamp keeps milliseconds only (`duckdb.ts` `nestedJson`).
+- A decimal under a format code is displayed through a double (`format-code.ts:256-271`), so a long one rounds.
+- Query's filter from a TDS row drops a timestamp's microseconds (`query/src/ui/results.ts:225-243`).
+- XLSX's date reader refuses a negative or a five-digit year (`export-xlsx.ts:202-232`).
+- A chart's time axis hands ECharts the timestamp's text, which ECharts reads in local time (`chart-option.ts:505, 554`;
+  `chart-render.ts:165`): to check whether a zone other than UTC draws it shifted.
+
 ### 3.7 Conformance
 
 One suite of plans and data, run by every executor on the same database, the answers compared: the typed values cell by
