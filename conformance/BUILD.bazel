@@ -1,0 +1,29 @@
+# THE CONFORMANCE SUITE'S CORPUS (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, R1): one model and its rows, one list of
+# queries, and the ledger of the differences the hosts answer today -- read by every host's suite, so no host owns them.
+# The suite that asks them of Java, Python and the tab is //datacube:conformance_test (the one package that reaches all
+# three hosts already).
+
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# the three files, as a JavaScript suite reads data (rules_js copies a package's own sources)
+js_library(
+    name = "corpus",
+    srcs = [
+        "ledger.json",
+        "model.pure",
+        "queries.tsv",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+exports_files(
+    [
+        "ledger.json",
+        "model.pure",
+        "queries.tsv",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+guards_package()

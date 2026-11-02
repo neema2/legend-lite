@@ -1357,6 +1357,50 @@ node_test(
     wasm = True,
 )
 
+# THE CONFORMANCE SUITE (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, R1): //conformance's queries over its model and
+# rows asked of the JVM server, Python's engine and the tab -- legend-engine's execute on each, in JSON and in Arrow --
+# and of the tab's grid path, the answers compared; every difference in //conformance:ledger.json or a failure
+node_test(
+    name = "conformance_test",
+    # starts a JVM server and Python's engine, and loads the WebAssembly planner
+    size = "large",
+    data = [
+        "test/conformance/conformance.test.ts",
+        ":conformance_python_engine",
+        ":src",
+        "//conformance:corpus",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "//native:compiler",
+        "//query-store:legend_server",
+        "//query-store:lite_server",
+    ],
+    entry_point = "test/conformance/conformance.test.ts",
+    env = {
+        # the corpus's three files (model.pure, queries.tsv, ledger.json), told apart by name
+        "CONFORMANCE_CORPUS": "$(rlocationpaths //conformance:corpus)",
+        "CONFORMANCE_PYTHON_ENGINE": "$(rlocationpath :conformance_python_engine)",
+        "LEGEND_LITE_LIBRARY": "$(rlocationpath //native:compiler)",
+        "LEGEND_SERVER": "$(rlocationpath //query-store:legend_server)",
+    },
+    platform_env = select({
+        "//tools/platforms:windows_x86_64": {"PROCESSOR_ARCHITECTURE": "AMD64"},
+        "//conditions:default": {},
+    }),
+    target_compatible_with = compatible_with(COMPILER_LIBRARY_PLATFORMS),
+    wasm = True,
+)
+
+# Python's engine for the conformance suite: legend-engine's API over no frame, a model with Data rows run as a
+# project's (python_engine.py)
+py_binary(
+    name = "conformance_python_engine",
+    testonly = True,
+    srcs = ["test/conformance/python_engine.py"],
+    main = "test/conformance/python_engine.py",
+    target_compatible_with = compatible_with(COMPILER_LIBRARY_PLATFORMS),
+    deps = ["//python:legend_lite"],
+)
+
 node_test(
     name = "python_saved_pages_test",
     size = "medium",

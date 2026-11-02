@@ -226,6 +226,9 @@ test_suite(
         "//datacube:python_saved_pages_test",
         # the tab's execute (its planner's plan, DuckDB-WASM's rows) against Python's over the same frame (C1)
         "//datacube:python_execute_test",
+        # THE CONFORMANCE SUITE (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, R1): //conformance's cases asked of the JVM
+        # server, Python's engine and the tab, the answers compared against //conformance:ledger.json
+        "//datacube:conformance_test",
         # DataCube's own non-screen tests in V8 inside Python: the native library's planner, Python's DuckDB, no
         # WebAssembly (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6; not in //gates:local: run it by name)
         "//datacube:headless_test",

@@ -1,0 +1,121 @@
+[
+  {
+    "case": "typesAll",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, I: Int64, F: Float64, D: Decimal[10e+2], DL: Decimal[38e+2], S: Utf8, B: Bool, DT: Date32<DAY>, TS: Timestamp<NANOSECOND, UTC> | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, I: Int64, F: Float64, D: Decimal[10e+2], DL: Decimal[38e+2], S: Utf8, B: Bool, DT: Date32<DAY>, TS: Timestamp<MICROSECOND> | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "typesSelect",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, D: Decimal[10e+2], DL: Decimal[38e+2] | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, D: Decimal[10e+2], DL: Decimal[38e+2] | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "typesNulls",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, I: Int64, F: Float64, D: Decimal[10e+2], DL: Decimal[38e+2], S: Utf8, B: Bool, DT: Date32<DAY>, TS: Timestamp<NANOSECOND, UTC> | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, I: Int64, F: Float64, D: Decimal[10e+2], DL: Decimal[38e+2], S: Utf8, B: Bool, DT: Date32<DAY>, TS: Timestamp<MICROSECOND> | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "filterDecimal",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, D: Decimal[10e+2] | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, D: Decimal[10e+2] | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "filterDate",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, DT: Date32<DAY> | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, DT: Date32<DAY> | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "extendArith",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, i1: Int64, d2: Decimal[29e+2], f3: Float64 | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, i1: Int64, d2: Decimal[18e+2], f3: Float64 | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "strOps",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, u: Utf8, n: Int64 | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, u: Utf8, n: Int64 | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "dateParts",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, y: Int64, m: Int64 | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, y: Int64, m: Int64 | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "tsParts",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, TS: Timestamp<NANOSECOND, UTC>, h: Int64 | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, TS: Timestamp<MICROSECOND>, h: Int64 | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "literals",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, at: Timestamp<NANOSECOND, UTC>, amount: Decimal[3e+2], whole: Float64, day: Date32<DAY> | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, at: Timestamp<MICROSECOND>, amount: Decimal[3e+2], whole: Float64, day: Date32<DAY> | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "groupMinMax",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "REGION: Utf8, lo: Timestamp<NANOSECOND, UTC>, hi: Decimal[18e+2] | metadata legend.activities, legend.builder, legend.columns vs REGION: Utf8, lo: Timestamp<MICROSECOND>, hi: Decimal[18e+2] | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "limit",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, DESK: Utf8, REGION: Utf8, QTY: Int64, NOTIONAL: Decimal[18e+2], PRICE: Float64, DAY: Date32<DAY>, BOOKED: Timestamp<NANOSECOND, UTC> | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, DESK: Utf8, REGION: Utf8, QTY: Int32, NOTIONAL: Decimal[18e+2], PRICE: Float64, DAY: Date32<DAY>, BOOKED: Timestamp<MICROSECOND> | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "concat",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, k: Utf8 | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, k: Utf8 | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "ifThen",
+    "check": "arrow-schema",
+    "hosts": "java/python",
+    "detail": "ID: Int64, big: Utf8 | metadata legend.activities, legend.builder, legend.columns vs ID: Int32, big: Utf8 | metadata legend.activities, legend.builder, legend.columns",
+    "why": "D7: Python's Arrow answer keeps DuckDB's own types (an INTEGER an Int32, a TIMESTAMP in microseconds with no zone, a computed decimal at DuckDB's precision); Java writes the plan's (ArrowWriter: Int64, nanoseconds in UTC, the typer's precision). The values are the same."
+  },
+  {
+    "case": "errTypeMismatch",
+    "check": "refusal-message",
+    "hosts": "java/python",
+    "detail": "at 0: \"SQLException: Conversion Error: Could not convert \" vs \"ConversionException: Conversion Error: Could not c\"",
+    "why": "A database's failure is led by the failing class's name, each driver's own: JDBC's SQLException in Java, duckdb-python's ConversionException in Python."
+  },
+  {
+    "case": "errTypeMismatch",
+    "check": "refusal-status",
+    "hosts": "java/tab",
+    "detail": "500 vs 0",
+    "why": "The tab answers a database's failure as a QueryError, with no status; Java and Python answer 500."
+  },
+  {
+    "case": "errTypeMismatch",
+    "check": "refusal-message",
+    "hosts": "java/tab",
+    "detail": "at 0: \"SQLException: Conversion Error: Could not convert \" vs \"Conversion Error: Could not convert string 'notanu\"",
+    "why": "The tab's database failure carries DuckDB's words alone, no failing class leading them."
+  }
+]

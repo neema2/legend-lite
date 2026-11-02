@@ -16987,3 +16987,37 @@ warm-up, then two seconds of calls timed one by one; the medians are below. Meas
      this change; the column decode answers the same. Recorded in the program's section 7.
    - After the fold, the benchmark's digests are H0's at every size. `execute` at 1,000,000 rows is 1.0-1.4 s across
      runs (3 calls each), `stream` 0.67-0.69 s. The suites are green, and so are `typecheck` and `bundle_budget`.
+
+## 2026-11-02 — R1: the conformance suite (Java, Python and the tab asked the same cases; the first ledger)
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md`, R1: the safety net, built before any host changes.
+`//datacube:conformance_test`, in the warehouse lane.
+
+1. **What it does.**
+   - **The cases:** `//conformance` holds one model with its rows in a `###Data` element (a table of every type with
+     edge values and nulls, and a table of trades) and nineteen cases: seventeen sorted queries and two refusals.
+   - **The hosts:** each case is asked of the JVM server and of Python's engine (legend-engine's execute, in JSON and
+     in Arrow), of the tab's own execute (JSON), and of the tab's grid path (`DuckDbEngine.execute`). Every host loads
+     the rows by the planner's own `projectData` statements.
+   - **The checks:**
+     - the JSON text, byte for byte, each trace id masked;
+     - the Arrow schema and values, Java against Python;
+     - the grid's values by their meaning, against Java's;
+     - a refusal by its status, its error type and its words.
+   - **The ledger:** every difference must be in `//conformance:ledger.json`, and an entry that no longer differs
+     fails the suite too. Both directions were checked: an invented entry and a removed one each fail it.
+2. **What the first run found.** The hosts agree on nearly everything:
+   - **The JSON text is identical on all three in every case that answers.** All three spell it by Java's writer.
+   - **The grid's values match Java's in every case.**
+   - **The Arrow values match.**
+   - **The ledger's seventeen entries:**
+     - **Python's Arrow schema, in fourteen cases (D7).** It keeps DuckDB's own types where Java writes the plan's: an
+       `INTEGER` an `Int32` against `Int64`, a `TIMESTAMP` in microseconds with no zone against nanoseconds in UTC, a
+       computed decimal at DuckDB's precision (`Decimal(18,2)`) against the typer's (`Decimal(29,2)`).
+     - **A database's refusal, three entries for one case (`errTypeMismatch`).** Each host words it its own way. Java
+       leads with JDBC's `SQLException`, Python with duckdb-python's `ConversionException`, and the tab gives DuckDB's
+       words alone, with no status where the others answer 500. A planning refusal (`errUnknownColumn`) is identical
+       on all three.
+3. **Checks.** `//datacube:conformance_test` green against its ledger, plus DataCube's `typecheck`, `guardrails`,
+   `browser_guard` and `state_guardrail`, and `//tools/guards` `markdown_inputs`, `inventory`, `compile_only` and
+   `locks`. CI has not run it yet.

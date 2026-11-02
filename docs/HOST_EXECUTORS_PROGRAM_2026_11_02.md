@@ -417,6 +417,34 @@ to `main` without the user's word. A phase changes no output's spelling unless t
 - **The comparison:** the typed values, the Arrow, the text.
 - **The ledger:** today's differences (D10). The suite is the judge every later phase runs under.
 
+*R1's design (2026-11-02, from a survey of the building blocks every host already has).*
+- **The interface.** Every host already answers legend-engine's own API, `POST /api/pure/v1/execution/execute`, in JSON
+  and, with `serializationFormat=ARROW_IPC`, in Arrow:
+  - **Java:** the JVM server (`PureV1Api`, through `Execution.run` and `PlanRunner`);
+  - **Python:** its engine (`Engine.answer`);
+  - **the tab:** in the page (`BrowserEngine.executeText`), in JSON only.
+
+  Every host also loads a model's rows from its `###Data` element by the same planner operation (`projectData`; the
+  server through `ConnectionResolver`, Python through `projects.py`, the tab through `ProjectRunner`). So the suite sends
+  one request, with one model and its data, to the three hosts through their product path, and no new entry point is
+  made for it.
+- **The corpus**, `conformance/` (its own package; any host's suite may read it):
+  - `model.pure`: one DuckDB database, its rows in a `###Data` element. A table of every type, with its edge values
+    and nulls, and a table of trades for the relational operations.
+  - `queries.tsv`: each query sorted, so an answer's order is the query's own, plus refusals.
+  - `ledger.json`: D10's ledger.
+- **The driver**, a Node test in `//datacube` (the one package that reaches all three hosts already: the JVM server's
+  launcher, the native library, the WebAssembly planner, DuckDB-WASM). It starts the JVM server and Python's engine,
+  opens the tab's engine in-process, and asks each case of each. It compares:
+  - **legend-engine's JSON text:** all three, byte for byte, each trace id masked;
+  - **the Arrow answer:** Java's against Python's, the schema and every value;
+  - **the grid's own path:** the tab's `DuckDbEngine.execute` values against Java's, value by value (a decimal by its
+    value and its scale apart, a timestamp by its instant);
+  - **a refusal:** its status and its words.
+- **The ledger.** Every difference found is either in it or a failure. An entry that no longer differs is a failure
+  too, so the ledger only shrinks.
+- **The lane:** `//gates:warehouse`, where the tab-against-Python execute test already runs.
+
 **R2. One plan.**
 - **The tab:** the callers of `Plan {sql, columns}` and `ExecutePlan` move to the record (§2.1 paths A, B, C, E, F),
   and the runner reads a `tdsResult`.
@@ -489,3 +517,8 @@ to `main` without the user's word. A phase changes no output's spelling unless t
   malformed chunk is read cell by cell; the ASCII path bounded. GATES item 7.
 - 2026-11-02: rev 2, after the user's step back: the principles (§1.1), D6-D10 proposed (§1.3), the roadmap R0-R7 and Z
   (§5). R1, the conformance suite, comes before any host changes.
+- 2026-11-02: R1 built: `//datacube:conformance_test` over `//conformance`, green against its first ledger of
+  seventeen entries (Python's Arrow schema, fourteen; one database refusal, three); GATES "R1". The user then asked
+  whether the design makes every host depend on Java past the planner ("each host also has a dependency on the java
+  executor ... which is not going to work"): a revision to a one-way design (the plan in, every output the host's own,
+  held by this suite) is posted to the user, and D2, D6 and D8 stand open until the user rules.
