@@ -3416,7 +3416,13 @@ Status lives in the plan's Progress table (rule 0b.16).
   features the corpus already exercises, and new packs and generators add the ones it lacks. Inside the owned files:
   `run.py` and a merge of its shards' verdicts if the run is split across jobs; the packs, seed (kept out of
   `seed.PACK_TABLES` and `literals.FIXTURE_TABLES`), oracle, generators, `executed.py`, `quarantine.py`, repros,
-  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. As built (done 2026-11-01, three commits: `bfeb61b6e`,
+  `79de7cb6a`, `2f3b002fd`): the user chose a standalone workflow, `engine-verdict.yml`, with `run.py --shard` and
+  `verdicts.py`'s merge. The EMIT target is met at 81 of 109 on the engine (63 in lite), through one polymorphic query
+  (`UO_Downcast`, `UO_DowncastTds`) and the report's tools tagging what the corpus already exercised (`9f6b917cf` on
+  `stress_test/report`). The Linux verdict, run 41364493432 at `2f3b002fd`: 5,948 pass, 108 known-fail, 1 not run, 0
+  unexpected, of 6,057. That is the Windows verdict testable by testable (fingerprint `f6e70f085df7e57b`). The plan
+  marks Phase 0 done (`9ae092636` on `stress_test/report`).
 - **Cross-area, finishing the plan (announced 2026-11-01, before it lands):**
   - `.github/workflows/` (the Bazel program's): a new `engine-verdict.yml`, as the user chose (2026-11-01): a
     standalone workflow, dispatched with a platform (linux, linux-arm, macos, windows), that runs `engine_stress`'s
@@ -3435,4 +3441,4 @@ Status lives in the plan's Progress table (rule 0b.16).
   Linux JDK, all 497 pass. The other 7 were glibc's `cbrt`, which misses even on perfect cubes (F60, reopened):
   `combos.seed_cubes` now writes cubes of powers of two, as the user chose, a seed change and so a whole engine run.
   `verdicts.py`'s annotations now escape their titles, which GitHub cut at the comma, and cut a long list of names to
-  fit. All of these are owned files.
+  fit. All of these are owned files. Fixed in `2f3b002fd`: the second Linux run (41364493432) gave 0 unexpected.
