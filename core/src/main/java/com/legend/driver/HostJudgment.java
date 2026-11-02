@@ -32,7 +32,7 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise, HostJudgment.EngineText {
+        HostJudgment.Raise, HostJudgment.EngineText, HostJudgment.CellPool {
 
     /** The static facts of one side's typed argument the equality arms read: its type, the keyed class it declares
      *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
@@ -171,6 +171,12 @@ sealed interface HostJudgment permits HostJudgment.AllRows, HostJudgment.Unrolle
 
     /** {@code assertTdsEquivalent(one, two, delta[, timeDelta])}. */
     record TdsEquivalent(boolean hasTimeDelta) implements HostJudgment {
+    }
+
+    /** The CELL POOL of the sorted flat-cells idiom ({@code assertEquals([...], $grid.rows.values->sort())}; M10c
+     *  item 9): planned where at least one of its two sides is planned as a grid, so the step's sides are the pool's
+     *  and the cell multiset judges them. */
+    record CellPool(String name) implements HostJudgment {
     }
 
     /** The grid pair ({@code assertEquals}/{@code assertNotEquals} over two relation-stamped sides, D3);

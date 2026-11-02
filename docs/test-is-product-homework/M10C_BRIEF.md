@@ -345,7 +345,32 @@ The planners' refusals, by site:
    identical; the ledger pins of `SqlTextVerdicts` and `AssertVerdicts` move with their reasons (the other files carry
    no line pin).
 
-9. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
+9. **The cell pool planned (written before the code, 2026-11-02). BUILT 2026-11-02: DuckDB host pass moved 3,010 ->
+   3,017, database 2,952 -> 2,959, H2 3,017 / 2,850, outcomes identical; the seven bodies (nine asserts) all moved;
+   GATES items 34-36. In the no-grid case a raise reading the pool's sides no longer surfaces before the generic
+   equality (no corpus body reaches that branch).** The corpus's sorted flat-cells idiom --
+   `assertEquals(['Atul Anand', 'David Scott'], $result1.rows.values->sort())`, a literal collection against a bare
+   `sort()` over a table-shaped side (`AssertVerdicts.bareSortOverCells`) -- is 9 of the host planner's refusals on the
+   DuckDB host pass (`testFilterProjectBooleanInFilter` x3, `testIfIncludingQualifiers`,
+   `testQualifierWithIsolationAndExists`, the two dates `testProject`s). The walk fetches the pool's two sides (the
+   sort's operand for the sorted side, the other side as written: `HostJudge.cellPool`), and where EITHER came back a
+   grid judges the cell multiset (`tdsRowValuesSameElements`); where neither did it falls through to the generic
+   equality, whose sides are other asks (the arguments with the sort) -- "two stages", so the planner refused the shape.
+   The decision is a PLANNING fact: a side comes back a grid (`TypedSide.Tabular`) exactly where it is planned as a
+   table (`JudgePlans.Kind.TABULAR` or `KEYED`), which `JudgePlans.plannedSide` answers with nothing sent (the same
+   planning `HostSides.plan` does at the step). So: `HostJudge.planCellPool` plans the two asks (`canonAsk`, as the
+   walk's) and answers a check whose judgment is a new `HostJudgment.CellPool(name)` where either kind is a grid, null
+   where neither is (the generic path continues, on both roads); `cellPoolOf` judges the shaped sides as the walk does
+   and refuses by name a planned grid that read no grid; the walk's `HostJudge.cellPool` becomes `HostSides.run` of the
+   plan, so both roads run one function -- and in the no-grid case the walk no longer sends the pool's two statements
+   before the generic equality sends its own (fewer statements, the same verdict). `planArm` plans the pool where it
+   refused it. Under the database judge the arm plans the pool as one statement (`DatabaseJudge.cellPool`, the
+   `gridCells` form under the batch), reading nothing, so the gate admits it with the host planner naming the shape.
+   **Witnesses** (`BodyRouterParityTest`, the frame model): the idiom through a value let and over a frame let, holding
+   and failing, under both judges; the census label `cell pool` gone from the lanes. **Expected:** the 9 bodies move on
+   the host pass, outcomes identical.
+
+10. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
    sessions go), the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 
 ## Movement and measurement

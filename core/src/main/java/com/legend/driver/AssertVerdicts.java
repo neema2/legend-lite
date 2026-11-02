@@ -151,7 +151,7 @@ final class AssertVerdicts {
      * THE STATIC GATE of the database judge's planner (M7): whether {@code bare} is a shape whose database arm plans
      * its verdict statement without READING a side on the host at its turn. The host checks' own classification
      * ({@link #planHost}, null for the shapes neither judge plans statically: a lineage print, the quantified forms,
-     * the engine-text arms, the cell pool, the declining judgments) gates first; then the shapes the database
+     * the declining judgments) gates first; then the shapes the database
      * dispatch hands to the host at the assert -- the grid pair of two relation-typed sides ({@code HostJudge
      * .planGridPair}, D3), the rendered-text sides ({@link #renderedArm}), {@code assertEq} over a class-kind side
      * ({@code HostJudge.eq}, D43) -- which would run their sides where the planner only plans. The walk runs such a
@@ -882,7 +882,7 @@ final class AssertVerdicts {
      * text, the membership, {@code assertEq}, the tolerance, the condition, the instance test, the identity, the
      * emptiness, the TDS equivalence. Null where the shape is one the host checks do not plan yet -- a lineage print,
      * the quantified forms, an engine-text assert whose text side is not a constant of the plan
-     * ({@link SqlTextVerdicts#plan}, M10b: the arms themselves plan since then), the sorted cell pool (two stages),
+     * ({@link SqlTextVerdicts#plan}, M10b: the arms themselves plan since then),
      * the assertion with a message overload no arm owns, a callee outside the verdict family, and the shapes whose
      * judgment would decline the sides it read (M6's audit, S3: a membership of a value not exactly one, a JSON text
      * that is not one String a side, an instance test of a computed type, a TDS equivalence of sides not relations):
@@ -1055,12 +1055,16 @@ final class AssertVerdicts {
                 if (rendered != null) {
                     yield rendered;
                 }
-                if (wantEqual && (bareSortOverCells(args.get(0)) != null
-                        || bareSortOverCells(args.get(1)) != null)) {
-                    // the sorted flat-cells idiom: the cell pool, or the equality where neither side is a grid
-                    // (decided once the sides ran: two stages, the walk's)
-                    com.legend.exec.Census.unplannedAssert("equals: cell pool" + after + ": " + shapeOf(bare));
-                    yield null;
+                TypedSpec cellsE = bareSortOverCells(args.get(0));
+                TypedSpec cellsA = bareSortOverCells(args.get(1));
+                if (wantEqual && (cellsE != null || cellsA != null)) {
+                    // the sorted flat-cells idiom (M10c item 9): the cell pool where a side is planned as a grid; else
+                    // the generic equality below, as the walk continues
+                    HostSides.Check pool = HostJudge.planCellPool(name, cellsE != null ? cellsE : args.get(0),
+                            cellsA != null ? cellsA : args.get(1), letPrefix, specs, env, hook);
+                    if (pool != null) {
+                        yield pool;
+                    }
                 }
                 if (com.legend.compiler.element.type.Type.isRelation(args.get(0).info().type())
                         && com.legend.compiler.element.type.Type.isRelation(args.get(1).info().type())) {

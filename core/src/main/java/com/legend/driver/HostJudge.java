@@ -676,6 +676,7 @@ final class HostJudge {
             case HostJudgment.Rendered r -> renderedOf(r, sides);
             case HostJudgment.Raise r -> throw r.failure();
             case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
+            case HostJudgment.CellPool c -> cellPoolOf(c, sides);
         };
     }
 
@@ -1422,18 +1423,45 @@ final class HostJudge {
     }
 
     /** The cell-pool multiset of the sorted flat-cells idiom: a grid side's cells against
-     * the pool. Null = neither side is a grid (the ordinary equality continues). */
+     * the pool. Null = neither side is a grid (the ordinary equality continues). The walk's run of
+     * {@link #planCellPool}. */
     static @com.legend.base.Nullable TypedSide cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
             List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
             @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
-        List<TypedSide> pair = sides(name, List.of(canonAsk(cellsE, hook), canonAsk(cellsA, hook)), letPrefix,
-                specs, env);
-        SideFetch ef0 = sideCanonOf(pair.get(0), false);
-        SideFetch af0 = sideCanonOf(pair.get(1), false);
-        if (ef0.grid() != null || af0.grid() != null) {
-            return tdsRowValuesSameElements(name, ef0, af0);
+        return HostSides.run(name, planCellPool(name, cellsE, cellsA, letPrefix, specs, env, hook), letPrefix, specs,
+                env);
+    }
+
+    /** The cell pool PLANNED (M10c item 9): its two sides asked as the walk asks them, judged as a cell multiset
+     *  where at least one is planned as a grid -- a side comes back a grid exactly where it is planned as one
+     *  ({@link JudgePlans.Kind#TABULAR} or {@code KEYED}, read by planning the side); null where neither is (the
+     *  generic equality continues, its sides other asks). Planning a side sends nothing but where its root is a kind
+     *  the prelude answers by running it (an effect, a store write, an effectful map) or the splice hook's eager inline
+     *  execute: no pool reaches either (the sorted operand is a table read, the other side a literal; the program roads
+     *  plan only statements whose kinds are exactly an assert), the engine-text arm's planning carries the same
+     *  exposure (the item's audit, LOW-2/3). */
+    static HostSides.@com.legend.base.Nullable Check planCellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
+            List<TypedSpec> letPrefix, SpecCompiler specs, BodyDriver.ExecEnv env,
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
+        List<HostSides.Ask> asks = List.of(canonAsk(cellsE, hook), canonAsk(cellsA, hook));
+        for (HostSides.Ask a : asks) {
+            JudgePlans.Kind k = JudgePlans.plannedSide(a.arg(), letPrefix, specs, env, a.identity(), a.fold(),
+                    a.hook()).kind();
+            if (k == JudgePlans.Kind.TABULAR || k == JudgePlans.Kind.KEYED) {
+                return new HostSides.Check(asks, new HostJudgment.CellPool(name));
+            }
         }
         return null;
+    }
+
+    /** {@code j} judged over the pool's two shaped sides: the cell multiset, as the walk judges it. */
+    private static TypedSide cellPoolOf(HostJudgment.CellPool j, List<TypedSide> pair) {
+        SideFetch ef0 = sideCanonOf(pair.get(0), false);
+        SideFetch af0 = sideCanonOf(pair.get(1), false);
+        if (ef0.grid() == null && af0.grid() == null) {
+            throw new IllegalStateException(j.name() + ": a cell pool planned over a grid read no grid");
+        }
+        return tdsRowValuesSameElements(j.name(), ef0, af0);
     }
 
     /** {@code assertEquals} / {@code assertNotEquals}: both sides executed under the canon

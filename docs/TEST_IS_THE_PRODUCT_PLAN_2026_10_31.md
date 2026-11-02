@@ -1207,8 +1207,11 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   arm's actual side by its declared type (R16); the golden is never deferred (the arms route on it); host judge only
   (the database judge's batch row composes the equality at planning: such an assert stays the walk's there, by name).
   DuckDB host pass `moved=2978 -> 3,010`, H2 host `2978 -> 3,010`, outcomes identical, database `2945 -> 2,952` / H2 `2836 -> 2,843`; the 107 refused text asserts fall
-  to 4 (two runtime-dialect bodies, by name); 15 bodies the arm now plans meet M10b's S1 next. **Next:** the cell pool
-  (9), M8c (R24) in its slot, the frame shapes, the tails (item 6, the `if` roots, the zip tolerance), the database
+  to 4 (two runtime-dialect bodies, by name); 15 bodies the arm now plans meet M10b's S1 next. **Item 9 BUILT
+  (2026-11-02; GATES items 34-36):** the cell pool planned -- a side comes back a grid exactly where it is planned as
+  one, so the walk's two-stage decision is a planning fact (`HostJudge.planCellPool`, `HostJudgment.CellPool`); the
+  walk runs the plan; the database arm plans the pool as one statement. DuckDB host pass `moved=3010 -> 3,017`,
+  database `2952 -> 2,959`, H2 `3,017` / `2,850`, outcomes identical. **Next:** M8c (R24) in its slot, the frame shapes, the tails (item 6, the `if` roots, the zip tolerance), the database
   pass's extra bodies, the system-routed engine texts with M10d, the last body, T8 on the ruling, Z.
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
@@ -1531,3 +1534,5 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   step runs (a plan handle's SQL navigation, `replace` over a staged routine's text), deferred under the collector as
   the step's ask, judged there (host judge); DuckDB host pass `moved=2978 -> 3,010`, H2 host `2978 -> 3,010`, database `2945 -> 2,952` / H2 `2836 -> 2,843`,
   outcomes identical, every register green; stayed 184 -> 152 on the DuckDB host pass. Next: the cell pool (item 9).
+- 2026-11-02: **M10c item 9 built**: the cell pool planned (the grid decision a planning fact); DuckDB host pass
+  `moved=3010 -> 3,017`, database `2952 -> 2,959`, H2 `3,017` / `2,850`, outcomes identical, every register green.

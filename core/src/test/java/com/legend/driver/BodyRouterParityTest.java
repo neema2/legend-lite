@@ -1226,6 +1226,43 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M10c item 9: the sorted flat-cells idiom ({@code assertEquals([...], $tds.rows.values->sort())}) planned as the
+     *  cell pool where a side is planned as a grid -- through a value let and over a frame let, holding and failing,
+     *  under both judges; a MIXED-kind pool (the corpus's own reason for the idiom: the dates {@code testProject}s'
+     *  Integer and date cells), which the generic equality's {@code sort()} cannot lower, so only the pool judges it;
+     *  the host's failure the pool's own message. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void cellPoolPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String mixed = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name, f|$f.name->length()],"
+                + " ['name', 'len']), x::M, x::RT.runtimeValue, [])";
+        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
+            for (String holds : List.of(
+                    "{| let tds = " + EXECUTE + ".values->toOne(); assertEquals(['Acme', 'Bolt'],"
+                            + " $tds.rows.values->sort());}",
+                    "{| let r = " + EXECUTE + "; assertEquals(['Acme', 'Bolt'], $r.values->toOne().rows.values->sort());}",
+                    "{| let tds = " + mixed + ".values->toOne(); assertEquals(['Acme', 'Bolt', 4, 4],"
+                            + " $tds.rows.values->sort());}")) {
+                Run held = assertParity(backend, ctx, "x::RT", holds, "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertEquals("ok", held.outcome, "the cell pool holds (" + mode + "): " + held.verdicts);
+            }
+            for (String fails : List.of(
+                    "{| let tds = " + EXECUTE + ".values->toOne(); assertEquals(['Acme', 'Zed'],"
+                            + " $tds.rows.values->sort());}",
+                    "{| let r = " + EXECUTE + "; assertEquals(['Acme', 'Zed'], $r.values->toOne().rows.values->sort());}",
+                    "{| let tds = " + mixed + ".values->toOne(); assertEquals(['Acme', 'Bolt', 4, 5],"
+                            + " $tds.rows.values->sort());}")) {
+                Run failed = assertParity(backend, ctx, "x::RT", fails, "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertTrue(failed.outcome.startsWith("AssertFailed"), "the cell pool differs (" + mode + "): "
+                        + failed.outcome);
+                if (mode == ExecuteOptions.JudgeMode.HOST) {
+                    assertTrue(failed.outcome.contains("(TDSRow.values)"), "the pool's own message: " + failed.outcome);
+                }
+            }
+        }
+    }
+
     /** M10c item 8: an engine-text assert whose OUR text is a side the plan runs -- a plan handle's SQL read through a
      *  navigation (inline, through a let, under the dual-golden root), a staged routine's text under {@code replace} --
      *  planned as the verdict step's ask and read there, the equality computed at the step; the appeal with the

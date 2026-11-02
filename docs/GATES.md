@@ -16990,6 +16990,42 @@ measured on both corpora with the registers and a parity witness; the chain at M
    step and in the walk's run); the golden never deferred; no arm transforms our text before `decide`; every appeal
    reads its parameters; the gate's null for a Boolean, a collection or a count was already the walk's answer.
 
+34. **Item 9 -- the cell pool planned (2026-11-02; the brief's item 9, written before the code).** The sorted
+   flat-cells idiom (`assertEquals(['Atul Anand', 'David Scott'], $result1.rows.values->sort())`,
+   `AssertVerdicts.bareSortOverCells`) was refused as "two stages": the walk fetched the pool's two sides and judged the
+   cell multiset where either came back a grid, else fell through to the generic equality over other sides. A side
+   comes back a grid (`TypedSide.Tabular`) exactly where it is planned as a table (`JudgePlans.Kind.TABULAR` or
+   `KEYED`), a planning fact read with nothing sent: `HostJudge.planCellPool` plans the pool's two asks as the walk
+   asks them and answers a check whose judgment is `HostJudgment.CellPool(name)` where either is a grid, null where
+   neither is (the generic equality continues on both roads); `cellPoolOf` judges as the walk did and refuses by name a
+   planned grid that read no grid; the walk's `HostJudge.cellPool` runs the plan (`HostSides.run`), so both roads run
+   one function -- in the no-grid case the walk no longer sends the pool's two statements before the generic
+   equality's (no corpus body reaches it); `planArm` plans the pool. Under the database judge the gate admits the
+   shape and the database arm plans the pool as one statement under the batch (`DatabaseJudge.cellPool`, the
+   `gridCells` form), reading nothing. Ledger pins `HostJudge` 1168 -> 1184, `HostJudgment` 162 -> 164,
+   `AssertVerdicts` 1815 -> 1819 with their reasons.
+35. **Movement (item 9):** DuckDB host pass `moved=3010 -> 3,017`, database `2952 -> 2,959`; H2 host `3010 -> 3,017`,
+   database `2843 -> 2,850`; outcomes identical on all four passes (2471/108/14, 2473/108/14, 2289/295/14,
+   2233/353/14); 12 of 12 lane tests green. The seven bodies the census named `cell pool` (nine asserts) all moved:
+   the three `testFilterProjectBooleanInFilter`s, `testIfIncludingQualifiers`, `testQualifierWithIsolationAndExists`,
+   the two dates `testProject`s.
+36. **The checks (item 9):** `BodyRouterParityTest.cellPoolPrograms` (the frame model: the idiom through a value let and
+   over a frame let, holding and failing, parity under both judges, the outcome asserted on both; a MIXED-kind pool --
+   a name and its length, the corpus's own reason for the idiom -- which the generic equality's `sort()` cannot lower,
+   so the witness fails with the pool disabled on both roads, not only with the program road's plan withheld; the
+   host's failure the pool's own message), `//core:census`, root, architecture, judge, driver, testplan;
+   `//spec:corpus_duckdb`, `//spec:corpus_h2`. The independent audit (COMMIT WITH FIXES, folded): MEDIUM-1 the
+   witnesses could not tell the pool from the generic equality (one String column) and asserted no database outcome --
+   the mixed-kind pool and the outcomes added (above); LOW-2/3 planning the pool's sides during classification sends
+   nothing but for a side the prelude answers by running it (an effect, a store write, an effectful map) or the splice
+   hook's eager inline execute, which no pool reaches and the engine-text arm's planning shares -- written into
+   `planCellPool`'s javadoc; NIT the two javadocs that still listed the pool as unplanned; NIT the no-grid case's
+   ordering (a raise reading the pool's sides used to surface before the generic equality; no corpus body reaches
+   that branch) recorded in the brief. Verified by the audit: the grid decision exact (TABULAR and KEYED shape to
+   `Tabular`, nothing else does); planning twice idempotent (the system route opened and cached once per graph); the
+   walk's family, route and listener counts unchanged; the database gate's PLANS correct with nothing read at
+   planning; a raise in the pool's planning raised at the assert's turn on every road, as before; the pins measured.
+
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
 The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and
