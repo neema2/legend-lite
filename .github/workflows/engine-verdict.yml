@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: "Where the engine runs: linux (ubuntu-latest), linux-arm (ubuntu-24.04-arm), macos (macos-14, arm64, one JVM a job: 7 GB) or windows (windows-2022)."
+        description: "Where the engine runs: linux (ubuntu-latest), linux-arm (ubuntu-24.04-arm), macos (macos-15, arm64, one JVM a job: 7 GB) or windows (windows-2022)."
         default: linux
         type: choice
         options: [linux, linux-arm, macos, windows]
@@ -40,8 +40,8 @@ concurrency:
 jobs:
   shard:
     name: shard ${{ matrix.shard }} of 8 (${{ inputs.platform }})
-    # the runners gate.yml uses for each platform
-    runs-on: ${{ fromJSON('{"linux":"ubuntu-latest","linux-arm":"ubuntu-24.04-arm","macos":"macos-14","windows":"windows-2022"}')[inputs.platform] }}
+    # the runners gate.yml uses for each platform (macos-15 since 2026-11-02: GitHub retires the macos-14 image that day)
+    runs-on: ${{ fromJSON('{"linux":"ubuntu-latest","linux-arm":"ubuntu-24.04-arm","macos":"macos-15","windows":"windows-2022"}')[inputs.platform] }}
     # one slice is about 760 testables: under an hour at two JVMs, and macOS's one JVM about twice that
     timeout-minutes: 240
     defaults:
