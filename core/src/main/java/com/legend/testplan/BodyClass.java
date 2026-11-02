@@ -634,6 +634,13 @@ public enum BodyClass {
             if (NativeFn.Handle.runsAFrame(call.callee().id())) {
                 return Kind.EXECUTE;
             }
+            if (PlatformTypes.SCAN_RELATIONS.equals(call.callee().qualifiedName())
+                    || PlatformTypes.SCAN_COLUMNS.equals(call.callee().qualifiedName())) {
+                // a lineage scan: a handle whose rows ride the query and join the metamodel tables -- a read of the
+                // system store (the walk routes its sides to the system session), so a body whose only store read is
+                // the scan is system-routed and its program runs there (the test-is-the-product plan's M10c item 3)
+                return Kind.SYSTEM_READ;
+            }
             if (Pure.Lite.STAGE.equals(call.callee().qualifiedName())) {
                 return Kind.STAGED;
             }

@@ -210,8 +210,9 @@ final class HostAsserts implements TestDoor.Asserts {
         if (sides.on() != null && sides.on() != env.session()) {
             // a side the walk's planner routed to another session than the body's (the system database's: a lineage
             // scan's rows join the metamodel tables, an element's row) -- the walk runs the group there; a moved
-            // body's program runs on the body's session alone until M10a opens the system session, so the body stays
-            // on the walk, decided by the planned route before any run (M9d)
+            // body's program has ONE target (the body's session, or the system database's when the body is
+            // system-routed, M10a), so a body mixing the two stays on the walk, decided by the planned route before
+            // any run (M9d)
             return null;
         }
         return planned(assertion, sides);

@@ -92,13 +92,28 @@ The planners' refusals, by site:
    `sqlJudgedInDatabase` is its census); the agreement lane (BOTH) now runs the SQL pair beside the host owner, one
    statement more per pair -- measured: `bazel run //spec:corpus_one -- duckdb both` on the final predicate, JUnit exit 0,
    2471 / 108 as the host pass, `disagree=0` (the agreement gate's answer).
-3. **The lineage lines (49 + the database's).** `LineageTreeLines.asLines` already rewrites the assert into an ordinary
-   collection equality (the golden's lines a String collection literal; ours the prelude's Pure body over the handle's
-   lineage rows) -- the host checks plan the rewritten assert (`planHost(lines)` recursively, as the walk's `adjudicate`
-   continues with it) and the database gate the same. The lineage scan's rows join the metamodel tables: the scan is a
-   SYSTEM READ (`anotherWay`: `SCAN_RELATIONS`, `SCAN_COLUMNS` → `SYSTEM_READ`), so a body whose only store read is the
-   scan is system-routed (M10a) and its side's session is the program's one session; a scan beside a user read stays the
-   walk's (two sessions: the 5 `testAssociationMapping`-shaped bodies).
+3. **The lineage lines (49 + the database's). BUILT 2026-11-02: DuckDB host pass moved 2,690 -> 2,744, database
+   2,662 -> 2,716; H2 host 2,690 -> 2,744, database 2,595 -> 2,649; outcomes identical on every pass, the rosters
+   byte-identical.** `LineageTreeLines.asLines` rewrites
+   the assert into an ordinary collection equality (the golden's lines a String collection literal; ours the prelude's
+   `meta::lite::lineage::relationTreeLines` over the scan's handle, whose rows ride the query as inline relations and
+   join the metamodel tables): the walk's `adjudicate` continued with the rewritten assert where `planHost` refused the
+   shape outright -- now `planHost` plans the rewritten assert recursively, reported under the call the body spells.
+   The scan is a read of the SYSTEM store (`BodyClass.anotherWay`: a `scanRelations` or `scanColumns` call is
+   `Kind.SYSTEM_READ`), so a body whose only store read is the scan is system-routed (M10a) and its program runs on the
+   graph's system database, the one session the walk routes the side to. The new kind decides the ROUTING alone: the
+   class rules see a handle as its query (`framesAndHandlesAsTheirQueries`) and never meet the scan's kind, so a scan
+   beside a user read is admitted by the class and refused by the planners as before -- the host's session check
+   (M9d), the database's `plannable` (admitting the scan in a system-routed body now) -- each a named static rule
+   (the audit's correction: the first draft said the side-kind rule kept such a body). The 5 "testAssociationMapping"
+   bodies the inventory took for scan-beside-user-read bodies are `meta::pure::lineage::scanColumns::test::*`
+   (`testQualifier`, `testAssociationMapping`, `testSubType`, `testEmbeddedMapping`, `testView`): a `scanColumns`
+   chain and an ordinary equality over its rows, no user read, refused at the host's session check because the body
+   was not system-routed -- system-routed now, they MOVE: the host's +54 is 49 prints + 5. The witness
+   (`lineagePrograms`): the print's golden read off a run, equal and differing goldens, an equality over the scan's
+   rows, the corpus's `scanColumns` chain -- pinned on both roads under both judges, every boundary the same but the
+   walk's one body-session setup statement (the scan's let evaluated on the body's session; the program's one target
+   the system database -- the M10a difference `systemRoutedPrograms`' store-free case allows).
 4. **A user-written assert helper at the root (20).** `assertConversion(a, b)` is a user function whose body asserts;
    the walk inlines it (`UserCallInliner.inlineBody`, `BodyCompiler` ~305) and adjudicates the inlined statement. The
    test door does the same: a statement-root user call whose callee's body is statements ending in an assert is

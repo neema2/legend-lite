@@ -802,8 +802,17 @@ final class AssertVerdicts {
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
-        if (com.legend.compiler.spec.LineageTreeLines.asLines(bare, letPrefix, env.ctx()) != null
-                || com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare)
+        TypedSpec lines = com.legend.compiler.spec.LineageTreeLines.asLines(bare, letPrefix, env.ctx());
+        if (lines != null) {
+            // a lineage tree print against its golden is judged as LINES, as the walk's adjudicate rewrites it (the
+            // golden's lines a String collection, ours the prelude's rows over the scan's handle): the rewritten
+            // assert planned as any collection equality, reported under the call the body spells (the
+            // test-is-the-product plan's M10c item 3)
+            HostAssert rewritten = planHost(lines, letPrefix, specs, env, rawHook);
+            return rewritten == null ? null : new HostAssert(listenerName(bare), rewritten.family(),
+                    rewritten.wantEqual(), rewritten.check(), rewritten.beforeTheArm());
+        }
+        if (com.legend.compiler.spec.VerdictQueries.distinctTrueWrapper(bare)
                         instanceof com.legend.compiler.spec.typed.TypedMap
                 || bare instanceof com.legend.compiler.spec.typed.TypedMap
                 || com.legend.compiler.spec.VerdictQueries.forAllAsQuantified(bare) != null) {

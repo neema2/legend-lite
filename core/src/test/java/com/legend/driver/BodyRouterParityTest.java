@@ -697,6 +697,78 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M10c item 3: a LINEAGE TREE PRINT against its golden ({@code $scan->relationTreeAsString()} under
+     *  {@code assertEquals}) is judged as LINES on both roads (the golden's lines a String collection, ours the prelude's
+     *  rows over the scan's handle); the scan is a read of the system store, so a body whose only store read is the scan
+     *  is system-routed and its program runs on the graph's system database under both judges. The golden is read off
+     *  a body answering the print. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void lineagePrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        // the system database seeded once per graph (systemRoutedPrograms)
+        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", false, "select count(*) from FIRM", FIRM_ROWS);
+        String scan = "let s = meta::pure::lineage::scanRelations::scanRelations({|x::Firm.all()->project([f|$f.name],"
+                + " ['name'])}, x::M, []);";
+        String print = "$s->meta::pure::lineage::scanRelations::relationTreeAsString()";
+        String golden = text(run(backend, ctx, "x::RT", "{| " + scan + " " + print + ";}", false,
+                "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        assertTrue(golden.startsWith("root\n") && golden.contains("------> (t) FIRM"), golden);
+        String held = "{| " + scan + " assertEquals('" + pure(golden) + "', " + print + ");}";
+        String failed = "{| " + scan + " assertEquals('" + pure(golden.replace("FIRM", "FIRMS")) + "', " + print + ");}";
+        // an ordinary equality over the scan's rows (no print): the corpus's scanColumns bodies' shape
+        String rows = "{| " + scan + " assertEquals(['FIRM'], $s.nodes->filter(n|$n.kind == 't').name);}";
+        // the corpus's scanColumns chain (scanColumnsTests.pure: scanProperties -> buildPropertyTree -> scanColumns),
+        // its golden read off a run
+        String columns = "let p = {|x::Firm.all()->project([f|$f.name], ['name'])}.expressionSequence->at(0)"
+                + "->evaluateAndDeactivate()->meta::pure::lineage::scanProperties::scanProperties("
+                + "^meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>(), [], []);"
+                + " let tree = $p.result->meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree();"
+                + " let f = $tree->meta::pure::lineage::scanColumns::scanColumns(x::M)->removeDuplicates();";
+        String columnTexts = "$f->map(t|$t.column.owner->cast(@meta::relational::metamodel::relation::Table).name->toOne()"
+                + " + '.' + $t.column.name->toOne() + ' <' + $t.context + '>')->sort()";
+        String columnGolden = text(run(backend, ctx, "x::RT", "{| " + columns + " " + columnTexts
+                + "->joinStrings(', ');}", false, "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        assertTrue(columnGolden.contains("FIRM.NAME"), columnGolden);
+        StringBuilder goldenList = new StringBuilder("[");
+        for (String one : columnGolden.split(", ")) {
+            goldenList.append(goldenList.length() > 1 ? ", '" : "'").append(pure(one)).append("'");
+        }
+        String scanColumns = "{| " + columns + " assertEquals(" + goldenList + "], " + columnTexts + ");}";
+        assertTrue(BodyClass.systemRouted(typed(ctx, held), "x::RT"), "system-routed: " + held);
+        assertTrue(BodyClass.systemRouted(typed(ctx, scanColumns), "x::RT"), "system-routed: " + scanColumns);
+        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
+            for (var c : List.of(java.util.Map.entry(held, "ok"), java.util.Map.entry(failed, "AssertFailed"),
+                    java.util.Map.entry(rows, "ok"), java.util.Map.entry(scanColumns, "ok"))) {
+                // the walk evaluates the scan's let on the body's session (one SESSION statement to set it up) and
+                // routes the assert's side to the system session; the program has ONE target, the system database --
+                // the one difference M10a makes for a body (systemRoutedPrograms' store-free case): every outcome,
+                // verdict, answer and statement text the same
+                Run walked = run(backend, ctx, "x::RT", c.getKey(), false, "select count(*) from FIRM", FIRM_ROWS, mode);
+                Run moved = run(backend, ctx, "x::RT", c.getKey(), true, "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertTrue(walked.outcome.startsWith(c.getValue()), c.getKey() + " -> " + walked.outcome);
+                assertEquals(walked.outcome, moved.outcome, "outcome: " + c.getKey());
+                assertEquals(walked.answer, moved.answer, "the answer: " + c.getKey());
+                assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + c.getKey());
+                assertEquals(walked.census, moved.census, "the verdict census: " + c.getKey());
+                assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + c.getKey());
+                assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + c.getKey());
+                long[] w = originsOf(walked.origins);
+                long[] m = originsOf(moved.origins);
+                for (int i = 0; i < w.length; i++) {
+                    long allowed = i == StatementOrigin.SESSION.ordinal() ? 1 : 0;
+                    assertTrue(w[i] - m[i] >= 0 && w[i] - m[i] <= allowed, "the statement-origin census differs beyond"
+                            + " the body session's setup: " + c.getKey() + "\n  walked: " + walked.statements
+                            + "\n  moved:  " + moved.statements);
+                }
+                List<String> walkedSql = new ArrayList<>(walked.statements);
+                walkedSql.removeIf(s -> s.startsWith("[session]"));
+                assertEquals(walkedSql, moved.statements, "the statements sent, the body session's setup aside: "
+                        + c.getKey());
+            }
+        }
+    }
+
     /** M7: the frame programs under the DATABASE judge: a frame is never run at its let -- the asserts' sides reference
      *  its CTE inside the segment's fused statement, whose stamp is the frame's activity comment (a parameter the
      *  fused step binds; the walk's reserved comment) -- an effect between two asserts closes a segment. */

@@ -91,7 +91,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             boolean systemRouted) {
         SpecCompiler specs = typed.specs();
-        if (!plannable(typed) || !everyAssertPlansStatically(typed, runtime, env, systemRouted)) {
+        if (!plannable(typed, systemRouted) || !everyAssertPlansStatically(typed, runtime, env, systemRouted)) {
             return null;
         }
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
@@ -355,13 +355,15 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     /** The shapes the planner refuses BEFORE planning anything, so a body it leaves for the walk has nothing counted
      *  twice (the census the arms count as they plan: the assert entered, its family; the flush): a raw grid read (an
      *  {@code executeInDb} whose text is a SELECT reads as a value; its verdict wrapper is KEYED, which the program
-     *  road does not place), a lineage scan (its rows join the metamodel tables: the system session). The checks after
-     *  planning (a group's session, a keyed member, an unspelled segment, an unbound frame stamp) stay as the guard
-     *  behind this one. The scan reads what the program road would RUN of each statement ({@link #scanned}). */
-    private static boolean plannable(TypedQuery typed) {
+     *  road does not place), a lineage scan (its rows join the metamodel tables: the system session) in a body that is
+     *  not system-routed -- in one that is, the program's one session is the system one and the scan is planned like
+     *  any other side (M10c item 3). The checks after planning (a group's session, a keyed member, an unspelled
+     *  segment, an unbound frame stamp) stay as the guard behind this one. The scan reads what the program road would
+     *  RUN of each statement ({@link #scanned}). */
+    private static boolean plannable(TypedQuery typed, boolean systemRouted) {
         Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
         java.util.function.Predicate<TypedSpec> refused = n -> n instanceof
-                com.legend.compiler.spec.typed.TypedRawSqlRelation || lineageScan(n);
+                com.legend.compiler.spec.typed.TypedRawSqlRelation || !systemRouted && lineageScan(n);
         for (TypedSpec statement : typed.body()) {
             for (TypedSpec part : scanned(statement)) {
                 if (com.legend.compiler.spec.StatementEffects.reaches(part, refused, typed.specs(), memo)) {

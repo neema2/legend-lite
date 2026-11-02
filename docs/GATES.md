@@ -16651,6 +16651,35 @@ measured on both corpora with the registers and a parity witness; the chain at M
    position; a pair it refuses keeps the host grid owner on every road, as before). Residue recorded in the brief: the
    Float leniency's positional join under the multiset view; `renderedStatic` keyed on `renderedSide` where the route
    keys on `renderForm`; no `grid-pair` route count from the database arm; the agreement lane's extra statement.
+9. **Item 3 -- the lineage lines:** `LineageTreeLines.asLines` rewrites a lineage tree print against its golden into a
+   collection equality (the golden's lines a String collection literal; ours the prelude's
+   `meta::lite::lineage::relationTreeLines` over the scan's handle, whose rows ride the query as inline relations and
+   join the metamodel tables); the walk's `adjudicate` continued with the rewritten assert where `planHost` refused the
+   shape -- now `planHost` plans the rewritten assert recursively under the call's own name. The scan is a read of the
+   SYSTEM store (`BodyClass.anotherWay`: a `scanRelations` or `scanColumns` call is `Kind.SYSTEM_READ`), so a body whose
+   only store read is the scan is system-routed (M10a) and its program runs on the graph's system database, the one
+   session the walk routes the side to. The kind decides the routing alone (the class rules see a handle as its
+   query): a scan beside a user read is admitted by the class and refused by the planners as before (the host's
+   session check, M9d; `DatabaseAsserts.plannable`, which admits the scan in a system-routed body now). The five
+   `scanColumns::test` bodies (a `scanColumns` chain and an equality over its rows, no user read) are system-routed
+   now and move: the +54 below is 49 prints + 5.
+10. **Movement (item 3):** DuckDB host pass `moved=2690 -> 2,744` (2471 / 108, unchanged), database `2662 -> 2,716`
+   (2473 / 108, unchanged); H2 host `2690 -> 2,744` (2289 / 295), database `2595 -> 2,649` (2233 / 353); 12 of 12 lane
+   tests green, the rosters byte-identical (the audit's expectation, 49 + 5 on each lane, met). The census:
+   `assert,host-unplanned-assert,system-read` 93 -> 44 and
+   `assert,database-unplanned-assert,system-read` 93 -> 44 (the lineage prints over system reads), the plain
+   unplanned 53 -> 48 (host) and 55 -> 50 (database).
+11. **The checks (item 3):** the driver suite (`BodyRouterParityTest.lineagePrograms`: the print's golden read off a
+   run, equal and differing goldens pinned on both roads under both judges, system-routed, every boundary the same but
+   the walk's one body-session setup statement -- the scan's let evaluated on the body's session where the program's
+   one target is the system database, the M10a difference `systemRoutedPrograms`' store-free case allows; the audit's
+   two added shapes: an equality over the scan's rows, the corpus's `scanColumns` chain), root,
+   architecture, judge, testplan, `//core:census` (the ledger: `JavaEvalLedgerTest` AssertVerdicts 1559 -> 1564,
+   dated); `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached.
+12. **Item 3's independent audit (COMMIT WITH FIXES, folded):** the ledger pin (re-dated before the verdict); the brief's
+   mechanism sentence (the side-kind rule never meets the scan: the kind routes) and its attribution of the five
+   bodies (they move, they do not stay) corrected; the two witness gaps filled (a non-print equality over scan rows,
+   the `scanColumns` chain); a stale comment in `HostAsserts` ("until M10a opens the system session") rewritten.
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
