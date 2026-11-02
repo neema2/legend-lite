@@ -2954,6 +2954,11 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   `python/legend_lite/` (`frames.py`, `engine.py`, `compiler.py`, a runner and a Snowflake session new), `python/tests/`,
   their BUILD files, `MODULE.bazel` and the Python lock (ADBC's packages, in a `snowflake` extra), and the records. H0
   (the note and two manual benchmarks) changes no behaviour.
+  **Rev 3, 2026-11-02 (the clean-sheet design, ratified by the user):** one core embedded in every host doing no input
+  or output (the planner and `//core:result`'s writers), Arrow between the pieces, thin host shells; the roadmap R2-R8.
+  R1 (the conformance suite, `//conformance`, `//datacube:conformance_test`) is built. R2 (one plan kind) adds to
+  these files `core/.../executionplan/` (the record's host facts), `core/.../server/PureV1Api.java`,
+  `wasm/src/main/java/planner/` and `native/src/main/java/com/legend/nativelib/` (the boundary's exports).
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

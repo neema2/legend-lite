@@ -1,9 +1,9 @@
-# The host executors: one plan, one set of rules, one result, one owner of each spelling -- in Java, TypeScript and Python
+# The host executors: one core embedded in every host, Arrow between the pieces, thin host shells -- in Java, TypeScript and Python
 
-**Status: rev 2, 2026-11-02, after the user's step back** (below). Rev 1's five rulings (D1-D5) stand, ratified with
-the user that day. Rev 2 adds the principles (§1.1) and five decisions proposed for the user's ruling (D6-D10, §1.3).
-It also replaces rev 1's order with the roadmap (§5). A change to a principle or a decision is a decision, recorded here
-with its date and reason, never an edit in passing. Status lives in §8.
+**Status: rev 3, 2026-11-02, the clean-sheet design, ratified by the user that day** ("Yes I love it"). Rev 1's five
+rulings (D1-D5) stand. Rev 3 replaces rev 2's principles, its proposed decisions (D6-D10) and its roadmap with the
+clean-sheet design's (§1, §3, §5); rev 2 is in git history (`33c915d2`). A change to a principle or a decision is a
+decision, recorded here with its date and reason, never an edit in passing. Status lives in §8.
 
 The user's words that started it (2026-11-02): *"Let's start the typescript and python executors, let's look at how to
 make those executors similar to the java executor in design as well if you think that makes sense? And for both let's
@@ -15,6 +15,26 @@ And the step back, the same day: *"take a giant step back to know what we want t
 more importantly good clean design and consistency between java python TS/browser - so maybe I've been pushing the
 performance angle too much, what is the right roadmap unbiased let's write down full roadmap and then execute on it
 expertly."*
+
+**How rev 3 came about (2026-11-02).** Rev 2 had each host hand its rows back to Java's writers as text. The user:
+*"My main worry is that now each host also has a dependency on the java executor which is different from the
+compiler/planner which is not going to work."* A one-way design followed, with every output written by each host on its
+own. The user again: *"Has this gone to far the other way? If there is a java speller that makes sense to embed into jvm
+wasm and native and that makes everything nice and fast maybe we should use that? ... I think instead of black or white we
+should step back and think what is the right architecture and the right thing to do to make everything fast and correct
+both"*, then *"Clean sheet how would you do what we want to do as world's expert? Starting from scratch no bias"*. Two
+facts read from the code settled it:
+
+- **The writers are already a library apart from the executor, and already in every host.** `//core:result` (`CellText`
+  and the JSON, PureV1, CSV and Arrow writers) depends on no JDBC, no session and no planner; `//core:exec` depends on it,
+  not the reverse. `//core:plan_side` includes it, so the tab's WebAssembly module and Python's native library carry it
+  (the tab's JSON answer is `PureV1Api.jsonAnswer`, `wasm/src/main/java/planner/Boundary.java`).
+- **The slow part is the handoff, not where the writer lives.** The embedded boundary carries strings only, so each host
+  spells every cell as text, and Java reads the text back and spells it again: Python's JSON execute takes 23.2 s at
+  1,000,000 rows against its Arrow execute's 188 ms (GATES, H0).
+
+A scratch probe then ran Java's Arrow writer in both embedded builds on the same plan and rows: the answers read back
+whole, identical to each other but for the trace id (§3.6).
 
 ## 0. What we want, in order
 
@@ -49,16 +69,22 @@ database the tab and Python reach hands them Arrow, which is columnar, so the ho
 
 ## 1. Principles and rulings
 
-### 1.1 The principles
+### 1.1 The principles (rev 3)
 
-- **P1. Decide once, in Java; carry in each host.** Whatever decides is Java's, reached by every host through the
-  planner it embeds: a type, a plan, a plan's review and its refusals, a value's spelling on any wire. A host's own code
-  moves data. It opens a session, runs a statement, turns its database's wire into the result (P3), and hands the
-  result to a consumer, or to Java's writers when text is wanted. That is the repository's tenet ("Java orchestrates,
-  the database executes"; `docs/WORLD_MAP.md`'s "compare, never compute") applied to the hosts.
-- **P2. One plan.** The plan record's JSON (`legend-lite-plan`, `PlanJson.VERSION`) is the only thing a host runs.
-- **P3. One result.** A result is typed columns. Logically it is the plan's columns with their exact values. Physically
-  it is Arrow, in the schema Java's `ArrowWriter` writes for the plan:
+This is how DuckDB, Polars and Arrow's database drivers (ADBC) are built: one portable core, data as Arrow, thin
+bindings per language.
+
+- **P1. One core, written once, embedded in every host, doing no input or output.** The planner (a model, a query and
+  the host's profile, to a plan) and the writers (a plan and Arrow batches, to bytes) are Java, compiled to the JVM, to
+  WebAssembly (the tab) and to a native library (Python). They open no connection, wait on no network, keep nothing
+  between calls and never call back into a host. Every decision is the core's: a type, a plan, a refusal, a value's
+  spelling in any output. That is the repository's tenet ("Java orchestrates, the database executes";
+  `docs/WORLD_MAP.md`'s "compare, never compute") applied to the hosts.
+- **P2. One plan kind, a straight line.** The plan record (`legend-lite-plan`, `PlanJson.VERSION`) is the only thing a
+  host runs, for every path: a grid, an execute, a write, an export. A host's plan has every decision already made: no
+  branch and no step that depends on data. Whatever depends on data is SQL, so the database decides.
+- **P3. Arrow between the pieces, a batch at a time.** Never one cell at a time, and never text until an output that is
+  text asks for it. The answer's Arrow is in the plan's types on every host, the schema Java's `ArrowWriter` writes:
 
   | Pure type | Arrow |
   |---|---|
@@ -68,62 +94,78 @@ database the tab and Python reach hands them Arrow, which is columnar, so the ho
   | `Boolean` | `Bool` |
   | `String` | `Utf8` |
   | `StrictDate` | `Date32` |
-  | `DateTime` | `Timestamp(NANOSECOND)` |
+  | `DateTime` | `Timestamp(NANOSECOND, UTC)` |
   | `StrictTime` | `Time64` |
   | nested values | lists, structs and maps |
-
-  The same plan on the same data is the same Arrow on every host.
-- **P4. One owner of each spelling.**
-  - **Wire text** (lite JSON rows, legend-engine's JSON and TDS, PureV1, CSV) is Java's alone (`CellText`).
+- **P4. Thin host shells: all input and output native, no decisions.** Each host has one runner (carriage: the plan's
+  statements in order), connectors (SQL in, Arrow out, over the host's own drivers) and its native consumers (the grid,
+  a dataframe, an HTTP answer).
+- **P5. One implementation of each output.**
+  - **Wire text and the Arrow answer** (legend-engine's JSON and TDS, lite's JSON rows, PureV1, CSV, `ARROW_IPC`): the
+    core's writers, on every host.
+  - **The text on screen:** DataCube's formatter, from the typed value, for the cells on screen. The grid renders only
+    in a browser, so it has one implementation.
   - **A value's exact text in the tab** (the literal a filter writes back, a pivot's column name, a saved document's
-    value, an equality key) is `engine-client/src/values.ts`'s, held to Java's spelling of the same value by the
-    conformance suite (P5).
-  - **The text on screen** is DataCube's formatter's, from the typed value.
-- **P5. Consistency is tested.** One conformance suite runs the same plans on the same data on every host and compares
-  three things: the typed values cell by cell, the Arrow byte for byte, and any wire text byte for byte against Java's
-  writers. A difference is a defect, or a row of `docs/SEMANTICS_REGISTER.md` the user ruled.
-- **P6. Safe by construction.** No silent default. A refusal is named, and the same on every host. Every step runs
-  under the suite. No output's spelling changes without the user's word, asked case by case.
-- **P7. Fast by design, held by budgets.** Columnar end to end, nothing spelled before it is read. Each host's
-  benchmarks are kept, with budgets, and the time of an interaction is measured end to end: plan, SQL, decode, draw.
+    value, an equality key): `engine-client/src/values.ts`, held to the core's spelling of the same value by the
+    conformance suite.
+- **P6. Consistency is tested.** One conformance suite runs the same cases on every host, every database and every
+  output, against the JVM's answers. A difference is a defect, or a row of `docs/SEMANTICS_REGISTER.md` the user ruled.
+  Its ledger only shrinks.
+- **P7. Safe by construction.** No silent default (AGENTS.md invariant 4). A refusal is named, and the same on every
+  host. No output's spelling changes without the user's word, asked case by case.
+- **P8. Fast by design, held by budgets.** An answer costs the database's time, one pass over the Arrow for a text
+  output, and at most one copy across a boundary. Each host's benchmarks are kept, with budgets, and an interaction is
+  measured end to end: plan, SQL, decode, draw.
 
 ### 1.2 The rulings (the user, 2026-11-02)
+
+Rev 1's (ratified with the user):
 
 - **D1. The hosts' result is Arrow, columnar.** TypeScript's and Python's runners answer Arrow record batches, not Java's
   row batches.
 - **D2. Text stays Java's.** JSON rows, PureV1 and CSV text is written by Java's writers (`CellText`), reached through the
-  WebAssembly planner in the tab and the native library in Python, as today. The cost of handing the rows over is
-  measured before the handoff changes.
+  WebAssembly planner in the tab and the native library in Python. The cost of handing the rows over is measured before
+  the handoff changes. (Rev 3: stands; the rows reach the writers as Arrow, D8.)
 - **D3. Snowflake authentication.** In the browser: OAuth or a programmatic access token, never a private key. In
   Python: key-pair, OAuth or a programmatic access token.
 - **D4. The tab's Snowflake session goes direct, over CORS** (undocumented; the user has it from Snowflake), and the same
   session code can go through a proxy instead (the warehouse server, or Python's engine) should CORS be withdrawn.
 - **D5. Python's Snowflake client is ADBC** (`adbc-driver-snowflake`), in a `snowflake` extra of its own.
 
-### 1.3 Proposed, for the user's ruling (rev 2)
+Rev 3's, the clean-sheet design (ratified by the user, "Yes I love it"):
 
-- **D6. A plan's review is Java's (P1).** Today the tab's runner repeats Java's checks in TypeScript (`plan-runner.ts`):
-  the format and version, the bindings, the target, what a host may run. Python would need a third copy.
-  - Proposed: the planner each host embeds answers the review: may this host run this plan, and if not, the refusal in
-    words. The host keeps only the loop that runs the steps in order, binds a count and begins and ends the
-    transaction.
-  - The alternative: port the checks to each host and hold the copies to Java's by the suite.
-- **D7. The result's Arrow schema is Java's (P3).** Python's Arrow answers today keep DuckDB's own types, with the Pure
-  type in each field's metadata (`frames.py` `typed_by_plan`): an `Int32` stays `Int32`, a timestamp stays in
-  microseconds. Aligning them to P3 changes the schema those answers carry, so each change is posted to the user case
-  by case before it lands (an `Int32` widened to `Int64`, microseconds to nanoseconds).
-- **D8. A host hands rows to Java's writers as Arrow.** Today Python hands them as JSON text (`compiler.host_rows`), and
-  so does the tab (`hostRows`): every cell a Python or JavaScript value, then a token, then parsed again by Java. That is
-  23 s at 1,000,000 rows in Python (GATES, H0).
-  - Proposed: the handoff is the result itself (P3), as Arrow IPC, read in Java by a reader beside the hand-written
-    writer (`arrow_ipc/`, no Arrow library in core).
-  - That retires both JSON handoffs, and the tab's own lite-JSON writer for a write's answer (`plan-runner.ts`
-    `rowsOf`): P4's wire text has one owner.
-- **D9. The tab's result model is typed columns over the result's Arrow**, with the exact text made only when it is
-  asked for (§3.6a).
-- **D10. The conformance suite starts from today's behaviour.** Its first run records every difference between the hosts
-  as a ledger. The ledger only shrinks: an entry goes by a fix, or becomes a register row the user rules. Nothing is
-  "fixed" by changing an expected answer.
+- **D6. What a host can run is decided at planning.** The host gives the planner its profile (the database types it
+  reaches, the outputs it writes); the planner plans only what that host can run, or refuses at planning, by name, the
+  same on every host. A host's runner checks the plan's format and version and refuses an unknown step by name; it
+  repeats none of `PlanRunner`'s review. (Rev 2 proposed the review asked of the embedded planner at run time; a
+  straight-line plan makes it planning's.)
+- **D7. The answer's Arrow is in the plan's types on every host (P3).** Python's Arrow answers keep DuckDB's own types
+  today (`frames.py` `typed_by_plan`; fourteen ledger entries). Each change to an answer an existing path gives (an
+  `Int32` widened to `Int64`, microseconds to nanoseconds in UTC, a computed decimal's precision) is posted to the user
+  case by case before it lands.
+- **D8. A host hands rows to the core's writers as Arrow bytes**, across a boundary that carries bytes. The reader is the
+  core's own, beside the hand-written writer (`//arrow_ipc`, no Arrow library in core). It retires the text handoffs
+  (`hostRows`, `compiler.host_rows`) and the tab's own lite-JSON writer for a write's answer (`plan-runner.ts`
+  `rowsOf`). The handoff's options are measured on both hosts and posted before it is built.
+- **D9. The tab's result model is typed columns over the Arrow**, with the exact text made only when it is asked for
+  (§3.6a).
+- **D10. The conformance suite starts from today's behaviour.** Its first run recorded every difference as a ledger
+  (R1, built). An entry goes by a fix, or becomes a register row the user rules. Nothing is "fixed" by changing an
+  expected answer.
+- **D11. One plan kind (P2).** The tab's `Plan {sql, columns}` and `ExecutePlan`, and Python's `{sql, type}` and
+  `{sql, metadata}`, retire into the plan record. legend-engine's own plan (`UpstreamPlanner`, read from an upstream
+  server's `generatePlan`) is another planner's, and stays.
+- **D12. The runner is carriage.** Should a host ever need a step that depends on data, the core gains a stepper that
+  says what to send next and the host sends it (the core still does no input or output); no host grows logic of its own.
+- **D13. Connectors: SQL and its bound values in, Arrow batches out,** over each host's native driver: DuckDB in all
+  three; ADBC for Snowflake in Python (D5); Snowflake's SQL API in the tab (D4), its text turned into the plan's Arrow at
+  the connector; JDBC on the JVM.
+- **D14. The core stays Java.** From zero, Rust would be the choice (small WebAssembly, memory shared with JavaScript and
+  Python without a copy). The shape, not the language, is what makes it fast and correct, and the core exists, held
+  identical across three builds. Java's costs, accepted: the bundle's size, and one copy into the tab's WebAssembly memory
+  for a text answer (the grid sends no data into the core).
+- **D15. The JVM keeps `PlanRunner` as the reference.** Test bodies stay on the JVM (`Execution.runProgram`).
+
 
 ## 2. The code as it is
 
@@ -202,65 +244,103 @@ Arrow IPC stream per chunk), and holds a bearer token refreshed at 80% of its li
   (DuckDB or Postgres); Python hardcodes `'DuckDB'` in five places (`frames.py:180,333`, `_host.py:14`, `projects.py:46`,
   `engine.py:1421`) and takes a warehouse table's from its catalog.
 
-## 3. The design
 
-### 3.1 One plan
+## 3. The design (rev 3)
 
-Every executor runs the plan record the planner writes, as its JSON (`legend-lite-plan`, `PlanJson.VERSION`, 19 today).
-The tab's three shapes (§2.1) become one: `Plan {sql, columns}` (`engine-client/src/relation-type.ts`, paths A, B, C,
-F) and `ExecutePlan` (path E) are retired into the record, their callers moved to it, and the record's columns carry every
-fact the decode needs (the Pure type and multiplicity, the SQL slot, the store's declared type, the written precision).
-Python's `{sql, type}` and `{sql, metadata}` answers go the same way. The WebAssembly and native planners already write
-the record (`executionPlan`, `lite_execution_plan_json_held`; §2). legend-engine's own plan (`UpstreamPlanner`, read from
-an upstream server's `generatePlan`, `datacube/src/planner.ts:132-217`) is another planner's, and stays as it is.
+```
+             ┌──────────── the core (once, embedded x3, no I/O) ─────────────┐
+model+query →│ planner ──► plan (one kind, a straight line)                  │
+             │ writers:  plan + Arrow batches ──► legend JSON / CSV / Arrow  │
+             └───────────────────────────────────────────────────────────────┘
+host shell:   runner: the plan's statements ──► connector ──► Arrow batches
+              ├─► a native consumer (the grid, a dataframe) reads the Arrow
+              └─► the core's writers, for an answer that is text
+```
 
-### 3.2 One runner per language, with Java's rules
+### 3.1 The core
 
-`engine-client/src/plan-runner.ts` already reads the record for a host's writes. It grows reads (`tdsResult`), and
-Python gains its twin. Whether the review below is computed by Java and asked by the host (D6, proposed) or repeated
-in each host, every runner keeps `PlanRunner`'s rules:
+- **The planner:** `//core:plan_side`, embedded through `//wasm:boundary` (the tab: TeaVM to WebAssembly GC,
+  `//wasm:planner`) and `//native:compiler` (Python: GraalVM). Its builds are held to the JVM's by
+  `//wasm:differential_test` and `//python:bindings_test`.
+- **The writers:** `//core:result`: `CellText`, and the JSON rows, legend-engine JSON, PureV1, CSV and Arrow writers.
+  Its deps are `//arrow_ipc`, `//base`, `//json`, `:error`, `:execution_plan` and `:values`. `plan_side` includes it, so
+  both embedded builds carry it today.
+- **What the core gains:** an Arrow reader (D8); a writer fed a batch at a time (begin, each batch, end), so a large
+  answer streams in bounded memory; and a boundary that carries bytes (§3.6).
 
-- The plan is reviewed whole before any session opens: its format and version, its parameters, every slot's binding,
-  every step's target. What a runner cannot run is refused by name, never run some other way (a binding of a key's cell,
-  per-key regions, a step of another database or of several, setup steps).
-- A sequence runs in one transaction; an `update`'s count is kept where a later step binds it; a `check` is run for what
-  its database may raise; the one typed result is read once the transaction has committed.
-- The target's session statements run first, on the session the plan names.
+### 3.2 The plan
 
-### 3.3 One session seam per language
+The record (`executionplan.ExecutionPlan`, its JSON `legend-lite-plan`, version 19 today) is what every host path runs
+(D11). A host's plan is a straight line:
 
-A session is the one way in to a database: a statement and its bound values in, a stream of Arrow record batches out,
+- the target and its session statements;
+- the statements in order, in one transaction, with a count a later statement binds;
+- which statement's rows are the answer, and each answer column's name, Pure type and multiplicity, and its Arrow type;
+- every fact a writer needs for each output the answer may be written as (legend-engine's builder, its activities).
+
+What the record lacks for a host path today is R2's to add. The host's profile (D6) is the planner's input: a host is
+never handed a plan it cannot run.
+
+### 3.3 The runner
+
+One per host, carriage (P4, D12): open the session the plan names and run its session statements; run the statements
+in order in one transaction, binding a count where a later statement takes it; stream the answer's batches to a sink. It
+checks the plan's format and version, and refuses an unknown step by name (D6). The tab's `plan-runner.ts` is its start
+(today writes only, with a review of its own), Python gains its twin, and the JVM's `PlanRunner` stays the reference
+(D15).
+
+### 3.4 Connectors
+
+A connector is the one way in to a database: a statement and its bound values in, a stream of Arrow record batches out,
 and its transaction's three statements (the planner's `transaction` host operations, as `hostSession` asks them today).
-The sessions:
 
-| Language | Session | Wire | Status |
+| Host | Connector | Wire | Status |
 |---|---|---|---|
-| TypeScript | DuckDB-WASM in the tab | Arrow (`send`, batch by batch) | exists (`DuckDbEngine`), moves under the seam |
-| TypeScript | the warehouse (DuckDB on a server) | Arrow IPC over HTTP | exists (`WarehouseEngine`), moves under the seam |
-| TypeScript | Snowflake | the SQL API's `jsonv2` over HTTPS | new (§4.2) |
-| Python | duckdb-python (the frames' database) | Arrow (`to_arrow_table`, record batch readers) | exists, moves under the seam |
+| the tab | DuckDB-WASM | Arrow (`send`, batch by batch) | exists (`DuckDbEngine`), moves under the interface |
+| the tab | the warehouse (DuckDB on a server) | Arrow IPC over HTTP | exists (`WarehouseEngine`), moves under it |
+| the tab | Snowflake | the SQL API's `jsonv2`, turned into the plan's Arrow here | new (§4.2) |
+| Python | duckdb-python (the frames' database) | Arrow (`to_arrow_table`, record batch readers) | exists, moves under it |
 | Python | Snowflake | Arrow, through ADBC | new (§4.1) |
+| the JVM | JDBC (`exec`'s session seam) | rows, read by `exec.JdbcDecode` | exists, the reference |
 
-### 3.4 The typed decode: by the plan's facts, once per column
+A database's Arrow can differ from the plan's types (DuckDB's `INTEGER` an `Int32`, its `TIMESTAMP` in microseconds with
+no zone). Reading it into the plan's types is done once per column, never per cell, by the plan's column facts. A
+column whose wire type the plan's type does not admit is refused by name (AGENTS.md invariant 4), never guessed. Where a
+consumer takes the database's Arrow directly (a dataframe, the grid), it reads it by the plan's column types; whether
+Python's Arrow answers are cast to the plan's types by pyarrow or by the core is measured in R4 and posted with D7's
+cases.
 
-A batch's columns are converted to the plan's types once per column, never per cell: the converter for a column is chosen
-once from the plan's column facts and the batch's Arrow storage type, and it works on the whole vector (a decimal's
-digits from its unscaled integers, a timestamp's unit scaled once). The answer is Arrow in the schema Java's
-`ArrowWriter` writes for the same plan, so the three executors answer the same Arrow for the same plan and database --
-which the conformance suite (§3.7) checks byte by byte. A column whose wire type the decode does not know for its plan
-type is refused by name (AGENTS.md invariant 4), never guessed.
+### 3.5 Consumers and outputs
 
-### 3.5 Text: Java's, unchanged
+- **The grid** reads typed Arrow, and only the cells on screen become text, by DataCube's formatter (§3.6a).
+- **A dataframe** takes the Arrow.
+- **A text output and the Arrow answer** are the core's writers' (D2, D8), fed Arrow (§3.6).
+- **A refusal at planning** is the core's, the same on every host. **A database's error** is put in the answer's error
+  frame by the writers; only the database's own words differ by driver (DuckDB's JDBC driver, duckdb-python and
+  DuckDB-WASM word the same failure differently: R1's ledger), each such difference posted to the user case by case.
 
-When a consumer needs text (an engine client asking legend-engine's JSON, a CSV download), the host hands its rows to the
-planner it embeds, and Java's writers spell them (D2). Today's handoff is JSON text (Python's `compiler.host_rows`, the
-tab's `executeAnswer`); it is measured first (H0), and replaced only if the numbers say so -- with a choice posted to the
-user, since a faster handoff (Arrow into the planner) needs an Arrow reader on the Java side.
+### 3.6 The handoff into the writers: Arrow bytes
 
-### 3.6 The fast path
+The boundary carries strings only today (`wasm/src/main/java/planner/Folded.java`): a binary answer travels as base64,
+and rows go in as JSON text. The new boundary carries bytes:
 
-A grid's query renders no text: the runner's Arrow goes straight to the consumer (DataCube reads Arrow already), with the
-plan's facts carried in the schema's metadata as today.
+- **Native (Python):** a pointer and a length, so the library reads Python's Arrow buffer where it lies, with no copy.
+- **The tab:** a byte array copied into the module's memory (WebAssembly GC's arrays are not linear memory), and the
+  answer's bytes copied out. The grid never takes this path; Studio's execute answers, usually small, do.
+
+R3 measures both before anything is built, and posts the numbers.
+
+**The writer runs in both embedded builds (a scratch probe, 2026-11-02, not committed).** The corpus's `TYPES` table
+(`//conformance`) was planned by `lite_execute_json_plan`, run on duckdb-python, its rows handed over by `host_rows`, and
+written by `lite_execute_arrow_answer` in the native library and by `executeArrowAnswerOrError` in the tab's module
+(Node 22.16, `--experimental-wasm-exnref`, as `//tools/js` runs it):
+
+- pyarrow reads both answers: the plan's types (`Int64`, `Decimal128`, `bool`, `date32[day]`, `timestamp[ns, tz=UTC]`),
+  every edge value intact (`9007199254740993`, `99999999999999999999999999999999999.99`, `é漢字🙂`, `9999-12-31`,
+  `2262-04-11 23:47:16.854775`, a row of nulls);
+- both are 4,393 bytes, with the same schema and values, differing only in the trace id each answer draws fresh, as
+  upstream's does;
+- neither export had a caller or a test before (§7).
 
 ### 3.6a The tab's result model (H1b; proposed 2026-11-02, for the user's review before code moves)
 
@@ -339,15 +419,20 @@ spelling or behaviour change, posted to the user case by case before any is buil
 
 ### 3.7 Conformance
 
-One suite of plans and data, run by every executor on the same database, the answers compared: the typed values cell by
-cell, the Arrow byte by byte, and any text byte by byte against Java's writers. DuckDB in CI; Snowflake on the Snowflake
-lane session (credentials stay there, §6). This suite is what "the same design" buys: a difference is a defect, or a row
-of `docs/SEMANTICS_REGISTER.md` posted to the user first.
+R1's suite (`//datacube:conformance_test` over `//conformance`) is the judge every step runs under (P6). It grows a case
+for each path, output and database a step brings, and its ledger only shrinks (D10). DuckDB in CI; Snowflake on the
+Snowflake lane session (credentials stay there, §6), against Java's answers through snowflake-jdbc.
+
+### 3.8 The core's language
+
+Java (D14). TeaVM's WebAssembly GC build costs the tab's bundle its size and a copy for a text answer; GraalVM's native
+build costs nothing material. Both are measured (R3, R8), not assumed.
+
 
 ## 4. Snowflake
 
 The planner already plans for Snowflake (core's `Snowflake` dialect; Java runs it through snowflake-jdbc, as
-legend-engine does). H3 and H4 first check that the WebAssembly and native planners carry the dialect.
+legend-engine does). R7 first checks that the WebAssembly and native planners carry the dialect.
 
 ### 4.1 Python: ADBC
 
@@ -372,13 +457,13 @@ still running, polled by its handle (`GET /api/v2/statements/{handle}`); a large
 (https://docs.snowflake.com/en/developer-guide/sql-api/reference):
 
 - **One result format, `jsonv2`:** "The data is encoded as JSON strings, regardless of the Snowflake datatype." No Arrow.
-  The decode (§3.4) turns each column's strings into the plan's Arrow by `resultSetMetaData.rowType` (type, precision,
+  The connector (§3.4) turns each column's strings into the plan's Arrow by `resultSetMetaData.rowType` (type, precision,
   scale), exactly: a number's digits as written, a timestamp's epoch and fraction. It suits interactive results; a large
   extract is the server's to run.
 - **Tokens:** `OAUTH`, `KEYPAIR_JWT` and `PROGRAMMATIC_ACCESS_TOKEN` (`X-Snowflake-Authorization-Token-Type`). The tab
   uses OAuth or an access token (D3); a key never reaches a page.
 - **A `User-Agent` is required.** CORS is not documented (D4): the session takes its base URL and its headers from the
-  caller, so the same code reaches Snowflake through a proxy unchanged. H4 checks CORS from a real browser before any
+  caller, so the same code reaches Snowflake through a proxy unchanged. R7 checks CORS from a real browser before any
   page depends on it.
 
 ### 4.3 Fidelity
@@ -387,25 +472,27 @@ Java's Snowflake results (through snowflake-jdbc, legend-engine's own driver) ar
 must equal them, value by value, on the lane. Every difference found is posted to the user, case by case, before it lands,
 and ledgered (AGENTS.md, the upstream-fidelity tenet).
 
-## 5. The roadmap
 
-Each phase has a goal, a scope and an exit test, and runs as one cycle: a brief, the build, an independent audit (an
+## 5. The roadmap (rev 3)
+
+Each step has a goal, a scope and an exit test, and runs as one cycle: a brief, the build, an independent audit (an
 agent that wrote none of it), its fold, the records (GATES, IN_FLIGHT, §8), then a push to the branch. No PR and no push
-to `main` without the user's word. A phase changes no output's spelling unless the user ruled it, case by case.
+to `main` without the user's word. A step changes no output's spelling unless the user ruled it, case by case. Every
+step runs under the conformance suite (§3.7).
 
-| Phase | Goal | Exit |
+| Step | Goal | Exit |
 |---|---|---|
-| **R0. The charter** | This note's principles and D6-D10 ruled by the user. | The user's word. |
-| **R1. The conformance suite** | The safety net, before any host changes. | The suite green against its ledger in CI, on every OS. |
-| **R2. One plan** | Every host runs the plan record (P2). | No host reads another plan shape; the suite's ledger the same or smaller. |
-| **R3. One session seam per host** | One way in to every database, streaming Arrow. | A guard: the runner is the one caller of a session (as Java's `theRunnerIsTheOneCallerOfTheSessionsStatements`). |
-| **R4. One result** | Typed columns, P3's Arrow on every host. | The suite compares the hosts' Arrow byte for byte. |
-| **R5. One owner of each spelling** | Wire text Java's alone (D8); the tab's exact text held to Java's. | No wire text spelled outside Java (a guard). |
-| **R6. Snowflake** | A Snowflake session in Python (ADBC) and in the tab (the SQL API). | The suite green on the Snowflake lane against Java's JDBC answers. |
-| **R7. Budgets** | Speed held, not chased. | Budgets per host in a lane; an interaction measured end to end. |
+| **R1. The conformance suite** (done) | The safety net, before any host changes. | Green against its ledger (seventeen entries); CI on every OS. |
+| **R2. One plan kind** | Every host path runs the plan record (D11), planned for the host's profile (D6). | No host reads another plan shape; the ledger the same or smaller. |
+| **R3. The writers take Arrow** | A boundary that carries bytes, the core's Arrow reader, a writer fed a batch at a time (D8). | On the suite, the writers' answers from Arrow equal today's, byte for byte. |
+| **R4. Python's shell** | One runner over its connectors; JSON through the writers from Arrow; the Arrow answer in the plan's types (D7). | The fourteen schema entries gone or ruled; Python's JSON execute in its budget. |
+| **R5. The tab's shell** | One runner over its connectors; the grid on typed Arrow (§3.6a); writes as carriage. | The suite and DataCube's suites green, every displayed and saved text unchanged. |
+| **R6. The deletions** | The text handoffs, the parse-backs, the retired plan shapes. | A census reads zero on each. |
+| **R7. Snowflake** | Python through ADBC (§4.1), the tab through the SQL API (§4.2). | The suite green on the Snowflake lane against Java's JDBC answers. |
+| **R8. Budgets** | Speed held, not chased (P8). | Budgets per host in a lane; an interaction measured end to end. |
 | **Z** | The landing. | An independent final audit, the records, CI on every OS; handed to the user. |
 
-**R1. The conformance suite.**
+**R1. The conformance suite (done, GATES "R1": its first plan, then its design as built).**
 - **The cases:** the planner corpus `//wasm:corpus` (a trades model and its queries, already the planner's shared
   judge), the type matrix of `//engine-client:column_decode_test` (every type DuckDB writes, with nulls and edge
   values), and the typed-values cases DataCube pins (`datacube/test/typed-values`).
@@ -445,45 +532,57 @@ to `main` without the user's word. A phase changes no output's spelling unless t
   too, so the ledger only shrinks.
 - **The lane:** `//gates:warehouse`, where the tab-against-Python execute test already runs.
 
-**R2. One plan.**
-- **The tab:** the callers of `Plan {sql, columns}` and `ExecutePlan` move to the record (§2.1 paths A, B, C, E, F),
-  and the runner reads a `tdsResult`.
-- **Python:** `Table.execute`, the engine's executes and plan-and-run move to the record.
-- **The review:** per D6.
-- legend-engine's own plan (`UpstreamPlanner`) is another planner's, and stays.
+**R2. One plan kind.**
+- **The survey first:** the record's JSON against each retired shape's fields and each caller (§2.1 paths A, B, C, E,
+  F; §2.2), and what the writers need for each output (legend-engine's builder, its activities, the trace id).
+- **The host's profile (D6):** the database types a host reaches and the outputs it writes, as the planner's input; what
+  a host cannot run refused at planning, by name.
+- **The tab:** the callers of `Plan {sql, columns}` and `ExecutePlan` move to the record, and the runner reads the
+  answer's step.
+- **Python:** `Table.execute`, the engine's executes and plan-and-run move to it.
+- No output changes: the suite and each host's own suites hold it.
 
-**R3. One session seam per host.**
-- **The tab:** DuckDB-WASM, the warehouse and a remote legend-engine sit behind one interface: a statement and its values
-  in, Arrow batches out, and the transaction's statements.
-- **Python:** the frames' DuckDB and the warehouse, the same.
-- The runner is their one caller.
+**R3. The writers take Arrow.**
+- **The measurement first** (scratch, both hosts, posted): the bytes boundary's cost in the native library (a pointer
+  and a length) and in the tab's module (a copy each way), against the text handoff (H0) and the Arrow execute's 188 ms.
+- **The reader:** in `//arrow_ipc`, the types the plan declares, each connector's Arrow read into them (§3.4).
+- **The boundary:** `wasm/.../Boundary.java`, `TabExports.java`, `native/.../nativelib/Compiler.java`, and the hosts'
+  bindings.
+- **The writer fed a batch at a time:** begin, each batch, end.
+- **The exit:** on the suite, the JSON and Arrow answers the writers give from Arrow equal today's, byte for byte.
 
-**R4. One result.**
-- **The tab:** typed columns over the Arrow (§3.6a, D9), its readers moved one group at a time. H1a's column decode is
-  this phase's first piece, already built.
-- **Python:** its answers in P3's schema (D7's cases ruled first).
-- Every displayed and saved text stays the same, held by DataCube's suites and the conformance suite.
+**R4. Python's shell.**
+- **The runner:** the twin of the tab's (§3.3), over duckdb-python.
+- **The consumers:** `Table.execute` (a `pyarrow.Table`), the engine's Arrow and JSON executes, plan-and-run, and the
+  headless page's writes.
+- **The outputs:** JSON through the writers from Arrow (R3); the Arrow answer in the plan's types (D7, its cases posted
+  first).
 
-**R5. One owner of each spelling.**
-- **The handoff:** Arrow IPC into Java's writers (D8), which retires `host_rows`, `hostRows` and `rowsOf`.
-- **The tab's exact text** (`values.ts`) is held to Java's spelling of each value by the suite.
-- **The behaviours found to differ** (§3.6a's six, and §7's) are posted to the user one by one.
+**R5. The tab's shell.**
+- **The runner** over its connectors: DuckDB-WASM, the warehouse, a remote engine's Arrow.
+- **The grid:** H1b's steps 1 to 5 (§3.6a).
+- **Studio's and Query's execute:** through the writers from Arrow (R3).
+- **Writes:** carriage; `rowsOf` goes, the answer is the writers'.
 
-**R6. Snowflake.**
-- **Python:** the ADBC session (§4.1).
-- **The tab:** the SQL API session (§4.2), its CORS checked from a browser first, its proxy the same code.
-- **The judge:** the conformance suite on the Snowflake lane, against Java's answers through snowflake-jdbc.
+**R6. The deletions.** `hostRows`, `compiler.host_rows`, `rowsOf`, `PureV1Api.jsonAnswer`'s text input, the
+parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, each with a census that reads zero.
 
-**R7. Budgets.**
+**R7. Snowflake.**
+- **Python:** the ADBC connector (§4.1).
+- **The tab:** the SQL API connector (§4.2), its CORS checked from a real browser first, its proxy the same code.
+- **The judge:** the suite on the Snowflake lane, against Java's answers through snowflake-jdbc.
+
+**R8. Budgets.**
 - The H0 benchmarks, and a benchmark of an interaction end to end (plan, SQL, decode, draw) at the sizes DataCube
-  fetches (up to 1,001 rows a level, `DEFAULT_MAX_ROWS`), and an uncapped flat grid.
+  fetches (up to 1,001 rows a level, `DEFAULT_MAX_ROWS`) and an uncapped flat grid.
 - A budget each, in a manual lane.
 - A speed fix only where a measurement shows one.
 
 **What is done already.**
-- **H0.** The baselines and the code map: R1's and R7's inputs.
-- **H1a.** The tab's column decode: R4's first piece. Every value is the same, and an audit found one defect, fixed.
-- **H1b's design (§3.6a).** R4's plan for the tab.
+- **H0.** The baselines and the code map.
+- **H1a.** The tab's column decode, R5's first piece. Every value is the same; an audit found one defect, fixed.
+- **H1b's design (§3.6a).** R5's plan for the grid.
+- **R1.** The conformance suite and its first ledger.
 
 ## 6. Rules
 
@@ -491,6 +590,7 @@ to `main` without the user's word. A phase changes no output's spelling unless t
 - A guard's pin or allowlist moves only with a dated justification (AGENTS.md; `docs/FOUNDATIONS_PLAN.md` §0.4).
 - Credentials are never read, printed or copied by a session; the Snowflake lane measures only.
 - The start page's checks run before each commit; records land with the code.
+- The core does no input or output (P1): no export of the embedded boundary reaches a connection, a socket or a file.
 
 ## 7. Open questions and findings
 
@@ -503,6 +603,9 @@ to `main` without the user's word. A phase changes no output's spelling unless t
   then makes `"0NaN-NaN-NaNT..."` of one past year 275,760 (`TIMESTAMP '287396-10-12 08:59:00.991999'`): a silent
   default. It predates the program, and the column decode answers the same. Its fix is a refusal, and so a behaviour
   change, to be posted to the user with H1's Arrow results.
+- **Two exports with no caller and no test** (found 2026-11-02, while checking the Arrow writer runs in both embedded
+  builds): `executeArrowAnswerOrError` in the tab's module and `lite_execute_arrow_answer` in the native library. Both
+  answer correctly (§3.6). R3 gives them callers, or R6 deletes them.
 
 ## 8. Status
 
@@ -522,3 +625,7 @@ to `main` without the user's word. A phase changes no output's spelling unless t
   whether the design makes every host depend on Java past the planner ("each host also has a dependency on the java
   executor ... which is not going to work"): a revision to a one-way design (the plan in, every output the host's own,
   held by this suite) is posted to the user, and D2, D6 and D8 stand open until the user rules.
+- 2026-11-02: rev 3, the clean-sheet design, ratified by the user ("Yes I love it"): one core embedded in every host
+  doing no input or output (the planner and the writers), Arrow between the pieces, thin host shells (§1, §3); D6-D15
+  ruled; the roadmap R2-R8 and Z (§5). Before it, the user's two questions (rev 3's preface) and the scratch probe of the
+  Arrow writer in both embedded builds (§3.6).
