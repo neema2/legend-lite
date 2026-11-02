@@ -1820,10 +1820,11 @@ Enum timeseries::Sample
 }
 
 // How a period's rows become its value (R5): its last row's, its first row's, the greatest, the least, their sum, their
-// mean.
+// mean -- each the word of its name (last(x), mean(x) under SAMPLE BY), so a word's other spellings are a period's
+// too (avg, mean's: R15).
 Enum timeseries::Taken
 {
-  last, first, max, min, sum, avg
+  last, first, max, min, sum, mean
 }
 
 // What a period is dated at (R5): its last row's day, its first day, its last day.

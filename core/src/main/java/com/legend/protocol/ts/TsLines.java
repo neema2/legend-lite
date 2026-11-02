@@ -18,7 +18,6 @@ import com.legend.protocol.sql.SqlTranslationException;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * THE LINES OF A {@code #TS{...}#} QUERY (docs/TIMESERIES_LANGUAGE_2026_10_29.md R2, R4, R6): a line is one
@@ -118,14 +117,10 @@ final class TsLines {
         });
     }
 
-    /** How a period's rows become one value (R5): the language's name, the library's {@code timeseries::Taken}. */
-    static final Map<String, String> TAKEN = Map.of("last", "last", "first", "first", "max", "max", "min", "min",
-            "sum", "sum", "avg", "avg", "mean", "avg");
-
     /**
      * A COLUMN'S LINE BY PERIOD (R5, SAMPLE BY): its rows as {@link #column}'s, each row's period the first day of its
-     * calendar {@code unit} ({@code d} its day), grouped by the instrument and the period, its value {@code taken}
-     * ({@code last}, the period's last row's; {@code first}; {@code max}, {@code min}, {@code sum}, {@code avg}), the
+     * calendar {@code unit} ({@code d} its day), grouped by the instrument and the period, its value {@code taken} (a
+     * value of the library's {@code timeseries::Taken}: last, the period's last row's; first; max, min, sum, mean), the
      * period dated at its last row's day -- the tile's frequency (timeseries-query.ts columnPart, periodOf).
      */
     static Valued sampled(Writer w, Source s, String column, List<SqlAst.Expr> matches, boolean split, String unit,
@@ -143,7 +138,7 @@ final class TsLines {
         // the library's line by period (timeseries::lines::sample)
         rel = call(LINES + "sample", rel, new ColSpec(instrument), new ColSpec(s.date()), new ColSpec(column),
                 sample(unit),
-                new EnumValue(TsToPure.LIBRARY + "Taken", java.util.Objects.requireNonNull(TAKEN.get(taken))),
+                new EnumValue(TsToPure.LIBRARY + "Taken", taken),
                 new EnumValue(TsToPure.LIBRARY + "Dated", dated.toLowerCase(java.util.Locale.ROOT)),
                 new ColSpec(instrument), new ColSpec(PERIOD), new ColSpec(ORD), new ColSpec(AT), new ColSpec(value));
         return new Valued(new Line(rel, instrument, split, AT), value);

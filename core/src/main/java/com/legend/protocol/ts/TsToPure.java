@@ -947,7 +947,7 @@ public final class TsToPure {
              *  SAMPLE BY -- refused without it. */
             private boolean periodOf(SqlAst.FunctionCall fc) {
                 String name = fn(fc);
-                if (name == null || !TsLines.TAKEN.containsKey(name) || fc.args().size() != 1) {
+                if (name == null || fc.args().size() != 1 || taken(name) == null) {
                     return false;
                 }
                 if (query.sample() == null) {
@@ -964,10 +964,22 @@ public final class TsToPure {
                 return true;
             }
 
+            /** The value of the library's {@code timeseries::Taken} a period's aggregate called {@code name} is: the
+             *  word {@code name} names (its own name, or one of its spellings: avg, mean's -- R15, the library's
+             *  tags), where the enumeration has a value of that word's name; null where it names none. */
+            private @com.legend.base.Nullable String taken(String name) {
+                List<String> values = model.enumeration(LIBRARY + "Taken");
+                if (values == null || values.contains(name)) {
+                    return values == null ? null : name;
+                }
+                String word = TsWords.fqn(model, name).substring(TsWords.PACKAGE.length());
+                return values.contains(word) ? word : null;
+            }
+
             /** A period's aggregate of a source's column (R5): its line by period. */
             private TsLines.Valued period(SqlAst.FunctionCall fc) {
                 SqlAst.Expr arg = fc.args().get(0);
-                String taken = java.util.Objects.requireNonNull(fn(fc));
+                String taken = java.util.Objects.requireNonNull(taken(java.util.Objects.requireNonNull(fn(fc))));
                 if (arg instanceof SqlAst.FunctionCall pick && TsParser.PICK.equals(fn(pick))) {
                     return picked(pick, taken);
                 }

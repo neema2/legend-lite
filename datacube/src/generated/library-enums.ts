@@ -21,7 +21,7 @@ export const LIBRARY_ENUMS = {
   Scope: ['all'],
   SeasonalModel: ['additive', 'multiplicative'],
   Statistic: ['mean', 'sum', 'min', 'max', 'range', 'std', 'var', 'count'],
-  Taken: ['last', 'first', 'max', 'min', 'sum', 'avg'],
+  Taken: ['last', 'first', 'max', 'min', 'sum', 'mean'],
   ThresholdType: ['percentage', 'absolute'],
   Whole: ['whole'],
 } as const;

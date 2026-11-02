@@ -175,7 +175,11 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
        - Left for move 7: a word's own broadcast, `TsWords.each`, which calls `helpers::each`. A Pure `if` there would
          need the two keys of one type, and a line of no instrument is keyed by a String.
     5. The 12-column cap (P7).
-    6. The period aggregates' vocabulary (`TAKEN`) read from `timeseries::Taken`.
+    6. The period aggregates' vocabulary (`TAKEN`) read from `timeseries::Taken`. **Done.**
+       - `TsLines.TAKEN`, a hand copy of the enumeration plus a Java-only alias `mean -> avg`, is deleted.
+       - The enumeration's value is now `mean`, the canonical word of R15, where it was `avg`.
+       - A period's aggregate is a word whose canonical name is a value of `timeseries::Taken`, resolved through
+         the library's own alias tags, so `avg(x)` under `SAMPLE BY` is `mean(x)`'s, as everywhere else.
     7. A condition in a line's place, and a timed line's broadcast, written in the library.
     8. A Float line, and one path with and without FILL. These are the riskiest: every word's signature changes.
   - **Three decisions not yet ruled** (posted to the user, 2026-11-01):
