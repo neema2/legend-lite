@@ -370,8 +370,33 @@ The planners' refusals, by site:
    and failing, under both judges; the census label `cell pool` gone from the lanes. **Expected:** the 9 bodies move on
    the host pass, outcomes identical.
 
-10. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
-   sessions go), the class-rule residue (M10a (f), the effect and frame mixes: M10d).
+10. **The engine-text assert in a system-routed body (M10b's S1; written before the code, 2026-11-02). BUILT
+   2026-11-02 (host judge): DuckDB host pass moved 3,017 -> 3,034, H2 host 3,017 -> 3,034, outcomes identical; the 17
+   asserts all moved; GATES items 38-40.** 14 bodies
+   on the DuckDB host pass (17 asserts: the ten relationalMapper tests, the five datetime plan tests,
+   `testToSQLStringWithAbs`, `testViewChainsWithBusinessDate`). A system-routed body's asserts are planned on the system
+   database's session (M10a: the program's one target), so an engine-text assert's APPEAL -- the rows leg over the
+   user's tables, harness Java run at the step on a failed text -- would read them on the wrong database; M10b refused
+   the body by name. The walk plans each side on the BODY's environment, and a side reaching the system store reroutes
+   itself to the system database's session (`BodyDriver.openRoute`: the same session object the router opened, once
+   per graph); the appeal then reads the user's tables on the body's session. So: the router hands `HostAsserts` the
+   body's own environment beside the system one; an assert whose planned judgment holds engine text has its ARM
+   planned again on the body's environment (`planAssert(..., env, program)`: the arm on the first, the appeal closing
+   over it as the walk's does) and its SIDES on the program's (the system environment): a planned side NAMES its target
+   (`JudgePlans.target`), and the program's steps run on one (`PlanRunner`'s same-target rule). Frames none: a
+   system-routed body is an assert program, so no splice hook binds the two environments -- a guard refuses a frame by
+   name. Every other assert of such a body is planned as before, on the system environment. **Found by the corpus
+   (2026-11-02):** the first build planned the sides on the body's environment too; the five datetime plan tests then
+   moved and failed ("a plan whose steps name different targets"), their deferred text side (item 8) naming the
+   body's database -- and a system-store side would have named it as well; the split closes both, and the witness's
+   deferred-side case fails without it. Under the database judge the gate's refusal stays
+   (`DatabaseAsserts`: the batch composes the text equality at planning; a later design). **Witnesses:** a system-routed
+   body on the frame model with an engine-text assert over a system read, its text equal (no appeal) and differing
+   with agreeing user rows (the appeal MATCHes on the body's session), and a deferred text (a plan's SQL through a
+   navigation) equal, appealed and diverging, parity under the host judge.
+   **Expected:** the 12 passing bodies move (two relationalMapper bodies fail on both roads).
+
+11. **Not this step:** the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 
 ## Movement and measurement
 

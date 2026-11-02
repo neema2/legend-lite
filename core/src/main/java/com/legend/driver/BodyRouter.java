@@ -69,6 +69,10 @@ public final class BodyRouter {
         if (assertsPlanned) {
             BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, java.util.Objects.requireNonNull(runtimeFqn), dialect,
                     session, listener, referee, options);
+            // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM planned
+            // on it -- its appeal reads the user's tables on the body's session -- and its sides on the program's
+            // (M10c item 10)
+            BodyDriver.ExecEnv bodyEnv = env;
             if (systemRouted) {
                 com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(), runtimeFqn);
                 systemRoute = BodyDriver.systemRoute(env, route);
@@ -81,7 +85,7 @@ public final class BodyRouter {
                 env = env.withSession(systemRoute.session());
             }
             if (mode == ExecuteOptions.JudgeMode.HOST) {
-                host = HostAsserts.plan(typed, runtimeFqn, env, systemRouted);
+                host = HostAsserts.plan(typed, runtimeFqn, env, systemRouted ? bodyEnv : null);
             } else {
                 database = DatabaseAsserts.plan(typed, runtimeFqn, env, systemRouted);
             }

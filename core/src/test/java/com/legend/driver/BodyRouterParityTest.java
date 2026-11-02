@@ -1226,6 +1226,83 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M10c item 10: an engine-text assert in a SYSTEM-ROUTED body (the body's one store read the system store's, the
+     *  producer's query a routine argument), its arm planned on the body's environment and its sides on the program's:
+     *  its text equal holds with no appeal; its text differing with agreeing rows appeals at the step and the rows leg
+     *  reads the user's table on the body's session, the referee MATCHing -- as the walk's; our text a side the step
+     *  reads (item 8: a plan's SQL through a navigation) names the program's one target, equal, appealed and diverging.
+     *  The one difference M10a makes for a system-routed body stands (the walk alone sets the body session up). */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void systemRoutedEngineTextPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        run(backend, ctx, "x::RT", "{| assertEquals('M', x::M.name);}", false, "select count(*) from FIRM", FIRM_ROWS);
+        String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
+                + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
+        String ours = text(run(backend, ctx, "x::RT", "{| " + producer + ";}", false, "select count(*) from FIRM",
+                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String equal = "{| assertEquals('M', x::M.name); assertEquals('" + pure(ours) + "', " + producer + ");}";
+        String appealed = "{| assertEquals('M', x::M.name); assertEquals('"
+                + pure("SELECT" + ours.substring("select".length())) + "', " + producer + ");}";
+        String diverged = "{| assertEquals('M', x::M.name); assertEquals('" + pure(ours + " where \"root\".ID = 1")
+                + "', " + producer + ");}";
+        // our text a side the step reads (item 8: a plan handle's SQL through a navigation over the plan's rows) -- the
+        // datetime plan tests' shape: the side planned on the program's environment names the program's one target
+        String planLet = "let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name],"
+                + " ['name']), x::M, x::RT.runtimeValue, []);";
+        String nav = "$p.rootExecutionNode.executionNodes->at(0)->cast(@meta::relational::mapping::SQLExecutionNode)"
+                + ".sqlQuery->toOne()";
+        String planSql = text(run(backend, ctx, "x::RT", "{| " + planLet + " " + nav + ";}", false,
+                "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String deferred = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('" + pure(planSql) + "', "
+                + nav + ");}";
+        String deferredAppealed = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('"
+                + pure("SELECT" + planSql.substring("select".length())) + "', " + nav + ");}";
+        String deferredDiverged = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('"
+                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}";
+        for (var c : List.of(java.util.Map.entry(equal, "ok"), java.util.Map.entry(appealed, "ok"),
+                java.util.Map.entry(diverged, "AssertFailed"), java.util.Map.entry(deferred, "ok"),
+                java.util.Map.entry(deferredAppealed, "ok"), java.util.Map.entry(deferredDiverged, "AssertFailed"))) {
+            String body = c.getKey();
+            assertTrue(BodyClass.systemRouted(typed(ctx, body), "x::RT"), "system-routed: " + body);
+            Run walked = run(backend, ctx, "x::RT", body, false, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.HOST);
+            Run moved = run(backend, ctx, "x::RT", body, true, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.HOST);
+            assertTrue(walked.outcome.startsWith(c.getValue()), body + " -> " + walked.outcome);
+            assertEquals(walked.outcome, moved.outcome, "outcome: " + body);
+            assertEquals(walked.answer, moved.answer, "the answer: " + body);
+            assertEquals(walked.verdicts, moved.verdicts, "the verdicts: " + body);
+            assertEquals(walked.census, moved.census, "the verdict census: " + body);
+            assertEquals(walked.ledger, moved.ledger, "the raw-SQL ledger: " + body);
+            assertEquals(walked.database, moved.database, "the database left: " + body);
+            assertEquals(walked.moved + 1, moved.moved, "the router moved the body: " + body);
+            long[] w = originsOf(walked.origins);
+            long[] m = originsOf(moved.origins);
+            for (int i = 0; i < w.length; i++) {
+                long allowed = i == StatementOrigin.SESSION.ordinal() ? 1 : 0;
+                assertTrue(w[i] - m[i] >= 0 && w[i] - m[i] <= allowed, "the statement-origin census differs beyond"
+                        + " the body session's setup: " + body + "\n  walked: " + walked.statements
+                        + "\n  moved:  " + moved.statements);
+            }
+            List<String> walkedSql = new ArrayList<>(walked.statements);
+            walkedSql.removeIf(st -> st.startsWith("[session]"));
+            List<String> movedSql = new ArrayList<>(moved.statements);
+            movedSql.removeIf(st -> st.startsWith("[session]"));
+            assertEquals(walkedSql, movedSql, "the statements sent, the body session's setup aside: " + body);
+        }
+        for (String a : List.of(appealed, deferredAppealed)) {
+            Run matched = run(backend, ctx, "x::RT", a, true, "select count(*) from FIRM", FIRM_ROWS,
+                    ExecuteOptions.JudgeMode.HOST);
+            assertTrue(matched.verdicts.toString().contains("refereed MATCH"), matched.verdicts.toString());
+            assertTrue(originsOf(matched.origins)[StatementOrigin.REFEREE_OURS.ordinal()] >= 1,
+                    "the rows leg read the user's table: " + matched.statements);
+        }
+        Run failed = run(backend, ctx, "x::RT", deferredDiverged, true, "select count(*) from FIRM", FIRM_ROWS,
+                ExecuteOptions.JudgeMode.HOST);
+        assertTrue(failed.outcome.contains("diverged"), "the appeal fails with the arm's message: " + failed.outcome);
+    }
+
     /** M10c item 9: the sorted flat-cells idiom ({@code assertEquals([...], $tds.rows.values->sort())}) planned as the
      *  cell pool where a side is planned as a grid -- through a value let and over a frame let, holding and failing,
      *  under both judges; a MIXED-kind pool (the corpus's own reason for the idiom: the dates {@code testProject}s'

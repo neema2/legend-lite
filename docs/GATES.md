@@ -17038,6 +17038,43 @@ measured on both corpora with the registers and a parity witness; the chain at M
    (`stringToFloat::testProject`), 1 user assert helper over a variable (`compareSqls`). Ledger pin `AssertVerdicts`
    1819 -> 1824 with its reason.
 
+38. **Item 10 -- the engine-text assert in a system-routed body (M10b's S1; 2026-11-02, the brief's item 10, written
+   before the code).** A system-routed body's asserts are planned on the system database's session, the program's one
+   target (M10a), so an engine-text assert's appeal -- the rows leg over the user's tables, harness Java run at the step
+   on a failed text -- would read them on the wrong database; M10b refused the body by name. Built: the router hands
+   `HostAsserts` the body's own environment beside the system one; an assert whose planned judgment holds engine text
+   has its ARM planned again on the body's environment (`planAssert(..., env, program)`: the appeal closes over it and
+   reads the user's tables on the body's session, as the walk's does) and its SIDES on the program's, so each names
+   the program's one target; a guard refuses a frame in such a body by name (none can occur: a system-routed body is an
+   assert program, so no splice hook binds the two environments). `DatabaseAsserts` keeps its refusal (the batch
+   composes the equality at planning). **Found by the corpus:** the first build planned the sides on the body's
+   environment too; the five datetime plan tests moved and failed ("a plan whose steps name different targets": their
+   deferred text side, item 8, named the body's database; a system-store side would have too) -- 5 passes lost on the
+   DuckDB host pass, 4 on H2, caught by the lanes before any commit; the split closes both, and the witness's deferred
+   case fails without it.
+39. **Movement (item 10):** DuckDB host pass `moved=3017 -> 3,034`, H2 host `3017 -> 3,034`; database `2,959` /
+   `2,850` unchanged (the refusal stays); outcomes identical on all four passes; 12 of 12 lane tests green. The
+   17 asserts the census named `engine text in a system-routed body` -- the ten relationalMapper tests, the five
+   datetime plan tests, `testToSQLStringWithAbs`, `testViewChainsWithBusinessDate` -- all moved (two relationalMapper
+   bodies fail on both roads, as before).
+40. **The checks (item 10):** `BodyRouterParityTest.systemRoutedEngineTextPrograms` (a body made system-routed by a
+   model read, with a `toSQLString` text equal, appealed -- the rows leg reading FIRM, which exists on the body's
+   session alone, and the referee MATCHing -- and diverging; a deferred text, a plan's SQL through a navigation, equal,
+   appealed and diverging; outcome, verdicts, census, ledger, database and statements compared, the body session's
+   setup aside; the witness fails with the re-plan withheld and with the sides on the body's environment);
+   `//core:census`, root, architecture, judge, driver, testplan; `//spec:corpus_duckdb`, `//spec:corpus_h2`. The
+   independent audit (COMMIT WITH FIXES, on the split code after a mid-audit update, folded): LOW-1 the brief described
+   the first build -- rewritten to the arm/sides split and the corpus's finding; NIT-2 the one-target check's rewrite
+   was equivalent under the split -- reverted to the M9d form over the program's session; NIT-3 stale comments; LOW-4
+   the item 8 x item 10 combination unwitnessed -- the deferred appealed and diverging cases added, ledger and database
+   compared; LOW-5 the assert planned twice (the discarded pass writes the plan environment's run-scoped accumulators;
+   noted in the javadoc, as item 8's double planning); NIT-6 the class-rule invariant behind the split -- the frame
+   guard. Verified by the audit: the check equivalent everywhere; every side of a re-planned assert names the system
+   target and runs there (the plan half is one object across the two environments); the body session set up before
+   the appeal reads it (`PlanRunner.opened`); planning twice changes no census; no time zone lost on the system session
+   (DuckDB's `SET TimeZone` runs on both; the datetime tests' zone lives in the plan-row texts and the rows leg's
+   context); `DatabaseAsserts` unchanged.
+
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
 The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and

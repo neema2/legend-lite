@@ -9,6 +9,7 @@ import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedSpec;
+import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.planner.LetPlanner;
 import com.legend.planner.PlanAllocations;
@@ -76,13 +77,18 @@ final class HostAsserts implements TestDoor.Asserts {
      * asserts after it splice their reads of it as the walk does.
      */
     static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env) {
-        return plan(typed, runtime, env, false);
+        return plan(typed, runtime, env, null);
     }
 
-    /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv)}; {@code systemRouted}: {@code env}'s session is the
-     *  graph's system database (M10a), where an engine-text assert's appeal -- the rows leg over the user store -- would
-     *  read the wrong database: such a body is the walk's (M10b). */
-    static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env, boolean systemRouted) {
+    /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv)}; {@code bodyEnv} non-null where the body is
+     *  SYSTEM-ROUTED (M10a): {@code env}'s session is then the graph's system database, the program's one target, and
+     *  {@code bodyEnv} the body's own environment, the walk's. An engine-text assert's ARM is planned on {@code bodyEnv}
+     *  (M10c item 10): its appeal -- the rows leg over the user's tables -- closes over it and reads them on the body's
+     *  session as the walk's does; its SIDES are planned on {@code env}, so each names the program's one target. The
+     *  assert is planned first as any other and planned again so (the discarded pass sends and counts nothing; it
+     *  writes the plan environment's run-scoped accumulators, as item 8's deferred side planned twice already does). */
+    static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            BodyDriver.@Nullable ExecEnv bodyEnv) {
         SpecCompiler specs = typed.specs();
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         List<TypedSpec> body = typed.body();
@@ -148,19 +154,25 @@ final class HostAsserts implements TestDoor.Asserts {
                         pendingLet), HostSides.Planned.NONE);
                 raisedByAnAssert = true;
             } else {
-                p = planAssert(statement, bare, letPrefix, frames, specs, env);
+                p = planAssert(statement, bare, letPrefix, frames, specs, env, env);
+                if (p != null && bodyEnv != null && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
+                    // an engine-text assert of a system-routed body: its arm planned again on the body's environment,
+                    // the walk's -- its appeal reads the user's tables on the body's session -- its sides on the
+                    // program's (they name the program's one target, the system database: M10c item 10). Sound because
+                    // a system-routed body is an assert program: no frame, so no splice hook binds the two environments
+                    if (!frames.isEmpty()) {
+                        throw new IllegalStateException("a system-routed body with a frame let: its engine-text arm"
+                                + " and its sides would be planned on two environments over one frame");
+                    }
+                    p = planAssert(statement, bare, letPrefix, frames, specs, bodyEnv, env);
+                }
                 if (p != null && !AssertVerdicts.oneTextOrigin(p.assertion().check().judgment())) {
                     // an unroll whose parts' texts carry different statement origins: one step cannot be sent under
                     // both (the M10c item 8 audit's finding 2)
                     com.legend.exec.Census.unplannedAssert("unrolled engine texts under two origins");
                     return null;
                 }
-                if (p == null || systemRouted && AssertVerdicts.holdsEngineText(p.assertion().check().judgment())) {
-                    // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
-                    // session where the walk runs it, which is not this program's one session (M10b)
-                    if (p != null) {
-                        com.legend.exec.Census.unplannedAssert("engine text in a system-routed body");
-                    }
+                if (p == null) {
                     return null;
                 }
             }
@@ -178,10 +190,15 @@ final class HostAsserts implements TestDoor.Asserts {
         return com.legend.planner.ProgramFrames.STAMP + ".let" + statement;
     }
 
-    /** {@code statement}, a statement-root assert ({@code bare} its call), planned over the lets before it; null where
-     *  the host checks do not plan its shape. */
+    /** {@code statement}, a statement-root assert ({@code bare} its call), planned over the lets before it: its arm on
+     *  {@code env} (the environment its judgment's appeal closes over), its sides on {@code program} (the program's
+     *  environment: a planned side names its target, the program's one); null where the host checks do not plan its
+     *  shape, or a side reads a store on another session than the program's. The two are one environment but for an
+     *  engine-text assert of a system-routed body (M10c item 10). */
     private static @Nullable Planned planAssert(TypedSpec statement, TypedSpec bare, List<TypedSpec> letPrefix,
-            Map<String, BodyDriver.ExecFrame> frames, SpecCompiler specs, BodyDriver.ExecEnv env) {
+            Map<String, BodyDriver.ExecFrame> frames, SpecCompiler specs, BodyDriver.ExecEnv env,
+            BodyDriver.ExecEnv program) {
+        Sessions.Session target = program.session();
         // the lets before the assert, as they stood at its turn (its judgment reads them after the program ran)
         List<TypedSpec> before = new ArrayList<>(letPrefix);
         BodyDriver.ExecEnv at;
@@ -209,14 +226,16 @@ final class HostAsserts implements TestDoor.Asserts {
         }
         HostSides.Planned sides;
         try {
-            sides = HostSides.plan(assertion.name(), assertion.check().asks(), before, specs, at);
+            BodyDriver.ExecEnv sidesAt = program == env ? at
+                    : BodyDriver.frameReplaceEnv(statement, frames, program, before, specs);
+            sides = HostSides.plan(assertion.name(), assertion.check().asks(), before, specs, sidesAt);
         } catch (RuntimeException e) {
             // a side's planning raised: raised at the assert's turn, once its family is counted (the walk plans the
             // sides there, after the asserts before it ran)
             assertion = AssertVerdicts.HostAssert.raising(assertion.listenerName(), assertion.family(), e);
             sides = HostSides.Planned.NONE;
         }
-        if (sides.on() != null && sides.on() != env.session()) {
+        if (sides.on() != null && sides.on() != target) {
             // a side the walk's planner routed to another session than the body's (the system database's: a lineage
             // scan's rows join the metamodel tables, an element's row) -- the walk runs the group there; a moved
             // body's program has ONE target (the body's session, or the system database's when the body is
