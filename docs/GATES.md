@@ -17021,3 +17021,36 @@ warm-up, then two seconds of calls timed one by one; the medians are below. Meas
 3. **Checks.** `//datacube:conformance_test` green against its ledger, plus DataCube's `typecheck`, `guardrails`,
    `browser_guard` and `state_guardrail`, and `//tools/guards` `markdown_inputs`, `inventory`, `compile_only` and
    `locks`. CI has not run it yet.
+
+## 2026-11-02 — R2, first step: the hosts' JSON execute on the plan record; the enumeration fact (D16)
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` R2 (one plan kind for every host path), its first commit; D16 ruled by the
+user that day. Commits `f5304d15` (the first cut), `1a5a0c6f` (cut to the enumeration bit) and this one (the records).
+
+1. **What changed.**
+   - **The plan record's columns gain one fact,** whether the compiler typed the column with an enumeration
+     (`ExecutionPlan.Column.enumeration`: true, false, or null where no compiler typed it). Plan version 20.
+   - **A precision decimal's plain name** is read from its Pure type by one rule (`Column.plainType`:
+     `Decimal(p,s)` is `Decimal`).
+   - **The tab's and Python's JSON execute answers the plan record** (`PureV1Api.jsonPlan`). Its answer's header is
+     made from the plan's facts alone (`planEnvelope`), and `jsonAnswer` and `arrowAnswer` read the record back.
+     - The tab runs the record's statement (`engine-client/src/plan-record.ts`, the one TypeScript reader of the
+       record's head); Python runs it through `compiler.answer_statement`.
+     - The server's own writer still makes the header from the compiler's types; `PureV1ApiTest` holds the two to
+       each other query by query (an enumeration and a precision decimal among them, a refusal in the same words).
+   - **No output changes.** The conformance suite's JSON text is byte for byte the same on all three hosts, its
+     ledger unchanged at seventeen entries.
+2. **Checks.** 51 of 53 green: all of `//core:core_tests`, `//wasm:differential_test` and `conformance_test`, the tab's
+   seven tests, `//python:bindings_test` and `frames_test`, `//datacube`'s `typecheck`, `bundle_budget`,
+   `python_execute`, `python_engine`, `conformance`, `wasm_differential`, `guardrails`, `browser_guard` and
+   `state_guardrail`, and `//tools/guards`' `markdown_inputs`, `inventory`, `compile_only` and `locks`.
+3. **The two red ones are this container's, not the change's.** `//python:engine_test` and `//python:headless_test`
+   each crash with a segmentation fault inside the embedded V8 (`py_mini_racer`, `_make_context`), at
+   `test_engine.WarehouseOnPython`'s first test and at `test_headless.OneRead`'s:
+   - the same two crash the same way on the commit before R2 (`52621f50`, the tree swapped back and restored);
+   - before each crash every test that ran passed: 68 of `test_engine` (every execute route among them) and 35 of
+     `test_headless`;
+   - the suite's other five modules, run on their own, pass: 214 tests, the headless pages among them;
+   - `main`'s CI ran both suites green on `cf73e6ef`.
+4. **`main`'s CI on `cf73e6ef` is red on one lane, from infrastructure.** `macos / pct_h2` failed before any test ran:
+   GitHub answered 500 to Bazel's download of `rules_java-9.9.0.tar.gz`. The other 49 lanes passed.

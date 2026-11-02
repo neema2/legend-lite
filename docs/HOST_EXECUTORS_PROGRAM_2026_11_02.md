@@ -669,3 +669,6 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
   record for every corpus query). D16 ruled: the plan's columns gain only the enumeration fact, a decimal's plain name
   read from its Pure type by one rule. R2's first commit: the fact (plan version 20), the hosts' JSON execute on the
   plan record, its answer's header from the plan alone.
+- 2026-11-02: R2's first step done (GATES "R2, first step"): the enumeration fact, the hosts' JSON execute on the plan
+  record, no output changed; 51 of 53 checks green, the other two a V8 crash in this container that the commit before R2
+  shows too.
