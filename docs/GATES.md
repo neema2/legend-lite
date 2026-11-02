@@ -17026,6 +17026,18 @@ measured on both corpora with the registers and a parity witness; the chain at M
    walk's family, route and listener counts unchanged; the database gate's PLANS correct with nothing read at
    planning; a raise in the pool's planning raised at the assert's turn on every road, as before; the pins measured.
 
+37. **The unplanned-assert census made truthful (2026-11-02, a measurement).** Two sources of noise found while reading
+   item 9's residue: (a) the walk asks the host planner about EVERY statement root (`BodyCompiler`'s
+   `tryAdjudicate`), so a `println`, a map of them, a computed value wrote refusal rows though no assert was refused --
+   the planner's labels now go through `AssertVerdicts.unplanned`, written only where the statement reaches a verdict
+   (`StatementEffects.callsVerdict`); (b) the router plans a body before the walk runs it, and the walk asks again
+   about the assert the program road refused -- the lane writes one row per label per body. The DuckDB host pass's
+   rows fall from 183 to 31 with the same outcomes and `moved=3017`: 17 engine text in a system-routed body (M10b's
+   S1), 8 quantified maps in the test-data-generation bodies (T8), 2 `if` roots (`testGetAll` twice), 2
+   runtime-dialect texts (`testDecimal`, `testToSqlStringReplaceTablesPostProcessor`), 1 zip-tolerance `forAll`
+   (`stringToFloat::testProject`), 1 user assert helper over a variable (`compareSqls`). Ledger pin `AssertVerdicts`
+   1819 -> 1824 with its reason.
+
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
 The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and

@@ -306,8 +306,14 @@ public class MinimalCorpusTest {
                 for (int si = stayedBefore; si < com.legend.exec.Census.STAYED_KINDS.size(); si++) {
                     stayedRows.add(r.fqn() + "\t" + r.status() + "\t" + com.legend.exec.Census.STAYED_KINDS.get(si));
                 }
+                // one row per label per body: the router plans a body before the walk runs it, and the walk asks the
+                // host planner again about the assert the program road refused -- the same refusal, counted once
+                java.util.Set<String> bodyLabels = new java.util.LinkedHashSet<>();
                 for (int ui = unplannedBefore; ui < com.legend.exec.Census.UNPLANNED_ASSERTS.size(); ui++) {
-                    unplannedRows.add(r.fqn() + "\t" + r.status() + "\t" + com.legend.exec.Census.UNPLANNED_ASSERTS.get(ui));
+                    bodyLabels.add(com.legend.exec.Census.UNPLANNED_ASSERTS.get(ui));
+                }
+                for (String label : bodyLabels) {
+                    unplannedRows.add(r.fqn() + "\t" + r.status() + "\t" + label);
                 }
                 long fired = com.legend.sql.dialect.StableScanOrder.firings() - firingsBefore;
                 if (fired > 0) {
