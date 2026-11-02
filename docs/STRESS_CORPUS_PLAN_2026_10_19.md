@@ -59,6 +59,15 @@ where its static resolution can't see the reach.
 1. **Expected results come from the oracle** (`scripts/corpus/oracle.py`), never from either engine's output. Where
    the oracle can't compute a construct, extend it first or use an invariance twin (rule 2). `build.py` refuses a
    service the oracle can't evaluate, and that stays.
+
+   **What this rule does not promise** (2026-11-02, the PR #87 review's finding 6). No expected value is copied from
+   an engine's output. But not every rule the oracle follows is independent of the engine: where legend-pure's
+   definition left a reading open, or the oracle's first reading disagreed, the pinned engine was asked and its
+   reading taken. That covers Phase 3's 41 milestoning probes, Phase 8's constraint scope, and Phase 9's probed
+   semi-structured paths and `~filter` chains. Some inputs were also kept clear of engine failures: Decimal comparands
+   of at most 16 fractional digits (Phase 4), the `in_order` assertions replaced (Phase 8), and `cbrt` over cubes of
+   powers of two (D6). Each is recorded in its phase. Where a rule came from a probe, a pass on the engine shows that
+   the corpus agrees with the probe, not that the engine is right.
 2. **Prefer invariance twins where an evaluator would be expensive:** a service whose expected result must equal
    another's. Examples are a parameter against the same literal, an M2M mapping against the relational query that
    computes the same values, and `DenseMapping` against the flat mapping. `build.py` already fails when a group in
@@ -2008,6 +2017,45 @@ plan. Of the 6 in reach:
   (`mapping:aggregation-aware-mapping` is covered). The tag was left to the class mapping's `~groupBy`.
 - **Unreachable at the pin:** the full and right outer joins (no form, `repro/mapping-join-types/`),
   `mapping:relational-literal-list` (F83), and `execution:post-validation` (its one service has no test suite).
+
+### PR #87's review (2026-11-02)
+
+An independent review of the landing PR made ten findings; the owner's follow-up comment filed 2, 3 and 7 as ideas
+for after it lands. The user chose to fix 2 now and leave 3 and 7 to a follow-up. On `stress_test/landing`, rebased
+onto `upstream/main` (`cf73e6ef7`):
+
+- **1, a retired runner:** `engine-verdict.yml`'s macOS shards on `macos-15`, as gate.yml since #85.
+- **2, order inside a group:** six vocabulary services expected the seed's order inside a groupBy group (`first`,
+  `last`, `joinStrings`), which no database promises; DuckDB's insertion order kept it. The oracle refuses those three
+  over a group whose values differ (`oracle._ORDERED`, as it refuses a window's tie), and the services were reshaped.
+  `VG_`/`VGN_JoinStringsName` keep their groups and compare the joined string's `length()`, the same in any order.
+  `VG_FirstName` and `VG_LastName` group by `name` itself, and the `VGN_` pair by `valueId`, a row a group. A step after
+  an aggregate of a group that is never reduced no longer runs, since the step is inside the reduce lambda (D8's
+  reading); that is what lets `VGN_JoinStringsName`'s all-absent group answer absent.
+  - **The engine:** the eight changed testables (these six and finding 9's two) pass (`run.py --only`).
+  - **Lite:** DuckDB falls from 5,616 to 5,614. `VG_FirstName` and `VGN_FirstName` passed only because their seed-order
+    answers never reached TV-04's `'alpha '`; the new answers do, and lite trims the space (Phase 1's bucket). Against
+    2026-11-01's pass list, those two are out and none is in. The user lowered `MIN_PASS` by 2, with a dated note.
+    H2 holds at 5,519: none of the six passed there before.
+- **4, stale quarantine entries:** F54's two and F29's one named services that left the corpus in August. They are
+  gone, and `quarantine.stale_keys` refuses a stale key in `run.py` and in `//scripts/corpus:quarantine_test` (the lane
+  `:run_test` is in). F24 and F29 have entries in `docs/UPSTREAM_FINDINGS.md` now, both confirmed at 4.145.0; F24's
+  repro gained the two services its header had only described. A heading check can't be a test: G17 keeps Markdown out
+  of every test's inputs.
+- **5, `engine_stress`'s hour:** 16 shards, about 380 testables each (6,057 in all); the workflow's slice K of 8 is its
+  shards K and K + 8.
+- **6, the oracle's independence:** rule 1 says which rules came from engine probes and which inputs were kept clear
+  of engine failures.
+- **8, `substring`:** `DynaFunctionIntegrationTest.testSubstringThroughJoin`, which fails with the corpus's original
+  error without `RelOpTranslator`'s wrap.
+- **9, the hash seed:** `oracle._rel_join` writes an unmatched row's absent columns in the rows' order, not a set's.
+  The corpus now generates identically under hash seeds 0, 1 and 7; `VR_JoinLeft` and `VT_JoinLeft`'s expected JSON
+  changed its key order alone, and both pass on the engine and in lite.
+- **10, nits:** the `MIN_PASS` histories are one step per line; `changed.py` says an added element is assumed, not
+  known, to change no answer (F66 is the counter-example).
+- **Not settled here:** the coordination with `claude/deephaven-3-browser` (lite-only constructs in the one corpus)
+  needs a ruling, and the follow-up comment's last row (lite failing F68, F72 and F82's services the way the engine
+  does, with no row in `docs/SEMANTICS_REGISTER.md`) is put to the user.
 
 ## Not in this plan
 

@@ -3449,3 +3449,13 @@ Status lives in the plan's Progress table (rule 0b.16).
   `combos.seed_cubes` now writes cubes of powers of two, as the user chose, a seed change and so a whole engine run.
   `verdicts.py`'s annotations now escape their titles, which GitHub cut at the comma, and cut a long list of names to
   fit. All of these are owned files. Fixed in `2f3b002fd`: the second Linux run (41364493432) gave 0 unexpected.
+- **PR #87's review (2026-11-02), cross-area, on `stress_test/landing` (the PR's branch, rebased onto `upstream/main`
+  `cf73e6ef7`):**
+  - `REPO.bazel` (new) and `tools/guards/defs.bzl` (the Bazel program's): `ignore_directories(["bazel-*"])`. The
+    root package's `//:all_files` glob walked the convenience links into the output tree, and on Windows the walk
+    failed the warehouse lane's analysis ("Inconsistent filesystem operations", run 41375140384). The exclude that
+    filtered without stopping the walk is gone, and `//tools/guards:inventory_test` holds the rest.
+  - `.github/workflows/engine-verdict.yml`: macOS on `macos-15`, as gate.yml since #85, and its comments on the
+    sharding. `gates/BUILD.bazel` gains `//scripts/corpus:quarantine_test` in the lane `:run_test` is in.
+  - `core/src/test/java/com/legend/integration/DynaFunctionIntegrationTest.java` (core's): a focused test of the
+    `substring` dynafunction over a joined column (the review's finding 8).

@@ -11,7 +11,11 @@ with test suites that is new, or whose text differs (its query, its tests, its e
 a `stress::` mapping with test suites (the plan's Phase 8) that is new or whose suites differ. A changed
 or deleted element of any other kind (a class, a store, a mapping, a runtime, a `###Data` seed, a function) can change
 any service's answer, so then every testable is listed and the summary names the elements: after a seed change the
-whole corpus runs. An element that is only new changes no existing answer and adds nothing.
+whole corpus runs. An element that is only new adds nothing to the list, which assumes it changes no existing answer.
+That is an assumption, not a fact: this corpus's own F66 is a new association that stopped a mapping compiling on the
+engine. A compile break still shows, as every JVM compiles the whole corpus and the listed services then fail, but an
+addition that moves an answer without breaking the compile goes unlisted (the PR #87 review's finding 10): when an
+addition reaches existing mappings or classes, run the whole corpus.
 
 The names go to --out (relative to where the command was typed), or to standard output; the summary to standard error.
 """
