@@ -178,6 +178,91 @@ R2's (the user, 2026-11-02):
   type and was withdrawn at the user's word.
 
 
+### 1.3 Open decisions, each with upstream's answer (posted to the user 2026-11-02)
+
+Upstream read from the pinned sources: legend-engine 4.145.0 and legend-pure 5.99.0 (`release.MODULE.bazel:24-29`),
+the extracted archives under Bazel's `external/+http_archive+legend_engine_src` and `+legend_pure_src`. File paths are
+legend-engine's unless marked; `SER` is `legend-engine-xts-relationalStore/.../relational/serialization/
+RelationalResultToArrowIPCSerializer.java`, `RR` and `MD` are `RelationalResult.java` and
+`SQLResultDBColumnsMetaData.java` in that module's `relational/result/`.
+
+- **A. The Arrow answer's schema (S125, D7): gates Python's Arrow execute, the last host path off the plan record.**
+  - *Upstream:* one class answers `ARROW_IPC` (RR:690-691 to SER). Each column's Arrow type comes from JDBC's
+    `ResultSetMetaData` alone (SER:117-121), never the plan's TDS types (SER:126):
+    - BIT/BOOLEAN bool; TINYINT int8; SMALLINT int16; INTEGER int32; BIGINT int64 (SER:144-154);
+    - FLOAT/REAL float32; DOUBLE float64 (SER:155-159);
+    - DECIMAL/NUMERIC decimal128(p, s), `setScale(s, HALF_UP)`, p 38 when reported 0 or less, capped at 38
+      (SER:160-171, :307-309);
+    - DATE date32; TIME time32[ms] (SER:173-176);
+    - TIMESTAMP and TIMESTAMP WITH TIME ZONE timestamp[us, "UTC"], sub-microsecond digits truncated (SER:177-179,
+      :322-323);
+    - anything else utf8, arrays as JSON text (SER:180-181, RR:493).
+
+    Every field is nullable and carries no metadata (SER:122). The schema metadata is `legend.builder`,
+    `legend.activities`, `legend.generationInfo` (when non-null) and `legend.columns` in a HashMap (SER:125-135).
+    Batches are 1,024 rows (SER:49) and the stream is one zstd frame (SER:84-86). legend-pure has no Arrow.
+  - *Lite:* the JVM writes the plan's types (int64, float64, decimal at its slot's scale, timestamp[ns, UTC],
+    time64[ns], nested types, `legend.*` field metadata); Python writes DuckDB's own (on DuckDB, upstream's answer
+    but for the UTC tag on timestamps).
+  - *S125 needs correcting either way:* "other kinds as the driver's Java type gives them" is contradicted (the JDBC
+    code alone decides, SER:140-182), and the row misses int32/16/8, float32 and time32[ms].
+  - *A1, exactly upstream* (one writer typing from the database's reported types): faithful; Python barely moves on
+    DuckDB; the JVM's answer changes; lossy where upstream is (microseconds, HALF_UP, float32, time32[ms], nested as
+    text) and copies its data loss (H2's computed sum reported decimal(27,0): `e8-arrow-fractional-sum.json`).
+    Medium: the writer needs the reported types (JDBC metadata on the JVM, the host's Arrow schema on a host).
+  - *A2, the plan's types everywhere:* lossless, uniform, the JVM unchanged; a ledgered divergence kept; Python's
+    answer changes in three ways and gains field metadata. Low.
+  - *Recommended:* A1, the user to rule whether upstream's data loss is copied too or is A1's one ledgered exception.
+- **B. A database's refusal at run time (the ledger's three errTypeMismatch entries).**
+  - *Upstream:* the SQLException is wrapped (RR:179-193) and answered by `ExceptionTool` (`Execute.java:208-211`,
+    `ExceptionTool.java:35-38, 79`) as 500 `{"code":-1,"message":<root cause's short class name>: <its message>,
+    "status":"error","trace":<the stack>}` (`ExceptionError.java:27-36, 50-78`), nulls dropped and keys sorted
+    (`ObjectMapperFactory.java:35-40`). On DuckDB: `"SQLException: Conversion Error: ..."`.
+  - *Lite:* the JVM has the shape without `trace`, unwrapping one level, not to the root (on H2 it would name
+    `JdbcSQLDataException` where upstream names `NumberFormatException`); Python `ConversionException: ...`; the tab no
+    envelope.
+  - *B1:* one error writer in the core, every host passing the database's message, the JVM unwrapping to the root,
+    `trace` ledgered (a host has no Java stack). Small. *B2:* keep each host's words and the ledger.
+  - *Recommended:* B1.
+- **C. The words of the nullable-column refusal (an unledgered divergence).**
+  - *Upstream refuses the same queries:* legend-engine `ValueSpecificationBuilder.java:883-896`, pinned by
+    `TestRelationFunctions.java:477-490` (`#>{a::A.tb}#->extend(~nid:x|$x.id + 1)` refused; passes with `NOT NULL`
+    or `->toOne()`, :462-505); legend-pure `InstanceValueValidator.java:48-68`, `TestRelationTypeInference.java:170-185`;
+    upstream's PCT writes `->toOne()` (`extend.pure:113`). The seven refused corpus queries (§7) are faithful.
+  - *The words:* engine `Collection element must have a multiplicity [1] - Context:[...], multiplicity:[0..1]`; pure
+    `Required multiplicity: 1, found: 0..1`; lite `..., found [0..1]` (`compiler/spec/Typer.java:1110-1113`).
+  - *Options:* engine's words exactly (its Context names engine's compile passes: expensive); its fixed parts only; a
+    register row. *Recommended:* the register row.
+- **D. An uncast dynamic `pivot()` on a host.**
+  - *Upstream:* `pivot` is legend-engine's (`pivot.pure:18-31`), typed `Relation<()>` (`Handlers.java:418-440`),
+    planned as dynamic-column SQL (`pureToSQLQuery.pure:6360-6503`; `isResultColumnsDynamic`,
+    `relationalMappingExecution.pure:244-247`), run on DuckDB (`duckdbExtension.pure:584-619`) with its columns from
+    JDBC's metadata (`SQLExecutionResult.java:95-105`, RR:248-256); H2 refuses it.
+  - *Lite:* the JVM runs it as a keyed plan; the tab and Python refused it before R2 and refuse it now at planning.
+  - *D1:* hosts keep refusing, a register row; none. *D2:* the core's stepper (D12), so hosts run the keyed plan;
+    medium. *D3:* upstream's one dynamic statement, columns from the database (gives up "the plan types every
+    column"); medium. *Recommended:* D1 (DataCube plans static pivots itself, `datacube/src/plan.ts` `planPivot`).
+- **E. A dynamic pivot's refusal in a grid, now at planning in new words:** the user, 2026-11-02: "i dont mind new
+  wording if better".
+- **F. The JVM's answer header from the plan's facts (one maker).**
+  - *Upstream:* only a dynamic pivot's generated columns bear on it: typed from the database's report
+    (`ResultColumn.labelTypePair`, RR:217-242; DOUBLE and DECIMAL are Float).
+  - *F1:* the JVM's writer moves to `planEnvelope` now (stated columns byte-identical, held by `PureV1ApiTest`'s
+    differential), generated pivot columns typed upstream's way (which also answers a precision-decimal pivot lite
+    refuses today). *F2:* leave it to R8. *Recommended:* F1.
+- **G. The tab's behaviours, R5's to settle (§3.6a's six and §7's NaN):**
+  - *G1:* upstream's TDS JSON writes a DECIMAL as a number, trailing zeros kept (`12.30`: `BigDecimal.toString`,
+    `ExecutionResultObjectMapperFactory.java:70-87`); the tab's remote plane reads it as `12.3`. Read it exactly.
+  - *G2:* a nested timestamp has no upstream rule to copy (a list or map's is epoch milliseconds, RR:482-514; a
+    variant's the database's text, RR:519; a struct's the driver's `toString`). Keep full precision in the tab.
+  - *G3:* a decimal under a format code through a double: DataCube's own (legend-studio is not pinned here). Format
+    the exact digits.
+  - *G4:* Query's filter from a TDS row drops a timestamp's microseconds; upstream writes nine digits
+    (`ValueTransformer.java:25-26, 35-37`). Fix.
+  - *G5:* XLSX's date reader refuses negative and five-digit years (Excel holds neither). Keep the refusal.
+  - *G6:* a chart's time axis read in local time: test in a zone other than UTC, then fix.
+  - *G7:* a timestamp past `Date`'s range spelled `NaN`: refuse by name.
+
 ## 2. The code as it is
 
 A code map at `main` `cf73e6ef` (2026-11-02), by an agent reading the code, every claim with its file and line.
@@ -672,3 +757,8 @@ parse-backs (`numberOf` and its kin reading text), and the retired plan shapes, 
 - 2026-11-02: R2's first step done (GATES "R2, first step"): the enumeration fact, the hosts' JSON execute on the plan
   record, no output changed; 51 of 53 checks green, the other two a V8 crash in this container that the commit before R2
   shows too.
+- 2026-11-02: R2, the rest (commits `1aa8e7d1`, `62a86074`): every host path but Python's Arrow execute on the plan
+  record; HostPlans (D6, read and program) refusing at planning what a host does not run; the plan doors proved on
+  the tab's module and Python's native library. The local gate and the affected suites green but for the
+  container's: the Postgres tests (initdb refuses root), the V8 crash two Python suites show at the commit before R2
+  too. The open decisions A-G posted to the user with upstream's answers (§1.3).

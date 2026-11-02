@@ -17054,3 +17054,33 @@ user that day. Commits `f5304d15` (the first cut), `1a5a0c6f` (cut to the enumer
    - `main`'s CI ran both suites green on `cf73e6ef`.
 4. **`main`'s CI on `cf73e6ef` is red on one lane, from infrastructure.** `macos / pct_h2` failed before any test ran:
    GitHub answered 500 to Bazel's download of `rules_java-9.9.0.tar.gz`. The other 49 lanes passed.
+
+## 2026-11-02 — R2, the rest: every host path but one on the plan record; what a host runs refused at planning
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md` R2 (the user: "lets keep going until everything provable running one
+plan"). Commits `1aa8e7d1` and `62a86074`.
+
+1. **What changed.**
+   - **HostPlans** (core `executionplan`), D6: what a host runs, refused at planning by name. `read` takes one typed
+     result over a statement of text; `program` takes a write, with the tab runner's review moved here in its words.
+   - **The embedded boundary's plan exports** (`plan`, `planJson`, `planHeld`, `planJsonHeld`) answer the plan
+     record after `read`; writes answer it after `program`.
+   - **The tab:** `plan-record.ts` and `relation-type.ts` `recordPlan` read the record. LitePlanner, WasmGrammar and
+     Query's CubePlanner use them. The tab's runner keeps its format and version check, refuses an unknown step, and
+     checks the plan's database is its session's.
+   - **Python:** `compiler.read_plan` reads the record, behind `Table.execute`, plan-and-run, `/plan.json` and the
+     page. The Arrow execute keeps `{sql, metadata}`, named as the one exception until decision A (the program's §1.3).
+2. **The proof.** `//engine-client:plan_runner_test` calls the tab module's plan doors (`plan`, `planJson`,
+   `planModel`, `executionPlan`, `executePlan`); `//python:bindings_test`'s PlanDoors calls the native library's six.
+   Every one answers the plan record, version 20.
+3. **Guards moved, each with its reason.**
+   - DataCube's bundle budgets, +1,000 bytes each with a dated note (the tab's reader of the record): the grid
+     433,105, the engine page 421,125, the notebook widget 449,363.
+   - `//parser-equivalence` `own_corpus.matched` 3009 -> 3012 (the new comparison test's Pure snippets).
+   - The census's ban, met by renaming an identifier.
+4. **Checks.** The local gate and the affected suites, twice, the second after freeing the disk allowance (the first
+   run filled it; DuckDB could not unpack its native library). All green but the container's own failures:
+   - the Postgres tests and `//datacube:verify_app_test`'s Postgres: `initdb` refuses root;
+   - the V8 crash in `//python:engine_test` and `headless_test` (the R2 first step's entry, item 3).
+5. **The open decisions,** with legend-engine's and legend-pure's answers read from the pinned sources, are in the
+   program's §1.3 (A-G). They were posted to the user; none is built before the user rules.
