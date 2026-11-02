@@ -567,7 +567,7 @@ posted the same way (R7 decision 12).
 | **M9** ◆ | **BUILT 2026-11-01 (D109; §9 "M9a" to "M9d", §10): the frame programs under the host judge, 608 -> 1,080 bodies moved per DuckDB host pass, outcomes identical; its residual kinds (the engine-text asserts, the system-store reads, the test-data generator, `assertError` -- no corpus body --, staged grids, computed effects, effects through helpers, graph frames, seeded frames) named with their counts for M10a-d. Before M7 and M8 since M6's revalidation (the user, 2026-11-01: "the order is fine";** `docs/test-is-product-homework/REVALIDATION_2026_11_01.md`**).** Frames read by asserts (the corpus's bulk: `let r = execute(...)`, its reads spliced into the asserts' sides, the eager run and the CTE as M3f/M3g planned them); the kinds that run before a later statement is written, as Keyed steps (T8, T9, the map over `executeInDb`); `assertError`'s `ExpectFailure` (T10); staged raw grids (T12); inline `execute(...)`; the bodies needing them move, under the host judge first (zero output change expected) | 1-1.5 weeks |
 | **M7** ◆ | **BUILT 2026-11-01 (D110; §9 "M7", §10): the database judge's assert and frame programs run whole -- the fused statement composed at planning by the batch's own planning half, with the frames' CTEs at its head; 604 -> 1,026 bodies moved per DuckDB database pass (604 -> 961 on H2), outcomes identical; channel B (BOTH) walks every assert body until M8.** The fused group composed at planning (from `VerdictBatch`'s flush), with the frames' CTEs at its head; the database judge's and channel B's assert programs move (2.D's rule, MV1, for the bodies moved) | 1 week |
 | **M8** ◆ | **M8a BUILT 2026-11-01 (D111; §9 "M8a", §10): the host judgment as data, zero movement. M8b BUILT 2026-11-01 (D112; §9 "M8b", §10): the database verdict row self-contained -- holds and message in the statement, the plan's verdict without its polarity (PlanJson 25), zero movement. M8c OPEN 2026-11-01 -- a design question posted to the user (`docs/test-is-product-homework/M8C_DESIGN_QUESTION.md`): a canon over the product columns has no finite static form for a RECURSIVE polymorphic key slot; M10a proceeds meanwhile (R23).** Then: the database judge self-contained, arm by arm (MV2, MV3: polarity and message in the statement, so the plan carries the assert's SQL and nothing about the assert), then the canon over the product columns (B8, MV4); the bodies those arms gate move. B3 is struck (2026-11-01, the user: an assert is a regular function the database judge lowers; the plan needs no assert metadata; the host judge is the harness, §6 B3) | 2 weeks |
-| **M10** ◆ | **M10a BUILT 2026-11-01 (D113; §9 "M10a", §10): the system database on the test road (the narrow M4): a step's target names the graph's system database (`Database.System`, PlanJson 26), the class rule `systemRouted`, the router opens that database once per graph and plans a routed body's program and sides on it; 1,165 / 1,111 bodies moved per DuckDB pass (host / database; from 1,080 / 1,026), 1,165 / 1,045 on H2, outcomes identical, every register test green; the server engines, the frame programs over the system store, the bodies mixing a user read with a system read and the CSV census carrier's stay (§9).** Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
+| **M10** ◆ | **M10a BUILT 2026-11-01 (D113; §9 "M10a", §10): the system database on the test road (the narrow M4): a step's target names the graph's system database (`Database.System`, PlanJson 26), the class rule `systemRouted`, the router opens that database once per graph and plans a routed body's program and sides on it; 1,165 / 1,111 bodies moved per DuckDB pass (host / database; from 1,080 / 1,026), 1,165 / 1,045 on H2, outcomes identical, every register test green; the server engines, the frame programs over the system store, the bodies mixing a user read with a system read and the CSV census carrier's stay (§9).** **M10b BUILT 2026-11-02 (D114; §9 "M10b", §10): the engine-text asserts on every lane -- the two texts a verdict step's constant sides, a byte-equal text the verdict (the 2026-09-21 ruling kept), the rows leg the harness's appeal at the step on a failed text; the three root arms and the producer shapes planned by the arm the walk runs; DuckDB moved 2,690 / 2,122 per pass (host / database; from 1,165 / 1,111), H2 2,690 / 2,055; outcomes identical, the referee census identical, every register test green; the generator carrier a kind of its own (T8 stays residue).** Split by M6's revalidation: **M10a** the narrow M4 on the test road alone (a step's target names the graph's system database, seeded once per graph; the test library plans it, the runner opens it; no product form changes -- the user, 2026-11-01: "fine for now but needs a product follow up", §9); **M10b** the engine-text asserts: the test in the plan on every lane (the body's statements, the query's rows a side, our text against the golden a constant), the appeal a Java harness outside the plan (the H2 referee replay and the row compare, R6/T13), no lane special-cased (the user, 2026-11-01); **M10c** the remaining host shapes `planHost` refuses (the quantified forms, the cell pool, the lineage lines, `assertIs` over non-elements, the grid pair and the class-instance `assertEq` under the database judge); **M10d** the last class moves; the walk (`BodyCompiler`, `Segments`, the driver's plan-run interleave), the router and `BodyClass` deleted; a planning failure a compile error (R14, MV8); the driver sends nothing and plans nothing (it may read the typed tree to compare rows: the harness); the parity guard's permanent form; the layer file | 2 weeks |
 | **Z** | An independent audit, the records, CI on every OS; the landing is the user's | 2-3 days |
 
 ## 8. Start here (for a session picking this up)
@@ -981,6 +981,93 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   `//datacube:table_output_test`, `verify_flow_test`, `headless_test`, `//python:engine_test`); the pin moved to 26 with
   this step. The rule re-learned: PlanJson's version moves with the TypeScript pin and `//:generated` in the same commit
   (M8b did not run `//gates:local`; `//gates:local` runs at M10's chain).
+- **M10b -- the engine-text asserts: the test in the plan on every lane, the appeal a harness (2026-11-02; the brief
+  `docs/test-is-product-homework/M10B_BRIEF.md` written before the code from the code map `M10B_CODE_MAP.md`; its
+  independent audit: DO NOT COMMIT as it stood -- its blocker and should-fixes folded below, then COMMIT; `docs/test-is-product-homework/M10B_AUDIT.md`).** The user (2026-11-01, the revalidation's §2.4): no lane bifurcated; the test fully in
+  the plan; where it does not match, the rest in Java. The code's rule, read before the design and KEPT: a text byte-equal
+  to the golden IS the verdict (the user's ruling of 2026-09-21, option 1) and the rows leg is the appeal on a failed
+  text alone -- the charter's §0 sentence ("rows, never text") describes the design before that ruling. (1) ONE verdict
+  site: the arms' three policy sites (the rows tail `rowsLegAndVerdict`, the generator's fetch text, the text-decided
+  declines) fold into `SqlTextVerdicts.decide(env, name, golden, ours, textEqual, decline, appeal)`: under a COLLECTOR
+  the comparison and its appeal are handed over; under an active verdict BATCH the text equality is a row of the body's
+  fused statement with the appeal at the flush (the walk's own path since 2026-09-21); else decided now. The two decline
+  sites report their reason through it (the walk's order kept: the decline, then the verdict). (2) The planning entry
+  `SqlTextVerdicts.plan(bare, ...)`: the arm the walk runs for the assert (the root arm its FQN names --
+  `assertSameSQL`, the generator's `assertSqlEquals`, `assertEqualsH2Compatible` -- else the equality arm's producer
+  shapes, `mayArm`) run ONCE under a collector (`ExecEnv.withEngineText`); while it runs, `JudgePlans.evalSide` plans
+  a side and refuses one that is not a constant of the plan (`NotAConstant`: the body stays on the walk, by name --
+  nothing is sent at planning); the one comparison collected (`Collected`: the texts, their equality, the decline, the
+  appeal, the environment) becomes a host check whose two asks are the texts as constants
+  (`VerdictQueries.text`) and whose judgment is `HostJudgment.EngineText(collected, routed)` -- the one judgment that
+  holds a closure and the harness's objects (R3, T13, R6: the rows leg is harness Java outside the plan, run at the
+  step on a failed text alone). (3) `AssertVerdicts.planHost` plans the three root FQNs through it under no family
+  (the walk counts none before a root arm; a raise inside the arm is the assert's raise at its turn, the one catch) and
+  the equality arm's producer shapes where `mayArm` holds (the generic path where the arm declines, as the walk's);
+  `HostJudge.judge(EngineText)` → `SqlTextVerdicts.judge`: the two text sides checked against the planned texts, then
+  `decide` (the equality arm's census route counted by `HostAssert.judge` once the judgment answered, never on a raise
+  -- as `adjudicate` counts it). (4) The database road is today's batch: the static gate `databasePlansWithoutReading`
+  admits an engine-text shape (its texts constants, its appeal the row's), the planning pass `planDatabase` →
+  `adjudicate` → the arm → `decide` → `batch.defer(textEquals(golden, ours), appeal)` as the walk defers it, the segment's
+  fused statement carries the row and `VerdictBatch.Planned.judge` runs the appeal where the row failed. (5) The class
+  rule: a Java routine (`toSQLString`, `planToString`: a planning-time text) reads as its FIRST argument, the query or
+  plan under test, its mapping, runtime and dialect consumed when the text is made (`framesAndHandlesAsTheirQueries`,
+  as the handles since M9d); an element BOUND by a let is a system read where a later statement reads the variable as a
+  value and none where planning-time natives alone consume it (`systemRouted`: M10a's rule had routed such a body to
+  the system database -- harmless while nothing was sent, wrong once the appeal reads the user store); the generator
+  carrier (`TypedTestDataGen`, the `generate` and `seedString` flavours, folded by the walk through the database) a kind
+  of its own, `Kind.TDG_GENERATOR`, keeping a body on the walk (T8 stays residue for M10c/M10d). (6) The database
+  judge's static gate in three (`AssertVerdicts.databaseGate`: PLANS, RAISES, UNPLANNED): an assert whose arm RAISES
+  at planning and is the first root of its segment is the walk's, decided statically -- the planning pass would wall a
+  batch with no row to carry the wall (`DatabaseAsserts.close`), give the body back after counting, and the walk would
+  count it again (an M7-era gap, found by the foreign-dialect witness). **Measured:** MEASURED_M10B. **The witnesses**
+  (`BodyRouterParityTest.engineTextPrograms`, both judges, every in-process backend): the text equal (no replay), the text
+  differing with the rows agreeing (MATCH), the rows differing (DIVERGED: the arm's message byte-identical), a frame's
+  executed SQL under `assertEquals`, `assertEqualsH2Compatible` and the Result overload of `assertSameSQL`, and the
+  foreign dialect (the routine raises at planning: under the host judge the raise is planned at the assert's turn and
+  the body moves; under the database judge the static gate leaves it to the walk -- the one road difference, named).
+  **Found by the corpus, not the witnesses (the first chain):** the one verdict site collected AGAIN at the step --
+  the collected environment still carries the collector object -- and answered ok() without judging, so every
+  engine-text assert passed vacuously on both roads under the host judge (the walk reaches the same site through
+  `planHost`): the host pass showed 2 referee replays where M10a's showed 1,188 and seven expected-failing tests
+  "passed" (the accepted roster's differential caught it). The site collects only while the collector is PLANNING
+  (`Collector.planning`), and the witnesses pin their outcomes absolutely since (an equal text holds with no rows leg,
+  the matching body replayed, the diverged body fails with the arm's message), so two roads agreeing can no longer hide
+  a vacuous pass. The lesson for the step's audit: parity alone is a necessary check, not a sufficient one.
+  **The audit's findings, folded** (its blocker B1 was this defect, found by the corpus first): B2 -- the let rule
+  un-routed the let-bound-mapping bodies but the class rules still read the let's element reference as a system read, so
+  they neither routed nor moved: the same consumed-binding test (`BodyClass.bindsASystemElement`, `bindingConsumed`)
+  now exempts such a let from the assert and frame programs' side-kind reach, and the bodies move on the user runtime;
+  S1 -- a system-routed body's engine-text assert would appeal on the system session (the user store is not there):
+  `HostAsserts.plan`/`DatabaseAsserts.plan` take the routing and leave such a body to the walk -- the corpus's
+  `testViewChainsWithBusinessDate` (a `toSQL` handle over a helper's runtime whose body references a store element,
+  so the body is routed) failed exactly so on the second chain and passes on the walk; S3 -- the dual-golden rewrite
+  reports under the call the body spells; S5 -- the database gate's RAISES proxy tracks "a row planned before it in the
+  segment", not "an assert before it" (a root RESOLVED at planning carries no row either: an M7-era gap, recorded);
+  S6 -- the witnesses pin their outcomes absolutely, the listener records the appeal's declines and referee outcomes, a
+  frame with a differing text (MATCH) and a dialect with a renderer but no referee (DB2: a DECLINE before the texts are
+  compared, the text the contract) are witnessed; S7 -- the records, the charter's §0 correction, the arms' class
+  javadoc. S2 (the collector's `planning` flag, mutable) considered and kept: it is set false in `plan`'s `finally`
+  (reset by construction, not convention) and the appeal closures the arms build capture the planning environment,
+  which the step must then read as not planning. S4 was the intermediate tree's: with `NOT_A_CONSTANT` the walk's own
+  arm runs where a text side is not a constant. Nits folded: the javadocs; recorded: `BodyKinds` tags `tdg` (never, for
+  a carrier) beside `tdg-generator`; the texts folded three times per assert on the database road (the static gate,
+  the planning gate, the arm).
+  The referee of the witnesses is a test double in core's test tree (the golden replayed on the body's own connection,
+  rows compared as sorted text multisets), where the brief had placed the witnesses in `spec` beside the harness's
+  `ReplayReferee`: the parity machinery (the walk forced, the census, the ledger) is the core test's and
+  package-private, and a 60-line double is not a second comparison policy -- recorded as the deviation it is. The
+  engine test library's three functions are defined in the witnesses' model under their own FQNs (the arms detect by
+  FQN; core's catalogue has no library). **Residue:** (a) the referee replay, the comparison policy, the plan replayer
+  and the TDG transcript stay the harness's (T13, R6); (b) the foreign-dialect and `unresolved`-dialect texts the
+  contract, counted; a declined golden a counted decline; (c) a text side that is not a constant of the plan keeps its
+  body on the walk (`NotAConstant`; no corpus body measured); (d) the generator carrier's bodies on the walk (T8);
+  (e) the two `TestDatGenForNestedViews` bodies, moved since M9e, pass with their generator result reaching an effect
+  native's argument -- unchanged by the new kind, as expected; (f) `SqlTextVerdicts` shrinks by nothing: its detection is
+  now a planning half and its rows leg the appeal; (g) the engine-text asserts inside shapes M10c owns (a quantified
+  form, the cell pool) wait for M10c; (h) a decline under the database road is reported at planning (`planDatabase`'s
+  adjudicate, as M7's census), where the walk reports it at the assert's turn -- the totals the lanes pin are the same,
+  the order within a segment differs; (i) the charter's §0 sentence corrected to the 2026-09-21 ruling here, not yet in
+  `docs/SQLTEXT_ROW_VERDICT_CHARTER.md`.
 - **CI's Linux runners and the LLVM toolchain -- a standing hazard, not this program's (2026-11-01).** On
   c9847ebe (M6) three Linux lanes (`stress`, `datacube`, `pct_postgres`) died while Bazel extracted the LLVM toolchain
   on the runner ("Free space left: 84 MB", then "No space left on device"), two before any test ran; the same death
@@ -1257,3 +1344,9 @@ fe643205, all five identical). Asked at each checkpoint (◆), not at every comm
   `moved=1080 -> 1,165`, database `moved=1026 -> 1,111`; H2 host `1080 -> 1,165`, database `961 -> 1,045`; outcomes
   identical, every register test green. The commit carries M8b's omissions (the ladder goldens, the ratchets, the
   TypeScript plan-version pin 24 -> 26) that CI found on 8bae5b1a. Next: M10b (the engine-text asserts).
+- 2026-11-02: **M10b built** (D114): the engine-text asserts on every lane -- the two texts a verdict step's
+  constant sides, the text equality the verdict, the rows leg the harness's appeal at the step; the three root arms and
+  the producer shapes planned by the arm the walk runs (`SqlTextVerdicts.plan`, one verdict site `decide`); the class
+  rule reads a routine as its query and a let-bound element as a read only where read; the generator carrier a kind;
+  the database gate in three. DuckDB host `moved=1165 -> 2,690`, database `1111 -> 2,122`; H2 host `1165 -> 2,690`,
+  database `1045 -> 2,055`; outcomes identical, the referee census identical, every register test green. Next: M10c.

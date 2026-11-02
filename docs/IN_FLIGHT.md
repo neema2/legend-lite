@@ -3029,7 +3029,14 @@ row)`), `BodyDriver.java`, `HostSides.java`, `HostAsserts.java`; `executionplan/
 `systemRouteOf`), `JudgePlans.java` (`target`), `SystemDatabase.java` (`engineOf`); the tests
 (`BodyRouterParityTest.systemRoutedPrograms`, `PlanJsonTest`, `PlanRoundTrip`, `ProgramRunnerTest`,
 `JavaEvalLedgerTest`); with it M8b's omissions (the ladder goldens, `ratchets.tsv`, engine-client's `PLAN_VERSION`
-26). Next: M10b (the engine-text asserts on every lane), M10c, M10d, Z, in this session; M8c awaits the user's ruling.
+26). **M10b built 2026-11-02 (D114)**: `driver/SqlTextVerdicts.java` (`plan`, `judge`, `decide`, `Collector`,
+`Collected`, `NotAConstant`), `AssertVerdicts.java` (`planHost`'s root arms and producer shapes, `databaseGate`,
+`HostAssert.judge`'s route count), `HostJudgment.java` (`EngineText`), `HostJudge.java`, `JudgePlans.java`
+(`evalSide`'s constant guard), `BodyDriver.java` (`ExecEnv.engineText`, `withEngineText`), `DatabaseAsserts.java`
+(the static pass's gate); `testplan/BodyClass.java` (`Kind.TDG_GENERATOR`, the routine as its query, the let rule);
+`compiler/spec/VerdictQueries.java` (`text`); the tests (`BodyRouterParityTest.engineTextPrograms` with a referee
+double, `JavaEvalLedgerTest`). Next: M10c (the remaining host shapes), M10d, Z, in this session; M8c awaits the
+user's ruling.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

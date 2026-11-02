@@ -140,7 +140,6 @@ unordered-chain meta::relational::tests::map::testSubAggregationAverageInQualifi
 unordered-chain meta::relational::tests::map::testSubAggregationAverageWithOperation
 unordered-chain meta::relational::tests::map::testSubAggregationMaxInQualifier
 unordered-chain meta::relational::tests::map::testSubAggregationMultiLevel
-unordered-chain meta::relational::tests::map::testSubAggregationMultiLevelJoinString
 unordered-chain meta::relational::tests::map::testSubAggregationSumInQualifier
 unordered-chain meta::relational::tests::map::testSubAggregationSumWithOperation
 unordered-chain meta::relational::tests::map::testSubAggregationUsingIf

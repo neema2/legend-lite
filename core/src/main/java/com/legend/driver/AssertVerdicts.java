@@ -151,17 +151,41 @@ final class AssertVerdicts {
     static boolean databasePlansWithoutReading(TypedSpec bare, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
+        return databaseGate(bare, letPrefix, specs, env, rawHook) != DatabaseGate.UNPLANNED;
+    }
+
+    /** The static gate's answers: the arm PLANS its verdict statement without reading; an ENGINE_TEXT assert plans its
+     *  text row with the appeal deferred (M10b); the arm RAISES at planning (its classification raised inside the arm:
+     *  {@link HostAssert#raising}) -- the planning pass walls the root at its place, which the program carries only
+     *  where a row before it in the segment holds the wall ({@code DatabaseAsserts.close}); or the shape is UNPLANNED
+     *  (the walk's). */
+    enum DatabaseGate { PLANS, ENGINE_TEXT, RAISES, UNPLANNED }
+
+    /** {@link #databasePlansWithoutReading}'s answer in three (M10b: a raise at planning told apart, so the static pass
+     *  refuses a body whose first root of a segment would wall a batch with no row to carry it -- the planning pass
+     *  would then count it and give the body back, and the walk would count it again). */
+    static DatabaseGate databaseGate(TypedSpec bare, List<TypedSpec> letPrefix,
+            SpecCompiler specs, BodyDriver.ExecEnv env,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> rawHook) {
         HostAssert shape = planHost(bare, letPrefix, specs, env, rawHook);
         if (shape == null) {
-            return false;
+            return DatabaseGate.UNPLANNED;
+        }
+        if (shape.check().judgment() instanceof HostJudgment.Raise) {
+            return DatabaseGate.RAISES;
+        }
+        if (shape.check().judgment() instanceof HostJudgment.EngineText) {
+            // an engine-text assert (M10b): its texts constants of the plan, its appeal the batch row's -- the walk's
+            // own deferral, planDatabase's adjudicate under the collecting batch; nothing read at planning
+            return DatabaseGate.ENGINE_TEXT;
         }
         NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
         if (fn == null) {
-            return false;
+            return DatabaseGate.UNPLANNED;
         }
         List<TypedSpec> raw = (bare instanceof TypedUserCall u) ? u.args() : ((TypedNativeCall) bare).args();
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
-        return switch (fn) {
+        boolean plans = switch (fn) {
             case ASSERT_EQUALS, ASSERT_NOT_EQUALS -> {
                 if (raw.size() < 2) {
                     yield false;
@@ -179,6 +203,7 @@ final class AssertVerdicts {
             case ASSERT_EQ -> raw.size() >= 2 && !classKind(raw.get(0)) && !classKind(raw.get(1));
             default -> true;
         };
+        return plans ? DatabaseGate.PLANS : DatabaseGate.UNPLANNED;
     }
 
     /** Leg 3.4: the assert's verdict statements DEFER into the body's batch
@@ -584,9 +609,15 @@ final class AssertVerdicts {
             }
         }
 
-        /** The verdict over {@code sides}, shaped: a declined judgment counted as the generic path's (null). */
+        /** The verdict over {@code sides}, shaped: a declined judgment counted as the generic path's (null); an
+         *  engine-text equality's census route counted once the arm answered, as {@link #adjudicate} counts it
+         *  (M10b: never on a failed one, which raises before). */
         @com.legend.base.Nullable TypedSide judge(List<TypedSide> sides) {
-            return judgedOrFellThrough(HostJudge.judge(check.judgment(), sides));
+            TypedSide v = judgedOrFellThrough(HostJudge.judge(check.judgment(), sides));
+            if (v != null && check.judgment() instanceof HostJudgment.EngineText e && e.routed()) {
+                sqlTextRouted(name());
+            }
+            return v;
         }
 
         /** Run in place (the walk): counted, its sides fetched, judged. */
@@ -602,6 +633,11 @@ final class AssertVerdicts {
 
     private static void familyEntered(String family) {
         com.legend.judge.CanonicalDivergence.sqlFamily(family);
+    }
+
+    /** The equality arm's census route, as {@link #adjudicate} counts it once the engine-text arm answered. */
+    private static void sqlTextRouted(String family) {
+        com.legend.judge.CanonicalDivergence.sqlRoute(family, "sql-text");
     }
 
     private static @com.legend.base.Nullable TypedSide judgedOrFellThrough(@com.legend.base.Nullable TypedSide v) {
@@ -682,7 +718,8 @@ final class AssertVerdicts {
      * classifies it, in its order: the grid pair, the rendered text, the equality, the multiset, the size, the JSON
      * text, the membership, {@code assertEq}, the tolerance, the condition, the instance test, the identity, the
      * emptiness, the TDS equivalence. Null where the shape is one the host checks do not plan yet -- a lineage print,
-     * the quantified forms, the engine-text arms ({@link SqlTextVerdicts#mayArm}), the sorted cell pool (two stages),
+     * the quantified forms, an engine-text assert whose text side is not a constant of the plan
+     * ({@link SqlTextVerdicts#plan}, M10b: the arms themselves plan since then), the sorted cell pool (two stages),
      * the assertion with a message overload no arm owns, a callee outside the verdict family, and the shapes whose
      * judgment would decline the sides it read (M6's audit, S3: a membership of a value not exactly one, a JSON text
      * that is not one String a side, an instance test of a computed type, a TDS equivalence of sides not relations):
@@ -703,29 +740,48 @@ final class AssertVerdicts {
             return null;
         }
         String fqn = calleeFqn(bare);
-        if (fqn == null || com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
-                || com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
-                || com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)) {
+        if (fqn == null) {
             return null;
         }
-        NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
-        if (fn == null) {
+        // the three engine-text ROOT arms (the test-is-the-product plan's M10b) are planned by the arm the walk runs
+        // for them, under no family (the walk counts none before a root arm); every other callee is a verdict
+        // function, planned under its family
+        boolean root = SqlTextVerdicts.isRoot(fqn);
+        NativeFn.Verdict fn = root ? null
+                : NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+        if (!root && fn == null) {
             return null;
         }
-        String name = fn.bareName();
+        String name = fn == null ? null : fn.bareName();
         HostSides.Check check;
         try {
-            check = planArm(fn, name, bare, letPrefix, specs, env, hook);
+            check = fn == null ? SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook)
+                    : planArm(fn, fn.bareName(), bare, letPrefix, specs, env, hook);
         } catch (RuntimeException e) {
-            // the arm's classification raised under its family: raised at the assert's turn, the family counted
-            // first, as adjudicate counts it before the arm (N2)
+            // the arm's classification raised under its family (none for a root arm): raised at the assert's turn,
+            // the family counted first, as adjudicate counts it before the arm (N2)
             return HostAssert.raising(listenerName(bare), name, e);
         }
-        if (check == null) {
+        if (check == SqlTextVerdicts.NOT_A_CONSTANT) {
+            // a text side the arm would evaluate by a statement at the assert's turn: the walk's
             return null;
         }
-        boolean wantEqual = fn != NativeFn.Verdict.ASSERT_NOT_EQUALS && fn != NativeFn.Verdict.ASSERT_FALSE
-                && fn != NativeFn.Verdict.ASSERT_NOT_EMPTY;
+        if (check == null) {
+            if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
+                    && bare instanceof TypedUserCall hroot && hroot.args().size() == 3) {
+                // the arm is TOTAL (adjudicate): where no text arm applies, the function's own meaning on our H2 is
+                // assertEquals(upgraded, actual), planned as that verdict
+                TypedSpec asEquals = com.legend.compiler.spec.VerdictQueries.assertEqualsOf(hroot.args().get(1),
+                        hroot.args().get(2), specs);
+                HostAssert rewritten = asEquals == null ? null : planHost(asEquals, letPrefix, specs, env, rawHook);
+                // reported under the call the body spells, as the walk reports it (the M10b audit's S3)
+                return rewritten == null ? null : new HostAssert(listenerName(bare), rewritten.family(),
+                        rewritten.wantEqual(), rewritten.check(), rewritten.beforeTheArm());
+            }
+            return null;
+        }
+        boolean wantEqual = fn == null || fn != NativeFn.Verdict.ASSERT_NOT_EQUALS
+                && fn != NativeFn.Verdict.ASSERT_FALSE && fn != NativeFn.Verdict.ASSERT_NOT_EMPTY;
         return new HostAssert(listenerName(bare), name, wantEqual, check);
     }
 
@@ -744,8 +800,21 @@ final class AssertVerdicts {
             case TO_CSV -> null;
             case ASSERT_EQUALS, ASSERT_NOT_EQUALS -> {
                 boolean wantEqual = fn == NativeFn.Verdict.ASSERT_EQUALS;
-                if (args.size() < 2 || SqlTextVerdicts.mayArm(name, wantEqual, args, letPrefix, specs)) {
+                if (args.size() < 2) {
                     yield null;
+                }
+                if (SqlTextVerdicts.mayArm(name, wantEqual, args, letPrefix, specs)) {
+                    // the engine-text arm (M10b): a producer shape planned under a collector, its two texts the step's
+                    // constant sides; null where the arm declines the shape, and the generic path below is the walk's
+                    HostSides.Check engineText = SqlTextVerdicts.plan(bare, letPrefix, specs, env, hook);
+                    if (engineText == SqlTextVerdicts.NOT_A_CONSTANT) {
+                        // a text side the arm would evaluate by a statement at the assert's turn: the walk's, not
+                        // the generic equality's (which would compare the texts the arm appeals)
+                        yield null;
+                    }
+                    if (engineText != null) {
+                        yield engineText;
+                    }
                 }
                 HostSides.Check rendered = renderedPlan(name, wantEqual, args, letPrefix, hook, true);
                 if (rendered != null) {
@@ -1767,7 +1836,7 @@ final class AssertVerdicts {
 
     /** The root's callee — except {@code assertError}, whose arm is the host's own
      * (a non-callee here keeps it off the verdict routes). */
-    private static @com.legend.base.Nullable String calleeFqn(TypedSpec bare) {
+    static @com.legend.base.Nullable String calleeFqn(TypedSpec bare) {
         String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(bare);
         return com.legend.compiler.element.type.PlatformTypes.ASSERT_ERROR.equals(fqn) ? null : fqn;
     }

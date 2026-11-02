@@ -15,40 +15,207 @@ import com.legend.judge.SqlReplayReferee;
 import java.util.List;
 
 /**
- * THE SQL-TEXT VERDICT ARM (SQLTEXT_ROW_VERDICT_CHARTER §3-§4, slice
- * 3a): a statement-root {@code assertEquals(golden, toSQLString({|q},
- * mapping, dialect, ext))} judges on ROWS, never on text — golden text
- * is H2-flavored, we execute DuckDB, so identical text proves the
- * emitter's spelling, not the answer (§0). Detection is typed-node +
- * exact callee FQN navigation of the assert's argument trees (§3.4;
- * never text sniffing); the producer node's CHILDREN are the
- * structured inputs. Four artifacts (§3.5): OUR TEXT and GOLDEN TEXT
- * by ordinary evaluation of the two sides; OUR ROWS by executing the
- * producer's own query lambda through the ONE router
- * ({@code evalValue} — the lambda wraps in {@code from(mapping)} with
- * the env's runtime, Appendix A); GOLDEN ROWS via the
- * {@link SqlReplayReferee} SPI on ExecEnv. Text match/diff is a CENSUS
- * number ({@link SqlTextEmission}); a row divergence FAILS whatever
- * the text said; a referee decline (foreign dialects — no reference
- * database) keeps TEXT as the contract, hard pass/fail, counted (§4).
- * Production registers no referee and this arm WALLS loudly (§2).
+ * THE SQL-TEXT VERDICT ARMS (SQLTEXT_ROW_VERDICT_CHARTER §3-§4, slice 3a; the user's ruling of 2026-09-21, option 1):
+ * a statement-root {@code assertEquals(golden, toSQLString({|q}, mapping, dialect, ext))}, the root arms
+ * {@code assertSameSQL}, the generator's {@code assertSqlEquals} and {@code assertEqualsH2Compatible}, the frame's
+ * {@code sqlRemoveFormatting($result)} and the plan text of {@code executionPlan(...)}. The verdict is the TEXT: a
+ * text byte-equal to the golden holds; on a failed text the ROWS LEG is the appeal -- our rows by executing the
+ * producer's own query lambda through the one router ({@code evalSide}, the lambda wrapped in {@code from(mapping)}
+ * with the env's runtime, Appendix A), the golden rows via the {@link SqlReplayReferee} SPI on ExecEnv (golden text
+ * is H2-flavored, we execute the lane's database) -- MATCH holds whatever the text said, DIVERGED and FAULT fail, a
+ * referee decline (foreign dialects: no reference database) keeps the text as the contract, hard pass/fail, counted
+ * (§4). Detection is typed-node + exact callee FQN navigation of the assert's argument trees (§3.4; never text
+ * sniffing); the producer node's CHILDREN are the structured inputs. Production registers no referee and an arm WALLS
+ * loudly (§2). Since the test-is-the-product plan's M10b the same arms are PLANNED for the program road
+ * ({@link #plan}: run once under a collector, their comparison a verdict step's two constant sides, the appeal the
+ * step's) and judged there ({@link #judge}); one site decides where a comparison goes ({@link #decide}).
  *
- * <p>Eval-ledger tenet argument: NO evaluation here — both texts, our
- * rows, and the golden replay all compute in the database through
- * existing routes; this class navigates typed trees, sequences the
- * four derivations, and judges outcomes (Clause 2c judgment, the
- * AssertVerdicts discipline). Shapes outside the exact cohort return
- * null and keep their current path — never a guess.
+ * <p>Eval-ledger tenet argument: NO evaluation here -- both texts, our rows, and the golden replay all compute in the
+ * database through existing routes; this class navigates typed trees, sequences the derivations, and judges outcomes
+ * (Clause 2c judgment, the AssertVerdicts discipline). Shapes outside the exact cohort return null and keep their
+ * current path -- never a guess.
  */
 final class SqlTextVerdicts {
 
     private SqlTextVerdicts() {
     }
 
+    /** Where the arms' verdict goes while an assert is PLANNED for the program road (the test-is-the-product plan's
+     *  M10b, {@link #plan}): the comparison and its appeal, handed over instead of judged; {@code planning} while the
+     *  arm runs under it (a text side must then be a constant of the plan: {@link JudgePlans#evalSide}), false once
+     *  the arm has answered (the appeal it built runs later in the same environment and reads what it needs). */
+    interface Collector {
+        void collect(Collected c);
+
+        boolean planning();
+    }
+
+    /** One engine-text comparison as the arm planned it: the two texts (the golden's and ours -- constants of the
+     *  plan, the verdict step's base), whether they are equal, the decline decided before them (null for none), the
+     *  APPEAL that decides a failed text (the rows leg: our rows through the plan runner on the lane's database, the
+     *  golden replayed on the H2 referee; or a decline's own failure) and the environment it runs in. The one host
+     *  judgment that holds a closure and the harness's objects: the appeal is harness Java outside the plan by the
+     *  user's ruling (R3, T13, R6), built when the assert is planned and run at the step on a failed text alone. */
+    record Collected(String name, String golden, String ours, boolean textEqual,
+            @com.legend.base.Nullable String decline, com.legend.judge.VerdictBatch.Appeal appeal,
+            BodyDriver.ExecEnv env) {
+    }
+
+    /** Raised while an arm is PLANNED for the program road where a text side is not a constant of the plan (it would
+     *  send a statement at planning): the body stays on the walk, by name ({@link #plan} answers
+     *  {@link #NOT_A_CONSTANT}). */
+    static final class NotAConstant extends RuntimeException {
+        NotAConstant(String what) {
+            super(what);
+        }
+    }
+
+    /** {@link #plan}'s answer where a text side is not a constant of the plan: not the arm declining the shape (null:
+     *  the walk's generic path continues) but the program road refusing the body by name -- the callers compare by
+     *  identity and leave the body to the walk. Never judged. */
+    static final HostSides.Check NOT_A_CONSTANT = new HostSides.Check(List.of(),
+            new HostJudgment.Raise(new NotAConstant("a text side that is not a constant of the plan: the walk's")));
+
+    /** A collector for one planned assert. */
+    private static final class Collecting implements Collector {
+        final List<Collected> collected = new java.util.ArrayList<>(1);
+        boolean planning = true;
+
+        @Override
+        public void collect(Collected c) {
+            collected.add(c);
+        }
+
+        @Override
+        public boolean planning() {
+            return planning;
+        }
+    }
+
+    /** Whether {@code fqn} is one of the three ROOT arms' ({@code assertSameSQL}, the generator's {@code assertSqlEquals},
+     *  {@code assertEqualsH2Compatible}). */
+    static boolean isRoot(String fqn) {
+        return com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
+                || com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
+                || com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn);
+    }
+
+    /**
+     * {@code bare} planned for the program road as an engine-text assert (M10b): the arm the walk runs for it
+     * ({@code AssertVerdicts.adjudicate}'s order: the root arm its FQN names, else the equality arm's producer
+     * shapes, {@link #mayArm}) run ONCE under a collector -- the two texts folded to constants, nothing sent, nothing
+     * counted -- and its comparison answered as a host check whose two sides are the texts and whose judgment is
+     * {@link HostJudgment.EngineText}. Null where the arm declines the shape (the walk's generic path continues:
+     * {@code planHost} plans the equality as any other, or leaves a root to the walk); {@link #NOT_A_CONSTANT} where a
+     * text side is not a constant of the plan (the walk's: the arm would evaluate it by a statement at the assert's
+     * turn, which a body planned before it runs cannot). A raise inside the arm surfaces: the caller plans it as the
+     * assert's raise at its turn, as the walk raises it there.
+     */
+    static HostSides.@com.legend.base.Nullable Check plan(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
+            BodyDriver.ExecEnv env, AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
+        String fqn = AssertVerdicts.calleeFqn(bare);
+        Collecting collecting = new Collecting();
+        BodyDriver.ExecEnv planning = env.withEngineText(collecting);
+        TypedSide answered = null;
+        boolean routed = false;
+        boolean notAConstant = false;
+        try {
+            if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall root) {
+                answered = com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
+                        ? tryArmSameSql(root, letPrefix, specs, planning, hook)
+                        : com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
+                        ? tryArmTdgRoot(root, letPrefix, specs, planning, hook)
+                        : tryArmDualGolden(root, letPrefix, specs, planning, hook);
+            } else {
+                com.legend.builtin.NativeFn.Verdict fn = com.legend.builtin.NativeFn.Verdict.of(
+                        com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
+                if (fn != com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS
+                        && fn != com.legend.builtin.NativeFn.Verdict.ASSERT_NOT_EQUALS) {
+                    return null;
+                }
+                List<TypedSpec> raw = bare instanceof com.legend.compiler.spec.typed.TypedUserCall u ? u.args()
+                        : ((com.legend.compiler.spec.typed.TypedNativeCall) bare).args();
+                List<TypedSpec> args = com.legend.compiler.spec.ExecuteChainAssembly.narrowSideStamps(raw, letPrefix,
+                        specs);
+                answered = tryArm(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS, args,
+                        letPrefix, specs, planning, hook);
+                // the equality arm's census route, counted by adjudicate once the arm answers (at the step here)
+                routed = answered != null;
+            }
+        } catch (NotAConstant e) {
+            notAConstant = true;
+        } finally {
+            collecting.planning = false;
+        }
+        if (notAConstant) {
+            return NOT_A_CONSTANT;
+        }
+        if (answered == null) {
+            return null;
+        }
+        if (collecting.collected.size() != 1) {
+            throw new IllegalStateException(fqn + ": the engine-text arm answered with " + collecting.collected.size()
+                    + " comparisons collected, one expected");
+        }
+        Collected c = collecting.collected.get(0);
+        return new HostSides.Check(List.of(
+                new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.golden()), false, true, null),
+                new HostSides.Ask(com.legend.compiler.spec.VerdictQueries.text(c.ours()), false, true, null)),
+                new HostJudgment.EngineText(c, routed));
+    }
+
+    /** {@code e} judged at its verdict step over the two text sides the runner handed back (the plan's constants:
+     *  they are the planned texts, checked): the decline reported, then the text decides -- equal holds; else the
+     *  appeal, the walk's own rows leg, now. */
+    static TypedSide judge(HostJudgment.EngineText e, List<TypedSide> sides) {
+        Collected c = e.collected();
+        if (sides.size() != 2) {
+            throw new IllegalStateException(c.name() + ": the engine-text step handed " + sides.size()
+                    + " sides, two texts expected");
+        }
+        String golden = scalarString(sides.get(0));
+        String ours = scalarString(sides.get(1));
+        if (!c.golden().equals(golden) || !c.ours().equals(ours)) {
+            throw new IllegalStateException(c.name() + ": the verdict step's texts are not the texts the arm planned");
+        }
+        // the equality arm's census route is the caller's to count once this answered (AssertVerdicts.HostAssert)
+        return decide(c.env(), c.name(), c.golden(), c.ours(), c.textEqual(), c.decline(), c.appeal());
+    }
+
+    /** THE ONE VERDICT SITE of the arms: {@code textEqual} the verdict (the user's ruling of 2026-09-21, option 1: a
+     *  text byte-equal to the golden IS the assert's verdict, the engine's own), {@code appeal} what decides a failed
+     *  text (the rows leg -- block-compiler rung 2a; a decline's own failure), {@code decline} the reason decided
+     *  before the texts were compared (a foreign dialect, unbindable plan parameters), reported first. Three roads:
+     *  under a COLLECTOR (an assert planned for the program road, {@link #plan}) the comparison is handed over and
+     *  judged at its verdict step ({@link #judge}); under an active verdict BATCH (the database judge) the text
+     *  equality is a row of the body's fused statement and the appeal runs at the flush where the row failed; else
+     *  (the walk under the host judge) decided now. */
+    private static TypedSide decide(BodyDriver.ExecEnv env, String name, String golden, String ours,
+            boolean textEqual, @com.legend.base.Nullable String decline,
+            com.legend.judge.VerdictBatch.Appeal appeal) {
+        Collector collector = env.engineText();
+        if (collector != null && collector.planning()) {
+            // the arm is being PLANNED for the program road: the comparison is handed over, judged at the step --
+            // where this is reached again through the collected environment with the planning over (judge), the
+            // text decides below as on the walk
+            collector.collect(new Collected(name, golden, ours, textEqual, decline, appeal, env));
+            return ok();
+        }
+        if (decline != null) {
+            declined(env, name, decline);
+        }
+        com.legend.judge.VerdictBatch batch = env.verdictBatch();
+        if (batch != null && batch.active()) {
+            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours), env.session(), appeal);
+            return ok();
+        }
+        return textEqual ? ok() : appeal.appeal();
+    }
+
     /** Whether {@link #tryArm} may claim an assert of these arguments (the test-is-the-product plan's M6): a static
      *  superset of its gates -- a toSQLString producer, a test-data generator's fetch text, a SQL read, a plan node's
-     *  SQL read (looked through a helper for the plain assert) on either side. The host checks leave such an assert
-     *  to the walk's own dispatch ({@code AssertVerdicts.planHost}). */
+     *  SQL read (looked through a helper for the plain assert) on either side. The host checks plan such an assert
+     *  through {@link #plan} since the plan's M10b ({@code AssertVerdicts.planHost}). */
     static boolean mayArm(String name, boolean wantEqual, List<TypedSpec> args, List<TypedSpec> letPrefix,
             SpecCompiler specs) {
         if (!wantEqual || args.size() < 2) {
@@ -174,11 +341,10 @@ final class SqlTextVerdicts {
         if (!com.legend.database.Databases.REPLAY_REFEREE.name().equals(dbType)) {
             // §4 FOREIGN-DIALECT residue: no referee database for this
             // dialect — text stays the contract, counted forever
-            declined(env, name, "foreign-dialect:" + dbType);
             final String g = golden;
-            return textVerdict(env, name, golden, ours, textEqual,
-                    () -> name + " (sql-text, " + dbType
-                            + " — text is the contract): expected " + g + ", got " + ours);
+            return decide(env, name, golden, ours, textEqual, "foreign-dialect:" + dbType,
+                    () -> fail(name + " (sql-text, " + dbType
+                            + " — text is the contract): expected " + g + ", got " + ours));
         }
         // a MULTI-STATEMENT lambda (leading lets, then the query — the
         // datePeriods `$fn`): the engine's plan is one statement per
@@ -847,11 +1013,10 @@ final class SqlTextVerdicts {
                 com.legend.compiler.spec.VerdictQueries
                         .refereeBindings(lam);
         if (bindings == null) {
-            declined(env, name, "plan-params-unbindable");
             final String g = golden;
-            return textVerdict(env, name, golden, ours, textEqual,
-                    () -> name + " (plan-text, params unbindable —"
-                            + " text is the contract): expected " + g + ", got " + ours);
+            return decide(env, name, golden, ours, textEqual, "plan-params-unbindable",
+                    () -> fail(name + " (plan-text, params unbindable —"
+                            + " text is the contract): expected " + g + ", got " + ours));
         }
         String filled = golden;
         for (var e : bindings.spellings().entrySet()) {
@@ -1025,22 +1190,11 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        com.legend.judge.VerdictBatch batch = env.verdictBatch();
-        if (batch != null && batch.active()) {
-            // TASK #14 LEG 2 (2026-09-21): the TDG fetch-text assert IS a verdict row of
-            // the body's statement — the golden fetch text against ours, string
-            // equality — and the referee (the fetch replayed on the referee, rows
-            // compared) is its APPEAL, run at the flush only when the row failed.
-            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.session(), () -> tdgRowsNow(name, golden, ours, textEqual, referee,
-                            actualSide, letPrefix, specs, env));
-            return ok();
-        }
-        if (textEqual) {
-            // the host judge, the same rule (option 1): a byte-equal text IS the verdict
-            return ok();
-        }
-        return tdgRowsNow(name, golden, ours, textEqual, referee, actualSide, letPrefix, specs, env);
+        // TASK #14 LEG 2 (2026-09-21): the TDG fetch-text assert's verdict is the golden fetch text against ours,
+        // string equality; the referee (the fetch replayed on the referee, rows compared) is its APPEAL on a failed
+        // text (decide: a row of the body's statement under the batch, the step's on the program road, now on the walk)
+        return decide(env, name, golden, ours, textEqual, null, () -> tdgRowsNow(name, golden, ours, textEqual,
+                referee, actualSide, letPrefix, specs, env));
     }
 
     /** The TDG rows leg itself — the referee's fetch replay, judged now. */
@@ -1378,30 +1532,14 @@ final class SqlTextVerdicts {
             @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
             List<SqlReplayReferee.TempTable> temps) {
-        com.legend.judge.VerdictBatch batch = env.verdictBatch();
-        if (batch != null && batch.active()) {
-            // BLOCK-COMPILER RUNG 2a (2026-09-21): the text assert IS a verdict row of
-            // the body's statement — the golden text against our rendered text, the
-            // same string equality every assertEquals compiles to — and the referee is
-            // its APPEAL, run at the flush only when the row failed (a byte-equal text
-            // needs none). No assert shape is routed around the batch any more.
-            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.session(), () -> rowsLegNow(name, golden, ours, textEqual, referee,
-                            rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
-                            letPrefix, specs, env, hook, query, goldenPlan, planBindings, temps));
-            return ok();
-        }
-        if (textEqual) {
-            // THE HOST JUDGE, THE SAME RULE (user ruling 2026-09-21, option 1): a text
-            // byte-equal to the golden IS the assert's verdict — the engine's own —
-            // and rows are the APPEAL on a failed text only. Both judges agree; the
-            // DuckDB-vs-H2 function divergences a held text used to expose belong
-            // to the tests that assert VALUES.
-            return ok();
-        }
-        return rowsLegNow(name, golden, ours, textEqual, referee, rowsRead, replaySqlOrNull,
-                mappingFqn, classFqn, facts, populationRead, letPrefix, specs, env, hook, query,
-                goldenPlan, planBindings, temps);
+        // BLOCK-COMPILER RUNG 2a (2026-09-21): the text assert's verdict is the golden text against our rendered
+        // text, the same string equality every assertEquals compiles to (a row of the body's statement under the
+        // batch), and the referee is its APPEAL on a failed text only (a byte-equal text needs none: the user's
+        // ruling, option 1 -- both judges agree; the DuckDB-vs-H2 function divergences a held text used to expose
+        // belong to the tests that assert VALUES). One site decides where it goes (decide).
+        return decide(env, name, golden, ours, textEqual, null, () -> rowsLegNow(name, golden, ours, textEqual,
+                referee, rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead, letPrefix, specs,
+                env, hook, query, goldenPlan, planBindings, temps));
     }
 
     /** The rows leg itself: OUR rows through the one router, the golden replayed
@@ -1695,22 +1833,6 @@ final class SqlTextVerdicts {
     private static TypedSide ok() {
         return new TypedSide.Scalar(Boolean.TRUE,
                 com.legend.compiler.element.type.Type.Primitive.BOOLEAN);
-    }
-
-    /** A TEXT-DECIDED verdict (a counted decline — no referee can appeal it): under
-     * a batch the text equality IS a verdict row of the body's statement and the
-     * arm's own message is raised when the row fails (task #14 leg 2, 2026-09-21);
-     * the host judge decides on the text now. */
-    private static TypedSide textVerdict(BodyDriver.ExecEnv env, String name,
-            String golden, String ours, boolean textEqual,
-            java.util.function.Supplier<String> message) {
-        com.legend.judge.VerdictBatch batch = env.verdictBatch();
-        if (batch != null && batch.active()) {
-            batch.defer(name, true, com.legend.lowering.VerdictSql.textEquals(golden, ours),
-                    env.session(), () -> fail(message.get()));
-            return ok();
-        }
-        return textEqual ? ok() : fail(message.get());
     }
 
     private static TypedSide fail(String message) {

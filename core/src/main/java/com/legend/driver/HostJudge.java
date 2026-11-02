@@ -649,7 +649,8 @@ final class HostJudge {
     /**
      * THE ONE DISPATCH: {@code j}, the comparison a planned arm named with the facts it read at planning, judged over
      * {@code sides} (the arm's rows, shaped, in its order). Every arm's function takes the record and the rows and
-     * nothing else -- no typed tree, no let prefix, no model, no environment: the sink holds data. Null where the
+     * nothing else -- no typed tree, no let prefix, no model, no environment (but for the engine-text asserts' appeal,
+     * {@link HostJudgment.EngineText}, the one named exception: M10b): the sink holds data. Null where the
      * judgment declines the sides it read (the walk's generic path continues).
      */
     static @com.legend.base.Nullable TypedSide judge(HostJudgment j, List<TypedSide> sides) {
@@ -672,6 +673,7 @@ final class HostJudge {
             case HostJudgment.Json js -> jsonOf(js, sides);
             case HostJudgment.Rendered r -> renderedOf(r, sides);
             case HostJudgment.Raise r -> throw r.failure();
+            case HostJudgment.EngineText e -> SqlTextVerdicts.judge(e, sides);
         };
     }
 

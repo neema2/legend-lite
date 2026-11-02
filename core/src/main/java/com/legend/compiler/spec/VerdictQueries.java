@@ -49,6 +49,12 @@ public final class VerdictQueries {
                 read.callee(), List.of(read.args().get(0)), read.info());
     }
 
+    /** A String literal as a typed node: a text the planner wrote, as a verdict step's constant side (the engine-text
+     *  arms' two texts, the test-is-the-product plan's M10b). */
+    public static TypedSpec text(String text) {
+        return new TypedCString(text, scalar(Type.Primitive.STRING));
+    }
+
     /** {@code assertEquals(expected, actual)} as a typed call — the meaning
      * of a dual-golden assert once its golden is chosen (the verdict arm
      * adjudicates it as the plain verdict). Null when the catalog has no

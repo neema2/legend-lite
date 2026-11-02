@@ -81,9 +81,9 @@ public final class BodyRouter {
                 env = env.withSession(systemRoute.session());
             }
             if (mode == ExecuteOptions.JudgeMode.HOST) {
-                host = HostAsserts.plan(typed, runtimeFqn, env);
+                host = HostAsserts.plan(typed, runtimeFqn, env, systemRouted);
             } else {
-                database = DatabaseAsserts.plan(typed, runtimeFqn, env);
+                database = DatabaseAsserts.plan(typed, runtimeFqn, env, systemRouted);
             }
         }
         TestDoor.Asserts asserts = host != null ? host : database;

@@ -339,6 +339,22 @@ class BodyRouterParityTest {
                     ['name']), x::M, x::RT.runtimeValue, [])->size() }
                 function x::execHelper(): meta::pure::mapping::Result<Any|*>[1] { meta::pure::router::execute(
                     |x::Firm.all()->project([f|$f.name], ['name']), x::M, x::RT.runtimeValue, []) }
+                // the engine test library's engine-text asserts, in their own packages (the arms detect them by FQN
+                // and splice the envelope's SQL read; the bodies here spell what the library's do: M10b's witnesses)
+                function meta::relational::mapping::sqlRemoveFormatting(r: meta::pure::mapping::Result<Any|*>[1]): String[1]
+                { $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity).sql->toOne() }
+                function meta::relational::functions::asserts::assertSameSQL(expected: String[1], actual: String[1]): Boolean[1]
+                { assertEquals($expected, $actual) }
+                function meta::relational::functions::asserts::assertSameSQL(expected: String[1],
+                    r: meta::pure::mapping::Result<Any|*>[1]): Boolean[1]
+                { assertEquals($expected, meta::relational::mapping::sqlRemoveFormatting($r)) }
+                function meta::relational::functions::asserts::assertSameSQL(expected: String[1],
+                    r: meta::relational::functions::sqlstring::SQLResult[1]): Boolean[1]
+                { assertEquals($expected, meta::relational::mapping::sqlRemoveFormatting(
+                    $r->cast(@meta::pure::mapping::Result<Any|*>))) }
+                function meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible(legacy: String[1],
+                    upgraded: String[1], r: meta::pure::mapping::Result<Any|*>[1]): Boolean[1]
+                { assertEquals($upgraded, meta::relational::mapping::sqlRemoveFormatting($r)) }
                 ###Relational
                 Database x::DB (
                   Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32))
@@ -709,15 +725,127 @@ class BodyRouterParityTest {
         // the test-data-generation lane's census carrier (getRelationalCSVDataFromQuery): the walk folds it to
         // instance literals in Java from the model, the program road has no fold -- the walk's, by name (M10a's third
         // cut: the corpus's three census tests moved on the strength of their system reads alone and walled at
-        // lowering); in the corpus's shape: the let-bound mapping is the body's one visible store read, the system
-        // store's (the carrier holds its mapping as a name), so the carrier's kind alone keeps the body on the walk
+        // lowering); in the corpus's shape: the let-bound mapping is consumed by the carrier (the carrier holds it as a
+        // name), so since M10b's let rule the body reads no store at all and is not system-routed; the carrier's kind
+        // alone keeps it on the walk
         String censusBody = "{| let query = {|x::Firm.all()->project([f|$f.name], ['n'])}; let mapping = x::M;"
                 + " let d = meta::relational::testDataGeneration::getRelationalCSVDataFromQuery($query, $mapping);"
                 + " assertEquals(1, $d.tables->size()); assertEquals('FIRM', $d.tables->at(0).table);}";
-        assertTrue(BodyClass.systemRouted(typed(ctx, censusBody), "x::RT"), "system-routed: " + censusBody);
+        assertFalse(BodyClass.systemRouted(typed(ctx, censusBody), "x::RT"), "a binding consumed: " + censusBody);
         assertNull(BodyClass.of(typed(ctx, censusBody), "x::RT", true), "the census carrier stays on the walk");
         assertEquals("ok", run(backend, ctx, "x::RT", censusBody, false, "select count(*) from FIRM", FIRM_ROWS,
                 ExecuteOptions.JudgeMode.HOST).outcome, "the census body on the walk");
+    }
+
+    /** M10b: the ENGINE-TEXT asserts on the program road -- the two texts a verdict step's constant sides, a byte-equal
+     *  text the verdict (the user's ruling of 2026-09-21), the appeal (the rows leg: our rows through the plan runner,
+     *  the golden replayed on the referee) the harness's at the step on a failed text alone, as the walk decides them
+     *  -- under both judges: the text equal, the text differing with the rows agreeing (MATCH), the rows differing
+     *  (DIVERGED: the arm's own message), a foreign dialect (declined: the text is the contract), a frame's executed
+     *  SQL through the envelope's read under the three spellings. The goldens are built from our own texts, read off
+     *  bodies answering them. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void engineTextPrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
+                + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
+        String ours = text(run(backend, ctx, "x::RT", "{| " + producer + ";}", false, "select count(*) from FIRM",
+                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        assertTrue(ours.startsWith("select "), ours);
+        String frameSql = text(run(backend, ctx, "x::RT", "{| let r = " + EXECUTE
+                + "; meta::relational::mapping::sqlRemoveFormatting($r);}", false, "select count(*) from FIRM",
+                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        assertTrue(frameSql.startsWith("select "), frameSql);
+        // another spelling of the same query (the rows agree), and the same spelling over other rows
+        String sameRows = "SELECT" + ours.substring("select".length());
+        String otherRows = ours + " where \"root\".ID = 1";
+        int oursLeg = StatementOrigin.REFEREE_OURS.ordinal();
+        for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST, ExecuteOptions.JudgeMode.DATABASE)) {
+            // the text equal: the verdict, no replay (the user's ruling of 2026-09-21) -- pinned absolutely, so a
+            // vacuous pass (the step handing the comparison over instead of judging it: found by the corpus before this
+            // pin existed) cannot hide behind two roads agreeing
+            for (String equal : List.of(
+                    "{| meta::relational::functions::asserts::assertSameSQL('" + pure(ours) + "', " + producer + ");}",
+                    "{| assertEquals('" + pure(ours) + "', " + producer + ");}",
+                    "{| let r = " + EXECUTE + "; assertEquals('" + pure(frameSql) + "',"
+                            + " meta::relational::mapping::sqlRemoveFormatting($r));}",
+                    "{| let r = " + EXECUTE + "; meta::relational::functions::sqlQueryToString::h2"
+                            + "::assertEqualsH2Compatible('legacy', '" + pure(frameSql) + "', $r);}",
+                    "{| let r = " + EXECUTE + "; meta::relational::functions::asserts::assertSameSQL('"
+                            + pure(frameSql) + "', $r);}")) {
+                Run walked = assertParity(backend, ctx, "x::RT", equal, "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertEquals("ok", walked.outcome, "the text equal holds: " + equal);
+                assertEquals(0, originsOf(walked.origins)[oursLeg], "no rows leg for an equal text: " + equal);
+            }
+            // the text differing, the rows agreeing: the appeal replays and the referee says MATCH -- the assert holds
+            Run matched = assertParity(backend, ctx, "x::RT",
+                    "{| meta::relational::functions::asserts::assertSameSQL('" + pure(sameRows) + "', " + producer + ");}",
+                    "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals("ok", matched.outcome, "the rows agree: the appeal holds");
+            assertTrue(originsOf(matched.origins)[oursLeg] >= 1, "the rows leg ran: " + matched.statements);
+            // the rows differing: the appeal fails the assert with the arm's own message
+            Run diverged = assertParity(backend, ctx, "x::RT", "{| assertEquals('" + pure(otherRows) + "', " + producer
+                    + ");}", "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertTrue(diverged.outcome.startsWith("AssertFailed") && diverged.outcome.contains("diverged"),
+                    "the rows differ: the appeal fails the assert: " + diverged.outcome);
+            // a frame's executed SQL against another spelling of it: the appeal reads the frame's rows (MATCH)
+            Run frameMatched = assertParity(backend, ctx, "x::RT", "{| let r = " + EXECUTE
+                    + "; meta::relational::functions::asserts::assertSameSQL('"
+                    + pure("SELECT" + frameSql.substring("select".length())) + "', $r);}",
+                    "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals("ok", frameMatched.outcome, "the frame's rows agree: the appeal holds");
+            assertTrue(frameMatched.verdicts.toString().contains("refereed MATCH"), frameMatched.verdicts.toString());
+            // a dialect with a renderer and no referee database (DB2): a DECLINE decided before the texts are
+            // compared, counted; the text is the contract
+            String renderedElsewhere = producer.replace("DatabaseType.H2", "DatabaseType.DB2");
+            Run declinedFails = assertParity(backend, ctx, "x::RT", "{| assertEquals('x', " + renderedElsewhere + ");}",
+                    "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertTrue(declinedFails.outcome.startsWith("AssertFailed")
+                    && declinedFails.outcome.contains("text is the contract"), declinedFails.outcome);
+            assertTrue(declinedFails.verdicts.toString().contains("declined foreign-dialect:DB2"),
+                    declinedFails.verdicts.toString());
+            // a dialect the engine-text renderer does not spell: the routine RAISES when the text is planned. Under
+            // the host judge the raise is planned at the assert's turn and the body moves; under the database judge
+            // the raise would wall a batch with no row before it to carry the wall, so the static gate leaves the body
+            // to the walk before anything is counted (the same raise, counted once) -- the one road difference
+            String foreign = "{| assertEquals('x', " + producer.replace("DatabaseType.H2", "DatabaseType.Snowflake")
+                    + ");}";
+            if (mode == ExecuteOptions.JudgeMode.HOST) {
+                assertParity(backend, ctx, "x::RT", foreign, "select count(*) from FIRM", FIRM_ROWS, mode);
+            } else {
+                assertWalkedAlike(backend, ctx, "x::RT", foreign, "select count(*) from FIRM", FIRM_ROWS, mode);
+            }
+        }
+    }
+
+    /** {@code body} is a moved class's, yet the router leaves it to the walk by a named rule of its judge's planner:
+     *  the two runs are the walk's twice, alike in everything, and the router moved nothing. */
+    private static void assertWalkedAlike(TestBackend backend, ModelContext ctx, String runtime, String body,
+            String check, List<String> setup, ExecuteOptions.JudgeMode mode) throws Exception {
+        assertNotNull(BodyClass.of(typed(ctx, body), runtime, true), "the body is a moved class's: " + body);
+        Run walked = run(backend, ctx, runtime, body, false, check, setup, mode);
+        Run routed = run(backend, ctx, runtime, body, true, check, setup, mode);
+        assertEquals(walked.outcome, routed.outcome, "outcome: " + body);
+        assertEquals(walked.verdicts, routed.verdicts, "the verdicts: " + body);
+        assertEquals(walked.census, routed.census, "the verdict census: " + body);
+        assertEquals(walked.origins, routed.origins, "the statement-origin census: " + body);
+        assertEquals(walked.moved, routed.moved, "the router walked the body: " + body);
+    }
+
+    /** A text as a Pure string literal's body. */
+    private static String pure(String text) {
+        return text.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    /** The one text a body answered, read off the capture's rendering ({@code ... row[<text>] end}). */
+    private static String text(Run run) {
+        assertEquals("ok", run.outcome, "the body answering a text ran: " + run.statements);
+        String answer = run.answer;
+        int from = answer.indexOf(" row[");
+        int to = answer.lastIndexOf("] end");
+        assertTrue(from >= 0 && to > from, "one text answered: " + answer + " (" + run.verdicts + ")");
+        return answer.substring(from + " row[".length(), to);
     }
 
     /** M9c: a frame's activity COMMENT is the trace stamp of its eager run on both roads -- the walk's frame holds the
@@ -873,6 +1001,7 @@ class BodyRouterParityTest {
             ExecuteOptions options = ExecuteOptions.recording(recorder, null).withJudgeMode(mode);
             Capture capture = new Capture();
             Sessions.Session session = Sessions.borrowed(c);
+            com.legend.judge.SqlReplayReferee referee = new StubReferee(c);
             long[] before = StatementOrigin.snapshot();
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
@@ -889,16 +1018,26 @@ class BodyRouterParityTest {
                 public void unjudged(String assertName, String reason) {
                     verdicts.add(assertName + " unjudged " + reason);
                 }
+
+                @Override
+                public void declined(String assertName, String reason) {
+                    verdicts.add(assertName + " declined " + reason);
+                }
+
+                @Override
+                public void refereed(String assertName, String outcome) {
+                    verdicts.add(assertName + " refereed " + outcome);
+                }
             };
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
                     com.legend.judge.CanonicalDivergence.sqlCensus());
             try (var observing = StatementOrigin.observing(statements)) {
                 if (router) {
-                    Execution.runProgram(q, runtime, Execution.Source.given(session), listener, null, options,
+                    Execution.runProgram(q, runtime, Execution.Source.given(session), listener, referee, options,
                             capture::of);
                 } else {
                     BodyDriver.execute(q, runtime, backend.dialect().forServer(session.version()), session, listener,
-                            null, options, capture::of);
+                            referee, options, capture::of);
                 }
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -936,6 +1075,84 @@ class BodyRouterParityTest {
     }
 
     /** The caller's answer sink: the shape asked, the columns' facts and every row. */
+    /** The referee of the engine-text witnesses: the golden replayed on the body's OWN connection (the texts the
+     *  witnesses use run on every in-process backend), its rows against ours as sorted text multisets -- a test
+     *  double of the SPI, not the harness's comparison policy (spec's {@code ReplayReferee}); a golden the connection
+     *  refuses is a decline. The generator's fetch entries are not exercised by any witness here. */
+    private static final class StubReferee implements com.legend.judge.SqlReplayReferee {
+        private final Connection c;
+
+        StubReferee(Connection c) {
+            this.c = c;
+        }
+
+        @Override
+        public RefereeRows rows(String sql) {
+            try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(sql)) {
+                int n = rs.getMetaData().getColumnCount();
+                List<String> labels = new ArrayList<>();
+                List<Integer> types = new ArrayList<>();
+                for (int i = 1; i <= n; i++) {
+                    labels.add(rs.getMetaData().getColumnLabel(i));
+                    types.add(rs.getMetaData().getColumnType(i));
+                }
+                List<List<Object>> rows = new ArrayList<>();
+                while (rs.next()) {
+                    List<Object> cells = new ArrayList<>();
+                    for (int i = 1; i <= n; i++) {
+                        cells.add(rs.getObject(i));
+                    }
+                    rows.add(cells);
+                }
+                return new RefereeRows(labels, types, rows);
+            } catch (java.sql.SQLException e) {
+                throw new IllegalStateException(e.getMessage(), e);
+            }
+        }
+
+        @Override
+        public RowVerdict verifyFetchTexts(Sessions.Session session, String goldenSql, String ourSql) {
+            throw new UnsupportedOperationException("the engine-text witnesses hold no generator fetch");
+        }
+
+        @Override
+        public RowVerdict verifyFetchChain(Sessions.Session session, int hopIndex, String goldenSql, String ourSql,
+                java.util.function.Supplier<FetchTranscript> transcript) {
+            throw new UnsupportedOperationException("the engine-text witnesses hold no generator fetch");
+        }
+
+        @Override
+        public RowVerdict verify(Sessions.Session session, String goldenSql, com.legend.judge.TypedSide ours,
+                @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String rootClassFqn,
+                ReplayFacts facts, ModelContext ctx) {
+            List<String> golden = new ArrayList<>();
+            try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(goldenSql)) {
+                int n = rs.getMetaData().getColumnCount();
+                while (rs.next()) {
+                    List<String> cells = new ArrayList<>();
+                    for (int i = 1; i <= n; i++) {
+                        cells.add(String.valueOf(rs.getObject(i)));
+                    }
+                    golden.add(String.join("|", cells));
+                }
+            } catch (java.sql.SQLException e) {
+                return RowVerdict.declined("golden execution: " + e.getMessage());
+            }
+            List<String> mine = new ArrayList<>();
+            for (com.legend.judge.Row r : ours.rows()) {
+                List<String> cells = new ArrayList<>();
+                for (Object v : r.values()) {
+                    cells.add(String.valueOf(v));
+                }
+                mine.add(String.join("|", cells));
+            }
+            java.util.Collections.sort(golden);
+            java.util.Collections.sort(mine);
+            return golden.equals(mine) ? RowVerdict.match()
+                    : RowVerdict.diverged("golden rows " + golden + ", ours " + mine);
+        }
+    }
+
     private static final class Capture implements ResultSink {
         private final StringBuilder seen = new StringBuilder();
 

@@ -24,13 +24,15 @@ import java.util.Set;
  * {@code $r.values} read is the envelope's, the subtype closure an {@code assertInstanceOf} accepts, the key trees a
  * keyed pair restricts to, the byte verdict's static gates. {@link HostJudge#judge} switches on the record and runs
  * that one Java function over the rows and the facts. The sink holds no compiler object: no typed tree, no let prefix,
- * no model, no closure. The walk runs the same function in place ({@link HostSides#run}).
+ * no model, no closure -- but for the engine-text asserts' APPEAL ({@link EngineText}, the plan's M10b): harness Java
+ * outside the plan by the user's ruling (R3, T13, R6), run at the step on a failed text alone. The walk runs the same
+ * function in place ({@link HostSides#run}).
  */
 sealed interface HostJudgment permits HostJudgment.TdsEquivalent, HostJudgment.GridPair, HostJudgment.Size,
         HostJudgment.Contains, HostJudgment.Tolerance, HostJudgment.Condition, HostJudgment.Subset,
         HostJudgment.Empty, HostJudgment.Eq, HostJudgment.InstanceOf, HostJudgment.Is, HostJudgment.Decided,
         HostJudgment.SameElements, HostJudgment.Equals, HostJudgment.Json, HostJudgment.Rendered,
-        HostJudgment.Raise {
+        HostJudgment.Raise, HostJudgment.EngineText {
 
     /** The static facts of one side's typed argument the equality arms read: its type, the keyed class it declares
      *  (null for a non-class side), its kind class, whether it is Any-stamped, Nil-typed, a map carrier; its type's
@@ -238,5 +240,13 @@ sealed interface HostJudgment permits HostJudgment.TdsEquivalent, HostJudgment.G
 
     /** A planned RAISE at the assert's turn (R14): the planning raised {@code failure} inside the arm or before it. */
     record Raise(RuntimeException failure) implements HostJudgment {
+    }
+
+    /** An ENGINE-TEXT assert (the plan's M10b): the comparison the arm planned ({@link SqlTextVerdicts.Collected}: the
+     *  two texts, their equality, the decline decided before them, the APPEAL and its environment) and whether the
+     *  equality arm's census route is counted at the step. The one judgment holding a closure and the harness's
+     *  objects: the rows leg is harness Java outside the plan by the user's ruling (R3, T13, R6), run at the step on a
+     *  failed text alone; the texts themselves are the step's two constant sides, checked against the planned ones. */
+    record EngineText(SqlTextVerdicts.Collected collected, boolean routed) implements HostJudgment {
     }
 }

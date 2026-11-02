@@ -34,6 +34,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedTableReference;
+import com.legend.compiler.spec.typed.TypedTestDataGen;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.model.FunctionId;
 import com.legend.model.MappingDefinition;
@@ -104,7 +105,8 @@ public enum BodyClass {
      * of the system metamodel store (M10a) or the eager inline execute ({@link #sideKind}; since M9c every other
      * kind is admitted here: the sides are the walk's plans on both roads). Each assert is planned by its judge before the
      * program is ({@link TestDoor.Asserts}); the router leaves on the walk a body holding an assert of a shape the host
-     * checks do not plan yet (a named rule of the driver's: the engine-text arms, the quantified forms, the cell
+     * checks do not plan yet (a named rule of the driver's: an engine-text assert whose text side is no constant of
+     * the plan, the quantified forms, the cell
      * pool). The database judge's bodies stay on the walk (its fused group is composed at planning from M7).
      */
     ASSERT_PROGRAM,
@@ -183,14 +185,45 @@ public enum BodyClass {
         Map<FunctionId, Boolean> systemMemo = new HashMap<>();
         Map<FunctionId, Boolean> userMemo = new HashMap<>();
         boolean system = false;
-        for (TypedSpec statement : query.body()) {
+        List<TypedSpec> body = query.body();
+        for (int i = 0; i < body.size(); i++) {
+            TypedSpec statement = body.get(i);
             if (readsStore(statement, n -> userStoreRead(n, systemClasses, ctx), query.specs(), userMemo)) {
                 return false;
+            }
+            if (bindsASystemElement(statement, i, body, systemClasses, ctx)) {
+                system |= !bindingConsumed((TypedLet) statement, i, body, query.specs());
+                continue;
             }
             system |= readsStore(statement, n -> anotherWay(n, systemClasses, ctx) == Kind.SYSTEM_READ, query.specs(),
                     systemMemo);
         }
         return system;
+    }
+
+    /** Whether {@code statement}, at {@code i} in {@code body}, is a let binding a system element as a value
+     *  ({@code let m = my::Mapping}: {@link #systemElementReference}), before the last statement. */
+    static boolean bindsASystemElement(TypedSpec statement, int i, List<TypedSpec> body, Set<String> systemClasses,
+            ModelContext ctx) {
+        return statement instanceof TypedLet let && i < body.size() - 1
+                && let.value() instanceof TypedPackageableRef ref && systemElementReference(ref, systemClasses, ctx);
+    }
+
+    /**
+     * Whether the element {@code let} binds is CONSUMED (M10b): no later statement reads the variable as a value --
+     * {@code $m.name}, {@code $m} handed to a helper -- outside a lambda literal and outside a planning-time native's
+     * arguments ({@link #readsStore}'s two exclusions: a mapping handed to {@code toSQLString} or
+     * {@code executionPlan} is consumed when the text or the plan is made, never read as a row). A consumed binding
+     * reads no store: the body is not system-routed by it, and the class rules see no system read in it.
+     */
+    static boolean bindingConsumed(TypedLet let, int i, List<TypedSpec> body, SpecCompiler specs) {
+        for (int j = i + 1; j < body.size(); j++) {
+            if (readsStore(body.get(j), n -> n instanceof TypedVariable v && let.name().equals(v.name()), specs,
+                    new HashMap<>())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -351,8 +384,12 @@ public enum BodyClass {
                     lets.add(let);
                     continue;
                 }
+                // a let binding a system element the body never reads as a value: a value let the program splices,
+                // no system read (M10b, as the assert program's rule)
+                boolean consumedBinding = bindsASystemElement(statement, i, body, systemClasses, ctx)
+                        && bindingConsumed(let, i, body, query.specs());
                 if (kind != LetPlanner.Kind.VALUE || !kinds.isEmpty()
-                        || StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
+                        || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                                 n -> sideKind(n, systemClasses, ctx) != null, query.specs(), sideKindMemo)) {
                     return false;
                 }
@@ -405,7 +442,11 @@ public enum BodyClass {
         }
         if (statement instanceof TypedNativeCall call && !call.args().isEmpty()
                 && (NativeFn.Handle.runsAFrame(call.callee().id())
-                        || PlatformTypes.handleRowClass(call.callee().id(), call.callee().returnType()) != null)) {
+                        || PlatformTypes.handleRowClass(call.callee().id(), call.callee().returnType()) != null
+                        // a Java routine (toSQLString, planToString: a planning-time text) reads as its first argument,
+                        // the query or the plan under test; the mapping, the runtime and the dialect it is handed are
+                        // consumed when the text is made, never read as a row (M10b)
+                        || NativeFn.JavaRoutine.of(call.callee().id()).isPresent())) {
             return framesAndHandlesAsTheirQueries(call.args().get(0));
         }
         if (statement instanceof TypedFrom from) {
@@ -454,8 +495,12 @@ public enum BodyClass {
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
             boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))
                     && !(statement instanceof TypedLet);
+            // a let binding a system element the body never reads as a value (consumed by toSQLString, by
+            // executionPlan): a value let the program splices, no system read (M10b; the same test routes the body)
+            boolean consumedBinding = bindsASystemElement(statement, i, body, systemClasses, ctx)
+                    && bindingConsumed((TypedLet) statement, i, body, query.specs());
             if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
-                    || StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
+                    || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                             n -> sideKind(n, systemClasses, ctx, systemRouted) != null, query.specs(), memo)) {
                 return false;
             }
@@ -551,7 +596,13 @@ public enum BodyClass {
          *  ({@code TestDataGenerationNatives.foldCensus}) before the statement is planned; the program road has no
          *  such fold (M10a's third cut, caught by the corpus: its three census tests moved on the strength of their
          *  system reads alone and walled at lowering). */
-        CSV_CENSUS("csv-census");
+        CSV_CENSUS("csv-census"),
+        /** The test-data generator's carrier ({@code generateTestData}, {@code generateSeedDataString}: the checker's
+         *  {@link TypedTestDataGen} of the {@code generate} and {@code seedString} flavours): the walk folds it by
+         *  running the generator's fetches through the database ({@code TestDataGenerationNatives.foldCensus}); the
+         *  program road has no such step yet (T8, the plan's M10c/M10d). The {@code plan} flavour is a value the
+         *  planner renders ({@code generatorPlanText}) and no kind (M10b). */
+        TDG_GENERATOR("tdg-generator");
 
         private final String tag;
 
@@ -575,6 +626,9 @@ public enum BodyClass {
     static @Nullable Kind anotherWay(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
         if (n instanceof TypedCsvCensus) {
             return Kind.CSV_CENSUS;
+        }
+        if (n instanceof TypedTestDataGen g && !"plan".equals(g.flavor())) {
+            return Kind.TDG_GENERATOR;
         }
         if (n instanceof TypedNativeCall call) {
             if (NativeFn.Handle.runsAFrame(call.callee().id())) {
@@ -641,10 +695,11 @@ public enum BodyClass {
         if (kind == Kind.SYSTEM_READ && systemRouted) {
             return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;
         }
-        if (kind == Kind.SYSTEM_READ || kind == Kind.STORE_WRITE || kind == Kind.CSV_CENSUS) {
+        if (kind == Kind.SYSTEM_READ || kind == Kind.STORE_WRITE || kind == Kind.CSV_CENSUS
+                || kind == Kind.TDG_GENERATOR) {
             // a store write inside a side or a value let: the side planner runs it where it plans it (the walk at
             // the assert's turn, inside the body's transaction; the program road before the program ran), so it is
-            // the walk's (the M9c audit's F2); the census carrier: folded by the walk alone (M10a)
+            // the walk's (the M9c audit's F2); the census and generator carriers: folded by the walk alone (M10a, M10b)
             return kind;
         }
         return eagerInlineExecute(n) ? Kind.EAGER_INLINE_EXECUTE : null;

@@ -76,6 +76,13 @@ final class HostAsserts implements TestDoor.Asserts {
      * asserts after it splice their reads of it as the walk does.
      */
     static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env) {
+        return plan(typed, runtime, env, false);
+    }
+
+    /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv)}; {@code systemRouted}: {@code env}'s session is the
+     *  graph's system database (M10a), where an engine-text assert's appeal -- the rows leg over the user store -- would
+     *  read the wrong database: such a body is the walk's (M10b). */
+    static @Nullable HostAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env, boolean systemRouted) {
         SpecCompiler specs = typed.specs();
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
         List<TypedSpec> body = typed.body();
@@ -142,7 +149,9 @@ final class HostAsserts implements TestDoor.Asserts {
                 raisedByAnAssert = true;
             } else {
                 p = planAssert(statement, bare, letPrefix, frames, specs, env);
-                if (p == null) {
+                if (p == null || systemRouted && p.assertion().check().judgment() instanceof HostJudgment.EngineText) {
+                    // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
+                    // session where the walk runs it, which is not this program's one session (M10b)
                     return null;
                 }
             }

@@ -383,6 +383,17 @@ final class JudgePlans {
             BodyDriver.ExecEnv env, boolean identity, boolean fold,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>,
                     TypedSpec> hook) {
+        SqlTextVerdicts.Collector collecting = env.engineText();
+        if (collecting != null && collecting.planning()) {
+            // an engine-text arm PLANNED for the program road (the test-is-the-product plan's M10b,
+            // SqlTextVerdicts.plan): a text side is a constant of the plan (the verdict step's base), nothing sent at
+            // planning; any other side names the walk
+            PlannedSide p = plannedSide(value, letPrefix, specs, env, identity, fold, hook);
+            if (p.kind() != Kind.CONSTANT) {
+                throw new SqlTextVerdicts.NotAConstant("a text side that is not a constant of the plan");
+            }
+            return shape(p, runSide(p, env));
+        }
         BodyDriver.PlannedValue pv = BodyDriver.planHostSide(value, letPrefix, specs, env, identity,
                 fold, hook);
         BodyDriver.WrappedSide side = pv.side();

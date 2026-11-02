@@ -82,8 +82,16 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      * they plan; the M7 audit's F1); then the planning pass under the collecting batch.
      */
     static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env) {
+        return plan(typed, runtime, env, false);
+    }
+
+    /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv)}; {@code systemRouted}: {@code env}'s session is the
+     *  graph's system database (M10a), where an engine-text assert's appeal would read the user store on the wrong
+     *  database: such a body is the walk's (M10b). */
+    static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            boolean systemRouted) {
         SpecCompiler specs = typed.specs();
-        if (!plannable(typed) || !everyAssertPlansStatically(typed, runtime, env)) {
+        if (!plannable(typed) || !everyAssertPlansStatically(typed, runtime, env, systemRouted)) {
             return null;
         }
         QueryDoor.Scan scan = new QueryDoor.Scan(typed, runtime);
@@ -207,7 +215,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      * assert (its stamp would be bound by no fused statement: the walk's reserved comment is the next stamped
      * statement's). A gate that raises is left to the arm, which raises the same at its turn (a planned wall).
      */
-    private static boolean everyAssertPlansStatically(TypedQuery typed, String runtime, BodyDriver.ExecEnv env) {
+    private static boolean everyAssertPlansStatically(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            boolean systemRouted) {
         SpecCompiler specs = typed.specs();
         BodyDriver.ExecEnv pre = env.withPlan(com.legend.planner.PlanEnv.of(env.ctx(), env.runtimeFqn(),
                 env.dialect(), env.plan().features(), env.plan().generatorPlanText()));
@@ -217,6 +226,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         Map<String, BodyDriver.ExecFrame> frames = new LinkedHashMap<>();
         Map<String, Integer> frameSegment = new LinkedHashMap<>();
         java.util.Set<Integer> segmentsWithAssert = new java.util.HashSet<>();
+        // the segments where an assert's arm PLANS a verdict row (the gate's PLANS or ENGINE_TEXT): a raise at
+        // planning after one has a row to carry its wall (M10b)
+        java.util.Set<Integer> segmentsWithRows = new java.util.HashSet<>();
         Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         Map<com.legend.model.FunctionId, Boolean> readMemo = new java.util.HashMap<>();
         int segment = 0;
@@ -268,8 +280,25 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 return false;
             }
             try {
-                if (!AssertVerdicts.databasePlansWithoutReading(bare, letPrefix, specs, at, hook)) {
+                AssertVerdicts.DatabaseGate gate = AssertVerdicts.databaseGate(bare, letPrefix, specs, at, hook);
+                if (gate == AssertVerdicts.DatabaseGate.UNPLANNED) {
                     return false;
+                }
+                if (gate == AssertVerdicts.DatabaseGate.ENGINE_TEXT && systemRouted) {
+                    // an engine-text assert in a system-routed body: its appeal reads the user store on the body's
+                    // session where the walk runs it, not this program's (M10b)
+                    return false;
+                }
+                if (gate == AssertVerdicts.DatabaseGate.RAISES && !segmentsWithRows.contains(segment)) {
+                    // the arm raises at planning and no row before it in its segment: the planning pass would wall a
+                    // batch with no row to carry the wall (close) and give the body back after counting, and the walk
+                    // would count it again -- the walk's, decided here so it counts nothing (M7's rule; found by
+                    // M10b's foreign-dialect witness). A row an earlier arm RESOLVED at planning carries none either:
+                    // that case is the gap it was (M7), recorded.
+                    return false;
+                }
+                if (gate != AssertVerdicts.DatabaseGate.RAISES) {
+                    segmentsWithRows.add(segment);
                 }
             } catch (RuntimeException e) {
                 // the gate's classification raised: not a route -- the arm raises the same at the assert's turn and

@@ -16583,6 +16583,51 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
+
+The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and
+its code map `M10B_CODE_MAP.md` (written before the code; the audit's findings recorded in §9).
+
+1. **Built:** the arms' three policy sites fold into one (`SqlTextVerdicts.decide`: the collector, the batch row, or
+   now); `SqlTextVerdicts.plan` runs the walk's own arm once under a collector and answers a host check whose two sides
+   are the texts as constants and whose judgment is `HostJudgment.EngineText` (the appeal, harness Java outside the
+   plan, run at the step on a failed text alone); `planHost` plans the three root arms and the producer shapes through
+   it; the database road is the walk's own batch deferral; `JudgePlans.evalSide` refuses a non-constant text side while
+   an arm is planned; the class rule reads a Java routine as its first argument and a let-bound element as a system read
+   only where the variable is read; `Kind.TDG_GENERATOR`; the database judge's static gate in three
+   (`AssertVerdicts.databaseGate`), a first-of-segment raise the walk's before anything is counted.
+2. **Movement:** DuckDB host pass `moved=1165 -> 2,690` (2471 / 108), database pass `1111 -> 2,122` (2473 / 108);
+   H2 host `1165 -> 2,690` (2289 / 295), database `1045 -> 2,055` (2233 / 353, `fallback=18`); outcomes identical,
+   the referee-outcome census identical per pass (DuckDB host: `verify8` MATCH 1,065 / DIVERGED 9 / DECLINED 6,
+   `verifyFetchChain` 49, `verifyFetchTexts` 23, `verifyPlan` 7), every register test green. The census:
+   on the DuckDB host pass `host-unplanned-assert` 1,131 + 181 + 102 + 94 before -> 53 plain and 93 over system reads after (the engine-text asserts over frames and temporal frames all moved); the database pass keeps 317 `activities,assert,database-unplanned-assert,let-execute`, 161 over temporal frames, 71 plain and 93 over system reads (the frames' SQL under the database judge is no constant of the plan where the fused statement is composed: `NOT_A_CONSTANT`, the walk's); `assert,system-read` 211 -> 137 on the host pass (the inline-mapping engine-text bodies, system reads no more); the generator carrier's bodies tagged `tdg-generator` (30 beside effects); `sql-text` routes 990 on DuckDB, 973 on H2, as before.
+3. **The checks:** the driver suite (the engine-text witnesses under both judges on every in-process backend, M10a's
+   witnesses re-pinned for the let rule), census, guardrails, architecture, testplan; `//core:core_tests` (28 of 28);
+   `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached. The chain (core ids, PCT DuckDB, both corpora, channel B,
+   `//gates:local`, Postgres unprivileged) runs at M10's end.
+4. **Guards, dated:** `JavaEvalLedgerTest` SqlTextVerdicts 1254 -> 1329, AssertVerdicts 1470 -> 1511, BodyDriver
+   954 -> 961, HostJudge 1127 -> 1128, HostJudgment 152 -> 154 (each with its reason: planning entries and the one
+   verdict site; nothing evaluated that was not).
+5. **Registers, with their reasons:** `duckdb-database-host-compared-register.txt` and
+   `h2-database-untriaged-register.txt` gain `meta::relational::tests::map::testSubAggregationMultiLevelJoinString`:
+   the body moves for the first time (its engine-text assert over the frame's SQL planned) and FAILS on both roads as
+   before; on DuckDB the database road walls at its third assert (the H2-vocabulary wall of the engine-text render of a
+   class query under map), the wall a root resolved at planning and judged at its step -- decided outside a verdict
+   row -- where the walk raised it at the assert's turn, the host road agreeing on #0 and #1; on H2 the host road meets
+   another wall when it plans the frame's eager run (`joinStrings` over a collection: `DialectCapability`, no list
+   encoding) and fails before any verdict, where the walk's own run of the same frame reported #0 and #1 -- an M9
+   difference between the walk's eager-run lowering and the program's check step, on H2, for a map over a class query;
+   M10d settles it (the walk goes). Outcomes identical on every pass. Two measured rosters re-blessed
+   (`bazel run //spec:update_rcorpus_duckdb`, `//spec:update_rcorpus_h2`): `duckdb-engine-order-register.txt` loses
+   `meta::relational::tests::milestoning::businessdate::testConstraintUsageOfThisMilestoningContext1c` -- the host
+   pass no longer records the engine's scan-order emulation for it, its asserts judged on the program road from the
+   planned sides -- and `h2-unordered-register.txt` loses the registered test above, whose unordered chain the H2 host
+   road no longer reaches.
+6. **Residue, named:** the plan's §9 "M10b" (a)-(i): the harness's replay, policy, plan replayer and transcript; the
+   foreign and unresolved dialects' texts the contract; a non-constant text side the walk's; the generator carrier
+   (T8); the two nested-view generator bodies; `SqlTextVerdicts`' size; M10c's shapes; the decline's timing under the
+   database road; the charter's §0 sentence.
+
 ## 2026-11-01 — The test-is-the-product plan's M10a: the system database on the test road
 
 The plan's §7 (M10), §9 "M10a", §10; the decisions log D113; the brief `docs/test-is-product-homework/M10A_BRIEF.md`
@@ -16607,7 +16652,10 @@ The plan's §7 (M10), §9 "M10a", §10; the decisions log D113; the brief `docs/
    on the walk), testplan, exec, planner,
    root, guardrails, census and architecture suites; `//engine-client:plan_runner_test`; `//:generated`;
    `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached, four times (each cut of the class rule, then the final). The chain (core
-   ids, PCT DuckDB, both corpora, channel B, `//gates:local`, Postgres unprivileged) runs at M10's end.
+   ids, PCT DuckDB, both corpora, channel B, `//gates:local`, Postgres unprivileged) runs at M10's end. **CI (read
+   2026-11-02 00:25 UTC) on 30a0136f, the docs commit over aec8b44b (the gate on aec8b44b itself was superseded by that
+   push): 35 jobs green on Linux, Windows and arm -- every lane, the twelve M8b had broken among them -- 15 macOS
+   cancelled (the standing pattern), the `gates green` aggregator red for them alone.**
 4. **Guards, dated:** `JavaEvalLedgerTest` BodyDriver 946 -> 954 (`systemRoute`, `systemRouteOf`), SystemRoutes 55 -> 58
    (`inProcess`); `PlanJsonTest`'s two version pins 25 -> 26; engine-client's `PLAN_VERSION` 24 -> 26 with its test;
    the twelve SQL ladder goldens and `ratchets.tsv` (`own_corpus.matched` 3038 -> 3041) regenerated by
