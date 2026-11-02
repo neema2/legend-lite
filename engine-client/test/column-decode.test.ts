@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { before, describe, it } from 'node:test';
 
-import { cellByCellDecoder, columnDecoder, toRawTable, type ArrowishTable } from '../src/duckdb.ts';
+import { cellByCellDecoder, columnDecoder, toRawTable, type ArrowishTable, type ArrowishVector } from '../src/duckdb.ts';
 import { startNodeDuckDb } from '../src/node-require.ts';
 import type { Scalar } from '../src/result.ts';
 import {
@@ -23,7 +23,8 @@ before(async () => {
   conn = (await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'))).connect() as unknown as Raw;
   conn.query("SET TimeZone = 'UTC'");
   conn.query("CREATE TYPE mood AS ENUM ('calm', 'busy', 'odd')");
-  // every column a function of i (hash: a spread of values), a null at every eleventh row
+  // every column a function of i (hash: a spread of values), a null at every eleventh row; timestamps to ±1,900
+  // years (beyond a safe number of microseconds: the BigInt steps), a nanosecond one to the ±285 its storage holds
   const n = (expr: string): string => `CASE WHEN i % 11 = 0 THEN NULL ELSE ${expr} END`;
   conn.query(`CREATE TABLE every AS
     WITH base AS (SELECT i, hash(i) AS h, CAST(CAST(hash(i) AS HUGEINT) - 9223372036854775808 AS BIGINT) AS s64
@@ -72,6 +73,18 @@ function decoded(table: ArrowishTable, how: typeof columnDecoder): Map<string, S
   return out;
 }
 
+/** A column's decode, as text to compare: every value (a bigint, a -0, a null marked), or the failure it threw. */
+function outcome(vector: ArrowishVector, type: unknown, how: typeof columnDecoder): string {
+  const values: Scalar[] = new Array(vector.length);
+  try {
+    how(type)(vector, values, 0);
+  } catch (e) {
+    return `threw ${(e as Error).name}: ${(e as Error).message}`;
+  }
+  return values.map((v) => (typeof v === 'bigint' ? `${v}n` : Object.is(v, -0) ? '-0' : v === undefined ? 'undefined'
+    : JSON.stringify(v))).join('|');
+}
+
 function sameValues(table: ArrowishTable): number {
   const fast = decoded(table, columnDecoder);
   const oracle = decoded(table, cellByCellDecoder);
@@ -108,16 +121,8 @@ describe('a column decoded whole is its cells decoded one by one', () => {
     const sliced = (table as { slice?(b: number, e: number): ArrowishTable }).slice?.(1000, 3500);
     assert.ok(sliced, 'Arrow tables slice');
     sliced.schema.fields.forEach((field, c) => {
-      const outcome = (how: typeof columnDecoder): string => {
-        const values: Scalar[] = new Array(sliced.numRows);
-        try {
-          how(field.type)(sliced.getChildAt(c)!, values, 0);
-        } catch (e) {
-          return `threw ${(e as Error).message}`;
-        }
-        return values.map((v) => (typeof v === 'bigint' ? `${v}n` : Object.is(v, -0) ? '-0' : JSON.stringify(v))).join('|');
-      };
-      assert.equal(outcome(columnDecoder), outcome(cellByCellDecoder), field.name);
+      const vector = sliced.getChildAt(c)!;
+      assert.equal(outcome(vector, field.type, columnDecoder), outcome(vector, field.type, cellByCellDecoder), field.name);
     });
   });
 
@@ -141,6 +146,56 @@ describe('a column decoded whole is its cells decoded one by one', () => {
       cellByCellDecoder(field.type)(vector, expected, 0);
       values.forEach((v, r) => assert.ok(Object.is(v, expected[r]), `${field.name} row ${r}`));
     }
+  });
+
+  // the H1a audit's defect, 2026-11-02: an infinite timestamp, or one past what a safe number of milliseconds holds, is
+  // refused by Arrow-JS's own get (bigIntToNumber); the fast reader leaves it to the per-cell decoder, so it is refused
+  // the same way -- never a text made of an invalid date ("0NaN-NaN-NaN...")
+  it('an infinite or far timestamp is decoded, or refused, as the per-cell decoder does', () => {
+    const cases = ["'infinity'::TIMESTAMP", "'-infinity'::TIMESTAMP", "'infinity'::TIMESTAMPTZ", "'-infinity'::TIMESTAMPTZ",
+      "CAST('infinity' AS TIMESTAMP_MS)", "CAST('-infinity' AS TIMESTAMP_S)", "CAST('infinity' AS TIMESTAMP_NS)",
+      "TIMESTAMP '287396-10-12 08:59:00.992'", "TIMESTAMP '287396-10-12 08:59:00.991999'",
+      "CAST(TIMESTAMP '287396-10-12 08:59:00.992' AS TIMESTAMP_MS)", "TIMESTAMP '290000-01-01'", "TIMESTAMP '-290308-12-22'",
+      "TIMESTAMP '9999-12-31 23:59:59.999999'", "TIMESTAMP '0001-01-01'", "TIME '24:00:00'"];
+    let refused = 0;
+    for (const sql of cases) {
+      const near = sql.startsWith('TIME ') ? "TIME '03:04:05.5'" : "TIMESTAMP '2024-01-02 03:04:05.5'";
+      const table = conn.query(`SELECT x FROM (VALUES (${sql}), (NULL), (${near})) t(x)`);
+      const vector = table.getChildAt(0)!;
+      const type = table.schema.fields[0]!.type;
+      const fast = outcome(vector, type, columnDecoder);
+      // the same answer -- including the per-cell decoder's own NaN text for a timestamp past JavaScript's Date (year
+      // 275,760) that Arrow-JS's get still accepts: a defect of the per-cell decoder's, recorded (the program's section 7)
+      assert.equal(fast, outcome(vector, type, cellByCellDecoder), sql);
+      if (fast.startsWith('threw')) refused++;
+    }
+    assert.ok(refused >= 6, `the infinite ones refused: ${refused}`);
+  });
+
+  // a chunk not as Arrow-JS makes one is read cell by cell, so it answers what the per-cell decoder answers (the audit's
+  // nits): a value buffer shorter than the chunk, text offsets that go back, a chunk with no null count
+  it('a malformed chunk is read cell by cell: the per-cell decoder\'s answer', () => {
+    const chunk = (values: ArrayLike<unknown>, length: number, more: object = {}): ArrowishVector => {
+      const data = { values, offset: 0, length, nullCount: 0, nullBitmap: null, stride: 1, ...more };
+      return { length, data: [data], get: (i: number) => (values as ArrayLike<unknown>)[i] };
+    };
+    const short = chunk(new Int32Array([1, 2]), 3);
+    assert.equal(outcome(short, 'Int32', columnDecoder), outcome(short, 'Int32', cellByCellDecoder));
+    const shortLong = chunk(new BigInt64Array([1n, 2n]), 3);
+    assert.equal(outcome(shortLong, 'Int64', columnDecoder), outcome(shortLong, 'Int64', cellByCellDecoder));
+    const bytes = new TextEncoder().encode('abcdef');
+    const offsets = new Int32Array([0, 4, 2, 6]);
+    const back: ArrowishVector = {
+      length: 3,
+      data: [{ values: bytes, valueOffsets: offsets, offset: 0, length: 3, nullCount: 0, nullBitmap: null }],
+      get: (i: number) => new TextDecoder().decode(bytes.subarray(offsets[i]!, offsets[i + 1]!)),
+    };
+    assert.equal(outcome(back, 'Utf8', columnDecoder), outcome(back, 'Utf8', cellByCellDecoder));
+    const values = new Int32Array([1, 0, 3]);
+    const noCount: ArrowishVector = {
+      length: 3, data: [{ values, offset: 0, length: 3 }], get: (i: number) => (i === 1 ? null : values[i]),
+    };
+    assert.equal(outcome(noCount, 'Int32', columnDecoder), '1|null|3');
   });
 
   it('toRawTable decodes as each column decodes', () => {

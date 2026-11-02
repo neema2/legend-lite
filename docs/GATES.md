@@ -16960,3 +16960,30 @@ warm-up, then two seconds of calls timed one by one; the medians are below. Meas
      `live_snap`, `pivot_values`, `python_runner`, `runner`, `table_output`, the three `typed_values`, `values`,
      `warehouse_session`, `typecheck`, `bundle_budget`, `guardrails`, `browser_guard`.
    - An independent audit is pending.
+7. **The independent audit, and its fold** (an agent that wrote none of it, given the diff and the code, not these
+   conclusions: about 3,000,000 old-against-new comparisons -- the current files against `9035f18f`'s -- over DuckDB
+   tables, their IPC round trips and the warehouse's batches).
+   - **One defect, fixed.** A timestamp that Arrow-JS's own `get` refuses -- `'infinity'::TIMESTAMP`, `-infinity`, the
+     same as `TIMESTAMPTZ`, `TIMESTAMP_MS` and `TIMESTAMP_S`, any value at or past ±2^53 milliseconds
+     (`TIMESTAMP '287396-10-12 08:59:00.992'`) -- used to throw ("... is not safe to convert to a number", the streaming
+     run's `QueryError`). The fast reader answered text made of an invalid date (`"0NaN-NaN-NaNTNaN:NaN:NaN.775807"`), a
+     silent default where an error was (AGENTS.md invariant 4). Such a cell is now left to the per-cell decoder, so it is
+     refused exactly as before. The rule is Arrow-JS's own (`util/bigint.mjs`): a second's or a millisecond's raw
+     value, or a microsecond's thousandth, is not a safe integer; a nanosecond's and a time's `get` refuse none. Every
+     other value past a safe number of microseconds keeps the per-cell decoder's BigInt steps.
+     `column_decode_test`'s new case holds fifteen such values to the per-cell decoder's answer or refusal;
+     mutation-checked (with the rule removed the test fails on `'infinity'::TIMESTAMP`).
+   - **Nits, folded.** A chunk is read fast only when it is as Arrow-JS makes one; anything else goes cell by cell, so
+     it answers what the per-cell decoder answers (a synthetic case each):
+     - a value buffer long enough for the chunk (a short one answered `undefined` where the per-cell decoder answers
+       `null`);
+     - text offsets that never go back, for the ASCII path (the old path, `substring`, swapped them);
+     - a known null count (a fake chunk without one);
+     - little-endian for the decimal words too.
+   - **One nit, bounded.** The ASCII path slices one decoded text, so a cell kept alone keeps its chunk's text alive.
+     It now takes a chunk of at most 256 KiB of text, which is the most one kept cell can hold.
+   - **Found, not changed.** The per-cell decoder spells a timestamp past JavaScript `Date`'s range (year 275,760)
+     that Arrow-JS's `get` still accepts as `NaN` text (`TIMESTAMP '287396-10-12 08:59:00.991999'`). It did so before
+     this change; the column decode answers the same. Recorded in the program's section 7.
+   - After the fold, the benchmark's digests are H0's at every size. `execute` at 1,000,000 rows is 1.0-1.4 s across
+     runs (3 calls each), `stream` 0.67-0.69 s. The suites are green, and so are `typecheck` and `bundle_budget`.

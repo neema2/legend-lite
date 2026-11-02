@@ -253,6 +253,11 @@ Each step: measured first, its outputs proven unchanged where it changes no beha
   `values[offset + i]` from a value buffer Arrow-JS has already sliced to the chunk, so a sliced date, time or timestamp
   vector reads past its values and throws. No product path decodes a sliced vector: every chunk DuckDB-WASM and the
   warehouse hand over is at offset 0. Recorded, not changed; H1's move to Arrow results retires the per-cell decoder.
+- **A timestamp past JavaScript `Date`'s range spelled as `NaN` text** (found 2026-11-02 by H1a's audit). Arrow-JS's
+  `get` accepts a timestamp up to ±2^53 milliseconds, beyond `Date`'s ±8.64e15. The per-cell decoder's `timestampText`
+  then makes `"0NaN-NaN-NaNT..."` of one past year 275,760 (`TIMESTAMP '287396-10-12 08:59:00.991999'`): a silent
+  default. It predates the program, and the column decode answers the same. Its fix is a refusal, and so a behaviour
+  change, to be posted to the user with H1's Arrow results.
 
 ## 8. Status
 
@@ -263,3 +268,5 @@ Each step: measured first, its outputs proven unchanged where it changes no beha
 - 2026-11-02: H1a, the tab's column decode: every value the same (`//engine-client:column_decode_test`, the
   benchmark's digests); `execute` 2.6x to 4.4x faster from 10,000 rows (3,384 -> 1,036 ms at 1,000,000). Three bundle
   budgets moved by about 2 KB each, with dated notes. GATES "H1a: the tab's column decode".
+- 2026-11-02: H1a's audit folded: an infinite timestamp is refused again, as before (the audit's one defect); a
+  malformed chunk is read cell by cell; the ASCII path bounded. GATES item 7.

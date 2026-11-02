@@ -97,7 +97,7 @@ export interface ArrowishData {
   readonly values: ArrayLike<unknown>;
   readonly offset: number;
   readonly length: number;
-  /** Optional: a fake of a vector may give none, and is then read cell by cell. */
+  /** Optional: a fake of a vector may give none, and is then read cell by cell (columnDecoder). */
   readonly nullCount?: number;
   readonly nullBitmap?: Uint8Array | null;
   readonly valueOffsets?: ArrayLike<number> | null;
@@ -236,12 +236,21 @@ function decoderFor(type: unknown): Decode {
 /** A column's values written into `out` from `at`, a whole vector at a time (columnDecoder). */
 export type ColumnDecode = (vector: ArrowishVector, out: Scalar[], at: number) => void;
 
-/** One chunk's reader: its cell `i` (a non-null one) as the column's per-cell decoder answers it. */
-type ChunkRead = (i: number) => Scalar;
+/** One chunk's reader: its cell `i` (a non-null one) as the column's per-cell decoder answers it -- or CELL, for a value
+ *  the reader does not hold exactly, which the per-cell decoder then decodes (or refuses) as it always has. */
+type ChunkRead = (i: number) => Scalar | typeof CELL;
+
+/** A fast reader's answer for a cell it leaves to the per-cell decoder (a timestamp no safe number holds: Arrow-JS's
+ *  own get refuses an infinite one, and that refusal stays the decoder's, never a text made of it). */
+const CELL: unique symbol = Symbol('decoded cell by cell');
 
 const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
 const TWO_32 = 4_294_967_296;
+const MIN_SAFE = BigInt(Number.MIN_SAFE_INTEGER);
+const MAX_SAFE = BigInt(Number.MAX_SAFE_INTEGER);
 const utf8 = new TextDecoder('utf-8');
+/** The most bytes of text a chunk is decoded whole for (the ASCII path): the most one kept cell keeps alive. */
+const ASCII_WHOLE = 1 << 18;
 
 /** The signed 64-bit integers of a chunk's BigInt64Array as their two 32-bit halves, read without a BigInt. */
 function halves(values: ArrayLike<unknown>): Int32Array | undefined {
@@ -261,11 +270,15 @@ function halves(values: ArrayLike<unknown>): Int32Array | undefined {
  */
 export function columnDecoder(type: unknown): ColumnDecode {
   const cellByCell = cellByCellDecoder(type);
+  const perCell = decoderFor(type);
   const reader = chunkReader(type);
   if (reader === undefined) return cellByCell;
   return (v, out, at) => {
     const chunks = v.data;
-    const reads = chunks?.map((c) => (c.offset === 0 && c.dictionary === undefined ? reader(c) : undefined));
+    // a chunk as Arrow-JS makes one: at offset 0, no dictionary, its null count known (a fake without one is read cell
+    // by cell), its buffers its type's and long enough (each reader's own check)
+    const reads = chunks?.map((c) => (c.offset === 0 && c.dictionary === undefined && typeof c.nullCount === 'number'
+      ? reader(c) : undefined));
     if (chunks === undefined || reads === undefined || reads.some((r) => r === undefined)
         || chunks.reduce((n, c) => n + c.length, 0) !== v.length) {
       cellByCell(v, out, at);
@@ -276,13 +289,14 @@ export function columnDecoder(type: unknown): ColumnDecode {
       const read = reads[k]!;
       // Arrow-JS's getValid: a bitmap only when the chunk has nulls and a bitmap of bytes
       const bitmap = (c.nullCount ?? 0) > 0 && c.nullBitmap && c.nullBitmap.byteLength > 0 ? c.nullBitmap : null;
-      if (bitmap === null) {
-        for (let i = 0; i < c.length; i++) out[o++] = read(i);
-      } else {
-        for (let i = 0; i < c.length; i++) {
-          const j = c.offset + i;
-          out[o++] = (bitmap[j >> 3]! & (1 << (j % 8))) !== 0 ? read(i) : null;
+      for (let i = 0; i < c.length; i++, o++) {
+        const j = c.offset + i;
+        if (bitmap !== null && (bitmap[j >> 3]! & (1 << (j % 8))) === 0) {
+          out[o] = null;
+          continue;
         }
+        const x = read(i);
+        out[o] = x === CELL ? perCell(v, o - at) : x;
       }
     }
   };
@@ -305,14 +319,15 @@ function chunkReader(type: unknown): ((c: ArrowishData) => ChunkRead | undefined
   if (/^(Int8|Int16|Int32|Uint8|Uint16|Uint32|Float32|Float64)$/.test(name)) {
     // getNumeric: values[stride * i], stride 1; the per-cell decoder's toScalar keeps a number as it is
     return (c) => (ArrayBuffer.isView(c.values) && !(c.values instanceof BigInt64Array) && !(c.values instanceof BigUint64Array)
-      && (c.stride ?? 1) === 1 ? ((values) => (i: number) => values[i] as number)(c.values as ArrayLike<number>) : undefined);
+      && (c.stride ?? 1) === 1 && c.values.length >= c.length
+      ? ((values) => (i: number) => values[i] as number)(c.values as ArrayLike<number>) : undefined);
   }
   if (name === 'Int64' || name === 'Uint64') {
     // getBigInts: values[i]; toScalar's exactInteger: a number while one holds it exactly, else the bigint
     const signed = name === 'Int64';
     return (c) => {
       const h = halves(c.values);
-      if (h === undefined) return undefined;
+      if (h === undefined || c.values.length < c.length) return undefined;
       const values = c.values as ArrayLike<bigint>;
       return (i) => {
         const hi = h[2 * i + 1]!;
@@ -323,7 +338,7 @@ function chunkReader(type: unknown): ((c: ArrowishData) => ChunkRead | undefined
   }
   if (name === 'Bool') {
     // getBool: the bit at offset + i
-    return (c) => (c.values instanceof Uint8Array
+    return (c) => (c.values instanceof Uint8Array && c.values.length * 8 >= c.length
       ? ((values) => (i: number) => (values[i >> 3]! & (1 << (i % 8))) !== 0)(c.values) : undefined);
   }
   if (name === 'Utf8') {
@@ -335,10 +350,14 @@ function chunkReader(type: unknown): ((c: ArrowishData) => ChunkRead | undefined
       // getVariableWidthBytes: no value past the offsets it has
       const past = (i: number): boolean => i + 1 >= offsets.length;
       // a chunk whose bytes are all ASCII is decoded once: an ASCII byte is the one UTF-16 unit TextDecoder makes of it,
-      // so a cell is the slice of the whole at its byte offsets (and no BOM, which TextDecoder drops, is ASCII)
+      // so a cell is the slice of the whole at its byte offsets (and no BOM, which TextDecoder drops, is ASCII). Only a
+      // chunk of well-formed offsets (each no less than the one before), and of at most ASCII_WHOLE bytes: a cell kept
+      // alone keeps its chunk's whole text alive, so the whole is bounded
       const start = offsets[0] ?? 0;
-      const end = offsets[Math.min(c.length, offsets.length - 1)] ?? start;
-      let ascii = start <= end && end <= values.length;
+      const last = Math.min(c.length, offsets.length - 1);
+      const end = offsets[last] ?? start;
+      let ascii = start <= end && end <= values.length && end - start <= ASCII_WHOLE;
+      for (let k = 0; ascii && k < last; k++) ascii = offsets[k]! <= offsets[k + 1]!;
       for (let b = start; ascii && b < end; b++) ascii = values[b]! < 0x80;
       if (ascii) {
         const whole = utf8.decode(values.subarray(start, end));
@@ -353,7 +372,7 @@ function chunkReader(type: unknown): ((c: ArrowishData) => ChunkRead | undefined
     const scale = t.scale;
     return (c) => {
       const w = c.values;
-      if (!(w instanceof Uint32Array) || (c.stride ?? 4) !== 4) return undefined;
+      if (!LITTLE_ENDIAN || !(w instanceof Uint32Array) || (c.stride ?? 4) !== 4 || w.length < 4 * c.length) return undefined;
       return (i) => {
         const lo = w[4 * i]!;
         const mid = w[4 * i + 1]! | 0;
@@ -370,14 +389,22 @@ function chunkReader(type: unknown): ((c: ArrowishData) => ChunkRead | undefined
   }
   if (/^Date32</.test(name)) {
     // the per-cell decoder: dayText(Number(rawAt)), the raw days
-    return (c) => (c.values instanceof Int32Array ? ((values) => (i: number) => dayText(values[i]!))(c.values) : undefined);
+    return (c) => (c.values instanceof Int32Array && c.values.length >= c.length
+      ? ((values) => (i: number) => dayText(values[i]!))(c.values) : undefined);
   }
   const unit = /<(SECOND|MILLISECOND|MICROSECOND|NANOSECOND)/.exec(name)?.[1];
   const timestamp = /^Timestamp</.test(name);
   if ((timestamp || /^Time64</.test(name)) && unit !== undefined) {
-    // the per-cell decoder: toMicros(rawAt) -- BigInt's truncating arithmetic -- then timestampText or timeText
+    // the per-cell decoder: toMicros(rawAt) -- BigInt's truncating arithmetic -- then timestampText or timeText; a
+    // value no safe number holds, by the same BigInt steps. A timestamp the per-cell decoder's own get refuses
+    // (Arrow-JS's bigIntToNumber: a second's or a millisecond's raw value, a microsecond's thousandth, not a safe
+    // integer -- an infinite one) is left to it (CELL), so the refusal stays its own, never a text made of an invalid
+    // date (the H1a audit, 2026-11-02). A nanosecond's get, and a time's, refuse none.
     const scaleUp = unit === 'SECOND' ? 1_000_000 : unit === 'MILLISECOND' ? 1000 : 1;
     const text = timestamp ? timestampMicrosText : timeMicrosText;
+    const unsafe = (b: bigint): boolean => b < MIN_SAFE || b > MAX_SAFE;
+    const refusedByGet = (raw: bigint): boolean => timestamp && (unit === 'SECOND' || unit === 'MILLISECOND'
+      ? unsafe(raw) : unit === 'MICROSECOND' ? unsafe(raw / 1000n) : false);
     const slow = (raw: bigint): string => {
       const n = unit === 'SECOND' ? raw * 1_000_000n : unit === 'MILLISECOND' ? raw * 1000n
         : unit === 'NANOSECOND' ? raw / 1000n : raw;
@@ -385,7 +412,7 @@ function chunkReader(type: unknown): ((c: ArrowishData) => ChunkRead | undefined
     };
     return (c) => {
       const h = halves(c.values);
-      if (h === undefined || !(c.values instanceof BigInt64Array)) return undefined;
+      if (h === undefined || !(c.values instanceof BigInt64Array) || c.values.length < c.length) return undefined;
       const values = c.values;
       return (i) => {
         const raw = h[2 * i + 1]! * TWO_32 + (h[2 * i]! >>> 0);
@@ -393,7 +420,8 @@ function chunkReader(type: unknown): ((c: ArrowishData) => ChunkRead | undefined
           const micros = unit === 'NANOSECOND' ? (raw - (raw % 1000)) / 1000 : raw * scaleUp;
           if (Number.isSafeInteger(micros)) return text(micros);
         }
-        return slow(values[i]!);
+        const big = values[i]!;
+        return refusedByGet(big) ? CELL : slow(big);
       };
     };
   }
