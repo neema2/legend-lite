@@ -199,6 +199,18 @@ node_test(
     wasm = True,
 )
 
+# A column decoded whole is its cells decoded one by one (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, H1a): the fast
+# readers held to the per-cell decoder over every type DuckDB-WASM writes, and the number spellings to the BigInt ones
+node_test(
+    name = "column_decode_test",
+    size = "small",
+    data = [
+        ":engine_client",
+        ":node_modules/@duckdb/duckdb-wasm",
+    ],
+    entry_point = "test/column-decode.test.ts",
+)
+
 # The host executor's benchmark (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, H0): the tab's engine over DuckDB-WASM at 10
 # to 1,000,000 rows, each path's median and the decoded values' digest. Manual: a measurement, never a gate.
 node_test(

@@ -499,8 +499,11 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  page is read by as it opens; no startup file added). Measured 413,496.
  *  425,000 / 414,000 -> 430,500 (2026-10-28, main merged into the flow mode's PR #79: the two chains above, each grown
  *  from 408,500 apart -- the flow mode's roadmap and main's timeseries work -- in one bundle; no startup file added by
- *  the merge). Measured 430,054. */
-const BUDGET = 430_500;
+ *  the merge). Measured 430,054.
+ *  430,500 -> 432,500 (2026-11-02, the host executors' H1a, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: the tab's column decode,
+ *  engine-client/src/duckdb.ts columnDecoder's readers and values.ts's number spellings, which every grid's rows are
+ *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 431,975. */
+const BUDGET = 432_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -706,8 +709,11 @@ const BUDGET = 430_500;
  *  date). Measured 400,965.
  *  401,500 -> 402,100 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date). Measured 401,506.
  *  413,000 / 402,100 -> 418,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
- *  same date). Measured 417,953. */
-const ENGINE_BUDGET = 418_500;
+ *  same date). Measured 417,953.
+ *  418,500 -> 420,500 (2026-11-02, the host executors' H1a, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: the tab's column decode,
+ *  engine-client/src/duckdb.ts columnDecoder's readers and values.ts's number spellings, which every grid's rows are
+ *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 419,944. */
+const ENGINE_BUDGET = 420_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1086,8 +1092,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  429,200 -> 429,900 (2026-10-27, Phase 5's drawings -- the grid-only page's note of the same date -- and the drawing
  *  box's style, app.css .dc-ts-draw). Measured 429,265.
  *  441,000 / 429,900 -> 446,500 (2026-10-28, main merged into the flow mode's PR #79 -- the grid-only page's note of the
- *  same date). Measured 446,209. */
-const WIDGET_BUDGET = 446_500;
+ *  same date). Measured 446,209.
+ *  446,500 -> 448,700 (2026-11-02, the host executors' H1a, docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md: the tab's column decode,
+ *  engine-client/src/duckdb.ts columnDecoder's readers and values.ts's number spellings, which every grid's rows are
+ *  decoded by, 2.6x to 4.4x faster from 10,000 rows; no startup file added). Measured 448,194. */
+const WIDGET_BUDGET = 448_700;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

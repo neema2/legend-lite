@@ -19,7 +19,9 @@ import type { QueryEngine, RawColumn, RawTable } from './engine.ts';
 import { QueryError, typedByPlan } from './engine.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
-import { dayText, decimalText, exactInteger, timeText, timestampText } from './values.ts';
+import {
+  dayText, decimalText, decimalTextOfSafe, exactInteger, timeMicrosText, timeText, timestampMicrosText, timestampText,
+} from './values.ts';
 
 /**
  * The slice of duckdb-wasm's connection we actually use. Declaring it
@@ -87,7 +89,20 @@ export interface ArrowishVector {
   readonly length: number;
   get(i: number): unknown;
   /** Arrow's chunks: the raw storage `get()` rounds (a timestamp to milliseconds). */
-  readonly data?: readonly { readonly values: ArrayLike<unknown>; readonly offset: number; readonly length: number }[];
+  readonly data?: readonly ArrowishData[];
+}
+
+/** One chunk of a vector, as Arrow-JS holds it: what a column's decode reads (columnDecoder). */
+export interface ArrowishData {
+  readonly values: ArrayLike<unknown>;
+  readonly offset: number;
+  readonly length: number;
+  /** Optional: a fake of a vector may give none, and is then read cell by cell. */
+  readonly nullCount?: number;
+  readonly nullBitmap?: Uint8Array | null;
+  readonly valueOffsets?: ArrayLike<number> | null;
+  readonly stride?: number;
+  readonly dictionary?: unknown;
 }
 
 /**
@@ -218,6 +233,180 @@ function decoderFor(type: unknown): Decode {
   return (v, r) => toScalar(v.get(r));
 }
 
+/** A column's values written into `out` from `at`, a whole vector at a time (columnDecoder). */
+export type ColumnDecode = (vector: ArrowishVector, out: Scalar[], at: number) => void;
+
+/** One chunk's reader: its cell `i` (a non-null one) as the column's per-cell decoder answers it. */
+type ChunkRead = (i: number) => Scalar;
+
+const LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+const TWO_32 = 4_294_967_296;
+const utf8 = new TextDecoder('utf-8');
+
+/** The signed 64-bit integers of a chunk's BigInt64Array as their two 32-bit halves, read without a BigInt. */
+function halves(values: ArrayLike<unknown>): Int32Array | undefined {
+  if (!LITTLE_ENDIAN || !(values instanceof BigInt64Array || values instanceof BigUint64Array)) return undefined;
+  return new Int32Array(values.buffer, values.byteOffset, values.length * 2);
+}
+
+/**
+ * THE COLUMN'S DECODE (docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md, H1a): the same values `decoderFor` answers cell by cell
+ * (it stays the one rule, and the decode of any chunk this reads no faster), read here from each chunk's own buffers --
+ * no `get()` per cell (Arrow-JS finds the cell's chunk and dispatches on its type for each one), no second read for its
+ * null check, no BigInt for an integer, a decimal or a timestamp a number holds exactly. Each fast reader repeats
+ * Arrow-JS's own `get` for its type (visitor/get.mjs: a value buffer indexed by the chunk's own index, the validity
+ * bitmap and a boolean's bits by the chunk's offset plus it) and the per-cell decoder's conversion after it; it reads a
+ * chunk at offset 0 only, where the per-cell decoder's raw reads (rawAt) and `get` agree. The differential test holds
+ * every fast reader to the per-cell decoder (engine-client/test/column-decode.test.ts).
+ */
+export function columnDecoder(type: unknown): ColumnDecode {
+  const cellByCell = cellByCellDecoder(type);
+  const reader = chunkReader(type);
+  if (reader === undefined) return cellByCell;
+  return (v, out, at) => {
+    const chunks = v.data;
+    const reads = chunks?.map((c) => (c.offset === 0 && c.dictionary === undefined ? reader(c) : undefined));
+    if (chunks === undefined || reads === undefined || reads.some((r) => r === undefined)
+        || chunks.reduce((n, c) => n + c.length, 0) !== v.length) {
+      cellByCell(v, out, at);
+      return;
+    }
+    let o = at;
+    for (const [k, c] of chunks.entries()) {
+      const read = reads[k]!;
+      // Arrow-JS's getValid: a bitmap only when the chunk has nulls and a bitmap of bytes
+      const bitmap = (c.nullCount ?? 0) > 0 && c.nullBitmap && c.nullBitmap.byteLength > 0 ? c.nullBitmap : null;
+      if (bitmap === null) {
+        for (let i = 0; i < c.length; i++) out[o++] = read(i);
+      } else {
+        for (let i = 0; i < c.length; i++) {
+          const j = c.offset + i;
+          out[o++] = (bitmap[j >> 3]! & (1 << (j % 8))) !== 0 ? read(i) : null;
+        }
+      }
+    }
+  };
+}
+
+/** A column of `type` decoded cell by cell (decoderFor): the one rule, the decode of every type and chunk no fast reader
+ *  reads, and the oracle columnDecoder's readers are held to (engine-client/test/column-decode.test.ts). */
+export function cellByCellDecoder(type: unknown): ColumnDecode {
+  const perCell = decoderFor(type);
+  return (v, out, at) => {
+    for (let r = 0; r < v.length; r++) out[at + r] = perCell(v, r);
+  };
+}
+
+/** A chunk reader for a column of `type`, or none: a type read only cell by cell (a nested value, a dictionary, a
+ *  binary, a 256-bit decimal, a date in milliseconds...). A reader answers none for a chunk whose buffers are not the
+ *  ones its type stores. */
+function chunkReader(type: unknown): ((c: ArrowishData) => ChunkRead | undefined) | undefined {
+  const name = String(type ?? '');
+  if (/^(Int8|Int16|Int32|Uint8|Uint16|Uint32|Float32|Float64)$/.test(name)) {
+    // getNumeric: values[stride * i], stride 1; the per-cell decoder's toScalar keeps a number as it is
+    return (c) => (ArrayBuffer.isView(c.values) && !(c.values instanceof BigInt64Array) && !(c.values instanceof BigUint64Array)
+      && (c.stride ?? 1) === 1 ? ((values) => (i: number) => values[i] as number)(c.values as ArrayLike<number>) : undefined);
+  }
+  if (name === 'Int64' || name === 'Uint64') {
+    // getBigInts: values[i]; toScalar's exactInteger: a number while one holds it exactly, else the bigint
+    const signed = name === 'Int64';
+    return (c) => {
+      const h = halves(c.values);
+      if (h === undefined) return undefined;
+      const values = c.values as ArrayLike<bigint>;
+      return (i) => {
+        const hi = h[2 * i + 1]!;
+        const n = (signed ? hi : hi >>> 0) * TWO_32 + (h[2 * i]! >>> 0);
+        return Number.isSafeInteger(n) ? n : exactInteger(values[i]!);
+      };
+    };
+  }
+  if (name === 'Bool') {
+    // getBool: the bit at offset + i
+    return (c) => (c.values instanceof Uint8Array
+      ? ((values) => (i: number) => (values[i >> 3]! & (1 << (i % 8))) !== 0)(c.values) : undefined);
+  }
+  if (name === 'Utf8') {
+    // getUtf8: values from valueOffsets[i] to valueOffsets[i + 1], decoded as UTF-8 (Arrow-JS's own TextDecoder)
+    return (c) => {
+      const values = c.values;
+      const offsets = c.valueOffsets;
+      if (!(values instanceof Uint8Array) || !(offsets instanceof Int32Array)) return undefined;
+      // getVariableWidthBytes: no value past the offsets it has
+      const past = (i: number): boolean => i + 1 >= offsets.length;
+      // a chunk whose bytes are all ASCII is decoded once: an ASCII byte is the one UTF-16 unit TextDecoder makes of it,
+      // so a cell is the slice of the whole at its byte offsets (and no BOM, which TextDecoder drops, is ASCII)
+      const start = offsets[0] ?? 0;
+      const end = offsets[Math.min(c.length, offsets.length - 1)] ?? start;
+      let ascii = start <= end && end <= values.length;
+      for (let b = start; ascii && b < end; b++) ascii = values[b]! < 0x80;
+      if (ascii) {
+        const whole = utf8.decode(values.subarray(start, end));
+        return (i) => (past(i) ? null : whole.substring(offsets[i]! - start, offsets[i + 1]! - start));
+      }
+      return (i) => (past(i) ? null : utf8.decode(values.subarray(offsets[i]!, offsets[i + 1]!)));
+    };
+  }
+  const t = type as { scale?: unknown; bitWidth?: unknown };
+  if (/^Decimal/.test(name) && typeof t.scale === 'number' && t.scale > 0 && (t.bitWidth ?? 128) === 128) {
+    // getDecimal: four 32-bit words, two's complement; decimalToScalar's exact text of the unscaled integer
+    const scale = t.scale;
+    return (c) => {
+      const w = c.values;
+      if (!(w instanceof Uint32Array) || (c.stride ?? 4) !== 4) return undefined;
+      return (i) => {
+        const lo = w[4 * i]!;
+        const mid = w[4 * i + 1]! | 0;
+        const top = w[4 * i + 2]! | 0;
+        const top2 = w[4 * i + 3]! | 0;
+        // the upper 64 bits the sign of the lower 64's: the value is the lower 64, a number when it holds it exactly
+        if (top === mid >> 31 && top2 === mid >> 31) {
+          const n = mid * TWO_32 + lo;
+          if (Number.isSafeInteger(n)) return decimalTextOfSafe(n, scale);
+        }
+        return decimalToScalar(bigDecimalWords(w, i), scale);
+      };
+    };
+  }
+  if (/^Date32</.test(name)) {
+    // the per-cell decoder: dayText(Number(rawAt)), the raw days
+    return (c) => (c.values instanceof Int32Array ? ((values) => (i: number) => dayText(values[i]!))(c.values) : undefined);
+  }
+  const unit = /<(SECOND|MILLISECOND|MICROSECOND|NANOSECOND)/.exec(name)?.[1];
+  const timestamp = /^Timestamp</.test(name);
+  if ((timestamp || /^Time64</.test(name)) && unit !== undefined) {
+    // the per-cell decoder: toMicros(rawAt) -- BigInt's truncating arithmetic -- then timestampText or timeText
+    const scaleUp = unit === 'SECOND' ? 1_000_000 : unit === 'MILLISECOND' ? 1000 : 1;
+    const text = timestamp ? timestampMicrosText : timeMicrosText;
+    const slow = (raw: bigint): string => {
+      const n = unit === 'SECOND' ? raw * 1_000_000n : unit === 'MILLISECOND' ? raw * 1000n
+        : unit === 'NANOSECOND' ? raw / 1000n : raw;
+      return timestamp ? timestampText(n) : timeText(n);
+    };
+    return (c) => {
+      const h = halves(c.values);
+      if (h === undefined || !(c.values instanceof BigInt64Array)) return undefined;
+      const values = c.values;
+      return (i) => {
+        const raw = h[2 * i + 1]! * TWO_32 + (h[2 * i]! >>> 0);
+        if (Number.isSafeInteger(raw)) {
+          const micros = unit === 'NANOSECOND' ? (raw - (raw % 1000)) / 1000 : raw * scaleUp;
+          if (Number.isSafeInteger(micros)) return text(micros);
+        }
+        return slow(values[i]!);
+      };
+    };
+  }
+  return undefined;
+}
+
+/** Cell `i`'s four 32-bit words as the signed 128-bit integer they hold (what Arrow-JS's decimal's text spells). */
+function bigDecimalWords(w: Uint32Array, i: number): bigint {
+  const unsigned = (BigInt(w[4 * i + 3]!) << 96n) | (BigInt(w[4 * i + 2]!) << 64n) | (BigInt(w[4 * i + 1]!) << 32n)
+    | BigInt(w[4 * i]!);
+  return unsigned >= 1n << 127n ? unsigned - (1n << 128n) : unsigned;
+}
+
 /**
  * A nested value (a struct's, a list's, a map's) as JSON text, each leaf by its Arrow STORAGE type exactly as a
  * top-level cell of that type is read (decoderFor): a decimal its exact text, never the unscaled integer its row view
@@ -270,10 +459,7 @@ export function toRawTable(
     const vector = table.getChildAt(c);
     const values: Scalar[] = new Array(table.numRows);
     if (vector) {
-      const decode = decoderFor(field.type);
-      for (let r = 0; r < table.numRows; r++) {
-        values[r] = decode(vector, r);
-      }
+      columnDecoder(field.type)(vector, values, 0);
     } else {
       values.fill(null);
     }
@@ -299,7 +485,7 @@ export function toRawTable(
  */
 class BatchAccumulator {
   #names: string[] = [];
-  #decode: Decode[] = [];
+  #decode: ColumnDecode[] = [];
   #values: Scalar[][] = [];
   #rows = 0;
   #started = false;
@@ -309,16 +495,15 @@ class BatchAccumulator {
       this.#started = true;
       for (const field of batch.schema.fields) {
         this.#names.push(field.name);
-        this.#decode.push(decoderFor(field.type));
+        this.#decode.push(columnDecoder(field.type));
         this.#values.push([]);
       }
     }
     for (let c = 0; c < this.#names.length; c++) {
       const vector = batch.getChildAt(c);
       const out = this.#values[c] as Scalar[];
-      const decode = this.#decode[c] as Decode;
       if (vector) {
-        for (let r = 0; r < batch.numRows; r++) out.push(decode(vector, r));
+        (this.#decode[c] as ColumnDecode)(vector, out, this.#rows);
       } else {
         for (let r = 0; r < batch.numRows; r++) out.push(null);
       }

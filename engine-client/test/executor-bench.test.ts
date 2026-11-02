@@ -10,7 +10,8 @@
 // warm-up); the median and p90 printed, with a SHA-256 of every decoded value so a change to the decode is checked
 // to answer the same values. Run:
 //   bazel test //engine-client:executor_bench --test_output=streamed
-//   (--test_env=BENCH_SIZES=10,1000 --test_env=BENCH_WARM_MS=500 --test_env=BENCH_MEASURE_MS=1000)
+//   (--test_env=BENCH_SIZES=10,1000 --test_env=BENCH_WARM_MS=500 --test_env=BENCH_MEASURE_MS=1000
+//    --test_env=BENCH_COLUMNS=ts,amount: some of the five columns alone)
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -25,6 +26,8 @@ import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 const SIZES = (process.env['BENCH_SIZES'] ?? '10,100,1000,10000,100000,1000000').split(',').map(Number);
 const WARM_MS = Number(process.env['BENCH_WARM_MS'] ?? 1000);
 const MEASURE_MS = Number(process.env['BENCH_MEASURE_MS'] ?? 2000);
+/** A subset of the five columns (BENCH_COLUMNS=ts,amount), to see one column's decode alone. */
+const ONLY = process.env['BENCH_COLUMNS']?.split(',');
 
 interface Raw { query(sql: string): { readonly numRows: number } }
 
@@ -37,7 +40,8 @@ const COLUMNS: Plan['columns'] = [
 ];
 
 function plan(rows: number): Plan {
-  return { sql: `SELECT id, name, amount, ts, bucket FROM bench ORDER BY id LIMIT ${rows}`, columns: COLUMNS };
+  const columns = ONLY === undefined ? COLUMNS : COLUMNS.filter((c) => ONLY.includes(c.name));
+  return { sql: `SELECT ${columns.map((c) => c.name).join(', ')} FROM bench ORDER BY id LIMIT ${rows}`, columns };
 }
 
 /** Every decoded value of a result, column by column across its chunks, hashed: the same values answer the same digest
@@ -100,6 +104,5 @@ describe('the host executor, measured', () => {
         + `${same ? '' : ' STREAM DIFFERS'} | runs ${arrow.runs}/${execute.runs}/${stream.runs}`);
       assert.ok(same, 'stream and execute answer the same values');
     }
-    await db.terminate?.();
   });
 });

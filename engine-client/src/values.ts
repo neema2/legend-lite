@@ -55,9 +55,81 @@ export function timeText(micros: bigint): string {
 }
 
 /** `.ffffff` with its trailing zeros dropped; nothing for a whole second. */
-function fraction(micros: bigint): string {
-  if (micros === 0n) return '';
+function fraction(micros: bigint | number): string {
+  if (micros === 0n || micros === 0) return '';
   return `.${pad(micros, 6).replace(/0+$/, '')}`;
+}
+
+/**
+ * `timestampText` of a safe integer, without a BigInt (a column's decode, duckdb.ts columnDecoder: one cell of a million
+ * need not allocate one): the same text for the same microseconds, the same steps in a number's exact integer
+ * arithmetic -- `%` keeps the dividend's sign as BigInt's does, and the quotient of a difference that is a multiple of
+ * the divisor is exact. `micros` must be a safe integer (Number.isSafeInteger); a larger one is BigInt's.
+ */
+export function timestampMicrosText(micros: number): string {
+  let frac = micros % 1_000_000;
+  let secs = (micros - frac) / 1_000_000;
+  if (frac < 0) {
+    frac += 1_000_000;
+    secs -= 1;
+  }
+  // the UTC calendar day and time of `secs`, as Date's getUTC* read them (the proleptic Gregorian calendar), computed
+  // without one: days since the epoch by floor division, then the civil date of the day (civilOf)
+  const days = Math.floor(secs / 86_400);
+  const inDay = secs - days * 86_400;
+  const civil = civilOf(days);
+  const h = Math.floor(inDay / 3600);
+  const m = Math.floor((inDay - h * 3600) / 60);
+  const s = inDay - h * 3600 - m * 60;
+  return `${yearText(civil.year)}-${TWO[civil.month]}-${TWO[civil.day]}T${TWO[h]}:${TWO[m]}:${TWO[s]}${fractionOf(frac)}`;
+}
+
+/** 00 to 99, as pad writes them. */
+const TWO = Array.from({ length: 100 }, (_, n) => String(n).padStart(2, '0'));
+
+/**
+ * The proleptic Gregorian date of a day counted from 1970-01-01 (Howard Hinnant's civil_from_days): what Date's
+ * getUTCFullYear, getUTCMonth + 1 and getUTCDate answer for that day, held to them day by day over the range a safe
+ * number of microseconds reaches (engine-client/test/column-decode.test.ts).
+ */
+function civilOf(days: number): { readonly year: number; readonly month: number; readonly day: number } {
+  const z = days + 719_468;
+  const era = Math.floor(z / 146_097);
+  const doe = z - era * 146_097;
+  const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36_524) - Math.floor(doe / 146_096)) / 365);
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100));
+  const mp = Math.floor((5 * doy + 2) / 153);
+  const day = doy - Math.floor((153 * mp + 2) / 5) + 1;
+  const month = mp < 10 ? mp + 3 : mp - 9;
+  return { year: yoe + era * 400 + (month <= 2 ? 1 : 0), month, day };
+}
+
+/** `fraction` of a number, its trailing zeros dropped by hand (no expression per cell). */
+function fractionOf(micros: number): string {
+  if (micros === 0) return '';
+  const digits = String(micros).padStart(6, '0');
+  let end = digits.length;
+  while (end > 0 && digits.charCodeAt(end - 1) === 48) end--;
+  return `.${digits.slice(0, end)}`;
+}
+
+/** `timeText` of a safe integer, without a BigInt, as timestampMicrosText is timestampText's: BigInt's truncating
+ *  division, step by step. */
+export function timeMicrosText(micros: number): string {
+  const rest = micros % 1_000_000;
+  const secs = (micros - rest) / 1_000_000;
+  const h = (secs - (secs % 3600)) / 3600;
+  const m = ((secs - (secs % 60)) / 60) % 60;
+  const s = secs % 60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}${fraction(rest)}`;
+}
+
+/** `decimalText` of a safe integer, without a BigInt: its digits are a number's own (`String` of a safe integer is
+ *  its exact digits), split at the scale as decimalText splits them. `scale` must be positive. */
+export function decimalTextOfSafe(unscaled: number, scale: number): string {
+  const negative = unscaled < 0;
+  const digits = String(negative ? -unscaled : unscaled).padStart(scale + 1, '0');
+  return `${negative ? '-' : ''}${digits.slice(0, -scale)}.${digits.slice(-scale)}`;
 }
 
 /** An unscaled integer and its scale as exact decimal text: (1234567, 2) is '12345.67'. */

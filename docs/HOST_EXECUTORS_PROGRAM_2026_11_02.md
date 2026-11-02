@@ -247,9 +247,12 @@ Each step: measured first, its outputs proven unchanged where it changes no beha
 - Credentials are never read, printed or copied by a session; the Snowflake lane measures only.
 - The start page's checks run before each commit; records land with the code.
 
-## 7. Open questions
+## 7. Open questions and findings
 
-(None yet.)
+- **The per-cell decoder's raw read on a sliced vector** (found 2026-11-02, H1a). `duckdb.ts` `rawAt` reads
+  `values[offset + i]` from a value buffer Arrow-JS has already sliced to the chunk, so a sliced date, time or timestamp
+  vector reads past its values and throws. No product path decodes a sliced vector: every chunk DuckDB-WASM and the
+  warehouse hand over is at offset 0. Recorded, not changed; H1's move to Arrow results retires the per-cell decoder.
 
 ## 8. Status
 
@@ -257,3 +260,6 @@ Each step: measured first, its outputs proven unchanged where it changes no beha
 - 2026-11-02: H0's baselines measured (`docs/GATES.md`, "The host executors' baselines (H0)"). At 1,000,000 rows the
   tab's decode takes 3,384 ms over DuckDB-WASM's 161 ms. Python's JSON execute takes 23.2 s against its Arrow
   execute's 188 ms.
+- 2026-11-02: H1a, the tab's column decode: every value the same (`//engine-client:column_decode_test`, the
+  benchmark's digests); `execute` 2.6x to 4.4x faster from 10,000 rows (3,384 -> 1,036 ms at 1,000,000). Three bundle
+  budgets moved by about 2 KB each, with dated notes. GATES "H1a: the tab's column decode".

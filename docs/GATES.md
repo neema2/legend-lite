@@ -16906,3 +16906,57 @@ warm-up, then two seconds of calls timed one by one; the medians are below. Meas
 
 3. **What the baselines decide.** H1's per-column decode is aimed at the tab's 5-21x. H2's JSON route has its handoff
    options measured against the Arrow execute's 188 ms, posted to the user before any is built (D2).
+
+## 2026-11-02 — H1a: the tab's column decode (every value the same; 2.6x to 4.4x faster from 10,000 rows)
+
+`docs/HOST_EXECUTORS_PROGRAM_2026_11_02.md`, H1a: the first piece of the tab's runner step, the per-cell work H0 measured.
+
+1. **What changed.**
+   - `engine-client/src/duckdb.ts` `columnDecoder`: a column is decoded a chunk at a time, from the chunk's own buffers.
+     Its fast readers cover the integers, the floats, booleans, UTF-8 text, decimals of 128 bits with a positive scale,
+     `Date32` days, `Time64` and every `Timestamp` unit.
+   - Each reader repeats Arrow-JS's own `get` for its type (`visitor/get.mjs`, read from `apache-arrow` 17.0.0), then
+     the per-cell decoder's conversion after it.
+   - What no reader reads goes cell by cell, as before (`cellByCellDecoder`, the old `decoderFor` loop): a nested
+     value, a dictionary, a binary, a 38-digit integer of scale 0, a chunk at an offset, a vector with no chunks.
+   - `values.ts` gains `timestampMicrosText`, `timeMicrosText` and `decimalTextOfSafe`: the BigInt spellings' twins for
+     a safe integer. The timestamp's calendar day is computed without a `Date` (Hinnant's `civil_from_days`).
+   - A chunk whose text is all ASCII is decoded once and sliced.
+   - `toRawTable` and the stream's `BatchAccumulator` use the column decode.
+2. **Every value the same.**
+   - `//engine-client:column_decode_test` (new) checks 31 columns of every type DuckDB-WASM writes, 5,000 rows with
+     nulls over several chunks: the column decode answers `Object.is` the per-cell decoder's value for every cell.
+   - The 26 columns of a fast type decode from a vector whose `get()` throws, so the fast readers are what ran.
+   - A sliced vector answers the same values, or the same failure.
+   - The number spellings equal the BigInt ones: on every day a safe number of microseconds reaches (four instants a day, over 800,000 in all),
+     and on 20,000 spread values at six scales.
+   - `//engine-client:executor_bench`'s value digests are H0's at every size.
+3. **Measured** (`//engine-client:executor_bench`, this container; H0 -> H1a, medians, `execute`):
+
+   | Rows | DuckDB's Arrow | H0 | H1a |
+   |---|---|---|---|
+   | 10 | 1.72 ms | 1.80 ms | 1.79 ms |
+   | 1,000 | 2.43 ms | 4.83 ms | 2.83 ms |
+   | 10,000 | 6.9 ms | 35.1 ms | 11.4 ms |
+   | 100,000 | 13.5 ms | 308 ms | 70 ms |
+   | 1,000,000 | 152 ms | 3,384 ms | 1,036 ms |
+
+   - Per column at 1,000,000 rows (`BENCH_COLUMNS`, extra time over DuckDB's own): `id` 26 ms, `bucket` 30 ms,
+     `amount` 171 ms, `name` 143 ms, `ts` 354 ms.
+   - What remains is a string a cell for text, decimals and timestamps: the result model's (`Scalar`). Keeping the
+     rows as Arrow (D1, H1's next part) removes it.
+4. **A guard moved: three bundle budgets** (`datacube/test/bundle-budget.test.ts`, each with its dated note). The
+   column decode is in every bundle that decodes a grid's rows, about 1.5-2 KB gzipped:
+   - the grid-only page 430,500 -> 432,500 (measured 431,975);
+   - the engine page 418,500 -> 420,500 (measured 419,944);
+   - the notebook cube 446,500 -> 448,700 (measured 448,194).
+5. **Found, not changed: a latent defect.** The per-cell decoder's raw read (`rawAt`) adds a chunk's offset to a value
+   buffer Arrow-JS has sliced already. A sliced date, time or timestamp vector therefore reads past its values and
+   throws. No product path decodes one: every chunk DuckDB-WASM and the warehouse hand over is at offset 0. The column
+   decode leaves such a chunk to the per-cell decoder, so it behaves as before. Recorded in the program's section 7.
+6. **Checks.**
+   - `//engine-client:tests` (7) and `//engine-client:column_decode_test`: green.
+   - DataCube's suites over the decode, all green: `duckdb`, `duckdb_cancel`, `engine_remote`, `grid_basics`,
+     `live_snap`, `pivot_values`, `python_runner`, `runner`, `table_output`, the three `typed_values`, `values`,
+     `warehouse_session`, `typecheck`, `bundle_budget`, `guardrails`, `browser_guard`.
+   - An independent audit is pending.
