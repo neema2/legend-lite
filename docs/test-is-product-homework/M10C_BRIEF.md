@@ -21,7 +21,7 @@ The planners' refusals, by site:
 
 | Refusal | Host | Database | Shape, with a corpus witness |
 |---|---|---|---|
-| `DatabaseAsserts.plannable`: a raw grid read or a lineage scan reached through the body's helpers | -- | ~370 (161 over temporal frames, 127 over frames, 49 with system reads, 30 plain) | `let result = executionPlan({...}, myMapping, testRuntime(), ext); assertEqualsH2Compatible(planText, $result->planToString(...))` (`testClassPropertyOpenVariable`); the predicate that fires, measured: 321 bodies through `TypedRawSqlRelation` (the handle's rows read as a raw relation -- the plan's nodes, the lineage rows, a `VALUES` source at planning), 49 through a `scanRelations` call and 6 through a `scanColumns` call (the lineage scans, a system read) |
+| `DatabaseAsserts.plannable`: a raw grid read or a lineage scan reached through the body's helpers | -- | ~370 (161 over temporal frames, 127 over frames, 49 with system reads, 30 plain) | `assertEqualsH2Compatible(planText, $result->planToString(...))` (`testClassPropertyOpenVariable`). Measured by a probe printing the predicate's root and its hit (one scoped `corpus_one` run): 321 bodies hit `raw<SELECT H2VERSION()>` through the ROOT `assertEqualsH2Compatible` -- the scan followed the user call into the engine's helper `getH2Versions` (h2Extension.pure:44-49), a body no road runs; 49 through a `scanRelations` call and 6 through `scanColumns` (the lineage scans, a system read). **Item 1a, BUILT 2026-11-02.** |
 | `databaseGate`'s switch: a GRID PAIR (both sides relations) or a RENDERED TEXT (`renderedPlan`) under `assertEquals`/`assertSameElements` -- M7's "the shapes whose database arm reads a side on the host" | -- | ~221 (209 equals, 12 same-elements) | `assertEquals($result.values, ...)` grid pairs over frames (`columnValueDifferenceTest`, `isolationTest`); `relationalResultSourcingOfList` |
 | `LineageTreeLines.asLines`: a lineage tree print against a golden | 49 | (inside the ~370 and `db:host-null`) | `scanRelations($query, $mapping, ext)->relationTreeAsString()` against a text (`scanRelationsTests::testConstant`) |
 | the equality arm declines: a plan-text read through a HANDLE is no constant of the plan (`NOT_A_CONSTANT`) | 43 | 39 | `assertEquals('select ...', $xstoreResult.rootExecutionNode.executionNodes->at(0)->cast(@SQLExecutionNode).sqlQuery)` with `let xstoreResult = executionPlan(...)` (`testJoinWithConstantDate`) |
@@ -35,18 +35,30 @@ The planners' refusals, by site:
 
 ## The design, item by item (largest first)
 
-1. **The handle's rows are constants of the plan (database `plannable`, host `NOT_A_CONSTANT`: ~410 bodies).** An
-   orchestration handle bound by a let (`executionPlan(...)`, `scanRelations(...)`, `toSQL(...)`) registers its rows at
-   planning (`PlanAllocations.registerHandlesIn`: the plan's nodes, the lineage rows, from the handle's arguments) and a
-   read of them (`$p.rootExecutionNode.executionNodes->at(0)->cast(@SQLExecutionNode).sqlQuery`, `$p->planToString(ext)`)
-   is planned today as a STATEMENT over those rows (a `VALUES` source the database answers) -- so the engine-text arm
-   sees no constant and the database planner's `plannable` gate meets the handle's raw-relation form. Both roads already
-   hold the rows as data at planning; M10c folds a navigation over registered handle rows to the constant it is
-   (`LiteralFold` over `PlanRows`/`LineageRows`, the compiler's own fold) where every input is registered, so the text
-   is a constant of the plan, the arm plans it (M10b) and `plannable` sees no raw relation. Where the navigation needs
-   the database (a computed index, a join with a user store), the shape stays a statement side and the body the walk's,
-   by name. Measured first: which navigations the fold covers (the corpus's `sqlQuery`, `planToString`, `->at(k)`,
-   `->cast`, `.executionNodes`).
+1a. **The static scan reads what the program road runs (database `plannable`: 321 bodies). BUILT 2026-11-02.** As
+   first drafted this item attributed the 321 to the handle's rows read as a raw relation; the code says otherwise
+   (`TypedRawSqlRelation` is minted for `executeInDb` text alone, `Overloads.rawGridOrSelf`) and the probe confirmed
+   it: the refused statement is the root `assertEqualsH2Compatible`, and the hit is the `executeInDb('SELECT
+   H2VERSION();')` in the engine's helper `getH2Versions`, which `StatementEffects.reaches` found by following the user
+   call into its body. The program road never runs that body: the arm plans the two texts from the call's arguments
+   (`SqlTextVerdicts.plan`), a declined dual-golden is the function's own meaning, `assertEquals(upgraded, actual)`
+   (`planHost`), and any other decline leaves the body to the walk -- where the dual-golden arm is total and the other
+   two roots' declines inline the callee, as they always did (the audit's correction: "either road" was too strong). The rule: `plannable` scans what the program
+   road would RUN of a statement (`scanned`): a root engine-text assert's ARGUMENTS alone, every other statement whole.
+   The witness: the frame model's `assertEqualsH2Compatible` carries the engine's own body (the helper's `executeInDb`
+   read, spelled by FQN), so the DATABASE-judge witness in `engineTextPrograms` pins that such a body moves. Measured:
+   DuckDB database pass moved 2,122 -> 2,398, H2 2,055 -> 2,331, outcomes identical, every register green.
+1b. **The handle's text through a navigation (host `NOT_A_CONSTANT` 43, database 39).** An orchestration handle bound
+   by a let (`executionPlan(...)`, `scanRelations(...)`) registers its rows at planning (`PlanAllocations.registerHandlesIn`:
+   the plan's nodes, the lineage rows) and THE ROWS RIDE THE QUERY (the user's ruling of 2026-09-02): a read of them
+   (`$p.rootExecutionNode.executionNodes->at(0)->cast(@SQLExecutionNode).sqlQuery`) is a statement over inline rows the
+   database answers, so under M10b's design (the two texts constants of the verdict step) the side is no constant and
+   the body stays on the walk. Two forms, to decide at this item's turn after a measurement of the navigations the
+   corpus spells: (i) the text side a STEP of the plan whose one row binds the verdict step's text parameter (the frame
+   stamp's own mechanism, M9c; R17 C4), the appeal reading the bound text at the step -- the tenet's form (the database
+   computes the navigation); (ii) folding the navigation over the registered rows in Java -- a shadow evaluator of Pure
+   navigation, which `docs/WORLD_MAP.md` refuses (compare spelled tokens, never compute a value): not an option. A
+   navigation the planning cannot bind (a join with a user store) stays the walk's, by name.
 2. **The grid pair and the rendered text under the database judge (~221 bodies).** M7 left "the shapes whose database
    arm reads a side on the host at its turn": the grid pair's `VerdictSql.gridPair` needs both grids' schemas (today
    read from a probe of the side), the rendered text (`TdsCompare.renderedText`'s line multiset) the grid's rendering.

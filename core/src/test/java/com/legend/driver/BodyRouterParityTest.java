@@ -352,9 +352,29 @@ class BodyRouterParityTest {
                     r: meta::relational::functions::sqlstring::SQLResult[1]): Boolean[1]
                 { assertEquals($expected, meta::relational::mapping::sqlRemoveFormatting(
                     $r->cast(@meta::pure::mapping::Result<Any|*>))) }
+                // the engine's body (h2Extension.pure): the H2 version read through executeInDb -- a raw grid the
+                // program road never runs (the arm plans the texts from the arguments); the database planner's static
+                // scan reads the arguments (M10c). Two spellings: the Result-actual (the splice of the frame's SQL) and
+                // the corpus's String-actual (a plan text, a rendered SQL)
                 function meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible(legacy: String[1],
                     upgraded: String[1], r: meta::pure::mapping::Result<Any|*>[1]): Boolean[1]
-                { assertEquals($upgraded, meta::relational::mapping::sqlRemoveFormatting($r)) }
+                { let h2Versions = meta::relational::functions::sqlQueryToString::h2::getH2Versions();
+                  assertEquals(1, $h2Versions->size(), 'More than one H2 version found asserting test outputs');
+                  if($h2Versions->toOne()->eq('1.4.200'),
+                    | assertEquals($legacy, meta::relational::mapping::sqlRemoveFormatting($r)),
+                    | assertEquals($upgraded, meta::relational::mapping::sqlRemoveFormatting($r))); }
+                function meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible(legacy: String[1],
+                    upgraded: String[1], actual: String[1]): Boolean[1]
+                { let h2Versions = meta::relational::functions::sqlQueryToString::h2::getH2Versions();
+                  assertEquals(1, $h2Versions->size(), 'More than one H2 version found asserting test outputs');
+                  if($h2Versions->toOne()->eq('1.4.200'),
+                    | assertEquals($legacy, $actual),
+                    | assertEquals($upgraded, $actual)); }
+                function meta::relational::functions::sqlQueryToString::h2::getH2Versions(): Any[*]
+                { let conn = ^meta::external::store::relational::runtime::TestDatabaseConnection(
+                    type=meta::relational::runtime::DatabaseType.H2);
+                  let results = meta::relational::metamodel::execute::executeInDb('SELECT H2VERSION();', $conn);
+                  $results.rows.values; }
                 ###Relational
                 Database x::DB (
                   Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32))
@@ -772,6 +792,9 @@ class BodyRouterParityTest {
                             + " meta::relational::mapping::sqlRemoveFormatting($r));}",
                     "{| let r = " + EXECUTE + "; meta::relational::functions::sqlQueryToString::h2"
                             + "::assertEqualsH2Compatible('legacy', '" + pure(frameSql) + "', $r);}",
+                    // the corpus's spelling (M10c's 321): the actual a String the producer renders
+                    "{| meta::relational::functions::sqlQueryToString::h2::assertEqualsH2Compatible('legacy', '"
+                            + pure(ours) + "', " + producer + ");}",
                     "{| let r = " + EXECUTE + "; meta::relational::functions::asserts::assertSameSQL('"
                             + pure(frameSql) + "', $r);}")) {
                 Run walked = assertParity(backend, ctx, "x::RT", equal, "select count(*) from FIRM", FIRM_ROWS, mode);

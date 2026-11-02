@@ -16583,6 +16583,41 @@ The decisions log D72.
    (`gates green` included); this push runs again.
 4. **Not measured:** the MariaDB and MySQL lanes (manual, `//gates:heavy`).
 
+## 2026-11-02 — The test-is-the-product plan's M10c: the remaining shapes the two planners refuse, item by item
+
+The plan's §7 (M10), §9 "M10c", §10; the brief `docs/test-is-product-homework/M10C_BRIEF.md` (the inventory measured
+on the DuckDB corpus after M10b and attributed to the refusal site by a probe; its items land one at a time, each
+measured on both corpora with the registers and a parity witness; the chain at M10's end).
+
+1. **Item 1a -- the database planner's static scan reads what the program road runs:** `DatabaseAsserts.plannable`
+   refused a body whose statements REACH (`StatementEffects.reaches`, through user calls into their bodies) a raw grid
+   read or a lineage scan; for a root engine-text assert (M10b's three root arms by FQN) it followed the user call into
+   legend-engine's `assertEqualsH2Compatible`, whose helper `getH2Versions` reads the H2 version through
+   `executeInDb('SELECT H2VERSION();')` (h2Extension.pure:44-49) -- a raw grid the program road never sends: the
+   arm plans the two texts from the call's arguments, a declined dual-golden is rewritten to `assertEquals(upgraded,
+   actual)`, and any other decline leaves the body to the walk (where, as always, the dual-golden arm is total and the
+   other two roots' declines inline the callee). Now `scanned(statement)` gives the scan a root engine-text assert's
+   ARGUMENTS alone, every other statement whole; the statement itself is matched, never a let's value. The brief had attributed these 321 bodies to the handle's rows read as a raw relation; the probe (the
+   predicate printed with its root and its hit, one scoped `bazel run //spec:corpus_one -- duckdb database <fqn>`) read
+   the helper's body; the brief is corrected.
+2. **Movement:** DuckDB database pass `moved=2122 -> 2,398` (2473 / 108, unchanged), host pass unchanged (2,690;
+   2471 / 108); H2 database `2055 -> 2,331` (2233 / 353, unchanged), host unchanged (2,690; 2289 / 295); every
+   register test green (12 of 12 lane tests), no register changed. The census: the database pass's
+   `activities,assert,database-unplanned-assert,let-execute` 317 -> 221 on DuckDB (219 on H2), the 161 over temporal
+   frames all moved, plain 71 -> 57, over system reads 93 (M10b's S1, unchanged).
+3. **The checks:** the driver suite (`BodyRouterParityTest.engineTextPrograms`: the frame model's
+   `assertEqualsH2Compatible` now carries the engine's own body -- the helper's `executeInDb` read, spelled by FQN -- so
+   the DATABASE-judge witness pins that such a body MOVES; before the rule it failed "the router moved the body:
+   expected 1 but was 0"; a second body in the corpus's own String-actual spelling), root (`JavaEvalLedgerTest`: no
+   pin moved), architecture, judge; `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached.
+4. **The independent audit (COMMIT WITH FIXES, folded):** the javadoc's and the records' "never runs the callee's
+   body on either road" was true of the program road alone -- on the walk `assertSameSQL` and the generator's
+   `assertSqlEquals` are user functions whose declined arms fall to the walk's inliner -- reworded to what the scan
+   gates; `scanned` matches the statement itself, no let unwrapped (a let-wrapped root never reaches the planner, and
+   the planner would plan it as a value let with the call spliced whole); the witness gains the corpus's spelling. The
+   rule itself sound: the scan and the arm share one predicate (a user call whose FQN `isRoot` names), nothing counted
+   or sent at the static pass.
+
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
 The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and
@@ -16604,7 +16639,10 @@ its code map `M10B_CODE_MAP.md` (written before the code; the audit's findings r
 3. **The checks:** the driver suite (the engine-text witnesses under both judges on every in-process backend, M10a's
    witnesses re-pinned for the let rule), census, guardrails, architecture, testplan; `//core:core_tests` (28 of 28);
    `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached. The chain (core ids, PCT DuckDB, both corpora, channel B,
-   `//gates:local`, Postgres unprivileged) runs at M10's end.
+   `//gates:local`, Postgres unprivileged) runs at M10's end. CI on 5ce2cf5d: 49 of 51 jobs green;
+   `linux / parser_equivalence` died on the runner's disk ("No space left on device" extracting the LLVM toolchain,
+   the standing hazard of the plan's §9) before any test ran -- not M10b's; green on the next commit, c029e6fe (33 jobs
+   green at the reading, none red).
 4. **Guards, dated:** `JavaEvalLedgerTest` SqlTextVerdicts 1254 -> 1329, AssertVerdicts 1470 -> 1511, BodyDriver
    954 -> 961, HostJudge 1127 -> 1128, HostJudgment 152 -> 154 (each with its reason: planning entries and the one
    verdict site; nothing evaluated that was not).

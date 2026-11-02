@@ -357,16 +357,37 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  {@code executeInDb} whose text is a SELECT reads as a value; its verdict wrapper is KEYED, which the program
      *  road does not place), a lineage scan (its rows join the metamodel tables: the system session). The checks after
      *  planning (a group's session, a keyed member, an unspelled segment, an unbound frame stamp) stay as the guard
-     *  behind this one. */
+     *  behind this one. The scan reads what the program road would RUN of each statement ({@link #scanned}). */
     private static boolean plannable(TypedQuery typed) {
         Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+        java.util.function.Predicate<TypedSpec> refused = n -> n instanceof
+                com.legend.compiler.spec.typed.TypedRawSqlRelation || lineageScan(n);
         for (TypedSpec statement : typed.body()) {
-            if (com.legend.compiler.spec.StatementEffects.reaches(statement, n -> n instanceof
-                    com.legend.compiler.spec.typed.TypedRawSqlRelation || lineageScan(n), typed.specs(), memo)) {
-                return false;
+            for (TypedSpec part : scanned(statement)) {
+                if (com.legend.compiler.spec.StatementEffects.reaches(part, refused, typed.specs(), memo)) {
+                    return false;
+                }
             }
         }
         return true;
+    }
+
+    /** What the program road would run of {@code statement}: the statement, but for a root ENGINE-TEXT assert (M10b,
+     *  {@link SqlTextVerdicts#isRoot}) its ARGUMENTS alone -- on the program road, which this scan gates, the arm plans
+     *  the two texts from them and the callee's body is never planned ({@code AssertVerdicts.planHost}: the arm under
+     *  a collector, else a declined dual-golden rewritten to {@code assertEquals(upgraded, actual)}, else the walk's);
+     *  on the walk the dual-golden arm is total and the other two roots' declines inline the callee as they always did.
+     *  The engine's {@code assertEqualsH2Compatible} reads the H2 version through {@code executeInDb} in its helper
+     *  (h2Extension.pure): a raw grid the program road never sends, which this scan read as the body's until the
+     *  test-is-the-product plan's M10c (2026-11-02; 321 DuckDB bodies). The statement itself is matched, never a let's
+     *  value: a let-wrapped root is no assert to the class rule, and this planner would plan such a let as a value --
+     *  the call spliced whole -- so a let is scanned whole. */
+    private static List<TypedSpec> scanned(TypedSpec statement) {
+        if (statement instanceof com.legend.compiler.spec.typed.TypedUserCall u
+                && SqlTextVerdicts.isRoot(u.callee().qualifiedName())) {
+            return u.args();
+        }
+        return List.of(statement);
     }
 
     private static boolean lineageScan(TypedSpec n) {
