@@ -331,7 +331,7 @@ class BodyRouterParityTest {
      *  harness's to create. */
     private static String frameModel(TestBackend backend) {
         return """
-                Class x::Firm { name: String[1]; }
+                Class x::Firm { name: String[1]; tagged(s: String[1]) { $this.name + $s }: String[1]; }
                 Class <<meta::pure::profiles::temporal.businesstemporal>> x::TFirm { name: String[1]; }
                 Class x::Key { <<equality.Key>> k: String[1]; v: Integer[1]; }
                 // a user-written assert helper (toPostgresModel's assertConversion: lets, then an assert over class
@@ -1226,6 +1226,63 @@ class BodyRouterParityTest {
         }
     }
 
+    /** M10c item 12: a GRAPH FRAME -- a frame whose query is a graph fetch and its serialize -- planned on the program
+     *  road (its eager run the same statement as the walk's): inline, let-bound, and the corpus's executeLegendQuery
+     *  with its parameters bound from the pairs, read in a filter and in a graph tree's qualifier argument (the
+     *  product's binding site reads a tree's arguments since this item: the XStore milestoning bodies); holding and
+     *  failing, parity under both judges. The goldens are read off a run. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void graphFramePrograms(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String gf = "meta::pure::graphFetch::execution::graphFetch(#{x::Firm{name}}#)"
+                + "->meta::pure::graphFetch::execution::serialize(#{x::Firm{name}}#)";
+        String tagged = "meta::pure::graphFetch::execution::graphFetch(#{x::Firm{tagged($s)}}#)"
+                + "->meta::pure::graphFetch::execution::serialize(#{x::Firm{tagged($s)}}#)";
+        String inline = "let r = meta::pure::router::execute(|x::Firm.all()->" + gf + ", x::M, x::RT.runtimeValue, []);";
+        String letBound = "let func = {|x::Firm.all()->" + gf + "}; let r = meta::pure::router::execute($func, x::M,"
+                + " x::RT.runtimeValue, []);";
+        String filtered = "let func = {n: String[1]|x::Firm.all()->filter(f|$f.name == $n)->" + gf + "->from(x::M,"
+                + " x::RT.runtimeValue)}; let r = meta::legend::executeLegendQuery($func, [pair('n', 'Acme')],"
+                + " ^meta::pure::runtime::ExecutionContext(), []);";
+        String qualified = "let func = {s: String[1]|x::Firm.all()->" + tagged + "->from(x::M, x::RT.runtimeValue)};"
+                + " let r = meta::legend::executeLegendQuery($func, [pair('s', '!')],"
+                + " ^meta::pure::runtime::ExecutionContext(), []);";
+        for (var c : List.of(java.util.Map.entry(inline, "$r.values->toOne()"),
+                java.util.Map.entry(letBound, "$r.values->toOne()"), java.util.Map.entry(filtered, "$r"),
+                java.util.Map.entry(qualified, "$r"))) {
+            String golden = text(run(backend, ctx, "x::RT", "{| " + c.getKey() + " " + c.getValue() + ";}", false,
+                    "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+            assertTrue(golden.contains(c.getKey() == qualified ? "Acme!" : "Acme"), "the value bound: " + golden);
+            for (ExecuteOptions.JudgeMode mode : List.of(ExecuteOptions.JudgeMode.HOST,
+                    ExecuteOptions.JudgeMode.DATABASE)) {
+                Run held = assertParity(backend, ctx, "x::RT", "{| " + c.getKey() + " assertEquals('" + pure(golden)
+                        + "', " + c.getValue() + ");}", "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertEquals("ok", held.outcome, mode + ": " + c.getKey());
+                Run failed = assertParity(backend, ctx, "x::RT", "{| " + c.getKey() + " assertEquals('" + pure(golden)
+                        + "x', " + c.getValue() + ");}", "select count(*) from FIRM", FIRM_ROWS, mode);
+                assertTrue(failed.outcome.startsWith("AssertFailed"), mode + ": " + failed.outcome);
+            }
+        }
+        // two frames over ONE lambda with different pairs, each read: upstream reads each frame with its own binding;
+        // the walk's frames share one environment's query lets, so the earlier frame's readers read the later binding
+        // (`$r1` reads '?': the walk's defect) -- the walk's, by name, both roads alike (the item's audit F1)
+        String twice = "let func = {s: String[1]|x::Firm.all()->" + tagged + "->from(x::M, x::RT.runtimeValue)};"
+                + " let r1 = meta::legend::executeLegendQuery($func, [pair('s', '!')],"
+                + " ^meta::pure::runtime::ExecutionContext(), []);"
+                + " let r2 = meta::legend::executeLegendQuery($func, [pair('s', '?')],"
+                + " ^meta::pure::runtime::ExecutionContext(), []);";
+        String g1 = text(run(backend, ctx, "x::RT", "{| " + twice + " $r1;}", false, "select count(*) from FIRM",
+                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        String g2 = text(run(backend, ctx, "x::RT", "{| " + twice + " $r2;}", false, "select count(*) from FIRM",
+                FIRM_ROWS, ExecuteOptions.JudgeMode.HOST));
+        assertTrue(g1.contains("Acme?") && g2.contains("Acme?"), "the walk's shared binding: " + g1 + " / " + g2);
+        assertNull(BodyClass.of(typed(ctx, "{| " + twice + " assertEquals('" + pure(g1) + "', $r1);"
+                + " assertEquals('" + pure(g2) + "', $r2);}"), "x::RT", true), "the walk's, by the class rule");
+        // the PRODUCT's door: a query whose graph tree reads a let -- planned (an unbound variable before this item)
+        typed(ctx, "{| let s = '!'; x::Firm.all()->" + tagged + ";}").plan("x::RT");
+    }
+
     /** M10c item 11: a from()'s INLINE TEST DATA in a let a frame then runs -- the corpus's spelling (a runtime copied
      *  with {@code testDataSetupCsv}, a lambda whose from() names it, the frame executing the lambda): the test door
      *  seeds the let's sources before it, as the walk establishes them, and the frame reads the seeded rows; parity
@@ -1260,13 +1317,13 @@ class BodyRouterParityTest {
         assertParity(backend, ctx, "x::RT", "{| " + rtd + " let r = meta::pure::router::execute(|x::Firm.all()->project("
                 + "[f|$f.name], ['name'])->from(x::M, $rtd), x::M, x::RT.runtimeValue, []); assertSize($r.values.rows,"
                 + " 3);}", "select count(*) from FIRM", FIRM_ROWS, ExecuteOptions.JudgeMode.HOST);
-        // the walk's, by name: a let-bound query whose kind is planned another way (a graph fetch, read through the
-        // let since this item: the corpus's executeLegendQuery bodies), a seeded let after an assert (the seeds' order
+        // the walk's, by name: a let-bound query whose kind is planned another way (an object built, read through the
+        // let since this item), a seeded let after an assert (the seeds' order
         // against the fused statement and the open script, B1), an assert holding the inline data itself
         for (String stays : List.of(
-                "{| " + rtd + " let func = {|x::Firm.all()->meta::pure::graphFetch::execution::graphFetch(#{x::Firm{name}}#)"
-                        + "->meta::pure::graphFetch::execution::serialize(#{x::Firm{name}}#)->from(x::M, $rtd)};"
-                        + " let r = meta::pure::router::execute($func, x::M, x::RT.runtimeValue, []); assert(true);}",
+                "{| " + rtd + " let func = {|x::Firm.all()->project([f|^x::Firm(name = $f.name).name], ['name'])"
+                        + "->from(x::M, $rtd)}; let r = meta::pure::router::execute($func, x::M, x::RT.runtimeValue, []);"
+                        + " assert(true);}",
                 "{| let r0 = " + EXECUTE + "; assertSize($r0.values.rows, 2); " + seeded
                         + " assertSize($r.values.rows, 3);}",
                 "{| " + rtd + " let r = " + EXECUTE + "; assertEquals(3, x::Firm.all()->project([f|$f.name], ['name'])"

@@ -110,7 +110,11 @@ public final class ProductStatements {
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
-        Set<String> read = FreeVars.ofBody(inlined.body());
+        // a graph tree's qualifier arguments read too ({@code TypedGraphTree.args}, no child of the fetch or the
+        // serialize): the corpus's `customer($processingDate, $businessDate)` over an executeLegendQuery lambda's
+        // parameters, bound from its pairs, which the walk's frame run resolves from the frame's query lets (M10c
+        // item 12; one walk with the plain scan's binders)
+        Set<String> read = FreeVars.ofBodyReadingTrees(inlined.body());
         inlined.lets().forEach((name, value) -> {
             if (read.contains(name)) {
                 env.queryLets().put(name, value);

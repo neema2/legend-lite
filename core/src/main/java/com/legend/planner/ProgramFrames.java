@@ -113,9 +113,13 @@ public final class ProgramFrames {
     }
 
     /** The lets a frame's chain consumed ({@code FramePlanner.FrameChain.env().queryLets()}), kept for the statements
-     *  that read them free. */
+     *  that read them free -- the LATEST frame's binding of a name wins, as on the walk, whose frames write one shared
+     *  environment's query lets ({@code ExecuteChainAssembly.chain}'s {@code putAll}); two frames whose query lambdas
+     *  bind one name are the walk's by the class rule (its earlier frame's readers read the later binding: the walk's
+     *  defect, not copied -- {@code BodyClass.frameProgram}; the M10c item 12 audit's F1), so the frames a program
+     *  plans never bind one name two ways. */
     public void consumed(Map<String, TypedSpec> lets) {
-        lets.forEach(consumed::putIfAbsent);
+        consumed.putAll(lets);
     }
 
     /** The lets the frames' chains consumed. */

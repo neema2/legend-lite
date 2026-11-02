@@ -17111,6 +17111,52 @@ measured on both corpora with the registers and a parity witness; the chain at M
    anything sent; LOW-4 the seed memo keyed two ways -- recorded above; LOW-5 the witness gaps -- the frame's own query,
    the three refusals added; NIT the javadocs (`FRAME_PROGRAM`, `TestKinds`' script comment).
 
+44. **Item 12 -- graph frames, and a graph tree's qualifier arguments on the product's road (2026-11-02; the brief's
+   item 12).** The frame rule kept a frame whose query is a graph fetch on the walk (`frameQueryKind`: `GRAPH`, MV6's
+   D7). Measured first by a throwaway experiment (both judges, every in-process database): a graph FRAME's eager run
+   is its one JSON value, and the two roads send byte-identical statements -- plain, let-bound, and the corpus's
+   `executeLegendQuery` with a parameter in a filter; on the corpus, admitting the kind moved 30 bodies per host pass
+   with three regressions, item 11's XStore milestoning graph fetches. Their cause, a PRODUCT defect:
+   `ProductStatements.prepare` binds a consumed let (an executeLegendQuery lambda's parameter, bound from its pairs)
+   only where the statement reads it free (`FreeVars.ofBody`), and a graph tree's qualifier arguments
+   (`customer($processingDate, $businessDate)`: `TypedGraphTree.args`) are no child of the fetch or the serialize, so
+   the scan never saw them and the lowering met an unbound variable; the walk's frame run resolves them from the
+   frame's query lets. Built: the product's binding site reads a graph tree's arguments too
+   (`FreeVars.ofBodyReadingTrees`: the plain walk with a flag, one definition of binders; the plain scan the inliner
+   and the substitution read is unchanged), and `frameQueryKind` admits `GRAPH`. An object built in a frame's query
+   (`OBJECT`) stays. **A walk defect found by the audit's witness:** the walk's frames write ONE environment's query
+   lets (`ExecuteChainAssembly.chain`'s `putAll`), so two frames over lambdas binding one name -- an executeLegendQuery
+   parameter bound from different pairs -- leave the earlier frame's readers reading the later binding (`$r1` reads
+   `Acme?` where upstream reads `Acme!`). The program road must not copy it and cannot agree with it: a frame whose
+   query lambda binds a name an earlier frame's lambda bound (its parameters, its top-level lets) is the walk's, by
+   name (`BodyClass.frameProgram`), and `ProgramFrames.consumed` keeps the latest binding as the walk does for the
+   frames it does plan. Per-frame bindings are M10d's to build before the walk goes (the residue below).
+45. **Movement (item 12):** DuckDB host pass `moved=3030 -> 3,058`, database `2956 -> 2,983`; H2 host `3030 -> 3,058`,
+   database `2848 -> 2,870`; outcomes identical on all four passes; 12 of 12 lane tests green. Before the audit's
+   fold the passes read 3,060 / 2,985: the frame-name rule keeps `testPaginatedWithVariables` and
+   `testSliceWithVariables` on the walk (five frames over lambdas binding one parameter `i`, each with its own pairs). Ten of the 12
+   inline-seed bodies move (item 11's admission now reached: the XStore and m2m2r milestoning graph fetches,
+   `testParametrizedEnumFilter`), the frame-graph bodies with them; `testSpecialUnion_m2m2r` and `testPaginated`
+   stay (a let-bound frame read by another frame). Passing bodies on the walk, DuckDB host pass: 135 -> 108.
+46. **The checks (item 12):** `BodyRouterParityTest.graphFramePrograms` (the frame model's `x::Firm` gains a qualified
+   property `tagged(s)`: a graph frame inline, let-bound, under executeLegendQuery with a filter parameter and with a
+   qualifier parameter, holding and failing, parity under both judges, the goldens read off a run; the witness fails
+   with the tree's arguments unread; the value bound pinned -- `Acme!`; two frames over one lambda with different
+   pairs the walk's by the class rule, the walk's shared binding recorded -- `$r1` reads `Acme?`; the PRODUCT's door
+   planning a query whose graph tree reads a let, which raised before), `inlineSeedFramePrograms` (its let-bound
+   refusal now an object build), `//core:census`, root, architecture, judge, driver, testplan, planner, compiler;
+   `//spec:corpus_duckdb`, `//spec:corpus_h2`. The independent audit (COMMIT WITH FIXES, folded): MEDIUM-1 two frames
+   binding one name -- the program road kept the first, the walk the latest; the witness then showed the walk itself
+   wrong, so the shape is the walk's by name rather than copied (above); LOW-2 the binding site's scope counted only
+   lambda parameters -- now the plain walk's binders (`ofBodyReadingTrees`); LOW-3 the witness gaps -- the two-frame
+   case, the bound value, the product door; NIT-4 the class rule's scans do not read tree arguments (a frame read in a
+   qualifier argument: an absurd shape, recorded); NIT-5 the inline fully-qualified names -- the helper gone. Verified
+   by the audit: every `prepare` caller (the product's door, `PlanMaker`, the test door) -- a product query's `read`
+   grows only by names already consumed, and every query whose SQL changes failed before; a graph frame's CTE is NONE
+   (pasted); under the database judge the frames are the walk's machinery; the eager run lowers a graph root through
+   `serializeGraph` with no streamed answer, so MV6's D7 does not move for frames; OBJECT, SYSTEM_READ and EXECUTE
+   anywhere else in a frame's query still refuse.
+
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 
 The plan's §7 (M10), §9 "M10b", §10; the decisions log D114; the brief `docs/test-is-product-homework/M10B_BRIEF.md` and

@@ -418,7 +418,31 @@ The planners' refusals, by site:
    seeded rows (three firms where the fixture has two), holding and failing, parity under both judges; it fails with
    the rule unchanged. **Expected (written before the measurement, superseded above):** the 12 bodies move.
 
-12. **Not this step:** the class-rule residue (M10a (f), the effect and frame mixes: M10d).
+12. **Graph frames, and a graph tree's qualifier arguments on the product's road (2026-11-02). BUILT 2026-11-02:
+   DuckDB host pass moved 3,030 -> 3,058, database 2,956 -> 2,983, H2 3,058 / 2,870, outcomes identical; ten of the
+   12 inline-seed bodies among them; GATES items 44-46. The audit's witness found a WALK defect: two frames over
+   lambdas binding one name read the later binding on the walk (one shared environment); such a body is the walk's
+   by name, and per-frame bindings are M10d's to build before the walk goes.** The frame rule kept
+   a frame whose query is a graph fetch (`frameQueryKind`: `GRAPH`, a kind the product's lowering plans another way)
+   on the walk, MV6's D7 the reason (a graph value one JSON cell on the walk, one object per row on the product's
+   streaming root). Measured (a throwaway experiment, both judges, every in-process database): for a FRAME the eager
+   run is the frame's one JSON value, and the two roads send byte-identical statements -- plain, let-bound, and the
+   corpus's `executeLegendQuery` with a parameter read in a filter; on the corpus, admitting the kind moves 30 bodies
+   per host pass with three regressions, the XStore milestoning graph fetches (item 11's three). Their cause is a
+   PRODUCT defect: `ProductStatements.prepare` binds a consumed let (an executeLegendQuery lambda's parameter, bound
+   from its pairs) only where the statement reads it free (`FreeVars.ofBody`), and a graph tree's qualifier arguments
+   (`customer($processingDate, $businessDate)`, `TypedGraphTree.args`) are no child of the fetch or the serialize, so
+   the scan never saw them and the lowering met an unbound variable (`UnfoldableRef`); the walk's frame run resolves
+   them from the frame's query lets. So: (a) the product's binding site reads a graph tree's arguments too
+   (`treeArgReads`, outside any enclosing lambda's parameters so a lambda's own parameter is never taken for a
+   consumed let); the shared free-variable scan is not changed (the inliner and the substitution read it); (b)
+   `frameQueryKind` admits `GRAPH`. An object built in a frame's query (`OBJECT`: ids and layouts, MV6) stays.
+   **Witness** (`BodyRouterParityTest.graphFramePrograms`; the frame model's `Firm` gains a qualified property
+   `tagged(s)`): inline, let-bound, executeLegendQuery with a filter parameter and with a qualifier parameter, holding
+   and failing, parity under both judges; it fails with the tree's arguments unread. **Expected:** about 30 bodies
+   per host pass move, the 12 inline-seed graph frames among them, outcomes identical.
+
+13. **Not this step:** the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 
 ## Movement and measurement
 

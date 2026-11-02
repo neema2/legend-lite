@@ -349,6 +349,8 @@ public enum BodyClass {
         boolean aFrame = false;
         ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
         boolean sentBefore = false;
+        // the names the frames' query lambdas bind themselves (their parameters, their top-level lets), so far
+        Set<String> frameNames = new HashSet<>();
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
@@ -399,8 +401,21 @@ public enum BodyClass {
                     // the query read through the let that binds it (`let func = {|...}; let r = execute($func, ...)`:
                     // the corpus's spelling) -- a variable has no children, so the scan saw no kind in a let-bound
                     // query until M10c item 11's lanes found a temporal graph fetch through it
-                    TypedSpec frameQuery = framesAndHandlesAsTheirQueries(com.legend.compiler.spec.typed.Lets.bound(
-                            call.args().get(0), body.subList(0, i)));
+                    TypedSpec boundQuery = com.legend.compiler.spec.typed.Lets.bound(call.args().get(0),
+                            body.subList(0, i));
+                    if (boundQuery instanceof com.legend.compiler.spec.typed.TypedLambda lam
+                            && !java.util.Collections.disjoint(frameNames, ownNames(lam))) {
+                        // the query lambda binds a name an earlier frame's lambda bound (an executeLegendQuery
+                        // parameter, a top-level let): the walk's frames write ONE environment's query lets, so the
+                        // earlier frame's readers read the later binding (`$r1` over the pairs of `$r2`: the walk's
+                        // defect, upstream reads each frame's own) -- the program road cannot agree with it and must
+                        // not copy it: the walk's, by name, until per-frame bindings (the M10c item 12 audit's F1)
+                        return false;
+                    }
+                    if (boundQuery instanceof com.legend.compiler.spec.typed.TypedLambda lam) {
+                        frameNames.addAll(ownNames(lam));
+                    }
+                    TypedSpec frameQuery = framesAndHandlesAsTheirQueries(boundQuery);
                     if (StatementEffects.reaches(frameQuery, n -> frameQueryKind(n, systemClasses, ctx) != null
                             || readsAFrame.test(n), query.specs(), frameQueryMemo)) {
                         return false;
@@ -462,6 +477,18 @@ public enum BodyClass {
         TypedSpec last = body.get(body.size() - 1);
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT)
                 || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
+    }
+
+    /** The names {@code lam}, a frame's query, binds itself: its parameters (an executeLegendQuery's, bound from its
+     *  pairs) and its top-level lets -- the lets its chain's inliner records as the frame's query lets. */
+    private static Set<String> ownNames(com.legend.compiler.spec.typed.TypedLambda lam) {
+        Set<String> names = new HashSet<>(lam.parameters());
+        for (TypedSpec st : lam.body()) {
+            if (st instanceof TypedLet let) {
+                names.add(let.name());
+            }
+        }
+        return names;
     }
 
     /** A read of a frame's activities ({@code $r.activities...}: the run's SQL and comment). Admitted since M9c (the
@@ -756,12 +783,14 @@ public enum BodyClass {
     }
 
     /** The kind {@code n} is that keeps a FRAME's query off the program road, named, or null: the kinds the product's
-     *  lowering plans another way than the walk's ({@link #anotherWay}) but a temporal class read, whose eager run
-     *  the two lowerings spell alike (M9d: pinned byte-identical by {@code BodyRouterParityTest} on every in-process
-     *  database; the walk's exists-join form is the product's since D5). */
+     *  lowering plans another way than the walk's ({@link #anotherWay}) but a temporal class read and a graph fetch,
+     *  whose eager runs the two lowerings spell alike (M9d for a temporal read; M10c item 12 for a graph fetch and its
+     *  serialize -- the frame's one JSON value, the same statement on both roads -- pinned byte-identical by
+     *  {@code BodyRouterParityTest} on every in-process database, a tree's qualifier arguments bound on the product's
+     *  road since that item). */
     static @Nullable Kind frameQueryKind(TypedSpec n, Set<String> systemClasses, ModelContext ctx) {
         Kind kind = anotherWay(n, systemClasses, ctx);
-        return kind == Kind.TEMPORAL ? null : kind;
+        return kind == Kind.TEMPORAL || kind == Kind.GRAPH ? null : kind;
     }
 
     /** The classes the system metamodel's mapping binds: their extents are the system store's rows. */
