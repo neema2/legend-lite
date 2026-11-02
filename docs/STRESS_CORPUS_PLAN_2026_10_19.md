@@ -8,7 +8,8 @@ and was done on 2026-10-29, in six stages (see its record). Phase 7 started on 2
 record). Phase 6 started on 2026-10-30 and was done on 2026-10-31, in one stage (see its record). Phase 8 started and
 was done on 2026-10-31, in three stages (see its record). Phase 9 started and was done on 2026-10-31, in two stages (see
 its record). The plan-wide EMIT target was met on 2026-11-01 ([its record](#the-plan-wide-emit-target-2026-11-01)).
-This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
+Phase 0 was done on 2026-11-01, when the engine's verdict on Linux matched the one on Windows
+([its record](#phase-0-the-engine-verdict-and-an-engine-judged-measure-about-25-days)). This plan turns the gaps in the [stress corpus feature report](stress-corpus-feature-report-2026-09-29/README.md)
 (§10) into ten phases of work. Each phase lists the files it changes, how its expected results are computed, roughly
 how many services it adds, and the report numbers that say it is done. A session that starts a phase adds a line to
 `docs/IN_FLIGHT.md` first.
@@ -123,6 +124,10 @@ Taken by the user on 2026-10-21. Each entry states the question as it was put, t
   The corpus is for catching wrong answers, and a C library's last ulp isn't one. `exactmath` exists to make expected
   results platform-independent, and that works only when the engine's result is too. **Decided (2026-10-23): (a).**
   Done on `stress_test/corpus`: the twelve `cbrt` cells read perfect cubes, and their roots are whole numbers.
+  **Revised 2026-11-01, when the first Linux run measured it:** whole-number roots weren't enough. glibc's `cbrt`
+  misses 83 of the integer roots 2 to 200 (`cbrt(216.0)` is `6.000000000000001`), and seven of the cells failed on
+  Linux (F60, reopened). The user chose cubes of powers of two, whose roots glibc and the Windows C runtime both return
+  exactly, and the cells now read those (`2f3b002fd`).
 - **D7, how the oracle compares an absent value (raised 2026-10-23 by Phase 1).** Phase 1 asked for predicate
   trees "under three-valued logic", and the oracle followed SQL: a comparison with a NULL operand was UNKNOWN, and
   a filter kept only TRUE. Before writing a tree, Phase 1 probed `!`, `||`, `in` and `!=` over NULLs on the pinned
@@ -226,9 +231,32 @@ At the pin the report's tools give:
   semi-structured binding, binding, external format and multi-execution.
 - PCT: 321 function names, 64 of them used.
 
-**Not done.** `:run` hasn't been run on Linux. CI builds it in the `core` lane (`:tools_build_test`) and runs the
-runner's smoke test on every platform, but the full run is only measured on Windows. `engine_stress` was checked
-sharded on three services, not on the whole corpus.
+**The Linux verdict (2026-11-01): done.** `.github/workflows/engine-verdict.yml` (`bfeb61b6e`) runs `:run` by hand
+on GitHub-hosted runners. It splits the testables into 8 shards with `run.py --shard`, and `verdicts.py` merges them.
+On ubuntu-latest, at `2f3b002fd` (run 41364493432), the 8 shards took 26 minutes. Of 6,057 testables:
+
+| Verdict | Testables |
+|---|---|
+| PASS | 5,948 |
+| KNOWN-FAIL | 108 |
+| NOT RUN | 1 (`X1_ExternalEntityProjection`, F15's hang) |
+| unexpected | 0 |
+
+This is the Windows verdict testable by testable: the whole corpus run on the desk at the same tree has the same
+counts and the same fingerprint, `f6e70f085df7e57b` (`verdicts.py fingerprint`).
+
+The first Linux run (run 41322461475, at `79de7cb6a`) agreed with Windows except on 504 testables. Both causes were put
+to the user, and both are fixed in `2f3b002fd`:
+
+- **497 ERRORs**, every testable whose plan compiles to Java, came from how the runner was launched
+  (`docs/UPSTREAM_FINDINGS.md`, F94). legend-engine's Java compiler takes its class path from ClassGraph 4.8.25, which
+  drops the `../` entries that Bazel's Linux java stub writes. `run.py` now passes `--classpath_limit=0` everywhere but
+  Windows, so the stub writes a manifest jar of absolute paths.
+- **7 REGRESSIONs** (`CB_C0`, `C1`, `C2`, `C4`, `C12`, `C14`, `C15`) came from glibc's `cbrt` (F60, reopened). The
+  cells now read cubes of powers of two (D6, revised).
+
+The whole run is still measured only by `run.py`. `engine_stress`, the sharded `py_test` in `//gates:heavy`, takes the
+same slices, but it has been checked on three services only, not on the whole corpus.
 
 **Found on the way.** legend-engine's service test runner keeps every test's pooled DuckDB connection, and each later
 test's data setup gets slower: twelve services sharing `stress::RT` went from 2.4 s to 38 s, one after another
@@ -2042,7 +2070,7 @@ to gate 10's time and about 10 minutes to a full engine run.
 
 | Phase | Started | Landed | Services added | Quarantined on the engine | New lite failure buckets | Measures after |
 |---|---|---|---|---|---|---|
-| 0 | 2026-10-21 | — | 0 | none added; F27's entry removed (fixed upstream); F60's 3 unexpected settled by D6 (a) | none | EMIT 43 of 109 on the engine, 37 in lite; PCT 64 of 321 |
+| 0 | 2026-10-21 | 2026-11-01, four commits: the runner and its baseline (`b0f7e40f1`, 2026-10-23), D6 (a) (`4b8ac2073`, 2026-10-23), the GitHub workflow (`bfeb61b6e`) and the first Linux run's fixes (`2f3b002fd`) | 0 | none added; F27's entry removed (fixed upstream); F60's 3 unexpected settled by D6 (a), and its 7 on Linux by cubes of powers of two; F94 found by the first Linux run, and the runner is now launched so it does not arise | none | EMIT 43 of 109 on the engine, 37 in lite; PCT 64 of 321; at `2f3b002fd` the Linux verdict equals the Windows one (5,948 pass, 0 unexpected, of 6,057) |
 | 1 | 2026-10-23 | 2026-10-23, two commits (`63520dda4`, `4d6df8d6b`) | 306 | F61–F65 (27 services) added; F28's entry removed (withdrawn, D7) | parameterized queries (151 tests), StrictTime over a VARCHAR (6), a trailing space trimmed (20), `!` over an absent navigation (3), F64's shape (3) | parameter types 9 at `[1]`, `[0..1]` and `[*]`; literal types 8 of 12; enumeration literals 33; `or`/`in`/`!` 29/25/27; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 2 | 2026-10-27 | 2026-10-27, one commit (`2b7c66177`) | net +20: 547 in, 527 out, nearly all the deep variants re-rooted at classes with rows | none added; F58's two `DSLocal_` entries removed (they pass) | none | filters against a value 2,040 (2,023 on the engine); four-hop projections populated 1,553 of 1,553; four-level trees 397 of 397; empty 572 of 5,082, all declared, hollow 0; EMIT 43 of 109 on the engine, 37 in lite; PCT 66 of 321 |
 | 3 | 2026-10-28 | 2026-10-28, one commit (`0c801d662`; the trading model's leave-out, `b59c54f58`) | 90 | `ITN_NoLimitInRange` under F51 added; F66 and F67 found, each with a repro | none (Phase 1's parameter bucket takes 20 more tests) | DateTime literals 66 and milestoned queries at a time of day 72, on the engine; a processing-only class tested; all-versions-query covered; EMIT 45 of 109 on the engine, 39 in lite; PCT 66 of 321 |
