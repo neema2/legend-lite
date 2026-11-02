@@ -182,8 +182,19 @@ Part C's items come from `docs/DATACUBE_BI_GAP_ANALYSIS_2026_10_24.md` §4 (tier
        - The enumeration's value is now `mean`, the canonical word of R15, where it was `avg`.
        - A period's aggregate is a word whose canonical name is a value of `timeseries::Taken`, resolved through
          the library's own alias tags, so `avg(x)` under `SAMPLE BY` is `mean(x)`'s, as everywhere else.
-    7. A condition in a line's place, and a timed line's broadcast, written in the library.
+    7. A condition in a line's place, and a timed line's broadcast, written in the library. **Done 2026-11-02, by
+       the brief's other outcome: each recorded as what stays in Java, with its reason** (the one-tree plan's §6a,
+       now an explicit list of seven).
+       - The condition's flags are a per-point expression, which the guard allows.
+       - A word's broadcast (`TsWords.each`) cannot be a Pure `if`: its branches are typed by two different keys,
+         and the other ways cost a cast that does not hold or a join on every word's argument.
+       - The timed refusal fires only for a timed basket mixing a member of no instrument with members per
+         instrument. It had no test; now `TsIslandTest.aLineOfNoInstrumentAccruedBesideLinesPerInstrumentIsRefusedByName`
+         pins it, words and all.
+       - The guard is extended: `theTranslatorBranchesOnALinesKindOnlyWhereNamed` lists every `if` on a line's kind
+         (three lines: the instruments gathered, two refusals and the broadcast), so a new one fails the build.
     8. A Float line, and one path with and without FILL. These are the riskiest: every word's signature changes.
+       **Waits on the user's word**: it is the largest move, and no rule the census found depends on it.
   - **Three decisions, ruled 2026-11-02** (the user: "Okay agree"). **Built.**
     - **`latest` follows the spec's R9:** the last date of every source the query reads, after its `WHERE`, so
       there is one date for the query whichever items it answers. It is computed by the library's
@@ -524,7 +535,7 @@ Update this table in the same commit as the work.
 
 | Item | State | Last commit |
 |---|---|---|
-| A1 the last rules out of Java | in progress: moves 1 to 6 done, and the three decisions of 2026-11-02 built (move 5, the 12-column cap, by the array `read`). Move 7 comes next | 7b23e09f, c841d939, 69796cc5, 5dc88c85 |
+| A1 the last rules out of Java | moves 1 to 7 done, and the three decisions of 2026-11-02 built (move 5, the 12-column cap, by the array `read`; move 7 by the §6a list of what stays in Java, with a guard). Move 8 waits on the user's word | 7b23e09f, c841d939, 69796cc5, 5dc88c85, 911c08fa |
 | A2 review and gate | waiting on A1. #86 was folded into #81 on 2026-11-02, with main (#85) merged. #81 waits on #83 before it lands, and the v1 work is stacked on it with no PR. #86's last CI was green on every OS | af758d34 |
 | A3 one reader | | |
 | A4 the words' remainder | waiting on R1, R7, R9 | |

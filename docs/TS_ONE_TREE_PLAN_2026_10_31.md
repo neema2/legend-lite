@@ -343,6 +343,30 @@ dashboard, tile kinds).
   the baskets, the rates, under SAMPLE BY 1d, 1w, 1mo, and every third day, where only SAMPLE BY's periods a year give
   a value) compared before and after.
 
+- **What stays in Java** (the v1 program's A1, closed 2026-11-02), each with its reason. Everything else the
+  translator holds is a library call or bookkeeping (`TsTranslatorGuardrailTest`).
+  1. **Syntax**: the parser's.
+  2. **A fact about a source or a column**: name to source, column to line, and a line's kind (per instrument or
+     not), which reaches the library as data (`timeseries::Keyed`, the meeting functions).
+  3. **The R7 fold**: an item read from a later item's line that was built from it is one line. It depends on which
+     relation expression is which, and the library sees only values; without it a line with several rows on a date,
+     met with itself, would multiply its rows.
+  4. **R10's naming of a struct's fields**, `<item>_<field>`: Pure cannot build a column name from strings; the field
+     names come from the word's return type.
+  5. **A condition in a line's place is its flags** (1 where it holds, 0 where it does not, none where it is none;
+     `TsFunctions.arg`): a per-point expression in the per-point SQL, as `x + 1` is, which the guard allows. The
+     library's words take lines of numbers; the flags are how a condition is one.
+  6. **A word's broadcast** (`TsWords.each`, which calls `helpers::each`): a line of no instrument given to a word
+     with lines per instrument. Java picks it by the line's kind because Pure's `if` types both branches, and the two
+     keys differ (a line of no instrument's String, the instruments' own type); no overload can tell them apart when
+     the instruments are Strings, and the other ways cost a cast that does not hold or a join on every word's
+     argument. `TsTranslatorGuardrailTest.theTranslatorBranchesOnALinesKindOnlyWhereNamed` lists every branch on a
+     line's kind, so a new one fails the build.
+  7. **The refusal of a line of no instrument accrued beside lines per instrument** (`TsWords.timed`: a timed
+     basket's member), refused by name with its fix. Writing it would be `helpers::each`'s timed twin, a second
+     branch on a line's kind, for a case no page uses. Pinned by
+     `TsIslandTest.aLineOfNoInstrumentAccruedBesideLinesPerInstrumentIsRefusedByName`.
+
 - **Step 5** (Show #TS, D12): built 2026-11-01. Core prints a query of `#TS` over grids as one statement
   (`protocol/ts/TsShow`, `TsPrinter`; the route `/api/lite/v1/grammar/jsonToTs/lambda`): each grid a flat source named
   by WITH -- a table `(SELECT * FROM db::Store.T)`, a class's paths `(SELECT instrument.ticker AS sym, ... FROM

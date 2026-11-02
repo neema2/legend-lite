@@ -723,6 +723,16 @@ class TsIslandTest {
         }
     }
 
+    @Test
+    void aLineOfNoInstrumentAccruedBesideLinesPerInstrumentIsRefusedByName() throws Exception {
+        // a word that accrues over time (a basket's members, each with its number in time) does not take a line of no
+        // instrument as every instrument's (TsWords.timed, R2; docs/TS_ONE_TREE_PLAN_2026_10_31.md §6a, what stays in
+        // Java): the refusal names the fix
+        String e = refused("SELECT basket(CLOSE['AAA'], 0.5, CLOSE, 0.5) AS b FROM PRICES ON DAY BY SYMBOL", true);
+        assertTrue(e.contains("a line of no instrument accrued with lines per instrument: pick one line with a"
+                + " subscript (R2)"), e);
+    }
+
     private static double sampleStd(double[] v, int from, int to) {
         double mean = 0;
         for (int i = from; i <= to; i++) {
