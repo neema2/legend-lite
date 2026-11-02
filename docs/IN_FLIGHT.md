@@ -3046,10 +3046,14 @@ double, `JavaEvalLedgerTest`). **M10c in progress 2026-11-02**: item 1a built (`
 item 5 built (`AssertVerdicts.java` `quantifiedForm`, `quantifiedShape`, `planQuantified`, `composite`, the forAll arm;
 `HostJudgment.java` `AllRows`, `Unrolled`; `HostJudge.java` `planAllRows`, `allRowsOf`, `unrolledOf`, `quantifiedRows`'s
 polarity; the witness `quantifiedPrograms`; the two database-host-compared registers); item 7 built
-(`testplan/BodyClass.java` `bindsSystemElementsOnly`; the witness `consumedElementReferencePrograms`; the design note
-`docs/test-is-product-homework/MIXED_SYSTEM_USER_BODIES_DESIGN.md`); next the tails (item 6), item 1b, M8c (R24), then M10d,
-Z, in this session; M8c awaits the user's ruling (the session's answer to the user's two questions posted 2026-11-02,
-§9 "M8c").
+(`testplan/BodyClass.java`'s element-let rule; the witness `consumedElementReferencePrograms`; the design note
+`docs/test-is-product-homework/MIXED_SYSTEM_USER_BODIES_DESIGN.md`, whose §6 read the 204 stayed system-read bodies by
+what they send: one genuine mixed body); item 7b built (`testplan/ElementConsumption.java`, replacing the two element-let
+predicates; `NativeFn.Effect.readsArgumentsAtPlanning`; `ElementConsumptionTest`; the chain bodies in
+`consumedElementReferencePrograms`). The user's rulings of 2026-11-02: burn to zero before the deletion (the walk stays
+the reference), no per-test system seeding, the one genuine mixed body last. Next, in this order: the effect helpers (the
+48 `setupTestData` bodies), the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes,
+the tails (item 6, item 1b), the database pass's extra bodies, the last body, then M10d, Z, in this session.
   **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
   §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
   `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,

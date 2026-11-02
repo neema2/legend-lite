@@ -208,6 +208,38 @@ The planners' refusals, by site:
    would have passed as no read (`BodyClass.elementNavigation` added, the witness above); the first draft's witnesses were
    all frame-shaped while the 136 bodies are `.values`-shaped (the assert program's site: witnessed); the kinds census
    tagged the consumed let the class rules exclude (`BodyKinds` skips it as a handle's let).
+7b. **Consumption through a chain and through a helper (the design note's §6.4 rules 1-3; written before the code,
+   2026-11-02). BUILT 2026-11-02: DuckDB host pass moved 2,904 -> 2,929, database 2,875 -> 2,898; H2 2,929 / 2,789;
+   outcomes identical on every pass, no register changed; stayed 254 -> 231 on the DuckDB host pass; `system=121` on
+   both DuckDB passes before and after (no body flipped to the system database).** The run-time census (`MIXED_BODIES_RUNTIME_CENSUS_2026_11_02.tsv`) read 146 of the 204 stayed bodies
+   carrying a system-read tag sending NOTHING to the system store: the element is read in source form on the walk and
+   the class rule's consumption test is too short-sighted to say so. Three shapes, one analysis
+   (`testplan/ElementConsumption`, replacing `bindsSystemElementsOnly` + `bindingConsumed`): a let is an ELEMENT-ONLY
+   let when its value mentions a tracked element reference or the variable of an element-only let before it, and
+   evaluates no other read (no navigation of an element, no system class's `all()`, no system table, no system function,
+   no store write); a binding is CONSUMED when no later statement reads its variable as a VALUE -- a read being an
+   occurrence outside a lambda literal, outside the arguments of a planning-time native (a handle's, a Java routine's,
+   and now the three planning-time EFFECT natives `connectionByElement`, `setUpDataSQLs`, `setUpDataSQLsV2`, which read
+   the runtime and the model at planning: `NativeFn.Effect.readsArgumentsAtPlanning`), outside an effect's orchestration
+   arguments (a connection, a store, a table: a handle's or a tracked element's type), outside a `from()`'s mapping and
+   runtime, and outside the argument position of a user call whose PARAMETER is itself consumed in the callee's body
+   (the same analysis over the callee, the parameter seeded as carried; the last statement's value is the caller's, so a
+   read there is a read; a cycle or an un-typeable callee scores not consumed); and a read inside the value of a CARRIER
+   let -- an element-only or an orchestration-handle let whose own binding is consumed -- is no read (rule 1: the walk
+   splices the whole chain into the orchestration argument it ends in). The three sites and the kinds census take the
+   one predicate. Expected: the runtime-copy chains (F1, 23) move; the `setupTestData` bodies (F2, 48) have their lets
+   consumed but stay on their EFFECT HELPER statement (a user call wrapping effects, which no class admits yet: the next
+   item, measured first); `from`'s arguments were already read as the context by the frame scan, so F6's 13 are
+   re-measured, not promised. Witnesses: a two-let copy chain and a four-let navigation chain on the frame model
+   (`.values` shape, an assert program; parity under both judges, zero system statements), the chain's end read as a
+   value (system-routed as before), and the analysis's own unit witnesses in `ElementConsumptionTest` (a helper whose
+   parameter is consumed through `connectionByElement` and `executeInDb`'s connection; a helper that navigates its
+   parameter: not consumed). Not built: the replaceTables navigation (F4, 6 bodies: one reader's special case). The
+   independent audit (COMMIT WITH FIXES, folded; GATES item 24 has the five findings): the first draft's "mentions a
+   carried variable" was wider than the value-read walk (a let handing the runtime to a planning-time native flipped a
+   store-free body to system-routed: fixed, witnessed); the seed forms' data argument is a value, not planning-time
+   (fixed, witnessed); the unpinned branches witnessed with the corpus's `setupTestData` whole and an effect's element
+   argument; the inherited lambda hole closed (a mapped lambda's navigation is a read); nits.
 8. **Not this step:** M10b's S1 bodies (an engine-text assert in a system-routed body: 9 -- M10d, where the walk's two
    sessions go), the class-rule residue (M10a (f), the effect and frame mixes: M10d).
 

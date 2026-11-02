@@ -1633,7 +1633,12 @@ class JavaEvalLedgerTest {
                             // the kind census of a body the router leaves on the walk (M9, 2026-11-01): the kinds it
                             // holds, named in the body-class rule's own vocabulary and joined for the lanes'
                             // histogram; a measurement carrier like ProgramFacts.shape, deciding nothing
-                            "BodyKinds.java"),
+                            "BodyKinds.java",
+                            // the consumption of a body's element bindings (M10c item 7b, 2026-11-02): which lets bind
+                            // store elements alone and are read in source form only -- through a chain of lets, through
+                            // a helper's parameter -- a static reading of the typed tree for the body-class rule and the
+                            // kinds census; it evaluates nothing and sends nothing
+                            "ElementConsumption.java"),
                     "core/src/main/java/com/legend/testdatagen",
                     // TestDataGenerationNatives (TDG lane S1): the ORCHESTRATION-time fold
                     // of the checker's census CARRIER — computes the census

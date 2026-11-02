@@ -16789,6 +16789,56 @@ measured on both corpora with the registers and a parity witness; the chain at M
    the element's navigation consumed inside the frame's lambda no class (the audit's MEDIUM-2); a real metamodel read
    beside the frame stays on the walk), root, architecture, judge,
    testplan, `//core:census` (no pin moved: `BodyClass` carries none); `//spec:corpus_duckdb` and `//spec:corpus_h2` uncached.
+24. **Item 7b -- consumption through a chain of lets and through a helper's parameter (the design note's §6.4 rules 1-3;
+   the user, 2026-11-02: burn to zero before the deletion, the rules "not a hack" where they spell the walk's own
+   behaviour):** the run-time census (`docs/test-is-product-homework/MIXED_BODIES_RUNTIME_CENSUS_2026_11_02.tsv`: the
+   204 stayed bodies tagged with a system read run with every statement dumped) read 146 sending NOTHING to the system
+   store, 56 the test-data generator's one-row table lookup, 1 genuine mixed body, 1 the seed alone. One analysis,
+   `testplan/ElementConsumption`, replaces `bindsSystemElementsOnly` + `bindingConsumed`: a let is ELEMENT-ONLY when its
+   value mentions a tracked element reference or the variable of an element-only let before it and evaluates no other
+   read; a binding is CONSUMED when no later statement reads its variable as a VALUE -- outside a lambda literal, a
+   planning-time native's arguments (a handle's, a Java routine's, and the three planning-time effects
+   `connectionByElement`, `setUpDataSQLs`, `setUpDataSQLsV2`: `NativeFn.Effect.readsArgumentsAtPlanning`, the model and the
+   runtime value read at planning), an effect's orchestration arguments (a handle's or a tracked element's type), a
+   `from()`'s mapping and runtime, and a user call's argument whose PARAMETER the callee consumes (the same analysis over
+   the callee's body, the parameter seeded; the last statement's value is the caller's; a cycle scores not consumed) --
+   and a read inside the value of a CARRIER let (element-only or an orchestration handle, itself consumed) is no read.
+   The three class-rule sites and the kinds census take the one predicate; `BodyClass.readsStore` leaves the planning-time
+   effects' arguments and a `from()`'s context aside. Not built: the replaceTables navigation (6 bodies: one reader's
+   special case) and a helper's RESULT carrying its parameter into another helper's argument (no corpus body; pinned as
+   the boundary). The independent audit (COMMIT WITH FIXES, folded): HIGH-1 -- the first draft's "mentions a carried
+   variable" walked a planning-time native's arguments, so a let that only HANDS the runtime to `executionPlan(...)` or
+   `toSQLString(...)` counted as element-only and, read as a value, flipped a store-free body to SYSTEM-ROUTED (the system
+   database opened and seeded for nothing; an engine-text assert in it demoted to the walk) -- "carries" is now the
+   value-read walk itself (`valueRead` per carried name), with the `.executionPlan(..., $rt, ...)` body witnessed not
+   system-routed on the frame model and in the unit test; MEDIUM-2 -- the two seed forms' DATA argument is a value the
+   walk evaluates when it is not a literal (`SeedSqlForms` through `evalStringArg`), so only their store and config
+   arguments are planning-time (`NativeFn.Effect.argumentReadAtPlanning`; a navigation inside the data is a read,
+   witnessed); MEDIUM-3 -- the unpinned branches witnessed (the corpus's `setupTestData` whole: `connectionByElement`,
+   `setUpDataSQLs`, a `map` over `executeInDb`; an effect's element argument as its target, `dropAndCreateTableInDb`);
+   LOW-4 -- the inherited lambda hole closed: a lambda's body is walked by the value-read and by the "no other read"
+   half (`readsStore(..., throughLambdas)`), so `[1]->map(i | $db.schemas.tables.name)` is a read (witnessed), while a
+   lambda handed to a planning-time native sits inside its excluded arguments; LOW-5 -- the unreachable in-progress
+   marker in `consumed` deleted, the parameter table's cycle pessimism documented, the last binding of a name decides
+   (as `Lets.bound` reads it), the javadoc counts corrected.
+25. **Movement (item 7b):** DuckDB host pass `moved=2904 -> 2,929` (2471 / 108, unchanged), database `2875 -> 2,898`
+   (2473 / 108, unchanged); H2 host `2904 -> 2,929` (2289 / 295), database `2781 -> 2,789` (2233 / 353); 18 of 18 lane
+   tests green, no register changed (the first draft, before the audit's folds, measured 2,925 / 2,894 and 2,925 / 2,785:
+   the lambda hole closed and the carrier rule narrowed moved four more). The statement-origin census the audit asked
+   for: `system=121` on both DuckDB passes before and after the folds (120 on H2), the graph's one seed plus the real
+   reads -- no body flipped to the system database. Stayed on the DuckDB host pass 254 -> 231: the 18 plain `assert`
+   bodies (the runtime copies, F1) and the `assert,let-execute,system-read` one moved; the spurious tag left 4
+   `host-unplanned-assert` and 6 `inline-seeds` bodies, which stay for their own shapes. The `setupTestData` bodies (F2, 48) have their lets consumed
+   and stay on the EFFECT HELPER statement (a user call wrapping `setUpDataSQLsV2` and a `map` over `executeInDb`, the
+   test door's refused `EffectfulMap`): the next item.
+26. **The checks (item 7b):** `ElementConsumptionTest` (testplan: the chain consumed, the chain read as a value not, the
+   helper's parameter consumed through `connectionByElement` and `executeInDb`'s connection, a navigating helper and a
+   navigation in the body not, the result-carrying boundary), `BodyRouterParityTest.consumedElementReferencePrograms`
+   (two chain bodies in the corpus's `.values` shape: assert programs, parity under both judges, zero system statements;
+   the chain's end read as a value system-routed as before; a runtime handed to `executionPlan` not system-routed),
+   root, architecture, judge, driver, testplan, `//core:census`
+   (`ElementConsumption` registered in the testplan funnel register with its tenet argument, 2026-11-02);
+   `//spec:corpus_duckdb` and `//spec:corpus_h2`.
 
 ## 2026-11-02 — The test-is-the-product plan's M10b: the engine-text asserts, the test in the plan on every lane
 

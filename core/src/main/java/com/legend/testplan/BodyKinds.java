@@ -56,6 +56,7 @@ public final class BodyKinds {
         Map<String, Boolean> frames = new HashMap<>();
         java.util.function.Predicate<String> relationFrame = n -> Boolean.TRUE.equals(frames.get(n));
         List<TypedSpec> lets = new java.util.ArrayList<>();
+        ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             boolean last = i == body.size() - 1;
@@ -110,10 +111,9 @@ public final class BodyKinds {
                     continue;
                 } else if (kind == LetPlanner.Kind.VALUE && kinds.isEmpty()
                         && (com.legend.planner.BodyPlanner.handleType(let.value(), ctx) != null
-                        || BodyClass.bindsSystemElementsOnly(statement, i, body, systemClasses, ctx, query.specs())
-                        && BodyClass.bindingConsumed(let, i, body, query.specs()))) {
-                    // a handle's let, or a let binding system elements the body never reads as a value (M10c item 7):
-                    // the program splices it, no read -- the class rules' own exclusion, so the tags name none
+                        || consumption.consumedElementLet(i))) {
+                    // a handle's let, or a let binding system elements the body never reads as a value (M10c items 7,
+                    // 7b): the program splices it, no read -- the class rules' own exclusion, so the tags name none
                     lets.add(let);
                     continue;
                 } else {

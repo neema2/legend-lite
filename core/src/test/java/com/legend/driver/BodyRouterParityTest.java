@@ -923,7 +923,18 @@ class BodyRouterParityTest {
                         + " $runtime, []).values; assertEquals(['Acme', 'Bolt'], $result.rows.values);}",
                 // the mapping as a let too, as the corpus spells it
                 "{| let mapping = x::M; let runtime = x::testRuntime(); let result = meta::pure::router::execute(" + query
-                        + ", $mapping, $runtime, []).values; assertEquals(2, $result.rows->size());}");
+                        + ", $mapping, $runtime, []).values; assertEquals(2, $result.rows->size());}",
+                // item 7b: the runtime COPIED through a chain of lets (the XStore tests' idiom): a let read only by a
+                // consumed let is consumed
+                "{| let r0 = x::testRuntime(); let r = ^$r0(connectionStores = $r0.connectionStores);"
+                        + " let result = meta::pure::router::execute(" + query + ", x::M, $r, []).values;"
+                        + " assertEquals(['Acme', 'Bolt'], $result.rows.values);}",
+                // the post-processor tests' idiom: the connection navigated out of the runtime and copied back in
+                "{| let r0 = x::testRuntime(); let cs = $r0.connectionStores->at(0); let c = $cs.connection->cast("
+                        + "@meta::external::store::relational::runtime::TestDatabaseConnection);"
+                        + " let r = ^$r0(connectionStores = ^$cs(connection = $c));"
+                        + " let result = meta::pure::router::execute(" + query + ", x::M, $r, []).values;"
+                        + " assertEquals(['Acme', 'Bolt'], $result.rows.values);}");
         // the frame shape (a frame program)
         List<String> frameShapes = List.of(
                 "{| let runtime = x::testRuntime(); let r = meta::pure::router::execute(" + query + ", x::M, $runtime,"
@@ -944,6 +955,16 @@ class BodyRouterParityTest {
         // no user read at all: the element references alone read nothing, so the let routes the body nowhere
         String none = "{| let runtime = x::testRuntime(); assertEquals(true, true);}";
         assertFalse(BodyClass.systemRouted(typed(ctx, none), "x::RT"), "an element reference routes nothing: " + none);
+        // the chain's end read as a VALUE: the chain is evaluated, so the element it carries is a read (item 7b)
+        String valued = "{| let r0 = x::testRuntime(); let r = ^$r0(connectionStores = $r0.connectionStores);"
+                + " assertEquals(1, $r.connectionStores->size());}";
+        assertTrue(BodyClass.systemRouted(typed(ctx, valued), "x::RT"), "a chain read as a value: " + valued);
+        // item 7b's audit (HIGH-1): a let that only HANDS the runtime to a planning-time native carries nothing -- the
+        // plan read as a value is no read of the store, and the body is not system-routed by it
+        String handed = "{| let rt = x::testRuntime(); let p = meta::pure::executionPlan::executionPlan(" + query
+                + ", x::M, $rt, []); assertNotEmpty($p.rootExecutionNode.executionNodes);}";
+        assertFalse(BodyClass.systemRouted(typed(ctx, handed), "x::RT"), "a handed element routes nothing: " + handed);
+        // (the body stays on the walk for its plan-object assert, the design note's F5 -- not for a system read)
         // the element's navigation (a read of its row) consumed inside the frame's lambda: a system read beside the
         // user read -- two targets, no class (BodyClass.elementNavigation)
         String navigation = "{| let t = x::DB.schemas.tables.name; let r = meta::pure::router::execute(|x::Firm.all()"

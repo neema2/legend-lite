@@ -187,42 +187,22 @@ public enum BodyClass {
         Map<FunctionId, Boolean> userMemo = new HashMap<>();
         boolean system = false;
         List<TypedSpec> body = query.body();
+        ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             if (readsStore(statement, n -> userStoreRead(n, systemClasses, ctx), query.specs(), userMemo)) {
                 return false;
             }
-            if (bindsSystemElementsOnly(statement, i, body, systemClasses, ctx, query.specs())) {
-                system |= !bindingConsumed((TypedLet) statement, i, body, query.specs());
+            if (consumption.elementOnlyLet(i)) {
+                // a let binding system elements alone (M10b; through helpers, constructions and chains: items 7, 7b):
+                // a read of the store only where the body reads its variable as a value
+                system |= !consumption.consumed(i);
                 continue;
             }
             system |= readsStore(statement, n -> anotherWay(n, systemClasses, ctx) == Kind.SYSTEM_READ, query.specs(),
                     systemMemo);
         }
         return system;
-    }
-
-    /** Whether {@code statement}, at {@code i} in {@code body}, is a let before the last statement whose value's reads of
-     *  the system store are ELEMENT REFERENCES alone ({@link #systemElementReference}): the element itself
-     *  ({@code let m = my::Mapping}, M10b) or an element named inside a construction the value reaches through the
-     *  user functions it calls ({@code let runtime = testRuntime()}, whose body builds
-     *  {@code ^Runtime(connectionStores = ^ConnectionStore(element = db, ...))}; an inline {@code ^Runtime(...)}
-     *  literal likewise) -- and no other read of the store (no system class's {@code all()}, no system table, no
-     *  system function, no navigation of an element's properties). Such a binding, when {@link #bindingConsumed}, is
-     *  consumed at planning (an execute's orchestration argument is read in source form) and reads nothing on either
-     *  road (the test-is-the-product plan's M10c item 7; measured: a graphFetch body of this shape sends no statement
-     *  to the system session). */
-    static boolean bindsSystemElementsOnly(TypedSpec statement, int i, List<TypedSpec> body, Set<String> systemClasses,
-            ModelContext ctx, SpecCompiler specs) {
-        if (!(statement instanceof TypedLet let) || i >= body.size() - 1) {
-            return false;
-        }
-        Map<FunctionId, Boolean> refs = new HashMap<>();
-        Map<FunctionId, Boolean> others = new HashMap<>();
-        return readsStore(let.value(), n -> systemElementReference(n, systemClasses, ctx), specs, refs)
-                && !readsStore(let.value(), n -> elementNavigation(n, systemClasses)
-                        || sideKind(n, systemClasses, ctx) != null && !systemElementReference(n, systemClasses, ctx),
-                        specs, others);
     }
 
     /** A property read over a tracked system element ({@code x::DB.schemas}, {@code $db.schemas.tables.name} inside a
@@ -233,43 +213,53 @@ public enum BodyClass {
                 && systemClasses.contains(ct.fqn());
     }
 
-    /**
-     * Whether the element {@code let} binds is CONSUMED (M10b): no later statement reads the variable as a value --
-     * {@code $m.name}, {@code $m} handed to a helper -- outside a lambda literal and outside a planning-time native's
-     * arguments ({@link #readsStore}'s two exclusions: a mapping handed to {@code toSQLString} or
-     * {@code executionPlan} is consumed when the text or the plan is made, never read as a row). A consumed binding
-     * reads no store: the body is not system-routed by it, and the class rules see no system read in it.
-     */
-    static boolean bindingConsumed(TypedLet let, int i, List<TypedSpec> body, SpecCompiler specs) {
-        for (int j = i + 1; j < body.size(); j++) {
-            if (readsStore(body.get(j), n -> n instanceof TypedVariable v && let.name().equals(v.name()), specs,
-                    new HashMap<>())) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     /**
      * Whether {@code n} reaches a node {@code read} names (a store's read) through the user functions it calls
-     * ({@code StatementEffects.reaches}' walk, one memo per callee), with two places left aside: a lambda literal's
+     * ({@code StatementEffects.reaches}' walk, one memo per callee), with three places left aside: a lambda literal's
      * body (a lambda is a value; the native that runs one against a store -- an execute, a handle, a generator -- is
-     * itself the read {@link #userStoreRead} names) and the arguments of a planning-time native (a handle's or a Java
-     * routine's, {@code NativeFn.Handle}, {@code NativeFn.JavaRoutine}: a mapping or a runtime handed to
-     * {@code executionPlan(...)} or {@code toSQLString(...)} is consumed when the plan or the text is made, never read
-     * as a row of the system store).
+     * itself the read {@link #userStoreRead} names) and the arguments of a planning-time native (a handle's, a Java
+     * routine's, a planning-time effect's: {@code NativeFn.Handle}, {@code NativeFn.JavaRoutine},
+     * {@code NativeFn.Effect.readsArgumentsAtPlanning}: a mapping or a runtime handed to {@code executionPlan(...)},
+     * {@code toSQLString(...)} or {@code connectionByElement(...)} is consumed when the plan, the text or the target is
+     * made, never read as a row of the system store); a {@code from()}'s mapping and runtime are its context, read at
+     * planning, so the walk reads its source alone (as {@link #framesAndHandlesAsTheirQueries} does).
      */
     static boolean readsStore(TypedSpec n, java.util.function.Predicate<TypedSpec> read, SpecCompiler specs,
             Map<FunctionId, Boolean> memo) {
-        if (n instanceof TypedLambda) {
+        return readsStore(n, read, specs, memo, false);
+    }
+
+    /** {@link #readsStore(TypedSpec, java.util.function.Predicate, SpecCompiler, Map)}; {@code throughLambdas}: a lambda
+     *  literal's body walked too (the element-consumption analysis's "no other read" half, item 7b's audit: a lambda a
+     *  collection native RUNS evaluates where the let is spliced). */
+    static boolean readsStore(TypedSpec n, java.util.function.Predicate<TypedSpec> read, SpecCompiler specs,
+            Map<FunctionId, Boolean> memo, boolean throughLambdas) {
+        if (n instanceof TypedLambda && !throughLambdas) {
             return false;
         }
         if (read.test(n)) {
             return true;
         }
-        if (n instanceof TypedNativeCall call && (NativeFn.Handle.of(call.callee().id()).isPresent()
-                || NativeFn.JavaRoutine.of(call.callee().id()).isPresent())) {
-            return false;
+        if (n instanceof TypedNativeCall call) {
+            FunctionId id = call.callee().id();
+            if (NativeFn.Handle.of(id).isPresent() || NativeFn.JavaRoutine.of(id).isPresent()) {
+                return false;
+            }
+            if (NativeFn.Effect.readsArgumentsAtPlanning(id)) {
+                // the seed forms' data argument is a value; the store, the config and connectionByElement's arguments
+                // are read at planning
+                for (int k = 0; k < call.args().size(); k++) {
+                    if (!NativeFn.Effect.argumentReadAtPlanning(id, k)
+                            && readsStore(call.args().get(k), read, specs, memo, throughLambdas)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+        if (n instanceof TypedFrom from) {
+            return readsStore(from.source(), read, specs, memo, throughLambdas);
         }
         if (n instanceof TypedUserCall uc) {
             FunctionId key = uc.callee().id();
@@ -279,7 +269,7 @@ public enum BodyClass {
                 boolean reaches = false;
                 try {
                     for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
-                        if (readsStore(stmt, read, specs, memo)) {
+                        if (readsStore(stmt, read, specs, memo, throughLambdas)) {
                             reaches = true;
                             break;
                         }
@@ -295,7 +285,7 @@ public enum BodyClass {
             }
         }
         for (TypedSpec c : n.children()) {
-            if (readsStore(c, read, specs, memo)) {
+            if (readsStore(c, read, specs, memo, throughLambdas)) {
                 return true;
             }
         }
@@ -355,6 +345,7 @@ public enum BodyClass {
         boolean anAssert = false;
         // a frame bound by a let, or an execute(...) read where it stands (M9b): what makes the body a frame program
         boolean aFrame = false;
+        ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
@@ -408,10 +399,10 @@ public enum BodyClass {
                     lets.add(let);
                     continue;
                 }
-                // a let binding a system element the body never reads as a value: a value let the program splices,
-                // no system read (M10b, as the assert program's rule)
-                boolean consumedBinding = bindsSystemElementsOnly(statement, i, body, systemClasses, ctx, query.specs())
-                        && bindingConsumed(let, i, body, query.specs());
+                // a let binding system elements the body never reads as a value: a value let the program splices,
+                // no system read (M10b, as the assert program's rule; through helpers, constructions and chains: items
+                // 7, 7b)
+                boolean consumedBinding = consumption.consumedElementLet(i);
                 if (kind != LetPlanner.Kind.VALUE || !kinds.isEmpty()
                         || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                                 n -> sideKind(n, systemClasses, ctx) != null, query.specs(), sideKindMemo)) {
@@ -514,15 +505,16 @@ public enum BodyClass {
         Map<FunctionId, Boolean> effectMemo = new HashMap<>();
         List<TypedSpec> body = query.body();
         boolean anAssert = false;
+        ElementConsumption consumption = new ElementConsumption(body, systemClasses, ctx, query.specs());
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
             boolean assertRoot = kinds.equals(EnumSet.of(QueryDoor.TestOnly.ASSERT))
                     && !(statement instanceof TypedLet);
-            // a let binding a system element the body never reads as a value (consumed by toSQLString, by
-            // executionPlan): a value let the program splices, no system read (M10b; the same test routes the body)
-            boolean consumedBinding = bindsSystemElementsOnly(statement, i, body, systemClasses, ctx, query.specs())
-                    && bindingConsumed((TypedLet) statement, i, body, query.specs());
+            // a let binding system elements the body never reads as a value (consumed by toSQLString, by
+            // executionPlan, by an execute's runtime argument): a value let the program splices, no system read (M10b;
+            // the same test routes the body; through helpers, constructions and chains: items 7, 7b)
+            boolean consumedBinding = consumption.consumedElementLet(i);
             if (!assertRoot && !kinds.isEmpty() || StatementEffects.containsTdgGenerator(statement)
                     || !consumedBinding && StatementEffects.reaches(framesAndHandlesAsTheirQueries(statement),
                             n -> sideKind(n, systemClasses, ctx, systemRouted) != null, query.specs(), memo)) {
