@@ -21,8 +21,14 @@ public final class JsonRowsWriter implements ResultSink {
 
     private final Writer out;
     private final ExecutionPlan.TdsResult.Shape shape;
-    private List<ExecutionPlan.Column> columns = List.of();
+    /** The stream's columns, each with its member name as written (made once with the columns: the payoff
+     *  measurement, 2026-11-01, found the name escaped again for every cell). */
+    private List<Named> columns = List.of();
     private boolean first = true;
+
+    /** A column and its member name as written, its quotes and colon included. */
+    private record Named(ExecutionPlan.Column column, String key) {
+    }
 
     public JsonRowsWriter(Writer out, ExecutionPlan.TdsResult.Shape shape) {
         this.out = out;
@@ -31,13 +37,20 @@ public final class JsonRowsWriter implements ResultSink {
 
     @Override
     public void columns(List<ExecutionPlan.Column> columns) throws IOException {
-        this.columns = List.copyOf(columns);
+        List<Named> named = new java.util.ArrayList<>(columns.size());
+        for (ExecutionPlan.Column c : columns) {
+            named.add(new Named(c, '"' + Json.escape(CellText.presentedName(c.name())) + "\":"));
+        }
+        this.columns = List.copyOf(named);
         out.write('[');
     }
 
     @Override
     public void batch(Batch batch) throws IOException {
         StringBuilder b = new StringBuilder();
+        // each cell's token written into the batch's text as it is made (a compact writer at the root writes its
+        // values back to back, the bytes of Json.toCompact for each), not a text of its own per cell
+        Json.Writer tokens = Json.compactWriter(b);
         for (int r = 0; r < batch.size(); r++) {
             if (!first) {
                 b.append(',');
@@ -54,9 +67,9 @@ public final class JsonRowsWriter implements ResultSink {
             }
             b.append('{');
             for (int i = 0; i < columns.size(); i++) {
-                ExecutionPlan.Column c = columns.get(i);
-                b.append(i == 0 ? "" : ",").append('"').append(Json.escape(CellText.presentedName(c.name())))
-                        .append("\":").append(Json.toCompact(CellText.pureJson(batch.get(r, i), c)));
+                Named c = columns.get(i);
+                b.append(i == 0 ? "" : ",").append(c.key());
+                CellText.writePureJson(tokens, batch.get(r, i), c.column());
             }
             b.append('}');
         }

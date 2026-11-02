@@ -73,12 +73,15 @@ jobs:
   macos:
     # macos-14 and later are arm64. Pinned rather than -latest so a runner
     # image flip is a deliberate commit, like the upstream pins.
+    # macos-14 -> macos-15 (2026-11-02, PR #85, the user's go): GitHub retires the macos-14 image on 2026-11-02 after
+    # brownouts and cut capacity; every macOS job queued with no runner and was cancelled from 2026-11-01. macos-15 is
+    # arm64 too, the architecture the rosters and goldens were minted on.
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'macos' }}
     uses: ./.github/workflows/gates-run.yml
     # the repository's secrets reach the called workflow (BUILDBUDDY_API_KEY, the remote cache: L1e)
     secrets: inherit
     with:
-      runs-on: macos-14
+      runs-on: macos-15
       platform: macos
       linux-only-tests: ${{ inputs.linux_only_tests || 'ci-policy' }}
       # 3 vCPU / 7 GB TOTAL: one test JVM at a time

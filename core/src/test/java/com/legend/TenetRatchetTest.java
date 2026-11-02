@@ -79,7 +79,11 @@ class TenetRatchetTest {
     // beside Executor's nine, which step 11 deletes with the legacy executor; the number then goes down)
     // 20 -> 21 (2026-10-22, main's merge): main's Executor holds ten, its DATE cell re-read as java.time (2026-10-17, the
     // corpus program's step 1) one more, under main's own pin of 15 (it counted 14); the two sides' sites add
-    private static final int RESULT_SET_ACCESSOR_SITES = 21;
+    // 21 -> 9 (2026-11-01, PR #85, the product path's overhead; the user's yes): the legacy executor's sites went with it
+    // (the plan path's phase 5, 2026-10-27) and the ceiling stayed at 21, so main counted 8 under it and growth went unseen (PR #85's
+    // tier-1 audit, nit N3). The 9th is PR #85's own: JdbcDecode.Reader's DIRECT read, getObject(i, LocalDateTime.class)
+    // on a TIMESTAMP-slot column, the one read that replaces getObject(i) and its re-read (carriage, C1.2)
+    private static final int RESULT_SET_ACCESSOR_SITES = 9;
 
     private static final List<String> DRIVERS = List.of("org.duckdb", "org.h2.", "org.sqlite", "org.postgresql",
             "org.mariadb", "com.mysql", "com.clickhouse", "io.trino", "net.snowflake", "com.databricks", "com.simba",
